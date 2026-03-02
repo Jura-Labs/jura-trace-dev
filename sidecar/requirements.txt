@@ -1,0 +1,20 @@
+# Jura Archive — Python ML Sidecar Dependencies
+# Phase 2+ (not required for MVP)
+
+# API framework
+fastapi==0.115.*
+uvicorn[standard]==0.34.*
+
+# Image forensics
+Pillow==11.*
+imagehash==4.*
+numpy==2.*
+opencv-python-headless==4.*
+
+# RAG pipeline
+chromadb==0.5.*
+sentence-transformers==3.*
+
+# Utilities
+python-dotenv==1.*
+pydantic==2.*

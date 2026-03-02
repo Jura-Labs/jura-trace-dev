@@ -1,0 +1,16 @@
+{
+  "name": "jura-archive",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first content protection and verification",
+  "scripts": {
+    "dev": "cd ui && npm run dev",
+    "build": "cd ui && npm run build",
+    "check": "cd ui && npx svelte-check",
+    "tauri": "cd src-tauri && cargo tauri",
+    "tauri:dev": "cd src-tauri && cargo tauri dev",
+    "tauri:build": "cd src-tauri && cargo tauri build"
+  },
+  "author": "Juralabs CIC",
+  "license": "SEE LICENSE"
+}

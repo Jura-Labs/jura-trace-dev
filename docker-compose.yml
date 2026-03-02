@@ -1,0 +1,54 @@
+# Jura Archive — Local Development Stack
+#
+# Usage:
+#   docker compose up -d          # Start sidecar + Ollama
+#   cargo tauri dev                # Run desktop app natively
+#   docker compose logs -f        # Watch logs
+#   docker compose down            # Stop everything
+#
+# The Tauri desktop app runs natively (not in Docker) and connects
+# to the sidecar at localhost:8200 and Ollama at localhost:11434.
+
+services:
+  sidecar:
+    build:
+      context: ./sidecar
+      dockerfile: Dockerfile
+    container_name: jura-sidecar
+    ports:
+      - "8200:8200"
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - jura
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: jura-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - jura
+    # GPU passthrough (uncomment for NVIDIA):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  ollama_data:
+    name: jura-ollama-data
+
+networks:
+  jura:
+    name: jura-network

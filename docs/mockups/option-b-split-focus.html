@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jura Archive — Option B: Split Focus (Protect | Verify)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --obsidian: #1C1E26;
+    --graphite: #2A2D37;
+    --graphite-light: #383C48;
+    --quartz: #E4E2DE;
+    --flint: #9B9890;
+    --lapis: #4A7CBA;
+    --lapis-light: #6B96CC;
+    --malachite: #5B9A6F;
+    --malachite-light: #78B28A;
+    --amber: #D4943A;
+    --amber-light: #E0AA5C;
+    --cinnabar: #C45B52;
+  }
+
+  body {
+    background: var(--obsidian);
+    color: var(--quartz);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
+  }
+
+  header {
+    border-bottom: 1px solid var(--graphite-light);
+    padding: 0 32px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brand {
+    font-family: Georgia, 'Times New Roman', serif;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-size: 16px;
+  }
+
+  nav {
+    display: flex;
+    gap: 32px;
+    align-items: center;
+  }
+
+  nav a {
+    color: var(--flint);
+    text-decoration: none;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  nav a.active { color: var(--lapis-light); }
+
+  main {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 40px 32px;
+  }
+
+  /* Compact hero */
+  .hero {
+    text-align: center;
+    padding: 32px 0;
+    border-bottom: 1px solid var(--graphite-light);
+    margin-bottom: 40px;
+  }
+
+  .hero .tagline {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 14px;
+    color: var(--flint);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .hero h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 28px;
+    font-weight: normal;
+    letter-spacing: -0.01em;
+  }
+
+  /* Two-panel split */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    margin-bottom: 40px;
+    min-height: 420px;
+  }
+
+  .panel {
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-protect {
+    background: var(--graphite);
+    border-radius: 8px 0 0 8px;
+    border: 1px solid var(--graphite-light);
+    border-right: none;
+  }
+
+  .panel-verify {
+    background: var(--graphite);
+    border-radius: 0 8px 8px 0;
+    border: 1px solid var(--graphite-light);
+  }
+
+  .panel-label {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .panel-protect .panel-label { color: var(--malachite-light); }
+  .panel-verify .panel-label { color: var(--lapis-light); }
+
+  .panel h2 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 24px;
+    font-weight: normal;
+    letter-spacing: -0.01em;
+    margin-bottom: 16px;
+  }
+
+  .panel p {
+    color: var(--flint);
+    font-size: 14px;
+    line-height: 1.7;
+    margin-bottom: 24px;
+  }
+
+  .feature-list {
+    list-style: none;
+    margin-bottom: 32px;
+    flex: 1;
+  }
+
+  .feature-list li {
+    font-size: 13px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(56, 60, 72, 0.5);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .feature-list li:last-child { border-bottom: none; }
+
+  .feature-label { color: var(--quartz); }
+  .feature-formats { color: var(--flint); font-size: 11px; }
+
+  .panel-btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    border: 1px solid var(--graphite-light);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--quartz);
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .panel-protect .panel-btn:hover {
+    border-color: var(--malachite);
+    background: rgba(91, 154, 111, 0.08);
+  }
+
+  .panel-verify .panel-btn:hover {
+    border-color: var(--lapis);
+    background: rgba(74, 124, 186, 0.08);
+  }
+
+  /* Divider */
+  .divider-line {
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+
+  /* Bottom stats bar */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--graphite-light);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .stats-bar .stat {
+    background: var(--graphite);
+    padding: 20px 24px;
+    text-align: center;
+  }
+
+  .stats-bar .stat-value {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 28px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stats-bar .stat-label {
+    font-size: 11px;
+    color: var(--flint);
+    letter-spacing: 0.03em;
+  }
+
+  .stat-value.lapis { color: var(--lapis-light); }
+  .stat-value.malachite { color: var(--malachite-light); }
+  .stat-value.amber { color: var(--amber-light); }
+
+  /* Status indicator */
+  .status-bar {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    padding: 20px 0;
+    margin-top: 32px;
+  }
+
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--flint);
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .status-dot.green { background: var(--malachite); }
+  .status-dot.amber { background: var(--amber); }
+  .status-dot.grey { background: var(--flint); }
+
+  footer {
+    border-top: 1px solid var(--graphite-light);
+    padding: 16px 32px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--flint);
+  }
+
+  .brand-sm {
+    font-family: Georgia, 'Times New Roman', serif;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-size: 10px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="brand">Jura Archive</span>
+  <nav>
+    <a href="#" class="active">Dashboard</a>
+    <a href="#">Protect</a>
+    <a href="#">Verify</a>
+    <a href="#">Settings</a>
+    <a href="#">Light</a>
+  </nav>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="tagline">Local-first content integrity</div>
+    <h1>What's Real</h1>
+  </div>
+
+  <div class="split">
+    <div class="panel panel-protect">
+      <div class="panel-label">Protect</div>
+      <h2>Safeguard Your Archive</h2>
+      <p>Import files, auto-catalogue with AI, embed provenance credentials, and fingerprint for future tracking.</p>
+      <ul class="feature-list">
+        <li>
+          <span class="feature-label">Auto-Catalogue</span>
+          <span class="feature-formats">AI-generated metadata</span>
+        </li>
+        <li>
+          <span class="feature-label">C2PA Signing</span>
+          <span class="feature-formats">Content Credentials</span>
+        </li>
+        <li>
+          <span class="feature-label">Fingerprinting</span>
+          <span class="feature-formats">pHash, aHash, dHash</span>
+        </li>
+        <li>
+          <span class="feature-label">Watermarking</span>
+          <span class="feature-formats">Invisible frequency-domain</span>
+        </li>
+      </ul>
+      <a href="#" class="panel-btn">Import Files or Folders</a>
+    </div>
+
+    <div class="panel panel-verify">
+      <div class="panel-label">Verify</div>
+      <h2>Check Authenticity</h2>
+      <p>Upload media, paste a URL, or type a claim. Get forensic analysis with sourced evidence.</p>
+      <ul class="feature-list">
+        <li>
+          <span class="feature-label">Image Forensics</span>
+          <span class="feature-formats">ELA, noise, clone detect</span>
+        </li>
+        <li>
+          <span class="feature-label">Deepfake Detection</span>
+          <span class="feature-formats">AI ensemble scoring</span>
+        </li>
+        <li>
+          <span class="feature-label">Provenance Check</span>
+          <span class="feature-formats">C2PA chain verification</span>
+        </li>
+        <li>
+          <span class="feature-label">Claim Checking</span>
+          <span class="feature-formats">RAG fact-check search</span>
+        </li>
+      </ul>
+      <a href="#" class="panel-btn">Upload, Paste, or Type</a>
+    </div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat">
+      <div class="stat-value lapis">2,847</div>
+      <div class="stat-label">Assets Protected</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value malachite">1,923</div>
+      <div class="stat-label">C2PA Signed</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value lapis">8,412</div>
+      <div class="stat-label">Fingerprints</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value amber">156</div>
+      <div class="stat-label">Verifications</div>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-item">
+      <div class="status-dot green"></div>
+      Ollama Connected
+    </div>
+    <div class="status-item">
+      <div class="status-dot green"></div>
+      Database: 12.4 MB
+    </div>
+    <div class="status-item">
+      <div class="status-dot grey"></div>
+      Sidecar: Not Running
+    </div>
+  </div>
+</main>
+
+<footer>
+  <span class="brand-sm">Jura Archive</span>&nbsp;&nbsp;v0.1.0&nbsp;&nbsp;|&nbsp;&nbsp;Local-first. Your data stays here.
+</footer>
+
+</body>
+</html>

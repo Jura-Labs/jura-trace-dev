@@ -1,0 +1,48 @@
+[package]
+name = "jura-archive"
+version = "0.1.0"
+description = "Local-first content protection and verification"
+authors = ["Juralabs CIC"]
+edition = "2021"
+rust-version = "1.88"
+
+[lib]
+name = "jura_archive_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.31", features = ["bundled"] }
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+thiserror = "1"
+log = "0.4"
+env_logger = "0.11"
+
+# File type detection (magic bytes)
+infer = "0.16"
+
+# EXIF metadata extraction
+kamadak-exif = "0.5"
+
+# Image processing (dimensions, basic info)
+image = "0.25"
+
+# C2PA Content Credentials (Phase 2)
+# c2pa = "0.36"
+
+# Perceptual hashing (Phase 2)
+# img_hash = "4"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

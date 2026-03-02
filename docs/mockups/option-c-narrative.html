@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jura Archive — What's Real</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --obsidian: #1C1E26;
+    --graphite: #2A2D37;
+    --graphite-light: #383C48;
+    --quartz: #E4E2DE;
+    --flint: #9B9890;
+    --lapis: #4A7CBA;
+    --lapis-light: #6B96CC;
+    --lapis-faint: rgba(74, 124, 186, 0.08);
+    --malachite: #5B9A6F;
+    --malachite-light: #78B28A;
+    --malachite-faint: rgba(91, 154, 111, 0.08);
+    --amber: #D4943A;
+    --amber-light: #E0AA5C;
+    --cinnabar: #C45B52;
+  }
+
+  body {
+    background: var(--obsidian);
+    color: var(--quartz);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
+  }
+
+  header {
+    border-bottom: 1px solid var(--graphite-light);
+    padding: 0 32px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brand {
+    font-family: Georgia, 'Times New Roman', serif;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-size: 16px;
+  }
+
+  nav {
+    display: flex;
+    gap: 32px;
+    align-items: center;
+  }
+
+  nav a {
+    color: var(--flint);
+    text-decoration: none;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  nav a.active { color: var(--lapis-light); }
+
+  main {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+
+  /* Large narrative hero */
+  .hero {
+    padding: 80px 0 60px;
+    text-align: center;
+    border-bottom: 1px solid var(--graphite-light);
+  }
+
+  .hero h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 48px;
+    font-weight: normal;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin-bottom: 20px;
+  }
+
+  .hero h1 .accent {
+    color: var(--lapis-light);
+  }
+
+  .hero .subtitle {
+    color: var(--flint);
+    font-size: 18px;
+    max-width: 560px;
+    margin: 0 auto 36px;
+    line-height: 1.7;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+  }
+
+  .btn {
+    padding: 14px 32px;
+    border-radius: 6px;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    text-decoration: none;
+    font-weight: 500;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+  }
+
+  .btn-primary {
+    background: var(--lapis);
+    color: white;
+    border-color: var(--lapis);
+  }
+
+  .btn-primary:hover {
+    background: var(--lapis-light);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--quartz);
+    border-color: var(--graphite-light);
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--malachite);
+    background: var(--malachite-faint);
+  }
+
+  /* Privacy banner */
+  .privacy-banner {
+    text-align: center;
+    padding: 16px;
+    font-size: 12px;
+    color: var(--flint);
+    letter-spacing: 0.02em;
+  }
+
+  .privacy-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--malachite);
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  /* Three pillars */
+  .pillars {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--graphite-light);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 40px 0;
+  }
+
+  .pillar {
+    background: var(--graphite);
+    padding: 36px 28px;
+  }
+
+  .pillar-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    font-family: Georgia, serif;
+    font-size: 18px;
+  }
+
+  .pillar-icon.protect {
+    background: var(--malachite-faint);
+    border: 1px solid rgba(91, 154, 111, 0.2);
+    color: var(--malachite-light);
+  }
+
+  .pillar-icon.verify {
+    background: var(--lapis-faint);
+    border: 1px solid rgba(74, 124, 186, 0.2);
+    color: var(--lapis-light);
+  }
+
+  .pillar-icon.monitor {
+    background: rgba(212, 148, 58, 0.08);
+    border: 1px solid rgba(212, 148, 58, 0.2);
+    color: var(--amber-light);
+  }
+
+  .pillar h3 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 18px;
+    font-weight: normal;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+
+  .pillar p {
+    font-size: 14px;
+    color: var(--flint);
+    line-height: 1.7;
+    margin-bottom: 16px;
+  }
+
+  .pillar-features {
+    list-style: none;
+  }
+
+  .pillar-features li {
+    font-size: 12px;
+    color: var(--quartz);
+    padding: 4px 0;
+  }
+
+  .pillar-features li::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  .pillar:nth-child(1) .pillar-features li::before { background: var(--malachite); }
+  .pillar:nth-child(2) .pillar-features li::before { background: var(--lapis); }
+  .pillar:nth-child(3) .pillar-features li::before { background: var(--amber); }
+
+  /* Formats bar */
+  .formats {
+    text-align: center;
+    padding: 32px 0;
+    border-top: 1px solid var(--graphite-light);
+  }
+
+  .formats-label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--flint);
+    margin-bottom: 12px;
+  }
+
+  .format-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .format-tag {
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 4px;
+    background: var(--graphite);
+    border: 1px solid var(--graphite-light);
+    color: var(--flint);
+    font-family: 'SF Mono', Menlo, Monaco, monospace;
+  }
+
+  /* Quote */
+  .quote {
+    text-align: center;
+    padding: 40px 60px;
+    border-top: 1px solid var(--graphite-light);
+  }
+
+  .quote blockquote {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 16px;
+    font-style: italic;
+    color: var(--quartz);
+    line-height: 1.8;
+    margin-bottom: 12px;
+  }
+
+  .quote cite {
+    font-style: normal;
+    font-size: 12px;
+    color: var(--flint);
+  }
+
+  footer {
+    border-top: 1px solid var(--graphite-light);
+    padding: 16px 32px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--flint);
+  }
+
+  .brand-sm {
+    font-family: Georgia, 'Times New Roman', serif;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-size: 10px;
+  }
+
+  /* Problem statement */
+  .problem {
+    padding: 48px 0;
+    border-bottom: 1px solid var(--graphite-light);
+  }
+
+  .problem-label {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--cinnabar-light);
+    margin-bottom: 16px;
+    text-align: center;
+  }
+
+  .problem h2 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 22px;
+    font-weight: normal;
+    text-align: center;
+    letter-spacing: -0.01em;
+    line-height: 1.6;
+    max-width: 680px;
+    margin: 0 auto 24px;
+  }
+
+  .problem p {
+    text-align: center;
+    color: var(--flint);
+    font-size: 15px;
+    max-width: 620px;
+    margin: 0 auto;
+    line-height: 1.8;
+  }
+
+  /* Audience grid */
+  .audiences {
+    padding: 48px 0;
+    border-bottom: 1px solid var(--graphite-light);
+  }
+
+  .audiences-label {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--flint);
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  .audience-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--graphite-light);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .audience-item {
+    background: var(--graphite);
+    padding: 24px 20px;
+    text-align: center;
+  }
+
+  .audience-item h4 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 14px;
+    font-weight: normal;
+    margin-bottom: 6px;
+    letter-spacing: -0.01em;
+  }
+
+  .audience-item p {
+    font-size: 12px;
+    color: var(--flint);
+    line-height: 1.5;
+  }
+
+  /* How it works */
+  .how-it-works {
+    padding: 48px 0;
+    border-bottom: 1px solid var(--graphite-light);
+  }
+
+  .how-label {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--flint);
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .step {
+    text-align: center;
+  }
+
+  .step-num {
+    font-family: Georgia, serif;
+    font-size: 28px;
+    color: var(--lapis-light);
+    margin-bottom: 8px;
+    opacity: 0.6;
+  }
+
+  .step h4 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 14px;
+    font-weight: normal;
+    margin-bottom: 6px;
+  }
+
+  .step p {
+    font-size: 12px;
+    color: var(--flint);
+    line-height: 1.5;
+  }
+
+  /* Standards bar */
+  .standards {
+    padding: 32px 0;
+    border-bottom: 1px solid var(--graphite-light);
+    text-align: center;
+  }
+
+  .standards-label {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--flint);
+    margin-bottom: 16px;
+  }
+
+  .standards-list {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+
+  .standard-item {
+    font-size: 13px;
+    color: var(--quartz);
+    opacity: 0.7;
+  }
+
+  /* CTA section */
+  .cta {
+    text-align: center;
+    padding: 60px 0 48px;
+    border-bottom: 1px solid var(--graphite-light);
+  }
+
+  .cta h2 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 26px;
+    font-weight: normal;
+    letter-spacing: -0.01em;
+    margin-bottom: 12px;
+  }
+
+  .cta p {
+    color: var(--flint);
+    font-size: 15px;
+    margin-bottom: 28px;
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .cta-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="brand">Jura Archive</span>
+  <nav>
+    <a href="#" class="active">Home</a>
+    <a href="#">Protect</a>
+    <a href="#">Verify</a>
+    <a href="#">Settings</a>
+    <a href="#">Light</a>
+  </nav>
+</header>
+
+<main>
+  <!-- Hero -->
+  <div class="hero">
+    <h1>Your Content Is Being<br><span class="accent">Extracted</span>. Take It <span class="accent">Back</span>.</h1>
+    <p class="subtitle">Jura Archive protects your images, documents, video, audio, and 3D models from unauthorised AI scraping. It helps communities verify the truth of what they see. Everything runs locally on your machine. Nothing leaves.</p>
+    <div class="hero-actions">
+      <a href="#" class="btn btn-primary">Protect Your Content</a>
+      <a href="#" class="btn btn-secondary">Verify Something</a>
+    </div>
+  </div>
+
+  <!-- Privacy banner -->
+  <div class="privacy-banner">
+    <span class="privacy-dot"></span>
+    Local-first by design. No cloud. No accounts. No telemetry. Your files never leave this device.
+  </div>
+
+  <!-- Problem statement -->
+  <div class="problem">
+    <div class="problem-label">The Problem</div>
+    <h2>AI companies are scraping your content at industrial scale &mdash; your photographs, your research, your art, your archives, your recordings.</h2>
+    <p>Generative AI models are trained on content taken without consent. Artists lose control of their style. Publishers see their work reproduced without attribution. Researchers find their papers ingested into systems they never authorised. Communities are flooded with synthetic media they cannot distinguish from reality. The tools to fight back should not require a cloud subscription or an engineering degree.</p>
+  </div>
+
+  <!-- Three pillars -->
+  <div class="pillars">
+    <div class="pillar">
+      <div class="pillar-icon protect">P</div>
+      <h3>Protect</h3>
+      <p>Defend your content before it reaches the open web. Embed provenance, apply invisible watermarks, and fingerprint every asset so you can prove ownership later.</p>
+      <ul class="pillar-features">
+        <li>AI auto-cataloguing for bulk processing</li>
+        <li>C2PA Content Credentials signing</li>
+        <li>Perceptual fingerprinting across all formats</li>
+        <li>Invisible watermarking that survives compression</li>
+        <li>Machine-readable rights and AI opt-out manifests</li>
+        <li>Batch processing: thousands of files overnight</li>
+      </ul>
+    </div>
+    <div class="pillar">
+      <div class="pillar-icon verify">V</div>
+      <h3>Verify</h3>
+      <p>Check whether an image has been manipulated, whether a video is a deepfake, or whether a claim circulating online is supported by evidence.</p>
+      <ul class="pillar-features">
+        <li>Error Level Analysis and clone detection</li>
+        <li>AI deepfake detection (image, video, audio)</li>
+        <li>Full EXIF and metadata forensics</li>
+        <li>C2PA provenance chain verification</li>
+        <li>Claim checking against fact-check databases</li>
+        <li>Trust reports with sourced evidence</li>
+      </ul>
+    </div>
+    <div class="pillar">
+      <div class="pillar-icon monitor">M</div>
+      <h3>Monitor</h3>
+      <p>Track where your content appears online. Get alerts when your fingerprinted assets are found in unexpected places. Build evidence for legal action.</p>
+      <ul class="pillar-features">
+        <li>Scrape detection and alert system</li>
+        <li>Fingerprint match tracking across the web</li>
+        <li>EU AI Act transparency compliance reports</li>
+        <li>Evidence packaging for legal proceedings</li>
+        <li>Institutional dashboard and audit trail</li>
+        <li>Export-ready documentation</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Who it's for -->
+  <div class="audiences">
+    <div class="audiences-label">Who It's For</div>
+    <div class="audience-grid">
+      <div class="audience-item">
+        <h4>Artists &amp; Creators</h4>
+        <p>Protect portfolios, prove ownership, detect style theft</p>
+      </div>
+      <div class="audience-item">
+        <h4>Museums &amp; Archives</h4>
+        <p>Catalogue, sign, and watermark digitised collections</p>
+      </div>
+      <div class="audience-item">
+        <h4>Journalists &amp; Fact-Checkers</h4>
+        <p>Verify images and claims without exposing sources</p>
+      </div>
+      <div class="audience-item">
+        <h4>Publishers &amp; Researchers</h4>
+        <p>Stamp provenance on open-access work before publication</p>
+      </div>
+      <div class="audience-item">
+        <h4>Indigenous Communities</h4>
+        <p>Safeguard traditional knowledge from AI extraction</p>
+      </div>
+      <div class="audience-item">
+        <h4>Schools &amp; Libraries</h4>
+        <p>Teach media literacy with hands-on verification tools</p>
+      </div>
+      <div class="audience-item">
+        <h4>Creative Industries</h4>
+        <p>Protect multi-format production archives</p>
+      </div>
+      <div class="audience-item">
+        <h4>NGOs &amp; Civil Society</h4>
+        <p>Verify sensitive documents without cloud exposure</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- How it works -->
+  <div class="how-it-works">
+    <div class="how-label">How It Works</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h4>Drop Your Files</h4>
+        <p>Import images, documents, video, audio, or 3D models. Single files or entire folders.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h4>AI Catalogues</h4>
+        <p>Local vision model generates descriptions, tags, and metadata. You review and refine.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h4>Sign &amp; Protect</h4>
+        <p>C2PA Content Credentials, perceptual fingerprints, and invisible watermarks are embedded.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <h4>Export or Verify</h4>
+        <p>Protected files ready for publication. Or verify any content against your registry.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formats bar -->
+  <div class="formats">
+    <div class="formats-label">40+ formats across 6 content types: images, documents, video, audio, 3D models, web</div>
+    <div class="format-tags">
+      <span class="format-tag">JPEG</span>
+      <span class="format-tag">PNG</span>
+      <span class="format-tag">TIFF</span>
+      <span class="format-tag">WebP</span>
+      <span class="format-tag">HEIC</span>
+      <span class="format-tag">SVG</span>
+      <span class="format-tag">RAW</span>
+      <span class="format-tag">PDF</span>
+      <span class="format-tag">DOCX</span>
+      <span class="format-tag">MP4</span>
+      <span class="format-tag">MOV</span>
+      <span class="format-tag">WebM</span>
+      <span class="format-tag">WAV</span>
+      <span class="format-tag">MP3</span>
+      <span class="format-tag">FLAC</span>
+      <span class="format-tag">GLTF</span>
+      <span class="format-tag">STL</span>
+      <span class="format-tag">OBJ</span>
+      <span class="format-tag">USDZ</span>
+    </div>
+  </div>
+
+  <!-- Standards -->
+  <div class="standards">
+    <div class="standards-label">Built on open standards</div>
+    <div class="standards-list">
+      <span class="standard-item">C2PA Content Credentials</span>
+      <span class="standard-item">Content Authenticity Initiative</span>
+      <span class="standard-item">EU AI Act Transparency</span>
+      <span class="standard-item">WCAG 2.2 AA</span>
+    </div>
+  </div>
+
+  <!-- Quotes -->
+  <div class="quote">
+    <blockquote>"Over 90% of open-access repositories report aggressive AI scraping behaviour. Some describe hundreds of thousands of simultaneous requests per hour &mdash; what one curator called a DDoS attack disguised as curiosity."</blockquote>
+    <cite>NYU Engelberg Center, Are AI Bots Knocking Cultural Heritage Offline?, 2025</cite>
+  </div>
+
+  <div class="quote" style="border-top: none; padding-top: 0;">
+    <blockquote>"More than 7.5 million artists have downloaded Glaze to deter unauthorised AI training on their work."</blockquote>
+    <cite>MIT Technology Review, 2025</cite>
+  </div>
+
+  <!-- CTA -->
+  <div class="cta">
+    <h2>Your content deserves provenance.</h2>
+    <p>Jura Archive is free for non-commercial use. Museums, artists, journalists, researchers, schools, and community organisations.</p>
+    <div class="cta-actions">
+      <a href="#" class="btn btn-primary">Download for macOS</a>
+      <a href="#" class="btn btn-secondary">View on GitHub</a>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <span class="brand-sm">Jura Archive</span>&nbsp;&nbsp;v0.1.0&nbsp;&nbsp;|&nbsp;&nbsp;A Juralabs CIC Project&nbsp;&nbsp;|&nbsp;&nbsp;juralabs.org&nbsp;&nbsp;|&nbsp;&nbsp;PolyForm Noncommercial 1.0.0
+</footer>
+
+</body>
+</html>

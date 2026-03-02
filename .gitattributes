@@ -1,0 +1,13 @@
+# Enforce LF line endings for all text files.
+# Prevents Windows CRLF issues in cross-platform builds.
+* text=auto eol=lf
+
+# Explicitly mark binary formats
+*.png binary
+*.ico binary
+*.icns binary
+*.dmg binary
+*.msi binary
+*.AppImage binary
+*.woff binary
+*.woff2 binary

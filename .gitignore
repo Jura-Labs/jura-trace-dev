@@ -1,0 +1,96 @@
+# ===== Rust =====
+target/
+**/*.rs.bk
+*.pdb
+
+# ===== Node =====
+node_modules/
+ui/node_modules/
+ui/.svelte-kit/
+ui/build/
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+venv/
+.venv/
+ENV/
+
+# ===== Tauri =====
+src-tauri/target/
+src-tauri/gen/
+src-tauri/icons/*.png
+src-tauri/icons/*.ico
+src-tauri/icons/*.icns
+!src-tauri/icons/.gitkeep
+
+# ===== Data (local only, never commit) =====
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+data/embeddings/
+data/cache/
+data/exports/
+
+# ===== Environment (contains secrets) =====
+.env
+.env.local
+.env.production
+
+# ===== Logs =====
+*.log
+logs/
+
+# ===== OS =====
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ===== Test artifacts =====
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+test-results/
+playwright-report/
+ui/test-results/
+
+# ===== Build artifacts =====
+*.dmg
+*.msi
+*.AppImage
+*.deb
+*.rpm
+dist/
+
+# ===== Temporary =====
+*.tmp
+*.bak
+*_TEMP.md
+*_DRAFT.md
+SESSION_*.md
+
+# ===== Bundle analysis =====
+ui/bundle-stats.html
+
+# ===== Playwright MCP =====
+.playwright-mcp/
+/*.png

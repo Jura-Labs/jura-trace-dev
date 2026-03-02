@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicegui/tauri-v2/main/.schemas/capabilities.schema.json",
+  "identifier": "default",
+  "description": "Default capabilities for Jura Archive",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-open",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "fs:allow-read",
+    "fs:allow-write"
+  ]
+}

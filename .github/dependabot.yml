@@ -1,0 +1,52 @@
+version: 2
+
+updates:
+  # Rust (Cargo)
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - rust
+
+  # Node — root (if any root-level package.json)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - npm
+
+  # Node — SvelteKit frontend
+  - package-ecosystem: npm
+    directory: /ui
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - npm
+
+  # Python — ML sidecar
+  - package-ecosystem: pip
+    directory: /sidecar
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - python
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - ci

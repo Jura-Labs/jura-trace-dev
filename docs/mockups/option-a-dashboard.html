@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jura Archive — Option A: Dashboard Focus</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --obsidian: #1C1E26;
+    --graphite: #2A2D37;
+    --graphite-light: #383C48;
+    --quartz: #E4E2DE;
+    --flint: #9B9890;
+    --lapis: #4A7CBA;
+    --lapis-light: #6B96CC;
+    --malachite: #5B9A6F;
+    --malachite-light: #78B28A;
+    --amber: #D4943A;
+    --amber-light: #E0AA5C;
+    --cinnabar: #C45B52;
+    --cinnabar-light: #D47870;
+  }
+
+  body {
+    background: var(--obsidian);
+    color: var(--quartz);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
+  }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--graphite-light);
+    padding: 0 32px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brand {
+    font-family: Georgia, 'Times New Roman', serif;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-size: 16px;
+    color: var(--quartz);
+  }
+
+  nav {
+    display: flex;
+    gap: 32px;
+    align-items: center;
+  }
+
+  nav a {
+    color: var(--flint);
+    text-decoration: none;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+
+  nav a:hover, nav a.active {
+    color: var(--lapis-light);
+  }
+
+  /* Main */
+  main {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 40px 32px;
+  }
+
+  /* Hero */
+  .hero {
+    text-align: center;
+    padding: 48px 0 40px;
+  }
+
+  .hero h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 32px;
+    letter-spacing: -0.01em;
+    margin-bottom: 12px;
+    font-weight: normal;
+  }
+
+  .hero p {
+    color: var(--flint);
+    font-size: 16px;
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  /* Stats */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+
+  .stat-card {
+    background: var(--graphite);
+    border: 1px solid var(--graphite-light);
+    border-radius: 8px;
+    padding: 24px;
+  }
+
+  .stat-value {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 36px;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: var(--flint);
+  }
+
+  .stat-value.lapis { color: var(--lapis-light); }
+  .stat-value.malachite { color: var(--malachite-light); }
+  .stat-value.amber { color: var(--amber-light); }
+
+  /* Action cards */
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+
+  .action-card {
+    background: var(--graphite);
+    border: 1px solid var(--graphite-light);
+    border-radius: 8px;
+    padding: 32px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  .action-card:hover {
+    border-color: var(--lapis);
+  }
+
+  .action-card h2 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 20px;
+    font-weight: normal;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+
+  .action-card p {
+    color: var(--flint);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* Recent activity */
+  .activity {
+    background: var(--graphite);
+    border: 1px solid var(--graphite-light);
+    border-radius: 8px;
+    padding: 24px;
+  }
+
+  .activity h3 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 16px;
+    font-weight: normal;
+    margin-bottom: 16px;
+    letter-spacing: -0.01em;
+  }
+
+  .activity-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--graphite-light);
+  }
+
+  .activity-item:last-child {
+    border-bottom: none;
+  }
+
+  .activity-name {
+    font-size: 14px;
+  }
+
+  .activity-meta {
+    font-size: 12px;
+    color: var(--flint);
+  }
+
+  .badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+
+  .badge-signed {
+    background: rgba(91, 154, 111, 0.15);
+    color: var(--malachite-light);
+  }
+
+  .badge-verified {
+    background: rgba(74, 124, 186, 0.15);
+    color: var(--lapis-light);
+  }
+
+  .badge-warning {
+    background: rgba(212, 148, 58, 0.15);
+    color: var(--amber-light);
+  }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--graphite-light);
+    padding: 16px 32px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--flint);
+  }
+
+  footer .brand-sm {
+    font-family: Georgia, 'Times New Roman', serif;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-size: 10px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="brand">Jura Archive</span>
+  <nav>
+    <a href="#" class="active">Dashboard</a>
+    <a href="#">Protect</a>
+    <a href="#">Verify</a>
+    <a href="#">Settings</a>
+    <a href="#" style="color: var(--flint);">Light</a>
+  </nav>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>What's Real</h1>
+    <p>Protect your digital assets. Verify content authenticity. Everything happens locally on your machine.</p>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-value lapis">2,847</div>
+      <div class="stat-label">Assets Protected</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value malachite">1,923</div>
+      <div class="stat-label">C2PA Signed</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value lapis">8,412</div>
+      <div class="stat-label">Fingerprints</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value amber">156</div>
+      <div class="stat-label">Verifications</div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <div class="action-card">
+      <h2>Protect</h2>
+      <p>Import files, auto-catalogue with AI, sign with C2PA Content Credentials, and fingerprint for future tracking.</p>
+    </div>
+    <div class="action-card">
+      <h2>Verify</h2>
+      <p>Upload an image, paste a URL, or type a claim. Get forensic analysis, deepfake detection, and sourced verification.</p>
+    </div>
+  </div>
+
+  <div class="activity">
+    <h3>Recent Activity</h3>
+    <div class="activity-item">
+      <div>
+        <div class="activity-name">Victorian_Textile_Collection_042.tiff</div>
+        <div class="activity-meta">C2PA signed + fingerprinted</div>
+      </div>
+      <span class="badge badge-signed">Signed</span>
+    </div>
+    <div class="activity-item">
+      <div>
+        <div class="activity-name">council_housing_claim.jpg</div>
+        <div class="activity-meta">ELA analysis: manipulation detected in lower-right</div>
+      </div>
+      <span class="badge badge-warning">Flagged</span>
+    </div>
+    <div class="activity-item">
+      <div>
+        <div class="activity-name">Archive_Batch_037 (215 images)</div>
+        <div class="activity-meta">Auto-catalogued, 98% description confidence</div>
+      </div>
+      <span class="badge badge-signed">Complete</span>
+    </div>
+    <div class="activity-item">
+      <div>
+        <div class="activity-name">deepfake_candidate_reuters.mp4</div>
+        <div class="activity-meta">Verified authentic — C2PA chain from Reuters</div>
+      </div>
+      <span class="badge badge-verified">Verified</span>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <span class="brand-sm">Jura Archive</span>&nbsp;&nbsp;v0.1.0&nbsp;&nbsp;|&nbsp;&nbsp;Local-first. Your data stays here.
+</footer>
+
+</body>
+</html>

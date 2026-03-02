@@ -1,0 +1,31 @@
+# Git
+.git
+.github
+.gitattributes
+.gitignore
+
+# Node
+ui/node_modules
+ui/.svelte-kit
+ui/build
+
+# Rust build artifacts
+src-tauri/target
+
+# Python
+sidecar/__pycache__
+sidecar/.venv
+sidecar/venv
+sidecar/*.pyc
+
+# IDE / OS
+.vscode
+.idea
+*.DS_Store
+
+# Data / docs
+data/
+docs/
+*.md
+LICENSE
+Makefile
