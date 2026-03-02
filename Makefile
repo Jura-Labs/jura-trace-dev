@@ -1,4 +1,4 @@
-.PHONY: dev build check clean install docker-up docker-down docker-build docker-logs
+.PHONY: dev build check clean install docker-up docker-down docker-build docker-logs agents agents-install
 
 # Development
 dev:
@@ -54,3 +54,10 @@ docker-build:
 
 docker-logs:
 	docker compose logs -f
+
+# Advisory agents
+agents-install:
+	cd agents && pip install -r requirements.txt
+
+agents:
+	python -m agents --interactive

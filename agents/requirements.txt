@@ -1,0 +1,5 @@
+anthropic>=0.42.0
+rich>=13.0
+click>=8.1
+python-dotenv>=1.0
+pyyaml>=6.0
