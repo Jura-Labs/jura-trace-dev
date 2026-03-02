@@ -48,8 +48,8 @@
 └────────────────────────────┬────────────────────────────────────────┘
                              │
 ┌────────────────────────────▼────────────────────────────────────────┐
-│                    Ollama (Port 11434)                               │
-│         LLaVA (vision/tagging)  |  Qwen2.5 (text/claims)           │
+│              Ollama (Port 11434) — Optional Enhancement               │
+│         LLaVA (Tier 3 descriptions)  |  Qwen2.5 (text/claims)      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -59,7 +59,8 @@
 |--------|-------|---------|
 | `c2pa` | c2pa-rs | Sign, verify, and read C2PA Content Credentials |
 | `hash` | image, sha2 | Perceptual hashing (pHash, aHash, dHash, wHash) and cryptographic hashing |
-| `metadata` | kamadak-exif, xmp-toolkit | Extract and inspect EXIF, XMP, IPTC metadata |
+| `metadata` | kamadak-exif, xmp-toolkit | Extract and inspect EXIF, XMP, IPTC metadata (Tier 1 cataloguing) |
+| `catalogue` | ort (ONNX Runtime) | CLIP-based subject tagging via museum vocabulary (Tier 2, optional download) |
 | `watermark` | custom | Invisible frequency-domain watermarking |
 | `format_router` | infer, mime_guess | Detect content type and route to correct pipeline |
 | `db` | rusqlite | SQLite database for assets, fingerprints, verifications, audit log |
@@ -77,8 +78,8 @@ Primary registry of all imported files.
 | content_type | TEXT | image/document/video/audio/3d |
 | mime_type | TEXT | MIME type |
 | file_size | INTEGER | Bytes |
-| ai_description | TEXT | LLaVA-generated description |
-| ai_tags | TEXT | JSON array of tags |
+| ai_description | TEXT | AI-generated description (Tier 3 Ollama, optional) |
+| ai_tags | TEXT | JSON array of tags (Tier 2 CLIP or Tier 3 Ollama) |
 | c2pa_signed | BOOLEAN | Whether C2PA manifest embedded |
 | watermarked | BOOLEAN | Whether invisible watermark applied |
 | collection_id | TEXT | Optional grouping |
@@ -121,6 +122,8 @@ Immutable record of all actions for compliance.
 | target_type | TEXT | asset/verification |
 | target_id | TEXT | ID of target |
 | details | TEXT | JSON details |
+| operator_id | TEXT | Operator identifier (default: local_user) |
+| algorithm_metadata | TEXT | JSON algorithm parameters and versions |
 | created_at | DATETIME | Action timestamp |
 
 ## Data Flow: PROTECT Pipeline
@@ -130,10 +133,16 @@ File Drop → Format Router → [Image|Document|Video|Audio|3D] Pipeline
                                       │
                             ┌─────────┼──────────┐
                             ▼         ▼          ▼
-                        Metadata   AI Describe  Hash
-                        Extract    (Ollama)     Compute
-                            │         │          │
-                            ▼         ▼          ▼
+                        Metadata   Catalogue   Hash
+                        Extract    (tiered)    Compute
+                        (Tier 1)       │          │
+                            │    ┌─────┴─────┐    │
+                            │    ▼           ▼    │
+                            │  CLIP tags   Ollama │
+                            │  (Tier 2)  describe │
+                            │  optional  (Tier 3) │
+                            │    │       optional  │
+                            ▼    ▼           ▼    ▼
                         C2PA Sign  Watermark   Store
                             │         │       Fingerprint
                             └─────────┼──────────┘

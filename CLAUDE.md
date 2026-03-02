@@ -35,8 +35,8 @@ This file provides guidance to Claude Code when working with code in this reposi
 └────────────────┬────────────────────────┘
                  │
 ┌────────────────▼────────────────────────┐
-│         Ollama (Port 11434)             │
-│    LLaVA (vision) | Qwen2.5 (text)     │
+│    Ollama (Port 11434) — Optional       │
+│  LLaVA (Tier 3 descriptions) | Qwen2.5 │
 └─────────────────────────────────────────┘
 ```
 
@@ -47,8 +47,9 @@ This file provides guidance to Claude Code when working with code in this reposi
 | Desktop shell | Tauri v2 (Rust) |
 | Frontend | SvelteKit + TailwindCSS (SPA mode, static adapter) |
 | Core engine | Rust (c2pa-rs, rusqlite, image crate) |
+| Auto-catalogue | Tier 1: EXIF/XMP (Rust), Tier 2: CLIP/ONNX (optional), Tier 3: Ollama (optional) |
 | ML sidecar | Python + FastAPI (Phase 2+) |
-| LLM runtime | Ollama (LLaVA for vision, Qwen2.5 for text) |
+| LLM runtime | Ollama — optional (LLaVA for Tier 3 descriptions, Qwen2.5 for text) |
 | Database | SQLite (via rusqlite in Rust) |
 
 ## Development Commands
@@ -108,7 +109,8 @@ juralabs/
 
 1. **Local-first**: All processing on-device. No cloud calls. No telemetry.
 2. **Rust for core**: C2PA, hashing, watermarking, file I/O in Rust for performance.
-3. **Python for ML**: Image forensics, deepfake detection, RAG in Python sidecar.
+3. **Python for ML**: Image forensics, deepfake detection, RAG in Python sidecar (Phase 2+).
+5. **Tiered AI**: Core features work without AI. CLIP tagging is optional download. Ollama is optional enhancement.
 4. **SvelteKit for UI**: SPA mode via static adapter for Tauri webview.
 
 ## British Spelling

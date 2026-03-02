@@ -30,8 +30,9 @@ Tauri v2 Shell (Rust)
                  ├── Watermark module (frequency domain)
                  ├── Format Router (file type detection + dispatch)
                  └── SQLite Database (rusqlite)
-                      └── Python ML Sidecar (Port 8200, Phase 2+)
-                           └── Ollama (Port 11434)
+                      ├── Catalogue Module (Tier 1: metadata, Tier 2: CLIP/ONNX optional)
+                 └── Python ML Sidecar (Port 8200, Phase 2+)
+                           └── Ollama (Port 11434, optional Tier 3)
 ```
 
 ### Key Modules
