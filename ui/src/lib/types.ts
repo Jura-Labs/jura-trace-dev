@@ -34,9 +34,41 @@ export interface ElaResult {
   suspicious: boolean;
 }
 
+/** Block-wise noise variance analysis result from the ML sidecar */
+export interface NoiseResult {
+  heatmapBase64: string;
+  blockVariances: number[];
+  globalVariance: number;
+  anomalousBlocks: number;
+  totalBlocks: number;
+  score: number;
+  suspicious: boolean;
+}
+
+/** A detected clone region bounding box */
+export interface CloneRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  area: number;
+  pointCount: number;
+}
+
+/** Copy-move forgery detection result from the ML sidecar */
+export interface CopyMoveResult {
+  visualisationBase64: string;
+  cloneRegions: CloneRegion[];
+  matchedPairs: number;
+  score: number;
+  suspicious: boolean;
+}
+
 /** ML sidecar capability flags */
 export interface SidecarCapabilities {
   ela: boolean;
+  noise: boolean;
+  copyMove: boolean;
   deepfake: boolean;
   rag: boolean;
 }
@@ -55,6 +87,8 @@ export interface VerificationResult {
   sourceType: string;
   contentType: string;
   elaScore?: number;
+  noiseScore?: number;
+  copyMoveScore?: number;
   deepfakeScore?: number;
   c2paValid?: boolean;
   metadataFlags: string[];
@@ -63,6 +97,8 @@ export interface VerificationResult {
   exifAnalysis?: ExifAnalysis;
   c2paManifest?: ManifestInfo;
   elaResult?: ElaResult;
+  noiseResult?: NoiseResult;
+  copyMoveResult?: CopyMoveResult;
 }
 
 /** Severity level for an EXIF anomaly finding */

@@ -165,13 +165,13 @@
     return [...findings].sort((a, b) => (order[a.severity] ?? 5) - (order[b.severity] ?? 5));
   }
 
-  function elaScoreClass(score: number): string {
+  function forensicScoreClass(score: number): string {
     if (score < 0.3) return 'text-malachite';
     if (score < 0.6) return 'text-amber';
     return 'text-cinnabar';
   }
 
-  function elaScoreBgClass(score: number): string {
+  function forensicScoreBgClass(score: number): string {
     if (score < 0.3) return 'bg-malachite/15 border-malachite/20';
     if (score < 0.6) return 'bg-amber/15 border-amber/20';
     return 'bg-cinnabar/15 border-cinnabar/20';
@@ -194,8 +194,8 @@
                ? 'bg-malachite/10 text-malachite-light border-malachite/20'
                : 'bg-graphite text-flint border-graphite-light'}"
       title={sidecarAvailable
-        ? `ML Sidecar v${sidecarHealth?.version} — ELA available`
-        : 'ML Sidecar offline — ELA not available'}
+        ? `ML Sidecar v${sidecarHealth?.version} — forensics available`
+        : 'ML Sidecar offline — forensics not available'}
     >
       <span
         class="w-1.5 h-1.5 rounded-full {sidecarAvailable ? 'bg-malachite' : 'bg-flint/50'}"
@@ -383,12 +383,12 @@
             <div class="flex items-center gap-3">
               <h2 id="ela-heading" class="text-sm font-medium text-quartz">Error Level Analysis</h2>
               <span
-                class="text-xs font-medium px-2 py-0.5 rounded border {elaScoreBgClass(ela.score)} {elaScoreClass(ela.score)}"
+                class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(ela.score)} {forensicScoreClass(ela.score)}"
               >
                 {ela.suspicious ? 'Suspicious' : 'Normal'}
               </span>
             </div>
-            <span class="text-xs tabular-nums {elaScoreClass(ela.score)}">
+            <span class="text-xs tabular-nums {forensicScoreClass(ela.score)}">
               Score: {(ela.score * 100).toFixed(1)}%
             </span>
           </div>
@@ -430,8 +430,112 @@
             </span>
           </div>
           <p class="text-xs text-flint mt-1.5">
-            ML Sidecar is offline. Start the sidecar to enable ELA forensic analysis.
+            ML Sidecar is offline. Start the sidecar to enable forensic analysis.
           </p>
+        </section>
+      {/if}
+
+      <!-- ── Noise Analysis ────────────────────────────────────────── -->
+      {#if result.noiseResult}
+        {@const noise = result.noiseResult}
+        <section class="px-5 py-4 border-b border-graphite-light" aria-labelledby="noise-heading">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <h2 id="noise-heading" class="text-sm font-medium text-quartz">Noise Analysis</h2>
+              <span
+                class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(noise.score)} {forensicScoreClass(noise.score)}"
+              >
+                {noise.suspicious ? 'Suspicious' : 'Normal'}
+              </span>
+            </div>
+            <span class="text-xs tabular-nums {forensicScoreClass(noise.score)}">
+              Score: {(noise.score * 100).toFixed(1)}%
+            </span>
+          </div>
+
+          <!-- Noise heatmap -->
+          {#if noise.heatmapBase64}
+            <div class="mb-3 rounded-md overflow-hidden border border-graphite-light bg-obsidian">
+              <img
+                src="data:image/png;base64,{noise.heatmapBase64}"
+                alt="Noise variance heatmap — blue is low variance, red is high variance"
+                class="w-full max-h-64 object-contain"
+              />
+            </div>
+          {/if}
+
+          <!-- Stats -->
+          <div class="grid grid-cols-3 gap-4 text-xs">
+            <div>
+              <span class="text-flint">Global Variance</span>
+              <p class="text-quartz tabular-nums">{noise.globalVariance.toFixed(1)}</p>
+            </div>
+            <div>
+              <span class="text-flint">Anomalous Blocks</span>
+              <p class="text-quartz tabular-nums">{noise.anomalousBlocks} / {noise.totalBlocks}</p>
+            </div>
+            <div>
+              <span class="text-flint">Block Count</span>
+              <p class="text-quartz tabular-nums">{noise.totalBlocks}</p>
+            </div>
+          </div>
+
+          {#if noise.suspicious}
+            <div class="mt-3 text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+              Inconsistent noise patterns detected across image blocks. This may indicate region-level
+              editing, splicing, or inpainting. Consider alongside other verification signals.
+            </div>
+          {/if}
+        </section>
+      {/if}
+
+      <!-- ── Copy-Move Detection ───────────────────────────────────── -->
+      {#if result.copyMoveResult}
+        {@const cm = result.copyMoveResult}
+        <section class="px-5 py-4 border-b border-graphite-light" aria-labelledby="copymove-heading">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <h2 id="copymove-heading" class="text-sm font-medium text-quartz">Copy-Move Detection</h2>
+              <span
+                class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(cm.score)} {forensicScoreClass(cm.score)}"
+              >
+                {cm.suspicious ? 'Suspicious' : 'Clean'}
+              </span>
+            </div>
+            <span class="text-xs tabular-nums {forensicScoreClass(cm.score)}">
+              Score: {(cm.score * 100).toFixed(1)}%
+            </span>
+          </div>
+
+          <!-- Visualisation -->
+          {#if cm.visualisationBase64}
+            <div class="mb-3 rounded-md overflow-hidden border border-graphite-light bg-obsidian">
+              <img
+                src="data:image/png;base64,{cm.visualisationBase64}"
+                alt="Copy-move detection visualisation showing matched feature pairs and clone region bounding boxes"
+                class="w-full max-h-64 object-contain"
+              />
+            </div>
+          {/if}
+
+          <!-- Stats -->
+          <div class="grid grid-cols-2 gap-4 text-xs">
+            <div>
+              <span class="text-flint">Matched Pairs</span>
+              <p class="text-quartz tabular-nums">{cm.matchedPairs}</p>
+            </div>
+            <div>
+              <span class="text-flint">Clone Regions</span>
+              <p class="text-quartz tabular-nums">{cm.cloneRegions.length}</p>
+            </div>
+          </div>
+
+          {#if cm.suspicious}
+            <div class="mt-3 text-xs text-cinnabar bg-cinnabar/10 border border-cinnabar/20 rounded-md px-3 py-2">
+              Duplicated regions detected within the image. This is a strong indicator of copy-move
+              forgery — content appears to have been cloned from one area to another.
+            </div>
+          {/if}
         </section>
       {/if}
 

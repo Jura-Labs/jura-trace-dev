@@ -192,7 +192,7 @@ export async function checkSidecarHealth(): Promise<SidecarHealth | null> {
       status: 'mock',
       version: '0.2.0-dev',
       service: 'jura-sidecar',
-      capabilities: { ela: true, deepfake: false, rag: false },
+      capabilities: { ela: true, noise: true, copyMove: true, deepfake: false, rag: false },
       ollama: null,
     };
   } catch {

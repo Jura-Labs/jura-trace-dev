@@ -42,6 +42,8 @@ pub struct VerificationResult {
     pub source_type: String,
     pub content_type: String,
     pub ela_score: Option<f64>,
+    pub noise_score: Option<f64>,
+    pub copy_move_score: Option<f64>,
     pub deepfake_score: Option<f64>,
     pub c2pa_valid: Option<bool>,
     pub metadata_flags: Vec<String>,
@@ -50,6 +52,8 @@ pub struct VerificationResult {
     pub exif_analysis: Option<exif_anomaly::ExifAnalysis>,
     pub c2pa_manifest: Option<c2pa::ManifestInfo>,
     pub ela_result: Option<sidecar::ElaResult>,
+    pub noise_result: Option<sidecar::NoiseResult>,
+    pub copy_move_result: Option<sidecar::CopyMoveResult>,
 }
 
 /// Application statistics for the dashboard.
@@ -276,23 +280,58 @@ fn verify_content_inner(
     let c2pa_manifest = c2pa::read_manifest(&path).ok().flatten();
     let c2pa_valid = c2pa_manifest.as_ref().map(|m| m.is_valid);
 
-    // ELA via sidecar (optional — graceful degradation)
+    // Sidecar-based analysis (optional — graceful degradation)
     let app = state.lock().map_err(|e| e.to_string())?;
-    let (ela_score, ela_result) =
-        if info.content_type == format_router::ContentType::Image && app.sidecar.is_available() {
-            match app.sidecar.analyse_ela(&path) {
-                Ok(result) => {
-                    let score = result.score;
-                    (Some(score), Some(result))
-                }
-                Err(e) => {
-                    log::warn!("Sidecar ELA failed: {e}");
-                    (None, None)
-                }
+    let is_image = info.content_type == format_router::ContentType::Image;
+    let sidecar_up = is_image && app.sidecar.is_available();
+
+    // ELA
+    let (ela_score, ela_result) = if sidecar_up {
+        match app.sidecar.analyse_ela(&path) {
+            Ok(result) => {
+                let score = result.score;
+                (Some(score), Some(result))
             }
-        } else {
-            (None, None)
-        };
+            Err(e) => {
+                log::warn!("Sidecar ELA failed: {e}");
+                (None, None)
+            }
+        }
+    } else {
+        (None, None)
+    };
+
+    // Noise variance analysis
+    let (noise_score, noise_result) = if sidecar_up {
+        match app.sidecar.analyse_noise(&path) {
+            Ok(result) => {
+                let score = result.score;
+                (Some(score), Some(result))
+            }
+            Err(e) => {
+                log::warn!("Sidecar noise analysis failed: {e}");
+                (None, None)
+            }
+        }
+    } else {
+        (None, None)
+    };
+
+    // Copy-move detection
+    let (copy_move_score, copy_move_result) = if sidecar_up {
+        match app.sidecar.detect_copy_move(&path) {
+            Ok(result) => {
+                let score = result.score;
+                (Some(score), Some(result))
+            }
+            Err(e) => {
+                log::warn!("Sidecar copy-move detection failed: {e}");
+                (None, None)
+            }
+        }
+    } else {
+        (None, None)
+    };
 
     // Build metadata flags from findings
     let metadata_flags: Vec<String> = exif_analysis
@@ -300,14 +339,28 @@ fn verify_content_inner(
         .map(|a| a.findings.iter().map(|f| f.title.clone()).collect())
         .unwrap_or_default();
 
-    // Compute overall trust: combine EXIF trust, ELA trust, and C2PA bonus
+    // Compute overall trust: combine EXIF, ELA, noise, copy-move, and C2PA
     let exif_trust = exif_analysis.as_ref().map(|a| a.trust_score).unwrap_or(0.5);
-    let ela_trust = ela_score.map(|s| 1.0 - s); // Invert: 0 manipulation = 1.0 trust
     let c2pa_bonus = if c2pa_valid == Some(true) { 0.1 } else { 0.0 };
 
-    let overall_trust = match ela_trust {
-        Some(et) => ((exif_trust + et) / 2.0 + c2pa_bonus).min(1.0),
-        None => (exif_trust + c2pa_bonus).min(1.0),
+    // Collect forensic trust signals (inverted scores: 0 manipulation = 1.0 trust)
+    let mut forensic_signals: Vec<f64> = Vec::new();
+    if let Some(s) = ela_score {
+        forensic_signals.push(1.0 - s);
+    }
+    if let Some(s) = noise_score {
+        forensic_signals.push(1.0 - s);
+    }
+    if let Some(s) = copy_move_score {
+        forensic_signals.push(1.0 - s);
+    }
+
+    let overall_trust = if forensic_signals.is_empty() {
+        (exif_trust + c2pa_bonus).min(1.0)
+    } else {
+        let forensic_avg =
+            forensic_signals.iter().sum::<f64>() / forensic_signals.len() as f64;
+        ((exif_trust + forensic_avg) / 2.0 + c2pa_bonus).min(1.0)
     };
 
     // Store verification in database
@@ -331,6 +384,8 @@ fn verify_content_inner(
             &serde_json::json!({
                 "exif_trust": exif_trust,
                 "ela_score": ela_score,
+                "noise_score": noise_score,
+                "copy_move_score": copy_move_score,
                 "c2pa_valid": c2pa_valid,
                 "findings_count": metadata_flags.len(),
             })
@@ -341,8 +396,10 @@ fn verify_content_inner(
     );
 
     log::info!(
-        "Verification complete: trust={overall_trust:.2}, ela={:?}, findings={}",
+        "Verification complete: trust={overall_trust:.2}, ela={:?}, noise={:?}, copy_move={:?}, findings={}",
         ela_score,
+        noise_score,
+        copy_move_score,
         metadata_flags.len()
     );
 
@@ -350,6 +407,8 @@ fn verify_content_inner(
         source_type: source_type.to_string(),
         content_type: info.content_type.as_str().to_string(),
         ela_score,
+        noise_score,
+        copy_move_score,
         deepfake_score: None,
         c2pa_valid,
         metadata_flags,
@@ -358,6 +417,8 @@ fn verify_content_inner(
         exif_analysis,
         c2pa_manifest,
         ela_result,
+        noise_result,
+        copy_move_result,
     })
 }
 

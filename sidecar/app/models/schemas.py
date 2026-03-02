@@ -15,10 +15,45 @@ class ElaResponse(BaseModel):
     suspicious: bool
 
 
+class NoiseAnalysisResponse(BaseModel):
+    """Block-wise noise variance analysis result."""
+
+    heatmap_base64: str
+    block_variances: list[float]
+    global_variance: float
+    anomalous_blocks: int
+    total_blocks: int
+    score: float
+    suspicious: bool
+
+
+class CloneRegion(BaseModel):
+    """A detected clone region bounding box."""
+
+    x: int
+    y: int
+    width: int
+    height: int
+    area: int
+    point_count: int
+
+
+class CopyMoveResponse(BaseModel):
+    """Copy-move forgery detection result."""
+
+    visualisation_base64: str
+    clone_regions: list[dict]
+    matched_pairs: int
+    score: float
+    suspicious: bool
+
+
 class CapabilitiesResponse(BaseModel):
     """Sidecar capability flags."""
 
     ela: bool = True
+    noise: bool = True
+    copy_move: bool = True
     deepfake: bool = False
     rag: bool = False
 

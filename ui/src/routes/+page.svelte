@@ -85,7 +85,9 @@
       </span>
       {#if sidecarHealth?.capabilities}
         <span class="text-flint/60 ml-1">
-          — ELA {sidecarHealth.capabilities.ela ? 'ready' : 'off'}
+          — ELA {sidecarHealth.capabilities.ela ? 'ready' : 'off'},
+          Noise {sidecarHealth.capabilities.noise ? 'ready' : 'off'},
+          Copy-move {sidecarHealth.capabilities.copyMove ? 'ready' : 'off'}
         </span>
       {/if}
     </div>

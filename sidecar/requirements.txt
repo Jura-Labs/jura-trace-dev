@@ -12,6 +12,9 @@ imagehash==4.*
 numpy==2.*
 opencv-python-headless==4.*
 
+# Copy-move detection clustering
+scikit-learn>=1.5
+
 # RAG pipeline (Phase 2, Weeks 19-20)
 chromadb==0.5.*
 sentence-transformers==3.*
