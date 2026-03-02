@@ -69,17 +69,20 @@ impl Database {
             );
 
             CREATE TABLE IF NOT EXISTS audit_log (
-                log_id      TEXT PRIMARY KEY,
-                action      TEXT NOT NULL,
-                target_type TEXT NOT NULL,
-                target_id   TEXT NOT NULL,
-                details     TEXT,
-                created_at  TEXT NOT NULL
+                log_id             TEXT PRIMARY KEY,
+                action             TEXT NOT NULL,
+                target_type        TEXT NOT NULL,
+                target_id          TEXT NOT NULL,
+                details            TEXT,
+                operator_id        TEXT NOT NULL DEFAULT 'local_user',
+                algorithm_metadata TEXT,
+                created_at         TEXT NOT NULL
             );
 
             CREATE INDEX IF NOT EXISTS idx_assets_content_type ON assets(content_type);
             CREATE INDEX IF NOT EXISTS idx_fingerprints_asset   ON fingerprints(asset_id);
             CREATE INDEX IF NOT EXISTS idx_audit_target         ON audit_log(target_id);
+            CREATE INDEX IF NOT EXISTS idx_audit_operator       ON audit_log(operator_id);
             ",
         )?;
         Ok(())
@@ -185,15 +188,18 @@ impl Database {
         target_type: &str,
         target_id: &str,
         details: Option<&str>,
+        operator_id: Option<&str>,
+        algorithm_metadata: Option<&str>,
     ) -> SqliteResult<()> {
         let conn = self.conn.lock().unwrap();
         let log_id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
+        let op = operator_id.unwrap_or("local_user");
 
         conn.execute(
-            "INSERT INTO audit_log (log_id, action, target_type, target_id, details, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![log_id, action, target_type, target_id, details, now],
+            "INSERT INTO audit_log (log_id, action, target_type, target_id, details, operator_id, algorithm_metadata, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![log_id, action, target_type, target_id, details, op, algorithm_metadata, now],
         )?;
         Ok(())
     }
@@ -213,4 +219,166 @@ pub struct AssetRow {
     pub c2pa_signed: bool,
     pub watermarked: bool,
     pub created_at: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn open_temp_db() -> Database {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let db = Database::open(&db_path).unwrap();
+        // Keep dir alive by leaking — tests are short-lived
+        std::mem::forget(dir);
+        db
+    }
+
+    fn make_asset(id: &str, name: &str, created_at: &str) -> AssetRow {
+        AssetRow {
+            asset_id: id.to_string(),
+            file_path: format!("/tmp/{name}"),
+            file_name: name.to_string(),
+            content_type: "image".to_string(),
+            mime_type: "image/jpeg".to_string(),
+            file_size: 1024,
+            width: Some(800),
+            height: Some(600),
+            metadata_json: None,
+            c2pa_signed: false,
+            watermarked: false,
+            created_at: created_at.to_string(),
+        }
+    }
+
+    // ── Schema ─────────────────────────────────────────────────────
+
+    #[test]
+    fn schema_creates_tables() {
+        let db = open_temp_db();
+        let stats = db.get_stats().unwrap();
+        assert_eq!(stats.total_assets, 0);
+        assert_eq!(stats.total_fingerprints, 0);
+        assert_eq!(stats.total_verifications, 0);
+        assert_eq!(stats.c2pa_signed_count, 0);
+    }
+
+    #[test]
+    fn schema_is_idempotent() {
+        let db = open_temp_db();
+        // init_schema was already called in open(); calling again should not error
+        db.init_schema().unwrap();
+    }
+
+    // ── Assets ─────────────────────────────────────────────────────
+
+    #[test]
+    fn insert_and_retrieve_asset() {
+        let db = open_temp_db();
+        let row = make_asset("a1", "photo.jpg", "2026-01-01T00:00:00Z");
+        db.insert_asset(&row).unwrap();
+
+        let assets = db.get_all_assets().unwrap();
+        assert_eq!(assets.len(), 1);
+        assert_eq!(assets[0].asset_id, "a1");
+        assert_eq!(assets[0].file_name, "photo.jpg");
+        assert_eq!(assets[0].width, Some(800));
+    }
+
+    #[test]
+    fn assets_ordered_most_recent_first() {
+        let db = open_temp_db();
+        db.insert_asset(&make_asset("older", "old.jpg", "2026-01-01T00:00:00Z"))
+            .unwrap();
+        db.insert_asset(&make_asset("newer", "new.jpg", "2026-06-01T00:00:00Z"))
+            .unwrap();
+
+        let assets = db.get_all_assets().unwrap();
+        assert_eq!(assets.len(), 2);
+        assert_eq!(assets[0].asset_id, "newer");
+        assert_eq!(assets[1].asset_id, "older");
+    }
+
+    // ── Stats ──────────────────────────────────────────────────────
+
+    #[test]
+    fn stats_empty_db() {
+        let db = open_temp_db();
+        let stats = db.get_stats().unwrap();
+        assert_eq!(stats.total_assets, 0);
+        assert_eq!(stats.c2pa_signed_count, 0);
+    }
+
+    #[test]
+    fn stats_counts_assets() {
+        let db = open_temp_db();
+        db.insert_asset(&make_asset("a1", "one.jpg", "2026-01-01T00:00:00Z"))
+            .unwrap();
+        db.insert_asset(&make_asset("a2", "two.jpg", "2026-01-02T00:00:00Z"))
+            .unwrap();
+
+        let stats = db.get_stats().unwrap();
+        assert_eq!(stats.total_assets, 2);
+    }
+
+    // ── Audit log ──────────────────────────────────────────────────
+
+    #[test]
+    fn audit_log_default_operator() {
+        let db = open_temp_db();
+        db.log_action("import", "asset", "a1", Some("test details"), None, None)
+            .unwrap();
+
+        let conn = db.conn.lock().unwrap();
+        let operator: String = conn
+            .query_row(
+                "SELECT operator_id FROM audit_log WHERE target_id = 'a1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(operator, "local_user");
+    }
+
+    #[test]
+    fn audit_log_custom_operator() {
+        let db = open_temp_db();
+        db.log_action(
+            "verify",
+            "asset",
+            "a2",
+            None,
+            Some("museum_admin"),
+            None,
+        )
+        .unwrap();
+
+        let conn = db.conn.lock().unwrap();
+        let operator: String = conn
+            .query_row(
+                "SELECT operator_id FROM audit_log WHERE target_id = 'a2'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(operator, "museum_admin");
+    }
+
+    #[test]
+    fn audit_log_algorithm_metadata() {
+        let db = open_temp_db();
+        let meta = r#"{"algorithm":"sha256","version":"1.0"}"#;
+        db.log_action("fingerprint", "asset", "a3", None, None, Some(meta))
+            .unwrap();
+
+        let conn = db.conn.lock().unwrap();
+        let stored: Option<String> = conn
+            .query_row(
+                "SELECT algorithm_metadata FROM audit_log WHERE target_id = 'a3'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(stored.as_deref(), Some(meta));
+    }
 }

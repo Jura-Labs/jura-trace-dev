@@ -165,3 +165,145 @@ fn classify_extension(ext: &str) -> (ContentType, &'static str) {
         _ => (ContentType::Unknown, "application/octet-stream"),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    // ── ContentType::as_str ────────────────────────────────────────
+
+    #[test]
+    fn as_str_returns_expected_labels() {
+        assert_eq!(ContentType::Image.as_str(), "image");
+        assert_eq!(ContentType::Document.as_str(), "document");
+        assert_eq!(ContentType::Video.as_str(), "video");
+        assert_eq!(ContentType::Audio.as_str(), "audio");
+        assert_eq!(ContentType::ThreeD.as_str(), "3d");
+        assert_eq!(ContentType::Web.as_str(), "web");
+        assert_eq!(ContentType::Unknown.as_str(), "unknown");
+    }
+
+    // ── classify_extension ─────────────────────────────────────────
+
+    #[test]
+    fn classify_extension_images() {
+        for ext in &["jpg", "jpeg", "png", "gif", "webp", "tiff", "tif", "bmp", "svg", "avif", "heic", "ico"] {
+            let (ct, _) = classify_extension(ext);
+            assert_eq!(ct, ContentType::Image, "extension {ext} should be Image");
+        }
+    }
+
+    #[test]
+    fn classify_extension_documents() {
+        for ext in &["pdf", "docx", "odt", "epub", "txt", "rtf", "md", "csv", "xlsx"] {
+            let (ct, _) = classify_extension(ext);
+            assert_eq!(ct, ContentType::Document, "extension {ext} should be Document");
+        }
+    }
+
+    #[test]
+    fn classify_extension_video() {
+        for ext in &["mp4", "m4v", "mov", "webm", "avi", "mkv"] {
+            let (ct, _) = classify_extension(ext);
+            assert_eq!(ct, ContentType::Video, "extension {ext} should be Video");
+        }
+    }
+
+    #[test]
+    fn classify_extension_audio() {
+        for ext in &["wav", "mp3", "flac", "ogg", "aac", "m4a", "aiff", "aif", "opus"] {
+            let (ct, _) = classify_extension(ext);
+            assert_eq!(ct, ContentType::Audio, "extension {ext} should be Audio");
+        }
+    }
+
+    #[test]
+    fn classify_extension_3d() {
+        for ext in &["stl", "obj", "gltf", "glb", "fbx", "ply", "usdz", "3mf", "dae"] {
+            let (ct, _) = classify_extension(ext);
+            assert_eq!(ct, ContentType::ThreeD, "extension {ext} should be ThreeD");
+        }
+    }
+
+    #[test]
+    fn classify_extension_web() {
+        for ext in &["html", "htm"] {
+            let (ct, _) = classify_extension(ext);
+            assert_eq!(ct, ContentType::Web, "extension {ext} should be Web");
+        }
+    }
+
+    #[test]
+    fn classify_extension_unknown() {
+        let (ct, mime) = classify_extension("zzz");
+        assert_eq!(ct, ContentType::Unknown);
+        assert_eq!(mime, "application/octet-stream");
+    }
+
+    // ── classify_mime ──────────────────────────────────────────────
+
+    #[test]
+    fn classify_mime_image() {
+        assert_eq!(classify_mime("image/jpeg"), ContentType::Image);
+        assert_eq!(classify_mime("image/png"), ContentType::Image);
+    }
+
+    #[test]
+    fn classify_mime_video() {
+        assert_eq!(classify_mime("video/mp4"), ContentType::Video);
+    }
+
+    #[test]
+    fn classify_mime_audio() {
+        assert_eq!(classify_mime("audio/wav"), ContentType::Audio);
+    }
+
+    #[test]
+    fn classify_mime_document() {
+        assert_eq!(classify_mime("application/pdf"), ContentType::Document);
+        assert_eq!(classify_mime("application/epub+zip"), ContentType::Document);
+    }
+
+    #[test]
+    fn classify_mime_web() {
+        assert_eq!(classify_mime("text/html"), ContentType::Web);
+        assert_eq!(classify_mime("application/xhtml+xml"), ContentType::Web);
+    }
+
+    #[test]
+    fn classify_mime_3d() {
+        assert_eq!(classify_mime("model/gltf+json"), ContentType::ThreeD);
+        assert_eq!(classify_mime("model/gltf-binary"), ContentType::ThreeD);
+    }
+
+    #[test]
+    fn classify_mime_unknown() {
+        assert_eq!(classify_mime("application/zip"), ContentType::Unknown);
+    }
+
+    // ── detect() integration ───────────────────────────────────────
+
+    #[test]
+    fn detect_falls_back_to_extension() {
+        let path = PathBuf::from("/tmp/nonexistent_test_file.svg");
+        let info = detect(&path);
+        assert_eq!(info.content_type, ContentType::Image);
+        assert_eq!(info.mime_type, "image/svg+xml");
+    }
+
+    #[test]
+    fn detect_unknown_for_no_extension() {
+        let path = PathBuf::from("/tmp/nonexistent_test_file");
+        let info = detect(&path);
+        assert_eq!(info.content_type, ContentType::Unknown);
+        assert_eq!(info.mime_type, "application/octet-stream");
+    }
+
+    #[test]
+    fn detect_unknown_extension() {
+        let path = PathBuf::from("/tmp/nonexistent_test_file.xyz123");
+        let info = detect(&path);
+        assert_eq!(info.content_type, ContentType::Unknown);
+    }
+}

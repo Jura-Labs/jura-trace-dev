@@ -173,6 +173,8 @@ fn import_files(
                 "{{\"mime\":\"{}\",\"size\":{}}}",
                 info.mime_type, file_size
             )),
+            None,
+            None,
         );
 
         imported.push(Asset {
