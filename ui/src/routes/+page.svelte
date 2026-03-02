@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getStats } from '$lib/api';
-  import type { AppStats } from '$lib/types';
+  import { getStats, getRecentAssets } from '$lib/api';
+  import type { AppStats, Asset } from '$lib/types';
+  import { formatFileSize, CONTENT_TYPE_LABELS } from '$lib/types';
 
   let stats: AppStats = $state({
     totalAssets: 0,
@@ -10,9 +11,26 @@
     c2paSignedCount: 0,
   });
 
+  let recentAssets: Asset[] = $state([]);
+
   onMount(async () => {
-    stats = await getStats();
+    [stats, recentAssets] = await Promise.all([
+      getStats(),
+      getRecentAssets(5),
+    ]);
   });
+
+  function contentTypeAbbr(type: string): string {
+    switch (type) {
+      case 'image':    return 'IMG';
+      case 'document': return 'DOC';
+      case 'video':    return 'VID';
+      case 'audio':    return 'AUD';
+      case '3d':       return '3D';
+      case 'web':      return 'WEB';
+      default:         return 'FILE';
+    }
+  }
 </script>
 
 <div class="space-y-8">
@@ -27,30 +45,85 @@
   </section>
 
   <!-- Stats Grid -->
-  <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
-    <div class="bg-graphite rounded-lg p-6 border border-graphite-light">
-      <p class="text-3xl font-heading text-lapis-light">{stats.totalAssets.toLocaleString()}</p>
-      <p class="text-sm text-flint mt-1">Assets Protected</p>
-    </div>
-    <div class="bg-graphite rounded-lg p-6 border border-graphite-light">
-      <p class="text-3xl font-heading text-malachite-light">{stats.c2paSignedCount.toLocaleString()}</p>
-      <p class="text-sm text-flint mt-1">C2PA Signed</p>
-    </div>
-    <div class="bg-graphite rounded-lg p-6 border border-graphite-light">
-      <p class="text-3xl font-heading text-lapis-light">{stats.totalFingerprints.toLocaleString()}</p>
-      <p class="text-sm text-flint mt-1">Fingerprints</p>
-    </div>
-    <div class="bg-graphite rounded-lg p-6 border border-graphite-light">
-      <p class="text-3xl font-heading text-amber-light">{stats.totalVerifications.toLocaleString()}</p>
-      <p class="text-sm text-flint mt-1">Verifications</p>
+  <section aria-label="Summary statistics">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="bg-graphite rounded-lg p-6 border border-graphite-light">
+        <p class="text-3xl font-heading text-lapis-light">{stats.totalAssets.toLocaleString()}</p>
+        <p class="text-sm text-flint mt-1">Assets Protected</p>
+      </div>
+      <div class="bg-graphite rounded-lg p-6 border border-graphite-light">
+        <p class="text-3xl font-heading text-malachite-light">{stats.c2paSignedCount.toLocaleString()}</p>
+        <p class="text-sm text-flint mt-1">C2PA Signed</p>
+      </div>
+      <div class="bg-graphite rounded-lg p-6 border border-graphite-light">
+        <p class="text-3xl font-heading text-lapis-light">{stats.totalFingerprints.toLocaleString()}</p>
+        <p class="text-sm text-flint mt-1">Fingerprints</p>
+      </div>
+      <div class="bg-graphite rounded-lg p-6 border border-graphite-light">
+        <p class="text-3xl font-heading text-amber-light">{stats.totalVerifications.toLocaleString()}</p>
+        <p class="text-sm text-flint mt-1">Verifications</p>
+      </div>
     </div>
   </section>
 
+  <!-- Recent Assets -->
+  <section aria-label="Recent assets">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-base font-heading text-quartz">Recent Assets</h2>
+      <a
+        href="/protect"
+        class="text-xs text-lapis hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian rounded"
+      >
+        View all
+      </a>
+    </div>
+
+    {#if recentAssets.length === 0}
+      <div class="bg-graphite rounded-lg border border-graphite-light px-6 py-8 text-center">
+        <p class="text-sm text-flint">No assets yet. Import files to get started.</p>
+      </div>
+    {:else}
+      <div class="bg-graphite rounded-lg border border-graphite-light overflow-hidden">
+        {#each recentAssets as asset (asset.assetId)}
+          <div class="flex items-center gap-3 px-4 py-3 border-b border-graphite-light/50 last:border-b-0">
+            <!-- Content type badge -->
+            <span
+              class="flex-shrink-0 text-xs font-mono px-1.5 py-0.5 rounded bg-graphite-light text-flint w-10 text-center"
+              aria-label={CONTENT_TYPE_LABELS[asset.contentType] ?? asset.contentType}
+            >
+              {contentTypeAbbr(asset.contentType)}
+            </span>
+
+            <!-- File name -->
+            <p class="flex-1 text-sm text-quartz truncate min-w-0" title={asset.fileName}>
+              {asset.fileName}
+            </p>
+
+            <!-- File size -->
+            <span class="flex-shrink-0 text-xs text-flint tabular-nums">
+              {formatFileSize(asset.fileSize)}
+            </span>
+
+            <!-- Signed badge -->
+            {#if asset.c2paSigned}
+              <span
+                class="flex-shrink-0 text-xs px-2 py-0.5 rounded bg-malachite/15 text-malachite-light"
+                aria-label="C2PA signed"
+              >
+                Signed
+              </span>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </section>
+
   <!-- Quick Actions -->
-  <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <section class="grid grid-cols-1 md:grid-cols-2 gap-6" aria-label="Quick actions">
     <a
       href="/protect"
-      class="block bg-graphite rounded-lg p-8 border border-graphite-light hover:border-malachite transition-colors"
+      class="block bg-graphite rounded-lg p-8 border border-graphite-light hover:border-malachite transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian"
     >
       <p class="text-xs text-malachite-light uppercase tracking-wide mb-2">Protect</p>
       <h2 class="text-xl font-heading text-quartz mb-2">Safeguard Your Content</h2>
@@ -62,7 +135,7 @@
 
     <a
       href="/verify"
-      class="block bg-graphite rounded-lg p-8 border border-graphite-light hover:border-lapis transition-colors"
+      class="block bg-graphite rounded-lg p-8 border border-graphite-light hover:border-lapis transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian"
     >
       <p class="text-xs text-lapis-light uppercase tracking-wide mb-2">Verify</p>
       <h2 class="text-xl font-heading text-quartz mb-2">Check Authenticity</h2>

@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { AppStats, Asset, VerificationResult } from './types';
+import type { AppStats, Asset, Fingerprint, ManifestInfo, SimilarAsset, VerificationResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -118,10 +118,97 @@ export async function getAssets(): Promise<Asset[]> {
   }
 }
 
+/** Get filtered assets with optional content type, signed status, and search. */
+export async function getFilteredAssets(
+  contentType?: string,
+  c2paSigned?: boolean,
+  searchQuery?: string,
+): Promise<Asset[]> {
+  try {
+    return await invoke<Asset[]>('get_filtered_assets', {
+      contentType: contentType ?? null,
+      c2paSigned: c2paSigned ?? null,
+      searchQuery: searchQuery ?? null,
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** Get recent assets for the dashboard. */
+export async function getRecentAssets(limit?: number): Promise<Asset[]> {
+  try {
+    return await invoke<Asset[]>('get_recent_assets', {
+      limit: limit ?? null,
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** Delete an asset by ID. */
+export async function deleteAsset(assetId: string): Promise<void> {
+  await invoke<void>('delete_asset', { assetId });
+}
+
 // ── Verify ─────────────────────────────────────────────────────────
 
 export async function verifyContent(source: string, sourceType: string): Promise<VerificationResult> {
   return invoke<VerificationResult>('verify_content', { source, sourceType });
+}
+
+/** Run full verification pipeline on a file. */
+export async function verifyFile(filePath: string): Promise<VerificationResult> {
+  return invoke<VerificationResult>('verify_content', {
+    source: filePath,
+    sourceType: 'file',
+  });
+}
+
+// ── C2PA ──────────────────────────────────────────────────────────
+
+/** Sign an asset with C2PA Content Credentials. */
+export async function signAsset(
+  assetId: string,
+  creatorName: string,
+  license?: string
+): Promise<Asset> {
+  return invoke<Asset>('sign_asset', {
+    assetId,
+    creatorName,
+    license: license || null,
+  });
+}
+
+/** Read a C2PA manifest from a file. Returns null if no manifest found. */
+export async function readManifest(filePath: string): Promise<ManifestInfo | null> {
+  return invoke<ManifestInfo | null>('read_manifest', { filePath });
+}
+
+// ── Fingerprints ──────────────────────────────────────────────────
+
+/** Get perceptual fingerprints for an asset. */
+export async function getFingerprints(assetId: string): Promise<Fingerprint[]> {
+  try {
+    return await invoke<Fingerprint[]>('get_fingerprints', { assetId });
+  } catch {
+    return [];
+  }
+}
+
+/** Find assets with similar perceptual hashes. */
+export async function findSimilar(
+  assetId: string,
+  threshold?: number
+): Promise<SimilarAsset[]> {
+  try {
+    return await invoke<SimilarAsset[]>('find_similar', {
+      assetId,
+      threshold: threshold ?? null,
+    });
+  } catch {
+    return [];
+  }
 }
 
 // ── Version ────────────────────────────────────────────────────────

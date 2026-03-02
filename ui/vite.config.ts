@@ -1,5 +1,5 @@
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [sveltekit()],
@@ -13,6 +13,7 @@ export default defineConfig({
 	// Env prefix for Tauri
 	envPrefix: ['VITE_', 'TAURI_'],
 
+	// @ts-expect-error vitest extends vite config at runtime
 	test: {
 		passWithNoTests: true
 	}

@@ -35,7 +35,39 @@ export interface VerificationResult {
   metadataFlags: string[];
   claimVerdict?: ClaimVerdict;
   overallTrust: number;
+  exifAnalysis?: ExifAnalysis;
+  c2paManifest?: ManifestInfo;
 }
+
+/** Severity level for an EXIF anomaly finding */
+export type Severity = 'info' | 'low' | 'medium' | 'high' | 'critical';
+
+/** A single anomaly finding from EXIF analysis */
+export interface AnomalyFinding {
+  checkId: string;
+  title: string;
+  description: string;
+  severity: Severity;
+  category: string;
+}
+
+/** Complete EXIF anomaly analysis result */
+export interface ExifAnalysis {
+  findings: AnomalyFinding[];
+  trustScore: number;
+  fieldsPopulated: number;
+  fieldsTotal: number;
+  hasExif: boolean;
+}
+
+/** Severity display configuration */
+export const SEVERITY_CONFIG: Record<Severity, { label: string; textClass: string; bgClass: string }> = {
+  info: { label: 'Info', textClass: 'text-flint', bgClass: 'bg-graphite' },
+  low: { label: 'Low', textClass: 'text-lapis', bgClass: 'bg-lapis/10' },
+  medium: { label: 'Medium', textClass: 'text-amber', bgClass: 'bg-amber/10' },
+  high: { label: 'High', textClass: 'text-cinnabar', bgClass: 'bg-cinnabar/10' },
+  critical: { label: 'Critical', textClass: 'text-cinnabar', bgClass: 'bg-cinnabar/20' },
+};
 
 /** Claim verdict from RAG verification */
 export type ClaimVerdict = 'supported' | 'disputed' | 'unverified' | 'mixed';
@@ -69,6 +101,50 @@ export interface ImageMetadata {
   description?: string;
   orientation?: number;
 }
+
+/** C2PA manifest information read from a file */
+export interface ManifestInfo {
+  title?: string;
+  format?: string;
+  claimGenerator?: string;
+  assertions: AssertionInfo[];
+  isValid: boolean;
+  signedAt?: string;
+}
+
+/** A single assertion within a C2PA manifest */
+export interface AssertionInfo {
+  label: string;
+  value: string;
+}
+
+/** Perceptual hash types */
+export type HashType = 'ahash' | 'dhash' | 'phash';
+
+/** Fingerprint record from the database */
+export interface Fingerprint {
+  fingerprintId: string;
+  assetId: string;
+  hashType: HashType;
+  hashValue: string;
+  createdAt: string;
+}
+
+/** Result of a similarity search */
+export interface SimilarAsset {
+  assetId: string;
+  fileName: string;
+  hashType: HashType;
+  distance: number;
+  similarity: number;
+}
+
+/** Hash type display labels */
+export const HASH_TYPE_LABELS: Record<HashType, string> = {
+  ahash: 'Average Hash',
+  dhash: 'Difference Hash',
+  phash: 'Perceptual Hash',
+};
 
 /** Trust level derived from overall trust score */
 export type TrustLevel = 'high' | 'medium' | 'low';

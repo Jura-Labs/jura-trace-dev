@@ -38,10 +38,13 @@ kamadak-exif = "0.5"
 image = "0.25"
 
 # C2PA Content Credentials (Phase 1, Weeks 7-8)
-# c2pa = "0.36"
+c2pa = { version = "0.76", features = ["file_io"] }
+
+# Certificate generation for C2PA signing
+rcgen = "0.13"
 
 # Perceptual hashing (Phase 1, Weeks 9-10)
-# img_hash = "4"
+image_hasher = "3.1"
 
 [dev-dependencies]
 tempfile = "3"
