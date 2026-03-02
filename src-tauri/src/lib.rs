@@ -9,6 +9,7 @@ mod exif_anomaly;
 mod fingerprint;
 mod format_router;
 mod metadata;
+mod sidecar;
 
 // ===== Types =====
 
@@ -48,6 +49,7 @@ pub struct VerificationResult {
     pub overall_trust: f64,
     pub exif_analysis: Option<exif_anomaly::ExifAnalysis>,
     pub c2pa_manifest: Option<c2pa::ManifestInfo>,
+    pub ela_result: Option<sidecar::ElaResult>,
 }
 
 /// Application statistics for the dashboard.
@@ -63,6 +65,7 @@ pub struct AppStats {
 /// Managed application state shared across Tauri commands.
 pub struct AppState {
     pub db: db::Database,
+    pub sidecar: sidecar::SidecarClient,
 }
 
 // ===== Tauri Commands =====
@@ -244,20 +247,13 @@ fn get_assets(state: State<'_, Mutex<AppState>>) -> Result<Vec<Asset>, String> {
     app.db.get_all_assets().map_err(|e| e.to_string())
 }
 
-/// Verify a file through the VERIFY pipeline.
-///
-/// Runs EXIF anomaly detection and C2PA manifest reading, computing
-/// an overall trust score. ELA and deepfake detection require the
-/// Python sidecar (Phase 2).
-#[tauri::command]
-fn verify_content(
-    source: String,
-    source_type: String,
-    state: State<'_, Mutex<AppState>>,
+/// Inner verification logic shared by `verify_content` and `verify_url`.
+fn verify_content_inner(
+    source: &str,
+    source_type: &str,
+    state: &State<'_, Mutex<AppState>>,
 ) -> Result<VerificationResult, String> {
-    log::info!("Verifying content: {source} ({source_type})");
-
-    let path = std::path::PathBuf::from(&source);
+    let path = std::path::PathBuf::from(source);
     if !path.exists() {
         return Err(format!("File not found: {source}"));
     }
@@ -280,25 +276,47 @@ fn verify_content(
     let c2pa_manifest = c2pa::read_manifest(&path).ok().flatten();
     let c2pa_valid = c2pa_manifest.as_ref().map(|m| m.is_valid);
 
+    // ELA via sidecar (optional — graceful degradation)
+    let app = state.lock().map_err(|e| e.to_string())?;
+    let (ela_score, ela_result) =
+        if info.content_type == format_router::ContentType::Image && app.sidecar.is_available() {
+            match app.sidecar.analyse_ela(&path) {
+                Ok(result) => {
+                    let score = result.score;
+                    (Some(score), Some(result))
+                }
+                Err(e) => {
+                    log::warn!("Sidecar ELA failed: {e}");
+                    (None, None)
+                }
+            }
+        } else {
+            (None, None)
+        };
+
     // Build metadata flags from findings
     let metadata_flags: Vec<String> = exif_analysis
         .as_ref()
         .map(|a| a.findings.iter().map(|f| f.title.clone()).collect())
         .unwrap_or_default();
 
-    // Compute overall trust: combine EXIF trust with C2PA bonus
+    // Compute overall trust: combine EXIF trust, ELA trust, and C2PA bonus
     let exif_trust = exif_analysis.as_ref().map(|a| a.trust_score).unwrap_or(0.5);
+    let ela_trust = ela_score.map(|s| 1.0 - s); // Invert: 0 manipulation = 1.0 trust
     let c2pa_bonus = if c2pa_valid == Some(true) { 0.1 } else { 0.0 };
-    let overall_trust = (exif_trust + c2pa_bonus).min(1.0);
+
+    let overall_trust = match ela_trust {
+        Some(et) => ((exif_trust + et) / 2.0 + c2pa_bonus).min(1.0),
+        None => (exif_trust + c2pa_bonus).min(1.0),
+    };
 
     // Store verification in database
-    let app = state.lock().map_err(|e| e.to_string())?;
     let verification_id = uuid::Uuid::new_v4().to_string();
     let _ = app.db.insert_verification(
         &verification_id,
-        &source_type,
+        source_type,
         info.content_type.as_str(),
-        None,
+        ela_score,
         None,
         c2pa_valid,
         &metadata_flags,
@@ -308,10 +326,11 @@ fn verify_content(
     let _ = app.db.log_action(
         "verify",
         "file",
-        &source,
+        source,
         Some(
             &serde_json::json!({
                 "exif_trust": exif_trust,
+                "ela_score": ela_score,
                 "c2pa_valid": c2pa_valid,
                 "findings_count": metadata_flags.len(),
             })
@@ -322,14 +341,15 @@ fn verify_content(
     );
 
     log::info!(
-        "Verification complete: trust={overall_trust:.2}, findings={}",
+        "Verification complete: trust={overall_trust:.2}, ela={:?}, findings={}",
+        ela_score,
         metadata_flags.len()
     );
 
     Ok(VerificationResult {
-        source_type,
+        source_type: source_type.to_string(),
         content_type: info.content_type.as_str().to_string(),
-        ela_score: None,
+        ela_score,
         deepfake_score: None,
         c2pa_valid,
         metadata_flags,
@@ -337,7 +357,22 @@ fn verify_content(
         overall_trust,
         exif_analysis,
         c2pa_manifest,
+        ela_result,
     })
+}
+
+/// Verify a file through the VERIFY pipeline.
+///
+/// Runs EXIF anomaly detection, C2PA manifest reading, and ELA
+/// (if sidecar available), computing an overall trust score.
+#[tauri::command]
+fn verify_content(
+    source: String,
+    source_type: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<VerificationResult, String> {
+    log::info!("Verifying content: {source} ({source_type})");
+    verify_content_inner(&source, &source_type, &state)
 }
 
 /// Sign an asset with C2PA Content Credentials.
@@ -555,6 +590,73 @@ fn get_recent_assets(
         .map_err(|e| e.to_string())
 }
 
+/// Verify content from a URL.
+///
+/// Downloads the content to a temp file and runs it through the
+/// verification pipeline. Supports images and documents.
+#[tauri::command]
+fn verify_url(url: String, state: State<'_, Mutex<AppState>>) -> Result<VerificationResult, String> {
+    log::info!("Verifying URL: {url}");
+
+    let response = reqwest::blocking::Client::new()
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .map_err(|e| format!("Failed to download URL: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!("URL returned status {}", response.status()));
+    }
+
+    // Determine extension from Content-Type or URL
+    let ext = response
+        .headers()
+        .get("content-type")
+        .and_then(|ct| ct.to_str().ok())
+        .and_then(|ct| match ct {
+            t if t.starts_with("image/jpeg") => Some("jpg"),
+            t if t.starts_with("image/png") => Some("png"),
+            t if t.starts_with("image/webp") => Some("webp"),
+            t if t.starts_with("image/gif") => Some("gif"),
+            t if t.starts_with("image/tiff") => Some("tiff"),
+            t if t.starts_with("application/pdf") => Some("pdf"),
+            _ => None,
+        })
+        .or_else(|| {
+            url.rsplit('.')
+                .next()
+                .filter(|e| e.len() <= 5)
+        })
+        .unwrap_or("bin");
+
+    let bytes = response
+        .bytes()
+        .map_err(|e| format!("Failed to read URL content: {e}"))?;
+
+    // Write to temp file
+    let temp_dir = tempfile::tempdir().map_err(|e| format!("Failed to create temp dir: {e}"))?;
+    let temp_path = temp_dir.path().join(format!("url_content.{ext}"));
+    std::fs::write(&temp_path, &bytes)
+        .map_err(|e| format!("Failed to write temp file: {e}"))?;
+
+    let temp_str = temp_path.to_string_lossy().to_string();
+
+    // Run through verify pipeline
+    let mut result = verify_content_inner(&temp_str, "url", &state)?;
+    result.source_type = "url".to_string();
+
+    Ok(result)
+}
+
+/// Check the ML sidecar health status.
+#[tauri::command]
+fn check_sidecar_health(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<sidecar::SidecarHealth, String> {
+    let app = state.lock().map_err(|e| e.to_string())?;
+    app.sidecar.check_health()
+}
+
 /// Get application version.
 #[tauri::command]
 fn get_version() -> String {
@@ -589,7 +691,11 @@ pub fn run() {
 
             let database = db::Database::open(&db_path).expect("failed to open database");
 
-            app.manage(Mutex::new(AppState { db: database }));
+            let sidecar_client = sidecar::SidecarClient::new("http://127.0.0.1:8200");
+            app.manage(Mutex::new(AppState {
+                db: database,
+                sidecar: sidecar_client,
+            }));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -605,6 +711,8 @@ pub fn run() {
             verify_c2pa,
             get_fingerprints,
             find_similar,
+            verify_url,
+            check_sidecar_health,
             get_version,
         ])
         .run(tauri::generate_context!())

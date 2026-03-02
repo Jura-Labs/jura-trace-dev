@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { AppStats, Asset, Fingerprint, ManifestInfo, SimilarAsset, VerificationResult } from './types';
+import type { AppStats, Asset, Fingerprint, ManifestInfo, SidecarHealth, SimilarAsset, VerificationResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -163,6 +163,41 @@ export async function verifyFile(filePath: string): Promise<VerificationResult> 
     source: filePath,
     sourceType: 'file',
   });
+}
+
+/** Verify content from a URL. Downloads and analyses the content. */
+export async function verifyUrl(url: string): Promise<VerificationResult> {
+  if (isTauri) {
+    return invoke<VerificationResult>('verify_url', { url });
+  }
+  // Browser mock
+  return {
+    sourceType: 'url',
+    contentType: 'image',
+    overallTrust: 0.65,
+    metadataFlags: ['Mock URL verification'],
+    elaScore: 0.2,
+    c2paValid: false,
+  };
+}
+
+/** Check ML sidecar health status. */
+export async function checkSidecarHealth(): Promise<SidecarHealth | null> {
+  try {
+    if (isTauri) {
+      return await invoke<SidecarHealth>('check_sidecar_health');
+    }
+    // Browser mock
+    return {
+      status: 'mock',
+      version: '0.2.0-dev',
+      service: 'jura-sidecar',
+      capabilities: { ela: true, deepfake: false, rag: false },
+      ollama: null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 // ── C2PA ──────────────────────────────────────────────────────────

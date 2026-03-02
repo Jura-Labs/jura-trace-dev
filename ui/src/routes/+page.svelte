@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getStats, getRecentAssets } from '$lib/api';
-  import type { AppStats, Asset } from '$lib/types';
+  import { getStats, getRecentAssets, checkSidecarHealth } from '$lib/api';
+  import type { AppStats, Asset, SidecarHealth } from '$lib/types';
   import { formatFileSize, CONTENT_TYPE_LABELS } from '$lib/types';
 
   let stats: AppStats = $state({
@@ -12,11 +12,15 @@
   });
 
   let recentAssets: Asset[] = $state([]);
+  let sidecarHealth = $state<SidecarHealth | null>(null);
+
+  const sidecarAvailable = $derived(sidecarHealth?.status === 'ok');
 
   onMount(async () => {
-    [stats, recentAssets] = await Promise.all([
+    [stats, recentAssets, sidecarHealth] = await Promise.all([
       getStats(),
       getRecentAssets(5),
+      checkSidecarHealth(),
     ]);
   });
 
@@ -63,6 +67,27 @@
         <p class="text-3xl font-heading text-amber-light">{stats.totalVerifications.toLocaleString()}</p>
         <p class="text-sm text-flint mt-1">Verifications</p>
       </div>
+    </div>
+
+    <!-- Sidecar status -->
+    <div
+      class="mt-4 flex items-center gap-2 text-xs px-3 py-2 rounded-lg border
+             {sidecarAvailable
+               ? 'bg-malachite/5 text-malachite-light border-malachite/15'
+               : 'bg-graphite text-flint border-graphite-light'}"
+    >
+      <span
+        class="w-2 h-2 rounded-full {sidecarAvailable ? 'bg-malachite' : 'bg-flint/40'}"
+        aria-hidden="true"
+      ></span>
+      <span>
+        ML Sidecar: {sidecarAvailable ? 'Connected' : 'Offline'}
+      </span>
+      {#if sidecarHealth?.capabilities}
+        <span class="text-flint/60 ml-1">
+          — ELA {sidecarHealth.capabilities.ela ? 'ready' : 'off'}
+        </span>
+      {/if}
     </div>
   </section>
 

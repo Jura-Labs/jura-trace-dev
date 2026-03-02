@@ -1,16 +1,20 @@
 <script lang="ts">
-  import { verifyFile } from '$lib/api';
+  import { onMount } from 'svelte';
+  import { verifyFile, verifyUrl, checkSidecarHealth } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize } from '$lib/types';
-  import type { VerificationResult, AnomalyFinding } from '$lib/types';
+  import type { VerificationResult, AnomalyFinding, SidecarHealth } from '$lib/types';
 
   // ── State ──────────────────────────────────────────────────────────
+  let activeTab = $state<'file' | 'url'>('file');
   let filePath = $state<string | null>(null);
   let fileName = $state<string | null>(null);
+  let urlInput = $state('');
   let result = $state<VerificationResult | null>(null);
   let checked = $state(false);
   let loading = $state(false);
   let error = $state<string | null>(null);
   let dragOver = $state(false);
+  let sidecarHealth = $state<SidecarHealth | null>(null);
 
   // ── Derived ────────────────────────────────────────────────────────
   const trustLevel = $derived(result ? getTrustLevel(result.overallTrust) : null);
@@ -33,7 +37,14 @@
     return '';
   });
 
-  // ── Drag and drop ──────────────────────────────────────────────────
+  const sidecarAvailable = $derived(sidecarHealth?.status === 'ok');
+
+  // ── Lifecycle ─────────────────────────────────────────────────────
+  onMount(async () => {
+    sidecarHealth = await checkSidecarHealth();
+  });
+
+  // ── Drag and drop ─────────────────────────────────────────────────
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
     dragOver = true;
@@ -52,10 +63,10 @@
 
     const file = files[0];
     const path = (file as any).path || file.name;
-    await runVerification(path, file.name);
+    await runFileVerification(path, file.name);
   }
 
-  // ── File dialog ────────────────────────────────────────────────────
+  // ── File dialog ──────────────────────────────────────────────────
   async function handleFileClick() {
     try {
       const { open } = await import('@tauri-apps/plugin-dialog');
@@ -77,15 +88,15 @@
       });
       if (selected && typeof selected === 'string') {
         const name = selected.split('/').pop() || selected.split('\\').pop() || selected;
-        await runVerification(selected, name);
+        await runFileVerification(selected, name);
       }
     } catch {
       // Browser fallback — Tauri not available
     }
   }
 
-  // ── Core verification ──────────────────────────────────────────────
-  async function runVerification(path: string, name: string) {
+  // ── Core verification ─────────────────────────────────────────────
+  async function runFileVerification(path: string, name: string) {
     filePath = path;
     fileName = name;
     result = null;
@@ -103,16 +114,38 @@
     }
   }
 
+  async function runUrlVerification() {
+    const url = urlInput.trim();
+    if (!url) return;
+
+    fileName = url.split('/').pop()?.split('?')[0] || url;
+    filePath = null;
+    result = null;
+    checked = false;
+    error = null;
+    loading = true;
+
+    try {
+      result = await verifyUrl(url);
+      checked = true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'URL verification failed';
+    } finally {
+      loading = false;
+    }
+  }
+
   function reset() {
     filePath = null;
     fileName = null;
+    urlInput = '';
     result = null;
     checked = false;
     error = null;
     loading = false;
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────
+  // ── Helpers ──────────────────────────────────────────────────────
   function formatSignedAt(raw: string): string {
     try {
       return new Date(raw).toLocaleString('en-GB', {
@@ -131,16 +164,45 @@
     const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
     return [...findings].sort((a, b) => (order[a.severity] ?? 5) - (order[b.severity] ?? 5));
   }
+
+  function elaScoreClass(score: number): string {
+    if (score < 0.3) return 'text-malachite';
+    if (score < 0.6) return 'text-amber';
+    return 'text-cinnabar';
+  }
+
+  function elaScoreBgClass(score: number): string {
+    if (score < 0.3) return 'bg-malachite/15 border-malachite/20';
+    if (score < 0.6) return 'bg-amber/15 border-amber/20';
+    return 'bg-cinnabar/15 border-cinnabar/20';
+  }
 </script>
 
 <div class="space-y-6">
 
-  <!-- Page heading -->
-  <div>
-    <h1 class="text-2xl font-heading text-quartz">Verify</h1>
-    <p class="text-flint text-sm mt-1">
-      Check the authenticity and provenance of files. All analysis happens locally on your device.
-    </p>
+  <!-- Page heading + sidecar status -->
+  <div class="flex items-start justify-between">
+    <div>
+      <h1 class="text-2xl font-heading text-quartz">Verify</h1>
+      <p class="text-flint text-sm mt-1">
+        Check the authenticity and provenance of files. All analysis happens locally on your device.
+      </p>
+    </div>
+    <div
+      class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border
+             {sidecarAvailable
+               ? 'bg-malachite/10 text-malachite-light border-malachite/20'
+               : 'bg-graphite text-flint border-graphite-light'}"
+      title={sidecarAvailable
+        ? `ML Sidecar v${sidecarHealth?.version} — ELA available`
+        : 'ML Sidecar offline — ELA not available'}
+    >
+      <span
+        class="w-1.5 h-1.5 rounded-full {sidecarAvailable ? 'bg-malachite' : 'bg-flint/50'}"
+        aria-hidden="true"
+      ></span>
+      {sidecarAvailable ? 'ML Connected' : 'ML Offline'}
+    </div>
   </div>
 
   <!-- Error banner -->
@@ -154,57 +216,112 @@
     </div>
   {/if}
 
-  <!-- Drop zone -->
-  <button
-    class="w-full border-2 border-dashed rounded-lg p-10 text-center transition-all duration-200 cursor-pointer
-           focus:outline-none focus:ring-2 focus:ring-lapis focus:ring-offset-2 focus:ring-offset-obsidian
-           {dragOver
-             ? 'border-lapis bg-lapis/5 scale-[1.01]'
-             : 'border-graphite-light hover:border-lapis/50'}
-           {loading ? 'opacity-60 pointer-events-none' : ''}"
-    ondragover={handleDragOver}
-    ondragleave={handleDragLeave}
-    ondrop={handleDrop}
-    onclick={handleFileClick}
-    aria-label="Drop a file here or click to select a file for verification"
-    aria-busy={loading}
-  >
-    {#if loading}
-      <div class="flex flex-col items-center gap-3">
-        <div
-          class="w-6 h-6 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
-          role="status"
-          aria-label="Analysing file"
-        ></div>
-        <p class="text-sm text-flint">Analysing file — this may take a moment...</p>
-        {#if fileName}
-          <p class="text-xs text-flint/70">{fileName}</p>
-        {/if}
+  <!-- ── Input Tabs ─────────────────────────────────────────────────── -->
+  <div>
+    <!-- Tab bar -->
+    <div class="flex border-b border-graphite-light mb-4" role="tablist">
+      <button
+        class="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px
+               {activeTab === 'file'
+                 ? 'text-lapis-light border-lapis'
+                 : 'text-flint border-transparent hover:text-quartz'}"
+        role="tab"
+        aria-selected={activeTab === 'file'}
+        onclick={() => { activeTab = 'file'; }}
+      >
+        File
+      </button>
+      <button
+        class="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px
+               {activeTab === 'url'
+                 ? 'text-lapis-light border-lapis'
+                 : 'text-flint border-transparent hover:text-quartz'}"
+        role="tab"
+        aria-selected={activeTab === 'url'}
+        onclick={() => { activeTab = 'url'; }}
+      >
+        URL
+      </button>
+      <div class="flex-1"></div>
+      <div class="px-4 py-2.5 text-xs text-flint/50 border-b-2 border-transparent">
+        Claim checking — Phase 2
       </div>
-    {:else}
-      <div class="flex flex-col items-center gap-2">
-        <svg class="w-10 h-10 text-flint" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-        </svg>
-        <p class="text-quartz font-medium">Drop a file to verify</p>
-        <p class="text-xs text-flint">
-          or click to browse — JPEG, PNG, TIFF, WebP, PDF, MP4, and more
-        </p>
-      </div>
-    {/if}
-  </button>
+    </div>
 
-  <!-- Input method placeholders -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div class="border border-graphite-light rounded-lg p-6 text-center opacity-40" aria-hidden="true">
-      <p class="font-medium text-quartz text-sm mb-1">Check URL</p>
-      <p class="text-xs text-flint">Coming in Phase 2</p>
-    </div>
-    <div class="border border-graphite-light rounded-lg p-6 text-center opacity-40" aria-hidden="true">
-      <p class="font-medium text-quartz text-sm mb-1">Check Claim</p>
-      <p class="text-xs text-flint">Coming in Phase 2</p>
-    </div>
+    <!-- File tab -->
+    {#if activeTab === 'file'}
+      <button
+        class="w-full border-2 border-dashed rounded-lg p-10 text-center transition-all duration-200 cursor-pointer
+               focus:outline-none focus:ring-2 focus:ring-lapis focus:ring-offset-2 focus:ring-offset-obsidian
+               {dragOver
+                 ? 'border-lapis bg-lapis/5 scale-[1.01]'
+                 : 'border-graphite-light hover:border-lapis/50'}
+               {loading ? 'opacity-60 pointer-events-none' : ''}"
+        ondragover={handleDragOver}
+        ondragleave={handleDragLeave}
+        ondrop={handleDrop}
+        onclick={handleFileClick}
+        aria-label="Drop a file here or click to select a file for verification"
+        aria-busy={loading}
+      >
+        {#if loading}
+          <div class="flex flex-col items-center gap-3">
+            <div
+              class="w-6 h-6 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
+              role="status"
+              aria-label="Analysing file"
+            ></div>
+            <p class="text-sm text-flint">Analysing file — this may take a moment...</p>
+            {#if fileName}
+              <p class="text-xs text-flint/70">{fileName}</p>
+            {/if}
+          </div>
+        {:else}
+          <div class="flex flex-col items-center gap-2">
+            <svg class="w-10 h-10 text-flint" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            <p class="text-quartz font-medium">Drop a file to verify</p>
+            <p class="text-xs text-flint">
+              or click to browse — JPEG, PNG, TIFF, WebP, PDF, MP4, and more
+            </p>
+          </div>
+        {/if}
+      </button>
+    {/if}
+
+    <!-- URL tab -->
+    {#if activeTab === 'url'}
+      <div class="flex gap-3">
+        <input
+          type="url"
+          bind:value={urlInput}
+          placeholder="https://example.com/image.jpg"
+          disabled={loading}
+          class="flex-1 bg-obsidian border border-graphite-light rounded-lg px-4 py-3 text-sm text-quartz
+                 placeholder:text-flint/50 focus:outline-none focus:ring-2 focus:ring-lapis focus:border-lapis
+                 disabled:opacity-50"
+          onkeydown={(e) => { if (e.key === 'Enter') runUrlVerification(); }}
+        />
+        <button
+          onclick={runUrlVerification}
+          disabled={loading || !urlInput.trim()}
+          class="px-6 py-3 bg-lapis hover:bg-lapis-light text-white text-sm font-medium rounded-lg
+                 transition-colors focus:outline-none focus:ring-2 focus:ring-lapis focus:ring-offset-2
+                 focus:ring-offset-obsidian disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {#if loading}
+            Verifying...
+          {:else}
+            Verify
+          {/if}
+        </button>
+      </div>
+      <p class="text-xs text-flint mt-2">
+        Enter a URL to an image or document. The content will be downloaded and analysed locally.
+      </p>
+    {/if}
   </div>
 
   <!-- ── Results ─────────────────────────────────────────────────── -->
@@ -229,7 +346,12 @@
           </div>
           <div class="min-w-0">
             <p class="text-sm text-quartz truncate" title={fileName ?? undefined}>{fileName}</p>
-            <p class="text-xs text-flint mt-0.5">{result.contentType}</p>
+            <p class="text-xs text-flint mt-0.5">
+              {result.contentType}
+              {#if result.sourceType === 'url'}
+                <span class="ml-1 text-lapis">(via URL)</span>
+              {/if}
+            </p>
           </div>
         </div>
         <button
@@ -251,6 +373,66 @@
             </span>
           {/each}
         </div>
+      {/if}
+
+      <!-- ── ELA Analysis ──────────────────────────────────────────── -->
+      {#if result.elaResult}
+        {@const ela = result.elaResult}
+        <section class="px-5 py-4 border-b border-graphite-light" aria-labelledby="ela-heading">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <h2 id="ela-heading" class="text-sm font-medium text-quartz">Error Level Analysis</h2>
+              <span
+                class="text-xs font-medium px-2 py-0.5 rounded border {elaScoreBgClass(ela.score)} {elaScoreClass(ela.score)}"
+              >
+                {ela.suspicious ? 'Suspicious' : 'Normal'}
+              </span>
+            </div>
+            <span class="text-xs tabular-nums {elaScoreClass(ela.score)}">
+              Score: {(ela.score * 100).toFixed(1)}%
+            </span>
+          </div>
+
+          <!-- ELA heatmap -->
+          <div class="mb-3 rounded-md overflow-hidden border border-graphite-light bg-obsidian">
+            <img
+              src="data:image/png;base64,{ela.elaImageBase64}"
+              alt="Error Level Analysis heatmap showing compression artefact differences"
+              class="w-full max-h-64 object-contain"
+            />
+          </div>
+
+          <!-- Stats -->
+          <div class="grid grid-cols-2 gap-4 text-xs">
+            <div>
+              <span class="text-flint">Max Difference</span>
+              <p class="text-quartz tabular-nums">{ela.maxDifference.toFixed(1)}</p>
+            </div>
+            <div>
+              <span class="text-flint">Mean Difference</span>
+              <p class="text-quartz tabular-nums">{ela.meanDifference.toFixed(1)}</p>
+            </div>
+          </div>
+
+          {#if ela.suspicious}
+            <div class="mt-3 text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+              Elevated compression artefact variation detected. This may indicate pixel-level editing
+              or compositing. Consider alongside other verification signals.
+            </div>
+          {/if}
+        </section>
+      {:else if checked && !sidecarAvailable}
+        <section class="px-5 py-3 border-b border-graphite-light" aria-labelledby="ela-heading">
+          <div class="flex items-center gap-3">
+            <h2 id="ela-heading" class="text-sm font-medium text-quartz">Error Level Analysis</h2>
+            <span class="text-xs text-flint bg-graphite-light px-2 py-0.5 rounded border border-graphite-light">
+              Unavailable
+            </span>
+          </div>
+          <p class="text-xs text-flint mt-1.5">
+            ML Sidecar is offline. Start the sidecar to enable ELA forensic analysis.
+          </p>
+        </section>
       {/if}
 
       <!-- ── EXIF Analysis ─────────────────────────────────────────── -->
@@ -301,7 +483,6 @@
                   class="flex items-start gap-3 rounded-md px-3 py-2.5 {config.bgClass}"
                   role="listitem"
                 >
-                  <!-- Severity badge -->
                   <span
                     class="flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full {config.bgClass} {config.textClass} border
                            {finding.severity === 'critical' || finding.severity === 'high'
@@ -315,7 +496,6 @@
                   >
                     {config.label}
                   </span>
-                  <!-- Content -->
                   <div class="min-w-0">
                     <p class="text-sm text-quartz leading-snug">{finding.title}</p>
                     <p class="text-xs text-flint mt-0.5 leading-relaxed">{finding.description}</p>
@@ -346,7 +526,6 @@
             </span>
           </div>
 
-          <!-- Manifest details grid -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm mb-4">
             {#if manifest.claimGenerator}
               <div>
@@ -374,7 +553,6 @@
             {/if}
           </div>
 
-          <!-- Assertions -->
           {#if manifest.assertions.length > 0}
             <div>
               <h3 class="text-xs text-flint uppercase tracking-wide mb-2">
@@ -394,7 +572,6 @@
         </section>
 
       {:else if checked}
-        <!-- No C2PA manifest found -->
         <section class="px-5 py-4" aria-labelledby="c2pa-heading">
           <div class="flex items-center gap-3 mb-3">
             <h2 id="c2pa-heading" class="text-sm font-medium text-quartz">C2PA Credentials</h2>
@@ -416,7 +593,11 @@
     <!-- Pre-verification idle state -->
     <div class="bg-graphite rounded-lg border border-graphite-light p-8 text-center">
       <p class="text-flint text-sm">
-        Drop a file above to analyse its EXIF metadata and C2PA Content Credentials.
+        {#if activeTab === 'file'}
+          Drop a file above to analyse its metadata, compression artefacts, and C2PA Content Credentials.
+        {:else}
+          Enter a URL above to download and verify content from the web.
+        {/if}
       </p>
     </div>
 

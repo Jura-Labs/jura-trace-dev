@@ -25,6 +25,31 @@ export interface Asset {
 /** Supported content types */
 export type ContentType = 'image' | 'document' | 'video' | 'audio' | '3d' | 'web' | 'unknown';
 
+/** Error Level Analysis result from the ML sidecar */
+export interface ElaResult {
+  elaImageBase64: string;
+  maxDifference: number;
+  meanDifference: number;
+  score: number;
+  suspicious: boolean;
+}
+
+/** ML sidecar capability flags */
+export interface SidecarCapabilities {
+  ela: boolean;
+  deepfake: boolean;
+  rag: boolean;
+}
+
+/** ML sidecar health response */
+export interface SidecarHealth {
+  status: string;
+  version: string;
+  service: string;
+  capabilities: SidecarCapabilities;
+  ollama: string | null;
+}
+
 /** Verification result from the VERIFY pipeline */
 export interface VerificationResult {
   sourceType: string;
@@ -37,6 +62,7 @@ export interface VerificationResult {
   overallTrust: number;
   exifAnalysis?: ExifAnalysis;
   c2paManifest?: ManifestInfo;
+  elaResult?: ElaResult;
 }
 
 /** Severity level for an EXIF anomaly finding */

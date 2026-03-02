@@ -46,8 +46,13 @@ rcgen = "0.13"
 # Perceptual hashing (Phase 1, Weeks 9-10)
 image_hasher = "3.1"
 
-[dev-dependencies]
+# HTTP client for Python ML sidecar (Phase 2)
+reqwest = { version = "0.12", features = ["blocking", "multipart", "json"] }
+
+# Temp files for URL verification
 tempfile = "3"
+
+[dev-dependencies]
 
 [features]
 default = ["custom-protocol"]
