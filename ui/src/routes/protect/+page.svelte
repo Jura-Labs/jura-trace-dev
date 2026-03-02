@@ -77,13 +77,13 @@
 
   function contentTypeIcon(type: string): string {
     switch (type) {
-      case 'image': return '🖼';
-      case 'document': return '📄';
-      case 'video': return '🎬';
-      case 'audio': return '🎵';
-      case '3d': return '🧊';
-      case 'web': return '🌐';
-      default: return '📎';
+      case 'image': return 'IMG';
+      case 'document': return 'DOC';
+      case 'video': return 'VID';
+      case 'audio': return 'AUD';
+      case '3d': return '3D';
+      case 'web': return 'WEB';
+      default: return 'FILE';
     }
   }
 </script>
@@ -162,7 +162,7 @@
           onclick={() => selectAsset(asset)}
         >
           <div class="flex items-center gap-3 min-w-0">
-            <span class="text-lg flex-shrink-0">{contentTypeIcon(asset.contentType)}</span>
+            <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-graphite-light text-flint flex-shrink-0">{contentTypeIcon(asset.contentType)}</span>
             <div class="min-w-0">
               <p class="text-sm text-quartz truncate">{asset.fileName}</p>
               <p class="text-xs text-flint truncate">{asset.mimeType}</p>

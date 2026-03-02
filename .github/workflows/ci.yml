@@ -94,7 +94,7 @@ jobs:
         run: cd ui && npx svelte-kit sync && npx svelte-check
 
       - name: Run tests
-        run: cd ui && npm test -- --run 2>/dev/null || true
+        run: cd ui && npm test -- --run
 
   # ── Python: ruff lint + format ──────────────────────────────────
   python:

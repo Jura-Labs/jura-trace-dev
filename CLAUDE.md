@@ -19,7 +19,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 └────────────────┬────────────────────────┘
                  │
 ┌────────────────▼────────────────────────┐
-│     SvelteKit Frontend (Port 1420)      │
+│     SvelteKit Frontend (Port 5173)      │
 │  PROTECT | VERIFY | MONITOR | SETTINGS  │
 └────────────────┬────────────────────────┘
                  │ Tauri IPC

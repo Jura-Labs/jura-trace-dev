@@ -21,7 +21,7 @@ You provide expert guidance on Rust development, Tauri v2 integration, C2PA impl
 
 ```
 Tauri v2 Shell (Rust)
-  └── SvelteKit Frontend (Port 1420)
+  └── SvelteKit Frontend (Port 5173)
        └── Tauri IPC
             └── Rust Core Engine
                  ├── C2PA module (c2pa-rs)
