@@ -52,7 +52,9 @@ pub struct ImageMetadata {
 pub fn extract_exif(path: &Path) -> Option<ImageMetadata> {
     let file = File::open(path).ok()?;
     let reader = BufReader::new(file);
-    let exif = ExifReader::new().read_from_container(&mut std::io::BufReader::new(reader)).ok()?;
+    let exif = ExifReader::new()
+        .read_from_container(&mut std::io::BufReader::new(reader))
+        .ok()?;
 
     let get_str = |tag: Tag| -> Option<String> {
         exif.get_field(tag, In::PRIMARY)
@@ -60,18 +62,20 @@ pub fn extract_exif(path: &Path) -> Option<ImageMetadata> {
     };
 
     let get_u32 = |tag: Tag| -> Option<u32> {
-        exif.get_field(tag, In::PRIMARY).and_then(|f| match &f.value {
-            Value::Long(v) => v.first().copied(),
-            Value::Short(v) => v.first().map(|&x| x as u32),
-            _ => f.display_value().to_string().parse().ok(),
-        })
+        exif.get_field(tag, In::PRIMARY)
+            .and_then(|f| match &f.value {
+                Value::Long(v) => v.first().copied(),
+                Value::Short(v) => v.first().map(|&x| x as u32),
+                _ => f.display_value().to_string().parse().ok(),
+            })
     };
 
     let get_u16 = |tag: Tag| -> Option<u16> {
-        exif.get_field(tag, In::PRIMARY).and_then(|f| match &f.value {
-            Value::Short(v) => v.first().copied(),
-            _ => f.display_value().to_string().parse().ok(),
-        })
+        exif.get_field(tag, In::PRIMARY)
+            .and_then(|f| match &f.value {
+                Value::Short(v) => v.first().copied(),
+                _ => f.display_value().to_string().parse().ok(),
+            })
     };
 
     // GPS coordinate extraction

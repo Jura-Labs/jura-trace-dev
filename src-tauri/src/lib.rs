@@ -78,7 +78,10 @@ fn get_stats(state: State<'_, Mutex<AppState>>) -> Result<AppStats, String> {
 ///   4. Compute SHA-256 of the file
 ///   5. Store in SQLite and log the action
 #[tauri::command]
-fn import_files(paths: Vec<String>, state: State<'_, Mutex<AppState>>) -> Result<Vec<Asset>, String> {
+fn import_files(
+    paths: Vec<String>,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<Vec<Asset>, String> {
     log::info!("Importing {} file(s)", paths.len());
     let app = state.lock().map_err(|e| e.to_string())?;
 
@@ -88,13 +91,13 @@ fn import_files(paths: Vec<String>, state: State<'_, Mutex<AppState>>) -> Result
         let path = PathBuf::from(path_str);
 
         if !path.exists() {
-            log::warn!("Skipping missing file: {}", path_str);
+            log::warn!("Skipping missing file: {path_str}");
             continue;
         }
 
         // Skip directories — we process individual files
         if path.is_dir() {
-            log::info!("Skipping directory: {}", path_str);
+            log::info!("Skipping directory: {path_str}");
             continue;
         }
 
@@ -108,35 +111,32 @@ fn import_files(paths: Vec<String>, state: State<'_, Mutex<AppState>>) -> Result
         );
 
         // 2. File size
-        let file_size = std::fs::metadata(&path)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let file_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
 
         // 3. Extract metadata + dimensions (images)
-        let (meta_json, width, height) =
-            if info.content_type == format_router::ContentType::Image {
-                let exif_data = metadata::extract_exif(&path);
-                let meta_str = exif_data
-                    .as_ref()
-                    .and_then(|m| serde_json::to_string(m).ok());
+        let (meta_json, width, height) = if info.content_type == format_router::ContentType::Image {
+            let exif_data = metadata::extract_exif(&path);
+            let meta_str = exif_data
+                .as_ref()
+                .and_then(|m| serde_json::to_string(m).ok());
 
-                // Try EXIF dimensions first, then decode image header
-                let (w, h) = exif_data
-                    .as_ref()
-                    .and_then(|m| match (m.exif_width, m.exif_height) {
-                        (Some(w), Some(h)) => Some((w, h)),
-                        _ => None,
-                    })
-                    .or_else(|| metadata::get_image_dimensions(&path))
-                    .unwrap_or((0, 0));
+            // Try EXIF dimensions first, then decode image header
+            let (w, h) = exif_data
+                .as_ref()
+                .and_then(|m| match (m.exif_width, m.exif_height) {
+                    (Some(w), Some(h)) => Some((w, h)),
+                    _ => None,
+                })
+                .or_else(|| metadata::get_image_dimensions(&path))
+                .unwrap_or((0, 0));
 
-                let w_opt = if w > 0 { Some(w) } else { None };
-                let h_opt = if h > 0 { Some(h) } else { None };
+            let w_opt = if w > 0 { Some(w) } else { None };
+            let h_opt = if h > 0 { Some(h) } else { None };
 
-                (meta_str, w_opt, h_opt)
-            } else {
-                (None, None, None)
-            };
+            (meta_str, w_opt, h_opt)
+        } else {
+            (None, None, None)
+        };
 
         // 4. Build asset record
         let asset_id = uuid::Uuid::new_v4().to_string();
@@ -208,7 +208,7 @@ fn get_assets(state: State<'_, Mutex<AppState>>) -> Result<Vec<Asset>, String> {
 #[tauri::command]
 fn verify_content(source: String, source_type: String) -> Result<VerificationResult, String> {
     // TODO: Route through verification pipeline (Phase 2)
-    log::info!("Verifying content: {} ({})", source, source_type);
+    log::info!("Verifying content: {source} ({source_type})");
     Ok(VerificationResult {
         source_type,
         content_type: "unknown".to_string(),
@@ -253,8 +253,7 @@ pub fn run() {
             let db_path = resolve_db_path(app);
             log::info!("Database: {}", db_path.display());
 
-            let database =
-                db::Database::open(&db_path).expect("failed to open database");
+            let database = db::Database::open(&db_path).expect("failed to open database");
 
             app.manage(Mutex::new(AppState { db: database }));
             Ok(())

@@ -91,7 +91,7 @@ jobs:
         run: cd ui && npm ci
 
       - name: svelte-check
-        run: cd ui && npx svelte-check
+        run: cd ui && npx svelte-kit sync && npx svelte-check
 
       - name: Run tests
         run: cd ui && npm test -- --run 2>/dev/null || true

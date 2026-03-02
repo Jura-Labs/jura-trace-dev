@@ -21,7 +21,7 @@ app = FastAPI(
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "0.1.0"}
+    return {"status": "ok", "version": "0.1.0", "service": "jura-sidecar"}
 
 
 # Phase 2: Image forensics endpoints

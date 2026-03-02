@@ -154,8 +154,7 @@ impl Database {
     pub fn get_stats(&self) -> SqliteResult<AppStats> {
         let conn = self.conn.lock().unwrap();
 
-        let total_assets: u64 =
-            conn.query_row("SELECT COUNT(*) FROM assets", [], |r| r.get(0))?;
+        let total_assets: u64 = conn.query_row("SELECT COUNT(*) FROM assets", [], |r| r.get(0))?;
 
         let c2pa_signed_count: u64 = conn.query_row(
             "SELECT COUNT(*) FROM assets WHERE c2pa_signed = 1",

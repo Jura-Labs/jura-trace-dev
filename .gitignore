@@ -24,10 +24,8 @@ ENV/
 # ===== Tauri =====
 src-tauri/target/
 src-tauri/gen/
-src-tauri/icons/*.png
 src-tauri/icons/*.ico
 src-tauri/icons/*.icns
-!src-tauri/icons/.gitkeep
 
 # ===== Data (local only, never commit) =====
 data/*.db

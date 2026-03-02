@@ -110,14 +110,23 @@ fn classify_extension(ext: &str) -> (ContentType, &'static str) {
 
         // Documents
         "pdf" => (ContentType::Document, "application/pdf"),
-        "docx" => (ContentType::Document, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-        "odt" => (ContentType::Document, "application/vnd.oasis.opendocument.text"),
+        "docx" => (
+            ContentType::Document,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ),
+        "odt" => (
+            ContentType::Document,
+            "application/vnd.oasis.opendocument.text",
+        ),
         "epub" => (ContentType::Document, "application/epub+zip"),
         "txt" => (ContentType::Document, "text/plain"),
         "rtf" => (ContentType::Document, "application/rtf"),
         "md" => (ContentType::Document, "text/markdown"),
         "csv" => (ContentType::Document, "text/csv"),
-        "xlsx" => (ContentType::Document, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+        "xlsx" => (
+            ContentType::Document,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ),
 
         // Video
         "mp4" | "m4v" => (ContentType::Video, "video/mp4"),
@@ -144,7 +153,10 @@ fn classify_extension(ext: &str) -> (ContentType, &'static str) {
         "fbx" => (ContentType::ThreeD, "application/octet-stream"),
         "ply" => (ContentType::ThreeD, "application/octet-stream"),
         "usdz" => (ContentType::ThreeD, "model/vnd.usdz+zip"),
-        "3mf" => (ContentType::ThreeD, "application/vnd.ms-package.3dmanufacturing-3dmodel+xml"),
+        "3mf" => (
+            ContentType::ThreeD,
+            "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
+        ),
         "dae" => (ContentType::ThreeD, "model/vnd.collada+xml"),
 
         // Web
