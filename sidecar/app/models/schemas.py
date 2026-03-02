@@ -48,13 +48,33 @@ class CopyMoveResponse(BaseModel):
     suspicious: bool
 
 
+class DeepfakeSignal(BaseModel):
+    """A single signal from the deepfake detection ensemble."""
+
+    name: str
+    description: str
+    weight: float
+    triggered: bool
+
+
+class DeepfakeResponse(BaseModel):
+    """Deepfake / AI-generated image detection result."""
+
+    score: float
+    suspicious: bool
+    confidence: str
+    signals: list[DeepfakeSignal]
+    heatmap_base64: str
+    summary: str
+
+
 class CapabilitiesResponse(BaseModel):
     """Sidecar capability flags."""
 
     ela: bool = True
     noise: bool = True
     copy_move: bool = True
-    deepfake: bool = False
+    deepfake: bool = True
     rag: bool = False
 
 

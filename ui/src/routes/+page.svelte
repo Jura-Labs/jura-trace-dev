@@ -87,7 +87,8 @@
         <span class="text-flint/60 ml-1">
           — ELA {sidecarHealth.capabilities.ela ? 'ready' : 'off'},
           Noise {sidecarHealth.capabilities.noise ? 'ready' : 'off'},
-          Copy-move {sidecarHealth.capabilities.copyMove ? 'ready' : 'off'}
+          Copy-move {sidecarHealth.capabilities.copyMove ? 'ready' : 'off'},
+          Deepfake {sidecarHealth.capabilities.deepfake ? 'ready' : 'off'}
         </span>
       {/if}
     </div>

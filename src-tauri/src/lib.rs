@@ -54,6 +54,7 @@ pub struct VerificationResult {
     pub ela_result: Option<sidecar::ElaResult>,
     pub noise_result: Option<sidecar::NoiseResult>,
     pub copy_move_result: Option<sidecar::CopyMoveResult>,
+    pub deepfake_result: Option<sidecar::DeepfakeResult>,
 }
 
 /// Application statistics for the dashboard.
@@ -333,6 +334,22 @@ fn verify_content_inner(
         (None, None)
     };
 
+    // Deepfake / AI-generated image detection
+    let (deepfake_score, deepfake_result) = if sidecar_up {
+        match app.sidecar.detect_deepfake(&path) {
+            Ok(result) => {
+                let score = result.score;
+                (Some(score), Some(result))
+            }
+            Err(e) => {
+                log::warn!("Sidecar deepfake detection failed: {e}");
+                (None, None)
+            }
+        }
+    } else {
+        (None, None)
+    };
+
     // Build metadata flags from findings
     let metadata_flags: Vec<String> = exif_analysis
         .as_ref()
@@ -352,6 +369,9 @@ fn verify_content_inner(
         forensic_signals.push(1.0 - s);
     }
     if let Some(s) = copy_move_score {
+        forensic_signals.push(1.0 - s);
+    }
+    if let Some(s) = deepfake_score {
         forensic_signals.push(1.0 - s);
     }
 
@@ -386,6 +406,7 @@ fn verify_content_inner(
                 "ela_score": ela_score,
                 "noise_score": noise_score,
                 "copy_move_score": copy_move_score,
+                "deepfake_score": deepfake_score,
                 "c2pa_valid": c2pa_valid,
                 "findings_count": metadata_flags.len(),
             })
@@ -396,10 +417,11 @@ fn verify_content_inner(
     );
 
     log::info!(
-        "Verification complete: trust={overall_trust:.2}, ela={:?}, noise={:?}, copy_move={:?}, findings={}",
+        "Verification complete: trust={overall_trust:.2}, ela={:?}, noise={:?}, copy_move={:?}, deepfake={:?}, findings={}",
         ela_score,
         noise_score,
         copy_move_score,
+        deepfake_score,
         metadata_flags.len()
     );
 
@@ -409,7 +431,7 @@ fn verify_content_inner(
         ela_score,
         noise_score,
         copy_move_score,
-        deepfake_score: None,
+        deepfake_score,
         c2pa_valid,
         metadata_flags,
         claim_verdict: None,
@@ -419,6 +441,7 @@ fn verify_content_inner(
         ela_result,
         noise_result,
         copy_move_result,
+        deepfake_result,
     })
 }
 

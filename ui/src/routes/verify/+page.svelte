@@ -539,6 +539,83 @@
         </section>
       {/if}
 
+      <!-- ── AI Generation Detection ─────────────────────────────── -->
+      {#if result.deepfakeResult}
+        {@const df = result.deepfakeResult}
+        <section class="px-5 py-4 border-b border-graphite-light" aria-labelledby="deepfake-heading">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <h2 id="deepfake-heading" class="text-sm font-medium text-quartz">AI Generation Detection</h2>
+              <span
+                class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(df.score)} {forensicScoreClass(df.score)}"
+              >
+                {df.suspicious ? 'Suspicious' : 'Normal'}
+              </span>
+              <span
+                class="text-xs px-1.5 py-0.5 rounded bg-graphite-light text-flint border border-graphite-light"
+                title="Confidence level of the detection"
+              >
+                {df.confidence} confidence
+              </span>
+            </div>
+            <span class="text-xs tabular-nums {forensicScoreClass(df.score)}">
+              Score: {(df.score * 100).toFixed(1)}%
+            </span>
+          </div>
+
+          <!-- Frequency spectrum heatmap -->
+          {#if df.heatmapBase64}
+            <div class="mb-3 rounded-md overflow-hidden border border-graphite-light bg-obsidian">
+              <img
+                src="data:image/png;base64,{df.heatmapBase64}"
+                alt="Frequency spectrum heatmap for AI generation detection"
+                class="w-full max-h-64 object-contain"
+              />
+            </div>
+          {/if}
+
+          <!-- Summary -->
+          <p class="text-xs text-flint mb-3">{df.summary}</p>
+
+          <!-- Signal list -->
+          {#if df.signals.length > 0}
+            <details class="group">
+              <summary class="text-xs text-lapis cursor-pointer hover:text-lapis-light transition-colors">
+                {df.signals.filter(s => s.triggered).length} of {df.signals.length} signals triggered — view details
+              </summary>
+              <div class="mt-2 space-y-1.5" role="list" aria-label="Detection signals">
+                {#each df.signals as signal (signal.name)}
+                  <div
+                    class="flex items-start gap-2 rounded-md px-3 py-2 text-xs
+                           {signal.triggered ? 'bg-amber/10 border border-amber/20' : 'bg-graphite-light/50 border border-graphite-light'}"
+                    role="listitem"
+                  >
+                    <span
+                      class="flex-shrink-0 w-1.5 h-1.5 mt-1 rounded-full {signal.triggered ? 'bg-amber' : 'bg-flint/30'}"
+                      aria-hidden="true"
+                    ></span>
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="font-mono {signal.triggered ? 'text-amber' : 'text-flint'}">{signal.name}</span>
+                        <span class="text-flint/60 tabular-nums">weight: {signal.weight.toFixed(1)}</span>
+                      </div>
+                      <p class="text-flint mt-0.5">{signal.description}</p>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </details>
+          {/if}
+
+          {#if df.suspicious}
+            <div class="mt-3 text-xs text-cinnabar bg-cinnabar/10 border border-cinnabar/20 rounded-md px-3 py-2">
+              Multiple statistical signals suggest this image may be AI-generated or synthetically produced.
+              Consider alongside other verification signals and the specific context of use.
+            </div>
+          {/if}
+        </section>
+      {/if}
+
       <!-- ── EXIF Analysis ─────────────────────────────────────────── -->
       {#if result.exifAnalysis}
         {@const exif = result.exifAnalysis}

@@ -5,8 +5,9 @@ Jura Archive Sidecar — Forensics endpoints.
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from app.config import settings
-from app.models.schemas import CopyMoveResponse, ElaResponse, NoiseAnalysisResponse
+from app.models.schemas import CopyMoveResponse, DeepfakeResponse, ElaResponse, NoiseAnalysisResponse
 from app.services.copy_move import perform_copy_move_detection
+from app.services.deepfake import perform_deepfake_detection
 from app.services.ela import perform_ela
 from app.services.noise_analysis import perform_noise_analysis
 
@@ -87,5 +88,23 @@ async def detect_copy_move(
             max_features=max_features,
             min_distance=min_distance,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/deepfake", response_model=DeepfakeResponse)
+async def detect_deepfake(
+    file: UploadFile = File(...),
+) -> DeepfakeResponse:
+    """
+    Detect AI-generated or synthetic content in an uploaded image.
+
+    Returns a score (0.0 = authentic, 1.0 = synthetic), interpretable
+    signals from the feature ensemble, and a frequency spectrum heatmap.
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return perform_deepfake_detection(image_bytes)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

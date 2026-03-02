@@ -64,6 +64,24 @@ export interface CopyMoveResult {
   suspicious: boolean;
 }
 
+/** A single signal from the deepfake detection ensemble */
+export interface DeepfakeSignal {
+  name: string;
+  description: string;
+  weight: number;
+  triggered: boolean;
+}
+
+/** Deepfake / AI-generated image detection result from the ML sidecar */
+export interface DeepfakeResult {
+  score: number;
+  suspicious: boolean;
+  confidence: string;
+  signals: DeepfakeSignal[];
+  heatmapBase64: string;
+  summary: string;
+}
+
 /** ML sidecar capability flags */
 export interface SidecarCapabilities {
   ela: boolean;
@@ -99,6 +117,7 @@ export interface VerificationResult {
   elaResult?: ElaResult;
   noiseResult?: NoiseResult;
   copyMoveResult?: CopyMoveResult;
+  deepfakeResult?: DeepfakeResult;
 }
 
 /** Severity level for an EXIF anomaly finding */

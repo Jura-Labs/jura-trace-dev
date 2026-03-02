@@ -82,6 +82,28 @@ pub struct CopyMoveResult {
     pub suspicious: bool,
 }
 
+/// A single signal from the deepfake detection ensemble.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DeepfakeSignal {
+    pub name: String,
+    pub description: String,
+    pub weight: f64,
+    pub triggered: bool,
+}
+
+/// Deepfake / AI-generated image detection result from the sidecar.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DeepfakeResult {
+    pub score: f64,
+    pub suspicious: bool,
+    pub confidence: String,
+    pub signals: Vec<DeepfakeSignal>,
+    pub heatmap_base64: String,
+    pub summary: String,
+}
+
 /// HTTP client for the Python ML sidecar.
 pub struct SidecarClient {
     base_url: String,
@@ -200,6 +222,31 @@ impl SidecarClient {
 
         resp.json::<CopyMoveResult>()
             .map_err(|e| format!("Failed to parse copy-move response: {e}"))
+    }
+
+    /// Run deepfake / AI-generated image detection on an image file.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/deepfake`.
+    /// Uses a 60-second timeout for the statistical feature ensemble.
+    pub fn detect_deepfake(&self, image_path: &Path) -> Result<DeepfakeResult, String> {
+        let form = self.build_image_form(image_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/deepfake", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(60))
+            .send()
+            .map_err(|e| format!("Sidecar deepfake request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!("Sidecar deepfake returned {status}: {body}"));
+        }
+
+        resp.json::<DeepfakeResult>()
+            .map_err(|e| format!("Failed to parse deepfake response: {e}"))
     }
 
     /// Build a multipart form with an image file.
@@ -322,6 +369,54 @@ mod tests {
         assert_eq!(result.clone_regions.len(), 1);
         assert_eq!(result.clone_regions[0].x, 50);
         assert_eq!(result.clone_regions[0].area, 10000);
+    }
+
+    #[test]
+    fn test_deepfake_result_deserialise() {
+        let json = r#"{
+            "score": 0.72,
+            "suspicious": true,
+            "confidence": "high",
+            "signals": [
+                {
+                    "name": "noise_residual",
+                    "description": "Low noise residual suggests AI generation",
+                    "weight": 2.0,
+                    "triggered": true
+                },
+                {
+                    "name": "frequency_energy",
+                    "description": "High-frequency energy is normal",
+                    "weight": 1.5,
+                    "triggered": false
+                }
+            ],
+            "heatmapBase64": "iVBOR...",
+            "summary": "Image shows strong indicators of AI generation"
+        }"#;
+        let result: DeepfakeResult = serde_json::from_str(json).unwrap();
+        assert!((result.score - 0.72).abs() < 0.001);
+        assert!(result.suspicious);
+        assert_eq!(result.confidence, "high");
+        assert_eq!(result.signals.len(), 2);
+        assert!(result.signals[0].triggered);
+        assert!(!result.signals[1].triggered);
+        assert_eq!(result.signals[0].name, "noise_residual");
+        assert!((result.signals[0].weight - 2.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_deepfake_signal_deserialise() {
+        let json = r#"{
+            "name": "spectral_decay",
+            "description": "Spectral decay outside natural range",
+            "weight": 1.0,
+            "triggered": true
+        }"#;
+        let signal: DeepfakeSignal = serde_json::from_str(json).unwrap();
+        assert_eq!(signal.name, "spectral_decay");
+        assert!(signal.triggered);
+        assert!((signal.weight - 1.0).abs() < 0.001);
     }
 
     #[test]

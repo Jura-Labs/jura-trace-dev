@@ -27,7 +27,7 @@ async def test_health_response_structure():
     assert data["service"] == "jura-sidecar"
     assert "capabilities" in data
     assert data["capabilities"]["ela"] is True
-    assert data["capabilities"]["deepfake"] is False
+    assert data["capabilities"]["deepfake"] is True
     assert data["capabilities"]["rag"] is False
 
 

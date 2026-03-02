@@ -10,7 +10,7 @@
 └────────────────────────────┬────────────────────────────────────────┘
                              │
 ┌────────────────────────────▼────────────────────────────────────────┐
-│                  SvelteKit Frontend (Port 5173)                      │
+│                  SvelteKit Frontend (Port 1420)                      │
 │                                                                      │
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────┐  ┌───────────┐ │
 │  │  PROTECT     │  │  VERIFY      │  │  MONITOR   │  │  SETTINGS │ │
@@ -43,7 +43,8 @@
 │  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────┐ │
 │  │  Image          │  │  Deepfake        │  │  RAG Pipeline      │ │
 │  │  Forensics      │  │  Detector        │  │  (claim checking)  │ │
-│  │  (ELA, noise)   │  │  (DeepSafe)      │  │                    │ │
+│  │  (ELA, noise,   │  │  (statistical    │  │  Phase 2 Wk 19-20 │ │
+│  │   copy-move)    │  │   ensemble)      │  │                    │ │
 │  └─────────────────┘  └──────────────────┘  └────────────────────┘ │
 └────────────────────────────┬────────────────────────────────────────┘
                              │
@@ -58,12 +59,21 @@
 | Module | Crate | Purpose |
 |--------|-------|---------|
 | `c2pa` | c2pa-rs | Sign, verify, and read C2PA Content Credentials |
-| `hash` | image, sha2 | Perceptual hashing (pHash, aHash, dHash, wHash) and cryptographic hashing |
-| `metadata` | kamadak-exif, xmp-toolkit | Extract and inspect EXIF, XMP, IPTC metadata (Tier 1 cataloguing) |
-| `catalogue` | ort (ONNX Runtime) | CLIP-based subject tagging via museum vocabulary (Tier 2, optional download) |
-| `watermark` | custom | Invisible frequency-domain watermarking |
+| `fingerprint` | image_hasher | Perceptual hashing (aHash, dHash, pHash) with Hamming distance similarity |
+| `metadata` | kamadak-exif | Extract and inspect EXIF metadata (Tier 1 cataloguing) |
+| `exif_anomaly` | — | Detect EXIF anomalies (timestamps, GPS, software, dimensions) and compute trust score |
 | `format_router` | infer, mime_guess | Detect content type and route to correct pipeline |
+| `sidecar` | reqwest | HTTP client for Python ML sidecar (ELA, noise, copy-move, deepfake) |
 | `db` | rusqlite | SQLite database for assets, fingerprints, verifications, audit log |
+
+## Python ML Sidecar Services
+
+| Service | Dependencies | Purpose |
+|---------|-------------|---------|
+| `ela` | Pillow, OpenCV | Error Level Analysis — detect JPEG compression artefact inconsistencies |
+| `noise_analysis` | OpenCV, NumPy | Block-wise noise variance analysis — detect splicing via Laplacian + MAD outlier detection |
+| `copy_move` | OpenCV, scikit-learn | Copy-move forgery detection via ORB keypoints + DBSCAN clustering |
+| `deepfake` | NumPy, SciPy, scikit-image | AI-generated image detection — 8-signal statistical feature ensemble (frequency, noise, texture, colour, JPEG, edge analysis) |
 
 ## Database Schema
 
@@ -156,18 +166,28 @@ File Drop → Format Router → [Image|Document|Video|Audio|3D] Pipeline
 ## Data Flow: VERIFY Pipeline
 
 ```
-Input (file/URL/text) → Intent Classifier
+Input (file drop / URL) → Format Router
                               │
-                ┌─────────────┼──────────────┐
-                ▼             ▼              ▼
-           Media Forensic  Text Claim    Source Trace
-           (ELA, deepfake, (RAG search,  (URL fetch,
-            EXIF, C2PA)    LLM assess)   archive compare)
-                │             │              │
-                └─────────────┼──────────────┘
+            ┌─────────────────┼──────────────────┐
+            ▼                 ▼                   ▼
+       EXIF Analysis     C2PA Manifest      Sidecar Forensics
+       (anomaly detect,  (read & verify     (if sidecar available)
+        trust score)      credentials)           │
+            │                 │        ┌─────────┼─────────┬──────────┐
+            │                 │        ▼         ▼         ▼          ▼
+            │                 │      ELA      Noise    Copy-Move  Deepfake
+            │                 │    (JPEG     (block    (ORB +    (8-signal
+            │                 │     artefact  variance  DBSCAN)   feature
+            │                 │     diff)     + MAD)              ensemble)
+            │                 │        │         │         │          │
+            └─────────────────┼────────┴─────────┴─────────┴──────────┘
                               ▼
-                    Trust Report Generator
-                    (composite score, evidence, sources)
+                    Trust Score Computation
+                    (EXIF trust + forensic average + C2PA bonus)
+                              │
+                              ▼
+                    Verification Result
+                    (scores, heatmaps, signals, findings)
 ```
 
 ## Security Model

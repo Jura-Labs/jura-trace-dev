@@ -27,6 +27,6 @@ async def health() -> HealthResponse:
         status="ok",
         version="0.2.0",
         service="jura-sidecar",
-        capabilities=CapabilitiesResponse(ela=True, noise=True, copy_move=True, deepfake=False, rag=False),
+        capabilities=CapabilitiesResponse(ela=True, noise=True, copy_move=True, deepfake=True, rag=False),
         ollama=ollama_status,
     )
