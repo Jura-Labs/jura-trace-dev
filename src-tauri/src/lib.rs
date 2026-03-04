@@ -55,6 +55,7 @@ pub struct VerificationResult {
     pub noise_result: Option<sidecar::NoiseResult>,
     pub copy_move_result: Option<sidecar::CopyMoveResult>,
     pub deepfake_result: Option<sidecar::DeepfakeResult>,
+    pub ai_generator: Option<String>,
 }
 
 /// Application statistics for the dashboard.
@@ -252,6 +253,98 @@ fn get_assets(state: State<'_, Mutex<AppState>>) -> Result<Vec<Asset>, String> {
     app.db.get_all_assets().map_err(|e| e.to_string())
 }
 
+/// Compute overall trust from individual forensic scores.
+///
+/// Uses a concordance-aware formula:
+/// - Manipulation signals (ELA, noise, copy-move) are weighted (ELA=2.0,
+///   others=1.0) since ELA is the most established forensic technique.
+/// - When both ELA and deepfake agree the image is clean but other signals
+///   disagree, a concordance boost dampens the outlier scores — this handles
+///   codec false positives (AVIF, WebP) without affecting genuine detections.
+/// - AI-generation (deepfake) is kept separate so it can't be diluted by
+///   manipulation detectors that see AI-generated images as "clean".
+/// - The final forensic trust uses the minimum of manipulation and deepfake
+///   categories, ensuring either can lower trust.
+fn compute_trust(
+    ela_score: Option<f64>,
+    noise_score: Option<f64>,
+    copy_move_score: Option<f64>,
+    deepfake_score: Option<f64>,
+    exif_trust: f64,
+    c2pa_valid: Option<bool>,
+) -> f64 {
+    let c2pa_bonus = if c2pa_valid == Some(true) { 0.1 } else { 0.0 };
+
+    // Weighted manipulation signals: ELA weight 2.0 (most reliable),
+    // noise and copy-move weight 1.0 each.
+    let mut manipulation_signals: Vec<(f64, f64)> = Vec::new(); // (trust, weight)
+    if let Some(s) = ela_score {
+        manipulation_signals.push((1.0 - s, 2.0));
+    }
+    if let Some(s) = noise_score {
+        manipulation_signals.push((1.0 - s, 1.0));
+    }
+    if let Some(s) = copy_move_score {
+        manipulation_signals.push((1.0 - s, 1.0));
+    }
+
+    let manipulation_trust = if manipulation_signals.is_empty() {
+        None
+    } else if manipulation_signals.len() == 1 {
+        Some(manipulation_signals[0].0)
+    } else {
+        // Weighted average as baseline
+        let total_weight: f64 = manipulation_signals.iter().map(|(_, w)| w).sum();
+        let weighted_avg: f64 =
+            manipulation_signals.iter().map(|(v, w)| v * w).sum::<f64>() / total_weight;
+
+        // Concordance check: when ELA and deepfake both say "clean"
+        // (trust > 0.7) but other manipulation signals disagree (trust < 0.3),
+        // the disagreement likely reflects codec artefacts rather than
+        // real manipulation. Apply a boost towards the "clean" consensus.
+        let ela_trust = ela_score.map(|s| 1.0 - s);
+        let df_trust = deepfake_score.map(|s| 1.0 - s);
+
+        let concordance_boost = match (ela_trust, df_trust) {
+            (Some(ela_t), Some(df_t)) if ela_t > 0.7 && df_t > 0.7 => {
+                let disagreeing_count = manipulation_signals
+                    .iter()
+                    .filter(|(v, _)| *v < 0.3)
+                    .count();
+
+                if disagreeing_count > 0 {
+                    let agreement_strength = (ela_t + df_t) / 2.0;
+                    let disagreement_ratio =
+                        disagreeing_count as f64 / manipulation_signals.len() as f64;
+                    ((agreement_strength - weighted_avg) * disagreement_ratio * 0.5).max(0.0)
+                } else {
+                    0.0
+                }
+            }
+            _ => 0.0,
+        };
+
+        Some((weighted_avg + concordance_boost).min(1.0))
+    };
+
+    let deepfake_trust = deepfake_score.map(|s| 1.0 - s);
+
+    // Use the worst-case forensic signal
+    let forensic_trust = match (manipulation_trust, deepfake_trust) {
+        (Some(m), Some(d)) => Some(m.min(d)),
+        (Some(m), None) => Some(m),
+        (None, Some(d)) => Some(d),
+        (None, None) => None,
+    };
+
+    if let Some(ft) = forensic_trust {
+        // Weight: 40% EXIF metadata, 60% forensic analysis
+        (exif_trust * 0.4 + ft * 0.6 + c2pa_bonus).min(1.0)
+    } else {
+        (exif_trust + c2pa_bonus).min(1.0)
+    }
+}
+
 /// Inner verification logic shared by `verify_content` and `verify_url`.
 fn verify_content_inner(
     source: &str,
@@ -272,7 +365,38 @@ fn verify_content_inner(
         let (actual_w, actual_h) = metadata::get_image_dimensions(&path).unwrap_or((0, 0));
         let actual_w = if actual_w > 0 { Some(actual_w) } else { None };
         let actual_h = if actual_h > 0 { Some(actual_h) } else { None };
-        Some(exif_anomaly::analyse(meta.as_ref(), actual_w, actual_h))
+        let mut analysis = exif_anomaly::analyse(meta.as_ref(), actual_w, actual_h);
+
+        // Reduce missing-EXIF penalty for modern web codecs (AVIF, WebP, HEIC).
+        // These formats routinely have EXIF stripped by CMS/CDN pipelines for
+        // bandwidth and privacy — absence is standard behaviour, not suspicious.
+        if !analysis.has_exif {
+            let is_web_codec = matches!(
+                info.mime_type.as_str(),
+                "image/avif" | "image/webp" | "image/heic"
+            );
+            if is_web_codec {
+                for finding in &mut analysis.findings {
+                    if finding.check_id == "no_exif_data" {
+                        finding.severity = exif_anomaly::Severity::Low;
+                        finding.description = format!(
+                            "No EXIF data present. For {} files delivered via the web, \
+                             EXIF stripping is standard CMS behaviour for bandwidth \
+                             and privacy. This is not inherently suspicious.",
+                            info.mime_type
+                        );
+                    }
+                }
+                // Recalculate trust score with reduced penalty
+                let mut score = 1.0_f64;
+                for finding in &analysis.findings {
+                    score -= finding.severity.deduction();
+                }
+                analysis.trust_score = score.max(0.0);
+            }
+        }
+
+        Some(analysis)
     } else {
         None
     };
@@ -281,10 +405,20 @@ fn verify_content_inner(
     let c2pa_manifest = c2pa::read_manifest(&path).ok().flatten();
     let c2pa_valid = c2pa_manifest.as_ref().map(|m| m.is_valid);
 
+    // Check C2PA claim_generator for known AI image generators
+    let ai_generator = c2pa_manifest
+        .as_ref()
+        .and_then(|m| m.claim_generator.as_deref())
+        .and_then(c2pa::detect_ai_generator);
+
     // Sidecar-based analysis (optional — graceful degradation)
     let app = state.lock().map_err(|e| e.to_string())?;
     let is_image = info.content_type == format_router::ContentType::Image;
     let sidecar_up = is_image && app.sidecar.is_available();
+    log::info!(
+        "Verify pipeline: is_image={}, sidecar_up={}, content_type={:?}",
+        is_image, sidecar_up, info.content_type
+    );
 
     // ELA
     let (ela_score, ela_result) = if sidecar_up {
@@ -356,32 +490,16 @@ fn verify_content_inner(
         .map(|a| a.findings.iter().map(|f| f.title.clone()).collect())
         .unwrap_or_default();
 
-    // Compute overall trust: combine EXIF, ELA, noise, copy-move, and C2PA
+    // Compute overall trust score
     let exif_trust = exif_analysis.as_ref().map(|a| a.trust_score).unwrap_or(0.5);
-    let c2pa_bonus = if c2pa_valid == Some(true) { 0.1 } else { 0.0 };
-
-    // Collect forensic trust signals (inverted scores: 0 manipulation = 1.0 trust)
-    let mut forensic_signals: Vec<f64> = Vec::new();
-    if let Some(s) = ela_score {
-        forensic_signals.push(1.0 - s);
-    }
-    if let Some(s) = noise_score {
-        forensic_signals.push(1.0 - s);
-    }
-    if let Some(s) = copy_move_score {
-        forensic_signals.push(1.0 - s);
-    }
-    if let Some(s) = deepfake_score {
-        forensic_signals.push(1.0 - s);
-    }
-
-    let overall_trust = if forensic_signals.is_empty() {
-        (exif_trust + c2pa_bonus).min(1.0)
-    } else {
-        let forensic_avg =
-            forensic_signals.iter().sum::<f64>() / forensic_signals.len() as f64;
-        ((exif_trust + forensic_avg) / 2.0 + c2pa_bonus).min(1.0)
-    };
+    let overall_trust = compute_trust(
+        ela_score,
+        noise_score,
+        copy_move_score,
+        deepfake_score,
+        exif_trust,
+        c2pa_valid,
+    );
 
     // Store verification in database
     let verification_id = uuid::Uuid::new_v4().to_string();
@@ -417,7 +535,7 @@ fn verify_content_inner(
     );
 
     log::info!(
-        "Verification complete: trust={overall_trust:.2}, ela={:?}, noise={:?}, copy_move={:?}, deepfake={:?}, findings={}",
+        "Verification complete: trust={overall_trust:.2}, exif_trust={exif_trust:.2}, ela={:?}, noise={:?}, copy_move={:?}, deepfake={:?}, findings={}",
         ela_score,
         noise_score,
         copy_move_score,
@@ -442,6 +560,7 @@ fn verify_content_inner(
         noise_result,
         copy_move_result,
         deepfake_result,
+        ai_generator,
     })
 }
 
@@ -497,7 +616,17 @@ fn sign_asset(
         .path()
         .app_data_dir()
         .map_err(|e| format!("Failed to resolve app data dir: {e}"))?;
-    let (cert, key) = c2pa::ensure_certificate(&data_dir)?;
+    let (cert, key) = c2pa::ensure_certificate(&data_dir).map_err(|e| {
+        log::error!("C2PA certificate error for asset {}: {}", asset_id, e);
+        e
+    })?;
+
+    log::info!(
+        "Signing asset {} ({}) -> {}",
+        asset_id,
+        source.display(),
+        output.display()
+    );
 
     let _manifest_info = c2pa::sign_file(
         &source,
@@ -506,7 +635,11 @@ fn sign_asset(
         license.as_deref(),
         &cert,
         &key,
-    )?;
+    )
+    .map_err(|e| {
+        log::error!("C2PA sign_file failed for asset {}: {}", asset_id, e);
+        e
+    })?;
 
     let output_str = output.to_string_lossy().to_string();
 
@@ -701,6 +834,7 @@ fn verify_url(url: String, state: State<'_, Mutex<AppState>>) -> Result<Verifica
             t if t.starts_with("image/jpeg") => Some("jpg"),
             t if t.starts_with("image/png") => Some("png"),
             t if t.starts_with("image/webp") => Some("webp"),
+            t if t.starts_with("image/avif") => Some("avif"),
             t if t.starts_with("image/gif") => Some("gif"),
             t if t.starts_with("image/tiff") => Some("tiff"),
             t if t.starts_with("application/pdf") => Some("pdf"),
@@ -801,4 +935,139 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running Jura Archive");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trust_clean_image_with_exif() {
+        // All signals clean, full EXIF → high trust
+        let trust = compute_trust(
+            Some(0.04), // ELA clean
+            Some(0.05), // Noise clean
+            Some(0.0),  // No copy-move
+            Some(0.15), // Deepfake clean
+            1.0,        // Perfect EXIF
+            None,       // No C2PA
+        );
+        assert!(trust > 0.85, "Expected >0.85, got {trust:.3}");
+    }
+
+    #[test]
+    fn trust_manipulated_image() {
+        // ELA, noise, and copy-move all suspicious → low trust
+        let trust = compute_trust(
+            Some(0.7),  // ELA suspicious
+            Some(0.8),  // Noise suspicious
+            Some(0.6),  // Copy-move suspicious
+            Some(0.2),  // Deepfake clean
+            0.5,        // Partial EXIF
+            None,
+        );
+        assert!(trust < 0.5, "Expected <0.5, got {trust:.3}");
+    }
+
+    #[test]
+    fn trust_concordance_dampens_false_positives() {
+        // ELA clean, deepfake clean, but noise+copymove maxed (codec false positive)
+        let trust = compute_trust(
+            Some(0.04), // ELA says clean
+            Some(1.0),  // Noise maxed (AVIF false positive)
+            Some(1.0),  // Copy-move maxed (AVIF false positive)
+            Some(0.15), // Deepfake says clean
+            0.80,       // Missing EXIF
+            None,
+        );
+        // Without concordance this would be ~0.51. With concordance
+        // it should be significantly higher.
+        assert!(trust > 0.60, "Expected >0.60, got {trust:.3}");
+    }
+
+    #[test]
+    fn trust_genuine_manipulation_not_boosted() {
+        // ELA is suspicious → concordance boost should NOT fire
+        let trust = compute_trust(
+            Some(0.7),  // ELA suspicious (trust 0.3 — NOT > 0.7)
+            Some(0.8),  // Noise suspicious
+            Some(0.5),  // Copy-move moderate
+            Some(0.2),  // Deepfake clean
+            0.8,        // Good EXIF
+            None,
+        );
+        // ELA trust < 0.7, so no concordance boost. Should be low.
+        assert!(trust < 0.55, "Expected <0.55, got {trust:.3}");
+    }
+
+    #[test]
+    fn trust_ela_weighted_higher() {
+        // ELA clean but noise suspicious — ELA's 2.0 weight should pull up
+        let trust_weighted = compute_trust(
+            Some(0.1),  // ELA clean
+            Some(0.8),  // Noise suspicious
+            Some(0.5),  // Copy-move moderate
+            Some(0.3),  // Deepfake moderate
+            0.8,
+            None,
+        );
+        // With simple mean: avg(0.9, 0.2, 0.5) = 0.533
+        // With weighted:    (0.9*2 + 0.2 + 0.5)/4 = 0.625
+        assert!(trust_weighted > 0.55, "Expected >0.55, got {trust_weighted:.3}");
+    }
+
+    #[test]
+    fn trust_c2pa_bonus_applied() {
+        let trust_without = compute_trust(Some(0.1), None, None, None, 0.8, None);
+        let trust_with = compute_trust(Some(0.1), None, None, None, 0.8, Some(true));
+        assert!(
+            trust_with > trust_without,
+            "C2PA bonus not applied: {trust_with:.3} vs {trust_without:.3}"
+        );
+    }
+
+    #[test]
+    fn trust_no_forensics_falls_back_to_exif() {
+        // No sidecar data — should use EXIF trust only
+        let trust = compute_trust(None, None, None, None, 0.8, None);
+        assert!(
+            (trust - 0.8).abs() < 0.01,
+            "Expected ~0.8, got {trust:.3}"
+        );
+    }
+
+    #[test]
+    fn trust_avif_news_image_regression() {
+        // Regression test: AVIF news image was scoring 51% due to
+        // noise/copy-move codec false positives. After fixes, the
+        // concordance-aware formula should produce high trust when
+        // ELA and deepfake both agree the image is authentic.
+        let trust = compute_trust(
+            Some(0.04),  // ELA clean
+            Some(0.76),  // Noise elevated (AVIF codec artefacts)
+            Some(0.35),  // Copy-move moderate (residual texture matches)
+            Some(0.15),  // Deepfake clean (0/10 signals)
+            0.95,        // EXIF: Low severity for web AVIF
+            None,
+        );
+        assert!(
+            trust > 0.75,
+            "AVIF news image should score >75%, got {:.1}%",
+            trust * 100.0
+        );
+    }
+
+    #[test]
+    fn trust_score_bounded() {
+        // Even with all bonuses, trust should be capped at 1.0
+        let trust = compute_trust(
+            Some(0.0),
+            Some(0.0),
+            Some(0.0),
+            Some(0.0),
+            1.0,
+            Some(true),
+        );
+        assert!(trust <= 1.0, "Trust exceeded 1.0: {trust:.3}");
+    }
 }

@@ -12,13 +12,17 @@ use std::path::Path;
 use std::time::Duration;
 
 /// Sidecar capability flags.
+///
+/// Python sidecar returns snake_case JSON; the frontend expects camelCase.
+/// We use `rename_all = "camelCase"` for serialisation to the frontend and
+/// `alias` on multi-word fields so deserialization accepts Python's snake_case.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Capabilities {
     pub ela: bool,
     #[serde(default)]
     pub noise: bool,
-    #[serde(default)]
+    #[serde(default, alias = "copy_move")]
     pub copy_move: bool,
     pub deepfake: bool,
     pub rag: bool,
@@ -39,8 +43,11 @@ pub struct SidecarHealth {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ElaResult {
+    #[serde(alias = "ela_image_base64")]
     pub ela_image_base64: String,
+    #[serde(alias = "max_difference")]
     pub max_difference: f64,
+    #[serde(alias = "mean_difference")]
     pub mean_difference: f64,
     pub score: f64,
     pub suspicious: bool,
@@ -50,10 +57,15 @@ pub struct ElaResult {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct NoiseResult {
+    #[serde(alias = "heatmap_base64")]
     pub heatmap_base64: String,
+    #[serde(alias = "block_variances")]
     pub block_variances: Vec<f64>,
+    #[serde(alias = "global_variance")]
     pub global_variance: f64,
+    #[serde(alias = "anomalous_blocks")]
     pub anomalous_blocks: u32,
+    #[serde(alias = "total_blocks")]
     pub total_blocks: u32,
     pub score: f64,
     pub suspicious: bool,
@@ -68,6 +80,7 @@ pub struct CloneRegion {
     pub width: i32,
     pub height: i32,
     pub area: i32,
+    #[serde(alias = "point_count")]
     pub point_count: i32,
 }
 
@@ -75,8 +88,11 @@ pub struct CloneRegion {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CopyMoveResult {
+    #[serde(alias = "visualisation_base64")]
     pub visualisation_base64: String,
+    #[serde(alias = "clone_regions")]
     pub clone_regions: Vec<CloneRegion>,
+    #[serde(alias = "matched_pairs")]
     pub matched_pairs: u32,
     pub score: f64,
     pub suspicious: bool,
@@ -92,6 +108,17 @@ pub struct DeepfakeSignal {
     pub triggered: bool,
 }
 
+/// An invisible watermark detection result from the sidecar.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WatermarkDetection {
+    #[serde(alias = "type", rename = "watermarkType")]
+    pub watermark_type: String,
+    pub detected: bool,
+    pub confidence: f64,
+    pub details: String,
+}
+
 /// Deepfake / AI-generated image detection result from the sidecar.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -100,8 +127,11 @@ pub struct DeepfakeResult {
     pub suspicious: bool,
     pub confidence: String,
     pub signals: Vec<DeepfakeSignal>,
+    #[serde(alias = "heatmap_base64")]
     pub heatmap_base64: String,
     pub summary: String,
+    #[serde(default)]
+    pub watermarks: Vec<WatermarkDetection>,
 }
 
 /// HTTP client for the Python ML sidecar.
@@ -311,11 +341,12 @@ mod tests {
     }
 
     #[test]
-    fn test_ela_result_deserialise() {
+    fn test_ela_result_deserialise_snake_case() {
+        // Python sidecar returns snake_case
         let json = r#"{
-            "elaImageBase64": "iVBOR...",
-            "maxDifference": 42.5,
-            "meanDifference": 8.3,
+            "ela_image_base64": "iVBOR...",
+            "max_difference": 42.5,
+            "mean_difference": 8.3,
             "score": 0.332,
             "suspicious": false
         }"#;
@@ -333,13 +364,14 @@ mod tests {
     }
 
     #[test]
-    fn test_noise_result_deserialise() {
+    fn test_noise_result_deserialise_snake_case() {
+        // Python sidecar returns snake_case
         let json = r#"{
-            "heatmapBase64": "iVBOR...",
-            "blockVariances": [10.5, 12.3, 8.7, 45.2],
-            "globalVariance": 120.5,
-            "anomalousBlocks": 1,
-            "totalBlocks": 4,
+            "heatmap_base64": "iVBOR...",
+            "block_variances": [10.5, 12.3, 8.7, 45.2],
+            "global_variance": 120.5,
+            "anomalous_blocks": 1,
+            "total_blocks": 4,
             "score": 0.25,
             "suspicious": false
         }"#;
@@ -352,13 +384,14 @@ mod tests {
     }
 
     #[test]
-    fn test_copy_move_result_deserialise() {
+    fn test_copy_move_result_deserialise_snake_case() {
+        // Python sidecar returns snake_case
         let json = r#"{
-            "visualisationBase64": "iVBOR...",
-            "cloneRegions": [
-                { "x": 50, "y": 50, "width": 100, "height": 100, "area": 10000, "pointCount": 25 }
+            "visualisation_base64": "iVBOR...",
+            "clone_regions": [
+                { "x": 50, "y": 50, "width": 100, "height": 100, "area": 10000, "point_count": 25 }
             ],
-            "matchedPairs": 42,
+            "matched_pairs": 42,
             "score": 0.65,
             "suspicious": true
         }"#;
@@ -372,7 +405,8 @@ mod tests {
     }
 
     #[test]
-    fn test_deepfake_result_deserialise() {
+    fn test_deepfake_result_deserialise_snake_case() {
+        // Python sidecar returns snake_case
         let json = r#"{
             "score": 0.72,
             "suspicious": true,
@@ -391,7 +425,7 @@ mod tests {
                     "triggered": false
                 }
             ],
-            "heatmapBase64": "iVBOR...",
+            "heatmap_base64": "iVBOR...",
             "summary": "Image shows strong indicators of AI generation"
         }"#;
         let result: DeepfakeResult = serde_json::from_str(json).unwrap();
@@ -420,11 +454,59 @@ mod tests {
     }
 
     #[test]
-    fn test_capabilities_with_new_fields() {
+    fn test_deepfake_result_with_watermarks() {
+        let json = r#"{
+            "score": 0.85,
+            "suspicious": true,
+            "confidence": "high",
+            "signals": [],
+            "heatmap_base64": "iVBOR...",
+            "summary": "AI watermark detected",
+            "watermarks": [
+                {
+                    "type": "stable_diffusion_v1",
+                    "detected": true,
+                    "confidence": 1.0,
+                    "details": "Exact SD v1 watermark decoded"
+                },
+                {
+                    "type": "sdxl",
+                    "detected": false,
+                    "confidence": 0.0,
+                    "details": "No SDXL watermark found"
+                }
+            ]
+        }"#;
+        let result: DeepfakeResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.watermarks.len(), 2);
+        assert!(result.watermarks[0].detected);
+        assert_eq!(result.watermarks[0].watermark_type, "stable_diffusion_v1");
+        assert!((result.watermarks[0].confidence - 1.0).abs() < 0.001);
+        assert!(!result.watermarks[1].detected);
+    }
+
+    #[test]
+    fn test_deepfake_result_without_watermarks_field() {
+        // Backwards compat: old responses without watermarks default to empty vec
+        let json = r#"{
+            "score": 0.72,
+            "suspicious": true,
+            "confidence": "high",
+            "signals": [],
+            "heatmap_base64": "iVBOR...",
+            "summary": "Strong synthetic indicators"
+        }"#;
+        let result: DeepfakeResult = serde_json::from_str(json).unwrap();
+        assert!(result.watermarks.is_empty());
+    }
+
+    #[test]
+    fn test_capabilities_with_snake_case() {
+        // Python sidecar returns snake_case
         let json = r#"{
             "ela": true,
             "noise": true,
-            "copyMove": true,
+            "copy_move": true,
             "deepfake": false,
             "rag": false
         }"#;

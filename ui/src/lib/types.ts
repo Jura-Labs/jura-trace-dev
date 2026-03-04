@@ -72,6 +72,14 @@ export interface DeepfakeSignal {
   triggered: boolean;
 }
 
+/** An invisible watermark detected in an image (e.g. Stable Diffusion, SDXL) */
+export interface WatermarkDetection {
+  watermarkType: string;
+  detected: boolean;
+  confidence: number;
+  details: string;
+}
+
 /** Deepfake / AI-generated image detection result from the ML sidecar */
 export interface DeepfakeResult {
   score: number;
@@ -80,6 +88,7 @@ export interface DeepfakeResult {
   signals: DeepfakeSignal[];
   heatmapBase64: string;
   summary: string;
+  watermarks?: WatermarkDetection[];
 }
 
 /** ML sidecar capability flags */
@@ -118,6 +127,7 @@ export interface VerificationResult {
   noiseResult?: NoiseResult;
   copyMoveResult?: CopyMoveResult;
   deepfakeResult?: DeepfakeResult;
+  aiGenerator?: string;
 }
 
 /** Severity level for an EXIF anomaly finding */

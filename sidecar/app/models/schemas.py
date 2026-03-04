@@ -57,6 +57,15 @@ class DeepfakeSignal(BaseModel):
     triggered: bool
 
 
+class WatermarkDetection(BaseModel):
+    """A detected invisible watermark from an AI image generator."""
+
+    type: str
+    detected: bool
+    confidence: float
+    details: str
+
+
 class DeepfakeResponse(BaseModel):
     """Deepfake / AI-generated image detection result."""
 
@@ -66,6 +75,7 @@ class DeepfakeResponse(BaseModel):
     signals: list[DeepfakeSignal]
     heatmap_base64: str
     summary: str
+    watermarks: list[WatermarkDetection] = []
 
 
 class CapabilitiesResponse(BaseModel):

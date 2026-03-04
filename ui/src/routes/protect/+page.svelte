@@ -175,7 +175,7 @@
       selectedAsset = updated;
       signingAssetId = null;
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Signing failed';
+      error = e instanceof Error ? e.message : typeof e === 'string' ? e : 'Signing failed';
     } finally {
       signing = false;
     }

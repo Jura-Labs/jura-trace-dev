@@ -19,6 +19,9 @@ scikit-learn>=1.5
 scikit-image>=0.24
 scipy>=1.14
 
+# AI watermark detection (SD/SDXL/Flux)
+invisible-watermark>=0.2.0
+
 # RAG pipeline (Phase 2, Weeks 19-20)
 chromadb==0.5.*
 sentence-transformers==3.*

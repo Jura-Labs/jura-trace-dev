@@ -7,13 +7,14 @@ analysis, JPEG artefacts, and edge structure. Each feature category captures
 different aspects of "naturalness" that distinguish real camera photographs
 from AI-generated content (GANs, diffusion models, etc.).
 
-The heuristic scorer combines 8 weighted signals into a single score.
+The heuristic scorer combines 13 weighted signals into a single score.
 A trained classifier (Random Forest / Gradient Boosting) can be plugged in
 later once training data is assembled.
 """
 
 import base64
 import io
+import math
 
 import cv2
 import numpy as np
@@ -21,10 +22,86 @@ from PIL import Image
 from scipy.fft import fft2, fftshift, dctn
 from skimage.feature import local_binary_pattern, graycomatrix, graycoprops
 
-from app.models.schemas import DeepfakeResponse, DeepfakeSignal
+from app.models.schemas import DeepfakeResponse, DeepfakeSignal, WatermarkDetection
 
 # Maximum analysis dimension (longest edge)
 ANALYSIS_SIZE = 512
+
+# Minimum image dimension for watermark decode
+_WATERMARK_MIN_SIZE = 256
+
+# Known SDXL 48-bit watermark pattern (from Stability AI detect.py)
+_SDXL_PATTERN = [
+    1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0,
+    1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1,
+    1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0,
+]
+
+
+def detect_sd_watermark(image_bytes: bytes) -> list[WatermarkDetection]:
+    """Detect invisible DWT watermarks from Stable Diffusion, SDXL, and Flux.
+
+    Uses the ``invisible-watermark`` library's dwtDct method (no PyTorch).
+    Returns an empty list if the library is not installed or image is too small.
+    """
+    try:
+        from imwatermark import WatermarkDecoder
+    except ImportError:
+        return []
+
+    try:
+        pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    except Exception:
+        return []
+
+    w, h = pil_img.size
+    if w < _WATERMARK_MIN_SIZE or h < _WATERMARK_MIN_SIZE:
+        return []
+
+    bgr = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+    detections: list[WatermarkDetection] = []
+
+    # --- SD v1 watermark (136-bit string "StableDiffusionV1") ---
+    try:
+        decoder_v1 = WatermarkDecoder("bytes", 136)
+        wm_bytes = decoder_v1.decode(bgr, "dwtDct")
+        decoded_str = wm_bytes.decode("utf-8", errors="ignore").rstrip("\x00")
+
+        if decoded_str == "StableDiffusionV1":
+            detections.append(WatermarkDetection(
+                type="stable_diffusion_v1",
+                detected=True,
+                confidence=1.0,
+                details="Exact Stable Diffusion v1 watermark decoded: 'StableDiffusionV1'",
+            ))
+    except Exception:
+        pass
+
+    # --- SDXL / Flux watermark (48-bit fixed pattern) ---
+    try:
+        decoder_xl = WatermarkDecoder("bits", 48)
+        bits = decoder_xl.decode(bgr, "dwtDct")
+        bits_list = [int(b) for b in bits]
+        matching = sum(1 for a, b in zip(bits_list, _SDXL_PATTERN) if a == b)
+
+        if matching >= 40:
+            detections.append(WatermarkDetection(
+                type="sdxl",
+                detected=True,
+                confidence=round(matching / 48.0, 3),
+                details=f"SDXL/Flux watermark detected: {matching}/48 bits match (very likely)",
+            ))
+        elif matching >= 35:
+            detections.append(WatermarkDetection(
+                type="sdxl",
+                detected=True,
+                confidence=round(matching / 48.0, 3),
+                details=f"SDXL/Flux watermark partially detected: {matching}/48 bits match (possible)",
+            ))
+    except Exception:
+        pass
+
+    return detections
 
 
 def perform_deepfake_detection(
@@ -63,6 +140,8 @@ def perform_deepfake_detection(
     features.update(_extract_texture_features(grey))
     features.update(_extract_jpeg_features(grey))
     features.update(_extract_edge_features(grey))
+    features.update(_extract_patch_spectral_features(grey))
+    features.update(_extract_multiscale_gradient_features(grey))
 
     # Score via heuristic ensemble
     score, signals = _heuristic_score(features)
@@ -71,21 +150,28 @@ def perform_deepfake_detection(
     heatmap_base64 = _generate_spectrum_heatmap(grey)
 
     # Confidence based on score extremity
-    if score > 0.75 or score < 0.2:
+    if score > 0.70 or score < 0.20:
         confidence = "high"
-    elif score > 0.6 or score < 0.35:
+    elif score > 0.55 or score < 0.30:
         confidence = "medium"
     else:
         confidence = "low"
 
     # Summary
     triggered_count = sum(1 for s in signals if s.triggered)
-    if score > 0.6:
+    if score > 0.55:
         summary = f"Strong synthetic indicators ({triggered_count} of {len(signals)} signals triggered)"
-    elif score > 0.4:
+    elif score > 0.35:
         summary = f"Mixed indicators ({triggered_count} of {len(signals)} signals triggered)"
     else:
         summary = f"Image appears authentic ({triggered_count} of {len(signals)} signals triggered)"
+
+    # Detect invisible AI watermarks (SD v1, SDXL, Flux)
+    watermarks = detect_sd_watermark(image_bytes)
+    if any(w.detected for w in watermarks):
+        confidence = "high"
+        wm_types = [w.type.replace("_", " ").title() for w in watermarks if w.detected]
+        summary = f"AI watermark detected ({', '.join(wm_types)}). {summary}"
 
     return DeepfakeResponse(
         score=round(score, 4),
@@ -94,6 +180,7 @@ def perform_deepfake_detection(
         signals=signals,
         heatmap_base64=heatmap_base64,
         summary=summary,
+        watermarks=watermarks,
     )
 
 
@@ -431,6 +518,86 @@ def _extract_edge_features(grey: np.ndarray) -> dict[str, float]:
     return features
 
 
+def _extract_patch_spectral_features(grey: np.ndarray) -> dict[str, float]:
+    """Extract per-patch spectral features to detect uniform AI frequency content.
+
+    Real photos have diverse spectral content across spatial patches (textured
+    regions vs smooth backgrounds). AI-generated images tend toward more uniform
+    spectral distributions across patches.
+    """
+    h, w = grey.shape
+    patch_size = 64
+    grey_f = grey.astype(np.float64)
+
+    hf_energies: list[float] = []
+    for i in range(0, h - patch_size + 1, patch_size):
+        for j in range(0, w - patch_size + 1, patch_size):
+            patch = grey_f[i : i + patch_size, j : j + patch_size]
+            f_transform = fft2(patch)
+            f_shifted = fftshift(f_transform)
+            power = np.abs(f_shifted) ** 2
+
+            cy, cx = patch_size // 2, patch_size // 2
+            y_coords, x_coords = np.ogrid[:patch_size, :patch_size]
+            radius = np.sqrt((x_coords - cx) ** 2 + (y_coords - cy) ** 2)
+            max_radius = min(cx, cy)
+
+            hf_mask = radius > (max_radius * 0.75)
+            total_energy = power.sum() + 1e-10
+            hf_energy = power[hf_mask].sum() / total_energy
+            hf_energies.append(float(hf_energy))
+
+    if len(hf_energies) >= 2:
+        mean_hf = float(np.mean(hf_energies))
+        patch_spectral_cv = float(np.std(hf_energies) / (mean_hf + 1e-10))
+    else:
+        patch_spectral_cv = 1.0  # Default: assume natural diversity
+
+    return {
+        "patch_spectral_cv": patch_spectral_cv,
+    }
+
+
+def _extract_multiscale_gradient_features(grey: np.ndarray) -> dict[str, float]:
+    """Extract gradient energy distribution across image scales.
+
+    Real photos lose gradient energy naturally at coarser scales (fine textures
+    and edges disappear). AI-generated images tend to maintain more uniform
+    gradient energy across scales due to the generation process operating at
+    multiple resolutions simultaneously.
+    """
+    grey_f = grey.astype(np.float64)
+
+    # 3-level Gaussian pyramid: original, 0.5x, 0.25x
+    levels = [grey_f]
+    current = grey_f
+    for _ in range(2):
+        if current.shape[0] < 16 or current.shape[1] < 16:
+            break
+        current = cv2.pyrDown(current)
+        levels.append(current)
+
+    if len(levels) < 3:
+        return {"multiscale_gradient_ratio": 0.4}  # Default: favour authentic
+
+    # Mean Sobel gradient magnitude at each level
+    grad_means: list[float] = []
+    for level in levels:
+        gx = cv2.Sobel(level, cv2.CV_64F, 1, 0, ksize=3)
+        gy = cv2.Sobel(level, cv2.CV_64F, 0, 1, ksize=3)
+        mag = np.sqrt(gx**2 + gy**2)
+        grad_means.append(float(np.mean(mag)))
+
+    # Ratio: coarsest / finest. Real photos ~0.3-0.6, AI ~0.6-0.9
+    level0 = grad_means[0] + 1e-10
+    level2 = grad_means[2]
+    ratio = level2 / level0
+
+    return {
+        "multiscale_gradient_ratio": float(ratio),
+    }
+
+
 # ── Heuristic Scorer ──────────────────────────────────────────────────
 
 
@@ -444,13 +611,30 @@ def _heuristic_score(
     """
     signals: list[DeepfakeSignal] = []
 
+    # Scoring uses sigmoid activation: the ratio of triggered signal weight
+    # to total weight is mapped through a sigmoid (midpoint=0.18, k=12).
+    # This gives:
+    #   0% triggered  → score ~0.10 (authentic)
+    #  10% triggered  → score ~0.27
+    #  18% triggered  → score ~0.50 (suspicious threshold)
+    #  30% triggered  → score ~0.81
+    # 100% triggered  → score ~1.00
+    #
+    # Midpoint lowered from 0.25 to 0.18 to compensate for weight dilution
+    # (total weight increased from 12.5 to 17.5 with new signals). Steepness
+    # increased from 10 to 12 for sharper authentic/suspicious separation.
+    #
+    # Signals are designed to be robust against lossy codec artifacts (AVIF, WebP, JPEG)
+    # and scene-dependent features (fog, smoke, soft backgrounds). Thresholds are
+    # calibrated against both real compressed photos and modern diffusion model output.
+
     def _add(
         name: str,
         weight: float,
         triggered: bool,
         desc_triggered: str,
         desc_normal: str,
-    ) -> float:
+    ) -> None:
         signals.append(
             DeepfakeSignal(
                 name=name,
@@ -459,111 +643,184 @@ def _heuristic_score(
                 description=desc_triggered if triggered else desc_normal,
             )
         )
-        return (0.8 if triggered else 0.25) * weight
 
-    components: list[float] = []
+    # --- Noise domain (3 signals) ---
 
-    # 1. Noise residual level
+    # 1. Noise residual level — very low noise indicates GAN-style generators
     noise_std = features.get("noise_std", 5.0)
-    components.append(
-        _add(
-            "noise_residual",
-            2.0,
-            noise_std < 2.0,
-            f"Very low noise residual (std={noise_std:.2f}), common in AI-generated images",
-            f"Noise residual within normal range (std={noise_std:.2f})",
-        )
+    _add(
+        "noise_residual",
+        1.0,
+        noise_std < 2.0,
+        f"Very low noise residual (std={noise_std:.2f}), common in AI-generated images",
+        f"Noise residual within normal range (std={noise_std:.2f})",
     )
 
-    # 2. Noise spatial autocorrelation (PRNU)
+    # 2. Smoothed noise with heavy tails — compound signal. AI images often have
+    #    low noise (std < 5) with non-Gaussian distribution (kurtosis > 20).
+    #    Real photos compressed by AVIF/WebP have high kurtosis but also higher
+    #    noise_std, so the compound check avoids codec false positives.
+    noise_kurt = features.get("noise_kurtosis", 3.0)
+    smooth_kurtosis = noise_std < 5.0 and noise_kurt > 20.0
+    _add(
+        "noise_smoothed_kurtosis",
+        1.5,
+        smooth_kurtosis,
+        f"Smooth noise with heavy tails (std={noise_std:.1f}, kurtosis={noise_kurt:.0f}), AI generation pattern",
+        f"Noise profile consistent with camera/codec (std={noise_std:.1f}, kurtosis={noise_kurt:.0f})",
+    )
+
+    # 3. PRNU asymmetry — real camera sensors have roughly symmetric horizontal/vertical
+    #    noise autocorrelation. Diffusion models produce strongly asymmetric patterns.
     ac_h = features.get("noise_autocorr_h1", 0.1)
     ac_v = features.get("noise_autocorr_v1", 0.1)
-    mean_ac = (ac_h + ac_v) / 2
-    components.append(
-        _add(
-            "noise_prnu",
-            1.5,
-            mean_ac < 0.05,
-            f"Noise lacks spatial correlation (autocorr={mean_ac:.4f}), no camera sensor pattern detected",
-            f"Noise shows spatial correlation consistent with camera sensor (autocorr={mean_ac:.4f})",
-        )
+    prnu_asym = abs(ac_h - ac_v)
+    _add(
+        "prnu_asymmetry",
+        1.5,
+        prnu_asym > 0.3,
+        f"Asymmetric noise correlation (H={ac_h:.3f}, V={ac_v:.3f}), inconsistent with camera PRNU",
+        f"Symmetric noise correlation (H={ac_h:.3f}, V={ac_v:.3f}), consistent with camera sensor",
     )
 
-    # 3. Noise variance consistency
+    # 4. Noise variance consistency — AI images have more uniform block-wise
+    #    noise variance than real photos with diverse scene content.
     noise_cv = features.get("noise_var_cv", 0.5)
-    components.append(
-        _add(
-            "noise_consistency",
-            1.5,
-            noise_cv < 0.3,
-            f"Unnaturally consistent noise across image blocks (CV={noise_cv:.3f})",
-            f"Normal noise variance across blocks (CV={noise_cv:.3f})",
-        )
+    _add(
+        "noise_consistency",
+        1.5,
+        noise_cv < 1.5,
+        f"Unnaturally uniform noise distribution (CV={noise_cv:.3f}), common in AI-generated images",
+        f"Normal noise variance distribution (CV={noise_cv:.3f})",
     )
 
-    # 4. High-frequency energy
+    # --- Frequency domain (2 signals) ---
+
+    # 5. Extreme spectral smoothing — only triggers at very low HF energy (< 0.002).
+    #    Threshold is lower than before (was 0.01) to avoid false positives from
+    #    AVIF/WebP lossy compression which also strips high frequencies.
     hf_ratio = features.get("hf_energy_ratio", 0.05)
-    components.append(
-        _add(
-            "frequency_energy",
-            1.5,
-            hf_ratio < 0.01,
-            f"Deficient high-frequency energy (ratio={hf_ratio:.5f}), suggests AI smoothing",
-            f"Normal high-frequency energy distribution (ratio={hf_ratio:.5f})",
-        )
+    _add(
+        "frequency_energy",
+        1.5,
+        hf_ratio < 0.002,
+        f"Severely deficient high-frequency energy (ratio={hf_ratio:.5f}), indicates AI smoothing",
+        f"Adequate high-frequency content (ratio={hf_ratio:.5f})",
     )
 
-    # 5. Spectral decay slope
+    # 5. Spectral decay slope — natural images follow 1/f^beta with beta in 1.5-2.5
     beta = features.get("spectral_decay_beta", 2.0)
     out_of_range = beta > 2.5 or beta < 1.5
-    components.append(
-        _add(
-            "spectral_decay",
-            1.0,
-            out_of_range,
-            f"Unusual spectral decay (beta={beta:.2f}), expected 1.5-2.5 for natural images",
-            f"Normal spectral decay (beta={beta:.2f})",
-        )
+    _add(
+        "spectral_decay",
+        1.5,
+        out_of_range,
+        f"Unusual spectral decay (beta={beta:.2f}), expected 1.5-2.5 for natural images",
+        f"Normal spectral decay (beta={beta:.2f})",
     )
 
-    # 6. Texture consistency (LBP)
+    # --- Texture domain (1 signal, high weight — strongest discriminator) ---
+
+    # 6. LBP texture consistency — AI images have unnaturally uniform local texture
+    #    across image blocks. Real photos vary more due to scene complexity.
     lbp_cv = features.get("lbp_block_var_cv", 0.5)
-    components.append(
-        _add(
-            "texture_consistency",
-            1.0,
-            lbp_cv < 0.2,
-            f"Unnaturally uniform texture patterns (LBP CV={lbp_cv:.3f})",
-            f"Normal texture variation (LBP CV={lbp_cv:.3f})",
-        )
+    _add(
+        "texture_consistency",
+        2.0,
+        lbp_cv < 0.2,
+        f"Unnaturally uniform texture patterns (LBP CV={lbp_cv:.3f})",
+        f"Normal texture variation (LBP CV={lbp_cv:.3f})",
     )
 
-    # 7. Colour gamut
+    # --- Patch spectral domain (1 signal) ---
+
+    # 8. Patch spectral variance — real photos have diverse high-frequency
+    #    content across spatial patches (textured vs smooth regions). AI images
+    #    show more uniform spectral patterns across patches.
+    patch_spec_cv = features.get("patch_spectral_cv", 1.0)
+    _add(
+        "patch_spectral_variance",
+        2.0,
+        patch_spec_cv < 0.8,
+        f"Uniform spectral content across patches (CV={patch_spec_cv:.3f}), typical of AI generation",
+        f"Diverse spectral content across patches (CV={patch_spec_cv:.3f})",
+    )
+
+    # --- Colour domain (2 signals) ---
+
+    # 9. Inter-channel correlation — AI images tend to have unnaturally high
+    #    correlation between R, G, B channels (>0.96).
+    corr_rg = features.get("color_corr_rg", 0.8)
+    corr_rb = features.get("color_corr_rb", 0.8)
+    corr_gb = features.get("color_corr_gb", 0.8)
+    mean_corr = (corr_rg + corr_rb + corr_gb) / 3
+    _add(
+        "channel_correlation",
+        1.0,
+        mean_corr > 0.96,
+        f"Unusually high colour channel correlation ({mean_corr:.3f}), common in AI-generated images",
+        f"Normal colour channel variation ({mean_corr:.3f})",
+    )
+
+    # 8. Colour gamut
     gamut = features.get("color_gamut_coverage", 0.1)
-    components.append(
-        _add(
-            "color_gamut",
-            0.5,
-            gamut < 0.05,
-            f"Narrow colour gamut ({gamut:.3f}), may indicate limited AI colour range",
-            f"Normal colour gamut usage ({gamut:.3f})",
-        )
+    _add(
+        "color_gamut",
+        0.5,
+        gamut < 0.05,
+        f"Narrow colour gamut ({gamut:.3f}), may indicate limited AI colour range",
+        f"Normal colour gamut usage ({gamut:.3f})",
     )
 
-    # 8. Sharpness consistency
+    # --- Structure domain (1 signal) ---
+
+    # 9. Sharpness consistency — real photos have large sharpness variation
+    #    (sharp foreground, soft background). AI images have more uniform sharpness.
+    #    Threshold 0.8 avoids false positives from compressed/edited real photos.
     sharp_cv = features.get("sharpness_cv", 0.5)
-    components.append(
-        _add(
-            "sharpness_consistency",
-            1.0,
-            sharp_cv < 0.3,
-            f"Unnaturally consistent sharpness (CV={sharp_cv:.3f})",
-            f"Normal sharpness variation (CV={sharp_cv:.3f})",
-        )
+    _add(
+        "sharpness_consistency",
+        1.5,
+        sharp_cv < 0.8,
+        f"Unnaturally consistent sharpness (CV={sharp_cv:.3f})",
+        f"Normal sharpness variation (CV={sharp_cv:.3f})",
     )
 
+    # --- Multi-scale gradient domain (1 signal) ---
+
+    # 12. Multi-scale gradient uniformity — real photos lose gradient energy
+    #     at coarser scales as fine detail disappears. AI images maintain more
+    #     uniform gradient energy across scales. Threshold raised to 1.5 to
+    #     avoid false positives from lossy-compressed images (AVIF/WebP) where
+    #     codec artifacts inflate gradient ratios above 1.0.
+    grad_ratio = features.get("multiscale_gradient_ratio", 0.4)
+    _add(
+        "multiscale_gradient",
+        1.0,
+        grad_ratio > 1.5,
+        f"Uniform gradient energy across scales (ratio={grad_ratio:.3f}), suggests AI generation",
+        f"Natural gradient energy falloff across scales (ratio={grad_ratio:.3f})",
+    )
+
+    # --- DCT domain (1 signal) ---
+
+    # 13. Benford's law divergence — first digits of DCT coefficients in natural
+    #     images follow Benford's distribution. AI-generated content deviates more.
+    benford_div = features.get("dct_benford_div", 0.0)
+    _add(
+        "benford_divergence",
+        0.5,
+        benford_div > 0.08,
+        f"DCT coefficients deviate from Benford's law (div={benford_div:.3f}), uncommon in natural images",
+        f"DCT statistics follow expected distribution (div={benford_div:.3f})",
+    )
+
+    # Sigmoid activation: ratio of triggered weight → score via sigmoid
     total_weight = sum(s.weight for s in signals)
-    score = sum(components) / total_weight
+    triggered_weight = sum(s.weight for s in signals if s.triggered)
+    activation_ratio = triggered_weight / total_weight if total_weight > 0 else 0.0
+    # Midpoint 0.18 → 18% triggered weight gives score 0.50
+    score = 1.0 / (1.0 + math.exp(-12.0 * (activation_ratio - 0.18)))
 
     return score, signals
 

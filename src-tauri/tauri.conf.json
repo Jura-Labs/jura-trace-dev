@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "identifier": "org.juralabs.archive",
   "build": {
-    "beforeDevCommand": "cd ../ui && npm run dev",
-    "beforeBuildCommand": "cd ../ui && npm run build",
+    "beforeDevCommand": "cd ui && npm run dev",
+    "beforeBuildCommand": "cd ui && npm run build",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../ui/build"
   },

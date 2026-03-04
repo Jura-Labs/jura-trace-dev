@@ -17,6 +17,7 @@ Algorithm:
 
 import base64
 import io
+import math
 
 import cv2
 import numpy as np
@@ -88,9 +89,11 @@ def perform_noise_analysis(
     mad = float(np.median(np.abs(flat_vars - median_var)))
 
     if mad > 0:
-        # Modified z-score (0.6745 is the 0.75th quantile of the standard normal)
+        # Modified z-score (0.6745 is the 0.75th quantile of the standard normal).
+        # Threshold 4.5 (raised from 3.5) is more robust against AVIF/WebP
+        # variable quantisation which creates legitimate noise variation.
         z_scores = 0.6745 * (flat_vars - median_var) / mad
-        anomalous = int(np.sum(np.abs(z_scores) > 3.5))
+        anomalous = int(np.sum(np.abs(z_scores) > 4.5))
     else:
         # All blocks identical — no anomalies
         anomalous = 0
@@ -103,11 +106,17 @@ def perform_noise_analysis(
     Image.fromarray(heatmap).save(buffer, format="PNG")
     heatmap_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-    # Score: proportion of anomalous blocks, capped at 1.0
-    score = min(anomalous / max(total_blocks * 0.05, 1.0), 1.0)
+    # Score: sigmoid of anomalous proportion, centred at 30%.
+    # Previous linear formula saturated at 5% anomalous blocks, producing
+    # false positives for modern lossy codecs (AVIF, WebP) whose variable
+    # block-size quantisation creates legitimate noise variation across
+    # 10-40% of blocks. The sigmoid (midpoint=30%, k=12) gives a gradual
+    # curve: 5%→0.04, 15%→0.14, 25%→0.38, 30%→0.50, 40%→0.73, 50%→0.88.
+    anomalous_ratio = anomalous / total_blocks if total_blocks > 0 else 0.0
+    score = 1.0 / (1.0 + math.exp(-12.0 * (anomalous_ratio - 0.30)))
 
-    # Suspicious if more than 5% of blocks are anomalous
-    suspicious = anomalous > total_blocks * 0.05
+    # Suspicious if more than 25% of blocks are anomalous
+    suspicious = anomalous_ratio > 0.25
 
     return NoiseAnalysisResponse(
         heatmap_base64=heatmap_base64,

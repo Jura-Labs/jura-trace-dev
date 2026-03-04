@@ -543,6 +543,26 @@
       {#if result.deepfakeResult}
         {@const df = result.deepfakeResult}
         <section class="px-5 py-4 border-b border-graphite-light" aria-labelledby="deepfake-heading">
+          <!-- AI Watermark Detections -->
+          {#if df.watermarks?.some(w => w.detected)}
+            <div class="mb-3 rounded-md border border-cinnabar/30 bg-cinnabar/10 px-4 py-3">
+              <p class="text-xs font-medium text-cinnabar-light mb-1.5">
+                AI Generator Watermark Detected
+              </p>
+              {#each df.watermarks.filter(w => w.detected) as wm (wm.watermarkType)}
+                <div class="flex items-center justify-between text-xs mb-1 last:mb-0">
+                  <span class="text-quartz font-mono">
+                    {wm.watermarkType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  </span>
+                  <span class="text-flint tabular-nums">
+                    {(wm.confidence * 100).toFixed(0)}% confidence
+                  </span>
+                </div>
+                <p class="text-xs text-flint mb-1">{wm.details}</p>
+              {/each}
+            </div>
+          {/if}
+
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <h2 id="deepfake-heading" class="text-sm font-medium text-quartz">AI Generation Detection</h2>
@@ -705,6 +725,15 @@
             >
               {manifest.isValid ? 'Valid' : 'Invalid'}
             </span>
+            {#if result.aiGenerator}
+              <span
+                class="text-xs font-medium px-2 py-0.5 rounded
+                       bg-cinnabar/15 text-cinnabar-light border border-cinnabar/20"
+                title="C2PA credentials indicate this was created by an AI image generator"
+              >
+                AI: {result.aiGenerator}
+              </span>
+            {/if}
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm mb-4">

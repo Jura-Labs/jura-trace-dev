@@ -6,7 +6,12 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from app.services.deepfake import perform_deepfake_detection
+from app.services.deepfake import (
+    perform_deepfake_detection,
+    detect_sd_watermark,
+    _extract_patch_spectral_features,
+    _extract_multiscale_gradient_features,
+)
 
 
 def _make_solid_image(size: tuple[int, int] = (256, 256)) -> bytes:
@@ -55,7 +60,7 @@ class TestDeepfakeDetection:
         """A noisy image should return a valid result."""
         result = perform_deepfake_detection(_make_noisy_photo())
         assert 0.0 <= result.score <= 1.0
-        assert len(result.signals) == 8  # 8 signals in the ensemble
+        assert len(result.signals) == 13  # 13 signals in the ensemble
 
     def test_gradient_image_valid(self):
         """A gradient image should return a valid result."""
@@ -80,19 +85,24 @@ class TestDeepfakeDetection:
             assert 0.0 <= result.score <= 1.0
 
     def test_signals_populated(self):
-        """All 8 ensemble signals should be present."""
+        """All 13 ensemble signals should be present."""
         result = perform_deepfake_detection(_make_noisy_photo())
-        assert len(result.signals) == 8
+        assert len(result.signals) == 13
         names = {s.name for s in result.signals}
         expected_names = {
             "noise_residual",
-            "noise_prnu",
+            "noise_smoothed_kurtosis",
+            "prnu_asymmetry",
             "noise_consistency",
             "frequency_energy",
             "spectral_decay",
             "texture_consistency",
+            "patch_spectral_variance",
+            "channel_correlation",
             "color_gamut",
             "sharpness_consistency",
+            "multiscale_gradient",
+            "benford_divergence",
         }
         assert names == expected_names
 
@@ -117,3 +127,87 @@ class TestDeepfakeDetection:
         img.save(buf, format="JPEG", quality=85)
         result = perform_deepfake_detection(buf.getvalue())
         assert 0.0 <= result.score <= 1.0
+
+    def test_patch_spectral_features_valid(self):
+        """Patch spectral CV should be a non-negative float."""
+        rng = np.random.default_rng(42)
+        arr = rng.integers(50, 200, (256, 256), dtype=np.uint8)
+        features = _extract_patch_spectral_features(arr)
+        assert "patch_spectral_cv" in features
+        assert features["patch_spectral_cv"] >= 0.0
+
+    def test_patch_spectral_small_image(self):
+        """Small image should return default patch spectral CV."""
+        arr = np.zeros((32, 32), dtype=np.uint8)
+        features = _extract_patch_spectral_features(arr)
+        assert features["patch_spectral_cv"] == 1.0
+
+    def test_multiscale_gradient_features_valid(self):
+        """Multi-scale gradient ratio should be a non-negative float."""
+        rng = np.random.default_rng(42)
+        arr = rng.integers(50, 200, (256, 256), dtype=np.uint8)
+        features = _extract_multiscale_gradient_features(arr)
+        assert "multiscale_gradient_ratio" in features
+        assert features["multiscale_gradient_ratio"] >= 0.0
+
+    def test_multiscale_gradient_small_image(self):
+        """Small image should return default gradient ratio."""
+        arr = np.zeros((8, 8), dtype=np.uint8)
+        features = _extract_multiscale_gradient_features(arr)
+        assert features["multiscale_gradient_ratio"] == 0.4
+
+    def test_noise_consistency_signal_present(self):
+        """The noise_consistency signal should be present and valid."""
+        result = perform_deepfake_detection(_make_noisy_photo())
+        noise_signals = [s for s in result.signals if s.name == "noise_consistency"]
+        assert len(noise_signals) == 1
+        assert noise_signals[0].weight == 1.5
+        assert isinstance(noise_signals[0].triggered, bool)
+
+    def test_watermarks_field_present(self):
+        """DeepfakeResponse should always include the watermarks field."""
+        result = perform_deepfake_detection(_make_noisy_photo())
+        assert hasattr(result, "watermarks")
+        assert isinstance(result.watermarks, list)
+
+    def test_no_watermark_on_synthetic_image(self):
+        """Synthetic test images should have no detected watermarks."""
+        result = perform_deepfake_detection(_make_noisy_photo())
+        detected = [w for w in result.watermarks if w.detected]
+        assert len(detected) == 0
+
+    def test_watermarks_small_image_skipped(self):
+        """Images below 256x256 should not produce watermark detections."""
+        result = perform_deepfake_detection(_make_solid_image(size=(128, 128)))
+        detected = [w for w in result.watermarks if w.detected]
+        assert len(detected) == 0
+
+
+class TestWatermarkDetection:
+    """Tests for the SD/SDXL/Flux invisible watermark detector."""
+
+    def test_no_watermark_on_random_image(self):
+        """A random image should not trigger watermark detection."""
+        detections = detect_sd_watermark(_make_noisy_photo(size=(512, 512)))
+        detected = [d for d in detections if d.detected]
+        assert len(detected) == 0
+
+    def test_small_image_returns_empty(self):
+        """Images below minimum size should return empty list."""
+        detections = detect_sd_watermark(_make_solid_image(size=(128, 128)))
+        assert detections == []
+
+    def test_invalid_bytes_returns_empty(self):
+        """Invalid image bytes should return empty list, not raise."""
+        detections = detect_sd_watermark(b"not an image")
+        assert detections == []
+
+    def test_detection_fields_valid(self):
+        """Each detection should have all required fields with valid values."""
+        detections = detect_sd_watermark(_make_noisy_photo(size=(512, 512)))
+        for d in detections:
+            assert isinstance(d.type, str) and d.type
+            assert isinstance(d.detected, bool)
+            assert isinstance(d.confidence, float)
+            assert 0.0 <= d.confidence <= 1.0
+            assert isinstance(d.details, str) and d.details

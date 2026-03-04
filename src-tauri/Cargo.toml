@@ -42,6 +42,8 @@ c2pa = { version = "0.76", features = ["file_io"] }
 
 # Certificate generation for C2PA signing
 rcgen = "0.13"
+# time is a direct dependency of rcgen; we use OffsetDateTime for cert validity
+time = { version = "0.3", features = ["std"] }
 
 # Perceptual hashing (Phase 1, Weeks 9-10)
 image_hasher = "3.1"
