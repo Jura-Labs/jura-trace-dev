@@ -8,6 +8,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Phase 2 — ML Sidecar + Forensic Pipeline
 
+### Weeks 17-18b — AI Watermark Detection + Signal Calibration (5 Mar 2026)
+
+**Added**
+- Invisible watermark detection for Stable Diffusion v1, SDXL, and Flux images via `invisible-watermark` library (DWT decode, no PyTorch)
+- SD v1 watermark: 136-bit exact string match ("StableDiffusionV1"), zero false positive rate
+- SDXL/Flux watermark: 48-bit pattern matching (≥40/48 threshold = very likely, ≥35 = possible)
+- `WatermarkDetection` Pydantic model, Rust struct, and TypeScript interface
+- `watermarks` field on `DeepfakeResponse` / `DeepfakeResult` (default empty, backwards-compatible)
+- Watermark detection banner on verify page AI Generation Detection section (cinnabar styling)
+- C2PA AI generator identification — `detect_ai_generator()` checks `claim_generator` against 21 known AI services (OpenAI, Adobe Firefly, Midjourney, Stability AI, Flux, Google Gemini, etc.)
+- `ai_generator` field on `VerificationResult` with badge in C2PA Credentials UI section
+- 3 new deepfake signal extractors: `noise_consistency` (weight 1.5), `patch_spectral_variance` (weight 2.0), `multiscale_gradient` (weight 1.0)
+- Patch-level spectral variance: CV of per-patch HF energy across 64×64 patches (strongest new discriminator, 2.5× separation between AI and authentic)
+- Multi-scale gradient ratio: Gaussian pyramid (3 levels) gradient energy comparison
+- 7 new Python watermark tests, 4 new Python signal tests, 3 new Rust tests
+- Dependency: `invisible-watermark>=0.2.0`
+
+**Changed**
+- Deepfake ensemble expanded from 10 to 13 weighted signals, total weight 12.5 → 17.0
+- Sigmoid scoring recalibrated: midpoint 0.25 → 0.18, steepness k 10 → 12
+- `benford_divergence` weight reduced from 1.0 to 0.5 (empirically weak signal)
+- Copy-move detection: added RANSAC geometric verification, scaled minimum distance with image diagonal, sigmoid area scoring, raised DBSCAN min_samples to 8
+- Noise analysis: sigmoid scoring with midpoint 0.30, raised MAD z-score threshold to 4.5
+- Trust computation: concordance-aware weighted formula (ELA=2.0, noise=1.0, copy-move=1.0), AVIF-safe EXIF penalty adjustment for web codecs
+
+**Fixed**
+- AI-generated images scoring too low (chihuahua: 0.55 → 0.94) due to GAN-era signal thresholds missing modern diffusion model output
+- AVIF images triggering false positives in noise and copy-move detectors due to compression artefacts
+- Wavelet denoiser destroying AVIF noise discrimination (reverted to median blur after testing)
+
+**Test counts**: 98 Rust, 47 Python, 0 svelte-check errors
+
+---
+
 ### Weeks 17-18 — Deepfake / AI-Generated Image Detection (2 Mar 2026)
 
 **Added**
