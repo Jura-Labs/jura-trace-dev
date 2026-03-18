@@ -79,6 +79,42 @@ class DeepfakeResponse(BaseModel):
     watermarks: list[WatermarkDetection] = []
 
 
+class JpegGhostResponse(BaseModel):
+    """JPEG ghost detection result for splice/composite forgery analysis."""
+
+    score: float
+    suspicious: bool
+    ghost_quality: int
+    quality_variance: float
+    deviating_blocks: int
+    total_blocks: int
+    heatmap_base64: str
+    summary: str
+
+
+class NprResponse(BaseModel):
+    """Neighbouring Pixel Relationship (NPR) analysis result."""
+
+    score: float
+    suspicious: bool
+    hv_correlation: float
+    diff_variance_ratio: float
+    hf_energy_ratio: float
+    heatmap_base64: str
+    summary: str
+
+
+class CaResponse(BaseModel):
+    """Chromatic Aberration consistency analysis result."""
+
+    r_squared: float
+    is_consistent: bool
+    score: float
+    suspicious: bool
+    sample_count: int
+    summary: str
+
+
 class CapabilitiesResponse(BaseModel):
     """Sidecar capability flags."""
 
@@ -86,6 +122,9 @@ class CapabilitiesResponse(BaseModel):
     noise: bool = True
     copy_move: bool = True
     deepfake: bool = True
+    jpeg_ghost: bool = True
+    npr: bool = True
+    chromatic_aberration: bool = True
     rag: bool = False
 
 

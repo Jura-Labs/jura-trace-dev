@@ -5,11 +5,22 @@ Jura Archive Sidecar — Forensics endpoints.
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from app.config import settings
-from app.models.schemas import CopyMoveResponse, DeepfakeResponse, ElaResponse, NoiseAnalysisResponse
+from app.models.schemas import (
+    CaResponse,
+    CopyMoveResponse,
+    DeepfakeResponse,
+    ElaResponse,
+    JpegGhostResponse,
+    NoiseAnalysisResponse,
+    NprResponse,
+)
+from app.services.chromatic_aberration import perform_ca_analysis
 from app.services.copy_move import perform_copy_move_detection
 from app.services.deepfake import perform_deepfake_detection
 from app.services.ela import perform_ela
+from app.services.jpeg_ghost import perform_jpeg_ghost_detection
 from app.services.noise_analysis import perform_noise_analysis
+from app.services.npr import perform_npr_analysis
 
 router = APIRouter()
 
@@ -118,5 +129,73 @@ async def detect_deepfake(
         return perform_deepfake_detection(
             image_bytes, mime_type=mime_type, has_camera_exif=has_camera_exif,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/jpeg-ghost", response_model=JpegGhostResponse)
+async def detect_jpeg_ghost(
+    file: UploadFile = File(...),
+) -> JpegGhostResponse:
+    """
+    Detect splice/composite forgeries via JPEG ghost analysis.
+
+    Re-compresses the image at multiple quality levels and identifies
+    blocks whose compression ghost appears at a different quality than
+    the dominant level — indicating content spliced from a differently-
+    compressed source.
+
+    Returns a heatmap (base64 PNG), per-block ghost quality statistics,
+    and a manipulation score (0.0 = uniform compression, 1.0 = strong
+    evidence of splicing).
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return perform_jpeg_ghost_detection(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/npr", response_model=NprResponse)
+async def analyse_npr(
+    file: UploadFile = File(...),
+) -> NprResponse:
+    """
+    Perform Neighbouring Pixel Relationship (NPR) analysis on an uploaded image.
+
+    Detects AI-generated images by analysing statistical relationships between
+    adjacent pixels.  Camera sensors produce characteristic inter-pixel
+    correlations; AI generators produce subtly different NPR statistics.
+
+    Returns a score (0.0 = authentic, 1.0 = synthetic), per-feature breakdown,
+    and a pixel-difference magnitude heatmap (base64 PNG).
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return perform_npr_analysis(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/chromatic-aberration", response_model=CaResponse)
+async def analyse_chromatic_aberration(
+    file: UploadFile = File(...),
+) -> CaResponse:
+    """
+    Analyse chromatic aberration consistency in an uploaded image.
+
+    Real camera lenses produce radial chromatic aberration — channel shifts
+    that grow linearly with distance from the image centre.  AI generators
+    lack a physical lens model, so this radial pattern is absent or random.
+
+    Returns an R\u00b2 value for the radial fit, a score (0.0 = consistent CA /
+    likely real, 1.0 = absent CA / likely AI), and a suspicious flag.
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return perform_ca_analysis(image_bytes)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
