@@ -10,7 +10,7 @@
     --color-text-primary: #1C1E26;
     --color-text-secondary: #9B9890;
     --color-border: #D8D8D8;
-    --color-accent: #4A7CBA;
+    --color-accent: #3E6FA8;
     --color-success: #5B9A6F;
     --color-warning: #D4943A;
     --color-danger: #C45B52;
@@ -32,6 +32,15 @@
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -65,5 +74,28 @@
     text-transform: uppercase;
     font-size: 0.75rem;
     font-weight: 500;
+  }
+
+  /* Dual-theme surface card */
+  .surface-card {
+    @apply bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light;
+  }
+
+  /* Touch-target-safe primary button */
+  .btn-primary {
+    @apply px-4 py-2.5 min-h-[44px] inline-flex items-center justify-center
+           bg-lapis hover:bg-lapis-dark dark:hover:bg-lapis-light
+           text-white text-sm font-medium rounded transition-colors
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+           focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian;
+  }
+
+  /* Touch-target-safe ghost/secondary button */
+  .btn-ghost {
+    @apply px-3 py-2.5 min-h-[44px] inline-flex items-center justify-center
+           text-sm text-flint hover:text-text-light dark:hover:text-quartz
+           border border-border-light dark:border-graphite-light rounded transition-colors
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+           focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian;
   }
 }

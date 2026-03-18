@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, getFingerprints, findSimilar } from '$lib/api';
+  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, getFingerprints, findSimilar, checkMetadataBeforeSign } from '$lib/api';
   import {
     type Asset,
     type ContentType,
     type ImageMetadata,
     type Fingerprint,
     type SimilarAsset,
+    type MetadataSigningWarning,
     parseMetadata,
     formatFileSize,
     CONTENT_TYPE_LABELS,
@@ -36,6 +37,8 @@
   let creatorName   = $state('');
   let selectedLicense = $state('All Rights Reserved');
   let signing = $state(false);
+  let metadataWarning = $state<MetadataSigningWarning | null>(null);
+  let metadataWarningLoading = $state(false);
 
   // ── Fingerprint state ─────────────────────────────────────────────
   let showFingerprintsFor: string | null = $state(null);
@@ -165,6 +168,20 @@
   }
 
   // ── C2PA signing ─────────────────────────────────────────────────
+  async function openSigningPanel(assetId: string, existingArtist: string | null) {
+    signingAssetId = assetId;
+    creatorName = existingArtist ?? '';
+    metadataWarning = null;
+    metadataWarningLoading = true;
+    try {
+      metadataWarning = await checkMetadataBeforeSign(assetId);
+    } catch {
+      // Non-fatal: proceed without warning
+    } finally {
+      metadataWarningLoading = false;
+    }
+  }
+
   async function handleSign() {
     if (!signingAssetId || !creatorName.trim()) return;
     signing = true;
@@ -253,7 +270,7 @@
   <!-- Page header -->
   <div class="flex items-start justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-heading text-quartz">Protect</h1>
+      <h1 class="text-2xl font-heading text-text-light dark:text-quartz">Protect</h1>
       <p class="text-flint text-sm mt-1">
         Import, catalogue, and safeguard your digital content.
       </p>
@@ -269,7 +286,7 @@
       </span>
       {#if displayedAssets.length > 0}
         <button
-          class="text-xs px-3 py-1.5 rounded border border-graphite-light text-flint hover:text-quartz hover:border-lapis/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian"
+          class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center rounded border border-border-light dark:border-graphite-light text-flint hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
           onclick={exportCsv}
           aria-label="Export visible assets as CSV"
         >
@@ -282,7 +299,7 @@
   <!-- Error banner -->
   {#if error}
     <div
-      class="bg-cinnabar/10 border border-cinnabar/30 rounded-lg px-4 py-3 text-sm text-cinnabar-light"
+      class="bg-cinnabar/10 border border-cinnabar/30 rounded-lg px-4 py-3 text-sm text-cinnabar dark:text-cinnabar-light"
       role="alert"
       aria-live="assertive"
     >
@@ -295,9 +312,9 @@
     class="w-full border-2 border-dashed rounded-lg p-12 text-center transition-all duration-200 cursor-pointer
            {dragOver
              ? 'border-lapis bg-lapis/5 scale-[1.01]'
-             : 'border-graphite-light hover:border-lapis/50'}
+             : 'border-border-light dark:border-graphite-light hover:border-lapis/50'}
            {importingCount > 0 ? 'opacity-60 pointer-events-none' : ''}
-           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian"
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
     ondragover={handleDragOver}
     ondragleave={handleDragLeave}
     ondrop={handleDrop}
@@ -323,7 +340,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
             d="M12 16V4m0 0L8 8m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4" />
         </svg>
-        <p class="text-quartz">Drop files or folders here</p>
+        <p class="text-text-light dark:text-quartz">Drop files or folders here</p>
         <p class="text-xs text-flint">
           or click to browse &mdash; JPEG, PNG, TIFF, WebP, PDF, MP4, WAV, and more
         </p>
@@ -343,9 +360,9 @@
       <select
         id="filter-content-type"
         bind:value={filterContentType}
-        class="px-3 py-1.5 rounded border border-graphite-light bg-graphite text-quartz text-sm
+        class="px-3 py-2 rounded border border-border-light dark:border-graphite-light bg-white dark:bg-graphite text-text-light dark:text-quartz text-sm
                hover:border-lapis/50 transition-colors
-               focus:outline-none focus:ring-2 focus:ring-lapis focus:ring-offset-2 focus:ring-offset-obsidian"
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
       >
         <option value="">All Types</option>
         <option value="image">{CONTENT_TYPE_LABELS['image']}</option>
@@ -363,9 +380,9 @@
       <select
         id="filter-status"
         bind:value={filterStatus}
-        class="px-3 py-1.5 rounded border border-graphite-light bg-graphite text-quartz text-sm
+        class="px-3 py-2 rounded border border-border-light dark:border-graphite-light bg-white dark:bg-graphite text-text-light dark:text-quartz text-sm
                hover:border-lapis/50 transition-colors
-               focus:outline-none focus:ring-2 focus:ring-lapis focus:ring-offset-2 focus:ring-offset-obsidian"
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
       >
         <option value="">All Status</option>
         <option value="signed">C2PA Signed</option>
@@ -392,10 +409,10 @@
           type="search"
           bind:value={searchRaw}
           placeholder="Search files..."
-          class="w-full pl-8 pr-3 py-1.5 rounded border border-graphite-light bg-graphite text-quartz text-sm
+          class="w-full pl-8 pr-3 py-2 rounded border border-border-light dark:border-graphite-light bg-white dark:bg-graphite text-text-light dark:text-quartz text-sm
                  placeholder:text-flint/60
                  hover:border-lapis/50 transition-colors
-                 focus:outline-none focus:ring-2 focus:ring-lapis focus:ring-offset-2 focus:ring-offset-obsidian"
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
           aria-label="Search files by name"
         />
       </div>
@@ -404,8 +421,8 @@
     <!-- Clear filters -->
     {#if filterContentType || filterStatus || searchRaw}
       <button
-        class="text-xs text-flint hover:text-quartz transition-colors underline underline-offset-2
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian rounded"
+        class="text-xs text-flint hover:text-text-light dark:hover:text-quartz transition-colors underline underline-offset-2
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
         onclick={() => { filterContentType = ''; filterStatus = ''; searchRaw = ''; }}
         aria-label="Clear all filters"
       >
@@ -416,12 +433,12 @@
 
   <!-- Asset list -->
   {#if displayedAssets.length === 0 && importingCount === 0}
-    <div class="bg-graphite rounded-lg border border-graphite-light p-10 text-center">
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light p-10 text-center">
       {#if filterContentType || filterStatus || searchRaw}
         <p class="text-flint">No assets match the current filters.</p>
         <button
-          class="mt-3 text-sm text-lapis hover:text-lapis-light transition-colors underline underline-offset-2
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian rounded"
+          class="mt-3 text-sm text-lapis hover:text-lapis-dark dark:hover:text-lapis-light transition-colors underline underline-offset-2
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
           onclick={() => { filterContentType = ''; filterStatus = ''; searchRaw = ''; }}
         >
           Clear filters
@@ -432,19 +449,19 @@
     </div>
 
   {:else if displayedAssets.length > 0}
-    <div class="bg-graphite rounded-lg border border-graphite-light overflow-hidden">
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light overflow-hidden">
 
-      <!-- Column headers (sortable) -->
+      <!-- Column headers (sortable) — desktop only -->
       <div
-        class="grid grid-cols-[1fr_100px_110px_130px] gap-4 px-4 py-2 border-b border-graphite-light text-xs text-flint uppercase tracking-wide"
+        class="hidden sm:grid grid-cols-[1fr_100px_110px_130px] gap-4 px-4 py-2 border-b border-border-light dark:border-graphite-light text-xs text-flint uppercase tracking-wide"
         role="row"
         aria-label="Sort column headers"
       >
         <!-- File Name -->
         <button
-          class="flex items-center gap-1 text-left hover:text-quartz transition-colors select-none
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-graphite rounded-sm
-                 {sortKey === 'fileName' ? 'text-quartz' : ''}"
+          class="flex items-center gap-1 text-left hover:text-text-light dark:hover:text-quartz transition-colors select-none
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite rounded-sm
+                 {sortKey === 'fileName' ? 'text-text-light dark:text-quartz' : ''}"
           onclick={() => handleSort('fileName')}
           aria-label={sortKey === 'fileName'
             ? `Sort by file name, currently ${sortDir === 'asc' ? 'ascending' : 'descending'}`
@@ -452,7 +469,7 @@
         >
           <span>File</span>
           {#if sortKey === 'fileName'}
-            <span aria-hidden="true" class="text-lapis-light font-normal normal-case tracking-normal">
+            <span aria-hidden="true" class="text-lapis dark:text-lapis-light font-normal normal-case tracking-normal">
               {sortDir === 'asc' ? '↑' : '↓'}
             </span>
           {/if}
@@ -463,9 +480,9 @@
 
         <!-- File Size -->
         <button
-          class="flex items-center gap-1 text-left hover:text-quartz transition-colors select-none
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-graphite rounded-sm
-                 {sortKey === 'fileSize' ? 'text-quartz' : ''}"
+          class="flex items-center gap-1 text-left hover:text-text-light dark:hover:text-quartz transition-colors select-none
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite rounded-sm
+                 {sortKey === 'fileSize' ? 'text-text-light dark:text-quartz' : ''}"
           onclick={() => handleSort('fileSize')}
           aria-label={sortKey === 'fileSize'
             ? `Sort by file size, currently ${sortDir === 'asc' ? 'ascending' : 'descending'}`
@@ -473,7 +490,7 @@
         >
           <span>Size</span>
           {#if sortKey === 'fileSize'}
-            <span aria-hidden="true" class="text-lapis-light font-normal normal-case tracking-normal">
+            <span aria-hidden="true" class="text-lapis dark:text-lapis-light font-normal normal-case tracking-normal">
               {sortDir === 'asc' ? '↑' : '↓'}
             </span>
           {/if}
@@ -481,9 +498,9 @@
 
         <!-- Date -->
         <button
-          class="flex items-center gap-1 text-left hover:text-quartz transition-colors select-none
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-graphite rounded-sm
-                 {sortKey === 'createdAt' ? 'text-quartz' : ''}"
+          class="flex items-center gap-1 text-left hover:text-text-light dark:hover:text-quartz transition-colors select-none
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite rounded-sm
+                 {sortKey === 'createdAt' ? 'text-text-light dark:text-quartz' : ''}"
           onclick={() => handleSort('createdAt')}
           aria-label={sortKey === 'createdAt'
             ? `Sort by import date, currently ${sortDir === 'asc' ? 'ascending' : 'descending'}`
@@ -491,7 +508,7 @@
         >
           <span>Imported</span>
           {#if sortKey === 'createdAt'}
-            <span aria-hidden="true" class="text-lapis-light font-normal normal-case tracking-normal">
+            <span aria-hidden="true" class="text-lapis dark:text-lapis-light font-normal normal-case tracking-normal">
               {sortDir === 'asc' ? '↑' : '↓'}
             </span>
           {/if}
@@ -500,9 +517,32 @@
 
       <!-- Rows -->
       {#each displayedAssets as asset (asset.assetId)}
+        <!-- Mobile card row -->
         <button
-          class="w-full grid grid-cols-[1fr_100px_110px_130px] gap-4 px-4 py-3 border-b border-graphite-light/50
-                 hover:bg-graphite-light/30 transition-colors text-left
+          class="sm:hidden w-full flex flex-col px-4 py-3 border-b border-border-light/50 dark:border-graphite-light/50 hover:bg-gray-50 dark:hover:bg-graphite-light/30 transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
+                 {selectedAsset?.assetId === asset.assetId ? 'bg-lapis/10 border-l-2 border-l-lapis' : ''}"
+          onclick={() => selectAsset(asset)}
+          aria-expanded={selectedAsset?.assetId === asset.assetId}
+          aria-label="View details for {asset.fileName}"
+        >
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-text-light dark:text-flint flex-shrink-0" aria-hidden="true">{contentTypeIcon(asset.contentType)}</span>
+            <p class="text-sm text-text-light dark:text-quartz truncate flex-1">{asset.fileName}</p>
+            {#if asset.c2paSigned}
+              <span class="text-xs px-1.5 py-0.5 rounded bg-malachite/15 text-malachite dark:text-malachite-light flex-shrink-0">Signed</span>
+            {/if}
+          </div>
+          <div class="flex items-center gap-3 mt-1.5 text-xs text-flint">
+            <span>{asset.mimeType}</span>
+            <span>{formatFileSize(asset.fileSize)}</span>
+            <span>{new Date(asset.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+          </div>
+        </button>
+
+        <!-- Desktop row -->
+        <button
+          class="hidden sm:grid w-full grid-cols-[1fr_100px_110px_130px] gap-4 px-4 py-3 border-b border-border-light/50 dark:border-graphite-light/50
+                 hover:bg-gray-50 dark:hover:bg-graphite-light/30 transition-colors text-left
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                  {selectedAsset?.assetId === asset.assetId
                    ? 'bg-lapis/10 border-l-2 border-l-lapis'
@@ -513,13 +553,13 @@
         >
           <div class="flex items-center gap-3 min-w-0">
             <span
-              class="text-xs font-mono px-1.5 py-0.5 rounded bg-graphite-light text-flint flex-shrink-0"
+              class="text-xs font-mono px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-text-light dark:text-flint flex-shrink-0"
               aria-hidden="true"
             >
               {contentTypeIcon(asset.contentType)}
             </span>
             <div class="min-w-0">
-              <p class="text-sm text-quartz truncate">{asset.fileName}</p>
+              <p class="text-sm text-text-light dark:text-quartz truncate">{asset.fileName}</p>
               <p class="text-xs text-flint truncate">{asset.mimeType}</p>
             </div>
           </div>
@@ -544,7 +584,7 @@
         {#if selectedAsset?.assetId === asset.assetId}
           {@const meta = getMetadata(asset)}
           <div
-            class="px-4 py-4 bg-obsidian/50 border-b border-graphite-light"
+            class="px-4 py-4 bg-gray-50 dark:bg-obsidian/50 border-b border-border-light dark:border-graphite-light"
             role="region"
             aria-label="Asset details for {asset.fileName}"
           >
@@ -553,13 +593,13 @@
               <!-- File path -->
               <div>
                 <span class="text-xs text-flint uppercase tracking-wide">Path</span>
-                <p class="text-quartz text-xs mt-0.5 truncate" title={asset.filePath}>{asset.filePath}</p>
+                <p class="text-text-light dark:text-quartz text-xs mt-0.5 truncate" title={asset.filePath}>{asset.filePath}</p>
               </div>
 
               {#if asset.width && asset.height}
                 <div>
                   <span class="text-xs text-flint uppercase tracking-wide">Dimensions</span>
-                  <p class="text-quartz mt-0.5">{asset.width} &times; {asset.height} px</p>
+                  <p class="text-text-light dark:text-quartz mt-0.5">{asset.width} &times; {asset.height} px</p>
                 </div>
               {/if}
 
@@ -568,61 +608,61 @@
                 {#if meta.cameraMake || meta.cameraModel}
                   <div>
                     <span class="text-xs text-flint uppercase tracking-wide">Camera</span>
-                    <p class="text-quartz mt-0.5">{[meta.cameraMake, meta.cameraModel].filter(Boolean).join(' ')}</p>
+                    <p class="text-text-light dark:text-quartz mt-0.5">{[meta.cameraMake, meta.cameraModel].filter(Boolean).join(' ')}</p>
                   </div>
                 {/if}
                 {#if meta.datetimeOriginal}
                   <div>
                     <span class="text-xs text-flint uppercase tracking-wide">Date Taken</span>
-                    <p class="text-quartz mt-0.5">{meta.datetimeOriginal}</p>
+                    <p class="text-text-light dark:text-quartz mt-0.5">{meta.datetimeOriginal}</p>
                   </div>
                 {/if}
                 {#if meta.software}
                   <div>
                     <span class="text-xs text-flint uppercase tracking-wide">Software</span>
-                    <p class="text-quartz mt-0.5">{meta.software}</p>
+                    <p class="text-text-light dark:text-quartz mt-0.5">{meta.software}</p>
                   </div>
                 {/if}
                 {#if meta.iso}
                   <div>
                     <span class="text-xs text-flint uppercase tracking-wide">ISO</span>
-                    <p class="text-quartz mt-0.5">{meta.iso}</p>
+                    <p class="text-text-light dark:text-quartz mt-0.5">{meta.iso}</p>
                   </div>
                 {/if}
                 {#if meta.focalLength}
                   <div>
                     <span class="text-xs text-flint uppercase tracking-wide">Focal Length</span>
-                    <p class="text-quartz mt-0.5">{meta.focalLength}</p>
+                    <p class="text-text-light dark:text-quartz mt-0.5">{meta.focalLength}</p>
                   </div>
                 {/if}
                 {#if meta.exposureTime}
                   <div>
                     <span class="text-xs text-flint uppercase tracking-wide">Exposure</span>
-                    <p class="text-quartz mt-0.5">{meta.exposureTime}</p>
+                    <p class="text-text-light dark:text-quartz mt-0.5">{meta.exposureTime}</p>
                   </div>
                 {/if}
                 {#if meta.fNumber}
                   <div>
                     <span class="text-xs text-flint uppercase tracking-wide">Aperture</span>
-                    <p class="text-quartz mt-0.5">{meta.fNumber}</p>
+                    <p class="text-text-light dark:text-quartz mt-0.5">{meta.fNumber}</p>
                   </div>
                 {/if}
                 {#if meta.copyright}
                   <div>
                     <span class="text-xs text-flint uppercase tracking-wide">Copyright</span>
-                    <p class="text-quartz mt-0.5">{meta.copyright}</p>
+                    <p class="text-text-light dark:text-quartz mt-0.5">{meta.copyright}</p>
                   </div>
                 {/if}
                 {#if meta.artist}
                   <div>
                     <span class="text-xs text-flint uppercase tracking-wide">Artist</span>
-                    <p class="text-quartz mt-0.5">{meta.artist}</p>
+                    <p class="text-text-light dark:text-quartz mt-0.5">{meta.artist}</p>
                   </div>
                 {/if}
                 {#if meta.gpsLatitude != null && meta.gpsLongitude != null}
                   <div>
                     <span class="text-xs text-flint uppercase tracking-wide">GPS</span>
-                    <p class="text-quartz mt-0.5">{meta.gpsLatitude.toFixed(6)}, {meta.gpsLongitude.toFixed(6)}</p>
+                    <p class="text-text-light dark:text-quartz mt-0.5">{meta.gpsLatitude.toFixed(6)}, {meta.gpsLongitude.toFixed(6)}</p>
                   </div>
                 {/if}
               {/if}
@@ -631,20 +671,20 @@
               <div class="col-span-full flex gap-2 mt-2 flex-wrap">
                 <span
                   class="text-xs px-2 py-0.5 rounded {asset.c2paSigned
-                    ? 'bg-malachite/15 text-malachite-light'
-                    : 'bg-graphite-light text-flint'}"
+                    ? 'bg-malachite/15 text-malachite dark:text-malachite-light'
+                    : 'bg-gray-100 dark:bg-graphite-light text-flint'}"
                 >
                   {asset.c2paSigned ? 'C2PA Signed' : 'Not Signed'}
                 </span>
                 <span
                   class="text-xs px-2 py-0.5 rounded {asset.watermarked
-                    ? 'bg-malachite/15 text-malachite-light'
-                    : 'bg-graphite-light text-flint'}"
+                    ? 'bg-malachite/15 text-malachite dark:text-malachite-light'
+                    : 'bg-gray-100 dark:bg-graphite-light text-flint'}"
                 >
                   {asset.watermarked ? 'Watermarked' : 'No Watermark'}
                 </span>
                 {#if asset.contentType === 'image'}
-                  <span class="text-xs px-2 py-0.5 rounded bg-lapis/15 text-lapis-light">
+                  <span class="text-xs px-2 py-0.5 rounded bg-lapis/15 text-lapis dark:text-lapis-light">
                     Fingerprinted
                   </span>
                 {/if}
@@ -653,8 +693,32 @@
               <!-- C2PA signing form -->
               {#if !asset.c2paSigned && canSignC2pa(asset)}
                 {#if signingAssetId === asset.assetId}
-                  <div class="col-span-full mt-3 p-3 bg-graphite rounded-lg border border-graphite-light">
-                    <p class="text-sm text-quartz mb-3">Sign with C2PA Content Credentials</p>
+                  <div class="col-span-full mt-3 p-3 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light">
+                    <p class="text-sm text-text-light dark:text-quartz mb-3">Sign with C2PA Content Credentials</p>
+
+                    {#if metadataWarningLoading}
+                      <div class="mb-3 flex items-center gap-2 text-xs text-flint">
+                        <span
+                          class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
+                          aria-hidden="true"
+                        ></span>
+                        Checking existing metadata...
+                      </div>
+                    {/if}
+
+                    {#if metadataWarning?.warningMessage}
+                      <div
+                        class="mb-3 px-3 py-2 rounded-md bg-amber/10 border border-amber/30 text-xs text-amber dark:text-amber"
+                        role="alert"
+                      >
+                        <span class="font-medium">Note:</span>
+                        {metadataWarning.warningMessage}
+                        {#if metadataWarning.hasExistingC2pa}
+                          The new C2PA signing will be added as an additional assertion layer.
+                        {/if}
+                      </div>
+                    {/if}
+
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
                         <label
@@ -667,8 +731,8 @@
                           id="creator-name"
                           type="text"
                           bind:value={creatorName}
-                          class="w-full mt-1 px-3 py-1.5 rounded border border-graphite-light bg-obsidian text-quartz text-sm
-                                 focus:outline-none focus:ring-2 focus:ring-lapis focus:ring-offset-2 focus:ring-offset-graphite"
+                          class="w-full mt-1 px-3 py-2 rounded border border-border-light dark:border-graphite-light bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
+                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                           placeholder="Your name or organisation"
                         />
                       </div>
@@ -682,8 +746,8 @@
                         <select
                           id="license-select"
                           bind:value={selectedLicense}
-                          class="w-full mt-1 px-3 py-1.5 rounded border border-graphite-light bg-obsidian text-quartz text-sm
-                                 focus:outline-none focus:ring-2 focus:ring-lapis focus:ring-offset-2 focus:ring-offset-graphite"
+                          class="w-full mt-1 px-3 py-2 rounded border border-border-light dark:border-graphite-light bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
+                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                         >
                           <option value="All Rights Reserved">All Rights Reserved</option>
                           <option value="CC-BY-4.0">CC BY 4.0</option>
@@ -695,17 +759,17 @@
                     </div>
                     <div class="flex gap-2 mt-3">
                       <button
-                        class="px-4 py-1.5 bg-lapis text-white text-sm rounded hover:bg-lapis-light transition-colors
+                        class="px-4 py-2.5 min-h-[44px] inline-flex items-center bg-lapis text-white text-sm rounded hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
                                disabled:opacity-50 disabled:cursor-not-allowed
-                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-graphite"
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                         onclick={handleSign}
                         disabled={signing || !creatorName.trim()}
                       >
                         {signing ? 'Signing...' : 'Sign'}
                       </button>
                       <button
-                        class="px-4 py-1.5 text-flint text-sm rounded hover:text-quartz transition-colors
-                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-graphite"
+                        class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint text-sm rounded hover:text-text-light dark:hover:text-quartz transition-colors
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                         onclick={() => signingAssetId = null}
                         disabled={signing}
                       >
@@ -715,10 +779,10 @@
                   </div>
                 {:else}
                   <button
-                    class="col-span-full mt-2 px-4 py-1.5 text-sm border border-lapis/50 text-lapis rounded
+                    class="col-span-full mt-2 px-4 py-2.5 min-h-[44px] inline-flex items-center text-sm border border-lapis/50 text-lapis rounded
                            hover:bg-lapis/10 transition-colors
-                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian"
-                    onclick={() => { signingAssetId = asset.assetId; creatorName = meta?.artist || ''; }}
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                    onclick={() => openSigningPanel(asset.assetId, meta?.artist ?? null)}
                   >
                     Sign with C2PA
                   </button>
@@ -728,12 +792,12 @@
               <!-- Fingerprint viewer -->
               {#if asset.contentType === 'image'}
                 {#if showFingerprintsFor === asset.assetId}
-                  <div class="col-span-full mt-3 p-3 bg-graphite rounded-lg border border-graphite-light">
+                  <div class="col-span-full mt-3 p-3 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light">
                     <div class="flex items-center justify-between mb-2">
-                      <p class="text-sm text-quartz">Perceptual Fingerprints</p>
+                      <p class="text-sm text-text-light dark:text-quartz">Perceptual Fingerprints</p>
                       <button
-                        class="text-xs text-flint hover:text-quartz transition-colors
-                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-graphite rounded"
+                        class="text-xs text-flint hover:text-text-light dark:hover:text-quartz transition-colors
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite rounded"
                         onclick={() => showFingerprintsFor = null}
                         aria-label="Close fingerprint panel"
                       >
@@ -757,7 +821,7 @@
                             <span class="text-flint uppercase tracking-wide w-32">
                               {HASH_TYPE_LABELS[fp.hashType] || fp.hashType}
                             </span>
-                            <code class="text-quartz font-mono bg-obsidian/50 px-2 py-0.5 rounded">
+                            <code class="text-text-light dark:text-quartz font-mono bg-gray-100 dark:bg-obsidian/50 px-2 py-0.5 rounded">
                               {fp.hashValue}
                             </code>
                           </div>
@@ -765,13 +829,13 @@
                       </div>
 
                       {#if similarAssets.length > 0}
-                        <div class="mt-3 pt-3 border-t border-graphite-light">
-                          <p class="text-xs text-amber-light mb-2">
+                        <div class="mt-3 pt-3 border-t border-border-light dark:border-graphite-light">
+                          <p class="text-xs text-amber dark:text-amber-light mb-2">
                             {similarAssets.length} similar asset{similarAssets.length !== 1 ? 's' : ''} found
                           </p>
                           {#each similarAssets as match}
                             <div class="flex items-center justify-between text-xs py-1">
-                              <span class="text-quartz">{match.fileName}</span>
+                              <span class="text-text-light dark:text-quartz">{match.fileName}</span>
                               <span class="text-flint">
                                 {Math.round(match.similarity * 100)}% similar ({HASH_TYPE_LABELS[match.hashType] || match.hashType})
                               </span>
@@ -783,9 +847,9 @@
                   </div>
                 {:else}
                   <button
-                    class="col-span-full mt-2 px-4 py-1.5 text-sm border border-lapis/50 text-lapis rounded
+                    class="col-span-full mt-2 px-4 py-2.5 min-h-[44px] inline-flex items-center text-sm border border-lapis/50 text-lapis rounded
                            hover:bg-lapis/10 transition-colors
-                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian"
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
                     onclick={async () => {
                       showFingerprintsFor = asset.assetId;
                       loadingFingerprints = true;
@@ -800,10 +864,10 @@
               {/if}
 
               <!-- Delete asset -->
-              <div class="col-span-full mt-3 pt-3 border-t border-graphite-light/50 flex justify-end">
+              <div class="col-span-full mt-3 pt-3 border-t border-border-light/50 dark:border-graphite-light/50 flex justify-end">
                 <button
-                  class="text-sm text-cinnabar hover:text-cinnabar-light transition-colors
-                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian rounded px-2 py-1"
+                  class="text-sm text-cinnabar hover:text-cinnabar-dark dark:hover:text-cinnabar-light transition-colors
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded px-2 py-1"
                   onclick={() => handleDelete(asset.assetId)}
                   aria-label="Delete asset {asset.fileName}"
                 >

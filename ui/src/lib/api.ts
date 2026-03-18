@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { AppStats, Asset, Fingerprint, ManifestInfo, SidecarHealth, SimilarAsset, VerificationResult } from './types';
+import type { AppStats, Asset, Fingerprint, ManifestInfo, MetadataSigningWarning, SidecarHealth, SimilarAsset, VerificationResult, VerifyMode } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -153,22 +153,35 @@ export async function deleteAsset(assetId: string): Promise<void> {
 
 // ── Verify ─────────────────────────────────────────────────────────
 
-export async function verifyContent(source: string, sourceType: string): Promise<VerificationResult> {
-  return invoke<VerificationResult>('verify_content', { source, sourceType });
+export async function verifyContent(
+  source: string,
+  sourceType: string,
+  mode: VerifyMode = 'deep',
+): Promise<VerificationResult> {
+  return invoke<VerificationResult>('verify_content', { source, sourceType, mode });
 }
 
-/** Run full verification pipeline on a file. */
-export async function verifyFile(filePath: string): Promise<VerificationResult> {
+/** Run verification pipeline on a file.
+ *  mode='fast' runs EXIF + C2PA only (<5 s).
+ *  mode='deep' (default) runs the full forensic pipeline (30-60 s).
+ */
+export async function verifyFile(
+  filePath: string,
+  mode: VerifyMode = 'deep',
+): Promise<VerificationResult> {
   return invoke<VerificationResult>('verify_content', {
     source: filePath,
     sourceType: 'file',
+    mode,
   });
 }
 
-/** Verify content from a URL. Downloads and analyses the content. */
-export async function verifyUrl(url: string): Promise<VerificationResult> {
+/** Verify content from a URL. Downloads and analyses the content.
+ *  mode='fast' runs EXIF + C2PA only; mode='deep' (default) runs full pipeline.
+ */
+export async function verifyUrl(url: string, mode: VerifyMode = 'deep'): Promise<VerificationResult> {
   if (isTauri) {
-    return invoke<VerificationResult>('verify_url', { url });
+    return invoke<VerificationResult>('verify_url', { url, mode });
   }
   // Browser mock
   return {
@@ -200,7 +213,56 @@ export async function checkSidecarHealth(): Promise<SidecarHealth | null> {
   }
 }
 
+// ── Batch Verify ──────────────────────────────────────────────────
+
+/**
+ * Open a native file picker that allows multiple selections for batch verification.
+ * Returns an array of { filePath, fileName } objects ready for batch queuing.
+ */
+export async function openBatchFileDialog(): Promise<{ filePath: string; fileName: string }[]> {
+  if (!isTauri) {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.onchange = () => {
+        const files = Array.from(input.files ?? []);
+        resolve(files.map(f => ({ filePath: f.name, fileName: f.name })));
+      };
+      input.click();
+    });
+  }
+
+  const { open } = await import('@tauri-apps/plugin-dialog');
+  const selected = await open({
+    multiple: true,
+    title: 'Select Files to Verify',
+    filters: [
+      {
+        name: 'Supported Files',
+        extensions: [
+          'jpg', 'jpeg', 'png', 'tiff', 'tif', 'webp', 'avif',
+          'heic', 'heif', 'pdf', 'docx', 'mp4', 'mov', 'webm',
+        ],
+      },
+    ],
+  });
+
+  if (!selected) return [];
+  const paths = Array.isArray(selected) ? selected : [selected];
+  return paths.map(p => ({
+    filePath: p,
+    fileName: p.split('/').pop() ?? p.split('\\').pop() ?? p,
+  }));
+}
+
 // ── C2PA ──────────────────────────────────────────────────────────
+
+/** Check for existing metadata before C2PA signing. */
+export async function checkMetadataBeforeSign(assetId: string): Promise<MetadataSigningWarning> {
+  return invoke<MetadataSigningWarning>('check_metadata_before_sign', { assetId });
+}
+
 
 /** Sign an asset with C2PA Content Credentials. */
 export async function signAsset(

@@ -36,7 +36,7 @@ export default {
           light: '#B5B2AA'
         },
         lapis: {
-          DEFAULT: '#4A7CBA',
+          DEFAULT: '#3E6FA8',
           light: '#6B96CC',
           dark: '#3A6499'
         },
