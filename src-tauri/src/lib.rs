@@ -270,10 +270,18 @@ fn compute_trust(
     noise_score: Option<f64>,
     copy_move_score: Option<f64>,
     deepfake_score: Option<f64>,
+    deepfake_confidence: Option<&str>,
+    deepfake_verdict: Option<&str>,
     exif_trust: f64,
     c2pa_valid: Option<bool>,
 ) -> f64 {
     let c2pa_bonus = if c2pa_valid == Some(true) { 0.1 } else { 0.0 };
+
+    // Use the raw deepfake score for forensic trust. Confidence is expressed
+    // via the verdict ceiling below, not by scaling the score down. The old
+    // confidence_weight multiplier (low=0.3) nearly eliminated the signal,
+    // causing a fake image to show 92% "High Trust" alongside "Inconclusive".
+    let deepfake_trust = deepfake_score.map(|s| 1.0 - s);
 
     // Weighted manipulation signals: ELA weight 2.0 (most reliable),
     // noise and copy-move weight 1.0 each.
@@ -301,11 +309,10 @@ fn compute_trust(
         // Concordance check: when ELA and deepfake both say "clean"
         // (trust > 0.7) but other manipulation signals disagree (trust < 0.3),
         // the disagreement likely reflects codec artefacts rather than
-        // real manipulation. Apply a boost towards the "clean" consensus.
+        // real manipulation.
         let ela_trust = ela_score.map(|s| 1.0 - s);
-        let df_trust = deepfake_score.map(|s| 1.0 - s);
 
-        let concordance_boost = match (ela_trust, df_trust) {
+        let concordance_boost = match (ela_trust, deepfake_trust) {
             (Some(ela_t), Some(df_t)) if ela_t > 0.7 && df_t > 0.7 => {
                 let disagreeing_count = manipulation_signals
                     .iter()
@@ -327,8 +334,6 @@ fn compute_trust(
         Some((weighted_avg + concordance_boost).min(1.0))
     };
 
-    let deepfake_trust = deepfake_score.map(|s| 1.0 - s);
-
     // Use the worst-case forensic signal
     let forensic_trust = match (manipulation_trust, deepfake_trust) {
         (Some(m), Some(d)) => Some(m.min(d)),
@@ -337,18 +342,46 @@ fn compute_trust(
         (None, None) => None,
     };
 
-    if let Some(ft) = forensic_trust {
+    let base_trust = if let Some(ft) = forensic_trust {
         // Weight: 40% EXIF metadata, 60% forensic analysis
         (exif_trust * 0.4 + ft * 0.6 + c2pa_bonus).min(1.0)
     } else {
         (exif_trust + c2pa_bonus).min(1.0)
-    }
+    };
+
+    // ── Verdict ceiling ─────────────────────────────────────────────
+    // Prevents high trust scores when the deepfake detector is uncertain
+    // or positive. This replaces the old confidence_weight multiplier
+    // which nearly eliminated the signal at low confidence.
+    //
+    // An "inconclusive" verdict means the system cannot determine whether
+    // the image is authentic — trust must reflect that epistemic gap.
+    // A "synthetic" verdict with low confidence is semantically equivalent
+    // to "inconclusive" — cap in the medium range.
+    let verdict_ceiling = match deepfake_verdict {
+        Some("synthetic") => match deepfake_confidence {
+            Some("high") => 0.25,
+            Some("medium") => 0.35,
+            _ => 0.45, // low confidence synthetic ≈ inconclusive
+        },
+        Some("inconclusive") => 0.60,
+        Some("authentic") | _ => 1.0, // no ceiling for authentic or sidecar offline
+    };
+
+    base_trust.min(verdict_ceiling)
 }
 
 /// Inner verification logic shared by `verify_content` and `verify_url`.
+///
+/// `mode` controls which pipeline stages run:
+/// - `"fast"` — EXIF + C2PA only; sidecar is bypassed regardless of availability.
+///   Target: <5 s on typical images.
+/// - `"deep"` (default when `None` or any other value) — full pipeline including
+///   all sidecar forensic checks (ELA, noise, copy-move, deepfake).
 fn verify_content_inner(
     source: &str,
     source_type: &str,
+    mode: Option<&str>,
     state: &State<'_, Mutex<AppState>>,
 ) -> Result<VerificationResult, String> {
     let path = std::path::PathBuf::from(source);
@@ -412,12 +445,14 @@ fn verify_content_inner(
         .and_then(c2pa::detect_ai_generator);
 
     // Sidecar-based analysis (optional — graceful degradation)
+    // Fast mode bypasses the sidecar entirely regardless of availability.
     let app = state.lock().map_err(|e| e.to_string())?;
     let is_image = info.content_type == format_router::ContentType::Image;
-    let sidecar_up = is_image && app.sidecar.is_available();
+    let is_fast_mode = mode == Some("fast");
+    let sidecar_up = is_image && !is_fast_mode && app.sidecar.is_available();
     log::info!(
-        "Verify pipeline: is_image={}, sidecar_up={}, content_type={:?}",
-        is_image, sidecar_up, info.content_type
+        "Verify pipeline: is_image={}, mode={:?}, is_fast_mode={}, sidecar_up={}, content_type={:?}",
+        is_image, mode, is_fast_mode, sidecar_up, info.content_type
     );
 
     // ELA
@@ -468,9 +503,17 @@ fn verify_content_inner(
         (None, None)
     };
 
-    // Deepfake / AI-generated image detection
+    // Whether the image has camera-origin EXIF (make, model, GPS, etc.).
+    // Images with at least 4 populated EXIF fields are more likely to be
+    // genuine camera shots; the sidecar uses this as a detection prior.
+    let has_camera_exif = exif_analysis
+        .as_ref()
+        .map(|a| a.has_exif && a.fields_populated >= 4)
+        .unwrap_or(false);
+
+    // Deepfake / AI-generated image detection (codec-aware)
     let (deepfake_score, deepfake_result) = if sidecar_up {
-        match app.sidecar.detect_deepfake(&path) {
+        match app.sidecar.detect_deepfake(&path, &info.mime_type, has_camera_exif) {
             Ok(result) => {
                 let score = result.score;
                 (Some(score), Some(result))
@@ -492,11 +535,19 @@ fn verify_content_inner(
 
     // Compute overall trust score
     let exif_trust = exif_analysis.as_ref().map(|a| a.trust_score).unwrap_or(0.5);
+    let deepfake_confidence = deepfake_result
+        .as_ref()
+        .map(|r| r.confidence.as_str());
+    let deepfake_verdict = deepfake_result
+        .as_ref()
+        .and_then(|r| r.verdict_level.as_deref());
     let overall_trust = compute_trust(
         ela_score,
         noise_score,
         copy_move_score,
         deepfake_score,
+        deepfake_confidence,
+        deepfake_verdict,
         exif_trust,
         c2pa_valid,
     );
@@ -566,16 +617,17 @@ fn verify_content_inner(
 
 /// Verify a file through the VERIFY pipeline.
 ///
-/// Runs EXIF anomaly detection, C2PA manifest reading, and ELA
-/// (if sidecar available), computing an overall trust score.
+/// `mode` is `"fast"` (EXIF + C2PA only, <5 s) or `"deep"` (full pipeline,
+/// 30-60 s). Defaults to `"deep"` when omitted.
 #[tauri::command]
 fn verify_content(
     source: String,
     source_type: String,
+    mode: Option<String>,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<VerificationResult, String> {
-    log::info!("Verifying content: {source} ({source_type})");
-    verify_content_inner(&source, &source_type, &state)
+    log::info!("Verifying content: {source} ({source_type}) [mode={:?}]", mode);
+    verify_content_inner(&source, &source_type, mode.as_deref(), &state)
 }
 
 /// Sign an asset with C2PA Content Credentials.
@@ -812,8 +864,8 @@ fn get_recent_assets(
 /// Downloads the content to a temp file and runs it through the
 /// verification pipeline. Supports images and documents.
 #[tauri::command]
-fn verify_url(url: String, state: State<'_, Mutex<AppState>>) -> Result<VerificationResult, String> {
-    log::info!("Verifying URL: {url}");
+fn verify_url(url: String, mode: Option<String>, state: State<'_, Mutex<AppState>>) -> Result<VerificationResult, String> {
+    log::info!("Verifying URL: {url} [mode={:?}]", mode);
 
     let response = reqwest::blocking::Client::new()
         .get(&url)
@@ -860,7 +912,7 @@ fn verify_url(url: String, state: State<'_, Mutex<AppState>>) -> Result<Verifica
     let temp_str = temp_path.to_string_lossy().to_string();
 
     // Run through verify pipeline
-    let mut result = verify_content_inner(&temp_str, "url", &state)?;
+    let mut result = verify_content_inner(&temp_str, "url", mode.as_deref(), &state)?;
     result.source_type = "url".to_string();
 
     Ok(result)
@@ -873,6 +925,81 @@ fn check_sidecar_health(
 ) -> Result<sidecar::SidecarHealth, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     app.sidecar.check_health()
+}
+
+/// Warning about existing metadata before C2PA signing.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataSigningWarning {
+    pub has_existing_artist: bool,
+    pub existing_artist: Option<String>,
+    pub has_existing_copyright: bool,
+    pub existing_copyright: Option<String>,
+    pub has_existing_description: bool,
+    pub existing_description: Option<String>,
+    pub has_existing_c2pa: bool,
+    pub warning_message: Option<String>,
+}
+
+/// Check for existing metadata before C2PA signing.
+///
+/// Returns a warning struct describing any existing EXIF artist/copyright
+/// fields or C2PA manifests that the user should be aware of.
+#[tauri::command]
+fn check_metadata_before_sign(
+    asset_id: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<MetadataSigningWarning, String> {
+    let app = state.lock().map_err(|e| e.to_string())?;
+    let asset = app
+        .db
+        .get_asset_by_id(&asset_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Asset not found: {asset_id}"))?;
+
+    let path = PathBuf::from(&asset.file_path);
+
+    // Read existing EXIF metadata
+    let meta = metadata::extract_exif(&path);
+
+    let existing_artist = meta.as_ref().and_then(|m| m.artist.clone());
+    let existing_copyright = meta.as_ref().and_then(|m| m.copyright.clone());
+    let existing_description = meta.as_ref().and_then(|m| m.description.clone());
+
+    // Check for existing C2PA manifest
+    let has_existing_c2pa = c2pa::read_manifest(&path).ok().flatten().is_some();
+
+    // Build a human-readable summary
+    let mut warnings: Vec<String> = Vec::new();
+    if let Some(ref artist) = existing_artist {
+        warnings.push(format!("Artist field: \"{artist}\""));
+    }
+    if let Some(ref copyright) = existing_copyright {
+        warnings.push(format!("Copyright field: \"{copyright}\""));
+    }
+    if has_existing_c2pa {
+        warnings.push("Existing C2PA Content Credentials are present".to_string());
+    }
+
+    let warning_message = if warnings.is_empty() {
+        None
+    } else {
+        Some(format!(
+            "This file contains existing metadata that will be preserved in the signed copy: {}.",
+            warnings.join("; ")
+        ))
+    };
+
+    Ok(MetadataSigningWarning {
+        has_existing_artist: existing_artist.is_some(),
+        existing_artist,
+        has_existing_copyright: existing_copyright.is_some(),
+        existing_copyright,
+        has_existing_description: existing_description.is_some(),
+        existing_description,
+        has_existing_c2pa,
+        warning_message,
+    })
 }
 
 /// Get application version.
@@ -931,6 +1058,7 @@ pub fn run() {
             find_similar,
             verify_url,
             check_sidecar_health,
+            check_metadata_before_sign,
             get_version,
         ])
         .run(tauri::generate_context!())
@@ -943,14 +1071,10 @@ mod tests {
 
     #[test]
     fn trust_clean_image_with_exif() {
-        // All signals clean, full EXIF → high trust
+        // All signals clean, full EXIF, authentic verdict → high trust
         let trust = compute_trust(
-            Some(0.04), // ELA clean
-            Some(0.05), // Noise clean
-            Some(0.0),  // No copy-move
-            Some(0.15), // Deepfake clean
-            1.0,        // Perfect EXIF
-            None,       // No C2PA
+            Some(0.04), Some(0.05), Some(0.0), Some(0.15),
+            Some("high"), Some("authentic"), 1.0, None,
         );
         assert!(trust > 0.85, "Expected >0.85, got {trust:.3}");
     }
@@ -959,12 +1083,8 @@ mod tests {
     fn trust_manipulated_image() {
         // ELA, noise, and copy-move all suspicious → low trust
         let trust = compute_trust(
-            Some(0.7),  // ELA suspicious
-            Some(0.8),  // Noise suspicious
-            Some(0.6),  // Copy-move suspicious
-            Some(0.2),  // Deepfake clean
-            0.5,        // Partial EXIF
-            None,
+            Some(0.7), Some(0.8), Some(0.6), Some(0.2),
+            Some("high"), Some("authentic"), 0.5, None,
         );
         assert!(trust < 0.5, "Expected <0.5, got {trust:.3}");
     }
@@ -973,15 +1093,9 @@ mod tests {
     fn trust_concordance_dampens_false_positives() {
         // ELA clean, deepfake clean, but noise+copymove maxed (codec false positive)
         let trust = compute_trust(
-            Some(0.04), // ELA says clean
-            Some(1.0),  // Noise maxed (AVIF false positive)
-            Some(1.0),  // Copy-move maxed (AVIF false positive)
-            Some(0.15), // Deepfake says clean
-            0.80,       // Missing EXIF
-            None,
+            Some(0.04), Some(1.0), Some(1.0), Some(0.15),
+            Some("high"), Some("authentic"), 0.80, None,
         );
-        // Without concordance this would be ~0.51. With concordance
-        // it should be significantly higher.
         assert!(trust > 0.60, "Expected >0.60, got {trust:.3}");
     }
 
@@ -989,14 +1103,9 @@ mod tests {
     fn trust_genuine_manipulation_not_boosted() {
         // ELA is suspicious → concordance boost should NOT fire
         let trust = compute_trust(
-            Some(0.7),  // ELA suspicious (trust 0.3 — NOT > 0.7)
-            Some(0.8),  // Noise suspicious
-            Some(0.5),  // Copy-move moderate
-            Some(0.2),  // Deepfake clean
-            0.8,        // Good EXIF
-            None,
+            Some(0.7), Some(0.8), Some(0.5), Some(0.2),
+            Some("high"), Some("authentic"), 0.8, None,
         );
-        // ELA trust < 0.7, so no concordance boost. Should be low.
         assert!(trust < 0.55, "Expected <0.55, got {trust:.3}");
     }
 
@@ -1004,22 +1113,16 @@ mod tests {
     fn trust_ela_weighted_higher() {
         // ELA clean but noise suspicious — ELA's 2.0 weight should pull up
         let trust_weighted = compute_trust(
-            Some(0.1),  // ELA clean
-            Some(0.8),  // Noise suspicious
-            Some(0.5),  // Copy-move moderate
-            Some(0.3),  // Deepfake moderate
-            0.8,
-            None,
+            Some(0.1), Some(0.8), Some(0.5), Some(0.3),
+            Some("high"), Some("authentic"), 0.8, None,
         );
-        // With simple mean: avg(0.9, 0.2, 0.5) = 0.533
-        // With weighted:    (0.9*2 + 0.2 + 0.5)/4 = 0.625
         assert!(trust_weighted > 0.55, "Expected >0.55, got {trust_weighted:.3}");
     }
 
     #[test]
     fn trust_c2pa_bonus_applied() {
-        let trust_without = compute_trust(Some(0.1), None, None, None, 0.8, None);
-        let trust_with = compute_trust(Some(0.1), None, None, None, 0.8, Some(true));
+        let trust_without = compute_trust(Some(0.1), None, None, None, None, None, 0.8, None);
+        let trust_with = compute_trust(Some(0.1), None, None, None, None, None, 0.8, Some(true));
         assert!(
             trust_with > trust_without,
             "C2PA bonus not applied: {trust_with:.3} vs {trust_without:.3}"
@@ -1028,46 +1131,159 @@ mod tests {
 
     #[test]
     fn trust_no_forensics_falls_back_to_exif() {
-        // No sidecar data — should use EXIF trust only
-        let trust = compute_trust(None, None, None, None, 0.8, None);
-        assert!(
-            (trust - 0.8).abs() < 0.01,
-            "Expected ~0.8, got {trust:.3}"
-        );
+        let trust = compute_trust(None, None, None, None, None, None, 0.8, None);
+        assert!((trust - 0.8).abs() < 0.01, "Expected ~0.8, got {trust:.3}");
     }
 
     #[test]
     fn trust_avif_news_image_regression() {
-        // Regression test: AVIF news image was scoring 51% due to
-        // noise/copy-move codec false positives. After fixes, the
-        // concordance-aware formula should produce high trust when
-        // ELA and deepfake both agree the image is authentic.
         let trust = compute_trust(
-            Some(0.04),  // ELA clean
-            Some(0.76),  // Noise elevated (AVIF codec artefacts)
-            Some(0.35),  // Copy-move moderate (residual texture matches)
-            Some(0.15),  // Deepfake clean (0/10 signals)
-            0.95,        // EXIF: Low severity for web AVIF
-            None,
+            Some(0.04), Some(0.76), Some(0.35), Some(0.15),
+            Some("high"), Some("authentic"), 0.95, None,
         );
-        assert!(
-            trust > 0.75,
-            "AVIF news image should score >75%, got {:.1}%",
-            trust * 100.0
-        );
+        assert!(trust > 0.75, "AVIF news image should score >75%, got {:.1}%", trust * 100.0);
     }
 
     #[test]
     fn trust_score_bounded() {
-        // Even with all bonuses, trust should be capped at 1.0
         let trust = compute_trust(
-            Some(0.0),
-            Some(0.0),
-            Some(0.0),
-            Some(0.0),
-            1.0,
-            Some(true),
+            Some(0.0), Some(0.0), Some(0.0), Some(0.0),
+            Some("high"), Some("authentic"), 1.0, Some(true),
         );
         assert!(trust <= 1.0, "Trust exceeded 1.0: {trust:.3}");
+    }
+
+    // ── Verdict ceiling tests ─────────────────────────────────────────
+
+    #[test]
+    fn trust_inconclusive_verdict_caps_trust() {
+        // Fake wedding image scenario: deepfake score 0.31, inconclusive verdict.
+        // Previously scored 92% "High Trust" — now capped at 60%.
+        let trust = compute_trust(
+            None, None, None, Some(0.31),
+            Some("low"), Some("inconclusive"), 0.8, None,
+        );
+        assert!(trust <= 0.60, "Inconclusive verdict should cap trust at 0.60, got {trust:.3}");
+        assert!(trust >= 0.30, "Trust should still be in medium range, got {trust:.3}");
+    }
+
+    #[test]
+    fn trust_synthetic_high_confidence_very_low() {
+        let trust = compute_trust(
+            None, None, None, Some(0.85),
+            Some("high"), Some("synthetic"), 0.8, None,
+        );
+        assert!(trust <= 0.25, "Synthetic+high should cap at 0.25, got {trust:.3}");
+    }
+
+    #[test]
+    fn trust_synthetic_low_confidence_capped() {
+        // Synthetic with low confidence ≈ inconclusive, caps at 0.45
+        let trust = compute_trust(
+            None, None, None, Some(0.7),
+            Some("low"), Some("synthetic"), 0.8, None,
+        );
+        assert!(trust <= 0.45, "Synthetic+low should cap at 0.45, got {trust:.3}");
+    }
+
+    #[test]
+    fn trust_authentic_verdict_no_ceiling() {
+        let trust = compute_trust(
+            Some(0.04), Some(0.05), Some(0.0), Some(0.15),
+            Some("high"), Some("authentic"), 1.0, Some(true),
+        );
+        assert!(trust > 0.85, "Authentic verdict should allow high trust, got {trust:.3}");
+    }
+
+    #[test]
+    fn trust_no_verdict_no_ceiling() {
+        // Sidecar offline — no verdict available, should not impose ceiling
+        let trust = compute_trust(Some(0.04), None, None, None, None, None, 0.8, None);
+        assert!(trust > 0.70, "No sidecar should fall back to EXIF, got {trust:.3}");
+    }
+
+    #[test]
+    fn verify_fast_mode_skips_sidecar() {
+        let is_image = true;
+        let mode: Option<&str> = Some("fast");
+        let is_fast_mode = mode == Some("fast");
+        let sidecar_hypothetically_available = true;
+        let sidecar_up = is_image && !is_fast_mode && sidecar_hypothetically_available;
+        assert!(!sidecar_up, "Fast mode must prevent sidecar from running");
+    }
+
+    #[test]
+    fn verify_deep_mode_allows_sidecar() {
+        let is_image = true;
+        let mode: Option<&str> = Some("deep");
+        let is_fast_mode = mode == Some("fast");
+        let sidecar_hypothetically_available = true;
+        let sidecar_up = is_image && !is_fast_mode && sidecar_hypothetically_available;
+        assert!(sidecar_up, "Deep mode must allow sidecar when available");
+    }
+
+    #[test]
+    fn metadata_signing_warning_serialises_to_camel_case() {
+        let warning = MetadataSigningWarning {
+            has_existing_artist: true,
+            existing_artist: Some("Jane Smith".to_string()),
+            has_existing_copyright: false,
+            existing_copyright: None,
+            has_existing_description: false,
+            existing_description: None,
+            has_existing_c2pa: false,
+            warning_message: Some("Artist field: \"Jane Smith\".".to_string()),
+        };
+        let json = serde_json::to_string(&warning).unwrap();
+        assert!(json.contains("\"hasExistingArtist\""));
+        assert!(json.contains("\"existingArtist\""));
+        assert!(json.contains("\"warningMessage\""));
+        assert!(!json.contains("\"has_existing_artist\""));
+    }
+
+    #[test]
+    fn metadata_warning_message_builder() {
+        let mut warnings: Vec<String> = Vec::new();
+        warnings.push("Artist field: \"Alice\"".to_string());
+        warnings.push("Copyright field: \"2026 Alice\"".to_string());
+        let msg = format!(
+            "This file contains existing metadata that will be preserved in the signed copy: {}.",
+            warnings.join("; ")
+        );
+        assert!(msg.contains("Artist field"));
+        assert!(msg.contains("Copyright field"));
+        assert!(msg.ends_with('.'));
+    }
+
+    #[test]
+    fn verify_none_mode_defaults_to_deep() {
+        let is_image = true;
+        let mode: Option<&str> = None;
+        let is_fast_mode = mode == Some("fast");
+        let sidecar_hypothetically_available = true;
+        let sidecar_up = is_image && !is_fast_mode && sidecar_hypothetically_available;
+        assert!(sidecar_up, "None mode must behave as deep (sidecar allowed)");
+    }
+
+    #[test]
+    fn trust_verdict_ceiling_overrides_high_base_trust() {
+        // The key regression test: a fake image with clean ELA/noise/copy-move
+        // but inconclusive deepfake should NOT show "High Trust".
+        // Previously: trust = 0.92 (92% High Trust) — dangerously misleading.
+        // Now: capped at 0.60 by inconclusive ceiling.
+        let trust = compute_trust(
+            Some(0.05), // ELA clean
+            Some(0.06), // Noise clean
+            Some(0.0),  // Copy-move clean
+            Some(0.31), // Deepfake borderline
+            Some("low"), Some("inconclusive"),
+            0.95,       // Good EXIF (web image with some data)
+            None,
+        );
+        assert!(
+            trust <= 0.60,
+            "Inconclusive should cap trust at 60% max, got {:.1}%",
+            trust * 100.0
+        );
     }
 }

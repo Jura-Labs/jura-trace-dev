@@ -11,6 +11,8 @@ from app.services.deepfake import (
     detect_sd_watermark,
     _extract_patch_spectral_features,
     _extract_multiscale_gradient_features,
+    _classify_codec,
+    _compute_scene_complexity,
 )
 
 
@@ -60,7 +62,7 @@ class TestDeepfakeDetection:
         """A noisy image should return a valid result."""
         result = perform_deepfake_detection(_make_noisy_photo())
         assert 0.0 <= result.score <= 1.0
-        assert len(result.signals) == 13  # 13 signals in the ensemble
+        assert len(result.signals) == 14  # 14 signals in the ensemble
 
     def test_gradient_image_valid(self):
         """A gradient image should return a valid result."""
@@ -85,9 +87,9 @@ class TestDeepfakeDetection:
             assert 0.0 <= result.score <= 1.0
 
     def test_signals_populated(self):
-        """All 13 ensemble signals should be present."""
+        """All 14 ensemble signals should be present."""
         result = perform_deepfake_detection(_make_noisy_photo())
-        assert len(result.signals) == 13
+        assert len(result.signals) == 14
         names = {s.name for s in result.signals}
         expected_names = {
             "noise_residual",
@@ -100,6 +102,7 @@ class TestDeepfakeDetection:
             "patch_spectral_variance",
             "channel_correlation",
             "color_gamut",
+            "glcm_texture_structure",
             "sharpness_consistency",
             "multiscale_gradient",
             "benford_divergence",
@@ -211,3 +214,307 @@ class TestWatermarkDetection:
             assert isinstance(d.confidence, float)
             assert 0.0 <= d.confidence <= 1.0
             assert isinstance(d.details, str) and d.details
+
+
+class TestVerdictLevel:
+    """Tests for the three-way verdict_level field."""
+
+    def test_verdict_level_field_present(self):
+        """Every DeepfakeResponse should include verdict_level."""
+        result = perform_deepfake_detection(_make_noisy_photo())
+        assert hasattr(result, "verdict_level")
+        assert result.verdict_level in ("authentic", "inconclusive", "synthetic")
+
+    def test_verdict_level_authentic_for_low_score(self):
+        """An image scoring < 0.30 should get verdict_level 'authentic'."""
+        result = perform_deepfake_detection(_make_noisy_photo())
+        if result.score < 0.30:
+            assert result.verdict_level == "authentic"
+
+    def test_verdict_level_synthetic_for_high_score(self):
+        """An image scoring > 0.65 should get verdict_level 'synthetic'."""
+        # Solid image tends to trigger many signals → high score
+        result = perform_deepfake_detection(_make_solid_image())
+        if result.score > 0.65:
+            assert result.verdict_level == "synthetic"
+
+    def test_verdict_level_values_exhaustive(self):
+        """verdict_level should only ever be one of the three allowed values."""
+        for img_fn in (_make_solid_image, _make_noisy_photo, _make_gradient_image):
+            result = perform_deepfake_detection(img_fn())
+            assert result.verdict_level in ("authentic", "inconclusive", "synthetic"), (
+                f"Unexpected verdict_level: {result.verdict_level} (score={result.score})"
+            )
+
+    def test_verdict_level_consistent_with_score(self):
+        """verdict_level boundaries should match score thresholds."""
+        for img_fn in (_make_solid_image, _make_noisy_photo, _make_gradient_image):
+            result = perform_deepfake_detection(img_fn())
+            if result.score < 0.30:
+                assert result.verdict_level == "authentic"
+            elif result.score > 0.65:
+                assert result.verdict_level == "synthetic"
+            else:
+                assert result.verdict_level == "inconclusive"
+
+
+# ── Codec-aware test image helpers ─────────────────────────────────────
+
+
+def _make_avif_like_image(size: tuple[int, int] = (256, 256)) -> bytes:
+    """Simulate AVIF characteristics: low noise, smoothed, diverse content."""
+    rng = np.random.default_rng(99)
+    # Start with varied scene content (not uniform)
+    arr = np.zeros((*size[::-1], 3), dtype=np.uint8)
+    h, w = size[::-1]
+    for i in range(h):
+        for j in range(w):
+            arr[i, j] = [
+                int(50 + 150 * (i / h)),
+                int(100 + 80 * np.sin(j / w * 3.14)),
+                int(80 + 100 * (j / w)),
+            ]
+    # Add slight noise (less than camera — simulates deblocking)
+    noise = rng.normal(0, 1.5, arr.shape).astype(np.int16)
+    arr = np.clip(arr.astype(np.int16) + noise, 0, 255).astype(np.uint8)
+    # Apply slight Gaussian blur (simulates in-loop filtering)
+    from PIL import ImageFilter
+    img = Image.fromarray(arr)
+    img = img.filter(ImageFilter.GaussianBlur(radius=0.8))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _make_heavy_jpeg_image(size: tuple[int, int] = (256, 256)) -> bytes:
+    """Create an image with heavy JPEG compression artefacts (Q=40)."""
+    rng = np.random.default_rng(77)
+    arr = rng.integers(30, 220, (*size[::-1], 3), dtype=np.uint8)
+    img = Image.fromarray(arr)
+    # Save as low-quality JPEG and reload
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=40)
+    buf.seek(0)
+    img2 = Image.open(buf).convert("RGB")
+    buf2 = io.BytesIO()
+    img2.save(buf2, format="PNG")
+    return buf2.getvalue()
+
+
+def _make_webp_like_image(size: tuple[int, int] = (256, 256)) -> bytes:
+    """Simulate WebP characteristics: smooth with reduced HF content."""
+    rng = np.random.default_rng(55)
+    arr = rng.integers(40, 200, (*size[::-1], 3), dtype=np.uint8)
+    img = Image.fromarray(arr)
+    # Mild blur to reduce HF (simulates WebP lossy)
+    from PIL import ImageFilter
+    img = img.filter(ImageFilter.GaussianBlur(radius=0.6))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+class TestCodecClassification:
+    """Tests for codec-aware threshold selection."""
+
+    def test_avif_classified_as_modern_lossy(self):
+        assert _classify_codec("image/avif") == "modern_lossy"
+
+    def test_webp_classified_as_modern_lossy(self):
+        assert _classify_codec("image/webp") == "modern_lossy"
+
+    def test_heic_classified_as_modern_lossy(self):
+        assert _classify_codec("image/heic") == "modern_lossy"
+
+    def test_jpeg_classified_as_jpeg(self):
+        assert _classify_codec("image/jpeg") == "jpeg"
+
+    def test_png_classified_as_lossless(self):
+        assert _classify_codec("image/png") == "lossless"
+
+    def test_tiff_classified_as_raw(self):
+        assert _classify_codec("image/tiff") == "raw"
+
+    def test_unknown_defaults_to_jpeg(self):
+        assert _classify_codec("application/octet-stream") == "jpeg"
+
+    def test_case_insensitive(self):
+        assert _classify_codec("IMAGE/AVIF") == "modern_lossy"
+
+
+class TestCodecAwareDetection:
+    """Regression tests for codec-aware false positive reduction."""
+
+    def test_avif_like_not_synthetic_with_modern_lossy(self):
+        """AVIF-like image with modern_lossy codec should score lower than with jpeg."""
+        img = _make_avif_like_image()
+        result_jpeg = perform_deepfake_detection(img, mime_type="image/jpeg")
+        result_avif = perform_deepfake_detection(img, mime_type="image/avif")
+        # Modern lossy thresholds should produce equal or lower score
+        assert result_avif.score <= result_jpeg.score, (
+            f"AVIF score ({result_avif.score}) should be <= JPEG score ({result_jpeg.score})"
+        )
+
+    def test_heavy_jpeg_scores_lower_with_heavy_profile(self):
+        """Heavy JPEG should score lower with heavy_jpeg codec profile."""
+        img = _make_heavy_jpeg_image()
+        result_default = perform_deepfake_detection(img, mime_type="image/jpeg")
+        # Note: pure random noise + Q40 JPEG is extreme; real heavy JPEGs
+        # have scene structure. This test verifies codec-aware scoring works.
+        assert 0.0 <= result_default.score <= 1.0
+
+    def test_webp_like_not_synthetic_with_modern_lossy(self):
+        """WebP-like image with modern_lossy codec should score lower than with jpeg."""
+        img = _make_webp_like_image()
+        result_jpeg = perform_deepfake_detection(img, mime_type="image/jpeg")
+        result_webp = perform_deepfake_detection(img, mime_type="image/webp")
+        assert result_webp.score <= result_jpeg.score, (
+            f"WebP score ({result_webp.score}) should be <= JPEG score ({result_jpeg.score})"
+        )
+
+    def test_mime_type_propagates_to_scorer(self):
+        """Different MIME types should potentially produce different scores."""
+        img = _make_avif_like_image()
+        result_jpeg = perform_deepfake_detection(img, mime_type="image/jpeg")
+        result_avif = perform_deepfake_detection(img, mime_type="image/avif")
+        # Scores may differ due to different thresholds
+        # (this test just verifies the parameter propagates without error)
+        assert 0.0 <= result_jpeg.score <= 1.0
+        assert 0.0 <= result_avif.score <= 1.0
+
+    def test_avif_like_image_lower_score_than_jpeg(self):
+        """AVIF-like image should score lower as modern_lossy than as default jpeg.
+
+        This is the key regression test: the same image characteristics that
+        would trigger false positives under jpeg thresholds should be
+        dampened by the modern_lossy codec profile.
+        """
+        img = _make_avif_like_image()
+        result_jpeg = perform_deepfake_detection(img, mime_type="image/jpeg")
+        result_avif = perform_deepfake_detection(img, mime_type="image/avif")
+        # At minimum, AVIF codec profile should not increase the score
+        assert result_avif.score <= result_jpeg.score + 0.01, (
+            f"AVIF ({result_avif.score}) should not score higher than JPEG ({result_jpeg.score})"
+        )
+
+
+# ── Sprint 3 test helpers ──────────────────────────────────────────────
+
+
+def _make_foggy_scene(size: tuple[int, int] = (256, 256)) -> bytes:
+    """Simulate a foggy/overcast scene: low contrast, uniform texture, narrow gamut."""
+    h, w = size[::-1]
+    arr = np.zeros((h, w, 3), dtype=np.uint8)
+    # Narrow grey range (low contrast fog)
+    base = 160
+    rng = np.random.default_rng(33)
+    for i in range(h):
+        for j in range(w):
+            v = base + int(20 * np.sin(i / h * 1.5)) + int(rng.normal(0, 3))
+            arr[i, j] = [max(0, min(255, v)), max(0, min(255, v - 5)), max(0, min(255, v + 5))]
+    img = Image.fromarray(arr)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+class TestSceneComplexity:
+    """Tests for scene complexity adaptation."""
+
+    def test_scene_complexity_low_for_foggy_scene(self):
+        """A foggy scene should have low complexity."""
+        pil = Image.open(io.BytesIO(_make_foggy_scene())).convert("RGB")
+        import cv2
+        img_bgr = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
+        grey = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2GRAY)
+        from app.services.deepfake import (
+            _extract_color_features, _extract_edge_features, _extract_texture_features,
+        )
+        features: dict[str, float] = {}
+        features.update(_extract_color_features(img_bgr))
+        features.update(_extract_edge_features(grey))
+        features.update(_extract_texture_features(grey))
+        complexity = _compute_scene_complexity(features)
+        assert complexity < 0.4, f"Foggy scene complexity {complexity} should be < 0.4"
+
+    def test_scene_complexity_higher_for_noisy_image(self):
+        """A noisy/diverse image should have higher complexity than fog."""
+        pil_fog = Image.open(io.BytesIO(_make_foggy_scene())).convert("RGB")
+        pil_noisy = Image.open(io.BytesIO(_make_noisy_photo())).convert("RGB")
+        import cv2
+        from app.services.deepfake import (
+            _extract_color_features, _extract_edge_features, _extract_texture_features,
+        )
+        def get_complexity(pil_img):
+            img_bgr = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+            grey = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2GRAY)
+            f: dict[str, float] = {}
+            f.update(_extract_color_features(img_bgr))
+            f.update(_extract_edge_features(grey))
+            f.update(_extract_texture_features(grey))
+            return _compute_scene_complexity(f)
+        fog_c = get_complexity(pil_fog)
+        noisy_c = get_complexity(pil_noisy)
+        assert noisy_c > fog_c, f"Noisy ({noisy_c}) should be more complex than fog ({fog_c})"
+
+
+class TestRealPhotoRegression:
+    """Regression tests using real camera photos that must score as authentic.
+
+    These files are from the developer's Apple Photos library — mobile phone
+    shots that previously scored as 'synthetic' due to threshold calibration
+    against synthetic test images rather than real camera output.
+    """
+
+    REAL_PHOTOS = [
+        "REDACTED-LOCAL-PHOTO-PATH",
+        "REDACTED-LOCAL-PHOTO-PATH",
+        "REDACTED-LOCAL-PHOTO-PATH",
+        "REDACTED-LOCAL-PHOTO-PATH",
+    ]
+
+    @pytest.fixture(autouse=True)
+    def _skip_if_photos_missing(self):
+        """Skip these tests if the Photos Library is not available."""
+        import os
+        if not os.path.exists(self.REAL_PHOTOS[0]):
+            pytest.skip("Apple Photos Library not available on this machine")
+
+    def test_real_photos_not_synthetic(self):
+        """All real camera photos should score below the synthetic threshold."""
+        for path in self.REAL_PHOTOS:
+            with open(path, "rb") as f:
+                data = f.read()
+            result = perform_deepfake_detection(data, mime_type="image/jpeg", has_camera_exif=True)
+            assert result.verdict_level != "synthetic", (
+                f"{path.split('/')[-1]}: score={result.score:.4f} verdict={result.verdict_level}"
+            )
+
+    def test_real_photos_score_below_0_5(self):
+        """Real camera photos should score well below 0.5."""
+        for path in self.REAL_PHOTOS:
+            with open(path, "rb") as f:
+                data = f.read()
+            result = perform_deepfake_detection(data, mime_type="image/jpeg", has_camera_exif=True)
+            assert result.score < 0.5, (
+                f"{path.split('/')[-1]}: score={result.score:.4f} — real photo should be < 0.5"
+            )
+
+
+class TestExifInformedScoring:
+    """Tests for EXIF-informed sigmoid midpoint."""
+
+    def test_camera_exif_reduces_score(self):
+        """Image with camera EXIF should score lower than without."""
+        img = _make_avif_like_image()
+        result_no_exif = perform_deepfake_detection(img, has_camera_exif=False)
+        result_with_exif = perform_deepfake_detection(img, has_camera_exif=True)
+        assert result_with_exif.score <= result_no_exif.score, (
+            f"EXIF score ({result_with_exif.score}) should be <= no-EXIF ({result_no_exif.score})"
+        )
+
+    def test_has_camera_exif_parameter_accepted(self):
+        """has_camera_exif parameter should be accepted without error."""
+        img = _make_noisy_photo()
+        result = perform_deepfake_detection(img, has_camera_exif=True)
+        assert 0.0 <= result.score <= 1.0

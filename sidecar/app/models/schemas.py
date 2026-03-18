@@ -72,6 +72,7 @@ class DeepfakeResponse(BaseModel):
     score: float
     suspicious: bool
     confidence: str
+    verdict_level: str
     signals: list[DeepfakeSignal]
     heatmap_base64: str
     summary: str

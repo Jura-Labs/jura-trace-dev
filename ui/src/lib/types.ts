@@ -4,6 +4,9 @@
  * Field names are camelCase (Rust uses serde rename_all).
  */
 
+/** Verify pipeline mode: fast = EXIF + C2PA only (<5 s); deep = full forensic pipeline */
+export type VerifyMode = 'fast' | 'deep';
+
 /** Asset record stored in the local database */
 export interface Asset {
   assetId: string;
@@ -80,11 +83,15 @@ export interface WatermarkDetection {
   details: string;
 }
 
+/** Three-way verdict from deepfake detection */
+export type VerdictLevel = 'authentic' | 'inconclusive' | 'synthetic';
+
 /** Deepfake / AI-generated image detection result from the ML sidecar */
 export interface DeepfakeResult {
   score: number;
   suspicious: boolean;
   confidence: string;
+  verdictLevel?: VerdictLevel;
   signals: DeepfakeSignal[];
   heatmapBase64: string;
   summary: string;
@@ -236,6 +243,44 @@ export const HASH_TYPE_LABELS: Record<HashType, string> = {
   dhash: 'Difference Hash',
   phash: 'Perceptual Hash',
 };
+
+// ── Batch Verification ────────────────────────────────────────────
+
+/** Status of a single item in a batch verification queue */
+export type BatchItemStatus = 'queued' | 'running' | 'done' | 'error';
+
+/** A single row in the batch verification results table */
+export interface BatchItem {
+  id: string;
+  filePath: string;
+  fileName: string;
+  status: BatchItemStatus;
+  result: VerificationResult | null;
+  error: string | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+}
+
+/** Duration string for a completed batch item */
+export function formatDuration(startedAt: number, finishedAt: number): string {
+  const ms = finishedAt - startedAt;
+  if (ms < 1000) return `${ms} ms`;
+  return `${(ms / 1000).toFixed(1)} s`;
+}
+
+// ── Metadata Signing Warning ──────────────────────────────────────
+
+/** Warning about existing metadata before C2PA signing */
+export interface MetadataSigningWarning {
+  hasExistingArtist: boolean;
+  existingArtist: string | null;
+  hasExistingCopyright: boolean;
+  existingCopyright: string | null;
+  hasExistingDescription: boolean;
+  existingDescription: string | null;
+  hasExistingC2pa: boolean;
+  warningMessage: string | null;
+}
 
 /** Trust level derived from overall trust score */
 export type TrustLevel = 'high' | 'medium' | 'low';

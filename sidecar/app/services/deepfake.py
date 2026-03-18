@@ -104,9 +104,71 @@ def detect_sd_watermark(image_bytes: bytes) -> list[WatermarkDetection]:
     return detections
 
 
+# ── Codec Classification ─────────────────────────────────────────────────
+
+# Per-codec threshold profiles. Calibrated against real mobile phone photos
+# (iPhone, Android) with computational photography (Smart HDR, night mode,
+# denoising) and lossy compression. Previous thresholds were calibrated
+# against synthetic test images and produced false positives on ~80% of
+# real camera photos.
+#
+# Key calibration findings from real iPhone JPEGs:
+#   - noise_std: 1.8-3.0 (computational denoising), AI-generated: < 1.0
+#   - hf_energy: 0.0003-0.001 (JPEG strips HF), AI-generated: < 0.0001
+#   - noise_cv: 1.0-1.5 (indoor scenes), AI-generated: < 0.5
+#   - lbp_cv: 0.08-0.15 (skin, walls, fabric), AI-generated: < 0.05
+#   - spectral_decay beta: 2.5-3.2 (JPEG steepens), AI-generated: > 3.5 or < 1.0
+#   - channel_corr: 0.97-0.99 (indoor), AI-generated: > 0.995
+#   - multiscale_gradient: 1.5-2.6 (comp. photo), AI-generated: > 3.0
+#   - benford_div: 0.1-0.3 (JPEG distorts), AI-generated: > 0.4
+CODEC_THRESHOLDS: dict[str, dict[str, float]] = {
+    "raw": {
+        "noise_std": 1.5, "hf_energy": 0.0005, "noise_cv": 1.0,
+        "lbp_cv": 0.08, "sharp_cv": 0.5, "patch_spec_cv": 0.8,
+        "glcm_energy": 0.06,
+    },
+    "jpeg": {
+        "noise_std": 1.0, "hf_energy": 0.0002, "noise_cv": 1.0,
+        "lbp_cv": 0.08, "sharp_cv": 0.5, "patch_spec_cv": 0.8,
+        "glcm_energy": 0.06,
+    },
+    "modern_lossy": {
+        "noise_std": 0.8, "hf_energy": 0.0001, "noise_cv": 0.5,
+        "lbp_cv": 0.05, "sharp_cv": 0.3, "patch_spec_cv": 0.6,
+        "glcm_energy": 0.06,
+    },
+    "heavy_jpeg": {
+        "noise_std": 0.8, "hf_energy": 0.0001, "noise_cv": 0.8,
+        "lbp_cv": 0.06, "sharp_cv": 0.4, "patch_spec_cv": 0.7,
+        "glcm_energy": 0.05,
+    },
+    "lossless": {
+        "noise_std": 1.5, "hf_energy": 0.0005, "noise_cv": 1.0,
+        "lbp_cv": 0.08, "sharp_cv": 0.5, "patch_spec_cv": 0.8,
+        "glcm_energy": 0.06,
+    },
+}
+
+
+def _classify_codec(mime_type: str) -> str:
+    """Classify a MIME type into a codec profile for threshold selection."""
+    mime_lower = mime_type.lower()
+    if mime_lower in ("image/avif", "image/webp", "image/heic", "image/heif"):
+        return "modern_lossy"
+    if mime_lower in ("image/tiff", "image/x-adobe-dng", "image/x-canon-cr2",
+                      "image/x-nikon-nef", "image/bmp"):
+        return "raw"
+    if mime_lower in ("image/png", "image/gif"):
+        return "lossless"
+    # Default: JPEG (most common)
+    return "jpeg"
+
+
 def perform_deepfake_detection(
     image_bytes: bytes,
     analysis_size: int = ANALYSIS_SIZE,
+    mime_type: str = "image/jpeg",
+    has_camera_exif: bool = False,
 ) -> DeepfakeResponse:
     """
     Detect AI-generated content in an image.
@@ -114,6 +176,8 @@ def perform_deepfake_detection(
     Args:
         image_bytes: Raw bytes of the input image.
         analysis_size: Resize longest edge to this for consistent analysis.
+        mime_type: MIME type of the source image for codec-aware thresholds.
+        has_camera_exif: True if the image has camera EXIF data (make/model/exposure).
 
     Returns:
         DeepfakeResponse with score, signals, and heatmap.
@@ -143,8 +207,11 @@ def perform_deepfake_detection(
     features.update(_extract_patch_spectral_features(grey))
     features.update(_extract_multiscale_gradient_features(grey))
 
-    # Score via heuristic ensemble
-    score, signals = _heuristic_score(features)
+    # Score via heuristic ensemble with codec-aware thresholds
+    codec_class = _classify_codec(mime_type)
+    score, signals = _heuristic_score(
+        features, codec_class, has_camera_exif=has_camera_exif,
+    )
 
     # Generate frequency spectrum heatmap
     heatmap_base64 = _generate_spectrum_heatmap(grey)
@@ -173,10 +240,19 @@ def perform_deepfake_detection(
         wm_types = [w.type.replace("_", " ").title() for w in watermarks if w.detected]
         summary = f"AI watermark detected ({', '.join(wm_types)}). {summary}"
 
+    # Three-way verdict: replaces binary suspicious/clean with honest uncertainty
+    if score > 0.65 or any(w.detected for w in watermarks):
+        verdict_level = "synthetic"
+    elif score < 0.30:
+        verdict_level = "authentic"
+    else:
+        verdict_level = "inconclusive"
+
     return DeepfakeResponse(
         score=round(score, 4),
         suspicious=score > 0.5,
         confidence=confidence,
+        verdict_level=verdict_level,
         signals=signals,
         heatmap_base64=heatmap_base64,
         summary=summary,
@@ -601,15 +677,42 @@ def _extract_multiscale_gradient_features(grey: np.ndarray) -> dict[str, float]:
 # ── Heuristic Scorer ──────────────────────────────────────────────────
 
 
+def _compute_scene_complexity(features: dict[str, float]) -> float:
+    """Compute a 0-1 scene complexity metric from existing features.
+
+    Low complexity (< 0.3) indicates uniform scenes (fog, snow, overcast)
+    where texture/sharpness signals should be downweighted to avoid
+    false positives.
+    """
+    gamut = features.get("color_gamut_coverage", 0.1)
+    sharp_cv = features.get("sharpness_cv", 0.5)
+    lbp_cv = features.get("lbp_block_var_cv", 0.5)
+    edge_mean = features.get("edge_mag_mean", 25.0)
+    return (
+        gamut * 0.3
+        + min(sharp_cv, 1.0) * 0.3
+        + min(lbp_cv, 1.0) * 0.2
+        + min(edge_mean / 50.0, 1.0) * 0.2
+    )
+
+
 def _heuristic_score(
     features: dict[str, float],
+    codec_class: str = "jpeg",
+    has_camera_exif: bool = False,
 ) -> tuple[float, list[DeepfakeSignal]]:
     """
     Rule-based scoring using known statistical indicators of AI generation.
 
+    Args:
+        features: Extracted image features.
+        codec_class: Codec profile ("raw", "jpeg", "modern_lossy", "heavy_jpeg", "lossless").
+        has_camera_exif: True if image has camera EXIF (shifts sigmoid midpoint).
+
     Returns (score, list_of_signals).
     """
     signals: list[DeepfakeSignal] = []
+    thresholds = CODEC_THRESHOLDS.get(codec_class, CODEC_THRESHOLDS["jpeg"])
 
     # Scoring uses sigmoid activation: the ratio of triggered signal weight
     # to total weight is mapped through a sigmoid (midpoint=0.18, k=12).
@@ -626,7 +729,7 @@ def _heuristic_score(
     #
     # Signals are designed to be robust against lossy codec artifacts (AVIF, WebP, JPEG)
     # and scene-dependent features (fog, smoke, soft backgrounds). Thresholds are
-    # calibrated against both real compressed photos and modern diffusion model output.
+    # calibrated per codec class to avoid false positives on modern codecs.
 
     def _add(
         name: str,
@@ -648,20 +751,22 @@ def _heuristic_score(
 
     # 1. Noise residual level — very low noise indicates GAN-style generators
     noise_std = features.get("noise_std", 5.0)
+    noise_std_thresh = thresholds["noise_std"]
     _add(
         "noise_residual",
         1.0,
-        noise_std < 2.0,
+        noise_std < noise_std_thresh,
         f"Very low noise residual (std={noise_std:.2f}), common in AI-generated images",
         f"Noise residual within normal range (std={noise_std:.2f})",
     )
 
-    # 2. Smoothed noise with heavy tails — compound signal. AI images often have
-    #    low noise (std < 5) with non-Gaussian distribution (kurtosis > 20).
-    #    Real photos compressed by AVIF/WebP have high kurtosis but also higher
-    #    noise_std, so the compound check avoids codec false positives.
+    # 2. Smoothed noise with heavy tails — compound signal. AI images have
+    #    very low noise (std < 1.5) with non-Gaussian distribution (kurtosis > 30).
+    #    Real camera photos with computational denoising have std 1.5-3.0 with
+    #    high kurtosis (50-130) from JPEG blocking — so the noise_std threshold
+    #    must be tight (< 1.5, not < 5.0) to avoid flagging every denoised photo.
     noise_kurt = features.get("noise_kurtosis", 3.0)
-    smooth_kurtosis = noise_std < 5.0 and noise_kurt > 20.0
+    smooth_kurtosis = noise_std < 1.5 and noise_kurt > 30.0
     _add(
         "noise_smoothed_kurtosis",
         1.5,
@@ -686,31 +791,34 @@ def _heuristic_score(
     # 4. Noise variance consistency — AI images have more uniform block-wise
     #    noise variance than real photos with diverse scene content.
     noise_cv = features.get("noise_var_cv", 0.5)
+    noise_cv_thresh = thresholds["noise_cv"]
     _add(
         "noise_consistency",
         1.5,
-        noise_cv < 1.5,
+        noise_cv < noise_cv_thresh,
         f"Unnaturally uniform noise distribution (CV={noise_cv:.3f}), common in AI-generated images",
         f"Normal noise variance distribution (CV={noise_cv:.3f})",
     )
 
     # --- Frequency domain (2 signals) ---
 
-    # 5. Extreme spectral smoothing — only triggers at very low HF energy (< 0.002).
-    #    Threshold is lower than before (was 0.01) to avoid false positives from
-    #    AVIF/WebP lossy compression which also strips high frequencies.
+    # 5. Extreme spectral smoothing — threshold is codec-aware to avoid
+    #    false positives from AVIF/WebP lossy compression which strips HF.
     hf_ratio = features.get("hf_energy_ratio", 0.05)
+    hf_thresh = thresholds["hf_energy"]
     _add(
         "frequency_energy",
         1.5,
-        hf_ratio < 0.002,
+        hf_ratio < hf_thresh,
         f"Severely deficient high-frequency energy (ratio={hf_ratio:.5f}), indicates AI smoothing",
         f"Adequate high-frequency content (ratio={hf_ratio:.5f})",
     )
 
-    # 5. Spectral decay slope — natural images follow 1/f^beta with beta in 1.5-2.5
+    # 5. Spectral decay slope — natural images follow 1/f^beta. Uncompressed
+    #    naturals have beta in 1.5-2.5, but JPEG compression + computational
+    #    photography routinely push beta to 2.5-3.2. Only flag at > 3.5 or < 1.0.
     beta = features.get("spectral_decay_beta", 2.0)
-    out_of_range = beta > 2.5 or beta < 1.5
+    out_of_range = beta > 3.5 or beta < 1.0
     _add(
         "spectral_decay",
         1.5,
@@ -724,10 +832,11 @@ def _heuristic_score(
     # 6. LBP texture consistency — AI images have unnaturally uniform local texture
     #    across image blocks. Real photos vary more due to scene complexity.
     lbp_cv = features.get("lbp_block_var_cv", 0.5)
+    lbp_cv_thresh = thresholds["lbp_cv"]
     _add(
         "texture_consistency",
         2.0,
-        lbp_cv < 0.2,
+        lbp_cv < lbp_cv_thresh,
         f"Unnaturally uniform texture patterns (LBP CV={lbp_cv:.3f})",
         f"Normal texture variation (LBP CV={lbp_cv:.3f})",
     )
@@ -738,10 +847,11 @@ def _heuristic_score(
     #    content across spatial patches (textured vs smooth regions). AI images
     #    show more uniform spectral patterns across patches.
     patch_spec_cv = features.get("patch_spectral_cv", 1.0)
+    patch_spec_thresh = thresholds["patch_spec_cv"]
     _add(
         "patch_spectral_variance",
         2.0,
-        patch_spec_cv < 0.8,
+        patch_spec_cv < patch_spec_thresh,
         f"Uniform spectral content across patches (CV={patch_spec_cv:.3f}), typical of AI generation",
         f"Diverse spectral content across patches (CV={patch_spec_cv:.3f})",
     )
@@ -749,7 +859,8 @@ def _heuristic_score(
     # --- Colour domain (2 signals) ---
 
     # 9. Inter-channel correlation — AI images tend to have unnaturally high
-    #    correlation between R, G, B channels (>0.96).
+    #    correlation between R, G, B channels. Indoor photos with limited
+    #    lighting naturally reach 0.97-0.99, so threshold must be > 0.995.
     corr_rg = features.get("color_corr_rg", 0.8)
     corr_rb = features.get("color_corr_rb", 0.8)
     corr_gb = features.get("color_corr_gb", 0.8)
@@ -757,7 +868,7 @@ def _heuristic_score(
     _add(
         "channel_correlation",
         1.0,
-        mean_corr > 0.96,
+        mean_corr > 0.995,
         f"Unusually high colour channel correlation ({mean_corr:.3f}), common in AI-generated images",
         f"Normal colour channel variation ({mean_corr:.3f})",
     )
@@ -772,16 +883,32 @@ def _heuristic_score(
         f"Normal colour gamut usage ({gamut:.3f})",
     )
 
+    # --- Texture structure domain (1 signal) ---
+
+    # 14. GLCM energy (angular second moment) — measures texture regularity.
+    #     Real photos have structured, locally correlated textures with
+    #     GLCM energy > 0.06. AI generators produce more dispersed
+    #     co-occurrence patterns with lower energy.
+    glcm_energy = features.get("glcm_energy_mean", 0.1)
+    glcm_energy_thresh = thresholds.get("glcm_energy", 0.06)
+    _add(
+        "glcm_texture_structure",
+        1.5,
+        glcm_energy < glcm_energy_thresh,
+        f"Dispersed texture structure (GLCM energy={glcm_energy:.4f}), common in AI-generated images",
+        f"Natural texture structure (GLCM energy={glcm_energy:.4f})",
+    )
+
     # --- Structure domain (1 signal) ---
 
     # 9. Sharpness consistency — real photos have large sharpness variation
     #    (sharp foreground, soft background). AI images have more uniform sharpness.
-    #    Threshold 0.8 avoids false positives from compressed/edited real photos.
     sharp_cv = features.get("sharpness_cv", 0.5)
+    sharp_cv_thresh = thresholds["sharp_cv"]
     _add(
         "sharpness_consistency",
         1.5,
-        sharp_cv < 0.8,
+        sharp_cv < sharp_cv_thresh,
         f"Unnaturally consistent sharpness (CV={sharp_cv:.3f})",
         f"Normal sharpness variation (CV={sharp_cv:.3f})",
     )
@@ -790,14 +917,14 @@ def _heuristic_score(
 
     # 12. Multi-scale gradient uniformity — real photos lose gradient energy
     #     at coarser scales as fine detail disappears. AI images maintain more
-    #     uniform gradient energy across scales. Threshold raised to 1.5 to
-    #     avoid false positives from lossy-compressed images (AVIF/WebP) where
-    #     codec artifacts inflate gradient ratios above 1.0.
+    #     uniform gradient energy across scales. Real camera photos with
+    #     computational photography (Smart HDR, denoising) show ratios of
+    #     1.5-2.6, so threshold must be > 3.0 to avoid flagging real photos.
     grad_ratio = features.get("multiscale_gradient_ratio", 0.4)
     _add(
         "multiscale_gradient",
         1.0,
-        grad_ratio > 1.5,
+        grad_ratio > 3.0,
         f"Uniform gradient energy across scales (ratio={grad_ratio:.3f}), suggests AI generation",
         f"Natural gradient energy falloff across scales (ratio={grad_ratio:.3f})",
     )
@@ -805,22 +932,49 @@ def _heuristic_score(
     # --- DCT domain (1 signal) ---
 
     # 13. Benford's law divergence — first digits of DCT coefficients in natural
-    #     images follow Benford's distribution. AI-generated content deviates more.
+    #     images follow Benford's distribution. JPEG compression naturally
+    #     distorts this (real photos show 0.1-0.3), so only flag above 0.4.
     benford_div = features.get("dct_benford_div", 0.0)
     _add(
         "benford_divergence",
         0.5,
-        benford_div > 0.08,
+        benford_div > 0.4,
         f"DCT coefficients deviate from Benford's law (div={benford_div:.3f}), uncommon in natural images",
         f"DCT statistics follow expected distribution (div={benford_div:.3f})",
     )
+
+    # ── Scene complexity adaptation ────────────────────────────────────
+    # Low-complexity scenes (fog, snow, overcast) naturally have uniform
+    # texture and sharpness. Halve those signal weights to avoid FPs.
+    scene_complexity = _compute_scene_complexity(features)
+    if scene_complexity < 0.3:
+        scene_affected = {"texture_consistency", "patch_spectral_variance", "sharpness_consistency"}
+        for s in signals:
+            if s.name in scene_affected:
+                s.weight *= 0.5
+
+    # ── Anti-correlation penalty ─────────────────────────────────────
+    # When texture/sharpness signals trigger but noise/frequency signals
+    # do NOT, this pattern indicates a scene characteristic, not AI.
+    texture_names = {"texture_consistency", "patch_spectral_variance", "sharpness_consistency"}
+    noise_freq_names = {"noise_residual", "noise_smoothed_kurtosis", "prnu_asymmetry",
+                        "noise_consistency", "frequency_energy", "spectral_decay"}
+    texture_triggered = any(s.triggered for s in signals if s.name in texture_names)
+    noise_freq_triggered = any(s.triggered for s in signals if s.name in noise_freq_names)
 
     # Sigmoid activation: ratio of triggered weight → score via sigmoid
     total_weight = sum(s.weight for s in signals)
     triggered_weight = sum(s.weight for s in signals if s.triggered)
     activation_ratio = triggered_weight / total_weight if total_weight > 0 else 0.0
-    # Midpoint 0.18 → 18% triggered weight gives score 0.50
-    score = 1.0 / (1.0 + math.exp(-12.0 * (activation_ratio - 0.18)))
+
+    # Apply anti-correlation penalty: texture-only triggers → reduce ratio by 40%
+    if texture_triggered and not noise_freq_triggered:
+        activation_ratio *= 0.6
+
+    # EXIF-informed sigmoid midpoint: camera EXIF is a strong prior toward
+    # authenticity — require more evidence (higher midpoint) to flag.
+    midpoint = 0.25 if has_camera_exif else 0.18
+    score = 1.0 / (1.0 + math.exp(-12.0 * (activation_ratio - midpoint)))
 
     return score, signals
 

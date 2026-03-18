@@ -95,16 +95,28 @@ async def detect_copy_move(
 @router.post("/deepfake", response_model=DeepfakeResponse)
 async def detect_deepfake(
     file: UploadFile = File(...),
+    mime_type: str = Query(default="image/jpeg"),
+    has_camera_exif: bool = Query(default=False),
 ) -> DeepfakeResponse:
     """
     Detect AI-generated or synthetic content in an uploaded image.
 
     Returns a score (0.0 = authentic, 1.0 = synthetic), interpretable
     signals from the feature ensemble, and a frequency spectrum heatmap.
+
+    The ``mime_type`` parameter enables codec-aware threshold selection
+    so that modern lossy codecs (AVIF, WebP, HEIC) do not trigger false
+    positives due to their aggressive in-loop filtering.
+
+    The ``has_camera_exif`` parameter signals whether the image carries
+    camera-origin EXIF data. Images with rich camera EXIF are less likely
+    to be AI-generated; the scoring midpoint is shifted accordingly.
     """
     image_bytes = await _read_and_validate(file)
 
     try:
-        return perform_deepfake_detection(image_bytes)
+        return perform_deepfake_detection(
+            image_bytes, mime_type=mime_type, has_camera_exif=has_camera_exif,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

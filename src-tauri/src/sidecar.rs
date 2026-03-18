@@ -126,6 +126,8 @@ pub struct DeepfakeResult {
     pub score: f64,
     pub suspicious: bool,
     pub confidence: String,
+    #[serde(default, alias = "verdict_level")]
+    pub verdict_level: Option<String>,
     pub signals: Vec<DeepfakeSignal>,
     #[serde(alias = "heatmap_base64")]
     pub heatmap_base64: String,
@@ -258,12 +260,33 @@ impl SidecarClient {
     ///
     /// Sends the file as a multipart upload to `POST /forensics/deepfake`.
     /// Uses a 60-second timeout for the statistical feature ensemble.
-    pub fn detect_deepfake(&self, image_path: &Path) -> Result<DeepfakeResult, String> {
+    ///
+    /// `mime_type` enables codec-aware threshold selection so that modern
+    /// lossy codecs (AVIF, WebP, HEIC) do not trigger false positives.
+    ///
+    /// `has_camera_exif` signals to the sidecar whether the image carries
+    /// camera-origin EXIF data (make, model, GPS, etc.). Images with rich
+    /// camera EXIF are less likely to be AI-generated; the sidecar can use
+    /// this as an additional prior when calibrating the detection threshold.
+    pub fn detect_deepfake(
+        &self,
+        image_path: &Path,
+        mime_type: &str,
+        has_camera_exif: bool,
+    ) -> Result<DeepfakeResult, String> {
         let form = self.build_image_form(image_path)?;
+
+        // MIME types only contain ASCII chars (a-z, /, +, -)
+        // so percent-encoding the slash is sufficient.
+        let encoded_mime = mime_type.replace('/', "%2F");
+        let url = format!(
+            "{}/forensics/deepfake?mime_type={}&has_camera_exif={}",
+            self.base_url, encoded_mime, has_camera_exif
+        );
 
         let resp = self
             .client
-            .post(format!("{}/forensics/deepfake", self.base_url))
+            .post(url)
             .multipart(form)
             .timeout(Duration::from_secs(60))
             .send()
@@ -498,6 +521,67 @@ mod tests {
         }"#;
         let result: DeepfakeResult = serde_json::from_str(json).unwrap();
         assert!(result.watermarks.is_empty());
+    }
+
+    #[test]
+    fn test_deepfake_result_with_verdict_level() {
+        // New sidecar responses include verdict_level
+        let json = r#"{
+            "score": 0.15,
+            "suspicious": false,
+            "confidence": "high",
+            "verdict_level": "authentic",
+            "signals": [],
+            "heatmap_base64": "iVBOR...",
+            "summary": "Image appears authentic"
+        }"#;
+        let result: DeepfakeResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.verdict_level, Some("authentic".to_string()));
+    }
+
+    #[test]
+    fn test_deepfake_result_verdict_level_inconclusive() {
+        let json = r#"{
+            "score": 0.45,
+            "suspicious": false,
+            "confidence": "low",
+            "verdict_level": "inconclusive",
+            "signals": [],
+            "heatmap_base64": "iVBOR...",
+            "summary": "Mixed indicators"
+        }"#;
+        let result: DeepfakeResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.verdict_level, Some("inconclusive".to_string()));
+    }
+
+    #[test]
+    fn test_deepfake_result_verdict_level_synthetic() {
+        let json = r#"{
+            "score": 0.85,
+            "suspicious": true,
+            "confidence": "high",
+            "verdict_level": "synthetic",
+            "signals": [],
+            "heatmap_base64": "iVBOR...",
+            "summary": "Strong synthetic indicators"
+        }"#;
+        let result: DeepfakeResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.verdict_level, Some("synthetic".to_string()));
+    }
+
+    #[test]
+    fn test_deepfake_result_without_verdict_level() {
+        // Backwards compat: old sidecar responses without verdict_level
+        let json = r#"{
+            "score": 0.72,
+            "suspicious": true,
+            "confidence": "high",
+            "signals": [],
+            "heatmap_base64": "iVBOR...",
+            "summary": "Strong synthetic indicators"
+        }"#;
+        let result: DeepfakeResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.verdict_level, None);
     }
 
     #[test]
