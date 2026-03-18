@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog } from '$lib/api';
+  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
   import type { VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem } from '$lib/types';
   import VerdictSummary from '$lib/components/VerdictSummary.svelte';
@@ -34,6 +34,13 @@
   let exportingReport = $state(false);
   let exportingCase = $state(false);
   let appVersion = $state('0.2.0-dev');
+
+  // ── False positive state ──────────────────────────────────────────
+  let showFalsePositiveModal = $state(false);
+  let fpReasonCode = $state('modern_codec');
+  let fpReasonNote = $state('');
+  let fpSubmitting = $state(false);
+  let fpSubmitted = $state(false);
 
   // ── Platform detection ──────────────────────────────────────────
   const isMac = typeof navigator !== 'undefined' && navigator.platform.startsWith('Mac');
@@ -151,7 +158,9 @@
 
     function handleEsc(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        if (showReportModal) {
+        if (showFalsePositiveModal) {
+          showFalsePositiveModal = false;
+        } else if (showReportModal) {
           showReportModal = false;
         } else if (loading) {
           loading = false;
@@ -320,6 +329,43 @@
       triggerDownload(blob, `jura-case-${safeName}-${ts}.zip`);
     } finally {
       exportingCase = false;
+    }
+  }
+
+  // ── False positive submit ─────────────────────────────────────────
+  async function handleFalsePositiveSubmit() {
+    if (!result || fpSubmitting) return;
+    fpSubmitting = true;
+
+    const signalScores = result.deepfakeResult?.signals
+      ? JSON.stringify(
+          result.deepfakeResult.signals.map(s => ({
+            name: s.name,
+            weight: s.weight,
+            triggered: s.triggered,
+          }))
+        )
+      : undefined;
+
+    try {
+      await markFalsePositive(
+        fpReasonCode,
+        fpReasonNote.trim() || undefined,
+        result.contentType,
+        result.deepfakeResult?.score,
+        result.deepfakeResult?.verdictLevel,
+        signalScores,
+      );
+      fpSubmitted = true;
+      // Auto-close after 2 seconds
+      setTimeout(() => {
+        showFalsePositiveModal = false;
+        fpSubmitted = false;
+        fpReasonCode = 'modern_codec';
+        fpReasonNote = '';
+      }, 2000);
+    } finally {
+      fpSubmitting = false;
     }
   }
 
@@ -1024,6 +1070,24 @@
         <span class="text-xs text-flint/50">
           {modKey}+E report &middot; {modKey}+Shift+E case
         </span>
+
+        <!-- False positive report — secondary action, pushed to far right -->
+        <div class="flex-1 flex justify-end">
+          <button
+            class="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] text-xs text-flint border border-border-light dark:border-graphite-light rounded
+                   hover:border-amber/50 hover:text-amber dark:hover:text-amber-light transition-colors duration-150
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+            onclick={() => { showFalsePositiveModal = true; }}
+            aria-label="Report this result as a false positive"
+          >
+            <!-- Flag icon -->
+            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"
+                d="M3 3v18M3 5l9-2 9 2v10l-9-2-9 2V5z" />
+            </svg>
+            Report False Positive
+          </button>
+        </div>
       </div>
 
       <!-- ── Technical Details Toggle ──────────────────────────────── -->
@@ -1501,6 +1565,120 @@
   {/if}
 
 </div>
+
+<!-- ── False Positive Modal ──────────────────────────────────────── -->
+{#if showFalsePositiveModal}
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="fp-modal-title"
+    tabindex="-1"
+    onkeydown={(e) => { if (e.key === 'Escape') { showFalsePositiveModal = false; } }}
+    onclick={(e) => { if (e.target === e.currentTarget) showFalsePositiveModal = false; }}
+  >
+    <div class="bg-white dark:bg-graphite border border-border-light dark:border-graphite-light rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+
+      {#if fpSubmitted}
+        <!-- Success state -->
+        <div class="flex flex-col items-center gap-3 py-4 text-center">
+          <div class="w-10 h-10 rounded-full bg-malachite/15 border border-malachite/30 flex items-center justify-center" aria-hidden="true">
+            <svg class="w-5 h-5 text-malachite" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <p class="text-sm font-medium text-text-light dark:text-quartz">Report submitted</p>
+          <p class="text-xs text-flint">Thank you. This helps improve detection accuracy.</p>
+        </div>
+
+      {:else}
+        <!-- Form -->
+        <h2 id="fp-modal-title" class="text-lg font-medium text-text-light dark:text-quartz mb-1">
+          Report False Positive
+        </h2>
+        <p class="text-sm text-flint mb-5">
+          If this result appears to be a false positive, let us know why. Reports help calibrate the detection system.
+        </p>
+
+        <!-- Reason code -->
+        <fieldset class="mb-4">
+          <legend class="block text-xs font-medium text-flint mb-2">
+            Reason <span class="text-cinnabar" aria-hidden="true">*</span>
+            <span class="sr-only">(required)</span>
+          </legend>
+          <div class="space-y-2" role="radiogroup" aria-label="False positive reason">
+            {#each [
+              { code: 'modern_codec', label: 'Modern codec (AVIF/WebP)', description: 'Modern compression introduces patterns that resemble manipulation artefacts' },
+              { code: 'social_media', label: 'Social media re-upload', description: 'Re-encoding from social platforms degrades metadata and introduces artefacts' },
+              { code: 'scanner', label: 'Scanner output', description: 'Scanned documents or film produce noise profiles that trigger false detections' },
+              { code: 'computational_photography', label: 'Computational photography (HDR/Night Mode)', description: 'Multi-frame compositing and tone-mapping from mobile cameras' },
+              { code: 'other', label: 'Other', description: 'Another reason not listed above' },
+            ] as opt}
+              <label
+                class="flex items-start gap-3 rounded-md px-3 py-2.5 cursor-pointer transition-colors duration-150
+                       border {fpReasonCode === opt.code
+                         ? 'border-lapis/50 bg-lapis/8 dark:bg-lapis/10'
+                         : 'border-border-light dark:border-graphite-light hover:border-lapis/30 hover:bg-gray-50 dark:hover:bg-graphite-light/20'}"
+              >
+                <input
+                  type="radio"
+                  name="fp-reason"
+                  value={opt.code}
+                  bind:group={fpReasonCode}
+                  class="mt-0.5 flex-shrink-0 accent-lapis focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
+                />
+                <div class="min-w-0">
+                  <span class="text-sm text-text-light dark:text-quartz leading-snug block">{opt.label}</span>
+                  <span class="text-xs text-flint leading-relaxed">{opt.description}</span>
+                </div>
+              </label>
+            {/each}
+          </div>
+        </fieldset>
+
+        <!-- Optional note -->
+        <div class="mb-5">
+          <label for="fp-note" class="block text-xs font-medium text-flint mb-1">
+            Additional notes <span class="text-flint/50">(optional)</span>
+          </label>
+          <textarea
+            id="fp-note"
+            class="w-full h-20 px-3 py-2 text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-graphite-light rounded
+                   text-text-light dark:text-quartz placeholder:text-flint/40 resize-none
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
+            placeholder="e.g. AVIF file exported from Lightroom, high ISO scan from Epson V600..."
+            maxlength={500}
+            bind:value={fpReasonNote}
+          ></textarea>
+          <p class="text-xs text-flint/50 mt-1 text-right">{fpReasonNote.length} / 500</p>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-3 justify-end">
+          <button
+            class="px-4 py-2.5 min-h-[44px] text-sm text-flint hover:text-text-light dark:hover:text-quartz transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            onclick={() => { showFalsePositiveModal = false; fpReasonNote = ''; fpReasonCode = 'modern_codec'; }}
+            disabled={fpSubmitting}
+          >
+            Cancel
+          </button>
+          <button
+            class="px-4 py-2.5 min-h-[44px] text-sm bg-lapis hover:bg-lapis-dark dark:hover:bg-lapis-light text-white rounded transition-colors
+                   disabled:opacity-50 disabled:cursor-not-allowed
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+            onclick={handleFalsePositiveSubmit}
+            disabled={fpSubmitting}
+          >
+            {fpSubmitting ? 'Submitting...' : 'Submit Report'}
+          </button>
+        </div>
+      {/if}
+
+    </div>
+  </div>
+{/if}
 
 <!-- ── Analyst Note Modal ─────────────────────────────────────────── -->
 {#if showReportModal}

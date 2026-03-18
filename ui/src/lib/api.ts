@@ -317,3 +317,43 @@ export async function getVersion(): Promise<string> {
     return '0.1.0-dev';
   }
 }
+
+// ── False Positive Reporting ────────────────────────────────────────
+
+/**
+ * Submit a false positive report for a verification result.
+ * Returns the generated report ID.
+ */
+export async function markFalsePositive(
+  reasonCode: string,
+  reasonNote?: string,
+  mimeType?: string,
+  deepfakeScore?: number,
+  deepfakeVerdict?: string,
+  signalScoresJson?: string,
+): Promise<string> {
+  try {
+    return await invoke<string>('mark_false_positive', {
+      reasonCode,
+      reasonNote: reasonNote ?? null,
+      mimeType: mimeType ?? null,
+      deepfakeScore: deepfakeScore ?? null,
+      deepfakeVerdict: deepfakeVerdict ?? null,
+      signalScoresJson: signalScoresJson ?? null,
+    });
+  } catch {
+    // Browser mock: return a stub report ID
+    return `mock-fp-${Date.now()}`;
+  }
+}
+
+/**
+ * Retrieve the total number of false positive reports submitted.
+ */
+export async function getFalsePositiveStats(): Promise<number> {
+  try {
+    return await invoke<number>('get_false_positive_stats');
+  } catch {
+    return 0;
+  }
+}

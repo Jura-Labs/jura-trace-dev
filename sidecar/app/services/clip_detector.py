@@ -5,6 +5,18 @@ Uses CLIP ViT-B/32 embeddings with zero-shot classification to detect
 AI-generated images. Compares image embedding against text prompts
 describing real photographs vs AI-generated content.
 
+**CALIBRATION STATUS (March 2026):**
+Zero-shot classification with the generic LAION-trained model produces
+near-uniform probabilities (~20% per class) — it does NOT reliably
+discriminate between real photos and AI-generated images. The CLIP
+infrastructure is sound, but a trained UnivFD linear probe (6KB weights
+on top of CLIP features, trained on a real-vs-AI dataset) is needed
+for production-grade detection.
+
+The endpoint is available as an EXPERIMENTAL feature. Results are
+informational and should NOT be used as a primary detection signal
+until a trained probe is integrated.
+
 The model downloads on first use (~350MB) and is cached locally.
 If ``open_clip`` is not installed, the service gracefully degrades
 and returns a response with ``model_available=False``.
@@ -188,7 +200,8 @@ def perform_clip_detection(image_bytes: bytes) -> ClipDetectionResponse:
     else:
         summary = (
             f"CLIP classification is inconclusive "
-            f"(score={score:.2f}) — the image has mixed real/AI characteristics"
+            f"(score={score:.2f}) — zero-shot classification has limited discriminative power. "
+            f"A trained UnivFD linear probe is needed for reliable results."
         )
 
     return ClipDetectionResponse(
