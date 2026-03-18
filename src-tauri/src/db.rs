@@ -1,4 +1,5 @@
 use rusqlite::{params, Connection, Result as SqliteResult};
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -79,11 +80,26 @@ impl Database {
                 created_at         TEXT NOT NULL
             );
 
-            CREATE INDEX IF NOT EXISTS idx_assets_content_type ON assets(content_type);
-            CREATE INDEX IF NOT EXISTS idx_fingerprints_asset   ON fingerprints(asset_id);
-            CREATE INDEX IF NOT EXISTS idx_fingerprints_hash    ON fingerprints(hash_type, hash_value);
-            CREATE INDEX IF NOT EXISTS idx_audit_target         ON audit_log(target_id);
-            CREATE INDEX IF NOT EXISTS idx_audit_operator       ON audit_log(operator_id);
+            CREATE TABLE IF NOT EXISTS false_positive_reports (
+                id                  TEXT PRIMARY KEY,
+                verification_id     TEXT,
+                file_hash           TEXT,
+                reason_code         TEXT NOT NULL,
+                reason_note         TEXT,
+                mime_type           TEXT,
+                deepfake_score      REAL,
+                deepfake_verdict    TEXT,
+                signal_scores_json  TEXT,
+                created_at          TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_assets_content_type    ON assets(content_type);
+            CREATE INDEX IF NOT EXISTS idx_fingerprints_asset      ON fingerprints(asset_id);
+            CREATE INDEX IF NOT EXISTS idx_fingerprints_hash       ON fingerprints(hash_type, hash_value);
+            CREATE INDEX IF NOT EXISTS idx_audit_target            ON audit_log(target_id);
+            CREATE INDEX IF NOT EXISTS idx_audit_operator          ON audit_log(operator_id);
+            CREATE INDEX IF NOT EXISTS idx_fp_reports_reason       ON false_positive_reports(reason_code);
+            CREATE INDEX IF NOT EXISTS idx_fp_reports_created      ON false_positive_reports(created_at);
             ",
         )?;
         Ok(())
@@ -458,6 +474,85 @@ impl Database {
 
     // ── Audit log ─────────────────────────────────────────────────────
 
+    // ── False-positive reports ─────────────────────────────────────────
+
+    /// Insert a false-positive report submitted by the user.
+    ///
+    /// `signal_scores_json` should be a JSON object mapping signal names to
+    /// their raw scores, serialised by the caller from the `VerificationResult`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn insert_false_positive(
+        &self,
+        id: &str,
+        verification_id: Option<&str>,
+        file_hash: Option<&str>,
+        reason_code: &str,
+        reason_note: Option<&str>,
+        mime_type: Option<&str>,
+        deepfake_score: Option<f64>,
+        deepfake_verdict: Option<&str>,
+        signal_scores_json: Option<&str>,
+        created_at: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO false_positive_reports
+             (id, verification_id, file_hash, reason_code, reason_note,
+              mime_type, deepfake_score, deepfake_verdict, signal_scores_json, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                id,
+                verification_id,
+                file_hash,
+                reason_code,
+                reason_note,
+                mime_type,
+                deepfake_score,
+                deepfake_verdict,
+                signal_scores_json,
+                created_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Return the total number of false-positive reports stored.
+    pub fn get_false_positive_count(&self) -> Result<u64, Box<dyn std::error::Error>> {
+        let conn = self.conn.lock().unwrap();
+        let count: u64 =
+            conn.query_row("SELECT COUNT(*) FROM false_positive_reports", [], |r| {
+                r.get(0)
+            })?;
+        Ok(count)
+    }
+
+    /// Return all false-positive reports, most recent first.
+    pub fn get_false_positive_reports(
+        &self,
+    ) -> Result<Vec<FalsePositiveReport>, Box<dyn std::error::Error>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, verification_id, reason_code, reason_note, mime_type,
+                    deepfake_score, deepfake_verdict, created_at
+             FROM false_positive_reports
+             ORDER BY created_at DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(FalsePositiveReport {
+                id: row.get(0)?,
+                verification_id: row.get(1)?,
+                reason_code: row.get(2)?,
+                reason_note: row.get(3)?,
+                mime_type: row.get(4)?,
+                deepfake_score: row.get(5)?,
+                deepfake_verdict: row.get(6)?,
+                created_at: row.get(7)?,
+            })
+        })?;
+        let reports = rows.collect::<SqliteResult<Vec<_>>>()?;
+        Ok(reports)
+    }
+
     /// Record an action in the immutable audit log.
     pub fn log_action(
         &self,
@@ -488,6 +583,28 @@ pub struct FingerprintRow {
     pub asset_id: String,
     pub hash_type: String,
     pub hash_value: String,
+    pub created_at: String,
+}
+
+/// A user-submitted false-positive report for a verification result.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FalsePositiveReport {
+    /// UUID for this report.
+    pub id: String,
+    /// The verification result this report relates to, if known.
+    pub verification_id: Option<String>,
+    /// Structured reason code (e.g. `"deepfake_score_too_high"`, `"ela_codec_artefact"`).
+    pub reason_code: String,
+    /// Optional free-text explanation from the user.
+    pub reason_note: Option<String>,
+    /// MIME type of the file that was verified.
+    pub mime_type: Option<String>,
+    /// Deepfake score at the time of the false-positive report.
+    pub deepfake_score: Option<f64>,
+    /// Deepfake verdict at the time of the false-positive report.
+    pub deepfake_verdict: Option<String>,
+    /// ISO-8601 timestamp when the report was submitted.
     pub created_at: String,
 }
 
@@ -873,6 +990,96 @@ mod tests {
             .get_filtered_assets(None, None, Some(""))
             .unwrap();
         assert_eq!(all.len(), 2);
+    }
+
+    // ── False-positive reports ───────────────────────────────────────
+
+    #[test]
+    fn test_insert_and_count_false_positives() {
+        let db = open_temp_db();
+        assert_eq!(db.get_false_positive_count().unwrap(), 0);
+
+        db.insert_false_positive(
+            "fp-report-1",
+            Some("ver-abc"),
+            Some("sha256:deadbeef"),
+            "deepfake_score_too_high",
+            Some("Image is a photograph of a painting, not a deepfake."),
+            Some("image/jpeg"),
+            Some(0.82),
+            Some("synthetic"),
+            Some(r#"{"ela":0.12,"noise":0.07}"#),
+            "2026-03-18T12:00:00Z",
+        )
+        .unwrap();
+
+        db.insert_false_positive(
+            "fp-report-2",
+            None,
+            None,
+            "ela_codec_artefact",
+            None,
+            Some("image/webp"),
+            None,
+            None,
+            None,
+            "2026-03-18T13:00:00Z",
+        )
+        .unwrap();
+
+        assert_eq!(db.get_false_positive_count().unwrap(), 2);
+    }
+
+    #[test]
+    fn test_get_false_positive_reports() {
+        let db = open_temp_db();
+
+        db.insert_false_positive(
+            "r1",
+            Some("v1"),
+            None,
+            "ela_codec_artefact",
+            Some("WebP compression artefact."),
+            Some("image/webp"),
+            Some(0.55),
+            Some("inconclusive"),
+            None,
+            "2026-03-18T10:00:00Z",
+        )
+        .unwrap();
+
+        db.insert_false_positive(
+            "r2",
+            None,
+            None,
+            "noise_false_positive",
+            None,
+            Some("image/avif"),
+            None,
+            None,
+            None,
+            "2026-03-18T11:00:00Z",
+        )
+        .unwrap();
+
+        let reports = db.get_false_positive_reports().unwrap();
+        assert_eq!(reports.len(), 2);
+        // Most recent first
+        assert_eq!(reports[0].id, "r2");
+        assert_eq!(reports[1].id, "r1");
+
+        // Verify round-trip of optional fields
+        let r1 = reports.iter().find(|r| r.id == "r1").unwrap();
+        assert_eq!(r1.verification_id.as_deref(), Some("v1"));
+        assert_eq!(r1.reason_code, "ela_codec_artefact");
+        assert_eq!(r1.reason_note.as_deref(), Some("WebP compression artefact."));
+        assert_eq!(r1.mime_type.as_deref(), Some("image/webp"));
+        assert!((r1.deepfake_score.unwrap() - 0.55).abs() < 1e-9);
+        assert_eq!(r1.deepfake_verdict.as_deref(), Some("inconclusive"));
+
+        let r2 = reports.iter().find(|r| r.id == "r2").unwrap();
+        assert!(r2.verification_id.is_none());
+        assert!(r2.deepfake_score.is_none());
     }
 
     // ── Audit log ───────────────────────────────────────────────────

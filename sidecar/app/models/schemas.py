@@ -115,6 +115,38 @@ class CaResponse(BaseModel):
     summary: str
 
 
+class ClipDetectionResponse(BaseModel):
+    """CLIP-based AI image detection result."""
+
+    score: float
+    suspicious: bool
+    verdict_level: str
+    confidence: str
+    class_probabilities: dict[str, float]
+    model_name: str
+    model_available: bool
+    summary: str
+
+
+class ClaimVerdict(BaseModel):
+    """A single claim verification result."""
+
+    claim: str
+    verdict: str  # "supported", "disputed", "unverified", "unavailable"
+    explanation: str
+    confidence: float  # 0.0–1.0
+
+
+class ClaimCheckResponse(BaseModel):
+    """RAG claim verification result."""
+
+    overall_verdict: str  # "supported", "disputed", "unverified", "mixed", "unavailable"
+    claims: list[ClaimVerdict]
+    model_used: str
+    methodology: str
+    summary: str
+
+
 class CapabilitiesResponse(BaseModel):
     """Sidecar capability flags."""
 
@@ -125,6 +157,7 @@ class CapabilitiesResponse(BaseModel):
     jpeg_ghost: bool = True
     npr: bool = True
     chromatic_aberration: bool = True
+    clip_detect: bool = False
     rag: bool = False
 
 

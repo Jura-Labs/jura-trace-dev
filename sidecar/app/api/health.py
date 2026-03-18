@@ -23,10 +23,24 @@ async def health() -> HealthResponse:
     except Exception:
         ollama_status = "unavailable"
 
+    # Check if CLIP model is available
+    clip_available = False
+    try:
+        from app.services.clip_detector import _ensure_model
+        clip_available = _ensure_model()
+    except Exception:
+        pass
+
+    # RAG claim checking is available whenever Ollama is reachable.
+    rag_available = ollama_status == "available"
+
     return HealthResponse(
         status="ok",
         version="0.2.0",
         service="jura-sidecar",
-        capabilities=CapabilitiesResponse(ela=True, noise=True, copy_move=True, deepfake=True, rag=False),
+        capabilities=CapabilitiesResponse(
+            ela=True, noise=True, copy_move=True, deepfake=True,
+            clip_detect=clip_available, rag=rag_available,
+        ),
         ollama=ollama_status,
     )

@@ -28,7 +28,8 @@ async def test_health_response_structure():
     assert "capabilities" in data
     assert data["capabilities"]["ela"] is True
     assert data["capabilities"]["deepfake"] is True
-    assert data["capabilities"]["rag"] is False
+    # rag is dynamic — True when Ollama is reachable, False otherwise
+    assert isinstance(data["capabilities"]["rag"], bool)
 
 
 @pytest.mark.asyncio

@@ -7,6 +7,8 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from app.config import settings
 from app.models.schemas import (
     CaResponse,
+    ClaimCheckResponse,
+    ClipDetectionResponse,
     CopyMoveResponse,
     DeepfakeResponse,
     ElaResponse,
@@ -15,6 +17,8 @@ from app.models.schemas import (
     NprResponse,
 )
 from app.services.chromatic_aberration import perform_ca_analysis
+from app.services.claim_checker import check_claims as _check_claims
+from app.services.clip_detector import perform_clip_detection
 from app.services.copy_move import perform_copy_move_detection
 from app.services.deepfake import perform_deepfake_detection
 from app.services.ela import perform_ela
@@ -199,3 +203,55 @@ async def analyse_chromatic_aberration(
         return perform_ca_analysis(image_bytes)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/clip-detect", response_model=ClipDetectionResponse)
+async def detect_clip(
+    file: UploadFile = File(...),
+) -> ClipDetectionResponse:
+    """
+    Detect AI-generated images using CLIP ViT-B/32 zero-shot classification.
+
+    Compares the image embedding against text prompts describing real
+    photographs vs AI-generated content. Returns a score (0.0 = authentic,
+    1.0 = synthetic), class probabilities, and a three-way verdict.
+
+    If the CLIP model is not installed, returns a response with
+    ``model_available=False`` and score 0.0.
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return perform_clip_detection(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/claim-check", response_model=ClaimCheckResponse)
+async def claim_check(
+    claims_text: str = Query(..., description="Text containing claims to verify"),
+    context: str = Query(default="", description="Optional context (EXIF description, C2PA assertions, etc.)"),
+) -> ClaimCheckResponse:
+    """
+    Verify claims associated with an image using a local Ollama LLM.
+
+    Accepts free-form text containing one or more claims (separated by newlines
+    or sentence boundaries) and optional supporting context such as EXIF
+    descriptions or C2PA assertion data.
+
+    Returns a structured verdict for each claim
+    (supported / disputed / unverified) plus an aggregated overall verdict.
+
+    Requires Ollama to be running locally with a compatible model pulled.
+    If Ollama is unavailable, returns ``overall_verdict="unavailable"`` —
+    the endpoint always responds with HTTP 200 so the frontend can display
+    a graceful degradation message.
+
+    This is AI-assisted analysis. Results are indicative, not conclusive.
+    """
+    return await _check_claims(
+        claims_text=claims_text,
+        context=context,
+        ollama_base_url=settings.ollama_base_url,
+        model=settings.llm_model,
+    )

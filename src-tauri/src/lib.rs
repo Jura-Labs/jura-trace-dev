@@ -1069,6 +1069,72 @@ fn get_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// Record a false-positive report for a verification result.
+///
+/// Stores the report in SQLite so that detection thresholds can be
+/// calibrated in future releases. Returns the UUID assigned to the new
+/// report.
+#[tauri::command]
+fn mark_false_positive(
+    reason_code: String,
+    reason_note: Option<String>,
+    mime_type: Option<String>,
+    deepfake_score: Option<f64>,
+    deepfake_verdict: Option<String>,
+    signal_scores_json: Option<String>,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<String, String> {
+    let report_id = uuid::Uuid::new_v4().to_string();
+    let created_at = chrono::Utc::now().to_rfc3339();
+
+    let app = state.lock().map_err(|e| e.to_string())?;
+    app.db
+        .insert_false_positive(
+            &report_id,
+            None, // verification_id not provided by the frontend in this flow
+            None, // file_hash not provided
+            &reason_code,
+            reason_note.as_deref(),
+            mime_type.as_deref(),
+            deepfake_score,
+            deepfake_verdict.as_deref(),
+            signal_scores_json.as_deref(),
+            &created_at,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let details = serde_json::json!({
+        "reason_code": reason_code,
+        "mime_type": mime_type,
+        "deepfake_score": deepfake_score,
+        "deepfake_verdict": deepfake_verdict,
+    });
+    let _ = app.db.log_action(
+        "false_positive",
+        "verification",
+        &report_id,
+        Some(&details.to_string()),
+        None,
+        None,
+    );
+
+    log::info!("False-positive report submitted: {report_id} (reason={reason_code})");
+    Ok(report_id)
+}
+
+/// Return the count of false-positive reports stored in the database.
+///
+/// Intended for the Settings page to surface calibration data to the user.
+#[tauri::command]
+fn get_false_positive_stats(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<u64, String> {
+    let app = state.lock().map_err(|e| e.to_string())?;
+    app.db
+        .get_false_positive_count()
+        .map_err(|e| e.to_string())
+}
+
 // ===== Application Entry =====
 
 /// Resolve the database path inside the Tauri app data directory.
@@ -1121,6 +1187,8 @@ pub fn run() {
             check_sidecar_health,
             check_metadata_before_sign,
             get_version,
+            mark_false_positive,
+            get_false_positive_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Jura Archive");
