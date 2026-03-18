@@ -22,6 +22,9 @@ scipy>=1.14
 # AI watermark detection (SD/SDXL/Flux)
 invisible-watermark>=0.2.0
 
+# CLIP-based AI image detection (optional — graceful degradation if absent)
+open-clip-torch>=2.24.0
+
 # RAG pipeline (Phase 2, Weeks 19-20)
 chromadb==0.5.*
 sentence-transformers==3.*
