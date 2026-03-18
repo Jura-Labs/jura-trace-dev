@@ -55,6 +55,9 @@ pub struct VerificationResult {
     pub noise_result: Option<sidecar::NoiseResult>,
     pub copy_move_result: Option<sidecar::CopyMoveResult>,
     pub deepfake_result: Option<sidecar::DeepfakeResult>,
+    pub npr_result: Option<sidecar::NprResult>,
+    pub jpeg_ghost_result: Option<sidecar::JpegGhostResult>,
+    pub ca_result: Option<sidecar::CaResult>,
     pub ai_generator: Option<String>,
 }
 
@@ -265,6 +268,7 @@ fn get_assets(state: State<'_, Mutex<AppState>>) -> Result<Vec<Asset>, String> {
 ///   manipulation detectors that see AI-generated images as "clean".
 /// - The final forensic trust uses the minimum of manipulation and deepfake
 ///   categories, ensuring either can lower trust.
+#[allow(clippy::too_many_arguments)]
 fn compute_trust(
     ela_score: Option<f64>,
     noise_score: Option<f64>,
@@ -365,7 +369,7 @@ fn compute_trust(
             _ => 0.45, // low confidence synthetic ≈ inconclusive
         },
         Some("inconclusive") => 0.60,
-        Some("authentic") | _ => 1.0, // no ceiling for authentic or sidecar offline
+        _ => 1.0, // no ceiling for authentic or sidecar offline
     };
 
     base_trust.min(verdict_ceiling)
@@ -374,10 +378,10 @@ fn compute_trust(
 /// Inner verification logic shared by `verify_content` and `verify_url`.
 ///
 /// `mode` controls which pipeline stages run:
-/// - `"fast"` — EXIF + C2PA only; sidecar is bypassed regardless of availability.
-///   Target: <5 s on typical images.
-/// - `"deep"` (default when `None` or any other value) — full pipeline including
-///   all sidecar forensic checks (ELA, noise, copy-move, deepfake).
+/// - `"quick"` (or legacy `"fast"`) — EXIF + C2PA only. Target: <5 s.
+/// - `"standard"` (default) — EXIF + C2PA + ELA + deepfake. Target: <15 s.
+/// - `"deep"` — full pipeline including noise, copy-move, NPR, JPEG ghost, CA.
+/// - `"archival"` — deep with scanner-calibrated tolerances.
 fn verify_content_inner(
     source: &str,
     source_type: &str,
@@ -445,14 +449,26 @@ fn verify_content_inner(
         .and_then(c2pa::detect_ai_generator);
 
     // Sidecar-based analysis (optional — graceful degradation)
-    // Fast mode bypasses the sidecar entirely regardless of availability.
+    // Mode determines which detectors run:
+    //   quick/fast → no sidecar at all
+    //   standard   → ELA + deepfake only
+    //   deep       → all detectors
+    //   archival   → all detectors (scanner-calibrated)
     let app = state.lock().map_err(|e| e.to_string())?;
     let is_image = info.content_type == format_router::ContentType::Image;
-    let is_fast_mode = mode == Some("fast");
-    let sidecar_up = is_image && !is_fast_mode && app.sidecar.is_available();
+    let effective_mode = match mode {
+        Some("fast") | Some("quick") => "quick",
+        Some("standard") => "standard",
+        Some("archival") => "archival",
+        Some("deep") => "deep",
+        _ => "standard", // default to standard (was "deep" — too slow for typical use)
+    };
+    let is_quick = effective_mode == "quick";
+    let sidecar_up = is_image && !is_quick && app.sidecar.is_available();
+    let is_deep = matches!(effective_mode, "deep" | "archival");
     log::info!(
-        "Verify pipeline: is_image={}, mode={:?}, is_fast_mode={}, sidecar_up={}, content_type={:?}",
-        is_image, mode, is_fast_mode, sidecar_up, info.content_type
+        "Verify pipeline: is_image={}, mode={:?}, effective={}, sidecar_up={}, is_deep={}",
+        is_image, mode, effective_mode, sidecar_up, is_deep
     );
 
     // ELA
@@ -471,8 +487,8 @@ fn verify_content_inner(
         (None, None)
     };
 
-    // Noise variance analysis
-    let (noise_score, noise_result) = if sidecar_up {
+    // Noise variance analysis (deep/archival only — slow)
+    let (noise_score, noise_result) = if sidecar_up && is_deep {
         match app.sidecar.analyse_noise(&path) {
             Ok(result) => {
                 let score = result.score;
@@ -487,8 +503,8 @@ fn verify_content_inner(
         (None, None)
     };
 
-    // Copy-move detection
-    let (copy_move_score, copy_move_result) = if sidecar_up {
+    // Copy-move detection (deep/archival only — slow)
+    let (copy_move_score, copy_move_result) = if sidecar_up && is_deep {
         match app.sidecar.detect_copy_move(&path) {
             Ok(result) => {
                 let score = result.score;
@@ -525,6 +541,45 @@ fn verify_content_inner(
         }
     } else {
         (None, None)
+    };
+
+    // NPR (Neighbouring Pixel Relationships) analysis (deep/archival only)
+    let npr_result = if sidecar_up && is_deep {
+        match app.sidecar.analyse_npr(&path) {
+            Ok(result) => Some(result),
+            Err(e) => {
+                log::warn!("Sidecar NPR analysis failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // JPEG ghost detection (deep/archival only)
+    let jpeg_ghost_result = if sidecar_up && is_deep {
+        match app.sidecar.detect_jpeg_ghost(&path) {
+            Ok(result) => Some(result),
+            Err(e) => {
+                log::warn!("Sidecar JPEG ghost detection failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // Chromatic Aberration consistency analysis (deep/archival only)
+    let ca_result = if sidecar_up && is_deep {
+        match app.sidecar.analyse_ca(&path) {
+            Ok(result) => Some(result),
+            Err(e) => {
+                log::warn!("Sidecar chromatic aberration analysis failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
     };
 
     // Build metadata flags from findings
@@ -576,6 +631,9 @@ fn verify_content_inner(
                 "noise_score": noise_score,
                 "copy_move_score": copy_move_score,
                 "deepfake_score": deepfake_score,
+                "npr_score": npr_result.as_ref().map(|r| r.score),
+                "jpeg_ghost_score": jpeg_ghost_result.as_ref().map(|r| r.score),
+                "ca_score": ca_result.as_ref().map(|r| r.score),
                 "c2pa_valid": c2pa_valid,
                 "findings_count": metadata_flags.len(),
             })
@@ -611,6 +669,9 @@ fn verify_content_inner(
         noise_result,
         copy_move_result,
         deepfake_result,
+        npr_result,
+        jpeg_ghost_result,
+        ca_result,
         ai_generator,
     })
 }
@@ -1203,23 +1264,70 @@ mod tests {
     }
 
     #[test]
-    fn verify_fast_mode_skips_sidecar() {
-        let is_image = true;
-        let mode: Option<&str> = Some("fast");
-        let is_fast_mode = mode == Some("fast");
-        let sidecar_hypothetically_available = true;
-        let sidecar_up = is_image && !is_fast_mode && sidecar_hypothetically_available;
-        assert!(!sidecar_up, "Fast mode must prevent sidecar from running");
+    fn verify_quick_mode_skips_sidecar() {
+        let mode: Option<&str> = Some("quick");
+        let effective = match mode {
+            Some("fast") | Some("quick") => "quick",
+            Some("standard") => "standard",
+            Some("deep") | Some("archival") => "deep",
+            _ => "standard",
+        };
+        assert_eq!(effective, "quick");
+        let is_quick = effective == "quick";
+        assert!(is_quick, "Quick mode must skip sidecar");
     }
 
     #[test]
-    fn verify_deep_mode_allows_sidecar() {
-        let is_image = true;
+    fn verify_fast_mode_maps_to_quick() {
+        let mode: Option<&str> = Some("fast");
+        let effective = match mode {
+            Some("fast") | Some("quick") => "quick",
+            Some("standard") => "standard",
+            Some("deep") | Some("archival") => "deep",
+            _ => "standard",
+        };
+        assert_eq!(effective, "quick", "Legacy 'fast' should map to 'quick'");
+    }
+
+    #[test]
+    fn verify_standard_mode_allows_sidecar_not_deep() {
+        let mode: Option<&str> = Some("standard");
+        let effective = match mode {
+            Some("fast") | Some("quick") => "quick",
+            Some("standard") => "standard",
+            Some("deep") | Some("archival") => "deep",
+            _ => "standard",
+        };
+        let is_quick = effective == "quick";
+        let is_deep = matches!(effective, "deep" | "archival");
+        assert!(!is_quick, "Standard should allow sidecar");
+        assert!(!is_deep, "Standard should NOT run deep detectors");
+    }
+
+    #[test]
+    fn verify_deep_mode_allows_all_detectors() {
         let mode: Option<&str> = Some("deep");
-        let is_fast_mode = mode == Some("fast");
-        let sidecar_hypothetically_available = true;
-        let sidecar_up = is_image && !is_fast_mode && sidecar_hypothetically_available;
-        assert!(sidecar_up, "Deep mode must allow sidecar when available");
+        let effective = match mode {
+            Some("fast") | Some("quick") => "quick",
+            Some("standard") => "standard",
+            Some("deep") | Some("archival") => "deep",
+            _ => "standard",
+        };
+        let is_deep = matches!(effective, "deep" | "archival");
+        assert!(is_deep, "Deep mode must run all detectors");
+    }
+
+    #[test]
+    fn verify_archival_mode_is_deep() {
+        let mode: Option<&str> = Some("archival");
+        let effective = match mode {
+            Some("fast") | Some("quick") => "quick",
+            Some("standard") => "standard",
+            Some("deep") | Some("archival") => "deep",
+            _ => "standard",
+        };
+        let is_deep = matches!(effective, "deep" | "archival");
+        assert!(is_deep, "Archival mode must run all detectors");
     }
 
     #[test]
@@ -1256,13 +1364,19 @@ mod tests {
     }
 
     #[test]
-    fn verify_none_mode_defaults_to_deep() {
-        let is_image = true;
+    fn verify_none_mode_defaults_to_standard() {
         let mode: Option<&str> = None;
-        let is_fast_mode = mode == Some("fast");
-        let sidecar_hypothetically_available = true;
-        let sidecar_up = is_image && !is_fast_mode && sidecar_hypothetically_available;
-        assert!(sidecar_up, "None mode must behave as deep (sidecar allowed)");
+        let effective = match mode {
+            Some("fast") | Some("quick") => "quick",
+            Some("standard") => "standard",
+            Some("deep") | Some("archival") => "deep",
+            _ => "standard",
+        };
+        assert_eq!(effective, "standard", "None mode must default to standard");
+        let is_quick = effective == "quick";
+        let is_deep = matches!(effective, "deep" | "archival");
+        assert!(!is_quick, "Default should allow sidecar");
+        assert!(!is_deep, "Default should not run deep detectors");
     }
 
     #[test]

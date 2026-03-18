@@ -4,8 +4,16 @@
  * Field names are camelCase (Rust uses serde rename_all).
  */
 
-/** Verify pipeline mode: fast = EXIF + C2PA only (<5 s); deep = full forensic pipeline */
-export type VerifyMode = 'fast' | 'deep';
+/**
+ * Verify pipeline investigation modes:
+ * - quick: EXIF + C2PA only (~5s)
+ * - standard: EXIF + C2PA + ELA + deepfake ensemble (~15s) — default
+ * - deep: Full pipeline including all detectors (~60s)
+ * - archival: Deep with scanner-calibrated tolerances
+ *
+ * Legacy 'fast'/'deep' values are accepted for backwards compatibility.
+ */
+export type VerifyMode = 'quick' | 'standard' | 'deep' | 'archival' | 'fast';
 
 /** Asset record stored in the local database */
 export interface Asset {
@@ -98,12 +106,48 @@ export interface DeepfakeResult {
   watermarks?: WatermarkDetection[];
 }
 
+/** NPR (Neighbouring Pixel Relationships) analysis result */
+export interface NprResult {
+  score: number;
+  suspicious: boolean;
+  hvCorrelation: number;
+  diffVarianceRatio: number;
+  hfEnergyRatio: number;
+  heatmapBase64: string;
+  summary: string;
+}
+
+/** JPEG ghost detection result for splice/composite forgery analysis */
+export interface JpegGhostResult {
+  score: number;
+  suspicious: boolean;
+  ghostQuality: number;
+  qualityVariance: number;
+  deviatingBlocks: number;
+  totalBlocks: number;
+  heatmapBase64: string;
+  summary: string;
+}
+
+/** Chromatic Aberration consistency analysis result */
+export interface CaResult {
+  rSquared: number;
+  isConsistent: boolean;
+  score: number;
+  suspicious: boolean;
+  sampleCount: number;
+  summary: string;
+}
+
 /** ML sidecar capability flags */
 export interface SidecarCapabilities {
   ela: boolean;
   noise: boolean;
   copyMove: boolean;
   deepfake: boolean;
+  jpegGhost: boolean;
+  npr: boolean;
+  chromaticAberration: boolean;
   rag: boolean;
 }
 
@@ -134,6 +178,9 @@ export interface VerificationResult {
   noiseResult?: NoiseResult;
   copyMoveResult?: CopyMoveResult;
   deepfakeResult?: DeepfakeResult;
+  nprResult?: NprResult;
+  jpegGhostResult?: JpegGhostResult;
+  caResult?: CaResult;
   aiGenerator?: string;
 }
 

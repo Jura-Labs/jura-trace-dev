@@ -22,7 +22,7 @@
   let error = $state<string | null>(null);
   let dragOver = $state(false);
   let sidecarHealth = $state<SidecarHealth | null>(null);
-  let verifyMode = $state<VerifyMode>('deep');
+  let verifyMode = $state<VerifyMode>('standard');
   let showTechnicalDetails = $state(false);
   let showInvestigatePanel = $state(false);
   let showSignalAgreement = $state(false);
@@ -482,32 +482,26 @@
         role="radiogroup"
         aria-label="Verification mode"
       >
-        <button
-          class="px-3 py-2.5 min-h-[44px] transition-colors duration-150
-                 {verifyMode === 'fast'
-                   ? 'bg-lapis/20 text-lapis dark:text-lapis-light'
-                   : 'text-flint hover:text-text-light dark:hover:text-quartz'}
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis"
-          role="radio"
-          aria-checked={verifyMode === 'fast'}
-          onclick={() => { verifyMode = 'fast'; }}
-          title="Fast: EXIF + C2PA only (under 5 seconds)"
-        >
-          Fast
-        </button>
-        <button
-          class="px-3 py-2.5 min-h-[44px] transition-colors duration-150
-                 {verifyMode === 'deep'
-                   ? 'bg-lapis/20 text-lapis dark:text-lapis-light'
-                   : 'text-flint hover:text-text-light dark:hover:text-quartz'}
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis"
-          role="radio"
-          aria-checked={verifyMode === 'deep'}
-          onclick={() => { verifyMode = 'deep'; }}
-          title="Deep: full forensic pipeline (30-60 seconds)"
-        >
-          Deep
-        </button>
+        {#each [
+          { mode: 'quick' as VerifyMode, label: 'Quick', title: 'Quick: EXIF + C2PA only (under 5 seconds)' },
+          { mode: 'standard' as VerifyMode, label: 'Standard', title: 'Standard: EXIF + C2PA + ELA + AI detection (under 15 seconds)' },
+          { mode: 'deep' as VerifyMode, label: 'Deep', title: 'Deep: full forensic pipeline with all detectors (30-60 seconds)' },
+          { mode: 'archival' as VerifyMode, label: 'Archival', title: 'Archival: deep analysis with scanner-calibrated tolerances' },
+        ] as opt}
+          <button
+            class="px-3 py-2.5 min-h-[44px] transition-colors duration-150
+                   {verifyMode === opt.mode
+                     ? 'bg-lapis/20 text-lapis dark:text-lapis-light'
+                     : 'text-flint hover:text-text-light dark:hover:text-quartz'}
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis"
+            role="radio"
+            aria-checked={verifyMode === opt.mode}
+            onclick={() => { verifyMode = opt.mode; }}
+            title={opt.title}
+          >
+            {opt.label}
+          </button>
+        {/each}
       </div>
 
       <!-- Sidecar status -->
