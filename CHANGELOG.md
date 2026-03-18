@@ -6,6 +6,74 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Phase 2 — Detection Improvement & RAG
+
+### Weeks 19-20+ — Detection Improvement & RAG Claim Checker (18 Mar 2026)
+
+#### Sprints 1-4: Detection Honesty & False Positive Reduction
+
+**Added**
+- Three-way verdict system (authentic / inconclusive / synthetic) replaces binary suspicious/clean classification
+- Trust ceiling: inconclusive capped at 60%, synthetic at 25-45% — fixes cases where manipulated images scored "92% High Trust"
+- Confidence badge displayed alongside verdict label in the UI
+- "Mixed signals" verdict path when detectors disagree
+- 14th signal: GLCM texture structure, catching dispersed AI texture patterns missed by earlier extractors
+- Scene complexity metric: halves texture and sharpness weights for uniform scenes (fog, snow, overcast sky)
+- EXIF-informed sigmoid midpoint: presence of camera EXIF data shifts scoring toward authentic
+- Anti-correlation penalty: texture-only signal clusters reduced in weight by 40%
+- False positive reporting: structured reason codes stored in SQLite for ongoing calibration
+
+**Changed**
+- Codec-aware thresholds: AVIF, WebP, and HEIC images use relaxed scoring profiles calibrated against real iPhone photographs
+- Anti-correlation penalty reduces score inflation when only texture signals fire
+
+#### Sprint 5: New Forensic Detectors
+
+**Added**
+- NPR (Neighbouring Pixel Relationships): pixel-level correlation analysis to detect statistical discontinuities at splice boundaries
+- Chromatic aberration consistency: radial lens CA pattern detection — authentic lens optics produce a predictable radial signature that AI generators do not replicate faithfully
+- JPEG ghost detection: double compression analysis to identify spliced or composited regions
+
+#### Sprint 6: Pipeline Wiring & Investigation Modes
+
+**Added**
+- All three new detectors (NPR, chromatic aberration, JPEG ghost) wired into the Rust verify pipeline
+- Four investigation modes: Quick (~5 s), Standard (~15 s, default), Deep (~60 s), Archival
+- Investigation mode selector in the VERIFY page UI
+
+**Changed**
+- Default investigation mode changed from Deep to Standard, reducing routine verification time from ~60 s to ~15 s
+
+#### Sprint 7: RAG Claim Checker & False Positive Marking
+
+**Added**
+- RAG claim verification service (`claim_checker.py`) — extracts claims from image context, queries Ollama Qwen2.5, returns structured verdicts
+- `POST /forensics/claim-check` endpoint
+- False positive marking flow in the UI with structured reason codes; reports stored in SQLite for calibration feedback
+
+#### Sprint 8: CLIP / UnivFD AI Detection
+
+**Added**
+- CLIP ViT-B/32 zero-shot classification via open_clip (~350 MB, lazy-loaded on first use)
+- `clip_detector.py` service with graceful degradation when open_clip is not installed
+- 14 CLIP tests, skipped automatically when open_clip is unavailable
+
+**Fixed**
+- Calibration finding documented: generic zero-shot prompts do not discriminate reliably between AI and authentic images at this model scale — a UnivFD linear probe is required for production-grade discrimination
+
+#### UI Components (Weeks 19-20+)
+
+**Added**
+- `VerdictSummary.svelte`: three-way verdict display with confidence badge
+- `InspectionChecklist.svelte`: 8-item manual visual inspection guide for analysts
+- `SignalAgreement.svelte`: per-detector agreement/disagreement dashboard showing which signals align and which conflict
+- Reverse image search buttons: Google Lens, TinEye, Yandex — one-click launch from the verify page
+- 4-mode investigation selector on the verify page
+
+**Test counts**: 121 Rust, 193 Python (+ 14 CLIP skipped), 175 SvelteKit files, 0 svelte-check errors
+
+---
+
 ## Phase 2 — ML Sidecar + Forensic Pipeline
 
 ### Weeks 17-18b — AI Watermark Detection + Signal Calibration (5 Mar 2026)

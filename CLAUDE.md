@@ -33,12 +33,14 @@ This file provides guidance to Claude Code when working with code in this reposi
 ┌────────────────▼────────────────────────┐
 │      Python ML Sidecar (Port 8200)      │
 │  ELA | Noise | Copy-Move | Deepfake     │
-│  RAG Pipeline (Phase 2 Wk 19-20)       │
+│  NPR | Chrom. Aberration | JPEG Ghost   │
+│  CLIP Detector | RAG Claim Checker      │
 └────────────────┬────────────────────────┘
                  │
 ┌────────────────▼────────────────────────┐
 │    Ollama (Port 11434) — Optional       │
-│  LLaVA (Tier 3 descriptions) | Qwen2.5 │
+│  LLaVA (Tier 3 descriptions)           │
+│  Qwen2.5 (RAG claim verification)      │
 └─────────────────────────────────────────┘
 ```
 
@@ -50,8 +52,9 @@ This file provides guidance to Claude Code when working with code in this reposi
 | Frontend | SvelteKit 5 + TailwindCSS (SPA mode, static adapter, Svelte 5 runes) |
 | Core engine | Rust (c2pa-rs, rusqlite, image_hasher, reqwest) |
 | Auto-catalogue | Tier 1: EXIF (Rust), Tier 2: CLIP/ONNX (optional), Tier 3: Ollama (optional) |
-| ML sidecar | Python 3.13 + FastAPI (ELA, noise analysis, copy-move, deepfake detection) |
-| LLM runtime | Ollama — optional (LLaVA for Tier 3 descriptions, Qwen2.5 for text) |
+| ML sidecar | Python 3.13 + FastAPI (ELA, noise analysis, copy-move, deepfake, NPR, chromatic aberration, JPEG ghost, CLIP detection) |
+| CLIP detection | open_clip ViT-B/32 — optional (~350 MB, lazy-loaded, graceful degradation) |
+| LLM runtime | Ollama — optional (LLaVA for Tier 3 descriptions, Qwen2.5 for RAG claim verification) |
 | Database | SQLite (via rusqlite in Rust) |
 
 ## Development Commands
@@ -75,13 +78,13 @@ cd ui && npx svelte-check
 # Check Rust compilation
 cd src-tauri && cargo check
 
-# Run Rust tests (84 tests)
+# Run Rust tests (121 tests)
 cd src-tauri && cargo test
 
 # Run Rust linter
 cd src-tauri && cargo clippy -- -D warnings
 
-# Run Python sidecar tests (35 tests)
+# Run Python sidecar tests (193 tests; 14 CLIP tests skipped when open_clip unavailable)
 cd sidecar && python -m pytest tests/ -v
 
 # Run SvelteKit tests
@@ -106,13 +109,20 @@ juralabs/
 │   └── tauri.conf.json  # Tauri app configuration
 ├── ui/                  # SvelteKit frontend
 │   ├── src/routes/      # Page routes (protect/, verify/, settings/)
-│   ├── src/lib/         # Shared types, api, components
+│   ├── src/lib/
+│   │   ├── components/  # VerdictSummary.svelte, InspectionChecklist.svelte,
+│   │   │                #   SignalAgreement.svelte
+│   │   ├── types.ts     # TypeScript interfaces mirroring Rust structs
+│   │   ├── api.ts       # Tauri IPC wrapper with browser mock fallback
+│   │   └── stores/      # Svelte stores
 │   └── package.json     # Node dependencies
 ├── sidecar/             # Python ML sidecar (FastAPI, port 8200)
 │   ├── app/api/         # FastAPI routers (health, forensics)
-│   ├── app/services/    # ELA, noise analysis, copy-move, deepfake
+│   ├── app/services/    # ELA, noise analysis, copy-move, deepfake,
+│   │                    #   npr, chromatic_aberration, jpeg_ghost,
+│   │                    #   clip_detector, claim_checker
 │   ├── app/models/      # Pydantic schemas
-│   ├── tests/           # pytest test suite
+│   ├── tests/           # pytest test suite (193 tests)
 │   ├── main.py          # FastAPI app entry point
 │   └── requirements.txt # Python dependencies
 ├── docs/                # Documentation
@@ -134,7 +144,15 @@ juralabs/
 - **Frontend API**: `ui/src/lib/api.ts` — Tauri IPC wrapper with browser mock fallback
 - **Verify page**: `ui/src/routes/verify/+page.svelte` — forensic analysis UI
 - **Frontend entry**: `ui/src/routes/+layout.svelte` — root layout, navigation
+- **Verdict component**: `ui/src/lib/components/VerdictSummary.svelte` — three-way verdict with confidence badge
+- **Checklist component**: `ui/src/lib/components/InspectionChecklist.svelte` — 8-item manual visual inspection guide
+- **Signal component**: `ui/src/lib/components/SignalAgreement.svelte` — per-detector agreement/disagreement dashboard
 - **Sidecar entry**: `sidecar/main.py` — FastAPI application
+- **NPR service**: `sidecar/app/services/npr.py` — neighbouring pixel relationship analysis
+- **Chromatic aberration**: `sidecar/app/services/chromatic_aberration.py` — radial lens CA pattern detection
+- **JPEG ghost**: `sidecar/app/services/jpeg_ghost.py` — double compression splice/composite analysis
+- **CLIP detector**: `sidecar/app/services/clip_detector.py` — zero-shot AI/authentic classification via open_clip ViT-B/32
+- **Claim checker**: `sidecar/app/services/claim_checker.py` — RAG claim verification via Ollama Qwen2.5
 
 ## Design Principles
 
@@ -151,9 +169,9 @@ juralabs/
 
 **Phase 2 (Weeks 13-18)**: Complete — Python ML sidecar with ELA, noise analysis, copy-move detection, deepfake detection. Rust sidecar client. URL verification. Full verify pipeline with trust scoring.
 
-**Phase 2 (Weeks 19-20)**: Next — RAG pipeline for claim verification via Ollama.
+**Phase 2 (Weeks 19-20+)**: Complete — Eight sprints of detection improvement work. Three-way verdict (authentic/inconclusive/synthetic), codec-aware thresholds, scene complexity weighting, EXIF-informed scoring. Three new forensic detectors: NPR, chromatic aberration, JPEG ghost. Four investigation modes (Quick/Standard/Deep/Archival). RAG claim checker via Ollama Qwen2.5. CLIP ViT-B/32 zero-shot detector (optional). False positive reporting with SQLite storage. New UI components: VerdictSummary, InspectionChecklist, SignalAgreement.
 
-**Test counts**: 84 Rust tests, 35 Python tests, 0 svelte-check errors, clippy clean.
+**Test counts**: 121 Rust tests, 193 Python tests (+ 14 CLIP skipped when open_clip unavailable), 175 SvelteKit files with 0 svelte-check errors, clippy clean.
 
 ## British Spelling
 
