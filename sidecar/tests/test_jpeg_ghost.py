@@ -39,18 +39,24 @@ def _make_jpeg_at_quality(size: tuple[int, int] = (256, 256), quality: int = 85)
 
 class TestJpegGhostDetection:
     def test_solid_image_produces_result(self):
-        """A solid-colour image should return a valid result."""
+        """A solid-colour PNG image should return a neutral PNG result."""
         result = perform_jpeg_ghost_detection(_make_solid_image())
-        assert 0.0 <= result.score <= 1.0
-        assert isinstance(result.suspicious, bool)
-        assert isinstance(result.ghost_quality, int)
-        assert result.total_blocks > 0
-        assert len(result.heatmap_base64) > 0
-        assert result.summary != ""
+        assert result.score == 0.0
+        assert not result.suspicious
+        assert result.total_blocks == 0
+        assert "not applicable for PNG" in result.summary
 
-    def test_noisy_image_produces_result(self):
-        """A noisy image should return a valid result."""
+    def test_noisy_png_image_returns_neutral(self):
+        """A noisy PNG image should return a neutral PNG result."""
         result = perform_jpeg_ghost_detection(_make_noisy_photo())
+        assert result.score == 0.0
+        assert not result.suspicious
+        assert result.total_blocks == 0
+        assert "not applicable for PNG" in result.summary
+
+    def test_noisy_jpeg_produces_result(self):
+        """A noisy JPEG image should return a valid result."""
+        result = perform_jpeg_ghost_detection(_make_jpeg_at_quality(quality=90))
         assert 0.0 <= result.score <= 1.0
         assert isinstance(result.quality_variance, float)
         assert result.quality_variance >= 0.0
@@ -74,7 +80,7 @@ class TestJpegGhostDetection:
 
     def test_score_bounded(self):
         """Score should always be between 0.0 and 1.0."""
-        for img_fn in (_make_solid_image, _make_noisy_photo):
+        for img_fn in (_make_solid_image, _make_noisy_photo, _make_jpeg_at_quality):
             result = perform_jpeg_ghost_detection(img_fn())
             assert 0.0 <= result.score <= 1.0
 
@@ -85,7 +91,7 @@ class TestJpegGhostDetection:
 
     def test_response_fields_valid(self):
         """All response fields should be present and correctly typed."""
-        result = perform_jpeg_ghost_detection(_make_noisy_photo())
+        result = perform_jpeg_ghost_detection(_make_jpeg_at_quality(quality=85))
         assert isinstance(result.score, float)
         assert isinstance(result.suspicious, bool)
         assert isinstance(result.ghost_quality, int)
@@ -99,7 +105,7 @@ class TestJpegGhostDetection:
 
     def test_ghost_quality_in_valid_range(self):
         """Ghost quality should be one of the tested quality levels."""
-        result = perform_jpeg_ghost_detection(_make_noisy_photo())
+        result = perform_jpeg_ghost_detection(_make_jpeg_at_quality(quality=80))
         assert result.ghost_quality in QUALITY_RANGE, (
             f"Ghost quality {result.ghost_quality} not in {QUALITY_RANGE}"
         )

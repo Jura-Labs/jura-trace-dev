@@ -10,7 +10,7 @@ Detects splice boundaries using three orthogonal signals:
    gaussian blur along splice edges, producing unnaturally uniform gradient
    profiles.
 
-An edge needs 2 of 3 signals to be classified as a splice candidate,
+An edge needs all 3 signals to be classified as a splice candidate,
 reducing false positives from natural edges.
 """
 
@@ -47,8 +47,8 @@ def perform_splice_boundary(image_bytes: bytes) -> dict:
         edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
     )
 
-    # Filter to significant contours (>20px arc length)
-    min_length = 20
+    # Filter to significant contours (>50px arc length)
+    min_length = 50
     significant_contours = [
         c for c in contours if cv2.arcLength(c, False) >= min_length
     ]
@@ -94,11 +94,14 @@ def perform_splice_boundary(image_bytes: bytes) -> dict:
         return _neutral_result("No significant edge contours found")
 
     score = (
-        min(suspicious_count / max(total_checked, 1) * 5.0, 1.0)
+        min(suspicious_count / max(total_checked, 1) * 2.0, 1.0)
         if suspicious_count > 0
         else 0.0
     )
-    suspicious = suspicious_count >= 2 and score > 0.3
+    # Splice boundary alone is not reliable enough to flag suspicious —
+    # it serves as a corroborating signal for other regional detectors.
+    # The score is still computed and contributes to the trust calculation.
+    suspicious = False
 
     heatmap = _generate_boundary_heatmap(img, boundaries, edges)
 
@@ -145,7 +148,7 @@ def _check_jpeg_grid_alignment(contour: np.ndarray) -> bool:
     aligned_y = int(np.sum(y_dist <= 2))
 
     alignment_ratio = (aligned_x + aligned_y) / (2 * total)
-    return alignment_ratio > 0.4  # 40% of points near grid lines
+    return alignment_ratio > 0.6  # 60% of points near grid lines
 
 
 def _check_noise_asymmetry(
@@ -212,7 +215,7 @@ def _check_feathering(
     gradient_cv = np.std(edge_gradients) / (np.mean(edge_gradients) + 1e-10)
 
     # Very uniform gradient profile suggests artificial feathering
-    return gradient_cv < 0.3
+    return gradient_cv < 0.2
 
 
 def _generate_boundary_heatmap(

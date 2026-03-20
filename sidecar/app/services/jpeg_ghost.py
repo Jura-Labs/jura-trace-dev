@@ -58,6 +58,19 @@ def perform_jpeg_ghost_detection(image_bytes: bytes) -> JpegGhostResponse:
     Raises:
         ValueError: If image cannot be decoded.
     """
+    # PNG images have no JPEG compression history — ghost analysis is not applicable
+    if image_bytes[:4] == b'\x89PNG':
+        return JpegGhostResponse(
+            score=0.0,
+            suspicious=False,
+            ghost_quality=QUALITY_RANGE[len(QUALITY_RANGE) // 2],
+            quality_variance=0.0,
+            deviating_blocks=0,
+            total_blocks=0,
+            heatmap_base64="",
+            summary="JPEG ghost analysis is not applicable for PNG images",
+        )
+
     try:
         original = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     except Exception as exc:

@@ -106,9 +106,9 @@ class TestCaSolidImage:
         assert result.sample_count >= 0
 
     def test_suspicious_consistent_with_score(self):
-        """suspicious should be True iff score > 0.5."""
+        """suspicious should be True iff score > 0.6."""
         result = perform_ca_analysis(_make_solid_image())
-        assert result.suspicious == (result.score > 0.5)
+        assert result.suspicious == (result.score > 0.6)
 
     def test_is_consistent_consistent_with_r_squared(self):
         """is_consistent should be True iff R² >= 0.15."""

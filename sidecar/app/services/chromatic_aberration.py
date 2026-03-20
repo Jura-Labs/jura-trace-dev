@@ -142,18 +142,39 @@ def perform_ca_analysis(image_bytes: bytes) -> CaResponse:
     mean_r2 = float((r2_rg + r2_bg) / 2.0)
 
     # ── Scoring ───────────────────────────────────────────────────────────
-    # High R² → real lens → NOT suspicious (score toward 0.0).
-    # Low R²  → no radial pattern → suspicious (score toward 1.0).
-    # Sigmoid: centred at the midpoint of the R² ambiguous zone (0.10),
-    # with negative steepness so that higher R² → lower score.
-    midpoint = (_R2_CONSISTENT + _R2_AMBIGUOUS) / 2.0  # 0.10
-    score = float(1.0 / (1.0 + math.exp(20.0 * (mean_r2 - midpoint))))
-
+    # Recalibrated scoring based on press photograph calibration data.
+    # Real lenses often produce low R² due to complex optics (aspherical
+    # elements, image stabilisation), so low R² alone is NOT suspicious.
+    #
+    # R² < 0.15  → very noisy, no detectable CA pattern. Common in real
+    #               photos. Score LOW (0.1-0.2).
+    # R² 0.15-0.5 → ambiguous range. Score 0.2-0.4.
+    # R² > 0.5   → "uncanny valley" — suspiciously clean radial pattern
+    #               that real lenses rarely produce. Score 0.5-0.8.
     is_consistent = mean_r2 >= _R2_CONSISTENT
-    suspicious = score > 0.5
+
+    if mean_r2 < _R2_AMBIGUOUS:
+        # Very low R² — no pattern, common for real photos
+        score = 0.1 + mean_r2 * 2.0  # 0.0 → 0.1, 0.05 → 0.2
+    elif mean_r2 < 0.5:
+        # Ambiguous range — moderate score
+        # Linear from 0.2 at R²=0.05 to 0.4 at R²=0.5
+        score = 0.2 + (mean_r2 - _R2_AMBIGUOUS) / (0.5 - _R2_AMBIGUOUS) * 0.2
+    else:
+        # High R² — suspiciously clean optics, possible synthetic
+        # Linear from 0.5 at R²=0.5 to 0.8 at R²=1.0
+        score = 0.5 + (mean_r2 - 0.5) * 0.6
+
+    score = float(min(max(score, 0.0), 1.0))
+    suspicious = score > 0.6
 
     # Build summary
-    if is_consistent:
+    if mean_r2 > 0.5:
+        summary = (
+            f"Unusually consistent radial chromatic aberration (R\u00b2={mean_r2:.3f}), "
+            "atypical for real camera lenses"
+        )
+    elif is_consistent:
         summary = (
             f"Consistent radial chromatic aberration detected (R\u00b2={mean_r2:.3f}), "
             "consistent with camera-lens origin"
@@ -161,7 +182,7 @@ def perform_ca_analysis(image_bytes: bytes) -> CaResponse:
     elif mean_r2 < _R2_AMBIGUOUS:
         summary = (
             f"No systematic chromatic aberration (R\u00b2={mean_r2:.3f}), "
-            "consistent with AI generation (no lens model)"
+            "common for both real photos and AI generation"
         )
     else:
         summary = (

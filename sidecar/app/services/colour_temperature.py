@@ -10,8 +10,8 @@ Algorithm:
 2. Compute global mean A and B (chrominance channels).
 3. Divide into a 4x4 grid of regions.
 4. For each region, compute mean A and B.
-5. Flag regions with >8 LAB units Euclidean deviation from the global mean.
-6. Check for spatial clustering of anomalous regions.
+5. Flag regions with >20 LAB units Euclidean deviation from the global mean.
+6. Check for spatial clustering of anomalous regions (>= 3 adjacent, >15% area).
 """
 
 import base64
@@ -78,8 +78,8 @@ def perform_colour_temperature(image_bytes: bytes) -> dict:
             )
             deviations.append(deviation)
 
-            # Threshold: 8.0 LAB units (JND boundary)
-            anomalous = deviation > 8.0
+            # Threshold: 14.0 LAB units (significant colour shift)
+            anomalous = deviation > 14.0
 
             regions.append({
                 "x": int(x1),
@@ -102,18 +102,18 @@ def perform_colour_temperature(image_bytes: bytes) -> dict:
     if anomalous_count == 0:
         score = 0.0
     elif has_significant_cluster:
-        score = min(0.4 + (anomalous_count / len(regions)) * 1.5, 1.0)
+        score = min(0.2 + (anomalous_count / len(regions)) * 0.8, 1.0)
     else:
-        score = min((anomalous_count / len(regions)) * 1.0, 0.5)
+        score = min((anomalous_count / len(regions)) * 0.8, 0.4)
 
-    suspicious = score > 0.4 and has_significant_cluster
+    suspicious = score > 0.5 and has_significant_cluster
 
     heatmap = _generate_colour_heatmap(lab, h, w, global_a, global_b)
 
     summary = f"Global colour: A={global_a:.1f}, B={global_b:.1f}. "
     if anomalous_count > 0:
         summary += (
-            f"{anomalous_count}/{len(regions)} regions deviate >8 LAB units"
+            f"{anomalous_count}/{len(regions)} regions deviate >20 LAB units"
         )
         if has_significant_cluster:
             summary += " with significant spatial clustering"
@@ -143,7 +143,7 @@ def perform_colour_temperature(image_bytes: bytes) -> dict:
 def _check_colour_clusters(
     regions: list[dict], rows: int, cols: int, img_h: int, img_w: int
 ) -> bool:
-    """Check if anomalous regions form clusters covering >10% of image."""
+    """Check if anomalous regions form clusters of >= 3 adjacent cells covering >15% of image."""
     grid = np.zeros((rows, cols), dtype=bool)
     for i, r in enumerate(regions):
         row, col = divmod(i, cols)
@@ -152,27 +152,27 @@ def _check_colour_clusters(
     visited = np.zeros_like(grid)
     total_area = img_h * img_w
 
-    def flood_fill(r: int, c: int) -> int:
+    def flood_fill(r: int, c: int) -> tuple[int, int]:
+        """Return (area, cell_count) for the connected cluster."""
         if r < 0 or r >= rows or c < 0 or c >= cols:
-            return 0
+            return 0, 0
         if visited[r, c] or not grid[r, c]:
-            return 0
+            return 0, 0
         visited[r, c] = True
         idx = r * cols + c
         area = regions[idx]["width"] * regions[idx]["height"]
-        return (
-            area
-            + flood_fill(r + 1, c)
-            + flood_fill(r - 1, c)
-            + flood_fill(r, c + 1)
-            + flood_fill(r, c - 1)
-        )
+        count = 1
+        for dr, dc in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+            sub_area, sub_count = flood_fill(r + dr, c + dc)
+            area += sub_area
+            count += sub_count
+        return area, count
 
     for r in range(rows):
         for c in range(cols):
             if grid[r, c] and not visited[r, c]:
-                cluster_area = flood_fill(r, c)
-                if cluster_area > total_area * 0.10:
+                cluster_area, cluster_count = flood_fill(r, c)
+                if cluster_count >= 3 and cluster_area > total_area * 0.15:
                     return True
     return False
 

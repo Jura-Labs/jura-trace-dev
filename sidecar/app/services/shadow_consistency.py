@@ -11,7 +11,7 @@ Algorithm:
 2. Compute magnitude-weighted circular mean of gradient angles globally.
 3. Segment foreground into connected components via Otsu threshold.
 4. For each component, compute local light direction.
-5. Flag components with >45 degree deviation from the global direction.
+5. Flag components with >80 degree deviation from the global direction.
 """
 
 import base64
@@ -60,7 +60,7 @@ def perform_shadow_consistency(image_bytes: bytes) -> dict:
     )
 
     regions = []
-    min_area = (h * w) * 0.01  # Minimum 1% of image area
+    min_area = (h * w) * 0.03  # Minimum 3% of image area
 
     for label_id in range(1, num_labels):  # Skip background (0)
         area = stats[label_id, cv2.CC_STAT_AREA]
@@ -86,7 +86,7 @@ def perform_shadow_consistency(image_bytes: bytes) -> dict:
         # Circular deviation from global
         deviation = abs(_circular_difference(region_direction, global_direction))
 
-        inconsistent = deviation > 45.0
+        inconsistent = deviation > 80.0
 
         regions.append({
             "x": x,
@@ -102,17 +102,17 @@ def perform_shadow_consistency(image_bytes: bytes) -> dict:
     inconsistent_count = sum(1 for r in regions if r["inconsistent"])
     total = len(regions)
 
-    if total == 0:
+    if total < 3:
         return _neutral_result(
             "Insufficient foreground components for shadow analysis"
         )
 
     score = (
-        min(inconsistent_count / max(total, 1) * 1.5, 1.0)
+        min(inconsistent_count / max(total, 1) * 0.6, 1.0)
         if inconsistent_count > 0
         else 0.0
     )
-    suspicious = inconsistent_count >= 1 and score > 0.3
+    suspicious = inconsistent_count >= 2 and score > 0.4
 
     # Generate heatmap showing gradient directions
     heatmap = _generate_shadow_heatmap(angle, magnitude, h, w)
@@ -121,7 +121,7 @@ def perform_shadow_consistency(image_bytes: bytes) -> dict:
     if inconsistent_count > 0:
         summary += (
             f"{inconsistent_count}/{total} regions show inconsistent "
-            f"shadow direction (>45 degree deviation)"
+            f"shadow direction (>80 degree deviation)"
         )
         if suspicious:
             summary += ". Pattern suggests possible composite"
