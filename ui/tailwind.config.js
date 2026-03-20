@@ -32,13 +32,13 @@ export default {
           dark: '#D8D5CE'
         },
         flint: {
-          DEFAULT: '#9B9890',
-          light: '#B5B2AA'
+          DEFAULT: '#78756D',
+          light: '#9B9890'
         },
         lapis: {
-          DEFAULT: '#3E6FA8',
+          DEFAULT: '#376399',
           light: '#5A85B5',
-          dark: '#345E90'
+          dark: '#2E5580'
         },
         malachite: {
           DEFAULT: '#5B8A5F',

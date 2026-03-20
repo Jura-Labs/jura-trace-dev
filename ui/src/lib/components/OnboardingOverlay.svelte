@@ -168,7 +168,7 @@
           </p>
 
           <!-- Subtext -->
-          <p class="text-xs text-flint leading-relaxed mt-auto">
+          <p class="text-xs text-flint dark:text-flint-light leading-relaxed mt-auto">
             Built by Juralabs CIC — free for non-commercial use.
           </p>
         </div>
@@ -297,7 +297,7 @@
         {#if !isLastSlide}
           <button
             onclick={onComplete}
-            class="text-xs text-flint hover:text-flint-light transition-colors duration-150
+            class="text-xs text-flint dark:text-flint-light hover:text-flint-light transition-colors duration-150
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                    focus-visible:ring-offset-2 focus-visible:ring-offset-graphite rounded"
           >
@@ -309,7 +309,7 @@
         {#if !isFirstSlide && !isLastSlide}
           <button
             onclick={goBack}
-            class="text-xs text-flint hover:text-quartz transition-colors duration-150
+            class="text-xs text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                    focus-visible:ring-offset-2 focus-visible:ring-offset-graphite rounded"
             aria-label="Go back to previous slide"

@@ -271,14 +271,14 @@
   <div class="flex items-start justify-between gap-4">
     <div>
       <h1 class="text-2xl font-heading text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Protect</h1>
-      <p class="text-flint text-sm mt-1">
+      <p class="text-flint dark:text-flint-light text-sm mt-1">
         Import, catalogue, and safeguard your digital content.
       </p>
     </div>
 
     <!-- Asset count + CSV export -->
     <div class="flex items-center gap-3 flex-shrink-0 pt-1">
-      <span class="text-xs text-flint" aria-live="polite" aria-atomic="true">
+      <span class="text-xs text-flint dark:text-flint-light" aria-live="polite" aria-atomic="true">
         {displayedAssets.length} asset{displayedAssets.length !== 1 ? 's' : ''}
         {#if displayedAssets.length !== assets.length}
           <span class="sr-only">(filtered)</span>
@@ -286,7 +286,7 @@
       </span>
       {#if displayedAssets.length > 0}
         <button
-          class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center rounded border border-border-light dark:border-border-dark text-flint hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+          class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center rounded border border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
           onclick={exportCsv}
           aria-label="Export visible assets as CSV"
         >
@@ -327,7 +327,7 @@
           class="w-6 h-6 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
           aria-hidden="true"
         ></div>
-        <p class="text-sm text-flint" aria-live="polite">
+        <p class="text-sm text-flint dark:text-flint-light" aria-live="polite">
           {importingCount > 1
             ? `Importing ${importingCount} file${importingCount !== 1 ? 's' : ''}...`
             : 'Importing files...'}
@@ -335,12 +335,12 @@
       </div>
     {:else}
       <div class="flex flex-col items-center gap-2">
-        <svg class="w-10 h-10 text-flint" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <svg class="w-10 h-10 text-flint dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
             d="M12 16V4m0 0L8 8m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4" />
         </svg>
         <p class="text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Drop files or folders here</p>
-        <p class="text-xs text-flint mt-1">
+        <p class="text-xs text-flint dark:text-flint-light mt-1">
           or click to browse &mdash; JPEG, PNG, TIFF, WebP, PDF, MP4, WAV, and more
         </p>
       </div>
@@ -355,7 +355,7 @@
   >
     <!-- Content type filter -->
     <div class="flex items-center gap-2">
-      <label for="filter-content-type" class="text-xs text-flint uppercase tracking-wide flex-shrink-0">Type</label>
+      <label for="filter-content-type" class="text-xs text-flint dark:text-flint-light uppercase tracking-wide flex-shrink-0">Type</label>
       <select
         id="filter-content-type"
         bind:value={filterContentType}
@@ -375,7 +375,7 @@
 
     <!-- Status filter -->
     <div class="flex items-center gap-2">
-      <label for="filter-status" class="text-xs text-flint uppercase tracking-wide flex-shrink-0">Status</label>
+      <label for="filter-status" class="text-xs text-flint dark:text-flint-light uppercase tracking-wide flex-shrink-0">Status</label>
       <select
         id="filter-status"
         bind:value={filterStatus}
@@ -391,10 +391,10 @@
 
     <!-- Search input -->
     <div class="flex items-center gap-2 flex-1 min-w-48">
-      <label for="filter-search" class="text-xs text-flint uppercase tracking-wide flex-shrink-0 sr-only">Search</label>
+      <label for="filter-search" class="text-xs text-flint dark:text-flint-light uppercase tracking-wide flex-shrink-0 sr-only">Search</label>
       <div class="relative flex-1">
         <svg
-          class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-flint pointer-events-none"
+          class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-flint dark:text-flint-light pointer-events-none"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -420,7 +420,7 @@
     <!-- Clear filters -->
     {#if filterContentType || filterStatus || searchRaw}
       <button
-        class="text-xs text-flint hover:text-text-light dark:hover:text-quartz transition-colors underline underline-offset-2
+        class="text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors underline underline-offset-2
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
         onclick={() => { filterContentType = ''; filterStatus = ''; searchRaw = ''; }}
         aria-label="Clear all filters"
@@ -434,7 +434,7 @@
   {#if displayedAssets.length === 0 && importingCount === 0}
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-10 text-center">
       {#if filterContentType || filterStatus || searchRaw}
-        <p class="text-flint">No assets match the current filters.</p>
+        <p class="text-flint dark:text-flint-light">No assets match the current filters.</p>
         <button
           class="mt-3 text-sm text-lapis hover:text-lapis-dark dark:hover:text-lapis-light transition-colors underline underline-offset-2
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
@@ -443,7 +443,7 @@
           Clear filters
         </button>
       {:else}
-        <p class="text-flint">No assets imported yet. Drop files above to get started.</p>
+        <p class="text-flint dark:text-flint-light">No assets imported yet. Drop files above to get started.</p>
       {/if}
     </div>
 
@@ -452,7 +452,7 @@
 
       <!-- Column headers (sortable) — desktop only -->
       <div
-        class="hidden sm:grid grid-cols-[1fr_100px_110px_130px] gap-4 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint uppercase tracking-wide"
+        class="hidden sm:grid grid-cols-[1fr_100px_110px_130px] gap-4 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint dark:text-flint-light uppercase tracking-wide"
         role="row"
         aria-label="Sort column headers"
       >
@@ -531,7 +531,7 @@
               <span class="text-xs px-1.5 py-0.5 rounded bg-malachite/15 text-malachite dark:text-malachite-light flex-shrink-0">Signed</span>
             {/if}
           </div>
-          <div class="flex items-center gap-3 mt-1.5 text-xs text-flint">
+          <div class="flex items-center gap-3 mt-1.5 text-xs text-flint dark:text-flint-light">
             <span>{asset.mimeType}</span>
             <span>{formatFileSize(asset.fileSize)}</span>
             <span>{new Date(asset.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
@@ -559,17 +559,17 @@
             </span>
             <div class="min-w-0">
               <p class="text-sm text-text-light dark:text-quartz truncate">{asset.fileName}</p>
-              <p class="text-xs text-flint truncate">{asset.mimeType}</p>
+              <p class="text-xs text-flint dark:text-flint-light truncate">{asset.mimeType}</p>
             </div>
           </div>
 
-          <span class="text-sm text-flint self-center">
+          <span class="text-sm text-flint dark:text-flint-light self-center">
             {CONTENT_TYPE_LABELS[asset.contentType] || asset.contentType}
           </span>
 
-          <span class="text-sm text-flint self-center">{formatFileSize(asset.fileSize)}</span>
+          <span class="text-sm text-flint dark:text-flint-light self-center">{formatFileSize(asset.fileSize)}</span>
 
-          <span class="text-xs text-flint self-center">
+          <span class="text-xs text-flint dark:text-flint-light self-center">
             {new Date(asset.createdAt).toLocaleDateString('en-GB', {
               day: 'numeric',
               month: 'short',
@@ -591,13 +591,13 @@
 
               <!-- File path -->
               <div>
-                <span class="text-xs text-flint uppercase tracking-wide">Path</span>
+                <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Path</span>
                 <p class="text-text-light dark:text-quartz text-xs mt-0.5 truncate" title={asset.filePath}>{asset.filePath}</p>
               </div>
 
               {#if asset.width && asset.height}
                 <div>
-                  <span class="text-xs text-flint uppercase tracking-wide">Dimensions</span>
+                  <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Dimensions</span>
                   <p class="text-text-light dark:text-quartz mt-0.5">{asset.width} &times; {asset.height} px</p>
                 </div>
               {/if}
@@ -606,61 +606,61 @@
               {#if meta}
                 {#if meta.cameraMake || meta.cameraModel}
                   <div>
-                    <span class="text-xs text-flint uppercase tracking-wide">Camera</span>
+                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Camera</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{[meta.cameraMake, meta.cameraModel].filter(Boolean).join(' ')}</p>
                   </div>
                 {/if}
                 {#if meta.datetimeOriginal}
                   <div>
-                    <span class="text-xs text-flint uppercase tracking-wide">Date Taken</span>
+                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Date Taken</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.datetimeOriginal}</p>
                   </div>
                 {/if}
                 {#if meta.software}
                   <div>
-                    <span class="text-xs text-flint uppercase tracking-wide">Software</span>
+                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Software</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.software}</p>
                   </div>
                 {/if}
                 {#if meta.iso}
                   <div>
-                    <span class="text-xs text-flint uppercase tracking-wide">ISO</span>
+                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">ISO</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.iso}</p>
                   </div>
                 {/if}
                 {#if meta.focalLength}
                   <div>
-                    <span class="text-xs text-flint uppercase tracking-wide">Focal Length</span>
+                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Focal Length</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.focalLength}</p>
                   </div>
                 {/if}
                 {#if meta.exposureTime}
                   <div>
-                    <span class="text-xs text-flint uppercase tracking-wide">Exposure</span>
+                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Exposure</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.exposureTime}</p>
                   </div>
                 {/if}
                 {#if meta.fNumber}
                   <div>
-                    <span class="text-xs text-flint uppercase tracking-wide">Aperture</span>
+                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Aperture</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.fNumber}</p>
                   </div>
                 {/if}
                 {#if meta.copyright}
                   <div>
-                    <span class="text-xs text-flint uppercase tracking-wide">Copyright</span>
+                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Copyright</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.copyright}</p>
                   </div>
                 {/if}
                 {#if meta.artist}
                   <div>
-                    <span class="text-xs text-flint uppercase tracking-wide">Artist</span>
+                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Artist</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.artist}</p>
                   </div>
                 {/if}
                 {#if meta.gpsLatitude != null && meta.gpsLongitude != null}
                   <div>
-                    <span class="text-xs text-flint uppercase tracking-wide">GPS</span>
+                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">GPS</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.gpsLatitude.toFixed(6)}, {meta.gpsLongitude.toFixed(6)}</p>
                   </div>
                 {/if}
@@ -671,14 +671,14 @@
                 <span
                   class="text-xs px-2 py-0.5 rounded {asset.c2paSigned
                     ? 'bg-malachite/15 text-malachite dark:text-malachite-light'
-                    : 'bg-gray-100 dark:bg-graphite-light text-flint'}"
+                    : 'bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light'}"
                 >
                   {asset.c2paSigned ? 'C2PA Signed' : 'Not Signed'}
                 </span>
                 <span
                   class="text-xs px-2 py-0.5 rounded {asset.watermarked
                     ? 'bg-malachite/15 text-malachite dark:text-malachite-light'
-                    : 'bg-gray-100 dark:bg-graphite-light text-flint'}"
+                    : 'bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light'}"
                 >
                   {asset.watermarked ? 'Watermarked' : 'No Watermark'}
                 </span>
@@ -696,7 +696,7 @@
                     <p class="text-sm text-text-light dark:text-quartz mb-3">Sign with C2PA Content Credentials</p>
 
                     {#if metadataWarningLoading}
-                      <div class="mb-3 flex items-center gap-2 text-xs text-flint">
+                      <div class="mb-3 flex items-center gap-2 text-xs text-flint dark:text-flint-light">
                         <span
                           class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
                           aria-hidden="true"
@@ -721,7 +721,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
                         <label
-                          class="text-xs text-flint uppercase tracking-wide"
+                          class="text-xs text-flint dark:text-flint-light uppercase tracking-wide"
                           for="creator-name"
                         >
                           Creator Name
@@ -737,7 +737,7 @@
                       </div>
                       <div>
                         <label
-                          class="text-xs text-flint uppercase tracking-wide"
+                          class="text-xs text-flint dark:text-flint-light uppercase tracking-wide"
                           for="license-select"
                         >
                           Licence
@@ -767,7 +767,7 @@
                         {signing ? 'Signing...' : 'Sign'}
                       </button>
                       <button
-                        class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint text-sm rounded hover:text-text-light dark:hover:text-quartz transition-colors
+                        class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint dark:text-flint-light text-sm rounded hover:text-text-light dark:hover:text-quartz transition-colors
                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                         onclick={() => signingAssetId = null}
                         disabled={signing}
@@ -795,7 +795,7 @@
                     <div class="flex items-center justify-between mb-2">
                       <p class="text-sm text-text-light dark:text-quartz">Perceptual Fingerprints</p>
                       <button
-                        class="text-xs text-flint hover:text-text-light dark:hover:text-quartz transition-colors
+                        class="text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite rounded"
                         onclick={() => showFingerprintsFor = null}
                         aria-label="Close fingerprint panel"
@@ -809,15 +809,15 @@
                           class="w-3.5 h-3.5 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
                           aria-hidden="true"
                         ></div>
-                        <p class="text-xs text-flint">Loading...</p>
+                        <p class="text-xs text-flint dark:text-flint-light">Loading...</p>
                       </div>
                     {:else if fingerprints.length === 0}
-                      <p class="text-xs text-flint">No fingerprints found.</p>
+                      <p class="text-xs text-flint dark:text-flint-light">No fingerprints found.</p>
                     {:else}
                       <div class="grid grid-cols-1 gap-2">
                         {#each fingerprints as fp}
                           <div class="flex items-center justify-between text-xs">
-                            <span class="text-flint uppercase tracking-wide w-32">
+                            <span class="text-flint dark:text-flint-light uppercase tracking-wide w-32">
                               {HASH_TYPE_LABELS[fp.hashType] || fp.hashType}
                             </span>
                             <code class="text-text-light dark:text-quartz font-mono bg-gray-100 dark:bg-obsidian-dark/50 px-2 py-0.5 rounded">
@@ -835,7 +835,7 @@
                           {#each similarAssets as match}
                             <div class="flex items-center justify-between text-xs py-1">
                               <span class="text-text-light dark:text-quartz">{match.fileName}</span>
-                              <span class="text-flint">
+                              <span class="text-flint dark:text-flint-light">
                                 {Math.round(match.similarity * 100)}% similar ({HASH_TYPE_LABELS[match.hashType] || match.hashType})
                               </span>
                             </div>

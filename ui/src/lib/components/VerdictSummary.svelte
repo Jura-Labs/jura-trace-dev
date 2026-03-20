@@ -133,7 +133,7 @@
   const confidenceBadgeClass = $derived((): string => {
     const c = deepfakeConfidence;
     if (c === 'high') return 'text-text-light dark:text-quartz bg-obsidian/10 dark:bg-obsidian/40 border-flint/20';
-    if (c === 'medium') return 'text-flint bg-obsidian/5 dark:bg-obsidian/30 border-flint/15';
+    if (c === 'medium') return 'text-flint dark:text-flint-light bg-obsidian/5 dark:bg-obsidian/30 border-flint/15';
     return 'text-flint/70 bg-obsidian/5 dark:bg-obsidian/20 border-flint/10';
   });
 

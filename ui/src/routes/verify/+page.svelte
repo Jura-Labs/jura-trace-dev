@@ -80,7 +80,7 @@
 
   const trustTextClass = $derived(() => {
     const level = trustLevel();
-    if (!level) return 'text-flint';
+    if (!level) return 'text-flint dark:text-flint-light';
     if (level === 'high') return 'text-malachite';
     if (level === 'medium') return 'text-amber';
     return 'text-cinnabar';
@@ -571,7 +571,7 @@
   <div class="flex items-start justify-between">
     <div>
       <h1 class="text-2xl font-heading text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Verify</h1>
-      <p class="text-flint text-sm mt-1">
+      <p class="text-flint dark:text-flint-light text-sm mt-1">
         Check the authenticity and provenance of files. All analysis happens locally on your device.
       </p>
     </div>
@@ -591,7 +591,7 @@
             class="px-3 py-2.5 min-h-[44px] transition-colors duration-150
                    {verifyMode === opt.mode
                      ? 'bg-lapis/20 text-lapis dark:text-lapis-light'
-                     : 'text-flint hover:text-text-light dark:hover:text-quartz'}
+                     : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis"
             role="radio"
             aria-checked={verifyMode === opt.mode}
@@ -608,7 +608,7 @@
         class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border
                {sidecarAvailable
                  ? 'bg-malachite/10 text-malachite dark:text-malachite-light border-malachite/20'
-                 : 'bg-white dark:bg-graphite text-flint border-border-light dark:border-border-dark'}"
+                 : 'bg-white dark:bg-graphite text-flint dark:text-flint-light border-border-light dark:border-border-dark'}"
         title={sidecarAvailable
           ? `Analysis services v${sidecarHealth?.version} — forensics available`
           : 'Analysis services offline — forensics not available'}
@@ -642,7 +642,7 @@
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                {activeTab === 'file'
                  ? 'text-lapis dark:text-lapis-light border-lapis'
-                 : 'text-flint border-transparent hover:text-text-light dark:hover:text-quartz'}"
+                 : 'text-flint dark:text-flint-light border-transparent hover:text-text-light dark:hover:text-quartz'}"
         role="tab"
         aria-selected={activeTab === 'file'}
         onclick={() => { activeTab = 'file'; }}
@@ -654,14 +654,14 @@
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                {activeTab === 'batch'
                  ? 'text-lapis dark:text-lapis-light border-lapis'
-                 : 'text-flint border-transparent hover:text-text-light dark:hover:text-quartz'}"
+                 : 'text-flint dark:text-flint-light border-transparent hover:text-text-light dark:hover:text-quartz'}"
         role="tab"
         aria-selected={activeTab === 'batch'}
         onclick={() => { activeTab = 'batch'; }}
       >
         Batch
         {#if batchItems.length > 0}
-          <span class="ml-1 text-xs text-flint">({batchItems.length})</span>
+          <span class="ml-1 text-xs text-flint dark:text-flint-light">({batchItems.length})</span>
         {/if}
       </button>
       <button
@@ -669,7 +669,7 @@
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                {activeTab === 'url'
                  ? 'text-lapis dark:text-lapis-light border-lapis'
-                 : 'text-flint border-transparent hover:text-text-light dark:hover:text-quartz'}"
+                 : 'text-flint dark:text-flint-light border-transparent hover:text-text-light dark:hover:text-quartz'}"
         role="tab"
         aria-selected={activeTab === 'url'}
         onclick={() => { activeTab = 'url'; }}
@@ -705,19 +705,19 @@
               role="status"
               aria-label="Analysing file"
             ></div>
-            <p class="text-sm text-flint">Analysing file — this may take a moment...</p>
+            <p class="text-sm text-flint dark:text-flint-light">Analysing file — this may take a moment...</p>
             {#if fileName}
               <p class="text-xs text-flint/70">{fileName}</p>
             {/if}
           </div>
         {:else}
           <div class="flex flex-col items-center gap-2">
-            <svg class="w-10 h-10 text-flint" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <svg class="w-10 h-10 text-flint dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                 d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
-            <p class="text-quartz font-medium">Drop a file to verify</p>
-            <p class="text-xs text-flint">
+            <p class="text-text-light dark:text-quartz font-medium">Drop a file to verify</p>
+            <p class="text-xs text-flint dark:text-flint-light">
               or click to browse — JPEG, PNG, TIFF, WebP, PDF, MP4, and more
             </p>
           </div>
@@ -742,12 +742,12 @@
         aria-label="Drop files here or click to select files for batch verification"
       >
         <div class="flex flex-col items-center gap-2">
-          <svg class="w-8 h-8 text-flint" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <svg class="w-8 h-8 text-flint dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
               d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
           </svg>
-          <p class="text-quartz font-medium">Drop multiple files to verify</p>
-          <p class="text-xs text-flint">or click to browse — files will be queued for sequential verification</p>
+          <p class="text-text-light dark:text-quartz font-medium">Drop multiple files to verify</p>
+          <p class="text-xs text-flint dark:text-flint-light">or click to browse — files will be queued for sequential verification</p>
         </div>
       </button>
 
@@ -768,12 +768,12 @@
                 Run Batch
               {/if}
             </button>
-            <span class="text-xs text-flint">
+            <span class="text-xs text-flint dark:text-flint-light">
               {batchCompleted} of {batchItems.length} complete
             </span>
           </div>
           <button
-            class="text-xs text-flint hover:text-text-light dark:hover:text-quartz transition-colors
+            class="text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-2 py-1"
             onclick={clearBatch}
             disabled={batchRunning}
@@ -785,7 +785,7 @@
         <!-- Results table -->
         <div class="mt-4 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark overflow-x-auto">
           <!-- Header -->
-          <div class="grid grid-cols-[1fr_90px_80px_80px_60px] gap-3 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint uppercase tracking-wide min-w-[480px]">
+          <div class="grid grid-cols-[1fr_90px_80px_80px_60px] gap-3 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint dark:text-flint-light uppercase tracking-wide min-w-[480px]">
             <span>File</span>
             <span>Status</span>
             <span>Trust</span>
@@ -819,7 +819,7 @@
                 <!-- Status -->
                 <span class="text-xs self-center">
                   {#if item.status === 'queued'}
-                    <span class="text-flint">Queued</span>
+                    <span class="text-flint dark:text-flint-light">Queued</span>
                   {:else if item.status === 'running'}
                     <span class="flex items-center gap-1.5">
                       <span
@@ -855,7 +855,7 @@
                 </span>
 
                 <!-- Duration -->
-                <span class="text-xs text-flint tabular-nums self-center">
+                <span class="text-xs text-flint dark:text-flint-light tabular-nums self-center">
                   {#if item.startedAt && item.finishedAt}
                     {formatDuration(item.startedAt, item.finishedAt)}
                   {:else}
@@ -867,7 +867,7 @@
                 <span class="self-center text-right">
                   {#if !batchRunning || item.status !== 'running'}
                     <button
-                      class="text-xs text-flint hover:text-cinnabar transition-colors p-1 min-w-[24px] min-h-[24px]
+                      class="text-xs text-flint dark:text-flint-light hover:text-cinnabar transition-colors p-1 min-w-[24px] min-h-[24px]
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                       onclick={(e) => { e.stopPropagation(); removeBatchItem(item.id); }}
                       aria-label="Remove {item.fileName}"
@@ -924,7 +924,7 @@
           {/if}
         </button>
       </div>
-      <p class="text-xs text-flint mt-2">
+      <p class="text-xs text-flint dark:text-flint-light mt-2">
         Enter a URL to an image or document. The content will be downloaded and analysed locally.
       </p>
     {/if}
@@ -939,7 +939,7 @@
       <div class="px-5 py-4 border-b border-border-light dark:border-border-dark flex items-center justify-between gap-4">
         <div class="flex items-center gap-4 min-w-0">
           <div>
-            <p class="text-xs text-flint uppercase tracking-wide mb-0.5">Trust Score</p>
+            <p class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-0.5">Trust Score</p>
             <div class="flex items-baseline gap-2">
               <span
                 class="text-3xl font-heading tabular-nums {trustTextClass()}"
@@ -960,7 +960,7 @@
                            ? 'bg-lapis/15 text-lapis dark:text-lapis-light border-lapis/30'
                            : result.mode === 'deep'
                              ? 'bg-lapis/10 text-lapis dark:text-lapis-light border-lapis/20'
-                             : 'bg-graphite text-flint border-border-dark dark:border-border-dark'}"
+                             : 'bg-graphite text-flint dark:text-flint-light border-border-dark dark:border-border-dark'}"
                   title="Investigation mode used for this analysis"
                   aria-label="Investigation mode: {result.mode}"
                 >
@@ -968,7 +968,7 @@
                 </span>
               {/if}
             </div>
-            <p class="text-xs text-flint mt-0.5">
+            <p class="text-xs text-flint dark:text-flint-light mt-0.5">
               {result.contentType}
               {#if result.sourceType === 'url'}
                 <span class="ml-1 text-lapis">(via URL)</span>
@@ -977,7 +977,7 @@
           </div>
         </div>
         <button
-          class="flex-shrink-0 text-xs text-flint hover:text-text-light dark:hover:text-quartz transition-colors duration-150
+          class="flex-shrink-0 text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors duration-150
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-2 py-1 min-h-[44px] min-w-[44px] flex items-center"
           onclick={reset}
           aria-label="Clear result and verify another file"
@@ -1011,7 +1011,7 @@
           aria-label="Claim verification verdict"
         >
           <div class="flex items-center gap-3 mb-1.5">
-            <span class="text-xs font-medium uppercase tracking-wide text-flint">Claim Verification</span>
+            <span class="text-xs font-medium uppercase tracking-wide text-flint dark:text-flint-light">Claim Verification</span>
             <span
               class="text-xs font-medium px-2 py-0.5 rounded border
                      {verdict === 'supported'
@@ -1020,7 +1020,7 @@
                          ? 'bg-cinnabar/15 text-cinnabar border-cinnabar/30'
                          : verdict === 'mixed'
                            ? 'bg-amber/15 text-amber border-amber/30'
-                           : 'bg-graphite text-flint border-border-dark'}"
+                           : 'bg-graphite text-flint dark:text-flint-light border-border-dark'}"
             >
               {verdict === 'supported' ? 'Supported'
                 : verdict === 'disputed' ? 'Disputed'
@@ -1028,13 +1028,13 @@
                 : 'Unverified'}
             </span>
             {#if rag?.confidence != null}
-              <span class="text-xs text-flint tabular-nums">
+              <span class="text-xs text-flint dark:text-flint-light tabular-nums">
                 {Math.round(rag.confidence * 100)}% confidence
               </span>
             {/if}
           </div>
           {#if rag?.explanation}
-            <p class="text-xs text-flint leading-relaxed">{rag.explanation}</p>
+            <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{rag.explanation}</p>
           {/if}
           {#if rag?.sources && rag.sources.length > 0}
             <details class="group mt-2">
@@ -1051,8 +1051,8 @@
               <div class="mt-2 space-y-1.5" role="list" aria-label="RAG verification sources">
                 {#each rag.sources as source, i (i)}
                   <div class="rounded-md px-3 py-2 bg-gray-50 dark:bg-obsidian/50 border border-border-light dark:border-border-dark text-xs" role="listitem">
-                    <p class="font-medium text-quartz">{source.title}</p>
-                    <p class="text-flint mt-0.5 leading-relaxed">{source.excerpt}</p>
+                    <p class="font-medium text-text-light dark:text-quartz">{source.title}</p>
+                    <p class="text-flint dark:text-flint-light mt-0.5 leading-relaxed">{source.excerpt}</p>
                     <p class="text-flint/50 tabular-nums mt-0.5">Relevance: {Math.round(source.relevance * 100)}%</p>
                   </div>
                 {/each}
@@ -1070,7 +1070,7 @@
       <!-- ── Signal Agreement ─────────────────────────────────────── -->
       <div class="px-5 py-3 border-b border-border-dark">
         <button
-          class="flex items-center gap-2 text-sm text-flint hover:text-quartz transition-colors duration-150
+          class="flex items-center gap-2 text-sm text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
                  focus:outline-none focus:ring-2 focus:ring-lapis rounded"
           onclick={() => { showSignalAgreement = !showSignalAgreement; }}
           aria-expanded={showSignalAgreement}
@@ -1096,7 +1096,7 @@
       <!-- ── Visual Inspection Checklist ──────────────────────────── -->
       <div class="px-5 py-3 border-b border-border-dark">
         <button
-          class="flex items-center gap-2 text-sm text-flint hover:text-quartz transition-colors duration-150
+          class="flex items-center gap-2 text-sm text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
                  focus:outline-none focus:ring-2 focus:ring-lapis rounded"
           onclick={() => { showInspectionChecklist = !showInspectionChecklist; }}
           aria-expanded={showInspectionChecklist}
@@ -1122,7 +1122,7 @@
       <!-- ── Investigate Further ───────────────────────────────────── -->
       <div class="px-5 py-3 border-b border-border-dark">
         <button
-          class="flex items-center gap-2 text-sm text-flint hover:text-quartz transition-colors duration-150
+          class="flex items-center gap-2 text-sm text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
                  focus:outline-none focus:ring-2 focus:ring-lapis rounded"
           onclick={() => { showInvestigatePanel = !showInvestigatePanel; }}
           aria-expanded={showInvestigatePanel}
@@ -1144,7 +1144,7 @@
               class="rounded-lg border border-border-dark bg-obsidian/50 px-4 py-3"
               aria-label="Reverse image search options"
             >
-              <p class="text-xs text-flint mb-3 leading-relaxed">
+              <p class="text-xs text-flint dark:text-flint-light mb-3 leading-relaxed">
                 Search for this image across the web to find other appearances, earlier versions, or
                 context that may help verify its origin.
                 {#if result.sourceType !== 'url'}
@@ -1208,7 +1208,7 @@
         <!-- False positive report — secondary action, pushed to far right -->
         <div class="flex-1 flex justify-end">
           <button
-            class="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] text-xs text-flint border border-border-light dark:border-border-dark rounded
+            class="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] text-xs text-flint dark:text-flint-light border border-border-light dark:border-border-dark rounded
                    hover:border-amber/50 hover:text-amber dark:hover:text-amber-light transition-colors duration-150
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
             onclick={() => { showFalsePositiveModal = true; }}
@@ -1227,7 +1227,7 @@
       <!-- ── Technical Details Toggle ──────────────────────────────── -->
       <div class="px-5 py-3 border-b border-border-light dark:border-border-dark">
         <button
-          class="flex items-center gap-2 text-sm text-flint hover:text-text-light dark:hover:text-quartz transition-colors duration-150
+          class="flex items-center gap-2 text-sm text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors duration-150
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           onclick={() => { showTechnicalDetails = !showTechnicalDetails; }}
           aria-expanded={showTechnicalDetails}
@@ -1256,7 +1256,7 @@
         <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="ela-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
-              <h2 id="ela-heading" class="text-sm font-medium text-quartz">Error Level Analysis</h2>
+              <h2 id="ela-heading" class="text-sm font-medium text-text-light dark:text-quartz">Error Level Analysis</h2>
               <span
                 class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(ela.score)} {forensicScoreClass(ela.score)}"
               >
@@ -1280,12 +1280,12 @@
           <!-- Stats -->
           <div class="grid grid-cols-2 gap-4 text-xs">
             <div>
-              <span class="text-flint">Max Difference</span>
-              <p class="text-quartz tabular-nums">{ela.maxDifference.toFixed(1)}</p>
+              <span class="text-flint dark:text-flint-light">Max Difference</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">{ela.maxDifference.toFixed(1)}</p>
             </div>
             <div>
-              <span class="text-flint">Mean Difference</span>
-              <p class="text-quartz tabular-nums">{ela.meanDifference.toFixed(1)}</p>
+              <span class="text-flint dark:text-flint-light">Mean Difference</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">{ela.meanDifference.toFixed(1)}</p>
             </div>
           </div>
 
@@ -1299,12 +1299,12 @@
       {:else if checked && !sidecarAvailable}
         <section class="px-5 py-3 border-b border-border-dark" aria-labelledby="ela-heading">
           <div class="flex items-center gap-3">
-            <h2 id="ela-heading" class="text-sm font-medium text-quartz">Error Level Analysis</h2>
-            <span class="text-xs text-flint bg-gray-100 dark:bg-graphite-light px-2 py-0.5 rounded border border-border-light dark:border-border-dark">
+            <h2 id="ela-heading" class="text-sm font-medium text-text-light dark:text-quartz">Error Level Analysis</h2>
+            <span class="text-xs text-flint dark:text-flint-light bg-gray-100 dark:bg-graphite-light px-2 py-0.5 rounded border border-border-light dark:border-border-dark">
               Unavailable
             </span>
           </div>
-          <p class="text-xs text-flint mt-1.5">
+          <p class="text-xs text-flint dark:text-flint-light mt-1.5">
             ML Sidecar is offline. Start the sidecar to enable forensic analysis.
           </p>
         </section>
@@ -1316,7 +1316,7 @@
         <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="noise-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
-              <h2 id="noise-heading" class="text-sm font-medium text-quartz">Noise Analysis</h2>
+              <h2 id="noise-heading" class="text-sm font-medium text-text-light dark:text-quartz">Noise Analysis</h2>
               <span
                 class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(noise.score)} {forensicScoreClass(noise.score)}"
               >
@@ -1342,16 +1342,16 @@
           <!-- Stats -->
           <div class="grid grid-cols-3 gap-4 text-xs">
             <div>
-              <span class="text-flint">Global Variance</span>
-              <p class="text-quartz tabular-nums">{noise.globalVariance.toFixed(1)}</p>
+              <span class="text-flint dark:text-flint-light">Global Variance</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">{noise.globalVariance.toFixed(1)}</p>
             </div>
             <div>
-              <span class="text-flint">Anomalous Blocks</span>
-              <p class="text-quartz tabular-nums">{noise.anomalousBlocks} / {noise.totalBlocks}</p>
+              <span class="text-flint dark:text-flint-light">Anomalous Blocks</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">{noise.anomalousBlocks} / {noise.totalBlocks}</p>
             </div>
             <div>
-              <span class="text-flint">Block Count</span>
-              <p class="text-quartz tabular-nums">{noise.totalBlocks}</p>
+              <span class="text-flint dark:text-flint-light">Block Count</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">{noise.totalBlocks}</p>
             </div>
           </div>
 
@@ -1370,7 +1370,7 @@
         <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="copymove-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
-              <h2 id="copymove-heading" class="text-sm font-medium text-quartz">Copy-Move Detection</h2>
+              <h2 id="copymove-heading" class="text-sm font-medium text-text-light dark:text-quartz">Copy-Move Detection</h2>
               <span
                 class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(cm.score)} {forensicScoreClass(cm.score)}"
               >
@@ -1396,12 +1396,12 @@
           <!-- Stats -->
           <div class="grid grid-cols-2 gap-4 text-xs">
             <div>
-              <span class="text-flint">Matched Pairs</span>
-              <p class="text-quartz tabular-nums">{cm.matchedPairs}</p>
+              <span class="text-flint dark:text-flint-light">Matched Pairs</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">{cm.matchedPairs}</p>
             </div>
             <div>
-              <span class="text-flint">Clone Regions</span>
-              <p class="text-quartz tabular-nums">{cm.cloneRegions.length}</p>
+              <span class="text-flint dark:text-flint-light">Clone Regions</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">{cm.cloneRegions.length}</p>
             </div>
           </div>
 
@@ -1421,7 +1421,7 @@
           <!-- Section header with expand/collapse toggle -->
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
-              <h2 id="region-analysis-heading" class="text-sm font-medium text-quartz">Region Analysis</h2>
+              <h2 id="region-analysis-heading" class="text-sm font-medium text-text-light dark:text-quartz">Region Analysis</h2>
               <!-- Summary badge: n of m suspicious -->
               <span
                 class="text-xs font-medium px-2 py-0.5 rounded border
@@ -1436,7 +1436,7 @@
               </span>
             </div>
             <button
-              class="flex items-center gap-1 text-xs text-flint hover:text-quartz transition-colors duration-150
+              class="flex items-center gap-1 text-xs text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-1"
               onclick={() => { showRegionAnalysis = !showRegionAnalysis; }}
               aria-expanded={showRegionAnalysis}
@@ -1459,7 +1459,7 @@
               {#if result.segmentedElaResult}
                 {@const seg = result.segmentedElaResult}
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-flint">Segmented ELA</span>
+                  <span class="text-flint dark:text-flint-light">Segmented ELA</span>
                   <span class="{forensicScoreClass(seg.score)} tabular-nums">
                     {seg.anomalousRegions}/{seg.totalRegions} anomalous regions
                   </span>
@@ -1468,7 +1468,7 @@
               {#if result.shadowConsistencyResult}
                 {@const sh = result.shadowConsistencyResult}
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-flint">Shadow Consistency</span>
+                  <span class="text-flint dark:text-flint-light">Shadow Consistency</span>
                   <span class="{forensicScoreClass(sh.score)} tabular-nums">
                     {sh.inconsistentRegions} inconsistent
                   </span>
@@ -1477,7 +1477,7 @@
               {#if result.colourTemperatureResult}
                 {@const ct = result.colourTemperatureResult}
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-flint">Colour Temperature</span>
+                  <span class="text-flint dark:text-flint-light">Colour Temperature</span>
                   <span class="{forensicScoreClass(ct.score)} tabular-nums">
                     {ct.anomalousRegions} deviating regions
                   </span>
@@ -1486,7 +1486,7 @@
               {#if result.spliceBoundaryResult}
                 {@const sb = result.spliceBoundaryResult}
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-flint">Splice Boundary</span>
+                  <span class="text-flint dark:text-flint-light">Splice Boundary</span>
                   <span class="{forensicScoreClass(sb.score)} tabular-nums">
                     {sb.suspiciousBoundaries} of {sb.totalBoundariesChecked} boundaries
                   </span>
@@ -1508,7 +1508,7 @@
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                   >
                     <div class="flex items-center gap-3">
-                      <span class="text-xs font-medium text-quartz">Segmented ELA</span>
+                      <span class="text-xs font-medium text-text-light dark:text-quartz">Segmented ELA</span>
                       <span
                         class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(seg.score)} {forensicScoreClass(seg.score)}"
                         aria-label="Segmented ELA: {regionScoreLabel(seg.score)}"
@@ -1519,7 +1519,7 @@
                     <div class="flex items-center gap-2">
                       <span class="text-xs tabular-nums {forensicScoreClass(seg.score)}">{(seg.score * 100).toFixed(1)}%</span>
                       <svg
-                        class="w-3.5 h-3.5 text-flint transition-transform duration-200 group-open:rotate-90"
+                        class="w-3.5 h-3.5 text-flint dark:text-flint-light transition-transform duration-200 group-open:rotate-90"
                         fill="none" stroke="currentColor" viewBox="0 0 24 24"
                         aria-hidden="true"
                       >
@@ -1529,7 +1529,7 @@
                   </summary>
 
                   <div class="mt-3 space-y-3">
-                    <p class="text-xs text-flint leading-relaxed">{seg.summary}</p>
+                    <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{seg.summary}</p>
 
                     {#if seg.heatmapBase64}
                       <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
@@ -1543,16 +1543,16 @@
 
                     <div class="grid grid-cols-3 gap-3 text-xs">
                       <div>
-                        <span class="text-flint">Anomalous Regions</span>
-                        <p class="text-quartz tabular-nums">{seg.anomalousRegions} / {seg.totalRegions}</p>
+                        <span class="text-flint dark:text-flint-light">Anomalous Regions</span>
+                        <p class="text-text-light dark:text-quartz tabular-nums">{seg.anomalousRegions} / {seg.totalRegions}</p>
                       </div>
                       <div>
-                        <span class="text-flint">Inter-region Variance</span>
-                        <p class="text-quartz tabular-nums">{seg.interRegionVariance.toFixed(3)}</p>
+                        <span class="text-flint dark:text-flint-light">Inter-region Variance</span>
+                        <p class="text-text-light dark:text-quartz tabular-nums">{seg.interRegionVariance.toFixed(3)}</p>
                       </div>
                       <div>
-                        <span class="text-flint">Total Regions</span>
-                        <p class="text-quartz tabular-nums">{seg.totalRegions}</p>
+                        <span class="text-flint dark:text-flint-light">Total Regions</span>
+                        <p class="text-text-light dark:text-quartz tabular-nums">{seg.totalRegions}</p>
                       </div>
                     </div>
 
@@ -1575,7 +1575,7 @@
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                   >
                     <div class="flex items-center gap-3">
-                      <span class="text-xs font-medium text-quartz">Shadow Consistency</span>
+                      <span class="text-xs font-medium text-text-light dark:text-quartz">Shadow Consistency</span>
                       <span
                         class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(sh.score)} {forensicScoreClass(sh.score)}"
                         aria-label="Shadow Consistency: {regionScoreLabel(sh.score)}"
@@ -1586,7 +1586,7 @@
                     <div class="flex items-center gap-2">
                       <span class="text-xs tabular-nums {forensicScoreClass(sh.score)}">{(sh.score * 100).toFixed(1)}%</span>
                       <svg
-                        class="w-3.5 h-3.5 text-flint transition-transform duration-200 group-open:rotate-90"
+                        class="w-3.5 h-3.5 text-flint dark:text-flint-light transition-transform duration-200 group-open:rotate-90"
                         fill="none" stroke="currentColor" viewBox="0 0 24 24"
                         aria-hidden="true"
                       >
@@ -1596,7 +1596,7 @@
                   </summary>
 
                   <div class="mt-3 space-y-3">
-                    <p class="text-xs text-flint leading-relaxed">{sh.summary}</p>
+                    <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{sh.summary}</p>
 
                     {#if sh.heatmapBase64}
                       <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
@@ -1610,16 +1610,16 @@
 
                     <div class="grid grid-cols-3 gap-3 text-xs">
                       <div>
-                        <span class="text-flint">Light Direction</span>
-                        <p class="text-quartz tabular-nums">{sh.globalLightDirection.toFixed(1)}&deg;</p>
+                        <span class="text-flint dark:text-flint-light">Light Direction</span>
+                        <p class="text-text-light dark:text-quartz tabular-nums">{sh.globalLightDirection.toFixed(1)}&deg;</p>
                       </div>
                       <div>
-                        <span class="text-flint">Inconsistent Regions</span>
-                        <p class="text-quartz tabular-nums">{sh.inconsistentRegions} / {sh.totalRegions}</p>
+                        <span class="text-flint dark:text-flint-light">Inconsistent Regions</span>
+                        <p class="text-text-light dark:text-quartz tabular-nums">{sh.inconsistentRegions} / {sh.totalRegions}</p>
                       </div>
                       <div>
-                        <span class="text-flint">Total Regions</span>
-                        <p class="text-quartz tabular-nums">{sh.totalRegions}</p>
+                        <span class="text-flint dark:text-flint-light">Total Regions</span>
+                        <p class="text-text-light dark:text-quartz tabular-nums">{sh.totalRegions}</p>
                       </div>
                     </div>
 
@@ -1642,7 +1642,7 @@
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                   >
                     <div class="flex items-center gap-3">
-                      <span class="text-xs font-medium text-quartz">Colour Temperature</span>
+                      <span class="text-xs font-medium text-text-light dark:text-quartz">Colour Temperature</span>
                       <span
                         class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(ct.score)} {forensicScoreClass(ct.score)}"
                         aria-label="Colour Temperature: {regionScoreLabel(ct.score)}"
@@ -1653,7 +1653,7 @@
                     <div class="flex items-center gap-2">
                       <span class="text-xs tabular-nums {forensicScoreClass(ct.score)}">{(ct.score * 100).toFixed(1)}%</span>
                       <svg
-                        class="w-3.5 h-3.5 text-flint transition-transform duration-200 group-open:rotate-90"
+                        class="w-3.5 h-3.5 text-flint dark:text-flint-light transition-transform duration-200 group-open:rotate-90"
                         fill="none" stroke="currentColor" viewBox="0 0 24 24"
                         aria-hidden="true"
                       >
@@ -1663,7 +1663,7 @@
                   </summary>
 
                   <div class="mt-3 space-y-3">
-                    <p class="text-xs text-flint leading-relaxed">{ct.summary}</p>
+                    <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{ct.summary}</p>
 
                     {#if ct.heatmapBase64}
                       <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
@@ -1677,20 +1677,20 @@
 
                     <div class="grid grid-cols-2 gap-3 text-xs">
                       <div>
-                        <span class="text-flint">Global A (green-red)</span>
-                        <p class="text-quartz tabular-nums">{ct.globalMeanA.toFixed(2)}</p>
+                        <span class="text-flint dark:text-flint-light">Global A (green-red)</span>
+                        <p class="text-text-light dark:text-quartz tabular-nums">{ct.globalMeanA.toFixed(2)}</p>
                       </div>
                       <div>
-                        <span class="text-flint">Global B (blue-yellow)</span>
-                        <p class="text-quartz tabular-nums">{ct.globalMeanB.toFixed(2)}</p>
+                        <span class="text-flint dark:text-flint-light">Global B (blue-yellow)</span>
+                        <p class="text-text-light dark:text-quartz tabular-nums">{ct.globalMeanB.toFixed(2)}</p>
                       </div>
                       <div>
-                        <span class="text-flint">Anomalous Regions</span>
-                        <p class="text-quartz tabular-nums">{ct.anomalousRegions} / {ct.totalRegions}</p>
+                        <span class="text-flint dark:text-flint-light">Anomalous Regions</span>
+                        <p class="text-text-light dark:text-quartz tabular-nums">{ct.anomalousRegions} / {ct.totalRegions}</p>
                       </div>
                       <div>
-                        <span class="text-flint">Total Regions</span>
-                        <p class="text-quartz tabular-nums">{ct.totalRegions}</p>
+                        <span class="text-flint dark:text-flint-light">Total Regions</span>
+                        <p class="text-text-light dark:text-quartz tabular-nums">{ct.totalRegions}</p>
                       </div>
                     </div>
 
@@ -1714,7 +1714,7 @@
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                   >
                     <div class="flex items-center gap-3">
-                      <span class="text-xs font-medium text-quartz">Splice Boundary</span>
+                      <span class="text-xs font-medium text-text-light dark:text-quartz">Splice Boundary</span>
                       <span
                         class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(sb.score)} {forensicScoreClass(sb.score)}"
                         aria-label="Splice Boundary: {regionScoreLabel(sb.score)}"
@@ -1725,7 +1725,7 @@
                     <div class="flex items-center gap-2">
                       <span class="text-xs tabular-nums {forensicScoreClass(sb.score)}">{(sb.score * 100).toFixed(1)}%</span>
                       <svg
-                        class="w-3.5 h-3.5 text-flint transition-transform duration-200 group-open:rotate-90"
+                        class="w-3.5 h-3.5 text-flint dark:text-flint-light transition-transform duration-200 group-open:rotate-90"
                         fill="none" stroke="currentColor" viewBox="0 0 24 24"
                         aria-hidden="true"
                       >
@@ -1735,7 +1735,7 @@
                   </summary>
 
                   <div class="mt-3 space-y-3">
-                    <p class="text-xs text-flint leading-relaxed">{sb.summary}</p>
+                    <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{sb.summary}</p>
 
                     {#if sb.heatmapBase64}
                       <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
@@ -1749,12 +1749,12 @@
 
                     <div class="grid grid-cols-2 gap-3 text-xs">
                       <div>
-                        <span class="text-flint">Suspicious Boundaries</span>
-                        <p class="text-quartz tabular-nums">{sb.suspiciousBoundaries}</p>
+                        <span class="text-flint dark:text-flint-light">Suspicious Boundaries</span>
+                        <p class="text-text-light dark:text-quartz tabular-nums">{sb.suspiciousBoundaries}</p>
                       </div>
                       <div>
-                        <span class="text-flint">Total Checked</span>
-                        <p class="text-quartz tabular-nums">{sb.totalBoundariesChecked}</p>
+                        <span class="text-flint dark:text-flint-light">Total Checked</span>
+                        <p class="text-text-light dark:text-quartz tabular-nums">{sb.totalBoundariesChecked}</p>
                       </div>
                     </div>
 
@@ -1778,9 +1778,9 @@
                                 <span class="font-mono text-quartz">
                                   ({boundary.x}, {boundary.y}) &mdash; {boundary.width}&times;{boundary.height}px
                                 </span>
-                                <span class="tabular-nums text-flint">{(boundary.confidence * 100).toFixed(0)}% confidence</span>
+                                <span class="tabular-nums text-flint dark:text-flint-light">{(boundary.confidence * 100).toFixed(0)}% confidence</span>
                               </div>
-                              <div class="flex flex-wrap gap-x-3 gap-y-0.5 text-flint">
+                              <div class="flex flex-wrap gap-x-3 gap-y-0.5 text-flint dark:text-flint-light">
                                 {#if boundary.jpegGridAligned}
                                   <span>JPEG grid aligned</span>
                                 {/if}
@@ -1820,7 +1820,7 @@
         <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="npr-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
-              <h2 id="npr-heading" class="text-sm font-medium text-quartz">Neighbouring Pixel Relationships</h2>
+              <h2 id="npr-heading" class="text-sm font-medium text-text-light dark:text-quartz">Neighbouring Pixel Relationships</h2>
               <span
                 class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(npr.score)} {forensicScoreClass(npr.score)}"
               >
@@ -1846,20 +1846,20 @@
           <!-- Stats -->
           <div class="grid grid-cols-3 gap-4 text-xs mb-3">
             <div>
-              <span class="text-flint">H-V Correlation</span>
-              <p class="text-quartz tabular-nums">{npr.hvCorrelation.toFixed(4)}</p>
+              <span class="text-flint dark:text-flint-light">H-V Correlation</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">{npr.hvCorrelation.toFixed(4)}</p>
             </div>
             <div>
-              <span class="text-flint">Diff Variance Ratio</span>
-              <p class="text-quartz tabular-nums">{npr.diffVarianceRatio.toFixed(4)}</p>
+              <span class="text-flint dark:text-flint-light">Diff Variance Ratio</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">{npr.diffVarianceRatio.toFixed(4)}</p>
             </div>
             <div>
-              <span class="text-flint">HF Energy Ratio</span>
-              <p class="text-quartz tabular-nums">{npr.hfEnergyRatio.toFixed(4)}</p>
+              <span class="text-flint dark:text-flint-light">HF Energy Ratio</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">{npr.hfEnergyRatio.toFixed(4)}</p>
             </div>
           </div>
 
-          <p class="text-xs text-flint leading-relaxed">{npr.summary}</p>
+          <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{npr.summary}</p>
 
           {#if npr.suspicious}
             <div class="mt-3 text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
@@ -1877,7 +1877,7 @@
         <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="jpegGhost-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
-              <h2 id="jpegGhost-heading" class="text-sm font-medium text-quartz">JPEG Ghost Detection</h2>
+              <h2 id="jpegGhost-heading" class="text-sm font-medium text-text-light dark:text-quartz">JPEG Ghost Detection</h2>
               <span
                 class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(jg.score)} {forensicScoreClass(jg.score)}"
               >
@@ -1903,24 +1903,24 @@
           <!-- Stats -->
           <div class="grid grid-cols-2 gap-4 text-xs mb-3">
             <div>
-              <span class="text-flint">Dominant Ghost Quality</span>
-              <p class="text-quartz tabular-nums">Q{jg.ghostQuality}</p>
+              <span class="text-flint dark:text-flint-light">Dominant Ghost Quality</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">Q{jg.ghostQuality}</p>
             </div>
             <div>
-              <span class="text-flint">Quality Variance</span>
-              <p class="text-quartz tabular-nums">{jg.qualityVariance.toFixed(3)}</p>
+              <span class="text-flint dark:text-flint-light">Quality Variance</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">{jg.qualityVariance.toFixed(3)}</p>
             </div>
             <div>
-              <span class="text-flint">Deviating Blocks</span>
-              <p class="text-quartz tabular-nums">{jg.deviatingBlocks} / {jg.totalBlocks}</p>
+              <span class="text-flint dark:text-flint-light">Deviating Blocks</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">{jg.deviatingBlocks} / {jg.totalBlocks}</p>
             </div>
             <div>
-              <span class="text-flint">Total Blocks</span>
-              <p class="text-quartz tabular-nums">{jg.totalBlocks}</p>
+              <span class="text-flint dark:text-flint-light">Total Blocks</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">{jg.totalBlocks}</p>
             </div>
           </div>
 
-          <p class="text-xs text-flint leading-relaxed">{jg.summary}</p>
+          <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{jg.summary}</p>
 
           {#if jg.suspicious}
             <div class="mt-3 text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
@@ -1938,7 +1938,7 @@
         <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="ca-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
-              <h2 id="ca-heading" class="text-sm font-medium text-quartz">Chromatic Aberration</h2>
+              <h2 id="ca-heading" class="text-sm font-medium text-text-light dark:text-quartz">Chromatic Aberration</h2>
               <span
                 class="text-xs font-medium px-2 py-0.5 rounded border
                        {ca.isConsistent
@@ -1949,7 +1949,7 @@
               </span>
               <!-- Informational tag — always shown -->
               <span
-                class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint border border-border-light dark:border-border-dark"
+                class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border border-border-light dark:border-border-dark"
                 title="Chromatic aberration analysis is informational only — results may be unreliable for mobile phone photos processed with computational lens correction"
               >
                 Informational
@@ -1963,20 +1963,20 @@
           <!-- Stats -->
           <div class="grid grid-cols-3 gap-4 text-xs mb-3">
             <div>
-              <span class="text-flint">R² Value</span>
-              <p class="text-quartz tabular-nums">{ca.rSquared.toFixed(4)}</p>
+              <span class="text-flint dark:text-flint-light">R² Value</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">{ca.rSquared.toFixed(4)}</p>
             </div>
             <div>
-              <span class="text-flint">Sample Count</span>
-              <p class="text-quartz tabular-nums">{ca.sampleCount}</p>
+              <span class="text-flint dark:text-flint-light">Sample Count</span>
+              <p class="text-text-light dark:text-quartz tabular-nums">{ca.sampleCount}</p>
             </div>
             <div>
-              <span class="text-flint">Consistent</span>
-              <p class="text-quartz">{ca.isConsistent ? 'Yes' : 'No'}</p>
+              <span class="text-flint dark:text-flint-light">Consistent</span>
+              <p class="text-text-light dark:text-quartz">{ca.isConsistent ? 'Yes' : 'No'}</p>
             </div>
           </div>
 
-          <p class="text-xs text-flint leading-relaxed mb-2">{ca.summary}</p>
+          <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-2">{ca.summary}</p>
 
           <p class="text-xs text-flint/60 italic leading-relaxed">
             Note: this detector is informational only. Results are unreliable for mobile phone
@@ -1992,7 +1992,7 @@
         <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="clip-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
-              <h2 id="clip-heading" class="text-sm font-medium text-quartz">CLIP Classification</h2>
+              <h2 id="clip-heading" class="text-sm font-medium text-text-light dark:text-quartz">CLIP Classification</h2>
               <span
                 class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(clip.score)} {forensicScoreClass(clip.score)}"
               >
@@ -2013,37 +2013,37 @@
 
           <div class="grid grid-cols-2 gap-4 text-xs mb-3">
             <div>
-              <span class="text-flint">Verdict</span>
-              <p class="text-quartz capitalize">{clip.verdictLevel}</p>
+              <span class="text-flint dark:text-flint-light">Verdict</span>
+              <p class="text-text-light dark:text-quartz capitalize">{clip.verdictLevel}</p>
             </div>
             <div>
-              <span class="text-flint">Confidence</span>
-              <p class="text-quartz capitalize">{clip.confidence}</p>
+              <span class="text-flint dark:text-flint-light">Confidence</span>
+              <p class="text-text-light dark:text-quartz capitalize">{clip.confidence}</p>
             </div>
           </div>
 
           <!-- Class probabilities -->
           {#if Object.keys(clip.classProbs).length > 0}
             <div class="mb-3">
-              <p class="text-xs text-flint mb-2">Class probabilities</p>
+              <p class="text-xs text-flint dark:text-flint-light mb-2">Class probabilities</p>
               <div class="space-y-1.5" role="list" aria-label="CLIP class probabilities">
                 {#each Object.entries(clip.classProbs).sort((a, b) => b[1] - a[1]) as [label, prob] (label)}
                   <div class="flex items-center gap-3 text-xs" role="listitem">
-                    <span class="w-32 text-flint capitalize truncate" title={label}>{label}</span>
+                    <span class="w-32 text-flint dark:text-flint-light capitalize truncate" title={label}>{label}</span>
                     <div class="flex-1 h-1.5 rounded-full bg-gray-200 dark:bg-graphite-light overflow-hidden" role="presentation">
                       <div
                         class="h-full rounded-full bg-lapis/60 transition-all duration-300 ease-out"
                         style="width: {Math.round(prob * 100)}%"
                       ></div>
                     </div>
-                    <span class="w-10 tabular-nums text-right text-flint">{Math.round(prob * 100)}%</span>
+                    <span class="w-10 tabular-nums text-right text-flint dark:text-flint-light">{Math.round(prob * 100)}%</span>
                   </div>
                 {/each}
               </div>
             </div>
           {/if}
 
-          <p class="text-xs text-flint leading-relaxed mb-2">{clip.summary}</p>
+          <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-2">{clip.summary}</p>
 
           <div class="text-xs text-amber/80 bg-amber/5 border border-amber/20 rounded-md px-3 py-2">
             This result is experimental. CLIP-based classification has not been independently
@@ -2065,28 +2065,28 @@
               </p>
               {#each df.watermarks.filter(w => w.detected) as wm (wm.watermarkType)}
                 <div class="flex items-center justify-between text-xs mb-1 last:mb-0">
-                  <span class="text-quartz font-mono">
+                  <span class="text-text-light dark:text-quartz font-mono">
                     {wm.watermarkType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                   </span>
-                  <span class="text-flint tabular-nums">
+                  <span class="text-flint dark:text-flint-light tabular-nums">
                     {(wm.confidence * 100).toFixed(0)}% confidence
                   </span>
                 </div>
-                <p class="text-xs text-flint mb-1">{wm.details}</p>
+                <p class="text-xs text-flint dark:text-flint-light mb-1">{wm.details}</p>
               {/each}
             </div>
           {/if}
 
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
-              <h2 id="deepfake-heading" class="text-sm font-medium text-quartz">AI Generation Detection</h2>
+              <h2 id="deepfake-heading" class="text-sm font-medium text-text-light dark:text-quartz">AI Generation Detection</h2>
               <span
                 class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(df.score)} {forensicScoreClass(df.score)}"
               >
                 {df.suspicious ? 'Suspicious' : 'Normal'}
               </span>
               <span
-                class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint border border-border-light dark:border-border-dark"
+                class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border border-border-light dark:border-border-dark"
                 title="Confidence level of the detection"
               >
                 {df.confidence} confidence
@@ -2109,7 +2109,7 @@
           {/if}
 
           <!-- Summary -->
-          <p class="text-xs text-flint mb-3">{df.summary}</p>
+          <p class="text-xs text-flint dark:text-flint-light mb-3">{df.summary}</p>
 
           <!-- Signal list -->
           {#if df.signals.length > 0}
@@ -2130,10 +2130,10 @@
                     ></span>
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center justify-between gap-2">
-                        <span class="font-mono {signal.triggered ? 'text-amber' : 'text-flint'}">{signal.name}</span>
+                        <span class="font-mono {signal.triggered ? 'text-amber' : 'text-flint dark:text-flint-light'}">{signal.name}</span>
                         <span class="text-flint/60 tabular-nums">weight: {signal.weight.toFixed(1)}</span>
                       </div>
-                      <p class="text-flint mt-0.5">{signal.description}</p>
+                      <p class="text-flint dark:text-flint-light mt-0.5">{signal.description}</p>
                     </div>
                   </div>
                 {/each}
@@ -2155,8 +2155,8 @@
         {@const exif = result.exifAnalysis}
         <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="exif-heading">
           <div class="flex items-center justify-between mb-3">
-            <h2 id="exif-heading" class="text-sm font-medium text-quartz">EXIF Analysis</h2>
-            <span class="text-xs text-flint">
+            <h2 id="exif-heading" class="text-sm font-medium text-text-light dark:text-quartz">EXIF Analysis</h2>
+            <span class="text-xs text-flint dark:text-flint-light">
               {exif.fieldsPopulated}/{exif.fieldsTotal} fields populated
             </span>
           </div>
@@ -2181,7 +2181,7 @@
                 style="width: {Math.round((exif.fieldsPopulated / exif.fieldsTotal) * 100)}%"
               ></div>
             </div>
-            <p class="text-xs text-flint mt-1">
+            <p class="text-xs text-flint dark:text-flint-light mt-1">
               {exif.fieldsPopulated} of {exif.fieldsTotal} EXIF fields populated
               {#if !exif.hasExif}
                 <span class="text-amber ml-1">— no EXIF data present</span>
@@ -2212,14 +2212,14 @@
                     {config.label}
                   </span>
                   <div class="min-w-0">
-                    <p class="text-sm text-quartz leading-snug">{finding.title}</p>
-                    <p class="text-xs text-flint mt-0.5 leading-relaxed">{finding.description}</p>
+                    <p class="text-sm text-text-light dark:text-quartz leading-snug">{finding.title}</p>
+                    <p class="text-xs text-flint dark:text-flint-light mt-0.5 leading-relaxed">{finding.description}</p>
                   </div>
                 </div>
               {/each}
             </div>
           {:else}
-            <p class="text-xs text-flint">No anomalies detected in EXIF metadata.</p>
+            <p class="text-xs text-flint dark:text-flint-light">No anomalies detected in EXIF metadata.</p>
           {/if}
         </section>
       {/if}
@@ -2229,7 +2229,7 @@
         {@const manifest = result.c2paManifest}
         <section class="px-5 py-4" aria-labelledby="c2pa-heading">
           <div class="flex items-center gap-3 mb-4">
-            <h2 id="c2pa-heading" class="text-sm font-medium text-quartz">C2PA Credentials</h2>
+            <h2 id="c2pa-heading" class="text-sm font-medium text-text-light dark:text-quartz">C2PA Credentials</h2>
             <span
               class="text-xs font-medium px-2 py-0.5 rounded
                      {manifest.isValid
@@ -2253,33 +2253,33 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm mb-4">
             {#if manifest.claimGenerator}
               <div>
-                <span class="text-xs text-flint uppercase tracking-wide">Claim Generator</span>
-                <p class="text-quartz mt-0.5 break-words">{manifest.claimGenerator}</p>
+                <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Claim Generator</span>
+                <p class="text-text-light dark:text-quartz mt-0.5 break-words">{manifest.claimGenerator}</p>
               </div>
             {/if}
             {#if manifest.format}
               <div>
-                <span class="text-xs text-flint uppercase tracking-wide">Format</span>
-                <p class="text-quartz mt-0.5">{manifest.format}</p>
+                <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Format</span>
+                <p class="text-text-light dark:text-quartz mt-0.5">{manifest.format}</p>
               </div>
             {/if}
             {#if manifest.title}
               <div>
-                <span class="text-xs text-flint uppercase tracking-wide">Title</span>
-                <p class="text-quartz mt-0.5 break-words">{manifest.title}</p>
+                <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Title</span>
+                <p class="text-text-light dark:text-quartz mt-0.5 break-words">{manifest.title}</p>
               </div>
             {/if}
             {#if manifest.signedAt}
               <div>
-                <span class="text-xs text-flint uppercase tracking-wide">Signed At</span>
-                <p class="text-quartz mt-0.5">{formatSignedAt(manifest.signedAt)}</p>
+                <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Signed At</span>
+                <p class="text-text-light dark:text-quartz mt-0.5">{formatSignedAt(manifest.signedAt)}</p>
               </div>
             {/if}
           </div>
 
           {#if manifest.assertions.length > 0}
             <div>
-              <h3 class="text-xs text-flint uppercase tracking-wide mb-2">
+              <h3 class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-2">
                 Assertions
                 <span class="normal-case ml-1 text-flint/70">({manifest.assertions.length})</span>
               </h3>
@@ -2287,7 +2287,7 @@
                 {#each manifest.assertions as assertion (assertion.label)}
                   <div class="bg-gray-100 dark:bg-obsidian/50 rounded-md p-3" role="listitem">
                     <p class="text-xs font-mono text-lapis dark:text-lapis mb-1 break-all">{assertion.label}</p>
-                    <pre class="text-xs text-flint whitespace-pre-wrap break-words leading-relaxed">{assertion.value}</pre>
+                    <pre class="text-xs text-flint dark:text-flint-light whitespace-pre-wrap break-words leading-relaxed">{assertion.value}</pre>
                   </div>
                 {/each}
               </div>
@@ -2298,14 +2298,14 @@
       {:else if checked}
         <section class="px-5 py-4" aria-labelledby="c2pa-heading">
           <div class="flex items-center gap-3 mb-3">
-            <h2 id="c2pa-heading" class="text-sm font-medium text-quartz">C2PA Credentials</h2>
-            <span class="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint border border-border-light dark:border-border-dark">
+            <h2 id="c2pa-heading" class="text-sm font-medium text-text-light dark:text-quartz">C2PA Credentials</h2>
+            <span class="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border border-border-light dark:border-border-dark">
               Not Found
             </span>
           </div>
-          <p class="text-sm text-flint">
+          <p class="text-sm text-flint dark:text-flint-light">
             No C2PA Content Credentials found in
-            <span class="text-quartz">{fileName}</span>.
+            <span class="text-text-light dark:text-quartz">{fileName}</span>.
             This file has not been signed with C2PA provenance data.
           </p>
         </section>
@@ -2324,7 +2324,7 @@
 
     <!-- Pre-verification idle state -->
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-8 text-center">
-      <p class="text-flint text-sm">
+      <p class="text-flint dark:text-flint-light text-sm">
         {#if activeTab === 'file'}
           Drop a file above to analyse its metadata, compression artefacts, and C2PA Content Credentials.
         {:else if activeTab === 'batch'}
@@ -2362,7 +2362,7 @@
             </svg>
           </div>
           <p class="text-sm font-medium text-text-light dark:text-quartz">Report submitted</p>
-          <p class="text-xs text-flint">Thank you. This helps improve detection accuracy.</p>
+          <p class="text-xs text-flint dark:text-flint-light">Thank you. This helps improve detection accuracy.</p>
         </div>
 
       {:else}
@@ -2370,13 +2370,13 @@
         <h2 id="fp-modal-title" class="text-lg font-medium text-text-light dark:text-quartz mb-1">
           Report False Positive
         </h2>
-        <p class="text-sm text-flint mb-5">
+        <p class="text-sm text-flint dark:text-flint-light mb-5">
           If this result appears to be a false positive, let us know why. Reports help calibrate the detection system.
         </p>
 
         <!-- Reason code -->
         <fieldset class="mb-4">
-          <legend class="block text-xs font-medium text-flint mb-2">
+          <legend class="block text-xs font-medium text-flint dark:text-flint-light mb-2">
             Reason <span class="text-cinnabar" aria-hidden="true">*</span>
             <span class="sr-only">(required)</span>
           </legend>
@@ -2403,7 +2403,7 @@
                 />
                 <div class="min-w-0">
                   <span class="text-sm text-text-light dark:text-quartz leading-snug block">{opt.label}</span>
-                  <span class="text-xs text-flint leading-relaxed">{opt.description}</span>
+                  <span class="text-xs text-flint dark:text-flint-light leading-relaxed">{opt.description}</span>
                 </div>
               </label>
             {/each}
@@ -2412,7 +2412,7 @@
 
         <!-- Optional note -->
         <div class="mb-5">
-          <label for="fp-note" class="block text-xs font-medium text-flint mb-1">
+          <label for="fp-note" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
             Additional notes <span class="text-flint/50">(optional)</span>
           </label>
           <textarea
@@ -2430,7 +2430,7 @@
         <!-- Actions -->
         <div class="flex gap-3 justify-end">
           <button
-            class="px-4 py-2.5 min-h-[44px] text-sm text-flint hover:text-text-light dark:hover:text-quartz transition-colors
+            class="px-4 py-2.5 min-h-[44px] text-sm text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
             onclick={() => { showFalsePositiveModal = false; fpReasonNote = ''; fpReasonCode = 'modern_codec'; }}
             disabled={fpSubmitting}
@@ -2466,11 +2466,11 @@
   >
     <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
       <h2 id="report-modal-title" class="text-lg font-medium text-text-light dark:text-quartz mb-1">Export Trust Report</h2>
-      <p class="text-sm text-flint mb-4">
+      <p class="text-sm text-flint dark:text-flint-light mb-4">
         Add an optional analyst note to include in the PDF report.
       </p>
 
-      <label for="analyst-note" class="block text-xs font-medium text-flint mb-1">
+      <label for="analyst-note" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
         Analyst Note <span class="text-flint/50">(optional, max 500 chars)</span>
       </label>
       <textarea
@@ -2488,7 +2488,7 @@
 
       <div class="flex gap-3 justify-end">
         <button
-          class="px-4 py-2.5 min-h-[44px] text-sm text-flint hover:text-text-light dark:hover:text-quartz transition-colors
+          class="px-4 py-2.5 min-h-[44px] text-sm text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           onclick={() => { analystNote = ''; handleExportReport(); }}
           disabled={exportingReport}

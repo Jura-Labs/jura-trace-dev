@@ -166,7 +166,7 @@
     <div class="space-y-4">
 
       <div>
-        <label for="ollama-url" class="block text-sm font-medium text-quartz mb-1">
+        <label for="ollama-url" class="block text-sm font-medium text-text-light dark:text-quartz mb-1">
           Ollama URL
         </label>
         <input
@@ -179,13 +179,13 @@
           autocomplete="off"
           spellcheck={false}
         />
-        <p class="text-xs text-flint mt-1">
+        <p class="text-xs text-flint dark:text-flint-light mt-1">
           Required for auto-cataloguing and claim checking
         </p>
       </div>
 
       <div>
-        <label for="vision-model" class="block text-sm font-medium text-quartz mb-1">
+        <label for="vision-model" class="block text-sm font-medium text-text-light dark:text-quartz mb-1">
           Vision Model
         </label>
         <input
@@ -198,13 +198,13 @@
           autocomplete="off"
           spellcheck={false}
         />
-        <p class="text-xs text-flint mt-1">
+        <p class="text-xs text-flint dark:text-flint-light mt-1">
           Used for image description and visual analysis
         </p>
       </div>
 
       <div>
-        <label for="text-model" class="block text-sm font-medium text-quartz mb-1">
+        <label for="text-model" class="block text-sm font-medium text-text-light dark:text-quartz mb-1">
           Text Model
         </label>
         <input
@@ -217,7 +217,7 @@
           autocomplete="off"
           spellcheck={false}
         />
-        <p class="text-xs text-flint mt-1">
+        <p class="text-xs text-flint dark:text-flint-light mt-1">
           Used for claim verification and metadata summarisation
         </p>
       </div>
@@ -254,7 +254,7 @@
     <div class="flex items-center justify-between mb-4">
       <div>
         <h2 id="profiles-heading" class="text-lg font-heading text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Deployment Profiles</h2>
-        <p class="text-xs text-flint mt-0.5">
+        <p class="text-xs text-flint dark:text-flint-light mt-0.5">
           Save the current Ollama settings as a named profile to switch between environments quickly.
         </p>
       </div>
@@ -267,8 +267,8 @@
           class="shrink-0 ml-4 px-4 py-2 text-sm font-medium rounded border transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
                  {atProfileLimit
-                   ? 'border-graphite-light text-flint cursor-not-allowed opacity-50'
-                   : 'border-lapis/60 text-lapis hover:bg-lapis/10 hover:border-lapis'}"
+                   ? 'border-graphite-light text-flint dark:text-flint-light cursor-not-allowed opacity-50'
+                   : 'border-lapis/60 text-lapis dark:text-lapis-light hover:bg-lapis/10 hover:border-lapis'}"
         >
           Save current settings as profile
         </button>
@@ -315,7 +315,7 @@
                    {nameError ? 'border-cinnabar' : 'border-border-light dark:border-border-dark'}"
           />
           {#if nameError}
-            <p id="profile-name-error" class="text-xs text-cinnabar-light" role="alert">
+            <p id="profile-name-error" class="text-xs text-cinnabar dark:text-cinnabar-light" role="alert">
               {nameError}
             </p>
           {:else}
@@ -333,7 +333,7 @@
             </button>
             <button
               onclick={handleCancelSave}
-              class="px-4 py-1.5 text-sm font-medium rounded border border-graphite-light text-flint hover:text-quartz hover:border-lapis/50 transition-colors
+              class="px-4 py-1.5 text-sm font-medium rounded border border-graphite-light text-flint hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian"
             >
               Cancel
@@ -345,7 +345,7 @@
 
     <!-- Profile list -->
     {#if profiles.length === 0}
-      <p class="text-sm text-flint py-4 text-center border border-dashed border-border-light dark:border-border-dark rounded-lg">
+      <p class="text-sm text-flint dark:text-flint-light py-4 text-center border border-dashed border-border-light dark:border-border-dark rounded-lg">
         No profiles saved yet.
       </p>
     {:else}
@@ -367,7 +367,7 @@
             <div class="flex items-center justify-between gap-3 px-4 py-3">
               <div class="min-w-0">
                 <p class="text-sm font-medium text-text-light dark:text-quartz truncate">{profile.name}</p>
-                <p class="text-xs text-flint mt-0.5 truncate">
+                <p class="text-xs text-flint dark:text-flint-light mt-0.5 truncate">
                   Created {formatProfileDate(profile.createdAt)}
                   &mdash; {profile.ollamaUrl}
                 </p>
@@ -386,7 +386,7 @@
                   <button
                     onclick={() => handleLoadProfile(profile)}
                     aria-label="Load profile {profile.name}"
-                    class="px-3 py-1.5 text-xs font-medium rounded border border-lapis/50 text-lapis hover:bg-lapis/10 hover:border-lapis transition-colors
+                    class="px-3 py-1.5 text-xs font-medium rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 hover:border-lapis transition-colors
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian"
                   >
                     Load
@@ -397,7 +397,7 @@
                   <button
                     onclick={() => handleRequestDelete(profile.id)}
                     aria-label="Delete profile {profile.name}"
-                    class="px-3 py-1.5 text-xs font-medium rounded border border-cinnabar/30 text-cinnabar-light hover:bg-cinnabar/10 hover:border-cinnabar/60 transition-colors
+                    class="px-3 py-1.5 text-xs font-medium rounded border border-cinnabar/30 text-cinnabar dark:text-cinnabar-light hover:bg-cinnabar/10 hover:border-cinnabar/60 transition-colors
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian"
                   >
                     Delete
@@ -413,7 +413,7 @@
                 role="region"
                 aria-label="Confirm deletion of {profile.name}"
               >
-                <p class="text-xs text-cinnabar-light flex-1">
+                <p class="text-xs text-cinnabar dark:text-cinnabar-light flex-1">
                   Delete "{profile.name}"? This cannot be undone.
                 </p>
                 <button
@@ -426,7 +426,7 @@
                 </button>
                 <button
                   onclick={handleCancelDelete}
-                  class="px-3 py-1.5 text-xs font-medium rounded border border-graphite-light text-flint hover:text-quartz hover:border-lapis/50 transition-colors
+                  class="px-3 py-1.5 text-xs font-medium rounded border border-graphite-light text-flint hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian"
                 >
                   Cancel
@@ -457,7 +457,7 @@
     <div class="flex items-center justify-between mb-4">
       <h2 id="status-heading" class="text-lg font-heading text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Service Status</h2>
       <button
-        class="text-xs px-3 py-2.5 min-h-[44px] rounded border border-border-light dark:border-border-dark text-flint hover:text-text-light dark:hover:text-quartz hover:border-lapis/50
+        class="text-xs px-3 py-2.5 min-h-[44px] rounded border border-border-light dark:border-border-dark text-flint hover:text-text-light dark:hover:text-text-light dark:hover:text-quartz hover:border-lapis/50
                transition-colors disabled:opacity-50
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
         onclick={refreshHealth}
@@ -486,29 +486,29 @@
             class="text-xs px-2 py-0.5 rounded-full
                    {sidecarOnline
                      ? 'bg-malachite/15 text-malachite-light border border-malachite/20'
-                     : 'bg-cinnabar/10 text-cinnabar-light border border-cinnabar/20'}"
+                     : 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light border border-cinnabar/20'}"
           >
             {sidecarOnline ? 'Online' : 'Offline'}
           </span>
         </div>
-        <p class="text-xs text-flint mb-2">http://127.0.0.1:8200</p>
+        <p class="text-xs text-flint dark:text-flint-light mb-2">http://127.0.0.1:8200</p>
 
         {#if sidecarOnline && sidecarHealth}
-          <p class="text-xs text-flint mb-2">Version: <span class="text-quartz">{sidecarHealth.version}</span></p>
+          <p class="text-xs text-flint dark:text-flint-light mb-2">Version: <span class="text-text-light dark:text-quartz">{sidecarHealth.version}</span></p>
           <div class="flex flex-wrap gap-1.5">
             {#each Object.entries(sidecarHealth.capabilities) as [cap, enabled]}
               <span
                 class="text-xs px-2 py-0.5 rounded
                        {enabled
                          ? 'bg-malachite/10 text-malachite-light border border-malachite/20'
-                         : 'bg-graphite-light text-flint border border-graphite-light'}"
+                         : 'bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border border-border-light dark:border-graphite-light'}"
               >
                 {cap}
               </span>
             {/each}
           </div>
         {:else}
-          <div class="mt-2 text-xs text-flint">
+          <div class="mt-2 text-xs text-flint dark:text-flint-light">
             <p class="mb-1">Start the analysis services with:</p>
             <code class="block font-mono text-xs bg-gray-100 dark:bg-obsidian px-2 py-1 rounded text-text-light dark:text-quartz">
               cd sidecar && uvicorn main:app --host 127.0.0.1 --port 8200
@@ -525,25 +525,25 @@
             class="text-xs px-2 py-0.5 rounded-full
                    {ollamaOnline
                      ? 'bg-malachite/15 text-malachite-light border border-malachite/20'
-                     : 'bg-graphite-light text-flint border border-graphite-light'}"
+                     : 'bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border border-border-light dark:border-graphite-light'}"
           >
             {ollamaOnline ? 'Connected' : 'Offline'}
           </span>
         </div>
-        <p class="text-xs text-flint mb-2">{ollamaUrl}</p>
+        <p class="text-xs text-flint dark:text-flint-light mb-2">{ollamaUrl}</p>
 
         {#if ollamaOnline && sidecarHealth?.ollama}
-          <p class="text-xs text-flint">
-            Status: <span class="text-quartz">{sidecarHealth.ollama}</span>
+          <p class="text-xs text-flint dark:text-flint-light">
+            Status: <span class="text-text-light dark:text-quartz">{sidecarHealth.ollama}</span>
           </p>
         {:else}
-          <p class="text-xs text-flint">
+          <p class="text-xs text-flint dark:text-flint-light">
             Required for auto-cataloguing and claim checking. Install from
             <a
               href="https://ollama.com"
               target="_blank"
               rel="noopener noreferrer"
-              class="text-lapis hover:text-lapis-dark dark:hover:text-lapis-light underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+              class="text-lapis dark:text-lapis-light hover:text-lapis-dark dark:hover:text-lapis-light underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
             >ollama.com</a>.
           </p>
         {/if}
@@ -579,7 +579,7 @@
           Browse
         </button>
       </div>
-      <p class="text-xs text-flint mt-1">
+      <p class="text-xs text-flint dark:text-flint-light mt-1">
         Where assets, fingerprints, and verification data are stored
       </p>
     </div>
@@ -592,17 +592,17 @@
   >
     <h2 id="about-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4" style="font-family: Georgia, 'Times New Roman', serif;">About</h2>
     <dl class="grid grid-cols-[max-content_1fr] gap-x-8 gap-y-2 text-sm max-w-md">
-      <dt class="text-flint">Version</dt>
+      <dt class="text-flint dark:text-flint-light">Version</dt>
       <dd class="text-text-light dark:text-quartz">{appVersion}</dd>
-      <dt class="text-flint">Licence</dt>
+      <dt class="text-flint dark:text-flint-light">Licence</dt>
       <dd class="text-text-light dark:text-quartz">PolyForm Noncommercial 1.0.0</dd>
-      <dt class="text-flint">Developer</dt>
+      <dt class="text-flint dark:text-flint-light">Developer</dt>
       <dd class="text-text-light dark:text-quartz">
         <a
           href="https://juralabs.org"
           target="_blank"
           rel="noopener noreferrer"
-          class="text-lapis hover:text-lapis-dark dark:hover:text-lapis-light underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          class="text-lapis dark:text-lapis-light hover:text-lapis-dark dark:hover:text-lapis-light underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
         >Juralabs CIC</a>
       </dd>
     </dl>

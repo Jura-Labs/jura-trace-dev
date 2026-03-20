@@ -78,11 +78,11 @@
            hover:bg-graphite/40 transition-colors duration-150"
     aria-label="How was this analysed? — toggle methodology details"
   >
-    <span class="text-sm font-medium text-flint">How was this analysed?</span>
+    <span class="text-sm font-medium text-flint dark:text-flint-light">How was this analysed?</span>
 
     <!-- Chevron rotates when open — group-open is set by <details> -->
     <svg
-      class="w-4 h-4 text-flint flex-shrink-0 transition-transform duration-200 motion-safe:group-open:rotate-180"
+      class="w-4 h-4 text-flint dark:text-flint-light flex-shrink-0 transition-transform duration-200 motion-safe:group-open:rotate-180"
       fill="none"
       stroke="currentColor"
       viewBox="0 0 24 24"
@@ -97,7 +97,7 @@
 
     <!-- ── Section: Pipeline Stages ─────────────────────────────────── -->
     <section class="px-4 py-4" aria-labelledby="methodology-stages-heading">
-      <h3 id="methodology-stages-heading" class="text-xs text-flint uppercase tracking-wide mb-3">
+      <h3 id="methodology-stages-heading" class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-3">
         Pipeline Stages
       </h3>
 
@@ -140,7 +140,7 @@
                   {stage.ran ? 'Ran' : 'Skipped'}
                 </span>
               </div>
-              <p class="text-xs text-flint mt-0.5 leading-relaxed">{stage.description}</p>
+              <p class="text-xs text-flint dark:text-flint-light mt-0.5 leading-relaxed">{stage.description}</p>
             </div>
           </div>
         {/each}
@@ -150,10 +150,10 @@
     <!-- ── Section: Deepfake Signals (conditional) ───────────────────── -->
     {#if result.deepfakeResult && result.deepfakeResult.signals.length > 0}
       <section class="px-4 py-4" aria-labelledby="methodology-signals-heading">
-        <h3 id="methodology-signals-heading" class="text-xs text-flint uppercase tracking-wide mb-1">
+        <h3 id="methodology-signals-heading" class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-1">
           AI Generation Signals
         </h3>
-        <p class="text-xs text-flint mb-3">
+        <p class="text-xs text-flint dark:text-flint-light mb-3">
           {triggeredSignalCount} of {result.deepfakeResult.signals.length} signals triggered in this analysis.
           Each signal contributes a weighted score to the overall AI Generation Detection result.
         </p>
@@ -173,7 +173,7 @@
                     class="flex-shrink-0 w-1.5 h-1.5 rounded-full {signal.triggered ? 'bg-amber' : 'bg-flint/30'}"
                     aria-label="{signal.triggered ? 'Triggered' : 'Not triggered'}"
                   ></span>
-                  <span class="font-mono {signal.triggered ? 'text-amber' : 'text-flint'} truncate">
+                  <span class="font-mono {signal.triggered ? 'text-amber' : 'text-flint dark:text-flint-light'} truncate">
                     {signal.name}
                   </span>
                 </div>
@@ -191,7 +191,7 @@
                   </span>
                 </div>
               </div>
-              <p class="text-flint leading-relaxed pl-3.5">{signal.description}</p>
+              <p class="text-flint dark:text-flint-light leading-relaxed pl-3.5">{signal.description}</p>
             </div>
           {/each}
         </div>
@@ -200,23 +200,23 @@
 
     <!-- ── Section: Version ──────────────────────────────────────────── -->
     <section class="px-4 py-4" aria-labelledby="methodology-version-heading">
-      <h3 id="methodology-version-heading" class="text-xs text-flint uppercase tracking-wide mb-2">
+      <h3 id="methodology-version-heading" class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-2">
         Version
       </h3>
 
       <div class="space-y-1 text-xs">
         <div class="flex items-center justify-between gap-4">
-          <span class="text-flint">Jura Trace</span>
+          <span class="text-flint dark:text-flint-light">Jura Trace</span>
           <span class="text-quartz font-mono tabular-nums">v0.2.0-dev</span>
         </div>
         {#if sidecarVersion}
           <div class="flex items-center justify-between gap-4">
-            <span class="text-flint">ML Sidecar</span>
+            <span class="text-flint dark:text-flint-light">ML Sidecar</span>
             <span class="text-quartz font-mono tabular-nums">v{sidecarVersion}</span>
           </div>
         {:else}
           <div class="flex items-center justify-between gap-4">
-            <span class="text-flint">ML Sidecar</span>
+            <span class="text-flint dark:text-flint-light">ML Sidecar</span>
             <span class="text-flint/50 font-mono">offline</span>
           </div>
         {/if}
@@ -225,10 +225,10 @@
 
     <!-- ── Section: Disclaimer ───────────────────────────────────────── -->
     <section class="px-4 py-4" aria-labelledby="methodology-disclaimer-heading">
-      <h3 id="methodology-disclaimer-heading" class="text-xs text-flint uppercase tracking-wide mb-2">
+      <h3 id="methodology-disclaimer-heading" class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-2">
         What This Does and Does Not Prove
       </h3>
-      <p class="text-xs text-flint leading-relaxed">
+      <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
         This analysis uses statistical and structural methods to assess content integrity. It does not
         constitute definitive proof of authenticity or manipulation. Individual signals may produce
         false positives or false negatives depending on the content type, compression history, and
