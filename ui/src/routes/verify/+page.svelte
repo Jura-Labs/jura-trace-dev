@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
-  import type { VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult } from '$lib/types';
+  import type { VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult } from '$lib/types';
   import VerdictSummary from '$lib/components/VerdictSummary.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
   import InspectionChecklist from '$lib/components/InspectionChecklist.svelte';
@@ -102,6 +102,12 @@
 
   // ── Lifecycle ─────────────────────────────────────────────────────
   onMount(() => {
+    // Restore persisted investigation mode
+    const savedMode = localStorage.getItem('jura-verify-mode');
+    if (savedMode === 'standard' || savedMode === 'deep' || savedMode === 'archival') {
+      verifyMode = savedMode;
+    }
+
     // Async init — fire-and-forget; cleanup is returned synchronously below
     (async () => {
       sidecarHealth = await checkSidecarHealth();
@@ -589,7 +595,7 @@
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis"
             role="radio"
             aria-checked={verifyMode === opt.mode}
-            onclick={() => { verifyMode = opt.mode; }}
+            onclick={() => { verifyMode = opt.mode; localStorage.setItem('jura-verify-mode', opt.mode); }}
             title={opt.title}
           >
             {opt.label}
@@ -945,7 +951,23 @@
             </div>
           </div>
           <div class="min-w-0">
-            <p class="text-sm text-text-light dark:text-quartz truncate" title={fileName ?? undefined}>{fileName}</p>
+            <div class="flex items-center gap-2 flex-wrap">
+              <p class="text-sm text-text-light dark:text-quartz truncate" title={fileName ?? undefined}>{fileName}</p>
+              {#if result.mode}
+                <span
+                  class="flex-shrink-0 text-xs px-2 py-0.5 rounded border font-medium
+                         {result.mode === 'archival'
+                           ? 'bg-lapis/15 text-lapis dark:text-lapis-light border-lapis/30'
+                           : result.mode === 'deep'
+                             ? 'bg-lapis/10 text-lapis dark:text-lapis-light border-lapis/20'
+                             : 'bg-graphite text-flint border-graphite-light dark:border-graphite-light'}"
+                  title="Investigation mode used for this analysis"
+                  aria-label="Investigation mode: {result.mode}"
+                >
+                  {result.mode.charAt(0).toUpperCase() + result.mode.slice(1)}
+                </span>
+              {/if}
+            </div>
             <p class="text-xs text-flint mt-0.5">
               {result.contentType}
               {#if result.sourceType === 'url'}
@@ -972,6 +994,71 @@
               {flag}
             </span>
           {/each}
+        </div>
+      {/if}
+
+      <!-- ── RAG Claim Verdict ─────────────────────────────────────── -->
+      {#if result.claimVerdict || result.ragClaimResult}
+        {@const rag = result.ragClaimResult}
+        {@const verdict = result.claimVerdict ?? rag?.verdict}
+        <div
+          class="px-5 py-3 border-b border-border-light dark:border-graphite-light
+                 {verdict === 'supported'
+                   ? 'bg-malachite/5'
+                   : verdict === 'disputed'
+                     ? 'bg-cinnabar/5'
+                     : 'bg-amber/5'}"
+          aria-label="Claim verification verdict"
+        >
+          <div class="flex items-center gap-3 mb-1.5">
+            <span class="text-xs font-medium uppercase tracking-wide text-flint">Claim Verification</span>
+            <span
+              class="text-xs font-medium px-2 py-0.5 rounded border
+                     {verdict === 'supported'
+                       ? 'bg-malachite/15 text-malachite border-malachite/30'
+                       : verdict === 'disputed'
+                         ? 'bg-cinnabar/15 text-cinnabar border-cinnabar/30'
+                         : verdict === 'mixed'
+                           ? 'bg-amber/15 text-amber border-amber/30'
+                           : 'bg-graphite text-flint border-graphite-light'}"
+            >
+              {verdict === 'supported' ? 'Supported'
+                : verdict === 'disputed' ? 'Disputed'
+                : verdict === 'mixed' ? 'Mixed'
+                : 'Unverified'}
+            </span>
+            {#if rag?.confidence != null}
+              <span class="text-xs text-flint tabular-nums">
+                {Math.round(rag.confidence * 100)}% confidence
+              </span>
+            {/if}
+          </div>
+          {#if rag?.explanation}
+            <p class="text-xs text-flint leading-relaxed">{rag.explanation}</p>
+          {/if}
+          {#if rag?.sources && rag.sources.length > 0}
+            <details class="group mt-2">
+              <summary class="text-xs text-lapis dark:text-lapis-light cursor-pointer hover:opacity-80 transition-opacity list-none flex items-center gap-1.5">
+                <svg
+                  class="w-3 h-3 transition-transform duration-200 motion-safe:group-open:rotate-90"
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+                {rag.sources.length} source{rag.sources.length === 1 ? '' : 's'} consulted
+              </summary>
+              <div class="mt-2 space-y-1.5" role="list" aria-label="RAG verification sources">
+                {#each rag.sources as source, i (i)}
+                  <div class="rounded-md px-3 py-2 bg-gray-50 dark:bg-obsidian/50 border border-border-light dark:border-graphite text-xs" role="listitem">
+                    <p class="font-medium text-quartz">{source.title}</p>
+                    <p class="text-flint mt-0.5 leading-relaxed">{source.excerpt}</p>
+                    <p class="text-flint/50 tabular-nums mt-0.5">Relevance: {Math.round(source.relevance * 100)}%</p>
+                  </div>
+                {/each}
+              </div>
+            </details>
+          {/if}
         </div>
       {/if}
 
@@ -1724,6 +1811,245 @@
             </div>
           {/if}
 
+        </section>
+      {/if}
+
+      <!-- ── NPR Analysis ──────────────────────────────────────────── -->
+      {#if result.nprResult}
+        {@const npr = result.nprResult}
+        <section class="px-5 py-4 border-b border-border-light dark:border-graphite-light" aria-labelledby="npr-heading">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <h2 id="npr-heading" class="text-sm font-medium text-quartz">Neighbouring Pixel Relationships</h2>
+              <span
+                class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(npr.score)} {forensicScoreClass(npr.score)}"
+              >
+                {npr.suspicious ? 'Suspicious' : 'Clean'}
+              </span>
+            </div>
+            <span class="text-xs tabular-nums {forensicScoreClass(npr.score)}">
+              Score: {(npr.score * 100).toFixed(1)}%
+            </span>
+          </div>
+
+          <!-- NPR heatmap -->
+          {#if npr.heatmapBase64}
+            <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-graphite-light bg-gray-100 dark:bg-obsidian">
+              <img
+                src="data:image/png;base64,{npr.heatmapBase64}"
+                alt="Neighbouring pixel relationship heatmap showing local correlation anomalies"
+                class="w-full max-h-64 object-contain"
+              />
+            </div>
+          {/if}
+
+          <!-- Stats -->
+          <div class="grid grid-cols-3 gap-4 text-xs mb-3">
+            <div>
+              <span class="text-flint">H-V Correlation</span>
+              <p class="text-quartz tabular-nums">{npr.hvCorrelation.toFixed(4)}</p>
+            </div>
+            <div>
+              <span class="text-flint">Diff Variance Ratio</span>
+              <p class="text-quartz tabular-nums">{npr.diffVarianceRatio.toFixed(4)}</p>
+            </div>
+            <div>
+              <span class="text-flint">HF Energy Ratio</span>
+              <p class="text-quartz tabular-nums">{npr.hfEnergyRatio.toFixed(4)}</p>
+            </div>
+          </div>
+
+          <p class="text-xs text-flint leading-relaxed">{npr.summary}</p>
+
+          {#if npr.suspicious}
+            <div class="mt-3 text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+              Anomalous pixel neighbourhood correlation detected. This pattern can result from local
+              resampling, inpainting, or region insertion that disrupts the natural statistical
+              relationship between adjacent pixels.
+            </div>
+          {/if}
+        </section>
+      {/if}
+
+      <!-- ── JPEG Ghost Detection ───────────────────────────────────── -->
+      {#if result.jpegGhostResult}
+        {@const jg = result.jpegGhostResult}
+        <section class="px-5 py-4 border-b border-border-light dark:border-graphite-light" aria-labelledby="jpegGhost-heading">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <h2 id="jpegGhost-heading" class="text-sm font-medium text-quartz">JPEG Ghost Detection</h2>
+              <span
+                class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(jg.score)} {forensicScoreClass(jg.score)}"
+              >
+                {jg.suspicious ? 'Suspicious' : 'Clean'}
+              </span>
+            </div>
+            <span class="text-xs tabular-nums {forensicScoreClass(jg.score)}">
+              Score: {(jg.score * 100).toFixed(1)}%
+            </span>
+          </div>
+
+          <!-- JPEG Ghost heatmap -->
+          {#if jg.heatmapBase64}
+            <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-graphite-light bg-gray-100 dark:bg-obsidian">
+              <img
+                src="data:image/png;base64,{jg.heatmapBase64}"
+                alt="JPEG ghost heatmap showing blocks with mismatched compression quality history"
+                class="w-full max-h-64 object-contain"
+              />
+            </div>
+          {/if}
+
+          <!-- Stats -->
+          <div class="grid grid-cols-2 gap-4 text-xs mb-3">
+            <div>
+              <span class="text-flint">Dominant Ghost Quality</span>
+              <p class="text-quartz tabular-nums">Q{jg.ghostQuality}</p>
+            </div>
+            <div>
+              <span class="text-flint">Quality Variance</span>
+              <p class="text-quartz tabular-nums">{jg.qualityVariance.toFixed(3)}</p>
+            </div>
+            <div>
+              <span class="text-flint">Deviating Blocks</span>
+              <p class="text-quartz tabular-nums">{jg.deviatingBlocks} / {jg.totalBlocks}</p>
+            </div>
+            <div>
+              <span class="text-flint">Total Blocks</span>
+              <p class="text-quartz tabular-nums">{jg.totalBlocks}</p>
+            </div>
+          </div>
+
+          <p class="text-xs text-flint leading-relaxed">{jg.summary}</p>
+
+          {#if jg.suspicious}
+            <div class="mt-3 text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+              Blocks with different JPEG compression histories detected. This is a marker of splice
+              forgery — regions from a differently-compressed source image leave a ghost artefact
+              pattern when re-compressed at the target quality level.
+            </div>
+          {/if}
+        </section>
+      {/if}
+
+      <!-- ── Chromatic Aberration Analysis ─────────────────────────── -->
+      {#if result.caResult}
+        {@const ca = result.caResult}
+        <section class="px-5 py-4 border-b border-border-light dark:border-graphite-light" aria-labelledby="ca-heading">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <h2 id="ca-heading" class="text-sm font-medium text-quartz">Chromatic Aberration</h2>
+              <span
+                class="text-xs font-medium px-2 py-0.5 rounded border
+                       {ca.isConsistent
+                         ? 'bg-malachite/15 border-malachite/20 text-malachite'
+                         : 'bg-amber/15 border-amber/20 text-amber'}"
+              >
+                {ca.isConsistent ? 'Consistent' : 'Inconsistent'}
+              </span>
+              <!-- Informational tag — always shown -->
+              <span
+                class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint border border-border-light dark:border-graphite-light"
+                title="Chromatic aberration analysis is informational only — results may be unreliable for mobile phone photos processed with computational lens correction"
+              >
+                Informational
+              </span>
+            </div>
+            <span class="text-xs tabular-nums {forensicScoreClass(ca.score)}">
+              Score: {(ca.score * 100).toFixed(1)}%
+            </span>
+          </div>
+
+          <!-- Stats -->
+          <div class="grid grid-cols-3 gap-4 text-xs mb-3">
+            <div>
+              <span class="text-flint">R² Value</span>
+              <p class="text-quartz tabular-nums">{ca.rSquared.toFixed(4)}</p>
+            </div>
+            <div>
+              <span class="text-flint">Sample Count</span>
+              <p class="text-quartz tabular-nums">{ca.sampleCount}</p>
+            </div>
+            <div>
+              <span class="text-flint">Consistent</span>
+              <p class="text-quartz">{ca.isConsistent ? 'Yes' : 'No'}</p>
+            </div>
+          </div>
+
+          <p class="text-xs text-flint leading-relaxed mb-2">{ca.summary}</p>
+
+          <p class="text-xs text-flint/60 italic leading-relaxed">
+            Note: this detector is informational only. Results are unreliable for mobile phone
+            photos processed with computational lens correction (iPhone, Pixel, Samsung), HDR
+            composites, or images that have been resized or cropped.
+          </p>
+        </section>
+      {/if}
+
+      <!-- ── CLIP Detection ─────────────────────────────────────────── -->
+      {#if result.clipResult}
+        {@const clip = result.clipResult}
+        <section class="px-5 py-4 border-b border-border-light dark:border-graphite-light" aria-labelledby="clip-heading">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <h2 id="clip-heading" class="text-sm font-medium text-quartz">CLIP Classification</h2>
+              <span
+                class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(clip.score)} {forensicScoreClass(clip.score)}"
+              >
+                {clip.verdictLevel === 'authentic' ? 'Authentic' : clip.verdictLevel === 'synthetic' ? 'Synthetic' : 'Inconclusive'}
+              </span>
+              <!-- Experimental badge -->
+              <span
+                class="text-xs font-medium px-2 py-0.5 rounded border bg-amber/10 text-amber border-amber/30"
+                title="CLIP-based AI classification is experimental. Do not use as sole evidence."
+              >
+                Experimental
+              </span>
+            </div>
+            <span class="text-xs tabular-nums {forensicScoreClass(clip.score)}">
+              Score: {(clip.score * 100).toFixed(1)}%
+            </span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 text-xs mb-3">
+            <div>
+              <span class="text-flint">Verdict</span>
+              <p class="text-quartz capitalize">{clip.verdictLevel}</p>
+            </div>
+            <div>
+              <span class="text-flint">Confidence</span>
+              <p class="text-quartz capitalize">{clip.confidence}</p>
+            </div>
+          </div>
+
+          <!-- Class probabilities -->
+          {#if Object.keys(clip.classProbs).length > 0}
+            <div class="mb-3">
+              <p class="text-xs text-flint mb-2">Class probabilities</p>
+              <div class="space-y-1.5" role="list" aria-label="CLIP class probabilities">
+                {#each Object.entries(clip.classProbs).sort((a, b) => b[1] - a[1]) as [label, prob] (label)}
+                  <div class="flex items-center gap-3 text-xs" role="listitem">
+                    <span class="w-32 text-flint capitalize truncate" title={label}>{label}</span>
+                    <div class="flex-1 h-1.5 rounded-full bg-gray-200 dark:bg-graphite-light overflow-hidden" role="presentation">
+                      <div
+                        class="h-full rounded-full bg-lapis/60 transition-all duration-300 ease-out"
+                        style="width: {Math.round(prob * 100)}%"
+                      ></div>
+                    </div>
+                    <span class="w-10 tabular-nums text-right text-flint">{Math.round(prob * 100)}%</span>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          <p class="text-xs text-flint leading-relaxed mb-2">{clip.summary}</p>
+
+          <div class="text-xs text-amber/80 bg-amber/5 border border-amber/20 rounded-md px-3 py-2">
+            This result is experimental. CLIP-based classification has not been independently
+            validated for forensic use. Treat it as a supporting signal only, not as evidence
+            of manipulation or AI generation.
+          </div>
         </section>
       {/if}
 

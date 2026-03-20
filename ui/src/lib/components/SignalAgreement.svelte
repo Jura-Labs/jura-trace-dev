@@ -112,6 +112,42 @@
           : 0.3
         : null,
     },
+
+    // NPR (Neighbouring Pixel Relationships) — deep/archival mode only
+    {
+      id: 'npr',
+      detector: 'Pixel Relationships (NPR)',
+      outcome: result.nprResult == null
+        ? 'not_run'
+        : result.nprResult.suspicious
+          ? 'suspicious'
+          : 'clean',
+      confidence: result.nprResult != null ? 1 - result.nprResult.score : null,
+    },
+
+    // JPEG Ghost Detection — deep/archival mode only
+    {
+      id: 'jpegGhost',
+      detector: 'JPEG Ghost',
+      outcome: result.jpegGhostResult == null
+        ? 'not_run'
+        : result.jpegGhostResult.suspicious
+          ? 'suspicious'
+          : 'clean',
+      confidence: result.jpegGhostResult != null ? 1 - result.jpegGhostResult.score : null,
+    },
+
+    // Chromatic Aberration — deep/archival mode only; informational
+    {
+      id: 'ca',
+      detector: 'Chromatic Aberration *',
+      outcome: result.caResult == null
+        ? 'not_run'
+        : result.caResult.suspicious
+          ? 'concerns'
+          : 'clean',
+      confidence: result.caResult != null ? 1 - result.caResult.score : null,
+    },
   ]);
 
   // ── Disagreement detection ───────────────────────────────────────────────
@@ -302,7 +338,7 @@
                border-l-2 transition-colors duration-150
                {rowBorderClass(row)}"
         role="listitem"
-        aria-label="{row.detector}: {outcomeLabel(row.outcome)}{row.confidence != null ? ', confidence ' + confidencePercent(row.confidence) + ' per cent' : ''}"
+        aria-label="{row.detector.replace(' *', '')}: {outcomeLabel(row.outcome)}{row.confidence != null ? ', confidence ' + confidencePercent(row.confidence) + ' per cent' : ''}"
       >
 
         <!-- Detector name -->
@@ -350,5 +386,12 @@
       </li>
     {/each}
   </ul>
+
+  <!-- CA footnote — only shown when the CA row ran -->
+  {#if result.caResult != null}
+    <p class="px-4 py-2 text-xs text-flint/50 border-t border-graphite/60 leading-relaxed">
+      * Chromatic Aberration is informational only — results may be unreliable for mobile photos with computational lens correction.
+    </p>
+  {/if}
 
 </div>

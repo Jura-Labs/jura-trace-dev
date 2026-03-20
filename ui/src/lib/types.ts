@@ -257,8 +257,34 @@ export interface SidecarHealth {
   ollama: string | null;
 }
 
+/** CLIP-based AI classification result from the ML sidecar */
+export interface ClipDetectionResult {
+  score: number;
+  verdictLevel: VerdictLevel;
+  confidence: string;
+  classProbs: Record<string, number>;
+  summary: string;
+}
+
+/** RAG claim verification source reference */
+export interface ClaimSource {
+  title: string;
+  excerpt: string;
+  relevance: number;
+}
+
+/** RAG claim verification result */
+export interface RagClaimResult {
+  verdict: ClaimVerdict;
+  confidence: number;
+  explanation: string;
+  sources: ClaimSource[];
+}
+
 /** Verification result from the VERIFY pipeline */
 export interface VerificationResult {
+  /** Investigation mode used: 'standard' | 'deep' | 'archival' */
+  mode?: string;
   sourceType: string;
   contentType: string;
   elaScore?: number;
@@ -268,6 +294,7 @@ export interface VerificationResult {
   c2paValid?: boolean;
   metadataFlags: string[];
   claimVerdict?: ClaimVerdict;
+  ragClaimResult?: RagClaimResult;
   overallTrust: number;
   exifAnalysis?: ExifAnalysis;
   c2paManifest?: ManifestInfo;
@@ -278,6 +305,7 @@ export interface VerificationResult {
   nprResult?: NprResult;
   jpegGhostResult?: JpegGhostResult;
   caResult?: CaResult;
+  clipResult?: ClipDetectionResult;
   segmentedElaResult?: SegmentedElaResult | null;
   shadowConsistencyResult?: ShadowConsistencyResult | null;
   colourTemperatureResult?: ColourTemperatureResult | null;
