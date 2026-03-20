@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — TF-IDF Knowledge Retriever.
+Jura Trace Sidecar — TF-IDF Knowledge Retriever.
 
 Loads plain-text documents from the knowledge_base/ directory, splits them
 into paragraphs, builds a TF-IDF index, and retrieves the most relevant

@@ -1,13 +1,13 @@
 [package]
-name = "jura-archive"
+name = "jura-trace"
 version = "0.1.0"
-description = "Local-first content protection and verification"
+description = "Local-first content verification and protection. In a world of synthetic media, verification matters."
 authors = ["Juralabs CIC"]
 edition = "2021"
 rust-version = "1.88"
 
 [lib]
-name = "jura_archive_lib"
+name = "jura_trace_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [build-dependencies]

@@ -27,7 +27,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: context.ref.replace('refs/tags/', ''),
-              name: `Jura Archive ${context.ref.replace('refs/tags/', '')}`,
+              name: `Jura Trace ${context.ref.replace('refs/tags/', '')}`,
               draft: true,
               prerelease: context.ref.includes('-rc') || context.ref.includes('-beta'),
             });

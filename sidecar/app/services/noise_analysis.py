@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — Block-wise Noise Variance Analysis.
+Jura Trace Sidecar — Block-wise Noise Variance Analysis.
 
 Detects inconsistent noise patterns across image blocks that may indicate
 localised manipulation. Authentic photographs have relatively uniform

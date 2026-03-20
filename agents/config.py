@@ -1,4 +1,4 @@
-"""Configuration for the Jura Archive advisory agent system."""
+"""Configuration for the Jura Trace advisory agent system."""
 
 import os
 from pathlib import Path

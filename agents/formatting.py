@@ -20,11 +20,11 @@ COLOURS = {
 
 
 def print_header() -> None:
-    """Print the Jura Archive advisory system header."""
+    """Print the Jura Trace advisory system header."""
     console.print()
     console.print(
         Panel(
-            Text("Jura Archive — Advisory Agents", justify="center", style="bold"),
+            Text("Jura Trace — Advisory Agents", justify="center", style="bold"),
             subtitle="Know What's Real",
             border_style=COLOURS["lapis"],
         )

@@ -258,7 +258,7 @@ def _llm_classify(query: str) -> dict:
         model=config.ORCHESTRATOR_MODEL,
         max_tokens=256,
         system=(
-            "You are a query router for the Jura Archive project. "
+            "You are a query router for the Jura Trace project. "
             "Classify the user's query to the most relevant specialist agent. "
             "Return JSON only, no other text.\n\n"
             f"Available agents:\n{agent_descriptions}"

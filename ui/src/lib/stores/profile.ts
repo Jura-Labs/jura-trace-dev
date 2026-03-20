@@ -1,5 +1,5 @@
 /**
- * Deployment profile store for Jura Archive settings.
+ * Deployment profile store for Jura Trace settings.
  *
  * A deployment profile captures a named snapshot of Ollama configuration
  * and verify mode so operators can switch between environments (e.g. local

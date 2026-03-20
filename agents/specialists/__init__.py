@@ -1,1 +1,1 @@
-"""Specialist advisory agents for Jura Archive development."""
+"""Specialist advisory agents for Jura Trace development."""

@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — Segmented Error Level Analysis (Segmented ELA).
+Jura Trace Sidecar — Segmented Error Level Analysis (Segmented ELA).
 
 Divides an image into an 8x8 grid and computes ELA per cell, flagging
 anomalous regions where compression artefacts differ significantly from

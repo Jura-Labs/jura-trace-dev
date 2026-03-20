@@ -1,7 +1,7 @@
 [project]
 name = "jura-agents"
 version = "0.1.0"
-description = "Advisory agent system for Jura Archive development"
+description = "Advisory agent system for Jura Trace development"
 requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.42.0",

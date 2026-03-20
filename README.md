@@ -1,8 +1,8 @@
-# Jura Archive
+# Jura Trace
 
-**Local-first content protection and verification.**
+**Know What's Real.**
 
-Jura Archive helps cultural institutions protect their digital assets from unauthorised AI extraction and helps communities verify the authenticity of media they encounter.
+In a world of synthetic media, verification matters. Jura Trace helps cultural institutions protect their digital assets from unauthorised AI extraction and helps communities verify the authenticity of media they encounter.
 
 All processing happens locally on your machine. No data is uploaded to external servers.
 

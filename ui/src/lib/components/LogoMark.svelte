@@ -11,8 +11,8 @@
   aria-hidden="true"
   role="img"
 >
-  <polygon points="6,7 26,7 24,12 8,12" fill="#6B96CC"/>
-  <polygon points="4,13 28,13 26,18 6,18" fill="#3E6FA8"/>
-  <polygon points="3,19 29,19 27,24 5,24" fill="#3A6499"/>
-  <line x1="24" y1="7" x2="8" y2="24" stroke="white" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="16" cy="16" r="14" fill="#3E6FA8"/>
+  <circle cx="16" cy="16" r="9" fill="#FFFFFF"/>
+  <circle cx="16" cy="16" r="6" fill="#F5F3EE"/>
+  <circle cx="16" cy="16" r="3.5" fill="#1C1E26"/>
 </svg>

@@ -114,7 +114,7 @@
 </script>
 
 <!--
-  OnboardingOverlay — three-slide introduction to Jura Archive.
+  OnboardingOverlay — three-slide introduction to Jura Trace.
 
   WCAG 2.2 AA:
   - role="dialog" aria-modal="true" for screen reader boundary
@@ -131,7 +131,7 @@
   class="fixed inset-0 z-50 flex items-center justify-center bg-obsidian/95 backdrop-blur-sm"
   role="dialog"
   aria-modal="true"
-  aria-label="Welcome to Jura Archive — getting started guide"
+  aria-label="Welcome to Jura Trace — getting started guide"
   tabindex="-1"
   bind:this={dialogEl}
   onkeydown={(e) => { handleKeydown(e); handleFocusTrap(e); }}
@@ -151,7 +151,7 @@
         >
           <!-- Eyebrow label -->
           <p class="text-xs font-medium text-lapis uppercase tracking-widest mb-4">
-            Welcome to Jura Archive
+            Welcome to Jura Trace
           </p>
 
           <!-- Headline -->
@@ -161,7 +161,7 @@
 
           <!-- Body -->
           <p class="text-sm text-quartz leading-relaxed mb-3">
-            Jura Archive is a local-first tool for protecting your digital assets and
+            Jura Trace is a local-first tool for protecting your digital assets and
             verifying content authenticity. Everything runs on your device — no cloud,
             no accounts, no tracking.
           </p>

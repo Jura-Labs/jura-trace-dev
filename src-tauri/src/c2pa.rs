@@ -79,7 +79,7 @@ pub fn ensure_certificate(data_dir: &Path) -> Result<(Vec<u8>, Vec<u8>), String>
         .map_err(|e| format!("Failed to create CA cert params: {e}"))?;
     ca_params.distinguished_name.push(
         rcgen::DnType::CommonName,
-        rcgen::DnValue::Utf8String("Jura Archive Local CA".to_string()),
+        rcgen::DnValue::Utf8String("Jura Trace Local CA".to_string()),
     );
     ca_params.distinguished_name.push(
         rcgen::DnType::OrganizationName,
@@ -122,11 +122,11 @@ pub fn ensure_certificate(data_dir: &Path) -> Result<(Vec<u8>, Vec<u8>), String>
         .map_err(|e| format!("Failed to generate EE key pair: {e}"))?;
 
     let mut ee_params =
-        rcgen::CertificateParams::new(vec!["jura-archive.local".to_string()])
+        rcgen::CertificateParams::new(vec!["jura-trace.local".to_string()])
             .map_err(|e| format!("Failed to create EE cert params: {e}"))?;
     ee_params.distinguished_name.push(
         rcgen::DnType::CommonName,
-        rcgen::DnValue::Utf8String("Jura Archive Signing Certificate".to_string()),
+        rcgen::DnValue::Utf8String("Jura Trace Signing Certificate".to_string()),
     );
     ee_params.distinguished_name.push(
         rcgen::DnType::OrganizationName,
@@ -193,7 +193,7 @@ pub fn sign_file(
     let license_value = license.unwrap_or("All Rights Reserved");
 
     let manifest_def = serde_json::json!({
-        "claim_generator": "Jura Archive/0.1.0",
+        "claim_generator": "Jura Trace/0.1.0",
         "title": file_name,
         "assertions": [
             {
@@ -201,7 +201,7 @@ pub fn sign_file(
                 "data": {
                     "actions": [{
                         "action": "c2pa.created",
-                        "softwareAgent": "Jura Archive 0.1.0",
+                        "softwareAgent": "Jura Trace 0.1.0",
                         "parameters": {
                             "name": creator_name
                         }
@@ -410,7 +410,7 @@ mod tests {
         let info = ManifestInfo {
             title: Some("test.jpg".to_string()),
             format: Some("image/jpeg".to_string()),
-            claim_generator: Some("Jura Archive/0.1.0".to_string()),
+            claim_generator: Some("Jura Trace/0.1.0".to_string()),
             assertions: vec![AssertionInfo {
                 label: "c2pa.actions".to_string(),
                 value: "{}".to_string(),
@@ -457,7 +457,7 @@ mod tests {
             detect_ai_generator("Midjourney v6.1"),
             Some("Midjourney".to_string())
         );
-        assert_eq!(detect_ai_generator("Jura Archive/0.2.0"), None);
+        assert_eq!(detect_ai_generator("Jura Trace/0.2.0"), None);
         assert_eq!(detect_ai_generator("Apple Preview 11.0"), None);
         assert_eq!(detect_ai_generator("GIMP 2.10"), None);
     }

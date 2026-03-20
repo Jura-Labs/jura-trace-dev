@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — JPEG Ghost Detection.
+Jura Trace Sidecar — JPEG Ghost Detection.
 
 JPEG ghost detection identifies splice/composite forgeries by analysing
 double JPEG compression artefacts. The method exploits the fact that when

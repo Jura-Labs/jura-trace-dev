@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Jura Archive are documented here, organised by development phase and sprint.
+All notable changes to Jura Trace (formerly Jura Archive) are documented here, organised by development phase and sprint.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 

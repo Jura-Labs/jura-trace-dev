@@ -109,7 +109,7 @@ TOOL_DEFINITIONS = [
     {
         "name": "read_file",
         "description": (
-            "Read a file from the Jura Archive project. "
+            "Read a file from the Jura Trace project. "
             "Path is relative to the project root. "
             "Use this to examine source code, configuration, documentation, or schema files."
         ),
@@ -127,7 +127,7 @@ TOOL_DEFINITIONS = [
     {
         "name": "grep_codebase",
         "description": (
-            "Search the Jura Archive codebase using regex pattern matching. "
+            "Search the Jura Trace codebase using regex pattern matching. "
             "Returns matching lines with file paths and line numbers. "
             "Use this to find function definitions, usage patterns, imports, or configuration."
         ),

@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — Splice Boundary Detection.
+Jura Trace Sidecar — Splice Boundary Detection.
 
 Detects splice boundaries using three orthogonal signals:
 1. JPEG block grid alignment — spliced edges often align with 8x8 block

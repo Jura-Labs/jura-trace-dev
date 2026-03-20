@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — Colour Temperature Segmentation.
+Jura Trace Sidecar — Colour Temperature Segmentation.
 
 Analyses white balance / colour temperature per region using CIELAB colour
 space. Detects discontinuous colour casts that suggest composite images

@@ -1,0 +1,34 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="200" height="200" fill="#1C1E26"/>
+
+  <!-- Eye — simple, clean, smaller -->
+  <!-- Outer circle: solid lapis blue -->
+  <circle cx="100" cy="72" r="32" fill="#3E6FA8"/>
+  <!-- First inner white circle -->
+  <circle cx="100" cy="72" r="20" fill="#FFFFFF"/>
+  <!-- Second inner white circle (slightly smaller, creates subtle ring) -->
+  <circle cx="100" cy="72" r="14" fill="#F5F3EE"/>
+  <!-- Pupil: solid black filled circle -->
+  <circle cx="100" cy="72" r="8" fill="#1C1E26"/>
+
+  <!-- Brand name -->
+  <text x="100" y="132" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="18" letter-spacing="0.15em" fill="#E4E2DE"
+        font-weight="normal">JURA TRACE</text>
+
+  <!-- Tagline -->
+  <text x="100" y="154" text-anchor="middle"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+        font-size="8" letter-spacing="0.08em" fill="#9B9890">
+    KNOW WHAT'S REAL
+  </text>
+
+  <!-- Parent brand -->
+  <text x="100" y="176" text-anchor="middle"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+        font-size="6" letter-spacing="0.05em" fill="#9B9890" opacity="0.5">
+    A JURALABS CIC PRODUCT
+  </text>
+</svg>

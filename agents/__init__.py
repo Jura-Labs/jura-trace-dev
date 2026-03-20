@@ -1,7 +1,7 @@
-"""Jura Archive — Advisory Agent System.
+"""Jura Trace — Advisory Agent System.
 
 A multi-agent system providing specialist development guidance
-for the Jura Archive content protection and verification platform.
+for the Jura Trace content protection and verification platform.
 """
 
 __version__ = "0.1.0"

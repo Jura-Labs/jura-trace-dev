@@ -91,7 +91,7 @@ test.describe('WCAG basics', () => {
 
     // Wait for Svelte to hydrate — the brand link in the header is a reliable
     // sentinel because it renders in the first tick of onMount.
-    await page.locator('header a[aria-label="Jura Archive — home"]').waitFor({ state: 'visible' });
+    await page.locator('header a[aria-label="Jura Trace — home"]').waitFor({ state: 'visible' });
 
     // Now inspect DOM order of anchors with href
     const skipLinkIsFirst = await page.evaluate(() => {

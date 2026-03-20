@@ -1,0 +1,59 @@
+<svg viewBox="0 0 200 240" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="lens-clip">
+      <circle cx="100" cy="100" r="72"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="200" height="240" fill="#1C1E26"/>
+
+  <!-- Outer ring — represents the human lens/eye of observation -->
+  <circle cx="100" cy="100" r="78" fill="none" stroke="#383C48" stroke-width="2"/>
+  <circle cx="100" cy="100" r="72" fill="none" stroke="#3E6FA8" stroke-width="1.5" opacity="0.6"/>
+
+  <!-- Geological strata within the lens — layers of evidence -->
+  <g clip-path="url(#lens-clip)">
+    <!-- Deep layer — oldest evidence -->
+    <rect x="0" y="90" width="200" height="82" fill="#3A6499"/>
+    <!-- Middle layer — core analysis -->
+    <polygon points="0,80 200,75 200,105 0,110" fill="#3E6FA8"/>
+    <!-- Surface layer — newest evidence -->
+    <polygon points="0,55 200,50 200,80 0,85" fill="#6B96CC"/>
+    <!-- Sky/clarity above -->
+    <rect x="0" y="0" width="200" height="55" fill="#2A2D37"/>
+
+    <!-- Organic element: a single leaf vein pattern rising through the strata -->
+    <!-- Represents nature emerging through layers of digital evidence -->
+    <path d="M100,170 C100,140 95,120 90,105 C88,98 92,88 100,72
+             C108,88 112,98 110,105 C105,120 100,140 100,170Z"
+          fill="none" stroke="#5B9A6F" stroke-width="1.5" opacity="0.7"/>
+    <!-- Central vein -->
+    <line x1="100" y1="170" x2="100" y2="72" stroke="#5B9A6F" stroke-width="0.75" opacity="0.5"/>
+    <!-- Side veins -->
+    <line x1="100" y1="130" x2="93" y2="115" stroke="#5B9A6F" stroke-width="0.5" opacity="0.4"/>
+    <line x1="100" y1="130" x2="107" y2="115" stroke="#5B9A6F" stroke-width="0.5" opacity="0.4"/>
+    <line x1="100" y1="110" x2="95" y2="98" stroke="#5B9A6F" stroke-width="0.5" opacity="0.4"/>
+    <line x1="100" y1="110" x2="105" y2="98" stroke="#5B9A6F" stroke-width="0.5" opacity="0.4"/>
+
+    <!-- Human iris detail — subtle concentric arcs suggesting the human eye -->
+    <circle cx="100" cy="100" r="25" fill="none" stroke="#E4E2DE" stroke-width="0.5" opacity="0.2"/>
+    <circle cx="100" cy="100" r="18" fill="none" stroke="#E4E2DE" stroke-width="0.5" opacity="0.15"/>
+    <circle cx="100" cy="100" r="8" fill="#1C1E26" opacity="0.6"/>
+    <!-- Light reflection — the moment of recognition -->
+    <circle cx="96" cy="96" r="2.5" fill="#E4E2DE" opacity="0.3"/>
+  </g>
+
+  <!-- Brand name -->
+  <text x="100" y="205" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="14" letter-spacing="0.15em" fill="#E4E2DE"
+        font-weight="normal">JURA ARCHIVE</text>
+
+  <!-- Tagline -->
+  <text x="100" y="225" text-anchor="middle"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+        font-size="8" letter-spacing="0.08em" fill="#9B9890">
+    KNOW WHAT'S REAL
+  </text>
+</svg>

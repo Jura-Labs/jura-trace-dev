@@ -1,8 +1,8 @@
 {
-  "name": "jura-archive",
+  "name": "jura-trace",
   "version": "0.1.0",
   "private": true,
-  "description": "Local-first content protection and verification",
+  "description": "In a world of synthetic media, verification matters. Local-first content verification and protection.",
   "scripts": {
     "dev": "cd ui && npm run dev",
     "build": "cd ui && npm run build",

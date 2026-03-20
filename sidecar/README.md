@@ -1,4 +1,4 @@
-# Jura Archive — Python ML Sidecar
+# Jura Trace — Python ML Sidecar
 
 This is a FastAPI service providing ML capabilities that require Python libraries.
 It runs as a managed sidecar process launched by the Tauri desktop application.

@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — Neighbouring Pixel Relationships (NPR) Detector.
+Jura Trace Sidecar — Neighbouring Pixel Relationships (NPR) Detector.
 
 Detects AI-generated images by analysing the statistical relationships between
 adjacent pixels. Camera sensors produce noise with characteristic inter-pixel

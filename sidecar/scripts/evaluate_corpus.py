@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Jura Archive — Test Corpus Evaluation Script.
+Jura Trace — Test Corpus Evaluation Script.
 
 Runs all forensic detectors against a directory of test images and
 records results in a CSV for false positive / false negative analysis.

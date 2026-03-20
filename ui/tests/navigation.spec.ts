@@ -9,12 +9,12 @@ test.describe('Navigation and layout', () => {
     await page.goto('/');
   });
 
-  test('page loads with title "Jura Archive"', async ({ page }) => {
-    await expect(page).toHaveTitle('Jura Archive');
+  test('page loads with title "Jura Trace"', async ({ page }) => {
+    await expect(page).toHaveTitle("Jura Trace — Know What's Real");
   });
 
   test('logo mark SVG is visible in header', async ({ page }) => {
-    const headerBrand = page.locator('header a[aria-label="Jura Archive — home"]');
+    const headerBrand = page.locator('header a[aria-label="Jura Trace — home"]');
     await expect(headerBrand).toBeVisible();
 
     const logoSvg = headerBrand.locator('svg');
@@ -48,7 +48,7 @@ test.describe('Navigation and layout', () => {
     const footer = page.locator('footer');
     const aboutLink = footer.getByRole('link', { name: 'About' });
     await expect(aboutLink).toBeVisible();
-    await expect(aboutLink).toHaveAttribute('href', 'https://juralabs.org/jura-archive');
+    await expect(aboutLink).toHaveAttribute('href', 'https://juralabs.org/jura-trace');
   });
 
   test('footer contains version string v0.2.0-dev', async ({ page }) => {

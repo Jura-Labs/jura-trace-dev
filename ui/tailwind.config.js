@@ -16,7 +16,7 @@ export default {
         button: '0.02em'
       },
       colors: {
-        // ===== Jura Archive Mineral Palette =====
+        // ===== Jura Trace Mineral Palette =====
         obsidian: {
           DEFAULT: '#1C1E26',
           light: '#2A2D37',

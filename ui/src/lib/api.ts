@@ -1,5 +1,5 @@
 /**
- * Tauri IPC wrapper for Jura Archive commands.
+ * Tauri IPC wrapper for Jura Trace commands.
  *
  * When running inside Tauri, calls are dispatched via invoke().
  * When running in a browser (development), returns mock data so the

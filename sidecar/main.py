@@ -1,5 +1,5 @@
 """
-Jura Archive — Python ML Sidecar
+Jura Trace — Python ML Sidecar
 
 Provides image forensics, deepfake detection, and RAG pipeline
 capabilities that require Python ML libraries.
@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from app.api import forensics, health
 
 app = FastAPI(
-    title="Jura Archive ML Sidecar",
+    title="Jura Trace ML Sidecar",
     version="0.2.0",
     description="Local ML services for content forensics and verification",
 )

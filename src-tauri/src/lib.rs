@@ -1278,6 +1278,7 @@ fn resolve_db_path(app: &tauri::App) -> PathBuf {
 
     std::fs::create_dir_all(&data_dir).expect("failed to create app data directory");
 
+    // Keep legacy filename for migration compatibility with existing installs
     data_dir.join("jura_archive.db")
 }
 
@@ -1323,7 +1324,7 @@ pub fn run() {
             get_false_positive_stats,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Jura Archive");
+        .expect("error while running Jura Trace");
 }
 
 #[cfg(test)]

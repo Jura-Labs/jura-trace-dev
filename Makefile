@@ -2,7 +2,7 @@
 
 # Development
 dev:
-	@echo "Starting Jura Archive development..."
+	@echo "Starting Jura Trace development..."
 	@echo "Run in separate terminals:"
 	@echo "  Terminal 1: cd ui && npm run dev"
 	@echo "  Terminal 2: cd src-tauri && cargo tauri dev"

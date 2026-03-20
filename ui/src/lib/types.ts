@@ -1,5 +1,5 @@
 /**
- * Jura Archive TypeScript type definitions.
+ * Jura Trace TypeScript type definitions.
  * These mirror the Rust structs in src-tauri/src/lib.rs.
  * Field names are camelCase (Rust uses serde rename_all).
  */

@@ -2816,7 +2816,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "jura-archive"
+name = "jura-trace"
 version = "0.1.0"
 dependencies = [
  "c2pa",

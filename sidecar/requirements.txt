@@ -1,4 +1,4 @@
-# Jura Archive — Python ML Sidecar Dependencies
+# Jura Trace — Python ML Sidecar Dependencies
 
 # API framework
 fastapi==0.115.*

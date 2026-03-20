@@ -10,7 +10,7 @@ test.describe('Page smoke tests', () => {
   test.describe('Dashboard (/)', () => {
     test('page loads successfully', async ({ page }) => {
       await page.goto('/');
-      await expect(page).toHaveTitle('Jura Archive');
+      await expect(page).toHaveTitle("Jura Trace — Know What's Real");
       // No JS errors
     });
 

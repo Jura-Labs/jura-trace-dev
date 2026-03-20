@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — Configuration.
+Jura Trace Sidecar — Configuration.
 
 Uses pydantic-settings to load from environment variables with sensible defaults.
 """

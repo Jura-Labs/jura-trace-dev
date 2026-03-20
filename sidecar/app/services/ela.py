@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — Error Level Analysis (ELA).
+Jura Trace Sidecar — Error Level Analysis (ELA).
 
 ELA detects JPEG compression artefacts that indicate image manipulation.
 When an unmodified JPEG is re-saved at the same quality level, compression

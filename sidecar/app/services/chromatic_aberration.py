@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — Chromatic Aberration Consistency Analyser.
+Jura Trace Sidecar — Chromatic Aberration Consistency Analyser.
 
 Real camera lenses produce radial chromatic aberration (CA): the R, G, and B
 focal lengths differ slightly, so the channels are displaced radially from the

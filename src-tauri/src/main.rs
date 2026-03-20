@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    jura_archive_lib::run()
+    jura_trace_lib::run()
 }

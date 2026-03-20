@@ -1,4 +1,4 @@
-"""CLI interface for the Jura Archive advisory agent system.
+"""CLI interface for the Jura Trace advisory agent system.
 
 Supports three modes:
 - Single query (default): python -m agents "your question"
@@ -121,10 +121,10 @@ def _repl(agents: dict) -> None:
 def main(
     query: str | None, agent: str | None, interactive: bool, list_agents: bool
 ) -> None:
-    """Jura Archive advisory agent system.
+    """Jura Trace advisory agent system.
 
     Ask specialist AI agents for development guidance on the
-    Jura Archive content protection and verification platform.
+    Jura Trace content protection and verification platform.
 
     \b
     Examples:

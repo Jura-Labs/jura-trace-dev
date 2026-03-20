@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — Pydantic schemas for API request/response models.
+Jura Trace Sidecar — Pydantic schemas for API request/response models.
 """
 
 from typing import Optional

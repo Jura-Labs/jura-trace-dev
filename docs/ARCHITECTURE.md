@@ -1,4 +1,4 @@
-# Jura Archive — Technical Architecture
+# Jura Trace — Technical Architecture
 
 ## System Overview
 

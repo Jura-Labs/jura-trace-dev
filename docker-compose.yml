@@ -1,4 +1,4 @@
-# Jura Archive — Local Development Stack
+# Jura Trace — Local Development Stack
 #
 # Usage:
 #   docker compose up -d          # Start sidecar + Ollama

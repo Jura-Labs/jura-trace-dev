@@ -27,7 +27,7 @@ The presence of a valid C2PA manifest provides positive evidence of provenance â
 
 C2PA manifests support "ingredient" references â€” pointers to the manifests of source images used to create a composite. This creates a provenance chain: a manipulated image can reference the original, recording what was changed. Tools like Adobe Photoshop and Lightroom write C2PA ingredient references automatically.
 
-The c2pa-rs Rust library (https://github.com/contentauth/c2pa-rs) is the reference implementation for C2PA in Rust. It is maintained by Adobe and is used by Jura Archive for C2PA signing and verification. The library supports reading, verifying, and writing C2PA manifests.
+The c2pa-rs Rust library (https://github.com/contentauth/c2pa-rs) is the reference implementation for C2PA in Rust. It is maintained by Adobe and is used by Jura Trace for C2PA signing and verification. The library supports reading, verifying, and writing C2PA manifests.
 
 C2PA specification version 1.3 was published in April 2023. Version 2.0 was in draft as of 2024, with proposed improvements to the trust list infrastructure and support for video streaming formats.
 

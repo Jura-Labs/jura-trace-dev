@@ -206,7 +206,7 @@
 
       <div class="space-y-1 text-xs">
         <div class="flex items-center justify-between gap-4">
-          <span class="text-flint">Jura Archive</span>
+          <span class="text-flint">Jura Trace</span>
           <span class="text-quartz font-mono tabular-nums">v0.2.0-dev</span>
         </div>
         {#if sidecarVersion}

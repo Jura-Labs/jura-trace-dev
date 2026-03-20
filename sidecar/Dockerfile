@@ -1,4 +1,4 @@
-# Jura Archive — Python ML Sidecar
+# Jura Trace — Python ML Sidecar
 # Base: python:3.12-slim (glibc needed for opencv/numpy wheels)
 
 FROM python:3.12-slim AS base

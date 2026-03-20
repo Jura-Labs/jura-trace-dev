@@ -1,19 +1,20 @@
-# Jura Archive — Brand Guidelines
+# Jura Trace — Brand Guidelines
 
 ## Brand Identity
 
-**Name**: Jura Archive
+**Name**: Jura Trace
 **Tagline**: "Know What's Real"
+**Positioning**: "In a world of synthetic media, verification matters."
 **Parent Organisation**: Juralabs CIC
 
 ## Brand Metaphor
 
 **Minerals and Geology** — permanence, layers, provenance, deep time.
 
-Where ROOTED uses organic/growth imagery (earth tones, moss, roots), Jura Archive uses geological imagery (obsidian, lapis, malachite, quartz). Both evoke the natural world but from different perspectives:
+Where ROOTED uses organic/growth imagery (earth tones, moss, roots), Jura Trace uses geological imagery (obsidian, lapis, malachite, quartz). Both evoke the natural world but from different perspectives:
 
 - ROOTED = living systems, growth, connection to place
-- Jura Archive = deep time, permanence, layers of evidence, immutable record
+- Jura Trace = deep time, permanence, layers of evidence, immutable record
 
 The name "Jura" references the Jura mountains and the Jurassic geological period — layers of rock that preserve an accurate record of what existed. This directly maps to the product's purpose: preserving an accurate, layered, verifiable record of digital content.
 
@@ -102,7 +103,7 @@ Never: "jura archive", "Jura archive", "JURAARCHIVE"
 |---------|------|-------|
 | Verification result | "This image shows signs of manipulation in the lower-right region." | "WARNING: FAKE IMAGE DETECTED!" |
 | C2PA status | "No Content Credentials found. This doesn't mean the content is false — most content doesn't have them yet." | "UNVERIFIED! No proof of origin!" |
-| Welcome | "Jura Archive processes everything locally. Your files never leave this machine." | "We're SO excited to help you fight misinformation!" |
+| Welcome | "Jura Trace processes everything locally. Your files never leave this machine." | "We're SO excited to help you fight misinformation!" |
 | Error | "Could not connect to Ollama. Auto-cataloguing requires a running Ollama instance." | "Oops! Something went wrong!" |
 
 ## Accessibility

@@ -32,7 +32,7 @@ class BaseAgent(ABC):
         """Load the agent's system prompt from its markdown file."""
         prompt_path = config.PROMPTS_DIR / self.prompt_file
         if not prompt_path.exists():
-            return f"You are the {self.name} agent for the Jura Archive project."
+            return f"You are the {self.name} agent for the Jura Trace project."
         return prompt_path.read_text(encoding="utf-8")
 
     def build_system_message(self) -> str:

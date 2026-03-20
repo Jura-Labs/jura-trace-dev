@@ -41,8 +41,11 @@
   <!-- Hero -->
   <section class="text-center py-12 border-b border-border-light dark:border-graphite-light">
     <p class="text-xs text-flint uppercase tracking-widest mb-3">Local-first content integrity</p>
-    <h1 class="text-3xl font-heading text-text-light dark:text-quartz mb-4">What's Real</h1>
-    <p class="text-base text-flint max-w-xl mx-auto">
+    <h1 class="text-3xl font-heading text-text-light dark:text-quartz mb-4">Know What's Real</h1>
+    <p class="text-base text-flint max-w-xl mx-auto mb-2">
+      In a world of synthetic media, verification matters.
+    </p>
+    <p class="text-sm text-flint/70 max-w-lg mx-auto">
       Protect your content from unauthorised AI extraction. Verify authenticity.
       Everything happens locally on your machine.
     </p>

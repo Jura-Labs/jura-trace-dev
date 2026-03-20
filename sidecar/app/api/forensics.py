@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — Forensics endpoints.
+Jura Trace Sidecar — Forensics endpoints.
 """
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile

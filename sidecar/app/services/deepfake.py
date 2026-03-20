@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — AI-Generated Image Detection.
+Jura Trace Sidecar — AI-Generated Image Detection.
 
 Detects AI-generated or synthetic images using an ensemble of statistical
 features extracted from frequency domain, noise residuals, colour/texture

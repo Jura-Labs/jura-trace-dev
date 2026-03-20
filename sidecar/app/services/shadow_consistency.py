@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — Shadow/Lighting Direction Consistency Analysis.
+Jura Trace Sidecar — Shadow/Lighting Direction Consistency Analysis.
 
 Estimates the dominant light direction across image regions using gradient
 analysis. Detects when regions have incompatible shadow/light directions,

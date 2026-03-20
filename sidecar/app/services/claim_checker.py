@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — RAG Claim Verification Service.
+Jura Trace Sidecar — RAG Claim Verification Service.
 
 Verifies claims associated with an image (from captions, EXIF descriptions,
 C2PA assertions, or user-provided text) using a local TF-IDF knowledge base

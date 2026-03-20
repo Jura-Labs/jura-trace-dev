@@ -24,7 +24,7 @@ async def test_health_response_structure():
     data = response.json()
     assert data["status"] == "ok"
     assert data["version"] == "0.2.0"
-    assert data["service"] == "jura-sidecar"
+    assert data["service"] == "jura-trace-sidecar"
     assert "capabilities" in data
     assert data["capabilities"]["ela"] is True
     assert data["capabilities"]["deepfake"] is True

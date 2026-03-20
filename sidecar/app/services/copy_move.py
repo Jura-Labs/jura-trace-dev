@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — Copy-Move Forgery Detection.
+Jura Trace Sidecar — Copy-Move Forgery Detection.
 
 Detects duplicated (copy-pasted) regions within an image using keypoint
 matching. Authentic photos rarely contain identical feature clusters at

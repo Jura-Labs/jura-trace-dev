@@ -1,0 +1,20 @@
+<svg viewBox="0 0 200 180" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="200" height="180" fill="#1C1E26"/>
+
+  <!-- Eye -->
+  <circle cx="100" cy="60" r="32" fill="#3E6FA8"/>
+  <circle cx="100" cy="60" r="20" fill="#FFFFFF"/>
+  <circle cx="100" cy="60" r="14" fill="#F5F3EE"/>
+  <circle cx="100" cy="60" r="8" fill="#1C1E26"/>
+
+  <!-- Brand name -->
+  <text x="100" y="120" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="18" letter-spacing="0.15em" fill="#E4E2DE">JURA TRACE</text>
+
+  <!-- Tagline -->
+  <text x="100" y="142" text-anchor="middle"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+        font-size="8" letter-spacing="0.08em" fill="#9B9890">KNOW WHAT'S REAL</text>
+</svg>

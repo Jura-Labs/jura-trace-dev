@@ -91,10 +91,10 @@
         href="/"
         onclick={() => handleNavClick('/')}
         class="flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
-        aria-label="Jura Archive — home"
+        aria-label="Jura Trace — home"
       >
         <LogoMark size={24} />
-        <span class="brand-name text-sm text-text-light dark:text-text-dark">Jura Archive</span>
+        <span class="brand-name text-sm text-text-light dark:text-text-dark">Jura Trace</span>
       </a>
 
       <!-- Desktop nav -->
@@ -216,7 +216,7 @@
       <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-flint dark:text-flint-light">
         <div class="flex items-center gap-3">
           <LogoMark size={16} />
-          <span class="brand-name text-xs text-text-light dark:text-text-dark">Jura Archive</span>
+          <span class="brand-name text-xs text-text-light dark:text-text-dark">Jura Trace</span>
           <span class="text-xs">v0.2.0-dev</span>
         </div>
         <p class="text-xs text-center">Local-first. Your data stays here.</p>
@@ -230,7 +230,7 @@
             Juralabs CIC
           </a>
           <a
-            href="https://juralabs.org/jura-archive"
+            href="https://juralabs.org/jura-trace"
             target="_blank"
             rel="noopener noreferrer"
             class="hover:text-lapis dark:hover:text-lapis-light transition-colors underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"

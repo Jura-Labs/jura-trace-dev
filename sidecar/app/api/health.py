@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — Health check endpoint.
+Jura Trace Sidecar — Health check endpoint.
 """
 
 import httpx
@@ -37,7 +37,7 @@ async def health() -> HealthResponse:
     return HealthResponse(
         status="ok",
         version="0.2.0",
-        service="jura-sidecar",
+        service="jura-trace-sidecar",
         capabilities=CapabilitiesResponse(
             ela=True, noise=True, copy_move=True, deepfake=True,
             clip_detect=clip_available, rag=rag_available,

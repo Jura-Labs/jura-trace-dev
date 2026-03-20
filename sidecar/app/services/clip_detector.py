@@ -1,5 +1,5 @@
 """
-Jura Archive Sidecar — CLIP-based AI Image Detection.
+Jura Trace Sidecar — CLIP-based AI Image Detection.
 
 Uses CLIP ViT-B/32 embeddings with zero-shot classification to detect
 AI-generated images. Compares image embedding against text prompts
