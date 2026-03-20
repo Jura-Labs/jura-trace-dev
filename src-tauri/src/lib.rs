@@ -41,6 +41,9 @@ pub struct Asset {
 pub struct VerificationResult {
     pub source_type: String,
     pub content_type: String,
+    /// Investigation mode used for this verification run
+    /// (`"quick"`, `"standard"`, `"deep"`, or `"archival"`).
+    pub mode: String,
     pub ela_score: Option<f64>,
     pub noise_score: Option<f64>,
     pub copy_move_score: Option<f64>,
@@ -626,6 +629,7 @@ fn verify_content_inner(
         source,
         Some(
             &serde_json::json!({
+                "mode": effective_mode,
                 "exif_trust": exif_trust,
                 "ela_score": ela_score,
                 "noise_score": noise_score,
@@ -644,7 +648,7 @@ fn verify_content_inner(
     );
 
     log::info!(
-        "Verification complete: trust={overall_trust:.2}, exif_trust={exif_trust:.2}, ela={:?}, noise={:?}, copy_move={:?}, deepfake={:?}, findings={}",
+        "Verification complete: mode={effective_mode}, trust={overall_trust:.2}, exif_trust={exif_trust:.2}, ela={:?}, noise={:?}, copy_move={:?}, deepfake={:?}, findings={}",
         ela_score,
         noise_score,
         copy_move_score,
@@ -655,6 +659,7 @@ fn verify_content_inner(
     Ok(VerificationResult {
         source_type: source_type.to_string(),
         content_type: info.content_type.as_str().to_string(),
+        mode: effective_mode.to_string(),
         ela_score,
         noise_score,
         copy_move_score,
@@ -1466,6 +1471,41 @@ mod tests {
             trust <= 0.60,
             "Inconclusive should cap trust at 60% max, got {:.1}%",
             trust * 100.0
+        );
+    }
+
+    #[test]
+    fn verification_result_includes_mode() {
+        // Verify that VerificationResult has a `mode` field and that it
+        // serialises to camelCase (it is a plain string so rename_all does
+        // not change the key, but the value must round-trip correctly).
+        let result = VerificationResult {
+            source_type: "file".to_string(),
+            content_type: "image".to_string(),
+            mode: "standard".to_string(),
+            ela_score: None,
+            noise_score: None,
+            copy_move_score: None,
+            deepfake_score: None,
+            c2pa_valid: None,
+            metadata_flags: vec![],
+            claim_verdict: None,
+            overall_trust: 0.0,
+            exif_analysis: None,
+            c2pa_manifest: None,
+            ela_result: None,
+            noise_result: None,
+            copy_move_result: None,
+            deepfake_result: None,
+            npr_result: None,
+            jpeg_ghost_result: None,
+            ca_result: None,
+            ai_generator: None,
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(
+            json.contains("\"mode\":\"standard\""),
+            "mode field missing or wrong value in serialised JSON: {json}"
         );
     }
 }

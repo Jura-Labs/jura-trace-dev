@@ -6,14 +6,14 @@
 
 /**
  * Verify pipeline investigation modes:
- * - quick: EXIF + C2PA only (~5s)
  * - standard: EXIF + C2PA + ELA + deepfake ensemble (~15s) — default
  * - deep: Full pipeline including all detectors (~60s)
  * - archival: Deep with scanner-calibrated tolerances
  *
- * Legacy 'fast'/'deep' values are accepted for backwards compatibility.
+ * Legacy 'quick'/'fast' values remain accepted by the Rust backend for
+ * backwards compatibility but are no longer exposed in the UI.
  */
-export type VerifyMode = 'quick' | 'standard' | 'deep' | 'archival' | 'fast';
+export type VerifyMode = 'standard' | 'deep' | 'archival';
 
 /** Asset record stored in the local database */
 export interface Asset {

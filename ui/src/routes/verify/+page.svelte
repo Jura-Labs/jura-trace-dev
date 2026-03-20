@@ -407,21 +407,27 @@
     if (batchRunning) return;
     batchRunning = true;
 
-    for (let i = 0; i < batchItems.length; i++) {
-      if (batchItems[i].status !== 'queued') continue;
-      batchItems[i] = { ...batchItems[i], status: 'running', startedAt: Date.now() };
+    const CONCURRENCY = 3;
 
+    async function processItem(item: BatchItem) {
+      // Mutate the reactive item in place so the table updates immediately
+      item.status = 'running';
+      item.startedAt = Date.now();
       try {
-        const res = await verifyFile(batchItems[i].filePath, verifyMode);
-        batchItems[i] = { ...batchItems[i], status: 'done', result: res, finishedAt: Date.now() };
+        const res = await verifyFile(item.filePath, verifyMode);
+        item.result = res;
+        item.status = 'done';
       } catch (e) {
-        batchItems[i] = {
-          ...batchItems[i],
-          status: 'error',
-          error: e instanceof Error ? e.message : 'Verification failed',
-          finishedAt: Date.now(),
-        };
+        item.error = e instanceof Error ? e.message : String(e);
+        item.status = 'error';
       }
+      item.finishedAt = Date.now();
+    }
+
+    const queued = batchItems.filter(i => i.status === 'queued');
+    for (let i = 0; i < queued.length; i += CONCURRENCY) {
+      const chunk = queued.slice(i, i + CONCURRENCY);
+      await Promise.all(chunk.map(processItem));
     }
 
     batchRunning = false;
@@ -529,7 +535,6 @@
         aria-label="Verification mode"
       >
         {#each [
-          { mode: 'quick' as VerifyMode, label: 'Quick', title: 'Quick: EXIF + C2PA only (under 5 seconds)' },
           { mode: 'standard' as VerifyMode, label: 'Standard', title: 'Standard: EXIF + C2PA + ELA + AI detection (under 15 seconds)' },
           { mode: 'deep' as VerifyMode, label: 'Deep', title: 'Deep: full forensic pipeline with all detectors (30-60 seconds)' },
           { mode: 'archival' as VerifyMode, label: 'Archival', title: 'Archival: deep analysis with scanner-calibrated tolerances' },
@@ -1108,7 +1113,7 @@
           </svg>
           Technical Details
           <span class="text-xs text-flint/60">
-            ({verifyMode === 'fast' ? 'EXIF + C2PA only' : 'full pipeline'})
+            ({verifyMode === 'standard' ? 'EXIF + C2PA + ELA + deepfake' : verifyMode === 'deep' ? 'full pipeline' : 'archival pipeline'})
           </span>
         </button>
       </div>
