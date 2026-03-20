@@ -1,8 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getStats, getRecentAssets, checkSidecarHealth } from '$lib/api';
-  import type { AppStats, Asset, SidecarHealth } from '$lib/types';
-  import { formatFileSize, CONTENT_TYPE_LABELS } from '$lib/types';
+  import { getStats, checkSidecarHealth } from '$lib/api';
+  import type { AppStats, SidecarHealth } from '$lib/types';
 
   let stats: AppStats = $state({
     totalAssets: 0,
@@ -11,169 +10,202 @@
     c2paSignedCount: 0,
   });
 
-  let recentAssets: Asset[] = $state([]);
   let sidecarHealth = $state<SidecarHealth | null>(null);
 
   const sidecarAvailable = $derived(sidecarHealth?.status === 'ok');
+  const hasAssets = $derived(stats.totalAssets > 0);
 
   onMount(async () => {
-    [stats, recentAssets, sidecarHealth] = await Promise.all([
+    [stats, sidecarHealth] = await Promise.all([
       getStats(),
-      getRecentAssets(5),
       checkSidecarHealth(),
     ]);
   });
-
-  function contentTypeAbbr(type: string): string {
-    switch (type) {
-      case 'image':    return 'IMG';
-      case 'document': return 'DOC';
-      case 'video':    return 'VID';
-      case 'audio':    return 'AUD';
-      case '3d':       return '3D';
-      case 'web':      return 'WEB';
-      default:         return 'FILE';
-    }
-  }
 </script>
 
-<div class="space-y-8">
+<div class="space-y-0">
+
   <!-- Hero -->
-  <section class="text-center py-12 border-b border-border-light dark:border-graphite-light">
-    <p class="text-xs text-flint uppercase tracking-widest mb-3">Local-first content integrity</p>
-    <h1 class="text-3xl font-heading text-text-light dark:text-quartz mb-4">Know What's Real</h1>
-    <p class="text-base text-flint max-w-xl mx-auto mb-2">
-      In a world of synthetic media, verification matters.
-    </p>
-    <p class="text-sm text-flint/70 max-w-lg mx-auto">
-      Protect your content from unauthorised AI extraction. Verify authenticity.
-      Everything happens locally on your machine.
-    </p>
-  </section>
-
-  <!-- Stats Grid -->
-  <section aria-label="Summary statistics">
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div class="bg-white dark:bg-graphite rounded-lg p-6 border border-border-light dark:border-graphite-light">
-        <p class="text-3xl font-heading text-lapis dark:text-lapis-light">{stats.totalAssets.toLocaleString()}</p>
-        <p class="text-sm text-flint mt-1">Assets Protected</p>
-      </div>
-      <div class="bg-white dark:bg-graphite rounded-lg p-6 border border-border-light dark:border-graphite-light">
-        <p class="text-3xl font-heading text-malachite dark:text-malachite-light">{stats.c2paSignedCount.toLocaleString()}</p>
-        <p class="text-sm text-flint mt-1">C2PA Signed</p>
-      </div>
-      <div class="bg-white dark:bg-graphite rounded-lg p-6 border border-border-light dark:border-graphite-light">
-        <p class="text-3xl font-heading text-lapis dark:text-lapis-light">{stats.totalFingerprints.toLocaleString()}</p>
-        <p class="text-sm text-flint mt-1">Fingerprints</p>
-      </div>
-      <div class="bg-white dark:bg-graphite rounded-lg p-6 border border-border-light dark:border-graphite-light">
-        <p class="text-3xl font-heading text-amber dark:text-amber-light">{stats.totalVerifications.toLocaleString()}</p>
-        <p class="text-sm text-flint mt-1">Verifications</p>
-      </div>
-    </div>
-
-    <!-- Sidecar status -->
-    <div
-      class="mt-4 flex items-center gap-2 text-xs px-3 py-2 rounded-lg border
-             {sidecarAvailable
-               ? 'bg-malachite/5 text-malachite dark:text-malachite-light border-malachite/15'
-               : 'bg-white dark:bg-graphite text-flint border-border-light dark:border-graphite-light'}"
+  <section class="text-center py-16 pb-12">
+    <p class="text-xs text-flint dark:text-[#A09D95] uppercase tracking-widest mb-5">Local-first content integrity</p>
+    <h1
+      class="text-4xl font-heading text-text-light dark:text-quartz mb-5 font-normal"
+      style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em; line-height: 1.3;"
     >
-      <span
-        class="w-2 h-2 rounded-full {sidecarAvailable ? 'bg-malachite' : 'bg-flint/40'}"
-        aria-hidden="true"
-      ></span>
-      <span>
-        ML Sidecar: {sidecarAvailable ? 'Connected' : 'Offline'}
-      </span>
-      {#if sidecarHealth?.capabilities}
-        <span class="text-flint ml-1">
-          — ELA {sidecarHealth.capabilities.ela ? 'ready' : 'off'},
-          Noise {sidecarHealth.capabilities.noise ? 'ready' : 'off'},
-          Copy-move {sidecarHealth.capabilities.copyMove ? 'ready' : 'off'},
-          Deepfake {sidecarHealth.capabilities.deepfake ? 'ready' : 'off'}
-        </span>
-      {/if}
-    </div>
+      Know What's Real
+    </h1>
+    <p class="text-base text-flint dark:text-[#9B9890] max-w-md mx-auto mb-3 leading-relaxed">
+      In a world of synthetic media, the ability to verify what you see matters more than ever.
+    </p>
+    <p class="text-sm text-flint/70 dark:text-flint max-w-sm mx-auto italic leading-relaxed">
+      Everything happens on your machine. Nothing leaves.
+    </p>
   </section>
 
-  <!-- Recent Assets -->
-  <section aria-label="Recent assets">
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="text-base font-heading text-text-light dark:text-quartz">Recent Assets</h2>
-      <a
-        href="/protect"
-        class="text-xs text-lapis hover:text-lapis-dark dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
+  <!-- Earth line -->
+  <div class="earth-line" aria-hidden="true"></div>
+
+  <!-- Quiet accomplishments -->
+  <section
+    class="py-14 flex justify-center gap-16 flex-wrap"
+    aria-label="Summary statistics"
+  >
+    <div class="text-center">
+      <p
+        class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
+        style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.02em;"
+        aria-label="{stats.totalAssets.toLocaleString()} assets protected"
       >
-        View all
-      </a>
+        {stats.totalAssets.toLocaleString()}
+      </p>
+      <p class="text-xs text-flint dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">assets protected</p>
     </div>
 
-    {#if recentAssets.length === 0}
-      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light px-6 py-8 text-center">
-        <p class="text-sm text-flint">No assets yet. Import files to get started.</p>
-      </div>
+    <div class="text-center">
+      <p
+        class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
+        style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.02em;"
+        aria-label="{stats.c2paSignedCount.toLocaleString()} content credentials"
+      >
+        {stats.c2paSignedCount.toLocaleString()}
+      </p>
+      <p class="text-xs text-flint dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">content credentials</p>
+    </div>
+
+    <div class="text-center">
+      <p
+        class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
+        style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.02em;"
+        aria-label="{stats.totalFingerprints.toLocaleString()} fingerprints"
+      >
+        {stats.totalFingerprints.toLocaleString()}
+      </p>
+      <p class="text-xs text-flint dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">fingerprints</p>
+    </div>
+
+    <div class="text-center">
+      <p
+        class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
+        style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.02em;"
+        aria-label="{stats.totalVerifications.toLocaleString()} verifications"
+      >
+        {stats.totalVerifications.toLocaleString()}
+      </p>
+      <p class="text-xs text-flint dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">verifications</p>
+    </div>
+  </section>
+
+  <!-- Earth line -->
+  <div class="earth-line" aria-hidden="true"></div>
+
+  <!-- Analysis services status -->
+  <div class="py-8 text-center" aria-live="polite" aria-atomic="true">
+    {#if sidecarAvailable}
+      <span
+        class="inline-flex items-center gap-2 text-xs px-5 py-2 rounded-full border"
+        style="color: #6B8F5F; background: rgba(107,143,95,0.06); border-color: rgba(107,143,95,0.12);"
+      >
+        <span class="w-1.5 h-1.5 rounded-full bg-malachite" aria-hidden="true"></span>
+        Analysis services connected
+      </span>
     {:else}
-      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light overflow-hidden">
-        {#each recentAssets as asset (asset.assetId)}
-          <div class="flex items-center gap-3 px-4 py-3 border-b border-border-light/50 dark:border-graphite-light/50 last:border-b-0">
-            <!-- Content type badge -->
-            <span
-              class="flex-shrink-0 text-xs font-mono px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-text-light dark:text-flint w-10 text-center"
-              aria-label={CONTENT_TYPE_LABELS[asset.contentType] ?? asset.contentType}
-            >
-              {contentTypeAbbr(asset.contentType)}
-            </span>
-
-            <!-- File name -->
-            <p class="flex-1 text-sm text-text-light dark:text-quartz truncate min-w-0" title={asset.fileName}>
-              {asset.fileName}
-            </p>
-
-            <!-- File size -->
-            <span class="flex-shrink-0 text-xs text-flint tabular-nums">
-              {formatFileSize(asset.fileSize)}
-            </span>
-
-            <!-- Signed badge -->
-            {#if asset.c2paSigned}
-              <span
-                class="flex-shrink-0 text-xs px-2 py-0.5 rounded bg-malachite/15 text-malachite dark:text-malachite-light"
-                aria-label="C2PA signed"
-              >
-                Signed
-              </span>
-            {/if}
-          </div>
-        {/each}
-      </div>
+      <span
+        class="inline-flex items-center gap-2 text-xs px-5 py-2 rounded-full border text-flint dark:text-flint border-border-light dark:border-border-dark"
+      >
+        <span class="w-1.5 h-1.5 rounded-full bg-flint/40" aria-hidden="true"></span>
+        Analysis services offline
+      </span>
     {/if}
+  </div>
+
+  <!-- Earth line -->
+  <div class="earth-line" aria-hidden="true"></div>
+
+  <!-- Narrative chapters -->
+  <section class="pt-2 pb-12" aria-label="What you can do">
+
+    <!-- Protect -->
+    <div class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]">
+      <div class="flex items-baseline gap-4 mb-4">
+        <span class="text-xs uppercase tracking-widest text-flint dark:text-[#A09D95] flex-shrink-0 w-20">Protect</span>
+        <h2
+          class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
+          style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;"
+        >
+          <a
+            href="/protect"
+            class="hover:text-lapis dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          >
+            Safeguard your content
+          </a>
+        </h2>
+      </div>
+      <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
+        Import your files and let Jura Trace catalogue them with care. Sign with C2PA Content
+        Credentials so your work carries proof of origin wherever it travels. Generate perceptual
+        fingerprints that persist even when images are cropped, resized, or screenshotted.
+      </p>
+
+      <!-- Asset hint -->
+      <p class="text-xs text-flint/60 dark:text-flint mt-4 pl-24">
+        {#if hasAssets}
+          {stats.totalAssets} {stats.totalAssets === 1 ? 'file' : 'files'} catalogued — <a
+            href="/protect"
+            class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          >view all</a>
+        {:else}
+          Import files on the Protect page to get started.
+        {/if}
+      </p>
+    </div>
+
+    <!-- Verify -->
+    <div class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]">
+      <div class="flex items-baseline gap-4 mb-4">
+        <span class="text-xs uppercase tracking-widest text-flint dark:text-[#A09D95] flex-shrink-0 w-20">Verify</span>
+        <h2
+          class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
+          style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;"
+        >
+          <a
+            href="/verify"
+            class="hover:text-lapis dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          >
+            Check what you're looking at
+          </a>
+        </h2>
+      </div>
+      <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
+        Drop an image, paste a URL, or describe a claim. Jura Trace examines the evidence
+        layer by layer — forensic analysis, metadata inspection, region-based composite
+        detection — and tells you what it finds. Honestly. No certainty where none exists.
+      </p>
+    </div>
+
   </section>
 
-  <!-- Quick Actions -->
-  <section class="grid grid-cols-1 md:grid-cols-2 gap-6" aria-label="Quick actions">
-    <a
-      href="/protect"
-      class="block bg-white dark:bg-graphite rounded-lg p-8 border border-border-light dark:border-graphite-light hover:border-malachite transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
-    >
-      <p class="text-xs text-malachite dark:text-malachite-light uppercase tracking-wide mb-2">Protect</p>
-      <h2 class="text-xl font-heading text-text-light dark:text-quartz mb-2">Safeguard Your Content</h2>
-      <p class="text-sm text-flint">
-        Import files, auto-catalogue with AI, sign with C2PA Content Credentials,
-        and fingerprint for future tracking.
-      </p>
-    </a>
+  <!-- Philosophy anchor -->
+  <section
+    class="py-20 text-center relative"
+    aria-label="Our philosophy"
+  >
+    <!-- Vertical rule above -->
+    <div
+      class="absolute top-0 left-1/2 -translate-x-1/2 w-px h-10 bg-flint/20"
+      aria-hidden="true"
+    ></div>
 
-    <a
-      href="/verify"
-      class="block bg-white dark:bg-graphite rounded-lg p-8 border border-border-light dark:border-graphite-light hover:border-lapis transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
-    >
-      <p class="text-xs text-lapis dark:text-lapis-light uppercase tracking-wide mb-2">Verify</p>
-      <h2 class="text-xl font-heading text-text-light dark:text-quartz mb-2">Check Authenticity</h2>
-      <p class="text-sm text-flint">
-        Upload an image, paste a URL, or type a claim. Get forensic analysis,
-        deepfake detection, and sourced verification.
-      </p>
-    </a>
+    <div class="max-w-lg mx-auto">
+      <p class="text-xs text-flint dark:text-[#A09D95] uppercase tracking-widest mb-6">The human centre</p>
+      <blockquote
+        class="font-heading text-xl font-normal text-text-light dark:text-quartz leading-relaxed mb-5"
+        style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;"
+      >
+        Keep people at the heart of every decision.<br>
+        <em class="text-lapis-light dark:text-[#8AABBF] not-italic">Use technology to support and guide, not to take over.</em>
+      </blockquote>
+      <p class="text-xs text-flint/70 dark:text-flint tracking-wide">Juralabs CIC — Reclaiming Technology for Society</p>
+    </div>
   </section>
+
 </div>

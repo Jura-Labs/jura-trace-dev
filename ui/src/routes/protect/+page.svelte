@@ -270,7 +270,7 @@
   <!-- Page header -->
   <div class="flex items-start justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-heading text-text-light dark:text-quartz">Protect</h1>
+      <h1 class="text-2xl font-heading text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Protect</h1>
       <p class="text-flint text-sm mt-1">
         Import, catalogue, and safeguard your digital content.
       </p>
@@ -286,7 +286,7 @@
       </span>
       {#if displayedAssets.length > 0}
         <button
-          class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center rounded border border-border-light dark:border-graphite-light text-flint hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+          class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center rounded border border-border-light dark:border-border-dark text-flint hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
           onclick={exportCsv}
           aria-label="Export visible assets as CSV"
         >
@@ -309,17 +309,16 @@
 
   <!-- Drop zone / import button -->
   <button
-    class="w-full border-2 border-dashed rounded-lg p-12 text-center transition-all duration-200 cursor-pointer
+    class="w-full border-2 border-dashed rounded-lg p-14 text-center transition-all duration-200 cursor-pointer
            {dragOver
              ? 'border-lapis bg-lapis/5 scale-[1.01]'
-             : 'border-border-light dark:border-graphite-light hover:border-lapis/50'}
+             : 'border-border-light dark:border-[rgba(122,119,112,0.2)] hover:border-lapis/40 dark:hover:border-lapis/30'}
            {importingCount > 0 ? 'opacity-60 pointer-events-none' : ''}
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
     ondragover={handleDragOver}
     ondragleave={handleDragLeave}
     ondrop={handleDrop}
     onclick={handleFilePicker}
-    aria-label="Drop files here or click to import"
     aria-disabled={importingCount > 0}
   >
     {#if importingCount > 0}
@@ -340,8 +339,8 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
             d="M12 16V4m0 0L8 8m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4" />
         </svg>
-        <p class="text-text-light dark:text-quartz">Drop files or folders here</p>
-        <p class="text-xs text-flint">
+        <p class="text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Drop files or folders here</p>
+        <p class="text-xs text-flint mt-1">
           or click to browse &mdash; JPEG, PNG, TIFF, WebP, PDF, MP4, WAV, and more
         </p>
       </div>
@@ -360,7 +359,7 @@
       <select
         id="filter-content-type"
         bind:value={filterContentType}
-        class="px-3 py-2 rounded border border-border-light dark:border-graphite-light bg-white dark:bg-graphite text-text-light dark:text-quartz text-sm
+        class="px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite text-text-light dark:text-quartz text-sm
                hover:border-lapis/50 transition-colors
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
       >
@@ -380,7 +379,7 @@
       <select
         id="filter-status"
         bind:value={filterStatus}
-        class="px-3 py-2 rounded border border-border-light dark:border-graphite-light bg-white dark:bg-graphite text-text-light dark:text-quartz text-sm
+        class="px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite text-text-light dark:text-quartz text-sm
                hover:border-lapis/50 transition-colors
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
       >
@@ -409,7 +408,7 @@
           type="search"
           bind:value={searchRaw}
           placeholder="Search files..."
-          class="w-full pl-8 pr-3 py-2 rounded border border-border-light dark:border-graphite-light bg-white dark:bg-graphite text-text-light dark:text-quartz text-sm
+          class="w-full pl-8 pr-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite text-text-light dark:text-quartz text-sm
                  placeholder:text-flint/60
                  hover:border-lapis/50 transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
@@ -433,7 +432,7 @@
 
   <!-- Asset list -->
   {#if displayedAssets.length === 0 && importingCount === 0}
-    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light p-10 text-center">
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-10 text-center">
       {#if filterContentType || filterStatus || searchRaw}
         <p class="text-flint">No assets match the current filters.</p>
         <button
@@ -449,11 +448,11 @@
     </div>
 
   {:else if displayedAssets.length > 0}
-    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light overflow-hidden">
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark overflow-hidden">
 
       <!-- Column headers (sortable) — desktop only -->
       <div
-        class="hidden sm:grid grid-cols-[1fr_100px_110px_130px] gap-4 px-4 py-2 border-b border-border-light dark:border-graphite-light text-xs text-flint uppercase tracking-wide"
+        class="hidden sm:grid grid-cols-[1fr_100px_110px_130px] gap-4 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint uppercase tracking-wide"
         role="row"
         aria-label="Sort column headers"
       >
@@ -584,7 +583,7 @@
         {#if selectedAsset?.assetId === asset.assetId}
           {@const meta = getMetadata(asset)}
           <div
-            class="px-4 py-4 bg-gray-50 dark:bg-obsidian/50 border-b border-border-light dark:border-graphite-light"
+            class="px-4 py-4 bg-gray-50 dark:bg-obsidian-dark/50 border-b border-border-light dark:border-border-dark"
             role="region"
             aria-label="Asset details for {asset.fileName}"
           >
@@ -693,7 +692,7 @@
               <!-- C2PA signing form -->
               {#if !asset.c2paSigned && canSignC2pa(asset)}
                 {#if signingAssetId === asset.assetId}
-                  <div class="col-span-full mt-3 p-3 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light">
+                  <div class="col-span-full mt-3 p-3 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark">
                     <p class="text-sm text-text-light dark:text-quartz mb-3">Sign with C2PA Content Credentials</p>
 
                     {#if metadataWarningLoading}
@@ -731,7 +730,7 @@
                           id="creator-name"
                           type="text"
                           bind:value={creatorName}
-                          class="w-full mt-1 px-3 py-2 rounded border border-border-light dark:border-graphite-light bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
+                          class="w-full mt-1 px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm
                                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                           placeholder="Your name or organisation"
                         />
@@ -746,7 +745,7 @@
                         <select
                           id="license-select"
                           bind:value={selectedLicense}
-                          class="w-full mt-1 px-3 py-2 rounded border border-border-light dark:border-graphite-light bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
+                          class="w-full mt-1 px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm
                                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                         >
                           <option value="All Rights Reserved">All Rights Reserved</option>
@@ -792,7 +791,7 @@
               <!-- Fingerprint viewer -->
               {#if asset.contentType === 'image'}
                 {#if showFingerprintsFor === asset.assetId}
-                  <div class="col-span-full mt-3 p-3 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light">
+                  <div class="col-span-full mt-3 p-3 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark">
                     <div class="flex items-center justify-between mb-2">
                       <p class="text-sm text-text-light dark:text-quartz">Perceptual Fingerprints</p>
                       <button
@@ -821,7 +820,7 @@
                             <span class="text-flint uppercase tracking-wide w-32">
                               {HASH_TYPE_LABELS[fp.hashType] || fp.hashType}
                             </span>
-                            <code class="text-text-light dark:text-quartz font-mono bg-gray-100 dark:bg-obsidian/50 px-2 py-0.5 rounded">
+                            <code class="text-text-light dark:text-quartz font-mono bg-gray-100 dark:bg-obsidian-dark/50 px-2 py-0.5 rounded">
                               {fp.hashValue}
                             </code>
                           </div>

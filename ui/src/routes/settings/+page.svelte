@@ -155,14 +155,14 @@
 </script>
 
 <div class="space-y-6">
-  <h1 class="text-2xl font-heading text-text-light dark:text-quartz">Settings</h1>
+  <h1 class="text-2xl font-heading text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Settings</h1>
 
   <!-- Ollama Configuration -->
   <section
-    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light p-6"
+    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="ollama-heading"
   >
-    <h2 id="ollama-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4">Ollama Configuration</h2>
+    <h2 id="ollama-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4" style="font-family: Georgia, 'Times New Roman', serif;">Ollama Configuration</h2>
     <div class="space-y-4">
 
       <div>
@@ -173,7 +173,7 @@
           id="ollama-url"
           type="url"
           bind:value={ollamaUrl}
-          class="w-full max-w-md px-3 py-2 rounded border border-border-light dark:border-graphite-light bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
+          class="w-full max-w-md px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent transition-colors"
           placeholder={DEFAULT_OLLAMA_URL}
           autocomplete="off"
@@ -192,7 +192,7 @@
           id="vision-model"
           type="text"
           bind:value={visionModel}
-          class="w-full max-w-md px-3 py-2 rounded border border-border-light dark:border-graphite-light bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
+          class="w-full max-w-md px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent transition-colors"
           placeholder={DEFAULT_VISION_MODEL}
           autocomplete="off"
@@ -211,7 +211,7 @@
           id="text-model"
           type="text"
           bind:value={textModel}
-          class="w-full max-w-md px-3 py-2 rounded border border-border-light dark:border-graphite-light bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
+          class="w-full max-w-md px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent transition-colors"
           placeholder={DEFAULT_TEXT_MODEL}
           autocomplete="off"
@@ -248,12 +248,12 @@
 
   <!-- Deployment Profiles -->
   <section
-    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light p-6"
+    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="profiles-heading"
   >
     <div class="flex items-center justify-between mb-4">
       <div>
-        <h2 id="profiles-heading" class="text-lg font-heading text-text-light dark:text-quartz">Deployment Profiles</h2>
+        <h2 id="profiles-heading" class="text-lg font-heading text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Deployment Profiles</h2>
         <p class="text-xs text-flint mt-0.5">
           Save the current Ollama settings as a named profile to switch between environments quickly.
         </p>
@@ -289,7 +289,7 @@
     <!-- Inline save form -->
     {#if showSaveForm}
       <div
-        class="mb-4 p-4 rounded-lg border border-lapis/30 bg-gray-50 dark:bg-obsidian/50"
+        class="mb-4 p-4 rounded-lg border border-lapis/30 bg-gray-50 dark:bg-obsidian/40"
         role="region"
         aria-label="Save profile form"
       >
@@ -312,7 +312,7 @@
             aria-describedby={nameError ? 'profile-name-error' : 'profile-name-hint'}
             class="px-3 py-2 rounded border text-sm bg-white dark:bg-obsidian text-text-light dark:text-quartz transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent
-                   {nameError ? 'border-cinnabar' : 'border-border-light dark:border-graphite-light'}"
+                   {nameError ? 'border-cinnabar' : 'border-border-light dark:border-border-dark'}"
           />
           {#if nameError}
             <p id="profile-name-error" class="text-xs text-cinnabar-light" role="alert">
@@ -345,7 +345,7 @@
 
     <!-- Profile list -->
     {#if profiles.length === 0}
-      <p class="text-sm text-flint py-4 text-center border border-dashed border-border-light dark:border-graphite-light rounded-lg">
+      <p class="text-sm text-flint py-4 text-center border border-dashed border-border-light dark:border-border-dark rounded-lg">
         No profiles saved yet.
       </p>
     {:else}
@@ -361,7 +361,7 @@
                      ? 'border-cinnabar/30 bg-cinnabar/5'
                      : loadedProfileId === profile.id
                        ? 'border-malachite/30 bg-malachite/5'
-                       : 'border-border-light dark:border-graphite-light bg-gray-50 dark:bg-obsidian/40 hover:border-lapis/30'}"
+                       : 'border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 hover:border-lapis/30'}"
           >
             <!-- Profile row -->
             <div class="flex items-center justify-between gap-3 px-4 py-3">
@@ -451,13 +451,13 @@
 
   <!-- Service Status -->
   <section
-    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light p-6"
+    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="status-heading"
   >
     <div class="flex items-center justify-between mb-4">
-      <h2 id="status-heading" class="text-lg font-heading text-text-light dark:text-quartz">Service Status</h2>
+      <h2 id="status-heading" class="text-lg font-heading text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Service Status</h2>
       <button
-        class="text-xs px-3 py-2.5 min-h-[44px] rounded border border-border-light dark:border-graphite-light text-flint hover:text-text-light dark:hover:text-quartz hover:border-lapis/50
+        class="text-xs px-3 py-2.5 min-h-[44px] rounded border border-border-light dark:border-border-dark text-flint hover:text-text-light dark:hover:text-quartz hover:border-lapis/50
                transition-colors disabled:opacity-50
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
         onclick={refreshHealth}
@@ -479,9 +479,9 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <!-- ML Sidecar card -->
-      <div class="rounded-lg border border-border-light dark:border-graphite-light bg-gray-50 dark:bg-obsidian/50 p-4">
+      <div class="rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 p-4">
         <div class="flex items-center justify-between mb-3">
-          <span class="text-sm font-medium text-text-light dark:text-quartz">ML Sidecar</span>
+          <span class="text-sm font-medium text-text-light dark:text-quartz">Analysis services</span>
           <span
             class="text-xs px-2 py-0.5 rounded-full
                    {sidecarOnline
@@ -509,7 +509,7 @@
           </div>
         {:else}
           <div class="mt-2 text-xs text-flint">
-            <p class="mb-1">Start the ML sidecar with:</p>
+            <p class="mb-1">Start the analysis services with:</p>
             <code class="block font-mono text-xs bg-gray-100 dark:bg-obsidian px-2 py-1 rounded text-text-light dark:text-quartz">
               cd sidecar && uvicorn main:app --host 127.0.0.1 --port 8200
             </code>
@@ -518,7 +518,7 @@
       </div>
 
       <!-- Ollama card -->
-      <div class="rounded-lg border border-border-light dark:border-graphite-light bg-gray-50 dark:bg-obsidian/50 p-4">
+      <div class="rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 p-4">
         <div class="flex items-center justify-between mb-3">
           <span class="text-sm font-medium text-text-light dark:text-quartz">Ollama</span>
           <span
@@ -553,10 +553,10 @@
 
   <!-- Data Storage -->
   <section
-    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light p-6"
+    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="storage-heading"
   >
-    <h2 id="storage-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4">Data Storage</h2>
+    <h2 id="storage-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4" style="font-family: Georgia, 'Times New Roman', serif;">Data Storage</h2>
     <div>
       <label for="data-dir" class="block text-sm font-medium text-text-light dark:text-quartz mb-1">
         Data Directory
@@ -567,12 +567,12 @@
           type="text"
           value="./data"
           readonly
-          class="flex-1 px-3 py-2 rounded border border-border-light dark:border-graphite-light bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
+          class="flex-1 px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
                  cursor-not-allowed opacity-70"
           aria-readonly="true"
         />
         <button
-          class="px-4 py-2.5 min-h-[44px] rounded border border-border-light dark:border-graphite-light text-sm text-text-light dark:text-quartz
+          class="px-4 py-2.5 min-h-[44px] rounded border border-border-light dark:border-border-dark text-sm text-text-light dark:text-quartz
                  hover:border-lapis transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
         >
@@ -587,10 +587,10 @@
 
   <!-- About -->
   <section
-    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light p-6"
+    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="about-heading"
   >
-    <h2 id="about-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4">About</h2>
+    <h2 id="about-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4" style="font-family: Georgia, 'Times New Roman', serif;">About</h2>
     <dl class="grid grid-cols-[max-content_1fr] gap-x-8 gap-y-2 text-sm max-w-md">
       <dt class="text-flint">Version</dt>
       <dd class="text-text-light dark:text-quartz">{appVersion}</dd>

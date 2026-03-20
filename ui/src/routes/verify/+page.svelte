@@ -570,7 +570,7 @@
   <!-- Page heading + sidecar status -->
   <div class="flex items-start justify-between">
     <div>
-      <h1 class="text-2xl font-heading text-text-light dark:text-quartz">Verify</h1>
+      <h1 class="text-2xl font-heading text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Verify</h1>
       <p class="text-flint text-sm mt-1">
         Check the authenticity and provenance of files. All analysis happens locally on your device.
       </p>
@@ -578,7 +578,7 @@
     <div class="flex items-center gap-3">
       <!-- Mode toggle -->
       <div
-        class="flex items-center text-xs rounded-full border border-border-light dark:border-graphite-light overflow-hidden"
+        class="flex items-center text-xs rounded-full border border-border-light dark:border-border-dark overflow-hidden"
         role="radiogroup"
         aria-label="Verification mode"
       >
@@ -605,19 +605,19 @@
 
       <!-- Sidecar status -->
       <div
-        class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border
+        class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border
                {sidecarAvailable
                  ? 'bg-malachite/10 text-malachite dark:text-malachite-light border-malachite/20'
-                 : 'bg-white dark:bg-graphite text-flint border-border-light dark:border-graphite-light'}"
+                 : 'bg-white dark:bg-graphite text-flint border-border-light dark:border-border-dark'}"
         title={sidecarAvailable
-          ? `ML Sidecar v${sidecarHealth?.version} — forensics available`
-          : 'ML Sidecar offline — forensics not available'}
+          ? `Analysis services v${sidecarHealth?.version} — forensics available`
+          : 'Analysis services offline — forensics not available'}
       >
         <span
           class="w-1.5 h-1.5 rounded-full {sidecarAvailable ? 'bg-malachite' : 'bg-flint/50'}"
           aria-hidden="true"
         ></span>
-        {sidecarAvailable ? 'ML Connected' : 'ML Offline'}
+        {sidecarAvailable ? 'Analysis services connected' : 'Analysis services offline'}
       </div>
     </div>
   </div>
@@ -635,8 +635,8 @@
 
   <!-- ── Input Tabs ─────────────────────────────────────────────────── -->
   <div>
-    <!-- Tab bar -->
-    <div class="flex border-b border-border-light dark:border-graphite-light mb-4" role="tablist">
+    <!-- Tab bar — soft pill style -->
+    <div class="flex border-b border-border-light dark:border-[rgba(122,119,112,0.15)] mb-4" role="tablist">
       <button
         class="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
@@ -689,7 +689,7 @@
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
                {dragOver
                  ? 'border-lapis bg-lapis/5 scale-[1.01]'
-                 : 'border-border-light dark:border-graphite-light hover:border-lapis/50'}
+                 : 'border-border-light dark:border-border-dark hover:border-lapis/50'}
                {loading ? 'opacity-60 pointer-events-none' : ''}"
         ondragover={handleDragOver}
         ondragleave={handleDragLeave}
@@ -733,7 +733,7 @@
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
                {batchDragOver
                  ? 'border-lapis bg-lapis/5 scale-[1.01]'
-                 : 'border-border-light dark:border-graphite-light hover:border-lapis/50'}
+                 : 'border-border-light dark:border-border-dark hover:border-lapis/50'}
                {batchRunning ? 'opacity-60 pointer-events-none' : ''}"
         ondragover={(e) => { e.preventDefault(); batchDragOver = true; }}
         ondragleave={() => { batchDragOver = false; }}
@@ -783,9 +783,9 @@
         </div>
 
         <!-- Results table -->
-        <div class="mt-4 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light overflow-x-auto">
+        <div class="mt-4 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark overflow-x-auto">
           <!-- Header -->
-          <div class="grid grid-cols-[1fr_90px_80px_80px_60px] gap-3 px-4 py-2 border-b border-border-light dark:border-graphite-light text-xs text-flint uppercase tracking-wide min-w-[480px]">
+          <div class="grid grid-cols-[1fr_90px_80px_80px_60px] gap-3 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint uppercase tracking-wide min-w-[480px]">
             <span>File</span>
             <span>Status</span>
             <span>Trust</span>
@@ -795,7 +795,7 @@
 
           <!-- Rows -->
           {#each batchItems as item (item.id)}
-            <div class="border-b border-border-light/50 dark:border-graphite-light/50 min-w-[480px]">
+            <div class="border-b border-border-light/50 dark:border-border-dark/50 min-w-[480px]">
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 class="w-full grid grid-cols-[1fr_90px_80px_80px_60px] gap-3 px-4 py-2.5 text-left cursor-pointer
@@ -887,7 +887,7 @@
 
               <!-- Expanded detail -->
               {#if expandedBatchId === item.id && item.result}
-                <div class="px-4 py-4 bg-gray-50 dark:bg-obsidian/50 border-t border-border-light dark:border-graphite-light">
+                <div class="px-4 py-4 bg-gray-50 dark:bg-obsidian/50 border-t border-border-light dark:border-border-dark">
                   <VerdictSummary result={item.result} fileName={item.fileName} />
                 </div>
               {/if}
@@ -905,7 +905,7 @@
           bind:value={urlInput}
           placeholder="https://example.com/image.jpg"
           disabled={loading}
-          class="flex-1 bg-white dark:bg-obsidian border border-border-light dark:border-graphite-light rounded-lg px-4 py-3 text-sm text-text-light dark:text-quartz
+          class="flex-1 bg-white dark:bg-obsidian border border-border-light dark:border-border-dark rounded-lg px-4 py-3 text-sm text-text-light dark:text-quartz
                  placeholder:text-flint/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-lapis
                  disabled:opacity-50"
           onkeydown={(e) => { if (e.key === 'Enter') runUrlVerification(); }}
@@ -935,8 +935,8 @@
   {#if checked && result}
 
     <!-- Trust Score header -->
-    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light overflow-hidden">
-      <div class="px-5 py-4 border-b border-border-light dark:border-graphite-light flex items-center justify-between gap-4">
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark overflow-hidden">
+      <div class="px-5 py-4 border-b border-border-light dark:border-border-dark flex items-center justify-between gap-4">
         <div class="flex items-center gap-4 min-w-0">
           <div>
             <p class="text-xs text-flint uppercase tracking-wide mb-0.5">Trust Score</p>
@@ -960,7 +960,7 @@
                            ? 'bg-lapis/15 text-lapis dark:text-lapis-light border-lapis/30'
                            : result.mode === 'deep'
                              ? 'bg-lapis/10 text-lapis dark:text-lapis-light border-lapis/20'
-                             : 'bg-graphite text-flint border-graphite-light dark:border-graphite-light'}"
+                             : 'bg-graphite text-flint border-border-dark dark:border-border-dark'}"
                   title="Investigation mode used for this analysis"
                   aria-label="Investigation mode: {result.mode}"
                 >
@@ -988,7 +988,7 @@
 
       <!-- Metadata flags (if any) -->
       {#if result.metadataFlags.length > 0}
-        <div class="px-5 py-3 border-b border-border-light dark:border-graphite-light flex flex-wrap gap-2" aria-label="Metadata flags">
+        <div class="px-5 py-3 border-b border-border-light dark:border-border-dark flex flex-wrap gap-2" aria-label="Metadata flags">
           {#each result.metadataFlags as flag}
             <span class="text-xs px-2 py-0.5 rounded bg-amber/10 text-amber border border-amber/20">
               {flag}
@@ -1002,7 +1002,7 @@
         {@const rag = result.ragClaimResult}
         {@const verdict = result.claimVerdict ?? rag?.verdict}
         <div
-          class="px-5 py-3 border-b border-border-light dark:border-graphite-light
+          class="px-5 py-3 border-b border-border-light dark:border-border-dark
                  {verdict === 'supported'
                    ? 'bg-malachite/5'
                    : verdict === 'disputed'
@@ -1020,7 +1020,7 @@
                          ? 'bg-cinnabar/15 text-cinnabar border-cinnabar/30'
                          : verdict === 'mixed'
                            ? 'bg-amber/15 text-amber border-amber/30'
-                           : 'bg-graphite text-flint border-graphite-light'}"
+                           : 'bg-graphite text-flint border-border-dark'}"
             >
               {verdict === 'supported' ? 'Supported'
                 : verdict === 'disputed' ? 'Disputed'
@@ -1050,7 +1050,7 @@
               </summary>
               <div class="mt-2 space-y-1.5" role="list" aria-label="RAG verification sources">
                 {#each rag.sources as source, i (i)}
-                  <div class="rounded-md px-3 py-2 bg-gray-50 dark:bg-obsidian/50 border border-border-light dark:border-graphite text-xs" role="listitem">
+                  <div class="rounded-md px-3 py-2 bg-gray-50 dark:bg-obsidian/50 border border-border-light dark:border-border-dark text-xs" role="listitem">
                     <p class="font-medium text-quartz">{source.title}</p>
                     <p class="text-flint mt-0.5 leading-relaxed">{source.excerpt}</p>
                     <p class="text-flint/50 tabular-nums mt-0.5">Relevance: {Math.round(source.relevance * 100)}%</p>
@@ -1063,12 +1063,12 @@
       {/if}
 
       <!-- ── Verdict Summary ──────────────────────────────────────── -->
-      <div class="px-5 py-4 border-b border-border-light dark:border-graphite-light">
+      <div class="px-5 py-4 border-b border-border-light dark:border-border-dark">
         <VerdictSummary {result} fileName={fileName ?? 'Unknown file'} />
       </div>
 
       <!-- ── Signal Agreement ─────────────────────────────────────── -->
-      <div class="px-5 py-3 border-b border-graphite-light">
+      <div class="px-5 py-3 border-b border-border-dark">
         <button
           class="flex items-center gap-2 text-sm text-flint hover:text-quartz transition-colors duration-150
                  focus:outline-none focus:ring-2 focus:ring-lapis rounded"
@@ -1094,7 +1094,7 @@
       </div>
 
       <!-- ── Visual Inspection Checklist ──────────────────────────── -->
-      <div class="px-5 py-3 border-b border-graphite-light">
+      <div class="px-5 py-3 border-b border-border-dark">
         <button
           class="flex items-center gap-2 text-sm text-flint hover:text-quartz transition-colors duration-150
                  focus:outline-none focus:ring-2 focus:ring-lapis rounded"
@@ -1120,7 +1120,7 @@
       </div>
 
       <!-- ── Investigate Further ───────────────────────────────────── -->
-      <div class="px-5 py-3 border-b border-graphite-light">
+      <div class="px-5 py-3 border-b border-border-dark">
         <button
           class="flex items-center gap-2 text-sm text-flint hover:text-quartz transition-colors duration-150
                  focus:outline-none focus:ring-2 focus:ring-lapis rounded"
@@ -1141,7 +1141,7 @@
         {#if showInvestigatePanel}
           <div id="investigate-further-panel" class="mt-3">
             <div
-              class="rounded-lg border border-graphite bg-obsidian/50 px-4 py-3"
+              class="rounded-lg border border-border-dark bg-obsidian/50 px-4 py-3"
               aria-label="Reverse image search options"
             >
               <p class="text-xs text-flint mb-3 leading-relaxed">
@@ -1181,7 +1181,7 @@
       </div>
 
       <!-- ── Export buttons ──────────────────────────────────────── -->
-      <div class="px-5 py-3 border-b border-border-light dark:border-graphite-light flex flex-wrap items-center gap-3">
+      <div class="px-5 py-3 border-b border-border-light dark:border-border-dark flex flex-wrap items-center gap-3">
         <button
           class="px-4 py-2.5 min-h-[44px] text-sm bg-lapis hover:bg-lapis-dark dark:hover:bg-lapis-light text-white rounded transition-colors
                  disabled:opacity-50 disabled:cursor-not-allowed
@@ -1208,7 +1208,7 @@
         <!-- False positive report — secondary action, pushed to far right -->
         <div class="flex-1 flex justify-end">
           <button
-            class="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] text-xs text-flint border border-border-light dark:border-graphite-light rounded
+            class="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] text-xs text-flint border border-border-light dark:border-border-dark rounded
                    hover:border-amber/50 hover:text-amber dark:hover:text-amber-light transition-colors duration-150
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
             onclick={() => { showFalsePositiveModal = true; }}
@@ -1225,7 +1225,7 @@
       </div>
 
       <!-- ── Technical Details Toggle ──────────────────────────────── -->
-      <div class="px-5 py-3 border-b border-border-light dark:border-graphite-light">
+      <div class="px-5 py-3 border-b border-border-light dark:border-border-dark">
         <button
           class="flex items-center gap-2 text-sm text-flint hover:text-text-light dark:hover:text-quartz transition-colors duration-150
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
@@ -1253,7 +1253,7 @@
       <!-- ── ELA Analysis ──────────────────────────────────────────── -->
       {#if result.elaResult}
         {@const ela = result.elaResult}
-        <section class="px-5 py-4 border-b border-border-light dark:border-graphite-light" aria-labelledby="ela-heading">
+        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="ela-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <h2 id="ela-heading" class="text-sm font-medium text-quartz">Error Level Analysis</h2>
@@ -1269,7 +1269,7 @@
           </div>
 
           <!-- ELA heatmap -->
-          <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-graphite-light bg-gray-100 dark:bg-obsidian">
+          <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
             <img
               src="data:image/png;base64,{ela.elaImageBase64}"
               alt="Error Level Analysis heatmap showing compression artefact differences"
@@ -1297,10 +1297,10 @@
           {/if}
         </section>
       {:else if checked && !sidecarAvailable}
-        <section class="px-5 py-3 border-b border-graphite-light" aria-labelledby="ela-heading">
+        <section class="px-5 py-3 border-b border-border-dark" aria-labelledby="ela-heading">
           <div class="flex items-center gap-3">
             <h2 id="ela-heading" class="text-sm font-medium text-quartz">Error Level Analysis</h2>
-            <span class="text-xs text-flint bg-gray-100 dark:bg-graphite-light px-2 py-0.5 rounded border border-border-light dark:border-graphite-light">
+            <span class="text-xs text-flint bg-gray-100 dark:bg-graphite-light px-2 py-0.5 rounded border border-border-light dark:border-border-dark">
               Unavailable
             </span>
           </div>
@@ -1313,7 +1313,7 @@
       <!-- ── Noise Analysis ────────────────────────────────────────── -->
       {#if result.noiseResult}
         {@const noise = result.noiseResult}
-        <section class="px-5 py-4 border-b border-border-light dark:border-graphite-light" aria-labelledby="noise-heading">
+        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="noise-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <h2 id="noise-heading" class="text-sm font-medium text-quartz">Noise Analysis</h2>
@@ -1330,7 +1330,7 @@
 
           <!-- Noise heatmap -->
           {#if noise.heatmapBase64}
-            <div class="mb-3 rounded-md overflow-hidden border border-graphite-light bg-obsidian">
+            <div class="mb-3 rounded-md overflow-hidden border border-border-dark bg-obsidian">
               <img
                 src="data:image/png;base64,{noise.heatmapBase64}"
                 alt="Noise variance heatmap — blue is low variance, red is high variance"
@@ -1367,7 +1367,7 @@
       <!-- ── Copy-Move Detection ───────────────────────────────────── -->
       {#if result.copyMoveResult}
         {@const cm = result.copyMoveResult}
-        <section class="px-5 py-4 border-b border-border-light dark:border-graphite-light" aria-labelledby="copymove-heading">
+        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="copymove-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <h2 id="copymove-heading" class="text-sm font-medium text-quartz">Copy-Move Detection</h2>
@@ -1384,7 +1384,7 @@
 
           <!-- Visualisation -->
           {#if cm.visualisationBase64}
-            <div class="mb-3 rounded-md overflow-hidden border border-graphite-light bg-obsidian">
+            <div class="mb-3 rounded-md overflow-hidden border border-border-dark bg-obsidian">
               <img
                 src="data:image/png;base64,{cm.visualisationBase64}"
                 alt="Copy-move detection visualisation showing matched feature pairs and clone region bounding boxes"
@@ -1416,7 +1416,7 @@
 
       <!-- ── Region Analysis ───────────────────────────────────────── -->
       {#if hasRegionResults && result}
-        <section class="px-5 py-4 border-b border-border-light dark:border-graphite-light" aria-labelledby="region-analysis-heading">
+        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="region-analysis-heading">
 
           <!-- Section header with expand/collapse toggle -->
           <div class="flex items-center justify-between mb-3">
@@ -1504,7 +1504,7 @@
                 {@const seg = result.segmentedElaResult}
                 <details class="group">
                   <summary
-                    class="flex items-center justify-between cursor-pointer list-none py-2 border-t border-border-light dark:border-graphite-light
+                    class="flex items-center justify-between cursor-pointer list-none py-2 border-t border-border-light dark:border-border-dark
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                   >
                     <div class="flex items-center gap-3">
@@ -1532,7 +1532,7 @@
                     <p class="text-xs text-flint leading-relaxed">{seg.summary}</p>
 
                     {#if seg.heatmapBase64}
-                      <div class="rounded-md overflow-hidden border border-border-light dark:border-graphite-light bg-gray-100 dark:bg-obsidian">
+                      <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
                         <img
                           src="data:image/png;base64,{seg.heatmapBase64}"
                           alt="Segmented ELA heatmap showing per-region compression anomaly scores"
@@ -1571,7 +1571,7 @@
                 {@const sh = result.shadowConsistencyResult}
                 <details class="group">
                   <summary
-                    class="flex items-center justify-between cursor-pointer list-none py-2 border-t border-border-light dark:border-graphite-light
+                    class="flex items-center justify-between cursor-pointer list-none py-2 border-t border-border-light dark:border-border-dark
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                   >
                     <div class="flex items-center gap-3">
@@ -1599,7 +1599,7 @@
                     <p class="text-xs text-flint leading-relaxed">{sh.summary}</p>
 
                     {#if sh.heatmapBase64}
-                      <div class="rounded-md overflow-hidden border border-border-light dark:border-graphite-light bg-gray-100 dark:bg-obsidian">
+                      <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
                         <img
                           src="data:image/png;base64,{sh.heatmapBase64}"
                           alt="Shadow consistency heatmap showing regions with inconsistent light direction"
@@ -1638,7 +1638,7 @@
                 {@const ct = result.colourTemperatureResult}
                 <details class="group">
                   <summary
-                    class="flex items-center justify-between cursor-pointer list-none py-2 border-t border-border-light dark:border-graphite-light
+                    class="flex items-center justify-between cursor-pointer list-none py-2 border-t border-border-light dark:border-border-dark
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                   >
                     <div class="flex items-center gap-3">
@@ -1666,7 +1666,7 @@
                     <p class="text-xs text-flint leading-relaxed">{ct.summary}</p>
 
                     {#if ct.heatmapBase64}
-                      <div class="rounded-md overflow-hidden border border-border-light dark:border-graphite-light bg-gray-100 dark:bg-obsidian">
+                      <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
                         <img
                           src="data:image/png;base64,{ct.heatmapBase64}"
                           alt="Colour temperature heatmap showing regions deviating from the global colour balance"
@@ -1710,7 +1710,7 @@
                 {@const sb = result.spliceBoundaryResult}
                 <details class="group">
                   <summary
-                    class="flex items-center justify-between cursor-pointer list-none py-2 border-t border-border-light dark:border-graphite-light
+                    class="flex items-center justify-between cursor-pointer list-none py-2 border-t border-border-light dark:border-border-dark
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                   >
                     <div class="flex items-center gap-3">
@@ -1738,7 +1738,7 @@
                     <p class="text-xs text-flint leading-relaxed">{sb.summary}</p>
 
                     {#if sb.heatmapBase64}
-                      <div class="rounded-md overflow-hidden border border-border-light dark:border-graphite-light bg-gray-100 dark:bg-obsidian">
+                      <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
                         <img
                           src="data:image/png;base64,{sb.heatmapBase64}"
                           alt="Splice boundary heatmap showing candidate cut edges between composited regions"
@@ -1771,7 +1771,7 @@
                                        ? 'bg-cinnabar/10 border-cinnabar/20'
                                        : boundary.confidence > 0.3
                                          ? 'bg-amber/10 border-amber/20'
-                                         : 'bg-graphite-light/50 border-graphite-light'}"
+                                         : 'bg-graphite-light/50 border-border-dark'}"
                               role="listitem"
                             >
                               <div class="flex items-center justify-between gap-2 mb-1">
@@ -1817,7 +1817,7 @@
       <!-- ── NPR Analysis ──────────────────────────────────────────── -->
       {#if result.nprResult}
         {@const npr = result.nprResult}
-        <section class="px-5 py-4 border-b border-border-light dark:border-graphite-light" aria-labelledby="npr-heading">
+        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="npr-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <h2 id="npr-heading" class="text-sm font-medium text-quartz">Neighbouring Pixel Relationships</h2>
@@ -1834,7 +1834,7 @@
 
           <!-- NPR heatmap -->
           {#if npr.heatmapBase64}
-            <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-graphite-light bg-gray-100 dark:bg-obsidian">
+            <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
               <img
                 src="data:image/png;base64,{npr.heatmapBase64}"
                 alt="Neighbouring pixel relationship heatmap showing local correlation anomalies"
@@ -1874,7 +1874,7 @@
       <!-- ── JPEG Ghost Detection ───────────────────────────────────── -->
       {#if result.jpegGhostResult}
         {@const jg = result.jpegGhostResult}
-        <section class="px-5 py-4 border-b border-border-light dark:border-graphite-light" aria-labelledby="jpegGhost-heading">
+        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="jpegGhost-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <h2 id="jpegGhost-heading" class="text-sm font-medium text-quartz">JPEG Ghost Detection</h2>
@@ -1891,7 +1891,7 @@
 
           <!-- JPEG Ghost heatmap -->
           {#if jg.heatmapBase64}
-            <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-graphite-light bg-gray-100 dark:bg-obsidian">
+            <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
               <img
                 src="data:image/png;base64,{jg.heatmapBase64}"
                 alt="JPEG ghost heatmap showing blocks with mismatched compression quality history"
@@ -1935,7 +1935,7 @@
       <!-- ── Chromatic Aberration Analysis ─────────────────────────── -->
       {#if result.caResult}
         {@const ca = result.caResult}
-        <section class="px-5 py-4 border-b border-border-light dark:border-graphite-light" aria-labelledby="ca-heading">
+        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="ca-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <h2 id="ca-heading" class="text-sm font-medium text-quartz">Chromatic Aberration</h2>
@@ -1949,7 +1949,7 @@
               </span>
               <!-- Informational tag — always shown -->
               <span
-                class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint border border-border-light dark:border-graphite-light"
+                class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint border border-border-light dark:border-border-dark"
                 title="Chromatic aberration analysis is informational only — results may be unreliable for mobile phone photos processed with computational lens correction"
               >
                 Informational
@@ -1989,7 +1989,7 @@
       <!-- ── CLIP Detection ─────────────────────────────────────────── -->
       {#if result.clipResult}
         {@const clip = result.clipResult}
-        <section class="px-5 py-4 border-b border-border-light dark:border-graphite-light" aria-labelledby="clip-heading">
+        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="clip-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <h2 id="clip-heading" class="text-sm font-medium text-quartz">CLIP Classification</h2>
@@ -2056,7 +2056,7 @@
       <!-- ── AI Generation Detection ─────────────────────────────── -->
       {#if result.deepfakeResult}
         {@const df = result.deepfakeResult}
-        <section class="px-5 py-4 border-b border-border-light dark:border-graphite-light" aria-labelledby="deepfake-heading">
+        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="deepfake-heading">
           <!-- AI Watermark Detections -->
           {#if df.watermarks?.some(w => w.detected)}
             <div class="mb-3 rounded-md border border-cinnabar/30 bg-cinnabar/10 px-4 py-3">
@@ -2086,7 +2086,7 @@
                 {df.suspicious ? 'Suspicious' : 'Normal'}
               </span>
               <span
-                class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint border border-border-light dark:border-graphite-light"
+                class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint border border-border-light dark:border-border-dark"
                 title="Confidence level of the detection"
               >
                 {df.confidence} confidence
@@ -2099,7 +2099,7 @@
 
           <!-- Frequency spectrum heatmap -->
           {#if df.heatmapBase64}
-            <div class="mb-3 rounded-md overflow-hidden border border-graphite-light bg-obsidian">
+            <div class="mb-3 rounded-md overflow-hidden border border-border-dark bg-obsidian">
               <img
                 src="data:image/png;base64,{df.heatmapBase64}"
                 alt="Frequency spectrum heatmap for AI generation detection"
@@ -2121,7 +2121,7 @@
                 {#each df.signals as signal (signal.name)}
                   <div
                     class="flex items-start gap-2 rounded-md px-3 py-2 text-xs
-                           {signal.triggered ? 'bg-amber/10 border border-amber/20' : 'bg-graphite-light/50 border border-graphite-light'}"
+                           {signal.triggered ? 'bg-amber/10 border border-amber/20' : 'bg-graphite-light/50 border border-border-dark'}"
                     role="listitem"
                   >
                     <span
@@ -2153,7 +2153,7 @@
       <!-- ── EXIF Analysis ─────────────────────────────────────────── -->
       {#if result.exifAnalysis}
         {@const exif = result.exifAnalysis}
-        <section class="px-5 py-4 border-b border-border-light dark:border-graphite-light" aria-labelledby="exif-heading">
+        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="exif-heading">
           <div class="flex items-center justify-between mb-3">
             <h2 id="exif-heading" class="text-sm font-medium text-quartz">EXIF Analysis</h2>
             <span class="text-xs text-flint">
@@ -2206,7 +2206,7 @@
                                ? 'border-amber/30'
                                : finding.severity === 'low'
                                  ? 'border-lapis/30'
-                                 : 'border-graphite-light'}"
+                                 : 'border-border-dark'}"
                     aria-label="Severity: {config.label}"
                   >
                     {config.label}
@@ -2299,7 +2299,7 @@
         <section class="px-5 py-4" aria-labelledby="c2pa-heading">
           <div class="flex items-center gap-3 mb-3">
             <h2 id="c2pa-heading" class="text-sm font-medium text-quartz">C2PA Credentials</h2>
-            <span class="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint border border-border-light dark:border-graphite-light">
+            <span class="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint border border-border-light dark:border-border-dark">
               Not Found
             </span>
           </div>
@@ -2323,7 +2323,7 @@
   {:else if !checked && !loading}
 
     <!-- Pre-verification idle state -->
-    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light p-8 text-center">
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-8 text-center">
       <p class="text-flint text-sm">
         {#if activeTab === 'file'}
           Drop a file above to analyse its metadata, compression artefacts, and C2PA Content Credentials.
@@ -2351,7 +2351,7 @@
     onkeydown={(e) => { if (e.key === 'Escape') { showFalsePositiveModal = false; } }}
     onclick={(e) => { if (e.target === e.currentTarget) showFalsePositiveModal = false; }}
   >
-    <div class="bg-white dark:bg-graphite border border-border-light dark:border-graphite-light rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+    <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
 
       {#if fpSubmitted}
         <!-- Success state -->
@@ -2392,7 +2392,7 @@
                 class="flex items-start gap-3 rounded-md px-3 py-2.5 cursor-pointer transition-colors duration-150
                        border {fpReasonCode === opt.code
                          ? 'border-lapis/50 bg-lapis/8 dark:bg-lapis/10'
-                         : 'border-border-light dark:border-graphite-light hover:border-lapis/30 hover:bg-gray-50 dark:hover:bg-graphite-light/20'}"
+                         : 'border-border-light dark:border-border-dark hover:border-lapis/30 hover:bg-gray-50 dark:hover:bg-graphite-light/20'}"
               >
                 <input
                   type="radio"
@@ -2417,7 +2417,7 @@
           </label>
           <textarea
             id="fp-note"
-            class="w-full h-20 px-3 py-2 text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-graphite-light rounded
+            class="w-full h-20 px-3 py-2 text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded
                    text-text-light dark:text-quartz placeholder:text-flint/40 resize-none
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
             placeholder="e.g. AVIF file exported from Lightroom, high ISO scan from Epson V600..."
@@ -2464,7 +2464,7 @@
     onkeydown={(e) => { if (e.key === 'Escape') showReportModal = false; }}
     onclick={(e) => { if (e.target === e.currentTarget) showReportModal = false; }}
   >
-    <div class="bg-white dark:bg-graphite border border-border-light dark:border-graphite-light rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+    <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
       <h2 id="report-modal-title" class="text-lg font-medium text-text-light dark:text-quartz mb-1">Export Trust Report</h2>
       <p class="text-sm text-flint mb-4">
         Add an optional analyst note to include in the PDF report.
@@ -2475,7 +2475,7 @@
       </label>
       <textarea
         id="analyst-note"
-        class="w-full h-24 px-3 py-2 text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-graphite-light rounded
+        class="w-full h-24 px-3 py-2 text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded
                text-text-light dark:text-quartz placeholder:text-flint/40 resize-none
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
         placeholder="e.g. Initial assessment suggests authentic capture with minor metadata gaps..."

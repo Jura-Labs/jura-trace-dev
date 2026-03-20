@@ -83,8 +83,8 @@
 
 <div class="min-h-screen flex flex-col bg-surface-light dark:bg-surface-dark text-text-light dark:text-text-dark">
   <!-- Header -->
-  <header class="border-b border-border-light dark:border-border-dark sticky top-0 z-40 bg-surface-light dark:bg-surface-dark">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+  <header class="border-b border-border-light dark:border-[rgba(122,119,112,0.15)] sticky top-0 z-40 bg-surface-light dark:bg-surface-dark">
+    <div class="max-w-5xl mx-auto px-6 lg:px-8 h-16 flex items-center justify-between">
 
       <!-- Brand: logo + name -->
       <a
@@ -105,8 +105,8 @@
             onclick={() => handleNavClick(item.href)}
             class="nav-link transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded
                    {currentPath === item.href
-                     ? 'text-lapis dark:text-lapis-light'
-                     : 'text-flint dark:text-flint-light hover:text-lapis dark:hover:text-lapis-light'}"
+                     ? 'text-lapis dark:text-[#8AABBF]'
+                     : 'text-flint dark:text-flint-light hover:text-lapis dark:hover:text-[#8AABBF]'}"
             title={item.title}
             aria-current={currentPath === item.href ? 'page' : undefined}
           >
@@ -172,9 +172,9 @@
     {#if mobileMenuOpen}
       <div
         id="mobile-menu"
-        class="md:hidden border-t border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark"
+        class="md:hidden border-t border-border-light dark:border-[rgba(122,119,112,0.15)] bg-surface-light dark:bg-surface-dark"
       >
-        <nav class="flex flex-col py-2 max-w-7xl mx-auto px-4" aria-label="Mobile navigation">
+        <nav class="flex flex-col py-2 max-w-4xl mx-auto px-6" aria-label="Mobile navigation">
           {#each navItems as item}
             <a
               href={item.href}
@@ -201,25 +201,27 @@
     {/if}
   </header>
 
-  <!-- Main content -->
+  <!-- Main content — constrained to Sanctuary max-width of ~900px -->
   <main
     id="main-content"
     tabindex="-1"
-    class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 outline-none"
+    class="flex-1 max-w-4xl w-full mx-auto px-6 lg:px-8 py-10 outline-none"
   >
     {@render children()}
   </main>
 
   <!-- Footer -->
-  <footer class="border-t border-border-light dark:border-border-dark mt-auto">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+  <footer class="border-t border-border-light dark:border-[rgba(122,119,112,0.15)] mt-auto">
+    <div class="max-w-4xl mx-auto px-6 lg:px-8 py-8">
       <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-flint dark:text-flint-light">
         <div class="flex items-center gap-3">
           <LogoMark size={16} />
           <span class="brand-name text-xs text-text-light dark:text-text-dark">Jura Trace</span>
           <span class="text-xs">v0.2.0-dev</span>
         </div>
-        <p class="text-xs text-center">Local-first. Your data stays here.</p>
+        <p class="text-xs text-center italic text-flint dark:text-flint-light max-w-sm leading-relaxed">
+          Keep people at the heart of every decision. Use technology to support and guide, not to take over.
+        </p>
         <div class="flex items-center gap-4 text-xs">
           <a
             href="https://juralabs.org"

@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    /* Jura Trace — Mineral Palette */
-    --color-bg-primary: #F5F3EE;
+    /* Jura Trace — Sanctuary Palette (light mode) */
+    --color-bg-primary: #FAFAF7;
     --color-bg-surface: #FFFFFF;
-    --color-text-primary: #1C1E26;
-    --color-text-secondary: #9B9890;
-    --color-border: #D8D8D8;
+    --color-text-primary: #3A3832;
+    --color-text-secondary: #6B685F;
+    --color-border: #E8E6E0;
     --color-accent: #3E6FA8;
-    --color-success: #5B9A6F;
+    --color-success: #5B8A5F;
     --color-warning: #D4943A;
     --color-danger: #C45B52;
   }
 
   .dark {
-    --color-bg-primary: #1C1E26;
-    --color-bg-surface: #2A2D37;
-    --color-text-primary: #E4E2DE;
+    --color-bg-primary: #1E2128;
+    --color-bg-surface: #272B34;
+    --color-text-primary: #EDEAE4;
     --color-text-secondary: #9B9890;
-    --color-border: #383C48;
-    --color-accent: #6B96CC;
-    --color-success: #78B28A;
+    --color-border: #33312E;
+    --color-accent: #5A85B5;
+    --color-success: #6B8F5F;
     --color-warning: #E0AA5C;
     --color-danger: #D47870;
   }
@@ -81,6 +81,11 @@
     @apply bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-graphite-light;
   }
 
+  /* Sanctuary section card — warmer, softer */
+  .sanctuary-card {
+    @apply bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark;
+  }
+
   /* Touch-target-safe primary button */
   .btn-primary {
     @apply px-4 py-2.5 min-h-[44px] inline-flex items-center justify-center
@@ -97,5 +102,20 @@
            border border-border-light dark:border-graphite-light rounded transition-colors
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
            focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian;
+  }
+}
+
+@layer utilities {
+  /* Earth line — a geological stratum divider */
+  .earth-line {
+    height: 1px;
+    background: linear-gradient(90deg,
+      transparent 0%, #5B4A3A 20%, #7A6B5A 40%, #5B7A5F 60%, #4A6A8A 80%, transparent 100%
+    );
+    opacity: 0.25;
+  }
+
+  .dark .earth-line {
+    opacity: 0.3;
   }
 }

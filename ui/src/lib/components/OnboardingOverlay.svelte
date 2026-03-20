@@ -128,7 +128,8 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-obsidian/95 backdrop-blur-sm"
+  class="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
+  style="background: rgba(30,33,40,0.95);"
   role="dialog"
   aria-modal="true"
   aria-label="Welcome to Jura Trace — getting started guide"
@@ -137,7 +138,7 @@
   onkeydown={(e) => { handleKeydown(e); handleFocusTrap(e); }}
 >
   <!-- Card -->
-  <div class="relative w-full max-w-lg mx-4 bg-graphite border border-graphite-light rounded-xl shadow-2xl overflow-hidden">
+  <div class="relative w-full max-w-lg mx-4 rounded-xl overflow-hidden" style="background: #272B34; border: 1px solid rgba(122,119,112,0.2);"  >
 
     <!-- ── Slides container ───────────────────────────────────────────── -->
     <div class="min-h-[360px] flex flex-col">
@@ -150,7 +151,7 @@
           aria-label="Slide 1 of 3: Welcome"
         >
           <!-- Eyebrow label -->
-          <p class="text-xs font-medium text-lapis uppercase tracking-widest mb-4">
+          <p class="text-xs font-medium text-lapis-light uppercase tracking-widest mb-4">
             Welcome to Jura Trace
           </p>
 
@@ -180,7 +181,7 @@
           aria-label="Slide 2 of 3: Two tools in one"
         >
           <!-- Eyebrow label -->
-          <p class="text-xs font-medium text-lapis uppercase tracking-widest mb-4">
+          <p class="text-xs font-medium text-lapis-light uppercase tracking-widest mb-4">
             Two tools in one
           </p>
 
@@ -188,7 +189,7 @@
           <div class="grid grid-cols-2 gap-4 mb-5">
 
             <!-- PROTECT column -->
-            <div class="bg-obsidian/60 border border-graphite-light/60 rounded-lg p-4">
+            <div class="rounded-lg p-4" style="background: rgba(30,33,40,0.6); border: 1px solid rgba(122,119,112,0.15);">
               <h2 class="text-xs font-semibold text-quartz uppercase tracking-widest mb-2 nav-link">
                 Protect
               </h2>
@@ -199,7 +200,7 @@
             </div>
 
             <!-- VERIFY column -->
-            <div class="bg-obsidian/60 border border-graphite-light/60 rounded-lg p-4">
+            <div class="rounded-lg p-4" style="background: rgba(30,33,40,0.6); border: 1px solid rgba(122,119,112,0.15);">
               <h2 class="text-xs font-semibold text-quartz uppercase tracking-widest mb-2 nav-link">
                 Verify
               </h2>
@@ -261,7 +262,7 @@
     </div>
 
     <!-- ── Footer: progress + navigation ─────────────────────────────── -->
-    <div class="flex items-center justify-between px-8 py-5 border-t border-graphite-light/40">
+    <div class="flex items-center justify-between px-8 py-5 border-t" style="border-color: rgba(122,119,112,0.2);">
 
       <!-- Progress dots -->
       <nav aria-label="Slide progress">
@@ -322,7 +323,7 @@
           <button
             bind:this={primaryActionEl}
             onclick={goNext}
-            class="py-1.5 px-4 bg-lapis hover:bg-lapis-dark text-quartz text-xs font-medium rounded-md
+            class="py-1.5 px-4 bg-lapis hover:bg-lapis-dark text-white text-xs font-medium rounded-md
                    transition-colors duration-150
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                    focus-visible:ring-offset-2 focus-visible:ring-offset-graphite"

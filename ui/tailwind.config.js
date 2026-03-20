@@ -16,20 +16,20 @@ export default {
         button: '0.02em'
       },
       colors: {
-        // ===== Jura Trace Mineral Palette =====
+        // ===== Jura Trace — Sanctuary Mineral Palette =====
         obsidian: {
-          DEFAULT: '#1C1E26',
-          light: '#2A2D37',
-          dark: '#12141A'
+          DEFAULT: '#1E2128',
+          light: '#272B34',
+          dark: '#161920'
         },
         graphite: {
-          DEFAULT: '#2A2D37',
-          light: '#383C48',
-          dark: '#1C1E26'
+          DEFAULT: '#272B34',
+          light: '#2E3340',
+          dark: '#1E2128'
         },
         quartz: {
-          DEFAULT: '#E4E2DE',
-          dark: '#C8C5BF'
+          DEFAULT: '#EDEAE4',
+          dark: '#D8D5CE'
         },
         flint: {
           DEFAULT: '#9B9890',
@@ -37,13 +37,13 @@ export default {
         },
         lapis: {
           DEFAULT: '#3E6FA8',
-          light: '#6B96CC',
-          dark: '#3A6499'
+          light: '#5A85B5',
+          dark: '#345E90'
         },
         malachite: {
-          DEFAULT: '#5B9A6F',
-          light: '#78B28A',
-          dark: '#478558'
+          DEFAULT: '#5B8A5F',
+          light: '#6B8F5F',
+          dark: '#4A7550'
         },
         amber: {
           DEFAULT: '#D4943A',
@@ -57,17 +57,20 @@ export default {
         },
         // ===== Semantic aliases =====
         surface: {
-          light: '#F5F3EE',
-          dark: '#1C1E26'
+          light: '#FAFAF7',
+          dark: '#1E2128'
         },
         text: {
-          light: '#1C1E26',
-          dark: '#E4E2DE'
+          light: '#3A3832',
+          dark: '#EDEAE4'
         },
         border: {
-          light: '#D8D8D8',
-          dark: '#383C48'
+          light: '#E8E6E0',
+          dark: '#33312E'
         }
+      },
+      maxWidth: {
+        'content': '56rem', // ~896px — Sanctuary content width
       },
       typography: (theme) => ({
         DEFAULT: {

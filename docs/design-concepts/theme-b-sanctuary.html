@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Theme B: Sanctuary — Jura Trace</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1E2128;
+    color: #D8D5CE;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.7;
+  }
+  a { color: inherit; text-decoration: none; }
+  .serif { font-family: Georgia, 'Times New Roman', serif; }
+
+  /* === HEADER === */
+  header { padding: 20px 0; }
+  header .inner {
+    max-width: 900px; margin: 0 auto; padding: 0 40px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo-group { display: flex; align-items: center; gap: 12px; }
+  .brand-text {
+    font-family: Georgia, serif; font-size: 12px;
+    letter-spacing: 0.2em; text-transform: uppercase; color: #D8D5CE;
+  }
+  nav { display: flex; align-items: center; gap: 28px; }
+  nav a {
+    font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: #7A7770; transition: color 0.2s;
+  }
+  nav a:hover, nav a.active { color: #D8D5CE; }
+
+  /* === HERO — atmospheric, nature-first === */
+  .hero {
+    max-width: 900px; margin: 0 auto;
+    padding: 100px 40px 80px; text-align: center;
+  }
+  .hero .eye-mark { margin-bottom: 32px; }
+  .hero h1 {
+    font-family: Georgia, serif; font-size: 38px; font-weight: 400;
+    letter-spacing: -0.01em; line-height: 1.3; margin-bottom: 20px;
+    color: #EDEAE4;
+  }
+  .hero .lead {
+    font-size: 16px; color: #9B9890; max-width: 500px;
+    margin: 0 auto 12px; line-height: 1.7;
+  }
+  .hero .local {
+    font-size: 13px; color: #6B685F; max-width: 400px; margin: 0 auto;
+    font-style: italic;
+  }
+
+  /* === EARTH LINE — a thin warm line, like a geological stratum === */
+  .earth-line {
+    max-width: 900px; margin: 0 auto; padding: 0 40px;
+    height: 1px;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      #5B4A3A 20%,
+      #7A6B5A 40%,
+      #5B7A5F 60%,
+      #4A6A8A 80%,
+      transparent 100%
+    );
+    opacity: 0.3;
+  }
+
+  /* === ACCOMPLISHMENTS === */
+  .accomplishments {
+    max-width: 900px; margin: 0 auto; padding: 56px 40px;
+    display: flex; justify-content: center; gap: 72px;
+  }
+  .accomplishment { text-align: center; }
+  .accomplishment .number {
+    font-family: Georgia, serif; font-size: 30px; font-weight: 400;
+    color: #8AABBF; letter-spacing: -0.02em;
+  }
+  .accomplishment .label {
+    font-size: 11px; color: #7A7770; margin-top: 6px;
+    letter-spacing: 0.04em; text-transform: lowercase;
+  }
+
+  /* === NARRATIVE SECTIONS === */
+  .narrative {
+    max-width: 900px; margin: 0 auto; padding: 0 40px 64px;
+  }
+  .story {
+    padding: 48px 0;
+    border-top: 1px solid rgba(122,119,112,0.15);
+  }
+  .story-header {
+    display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px;
+  }
+  .story-marker {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: #7A7770; flex-shrink: 0; width: 80px;
+  }
+  .story h2 {
+    font-family: Georgia, serif; font-size: 24px; font-weight: 400;
+    color: #EDEAE4; letter-spacing: -0.01em;
+  }
+  .story p {
+    font-size: 15px; color: #9B9890; line-height: 1.8;
+    max-width: 600px; padding-left: 96px;
+  }
+
+  /* === HUMAN CENTRE — the philosophical anchor === */
+  .human-centre {
+    padding: 80px 40px;
+    text-align: center;
+    position: relative;
+  }
+  .human-centre::before {
+    content: ''; position: absolute; top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 1px; height: 40px; background: #7A7770; opacity: 0.2;
+  }
+  .human-centre .inner { max-width: 520px; margin: 0 auto; }
+  .human-centre .eyebrow {
+    font-size: 11px; color: #7A7770; text-transform: uppercase;
+    letter-spacing: 0.15em; margin-bottom: 24px;
+  }
+  .human-centre blockquote {
+    font-family: Georgia, serif; font-size: 22px; font-weight: 400;
+    color: #EDEAE4; line-height: 1.5; margin-bottom: 20px;
+    font-style: normal;
+  }
+  .human-centre blockquote em { color: #8AABBF; font-style: italic; }
+  .human-centre .attribution {
+    font-size: 12px; color: #6B685F; letter-spacing: 0.04em;
+  }
+
+  /* === SIDECAR === */
+  .status-bar {
+    max-width: 900px; margin: 0 auto; padding: 0 40px 32px;
+    text-align: center;
+  }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; color: #6B8F5F; padding: 8px 20px;
+    border-radius: 20px; background: rgba(107,143,95,0.06);
+    border: 1px solid rgba(107,143,95,0.12);
+  }
+  .status-dot { width: 5px; height: 5px; border-radius: 50%; background: #6B8F5F; }
+
+  /* === FOOTER === */
+  footer {
+    border-top: 1px solid rgba(122,119,112,0.15);
+    padding: 40px; text-align: center;
+  }
+  footer .inner {
+    max-width: 900px; margin: 0 auto;
+    font-size: 12px; color: #6B685F;
+  }
+  footer .logo-footer {
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px; margin-bottom: 12px;
+  }
+  footer .tagline { margin-bottom: 8px; font-style: italic; color: #7A7770; }
+  footer .links a { color: #7A7770; margin: 0 12px; transition: color 0.2s; }
+  footer .links a:hover { color: #8AABBF; }
+
+  .theme-label {
+    position: fixed; bottom: 16px; right: 16px;
+    background: #272A32; border: 1px solid #383C48;
+    border-radius: 6px; padding: 8px 14px;
+    font-size: 11px; color: #7A7770;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="inner">
+    <a class="logo-group" href="#">
+      <svg viewBox="0 0 32 32" width="20" height="20">
+        <circle cx="16" cy="16" r="14" fill="#5A85B5"/>
+        <circle cx="16" cy="16" r="9" fill="#EDEAE4"/>
+        <circle cx="16" cy="16" r="6" fill="#D8D5CE"/>
+        <circle cx="16" cy="16" r="3.5" fill="#1E2128"/>
+      </svg>
+      <span class="brand-text">Jura Trace</span>
+    </a>
+    <nav>
+      <a href="#" class="active">Dashboard</a>
+      <a href="#">Protect</a>
+      <a href="#">Verify</a>
+      <a href="#">Settings</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="eye-mark">
+    <svg viewBox="0 0 32 32" width="48" height="48">
+      <circle cx="16" cy="16" r="14" fill="#5A85B5"/>
+      <circle cx="16" cy="16" r="9" fill="#EDEAE4"/>
+      <circle cx="16" cy="16" r="6" fill="#D8D5CE"/>
+      <circle cx="16" cy="16" r="3.5" fill="#1E2128"/>
+    </svg>
+  </div>
+  <h1>Know What's Real</h1>
+  <p class="lead">In a world of synthetic media, the ability to verify what you see matters more than ever.</p>
+  <p class="local">Everything happens on your machine. Nothing leaves.</p>
+</section>
+
+<div class="earth-line"></div>
+
+<section class="accomplishments">
+  <div class="accomplishment">
+    <p class="number">247</p>
+    <p class="label">assets protected</p>
+  </div>
+  <div class="accomplishment">
+    <p class="number">83</p>
+    <p class="label">content credentials</p>
+  </div>
+  <div class="accomplishment">
+    <p class="number">741</p>
+    <p class="label">fingerprints</p>
+  </div>
+  <div class="accomplishment">
+    <p class="number">156</p>
+    <p class="label">verifications</p>
+  </div>
+</section>
+
+<div class="earth-line"></div>
+
+<div class="status-bar" style="padding-top:32px;">
+  <span class="status-pill"><span class="status-dot"></span> Analysis services connected</span>
+</div>
+
+<section class="narrative">
+  <div class="story">
+    <div class="story-header">
+      <span class="story-marker">Protect</span>
+      <h2>Safeguard your content</h2>
+    </div>
+    <p>Import your files and let Jura Trace catalogue them with care. Sign with C2PA Content Credentials so your work carries proof of origin wherever it travels. Generate perceptual fingerprints that persist even when images are cropped, resized, or screenshotted.</p>
+  </div>
+  <div class="story">
+    <div class="story-header">
+      <span class="story-marker">Verify</span>
+      <h2>Check what you're looking at</h2>
+    </div>
+    <p>Drop an image, paste a URL, or describe a claim. Jura Trace examines the evidence layer by layer — forensic analysis, metadata inspection, region-based composite detection — and tells you what it finds. Honestly. No certainty where none exists.</p>
+  </div>
+</section>
+
+<section class="human-centre">
+  <div class="inner">
+    <p class="eyebrow">The human centre</p>
+    <blockquote>Technology should <em>inform</em>, not replace. The human must remain at the centre of every decision.</blockquote>
+    <p class="attribution">Juralabs CIC — Reclaiming Technology for Society</p>
+  </div>
+</section>
+
+<footer>
+  <div class="inner">
+    <div class="logo-footer">
+      <svg viewBox="0 0 32 32" width="14" height="14">
+        <circle cx="16" cy="16" r="14" fill="#5A85B5"/>
+        <circle cx="16" cy="16" r="9" fill="#EDEAE4"/>
+        <circle cx="16" cy="16" r="6" fill="#D8D5CE"/>
+        <circle cx="16" cy="16" r="3.5" fill="#1E2128"/>
+      </svg>
+      <span class="brand-text" style="font-size:10px;">Jura Trace</span>
+    </div>
+    <p class="tagline">Local-first. Your data stays here.</p>
+    <div class="links">
+      <a href="#">Juralabs CIC</a>
+      <a href="#">About</a>
+      <a href="#">v0.2.0-dev</a>
+    </div>
+  </div>
+</footer>
+
+<div class="theme-label">Theme B: Sanctuary — Dark warmth, atmospheric, human presence</div>
+
+</body>
+</html>

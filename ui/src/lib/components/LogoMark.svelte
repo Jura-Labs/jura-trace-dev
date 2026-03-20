@@ -11,8 +11,8 @@
   aria-hidden="true"
   role="img"
 >
-  <circle cx="16" cy="16" r="14" fill="#3E6FA8"/>
-  <circle cx="16" cy="16" r="9" fill="#FFFFFF"/>
-  <circle cx="16" cy="16" r="6" fill="#F5F3EE"/>
-  <circle cx="16" cy="16" r="3.5" fill="#1C1E26"/>
+  <circle cx="16" cy="16" r="14" fill="#5A85B5"/>
+  <circle cx="16" cy="16" r="9" fill="#EDEAE4"/>
+  <circle cx="16" cy="16" r="6" fill="#D8D5CE"/>
+  <circle cx="16" cy="16" r="3.5" fill="#1E2128"/>
 </svg>

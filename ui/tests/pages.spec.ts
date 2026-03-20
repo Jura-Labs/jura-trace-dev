@@ -14,23 +14,23 @@ test.describe('Page smoke tests', () => {
       // No JS errors
     });
 
-    test('shows stats grid with four stat cards', async ({ page }) => {
+    test('shows four accomplishment statistics', async ({ page }) => {
       await page.goto('/');
       const statsSection = page.locator('section[aria-label="Summary statistics"]');
       await expect(statsSection).toBeVisible();
 
-      // Four metric cards are rendered inside the grid
-      const statCards = statsSection.locator('.grid > div');
-      await expect(statCards).toHaveCount(4);
+      // Four quiet accomplishments rendered as text-center divs
+      const statItems = statsSection.locator('div.text-center');
+      await expect(statItems).toHaveCount(4);
     });
 
-    test('shows quick action cards for Protect and Verify', async ({ page }) => {
+    test('shows narrative chapters for Protect and Verify', async ({ page }) => {
       await page.goto('/');
-      const actionsSection = page.locator('section[aria-label="Quick actions"]');
-      await expect(actionsSection).toBeVisible();
+      const chaptersSection = page.locator('section[aria-label="What you can do"]');
+      await expect(chaptersSection).toBeVisible();
 
-      await expect(actionsSection.getByRole('link', { name: /Safeguard Your Content/i })).toBeVisible();
-      await expect(actionsSection.getByRole('link', { name: /Check Authenticity/i })).toBeVisible();
+      await expect(chaptersSection.getByRole('link', { name: /Safeguard your content/i })).toBeVisible();
+      await expect(chaptersSection.getByRole('link', { name: /Check what you're looking at/i })).toBeVisible();
     });
   });
 
@@ -40,9 +40,9 @@ test.describe('Page smoke tests', () => {
       await expect(page.locator('h1')).toHaveText('Protect');
     });
 
-    test('shows drop zone with correct aria-label', async ({ page }) => {
+    test('shows drop zone for file import', async ({ page }) => {
       await page.goto('/protect');
-      const dropZone = page.getByRole('button', { name: 'Drop files here or click to import' });
+      const dropZone = page.getByRole('button', { name: /drop files/i });
       await expect(dropZone).toBeVisible();
     });
 
