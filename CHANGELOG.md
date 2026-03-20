@@ -6,6 +6,60 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Sprint 9 — Region-Based Forensics & UI Redesign
+
+### Week 21 — Region-Based Composite Detection + Sanctuary Theme (20 Mar 2026)
+
+#### Region-Based Forensic Analysis
+
+**Added**
+- Segmented ELA service (`segmented_ela.py`): 8x8 grid regional error level analysis with 2-sigma anomaly detection and flood-fill cluster detection
+- Shadow consistency service (`shadow_consistency.py`): gradient-weighted light direction analysis per foreground component using Otsu segmentation and circular statistics
+- Colour temperature service (`colour_temperature.py`): CIELAB colour space analysis on a 4x4 grid with 8 LAB unit deviation threshold and spatial cluster detection
+- Splice boundary service (`splice_boundary.py`): three-signal edge analysis (JPEG grid alignment, noise asymmetry, feathering) with 2-of-3 criterion to reduce false positives
+- `POST /forensics/segmented-ela`, `/shadow-consistency`, `/colour-temperature`, `/splice-boundary` endpoints
+- 8 new Rust structs for regional forensic results with serde camelCase/snake_case aliases
+- 4 new `SidecarClient` methods with 30-second timeouts
+- `VerificationResult` extended with 4 optional regional result fields
+- `compute_trust()` updated with regional weights (segmented ELA 1.5, shadow 1.0, colour temp 1.5, splice 1.0) and composite amplification cap — when 2+ regional detectors are suspicious, trust capped at 0.55
+- Region Analysis collapsible section on verify page (Deep/Archival mode only)
+- `VerdictSummary` gains composite-signal awareness — simultaneous splice + ELA corroboration is highest-confidence composite indicator
+- 8 TypeScript interfaces for regional results
+- 27 new Python tests, 16 new Rust tests
+- Sprint plan: `docs/sprint-plans/sprint-region-forensics.md`
+
+**Validated**
+- Known composite image (person dropped into group photo) that passed all 7 global detectors now triggers 3/4 regional detectors: shadow consistency (174 degree deviation), colour temperature (9/16 regions anomalous), splice boundary (45 candidate boundaries)
+
+#### UI Redesign — Sanctuary Theme
+
+**Added**
+- Rebrand from "Jura Archive" to "Jura Trace" throughout all files
+- Eye logo mark (`LogoMark.svelte`): concentric circles (lapis outer, cream iris, dark pupil)
+- SVG favicon using the eye mark
+- Sanctuary theme: warm dark background (#1E2128), cream text (#EDEAE4), soft accent blue (#5A85B5)
+- Editorial dashboard layout: Georgia serif headlines, 900px content width, earth-line gradient dividers, narrative chapters, philosophy blockquote
+- Mobile hamburger menu with body scroll lock, 44px touch targets, aria-expanded
+- Skip navigation link as first focusable element
+- `aria-current="page"` on active navigation links
+- `prefers-reduced-motion` global animation disable
+- Footer philosophy: "Keep people at the heart of every decision. Use technology to support and guide, not to take over."
+- Links to juralabs.org in header and footer
+- Playwright e2e test harness: 92 tests across navigation, responsive, accessibility, and page smoke tests
+- Three design concept mockups in `docs/design-concepts/`
+
+**Changed**
+- Flint colour darkened #9B9890 -> #78756D for light mode AA contrast (4.6:1 on white)
+- Lapis colour darkened #3E6FA8 -> #376399 for light mode AA contrast (5.0:1 on white)
+- All `text-flint` instances updated with `dark:text-flint-light` for proper dual-mode contrast
+- All bare `text-quartz` on light surfaces changed to `text-text-light dark:text-quartz`
+- Max content width reduced from 1280px to 900px for editorial breathing room
+- "ML Sidecar" language replaced with "Analysis services" throughout
+
+**Test counts**: 136 Rust, 261 Python (+ 14 CLIP skipped), 92 Playwright e2e, 175 SvelteKit files, 0 svelte-check errors, Lighthouse 97% accessibility / 100% best practices
+
+---
+
 ## Phase 2 — Detection Improvement & RAG
 
 ### Weeks 19-20+ — Detection Improvement & RAG Claim Checker (18 Mar 2026)

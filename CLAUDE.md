@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 **Developed by**: Juralabs Community Interest Company (UK) — https://juralabs.org
 **Licence**: PolyForm Noncommercial 1.0.0
-**Current Version**: 0.2.0-dev (Phase 2 active)
+**Current Version**: 0.3.0-dev (Phase 2 complete, Sprint 9 active)
 
 ## Core Architecture
 
@@ -34,6 +34,8 @@ This file provides guidance to Claude Code when working with code in this reposi
 │      Python ML Sidecar (Port 8200)      │
 │  ELA | Noise | Copy-Move | Deepfake     │
 │  NPR | Chrom. Aberration | JPEG Ghost   │
+│  Segmented ELA | Shadow Consistency     │
+│  Colour Temperature | Splice Boundary   │
 │  CLIP Detector | RAG Claim Checker      │
 └────────────────┬────────────────────────┘
                  │
@@ -52,7 +54,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 | Frontend | SvelteKit 5 + TailwindCSS (SPA mode, static adapter, Svelte 5 runes) |
 | Core engine | Rust (c2pa-rs, rusqlite, image_hasher, reqwest) |
 | Auto-catalogue | Tier 1: EXIF (Rust), Tier 2: CLIP/ONNX (optional), Tier 3: Ollama (optional) |
-| ML sidecar | Python 3.13 + FastAPI (ELA, noise analysis, copy-move, deepfake, NPR, chromatic aberration, JPEG ghost, CLIP detection) |
+| ML sidecar | Python 3.13 + FastAPI (ELA, noise, copy-move, deepfake, NPR, chromatic aberration, JPEG ghost, segmented ELA, shadow consistency, colour temperature, splice boundary, CLIP detection) |
 | CLIP detection | open_clip ViT-B/32 — optional (~350 MB, lazy-loaded, graceful degradation) |
 | LLM runtime | Ollama — optional (LLaVA for Tier 3 descriptions, Qwen2.5 for RAG claim verification) |
 | Database | SQLite (via rusqlite in Rust) |
@@ -78,17 +80,20 @@ cd ui && npx svelte-check
 # Check Rust compilation
 cd src-tauri && cargo check
 
-# Run Rust tests (121 tests)
+# Run Rust tests (136 tests)
 cd src-tauri && cargo test
 
 # Run Rust linter
 cd src-tauri && cargo clippy -- -D warnings
 
-# Run Python sidecar tests (193 tests; 14 CLIP tests skipped when open_clip unavailable)
+# Run Python sidecar tests (261 tests; 14 CLIP tests skipped when open_clip unavailable)
 cd sidecar && python -m pytest tests/ -v
 
-# Run SvelteKit tests
-cd ui && npm test
+# Run Playwright e2e tests (92 tests)
+cd ui && npx playwright test
+
+# Run SvelteKit type check
+cd ui && npx svelte-check
 ```
 
 ## Project Structure
@@ -110,19 +115,25 @@ juralabs/
 ├── ui/                  # SvelteKit frontend
 │   ├── src/routes/      # Page routes (protect/, verify/, settings/)
 │   ├── src/lib/
-│   │   ├── components/  # VerdictSummary.svelte, InspectionChecklist.svelte,
-│   │   │                #   SignalAgreement.svelte
+│   │   ├── components/  # LogoMark, VerdictSummary, OnboardingOverlay,
+│   │   │                #   MethodologyPanel, InspectionChecklist,
+│   │   │                #   SignalAgreement
 │   │   ├── types.ts     # TypeScript interfaces mirroring Rust structs
 │   │   ├── api.ts       # Tauri IPC wrapper with browser mock fallback
-│   │   └── stores/      # Svelte stores
+│   │   ├── pdf.ts       # Trust report PDF generation
+│   │   ├── zip.ts       # Case export ZIP generation
+│   │   └── stores/      # Svelte stores (deployment profiles)
+│   ├── tests/           # Playwright e2e tests (92 tests)
 │   └── package.json     # Node dependencies
 ├── sidecar/             # Python ML sidecar (FastAPI, port 8200)
 │   ├── app/api/         # FastAPI routers (health, forensics)
-│   ├── app/services/    # ELA, noise analysis, copy-move, deepfake,
-│   │                    #   npr, chromatic_aberration, jpeg_ghost,
+│   ├── app/services/    # ELA, noise, copy-move, deepfake, NPR,
+│   │                    #   chromatic_aberration, jpeg_ghost,
+│   │                    #   segmented_ela, shadow_consistency,
+│   │                    #   colour_temperature, splice_boundary,
 │   │                    #   clip_detector, claim_checker
 │   ├── app/models/      # Pydantic schemas
-│   ├── tests/           # pytest test suite (193 tests)
+│   ├── tests/           # pytest test suite (261 tests)
 │   ├── main.py          # FastAPI app entry point
 │   └── requirements.txt # Python dependencies
 ├── docs/                # Documentation
@@ -153,6 +164,12 @@ juralabs/
 - **JPEG ghost**: `sidecar/app/services/jpeg_ghost.py` — double compression splice/composite analysis
 - **CLIP detector**: `sidecar/app/services/clip_detector.py` — zero-shot AI/authentic classification via open_clip ViT-B/32
 - **Claim checker**: `sidecar/app/services/claim_checker.py` — RAG claim verification via Ollama Qwen2.5
+- **Segmented ELA**: `sidecar/app/services/segmented_ela.py` — 8x8 grid regional ELA with cluster detection
+- **Shadow consistency**: `sidecar/app/services/shadow_consistency.py` — gradient-based light direction per region
+- **Colour temperature**: `sidecar/app/services/colour_temperature.py` — CIELAB colour space segmentation
+- **Splice boundary**: `sidecar/app/services/splice_boundary.py` — three-signal edge analysis (JPEG grid + noise + feathering)
+- **Logo component**: `ui/src/lib/components/LogoMark.svelte` — eye logo mark SVG
+- **Sprint plan**: `docs/sprint-plans/sprint-region-forensics.md` — Sprint 9 region-based forensics plan
 
 ## Design Principles
 
@@ -171,20 +188,28 @@ juralabs/
 
 **Phase 2 (Weeks 19-20+)**: Complete — Eight sprints of detection improvement work. Three-way verdict (authentic/inconclusive/synthetic), codec-aware thresholds, scene complexity weighting, EXIF-informed scoring. Three new forensic detectors: NPR, chromatic aberration, JPEG ghost. Four investigation modes (Quick/Standard/Deep/Archival). RAG claim checker via Ollama Qwen2.5. CLIP ViT-B/32 zero-shot detector (optional). False positive reporting with SQLite storage. New UI components: VerdictSummary, InspectionChecklist, SignalAgreement.
 
-**Test counts**: 121 Rust tests, 193 Python tests (+ 14 CLIP skipped when open_clip unavailable), 175 SvelteKit files with 0 svelte-check errors, clippy clean.
+**Sprint 9 (Week 21)**: Complete — Region-based forensic analysis for composite image detection. Four new detectors: segmented ELA (8x8 grid), shadow consistency (gradient-weighted light direction), colour temperature (CIELAB segmentation), splice boundary (three-signal edge analysis). Trust scoring with composite amplification cap (0.55 when 2+ regional detectors fire). Region Analysis section on verify page. Validated against known composite image (3/4 detectors flagged).
+
+**UI Redesign (Week 21)**: Complete — Rebrand to "Jura Trace" with Sanctuary theme. Warm colour palette (#1E2128 bg, #EDEAE4 text, #5A85B5 accent). Eye logo mark. Editorial layout with Georgia serif headings, 900px content width, earth-line dividers, narrative chapters. Mobile hamburger menu, skip navigation, 44px touch targets. Responsive asset table. Playwright e2e test harness (92 tests). Lighthouse: 97% accessibility, 100% best practices.
+
+**Test counts**: 136 Rust tests, 261 Python tests (+ 14 CLIP skipped when open_clip unavailable), 92 Playwright e2e tests, 175 SvelteKit files with 0 svelte-check errors, clippy clean.
 
 ## British Spelling
 
 - **User-facing text**: British spelling (Organisation, Colour, Catalogue)
 - **Code**: American spelling (organization, color, catalog) for framework consistency
 
-## Brand Identity
+## Brand Identity — Sanctuary Theme
 
-- **Palette**: Cool mineral tones — Obsidian, Graphite, Lapis, Malachite, Amber, Cinnabar
-- **Metaphor**: Geology — permanence, layers, provenance
+- **Name**: Jura Trace (formerly Jura Archive)
+- **Logo**: Eye mark — concentric circles (lapis outer, cream iris, dark pupil)
+- **Palette**: Warm mineral tones — Obsidian (#1E2128), Graphite (#272B34), Quartz (#EDEAE4), Flint (#78756D / #9B9890), Lapis (#376399 / #5A85B5), Malachite (#5B8A5F), Amber, Cinnabar
+- **Metaphor**: Geology — permanence, layers, provenance — with human-centred warmth
 - **Tagline**: "Know What's Real"
-- **Design**: System fonts, no emojis, clean typography, WCAG 2.2 AA
+- **Philosophy**: "Keep people at the heart of every decision. Use technology to support and guide, not to take over."
+- **Theme**: Sanctuary — warm dark backgrounds, cream text, Georgia serif headings, editorial layout (900px width), earth-line gradient dividers, generous whitespace
+- **Design**: System fonts, no emojis, WCAG 2.2 AA, Lighthouse 97% accessibility
 
 ## Relationship to ROOTED
 
-Jura Trace is a **sibling product**, not a fork. Shares Juralabs' philosophy and some frontend patterns (SvelteKit, Tailwind, dark mode) but has its own codebase, brand, tech stack (Tauri/Rust), and release cycle.
+Jura Trace is a **sibling product**, not a fork. Shares Juralabs' philosophy and some frontend patterns (SvelteKit, Tailwind, dark mode) but has its own codebase, brand, tech stack (Tauri/Rust), and release cycle. Both use nature-inspired design — ROOTED through organic/growth imagery, Jura Trace through geological/mineral imagery with a warm, editorial aesthetic.
