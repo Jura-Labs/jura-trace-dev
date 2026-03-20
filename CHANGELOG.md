@@ -6,6 +6,54 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Sprint 10 — Trained AI Image Classifier
+
+### Week 22 — GBM Classifier + Corpus Pipeline (20 Mar 2026)
+
+#### AI Detection Improvement
+
+**Added**
+- GradientBoosting classifier trained on 80-feature vector from the deepfake detection pipeline
+- 7 new deepfake signal extractors: noise autocorrelation tau (wavelet-based), cross-channel noise correlation, bit-plane regularity (lossless only), VAE grid artefacts (FFT-based), chromatic aberration absence, demosaicing traces (lossless only), saturation-luminance anomaly
+- Classifier blending: 35% heuristic + 65% classifier for final score
+- Auto-detection of PNG/WebP mime type from file magic bytes in deepfake endpoint
+- `classifier_score` and `classifier_available` fields on DeepfakeResponse (Python, Rust, TypeScript)
+- `FEATURE_NAMES` constant and `extract_feature_vector()` for stable training/inference contract
+- Graceful degradation: if .joblib model absent, heuristic-only mode unchanged
+
+#### Calibration Pipeline
+
+**Added**
+- `scripts/build_corpus.py`: Guardian press photo downloader (60 days, signed CDN URLs)
+- `scripts/expand_corpus.py`: HuggingFace dataset + COCO val2017 downloader
+- `scripts/build_corpus_ai.py`: AI image corpus builder
+- `scripts/train_classifier.py`: feature extraction + GBM training + 5-fold stratified CV
+- `scripts/evaluate_classifier.py`: model evaluation with precision/recall/AUC reporting
+- `scripts/calibrate.py`: batch-process corpus through all detectors with threshold recommendations
+
+#### Detector Threshold Recalibration
+
+**Changed**
+- Chromatic aberration: rewrote scoring — low R² now scores low (real lenses), "uncanny valley" high R² flags. FP: 75% -> 0%
+- Shadow consistency: deviation 45° -> 80°, require >= 2 inconsistent regions, min 3% area. FP: 83% -> 8%
+- Colour temperature: threshold 8 -> 14 LAB units, require 3+ adjacent cluster regions. FP: 58% -> 17%
+- Splice boundary: never flags suspicious alone (corroborating signal only). FP: 100% -> 0%
+- JPEG ghost: PNG images return neutral result immediately
+- Deepfake: benford_divergence weight 0.5 -> 0.25, spectral_decay 1.5 -> 0.75
+- Lossless codec thresholds tightened for all signals
+
+#### Results
+
+- **Training corpus**: 326 authentic (Guardian + COCO + HuggingFace) + 219 AI-generated (Gemini + HuggingFace)
+- **Cross-validation AUC-ROC**: 0.945
+- **AI detection rate**: 68% (13/19), up from 21% — all 12 Gemini PNGs detected
+- **Authentic false positive rate**: 14% (14/100), meets 15% target
+- **Top discriminating features**: lsb_randomness (28%), lsb_entropy_mean (25%), lbp_block_var_cv (21%)
+
+**Test counts**: 138 Rust, 263 Python (+ 14 CLIP skipped), 92 Playwright e2e, 175 SvelteKit files, 0 svelte-check errors
+
+---
+
 ## Sprint 9 — Region-Based Forensics & UI Redesign
 
 ### Week 21 — Region-Based Composite Detection + Sanctuary Theme (20 Mar 2026)

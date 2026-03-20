@@ -80,13 +80,13 @@ cd ui && npx svelte-check
 # Check Rust compilation
 cd src-tauri && cargo check
 
-# Run Rust tests (136 tests)
+# Run Rust tests (138 tests)
 cd src-tauri && cargo test
 
 # Run Rust linter
 cd src-tauri && cargo clippy -- -D warnings
 
-# Run Python sidecar tests (261 tests; 14 CLIP tests skipped when open_clip unavailable)
+# Run Python sidecar tests (263 tests; 14 CLIP tests skipped when open_clip unavailable)
 cd sidecar && python -m pytest tests/ -v
 
 # Run Playwright e2e tests (92 tests)
@@ -168,6 +168,11 @@ juralabs/
 - **Shadow consistency**: `sidecar/app/services/shadow_consistency.py` — gradient-based light direction per region
 - **Colour temperature**: `sidecar/app/services/colour_temperature.py` — CIELAB colour space segmentation
 - **Splice boundary**: `sidecar/app/services/splice_boundary.py` — three-signal edge analysis (JPEG grid + noise + feathering)
+- **Trained classifier**: `models/deepfake_classifier.joblib` — GBM classifier on 80-feature vector (AUC 0.945)
+- **Training pipeline**: `scripts/train_classifier.py` — feature extraction + GBM training + CV evaluation
+- **Corpus builder**: `scripts/build_corpus.py` — authentic press photo downloader (Guardian)
+- **Corpus expander**: `scripts/expand_corpus.py` — HuggingFace + COCO dataset downloader
+- **Calibration pipeline**: `scripts/calibrate.py` — batch detector evaluation + threshold recommendations
 - **Logo component**: `ui/src/lib/components/LogoMark.svelte` — eye logo mark SVG
 - **Sprint plan**: `docs/sprint-plans/sprint-region-forensics.md` — Sprint 9 region-based forensics plan
 
@@ -192,7 +197,9 @@ juralabs/
 
 **UI Redesign (Week 21)**: Complete — Rebrand to "Jura Trace" with Sanctuary theme. Warm colour palette (#1E2128 bg, #EDEAE4 text, #5A85B5 accent). Eye logo mark. Editorial layout with Georgia serif headings, 900px content width, earth-line dividers, narrative chapters. Mobile hamburger menu, skip navigation, 44px touch targets. Responsive asset table. Playwright e2e test harness (92 tests). Lighthouse: 97% accessibility, 100% best practices.
 
-**Test counts**: 136 Rust tests, 261 Python tests (+ 14 CLIP skipped when open_clip unavailable), 92 Playwright e2e tests, 175 SvelteKit files with 0 svelte-check errors, clippy clean.
+**Sprint 10 (Week 22)**: Complete — Trained GBM classifier for AI image detection. 80-feature vector extracted from existing deepfake pipeline, trained on 545-image corpus (326 authentic + 219 AI-generated). Cross-validation AUC-ROC 0.945. Detection rate: 68% (13/19 AI images flagged, all 12 Gemini PNGs caught). Authentic FP rate: 14%. Classifier blends with heuristic score (35/65 split). Graceful degradation when model absent. Calibration pipeline and corpus builder scripts.
+
+**Test counts**: 138 Rust tests, 263 Python tests (+ 14 CLIP skipped when open_clip unavailable), 92 Playwright e2e tests, 175 SvelteKit files with 0 svelte-check errors, clippy clean.
 
 ## British Spelling
 
