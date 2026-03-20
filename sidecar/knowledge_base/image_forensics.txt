@@ -1,0 +1,40 @@
+Image Forensic Techniques — Capabilities and Limitations
+==========================================================
+
+Error Level Analysis (ELA) is a forensic technique that re-compresses a JPEG image at a known quality level and then computes the difference between the re-compressed version and the original. Regions that were already at or near the target quality level show low error; regions that were saved at a different quality level (e.g. a spliced element from a different source image) show elevated error. ELA is most effective when the target quality level is lower than the original compression level.
+
+ELA limitations: ELA produces false positives on naturally high-contrast regions (text on images, bright lights, edges), flat regions that have low ELA response regardless of manipulation, and images that have been uniformly re-compressed multiple times. A high ELA score does not conclusively prove manipulation; a low ELA score does not prove authenticity.
+
+Noise analysis examines the spatial distribution of sensor noise across an image. Genuine digital camera images exhibit sensor noise with specific statistical properties (approximately Gaussian, correlated with sensor ISO and size). Regions added from a different source, or AI-generated regions, typically exhibit different noise characteristics — either absent noise (AI inpainting), noise at a different intensity (different camera or ISO), or non-Gaussian noise distributions (JPEG compression artefacts).
+
+Block artefact analysis exploits the structure of JPEG compression, which operates on 8x8 pixel blocks. Inconsistencies in the 8x8 grid pattern across an image — such as a region where the block boundaries are shifted — can indicate that a region was spliced from a different JPEG image.
+
+Copy-move detection identifies regions of an image that are suspiciously similar to other regions in the same image. This is a characteristic of "cloning" operations where part of the image is duplicated to cover an object or fill a region. Modern copy-move detection uses SIFT (Scale-Invariant Feature Transform) or phase-based keypoint matching followed by geometric consistency checks.
+
+Copy-move limitations: AI-powered inpainting and "generative fill" tools (such as Adobe Firefly's generative fill) do not produce exact copies — they generate plausible new content rather than duplicating existing regions. These tools therefore evade traditional copy-move detection. Effective detection of AI inpainting requires different signals, particularly noise analysis and ELA.
+
+JPEG compression quality estimation involves examining the quantisation tables embedded in a JPEG file's header. These tables reveal the compression quality used when saving the file. An image claimed to be a raw camera capture that shows very high compression (quality below 80) is suspicious, as most cameras save at quality 90 or above.
+
+Metadata consistency analysis checks for logical inconsistencies between different metadata fields. Examples of suspicious inconsistencies include: a creation date that predates the camera model's release date; GPS coordinates in an ocean when the image appears to show an urban scene; camera lens data that does not match the claimed focal length; software fields indicating editing software in an image claimed to be an unedited original.
+
+EXIF metadata can be fully removed or rewritten using freely available tools (ExifTool, Photoshop, various online services). The absence of EXIF metadata is not evidence of manipulation; many legitimate workflows strip metadata for privacy or storage reasons. The presence of EXIF metadata provides useful context but cannot be trusted as a tamper-proof record without a C2PA manifest.
+
+Frequency domain analysis (FFT — Fast Fourier Transform) reveals periodic artefacts in an image's spatial frequency content. GAN-generated images (particularly from models like StyleGAN) produce a characteristic grid-like pattern in the FFT spectrum caused by the upsampling operations in the generator. Diffusion model images do not exhibit the same GAN fingerprint but may show other anomalies in the high-frequency spectrum.
+
+JPEG ghost detection is a variant of compression analysis that searches for evidence that a region of an image was saved at a different JPEG quality than the rest. By re-compressing the image at many different quality levels and examining which level produces the lowest difference for each region, it is possible to identify regions with a different compression history — a characteristic of spliced composites.
+
+Demosaicing pattern analysis exploits the Bayer filter pattern used in most digital camera sensors. The demosaicing process introduces specific correlations between adjacent pixels. AI-generated images and images that have been re-saved multiple times show different correlation patterns, which can be detected using algorithms such as the PRM (Photo Response Non-Uniformity) method or variants.
+
+Chromatic aberration analysis checks whether the red, green, and blue colour channels are geometrically consistent with each other. Genuine camera lenses introduce chromatic aberration — a slight radial displacement between colour channels that increases towards the image edges. AI-generated images and heavily composited images often lack this physical characteristic or show inconsistent aberration across different image regions.
+
+Splicing detection using lighting consistency examines whether light sources and shadows are consistent across the image. A spliced element from a different source photograph may have been lit from a different direction, producing shadows or highlights inconsistent with the rest of the scene. This is a semantic check that requires some understanding of the scene geometry.
+
+No single forensic technique provides conclusive proof of manipulation or authenticity. Forensic analysis is probabilistic. A result indicating manipulation means the image contains statistically anomalous features consistent with common manipulation techniques — it does not prove that manipulation occurred. Equally, a clean forensic result does not prove an image is authentic.
+
+Adversarial attacks on forensic tools are possible. Sophisticated bad actors can use techniques such as JPEG re-compression, noise addition, and adversarial perturbation to reduce the forensic signal of a manipulated image. Ensemble approaches using multiple independent forensic signals are more robust than single-technique approaches.
+
+The scientific consensus (as reflected in publications from IEEE, CVPR, and ICCV proceedings through 2024) is that forensic tools have meaningful detection rates for common manipulations but have non-trivial false positive and false negative rates. Reported accuracy figures from research papers typically apply to controlled benchmark datasets and may not translate directly to real-world forensic casework.
+
+Image forensic tools should be understood as providing supporting evidence, not verdicts. Their outputs are most valuable when interpreted alongside metadata analysis, source context, reverse image search, and human expert judgment. Jura Archive's forensic pipeline follows this multi-signal approach, combining ELA, noise analysis, copy-move detection, JPEG ghost analysis, NPR analysis, chromatic aberration analysis, and deepfake/AI-generation detection into a weighted trust score.
+
+Chain of custody is a legal concept requiring that evidence be traceable and unaltered from collection to presentation. Digital image forensics can establish technical properties of an image but cannot substitute for a formal chain of custody record. Forensic findings should be accompanied by a methodology statement describing the tools, versions, and procedures used.

@@ -1,0 +1,40 @@
+Common Patterns in Image Misinformation
+========================================
+
+Out-of-context images are one of the most prevalent forms of image misinformation. A genuine, unmodified photograph is paired with a false or misleading caption that misrepresents when, where, or why the image was taken. The image itself has not been tampered with, making traditional forensic analysis ineffective for detection. Verification requires source checking, reverse image search, and metadata analysis.
+
+Reverse image search (Google Images, TinEye, Yandex Images) is a primary tool for identifying out-of-context images. Searching for the earliest known publication of an image can establish its true origin and date. A photograph appearing years before the claimed event is strong evidence of misuse.
+
+Repurposed footage from different countries or conflicts is a recurring pattern in political and military misinformation. An image from one conflict zone is presented as evidence from a different, contemporary conflict. Investigators cross-reference visual landmarks, vehicle markings, uniforms, vegetation, and weather patterns to establish geographical and temporal context.
+
+Misleading captions frequently misattribute quotes to public figures alongside unrelated images. The image may be genuine and correctly attributed to the named person, but the quote or statement in the caption is fabricated. Verification requires checking primary sources — official statements, verified social media accounts, or contemporaneous news reports.
+
+Screenshot manipulation involves editing text within a screenshot of a social media post, news article, or official document to change its meaning. Common targets include tweets, WhatsApp messages, and newspaper front pages. Detection clues include inconsistent font rendering, pixel-level artefacts around edited text areas, and inconsistent letter spacing.
+
+Metadata spoofing refers to the deliberate modification of EXIF metadata (dates, GPS coordinates, camera make/model) to support a false narrative. EXIF data can be modified with freely available tools such as ExifTool. EXIF metadata alone cannot be considered reliable evidence of when, where, or how an image was taken. C2PA-signed metadata, by contrast, is cryptographically protected against undetected modification.
+
+Digitally composited images combine elements from multiple source photographs. Common techniques include object insertion (placing a person or object into a different scene), sky replacement, and crowd augmentation. Error Level Analysis (ELA) and copy-move detection are useful forensic tools for identifying composited regions, though skilled compositing with consistent JPEG quality can evade basic ELA.
+
+Cloning and healing brush artefacts are common in images where objects have been removed. The copy-move forensic technique detects regions of an image that are suspiciously similar to other regions, which can indicate that one area was used to paint over another. This technique is effective against naive retouching but less effective against AI-powered inpainting tools.
+
+Deepfake face-swap videos emerged as a significant misinformation threat in 2018–2019. Early deepfakes were detectable by blinking artefacts, temporal inconsistencies, and poor hairline rendering. By 2022–2023, high-quality deepfakes became increasingly difficult to detect through visual inspection alone. Forensic signals include unnatural eye reflections, facial boundary artefacts, and inconsistent lighting on the face versus the background.
+
+AI-generated images (not face-swaps) have been used to fabricate entirely fictional events — protest scenes, disaster aftermath, public figures in compromising situations. These images have no source photograph to trace; verification relies on forensic detection of AI generation signals and absence of corroborating real-world evidence.
+
+The "liar's dividend" refers to the phenomenon whereby the existence of convincing deepfakes and AI-generated images makes it easier for bad actors to deny genuine, authentic evidence by claiming it is fabricated. Robust provenance chains (e.g. C2PA) are a defence against this strategy.
+
+Colour grading and contrast manipulation are used to make images appear more dramatic, to conceal identifiable features, or to match an image to a different time of day than the original. While subtle, these changes alter the statistical properties of the image and may be detectable through noise analysis.
+
+Temporal misrepresentation involves presenting an image from a past event (sometimes years prior) as depicting a current event. A common example is presenting images from historical floods, fires, or protests as representing recent incidents. EXIF creation date, if unmodified, provides some evidence; however, it cannot be fully trusted without a C2PA chain.
+
+Fabricated documents and official-looking materials are frequently used in misinformation campaigns. These include fake government letters, fake scientific papers, fake medical records, and fake court documents. Detection relies on verifying against official sources, checking formatting consistency, and scrutinising signatures and letterheads.
+
+Satire misrepresented as fact is a recurring problem. Satirical images or memes created for humorous purposes are reshared without the satirical framing, causing audiences to interpret them as factual. Publication context and source credibility are essential for distinguishing satire from genuine reporting.
+
+The First Draft "misinformation, disinformation, malinformation" taxonomy (2017) distinguishes: misinformation (false information shared without intent to harm), disinformation (false information shared with intent to harm), and malinformation (true information shared with intent to harm). Image forensic tools primarily address the technical dimension of disinformation, not its intent.
+
+Bellingcat and other open-source intelligence (OSINT) organisations have established methodologies for geolocation and chronolocation of images — determining precisely where and when a photograph was taken through analysis of shadows, landmarks, sun angles, and publicly available satellite imagery. These methods complement forensic analysis.
+
+Viral misinformation travels fastest in the first hours after publication. Studies (MIT Media Lab, 2018; Reuters Institute, 2020) consistently show that false news spreads faster and further than true news on social media platforms, making early detection and labelling critical.
+
+The Global Misinformation Index and similar organisations assess the credibility and track record of news publishers and social media sources, providing a source-level credibility signal that complements image-level forensic analysis.

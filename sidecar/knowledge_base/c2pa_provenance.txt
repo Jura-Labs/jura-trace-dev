@@ -1,0 +1,40 @@
+C2PA Content Provenance and Authenticity Standard
+===================================================
+
+C2PA stands for Coalition for Content Provenance and Authenticity. It is a joint standards body established in 2021 by Adobe, Arm, BBC, Intel, Microsoft, and Truepic. The coalition has since expanded to include over 100 member organisations including OpenAI, Google, Sony, Nikon, and Canon.
+
+The C2PA specification defines a technical standard for cryptographically signed provenance metadata embedded in media files. The metadata is called a C2PA manifest. A manifest records the origin of a piece of content, any editing actions applied to it, and the identity of the party that signed the manifest.
+
+Content Credentials is the consumer-facing brand name for C2PA metadata, promoted by the Content Authenticity Initiative (CAI), which is a separate but closely related effort led by Adobe. The CAI website (contentcredentials.org) allows anyone to inspect C2PA metadata in images by uploading them.
+
+A C2PA manifest consists of one or more "assertions" — structured data objects describing aspects of the content's provenance. Assertions can include: camera capture data, editing actions (crop, resize, colour grade), AI generation details, thumbnail images, GPS location, and copyright information.
+
+C2PA manifests are signed using X.509 digital certificates, the same certificate infrastructure used for TLS (HTTPS). The signing certificate chain is validated against a trust list maintained by the C2PA organisation. A valid C2PA signature proves the manifest has not been altered since signing.
+
+C2PA manifests can be embedded in JPEG, PNG, MP4, WebP, HEIC, HEIF, PDF, and several other file formats. For JPEG files, the manifest is stored in the APP11 segment. For PNG files, it is stored in an ancillary chunk.
+
+C2PA validation checks three things: (1) the cryptographic signature is valid, (2) the signing certificate is trusted and not expired, (3) the manifest content hash matches the content hash of the file. If any of these checks fail, the manifest is considered invalid.
+
+A "soft binding" in C2PA refers to a manifest that is stored separately from the content (e.g. a cloud manifest store) and linked by a URL. A "hard binding" embeds the manifest directly in the file. Hard bindings survive most file transfers but may be stripped by social media platforms during upload processing.
+
+Many social media platforms strip metadata from uploaded images, including C2PA manifests. As of 2025, only a small number of platforms (including LinkedIn and certain Adobe products) preserve C2PA manifests through their upload pipelines. The absence of a C2PA manifest in an image downloaded from social media does not indicate the original had no manifest.
+
+Nikon announced C2PA integration into its Z-series mirrorless cameras in 2024. Leica cameras have supported C2PA signing since the M11-P (announced October 2023). Sony announced C2PA-capable cameras in 2024. These cameras can sign images at capture time using a hardware-backed key stored in the camera.
+
+The absence of a C2PA manifest does not prove an image is manipulated or AI-generated. The vast majority of legitimate photographs taken before 2024 have no C2PA metadata. C2PA adoption in consumer cameras is still limited as of early 2025.
+
+The presence of a valid C2PA manifest provides positive evidence of provenance — specifically, it confirms that the signing party asserts the recorded history is accurate. It does not prevent the signer from making false assertions. C2PA cannot prevent a bad actor from signing a manipulated image with their own certificate.
+
+C2PA manifests support "ingredient" references — pointers to the manifests of source images used to create a composite. This creates a provenance chain: a manipulated image can reference the original, recording what was changed. Tools like Adobe Photoshop and Lightroom write C2PA ingredient references automatically.
+
+The c2pa-rs Rust library (https://github.com/contentauth/c2pa-rs) is the reference implementation for C2PA in Rust. It is maintained by Adobe and is used by Jura Archive for C2PA signing and verification. The library supports reading, verifying, and writing C2PA manifests.
+
+C2PA specification version 1.3 was published in April 2023. Version 2.0 was in draft as of 2024, with proposed improvements to the trust list infrastructure and support for video streaming formats.
+
+IPTC metadata and XMP metadata are older provenance standards that predate C2PA. They are not cryptographically signed and can be modified without detection. C2PA is designed to complement and eventually supersede these formats for provenance purposes, though IPTC/XMP will remain widely used.
+
+The Content Authenticity Initiative (CAI) operates a browser extension (the "Content Credentials" extension) available for Chrome and Firefox that automatically checks C2PA credentials on images viewed in the browser. It displays a pin icon overlay on images that carry valid Content Credentials.
+
+Truepic is a technology company and C2PA founding member that provides camera authentication software used in insurance and legal contexts. Truepic's mobile SDK creates C2PA-signed images at capture time, including hardware attestation data from the phone's secure enclave.
+
+Project Origin is a related initiative focused specifically on news media provenance, involving the BBC, Microsoft, CBC/Radio-Canada, and the New York Times. Project Origin implements C2PA for broadcast and news video content.

@@ -2,25 +2,32 @@
 Jura Archive Sidecar — RAG Claim Verification Service.
 
 Verifies claims associated with an image (from captions, EXIF descriptions,
-C2PA assertions, or user-provided text) by querying a local Ollama LLM.
+C2PA assertions, or user-provided text) using a local TF-IDF knowledge base
+for retrieval, augmented by a local Ollama LLM for reasoning.
 
-No external API calls are made — all inference is performed via the local
-Ollama instance at http://127.0.0.1:11434.  If Ollama is unavailable the
-service degrades gracefully and returns an "unavailable" verdict.
+No external API calls are made — all retrieval and inference is performed
+locally.  If Ollama is unavailable the service degrades gracefully and
+returns an "unavailable" verdict.
 
 Algorithm:
 1. Split claims_text into individual claims (by sentence / newline).
-2. For each claim, send a zero-temperature fact-checking prompt to Ollama.
-3. Parse the verdict token (SUPPORTED / DISPUTED / UNVERIFIED) from the
+2. For each claim, retrieve the most relevant passages from the knowledge
+   base using TF-IDF cosine similarity (KnowledgeRetriever).
+3. Build a grounded prompt that includes the retrieved passages as reference
+   material, instructing the LLM to reason from the provided text rather
+   than from parametric recall.
+4. Send the grounded prompt to Ollama at temperature 0.1.
+5. Parse the verdict token (SUPPORTED / DISPUTED / UNVERIFIED) from the
    response, together with a brief explanation.
-4. Aggregate individual verdicts into an overall verdict:
-     - All supported            → supported
-     - Any disputed             → disputed
+6. Aggregate individual verdicts into an overall verdict:
+     - All supported               → supported
+     - Any disputed                → disputed
      - Mix of supported/unverified → mixed
-     - All unverified           → unverified
-     - Ollama unavailable       → unavailable
-5. Return a ClaimCheckResponse with individual verdicts, methodology, and
-   a human-readable summary.
+     - All unverified              → unverified
+     - Ollama unavailable          → unavailable
+7. Return a ClaimCheckResponse with per-claim verdicts, an aggregated overall
+   verdict, methodology disclosure (including knowledge base stats), and a
+   human-readable summary.
 """
 
 from __future__ import annotations
@@ -32,6 +39,10 @@ import textwrap
 import httpx
 
 from app.models.schemas import ClaimCheckResponse, ClaimVerdict
+from app.services.knowledge_retriever import KnowledgeRetriever
+
+# Module-level retriever instance — shared across all requests, built once.
+_retriever = KnowledgeRetriever()
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +50,17 @@ logger = logging.getLogger(__name__)
 
 _VALID_VERDICTS = {"supported", "disputed", "unverified"}
 
-_PROMPT_TEMPLATE = textwrap.dedent("""\
-    You are a fact-checking assistant. Evaluate the following claim and respond \
-with ONLY one of: SUPPORTED, DISPUTED, UNVERIFIED, followed by a brief \
-explanation (1-2 sentences).  Do not add any other commentary.
+# Grounded prompt: LLM is instructed to use only the retrieved reference
+# material, which limits hallucination to the scope of the knowledge base.
+_PROMPT_TEMPLATE_RAG = textwrap.dedent("""\
+    You are a fact-checking assistant. Use ONLY the reference material below to \
+evaluate the claim. If the reference material does not contain relevant \
+information, respond with UNVERIFIED. Respond with ONLY one of: SUPPORTED, \
+DISPUTED, UNVERIFIED, followed by a brief explanation (1-2 sentences). Do not \
+add any other commentary.
+
+    Reference material:
+    {retrieved_passages}
 
     Claim: {claim}
     Context: {context}
@@ -50,13 +68,59 @@ explanation (1-2 sentences).  Do not add any other commentary.
     Verdict:\
 """)
 
-_METHODOLOGY = (
-    "Each claim was evaluated independently using a local large language model "
-    "(Ollama). The model was prompted to classify the claim as SUPPORTED, "
-    "DISPUTED, or UNVERIFIED given the provided context. Temperature was set to "
-    "0.1 for deterministic output. This is AI-assisted analysis — results should "
-    "be interpreted as indicative, not conclusive."
+# Fallback prompt used when no knowledge base passages are available for a
+# claim.  Explicitly warns the model (and downstream readers) that the result
+# depends on parametric recall.
+_PROMPT_TEMPLATE_FALLBACK = textwrap.dedent("""\
+    You are a fact-checking assistant. No reference material is available for \
+this claim — your response will be based on your training data only, which may \
+be incomplete or inaccurate. Respond with ONLY one of: SUPPORTED, DISPUTED, \
+UNVERIFIED, followed by a brief explanation (1-2 sentences). Do not add any \
+other commentary.
+
+    Claim: {claim}
+    Context: {context}
+
+    Verdict:\
+""")
+
+# Methodology templates — filled in dynamically with knowledge base stats.
+_METHODOLOGY_RAG_TEMPLATE = (
+    "Claims verified against local knowledge base ({n_docs} documents, "
+    "{n_passages} passages) using TF-IDF retrieval + Ollama {model}. "
+    "Retrieved passages grounded the verification — the LLM was instructed to "
+    "reason from provided reference material rather than parametric recall. "
+    "Temperature was set to 0.1 for deterministic output. "
+    "This is AI-assisted analysis — results should be interpreted as indicative, "
+    "not conclusive."
 )
+
+_METHODOLOGY_NO_KB = (
+    "WARNING: No knowledge base available. Verification relies on model training "
+    "data only (parametric recall). Results may be unreliable. "
+    "Each claim was evaluated using a local Ollama LLM at temperature 0.1. "
+    "This is AI-assisted analysis — results should be interpreted as indicative, "
+    "not conclusive."
+)
+
+
+def _build_methodology(model: str) -> str:
+    """
+    Build the methodology string based on knowledge base availability.
+
+    Args:
+        model: The Ollama model name used for inference.
+
+    Returns:
+        A methodology disclosure string for inclusion in ClaimCheckResponse.
+    """
+    if _retriever.is_available():
+        return _METHODOLOGY_RAG_TEMPLATE.format(
+            n_docs=_retriever.document_count,
+            n_passages=_retriever.passage_count,
+            model=model,
+        )
+    return _METHODOLOGY_NO_KB
 
 # ── Claim splitting ───────────────────────────────────────────────────────────
 
@@ -301,7 +365,7 @@ async def check_claims(
             overall_verdict="unverified",
             claims=[],
             model_used=model,
-            methodology=_METHODOLOGY,
+            methodology=_build_methodology(model),
             summary="No claims were provided for verification.",
         )
 
@@ -324,7 +388,7 @@ async def check_claims(
             overall_verdict="unavailable",
             claims=unavailable_claims,
             model_used=model,
-            methodology=_METHODOLOGY,
+            methodology=_build_methodology(model),
             summary=_build_summary("unavailable", unavailable_claims),
         )
 
@@ -347,14 +411,36 @@ async def check_claims(
             overall_verdict="unavailable",
             claims=unavailable_claims,
             model_used=model,
-            methodology=_METHODOLOGY,
+            methodology=_build_methodology(model),
             summary=_build_summary("unavailable", unavailable_claims),
         )
 
     # ── Verify each claim ─────────────────────────────────────────────────────
     verified: list[ClaimVerdict] = []
     for claim in claims:
-        prompt = _PROMPT_TEMPLATE.format(claim=claim, context=context or "None provided.")
+        # Retrieve relevant passages from the knowledge base for this claim.
+        # The retrieval query combines the claim with any caller-provided context
+        # so that forensic metadata (EXIF, C2PA) influences passage selection.
+        retrieval_query = f"{claim} {context}".strip() if context else claim
+        passages = _retriever.retrieve(retrieval_query, top_k=3)
+
+        if passages:
+            retrieved_text = "\n\n".join(passages)
+            prompt = _PROMPT_TEMPLATE_RAG.format(
+                retrieved_passages=retrieved_text,
+                claim=claim,
+                context=context or "None provided.",
+            )
+        else:
+            # No passages retrieved — fall back to parametric recall with warning.
+            logger.debug(
+                "No knowledge base passages retrieved for claim: %.80s", claim
+            )
+            prompt = _PROMPT_TEMPLATE_FALLBACK.format(
+                claim=claim,
+                context=context or "None provided.",
+            )
+
         try:
             raw = await _call_ollama(prompt, ollama_base_url, model)
             verdict, explanation, confidence = _parse_verdict(raw)
@@ -387,7 +473,7 @@ async def check_claims(
         overall_verdict=overall,
         claims=verified,
         model_used=model,
-        methodology=_METHODOLOGY,
+        methodology=_build_methodology(model),
         summary=_build_summary(overall, verified),
     )
 
