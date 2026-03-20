@@ -347,6 +347,7 @@ def perform_deepfake_detection(
     analysis_size: int = ANALYSIS_SIZE,
     mime_type: str = "image/jpeg",
     has_camera_exif: bool = False,
+    univfd_score: float | None = None,
 ) -> DeepfakeResponse:
     """
     Detect AI-generated content in an image.
@@ -422,14 +423,32 @@ def perform_deepfake_detection(
             classifier_score = None
             classifier_available = False
 
-    if classifier_available and classifier_score is not None:
-        # Blend heuristic and classifier scores.  When the two scores
-        # disagree strongly (one says authentic, one says synthetic),
-        # trust the heuristic more — the classifier was trained on a
-        # small corpus and may not generalise to unseen content types.
+    # ── UnivFD probe (CLIP-based linear classifier) ───────────────────
+    # If univfd_score was not passed in, try to get it from the clip_detector.
+    univfd_available = univfd_score is not None
+    if not univfd_available:
+        try:
+            from app.services.clip_detector import perform_clip_detection
+            clip_result = perform_clip_detection(image_bytes)
+            if clip_result.univfd_available and clip_result.univfd_score is not None:
+                univfd_score = clip_result.univfd_score
+                univfd_available = True
+        except Exception:
+            pass
+
+    # ── Three-source score blending ───────────────────────────────────
+    # When all three sources are available (heuristic, GBM classifier,
+    # UnivFD probe), weight the probe highest — it operates on CLIP
+    # embeddings which generalise better than hand-crafted features.
+    if univfd_available and classifier_available and classifier_score is not None:
+        score = 0.20 * heuristic_score + 0.30 * classifier_score + 0.50 * univfd_score
+    elif univfd_available:
+        # Probe + heuristic only (no GBM classifier)
+        score = 0.30 * heuristic_score + 0.70 * univfd_score
+    elif classifier_available and classifier_score is not None:
+        # GBM classifier + heuristic only (original blending logic)
         disagreement = abs(heuristic_score - classifier_score)
         if disagreement > 0.4:
-            # Large disagreement: heavily favour the heuristic
             score = 0.70 * heuristic_score + 0.30 * classifier_score
         else:
             score = 0.35 * heuristic_score + 0.65 * classifier_score
@@ -438,6 +457,18 @@ def perform_deepfake_detection(
             score = min(score, heuristic_score + 0.10)
     else:
         score = heuristic_score
+
+    # ── EXIF-based false positive reduction ───────────────────────────
+    # Images with genuine camera EXIF (make, model, exposure) are very
+    # unlikely to be AI-generated. CDN-processed PNGs that lack camera
+    # EXIF account for most of the 14% false positive rate. When camera
+    # EXIF is present AND the heuristic score is below 0.6 (i.e. the
+    # statistical signals are not overwhelming), cap the final blended
+    # score at 0.45 — below the suspicious threshold. This prevents
+    # real camera photos from being flagged unless the evidence is
+    # truly compelling (heuristic > 0.6).
+    if has_camera_exif and heuristic_score < 0.6:
+        score = min(score, 0.45)
 
     # Generate frequency spectrum heatmap
     heatmap_base64 = _generate_spectrum_heatmap(grey)
@@ -485,6 +516,8 @@ def perform_deepfake_detection(
         watermarks=watermarks,
         classifier_score=round(classifier_score, 4) if classifier_score is not None else None,
         classifier_available=classifier_available,
+        univfd_score=round(univfd_score, 4) if univfd_score is not None else None,
+        univfd_available=univfd_available,
     )
 
 

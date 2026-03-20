@@ -5,11 +5,12 @@ on:
     tags:
       - "v*"
 
+# Write access is needed to create and publish the GitHub Release.
 permissions:
   contents: write
 
 jobs:
-  # ── Phase 1: Create draft release ──────────────────────────────
+  # ── Phase 1: Create a draft release to receive build artefacts ──────────────
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
@@ -23,42 +24,58 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const tag = context.ref.replace('refs/tags/', '');
             const { data } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag_name: context.ref.replace('refs/tags/', ''),
-              name: `Jura Trace ${context.ref.replace('refs/tags/', '')}`,
+              tag_name: tag,
+              name: `Jura Trace ${tag}`,
+              body: `## Jura Trace ${tag}\n\nSee [CHANGELOG.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CHANGELOG.md) for details.`,
               draft: true,
-              prerelease: context.ref.includes('-rc') || context.ref.includes('-beta'),
+              // Mark as pre-release if the tag contains -rc, -beta, or -alpha
+              prerelease: /-(rc|beta|alpha)/.test(tag),
             });
             return data.id;
 
-  # ── Phase 2: Build per platform ─────────────────────────────────
+  # ── Phase 2: Build platform artefacts in parallel ────────────────────────────
   build:
     name: Build (${{ matrix.label }})
     needs: create-release
     strategy:
+      # Continue building other platforms even if one fails.
       fail-fast: false
       matrix:
         include:
+          # macOS Apple Silicon (M1/M2/M3)
           - label: macOS (Apple Silicon)
             runner: macos-latest
             target: aarch64-apple-darwin
+
+          # macOS Intel — macos-13 is the last Intel GHA runner
           - label: macOS (Intel)
             runner: macos-13
             target: x86_64-apple-darwin
+
+          # Windows x64 — produces both MSI and NSIS installers
           - label: Windows (x64)
             runner: windows-latest
             target: x86_64-pc-windows-msvc
+
+          # Linux x64 — produces AppImage and .deb
           - label: Linux (x64)
             runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
 
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Linux dependencies
+      # Linux only: Tauri v2 requires webkit2gtk 4.1, GTK 3, and related libs.
+      # libsoup-3.0-dev is a webkit2gtk 4.1 transitive requirement.
+      # libjavascriptcoregtk-4.1-dev ships the JSC headers needed by tauri-build.
+      - name: Install Linux system dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -71,12 +88,14 @@ jobs:
             libjavascriptcoregtk-4.1-dev \
             libsoup-3.0-dev
 
+      # Pin to the same Rust version as rust-version in Cargo.toml (1.88).
       - name: Install Rust 1.88
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: "1.88"
           targets: ${{ matrix.target }}
 
+      # Cache per target triple — macOS arm64 and x64 have different build artefacts.
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
@@ -86,40 +105,62 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             src-tauri/target/
-          key: cargo-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.lock') }}
-          restore-keys: cargo-${{ matrix.target }}-
+          key: cargo-release-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-release-${{ matrix.target }}-
 
       - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+          # Root package-lock.json doesn't exist; key on the ui/ one.
           cache-dependency-path: ui/package-lock.json
 
+      # tauri-action calls `npm install` in the project root by default.
+      # Our frontend lives in ui/, so we install deps there explicitly before
+      # handing off to tauri-action. The beforeBuildCommand in tauri.conf.json
+      # (`cd ui && npm run build`) handles the Vite build step at tauri build time.
       - name: Install frontend dependencies
         run: cd ui && npm ci
 
-      - name: Build and upload
+      # tauri-apps/tauri-action@v0 is the Tauri v2-compatible release of the action.
+      # It finds tauri.conf.json in src-tauri/ automatically (standard layout).
+      # tauriScript: "cargo tauri" is used because this project installs the
+      # Tauri CLI via cargo (cargo install tauri-cli) rather than via npm.
+      # Code signing is intentionally disabled — add secrets and uncomment the
+      # env vars below when Apple Developer / Windows EV certificates are available.
+      - name: Build and upload release artefacts
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS code signing (uncomment when certificates are configured):
-          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+
+          # ── macOS code signing (uncomment when certificates are configured) ──
+          # APPLE_CERTIFICATE:          ${{ secrets.APPLE_CERTIFICATE }}
           # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # APPLE_SIGNING_IDENTITY:     ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # APPLE_ID:                   ${{ secrets.APPLE_ID }}
+          # APPLE_PASSWORD:             ${{ secrets.APPLE_PASSWORD }}
+          # APPLE_TEAM_ID:              ${{ secrets.APPLE_TEAM_ID }}
+
+          # ── Windows Authenticode signing (uncomment when certificate is ready) ─
+          # TAURI_SIGNING_PRIVATE_KEY:  ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          tauriScript: npx tauri
+          # Use cargo tauri (CLI installed via cargo) rather than npx tauri.
+          # @tauri-apps/cli is not listed in any package.json in this project.
+          tauriScript: cargo tauri
           args: --target ${{ matrix.target }}
 
-  # ── Phase 3: Publish release ────────────────────────────────────
+  # ── Phase 3: Publish the draft release once all platform builds succeed ──────
   publish-release:
     name: Publish Release
     needs: [create-release, build]
     runs-on: ubuntu-latest
+    # Protect production release publishing behind an environment approval gate.
+    # Configure the "production" environment at:
+    # Settings > Environments > production > Required reviewers
     environment: production
     steps:
       - name: Publish release
@@ -134,3 +175,4 @@ jobs:
               release_id: process.env.RELEASE_ID,
               draft: false,
             });
+            console.log(`Published release ${process.env.RELEASE_ID}`);

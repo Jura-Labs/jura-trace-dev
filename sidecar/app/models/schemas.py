@@ -81,6 +81,8 @@ class DeepfakeResponse(BaseModel):
     watermarks: list[WatermarkDetection] = []
     classifier_score: float | None = None
     classifier_available: bool = False
+    univfd_score: float | None = None
+    univfd_available: bool = False
 
 
 class JpegGhostResponse(BaseModel):
@@ -130,6 +132,8 @@ class ClipDetectionResponse(BaseModel):
     model_name: str
     model_available: bool
     summary: str
+    univfd_score: float | None = None
+    univfd_available: bool = False
 
 
 class ClaimVerdict(BaseModel):

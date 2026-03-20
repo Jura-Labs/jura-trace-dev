@@ -37,6 +37,30 @@ from app.services.splice_boundary import perform_splice_boundary
 router = APIRouter()
 
 
+def _has_camera_exif(image_bytes: bytes) -> bool:
+    """Check if image has camera-origin EXIF metadata.
+
+    Only returns True when genuine camera make/model tags are present.
+    This is a conservative check — it avoids false positives from images
+    that have been processed through CDNs or social media platforms which
+    strip camera EXIF.
+    """
+    try:
+        from PIL import Image as _Image
+        from io import BytesIO
+
+        img = _Image.open(BytesIO(image_bytes))
+        exif = img.getexif()
+        if not exif:
+            return False
+        # Check for camera-specific EXIF tags
+        MAKE = 0x010F   # Camera manufacturer
+        MODEL = 0x0110  # Camera model
+        return MAKE in exif or MODEL in exif
+    except Exception:
+        return False
+
+
 async def _read_and_validate(file: UploadFile) -> bytes:
     """Read and validate an uploaded file."""
     image_bytes = await file.read()
@@ -119,7 +143,7 @@ async def detect_copy_move(
 async def detect_deepfake(
     file: UploadFile = File(...),
     mime_type: str = Query(default="image/jpeg"),
-    has_camera_exif: bool = Query(default=False),
+    has_camera_exif: bool | None = Query(default=None),
 ) -> DeepfakeResponse:
     """
     Detect AI-generated or synthetic content in an uploaded image.
@@ -134,6 +158,7 @@ async def detect_deepfake(
     The ``has_camera_exif`` parameter signals whether the image carries
     camera-origin EXIF data. Images with rich camera EXIF are less likely
     to be AI-generated; the scoring midpoint is shifted accordingly.
+    If not explicitly set, camera EXIF is auto-detected from the image.
     """
     image_bytes = await _read_and_validate(file)
 
@@ -145,6 +170,10 @@ async def detect_deepfake(
             mime_type = "image/webp"
         elif file.content_type and file.content_type != "application/octet-stream":
             mime_type = file.content_type
+
+    # Auto-detect camera EXIF if not explicitly provided
+    if has_camera_exif is None:
+        has_camera_exif = _has_camera_exif(image_bytes)
 
     try:
         return perform_deepfake_detection(

@@ -6,20 +6,23 @@ on:
   pull_request:
     branches: [main]
 
+# Cancel redundant workflow runs on the same branch/PR to save CI minutes.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # ── Rust: check, clippy, fmt, test ──────────────────────────────
+  # ── Rust: check, clippy, fmt, test ──────────────────────────────────────────
   rust:
     name: Rust
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      # Tauri v2 Linux dependencies
-      - name: Install Linux dependencies
+      # Tauri v2 requires these GTK/WebKit packages on Linux.
+      # libayatana-appindicator3-dev covers the system-tray feature.
+      # libsoup-3.0-dev is required by webkit2gtk 4.1.
+      - name: Install Linux system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -31,12 +34,17 @@ jobs:
             libjavascriptcoregtk-4.1-dev \
             libsoup-3.0-dev
 
+      # Pin to the exact minimum Rust version declared in Cargo.toml (rust-version = "1.88").
+      # Using dtolnay/rust-toolchain rather than actions-rs because it is actively maintained.
       - name: Install Rust 1.88
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: "1.88"
           components: clippy, rustfmt
 
+      # Cache Cargo registry and build artefacts keyed on Cargo.lock.
+      # restore-keys provides a partial-match fallback so cold builds are
+      # faster than a fully cold start after any dependency change.
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
@@ -49,6 +57,9 @@ jobs:
           key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
           restore-keys: cargo-${{ runner.os }}-
 
+      # The Tauri build macro (tauri::generate_context!) embeds the frontend
+      # dist path at compile time. Build the frontend first so cargo check /
+      # cargo test do not fail with a "missing frontendDist" error.
       - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
@@ -56,9 +67,7 @@ jobs:
           cache: npm
           cache-dependency-path: ui/package-lock.json
 
-      # Frontend must be built before Rust — tauri::generate_context!()
-      # requires ui/build/ to exist at compile time.
-      - name: Build frontend
+      - name: Build frontend (required by tauri::generate_context!)
         run: cd ui && npm ci && npm run build
 
       - name: cargo check
@@ -73,7 +82,7 @@ jobs:
       - name: cargo test
         run: cd src-tauri && cargo test
 
-  # ── Frontend: svelte-check, vitest ──────────────────────────────
+  # ── Frontend: svelte-check + vitest ─────────────────────────────────────────
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
@@ -90,24 +99,44 @@ jobs:
       - name: Install dependencies
         run: cd ui && npm ci
 
+      # svelte-kit sync generates .svelte-kit/tsconfig.json referenced by
+      # svelte-check — must run before the type check step.
       - name: svelte-check
         run: cd ui && npx svelte-kit sync && npx svelte-check
 
-      - name: Run tests
+      # Vitest unit tests (vitest run = single-pass, non-interactive).
+      # Playwright e2e tests are skipped here — they require a running dev
+      # server and are better suited to a dedicated nightly workflow.
+      - name: Run unit tests
         run: cd ui && npm test -- --run
 
-  # ── Python: ruff lint + format ──────────────────────────────────
+  # ── Python: lint, format, pytest ─────────────────────────────────────────────
   python:
     name: Python
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      # Match the minimum Python version declared in the sidecar README/Cargo.
+      # The sidecar uses Python 3.13 features; 3.12 is used here as the earliest
+      # version available on ubuntu-latest GHA runners as of 2026-Q1.
+      # Update to 3.13 once ubuntu-latest ships it by default.
       - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
+      # Cache pip downloads keyed on requirements.txt so repeated runs skip
+      # the heavy ML library downloads (torch, opencv, etc.).
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('sidecar/requirements.txt') }}
+          restore-keys: pip-${{ runner.os }}-
+
+      # Install ruff separately (fast, no heavy deps) so lint runs even if
+      # the full sidecar dependency install fails.
       - name: Install ruff
         run: pip install ruff
 
@@ -116,3 +145,13 @@ jobs:
 
       - name: Format check
         run: cd sidecar && ruff format --check .
+
+      # Install full sidecar dependencies for pytest.
+      # open-clip-torch pulls in PyTorch (~700 MB); we accept this cost because
+      # test_clip_detector.py exercises the CLIP-based AI image detector path.
+      # The pip cache above keeps subsequent runs fast.
+      - name: Install sidecar dependencies
+        run: pip install -r sidecar/requirements.txt
+
+      - name: Run pytest
+        run: cd sidecar && python -m pytest tests/ -v
