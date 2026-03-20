@@ -349,9 +349,17 @@ pub fn signed_output_path(source: &Path) -> PathBuf {
 }
 
 /// Check whether a content type + MIME type supports C2PA signing.
+///
+/// Images are fully supported by c2pa-rs 0.76.
+///
+/// Video (MP4, QuickTime) and audio (WAV, MPEG) are declared here because the
+/// C2PA specification defines profiles for these containers. However, c2pa-rs
+/// support for video/audio is still experimental — `sign_file` may return an
+/// error at runtime for specific container variants. Callers should propagate
+/// that error to the user rather than treating it as a bug.
 pub fn supports_signing(content_type: &str, mime_type: &str) -> bool {
-    content_type == "image"
-        && matches!(
+    match content_type {
+        "image" => matches!(
             mime_type,
             "image/jpeg"
                 | "image/png"
@@ -360,7 +368,14 @@ pub fn supports_signing(content_type: &str, mime_type: &str) -> bool {
                 | "image/avif"
                 | "image/heic"
                 | "image/heif"
-        )
+        ),
+        // c2pa-rs has experimental MP4/MOV support via the `mp4` feature.
+        // WAV and MPEG audio are declared in the C2PA spec but runtime support
+        // in c2pa-rs 0.76 is limited — errors are possible and expected.
+        "video" => matches!(mime_type, "video/mp4" | "video/quicktime"),
+        "audio" => matches!(mime_type, "audio/wav" | "audio/mpeg"),
+        _ => false,
+    }
 }
 
 /// Known AI image generator patterns in C2PA claim_generator strings.
@@ -469,12 +484,35 @@ mod tests {
         assert!(supports_signing("image", "image/tiff"));
         assert!(supports_signing("image", "image/webp"));
         assert!(supports_signing("image", "image/avif"));
+        assert!(supports_signing("image", "image/heic"));
+        assert!(supports_signing("image", "image/heif"));
+    }
+
+    #[test]
+    fn supports_signing_video() {
+        // c2pa-rs has experimental MP4/QuickTime support
+        assert!(supports_signing("video", "video/mp4"));
+        assert!(supports_signing("video", "video/quicktime"));
+        // Unsupported video formats
+        assert!(!supports_signing("video", "video/webm"));
+        assert!(!supports_signing("video", "video/x-msvideo"));
+        assert!(!supports_signing("video", "video/x-matroska"));
+    }
+
+    #[test]
+    fn supports_signing_audio() {
+        // C2PA spec defines WAV and MPEG audio profiles
+        assert!(supports_signing("audio", "audio/wav"));
+        assert!(supports_signing("audio", "audio/mpeg"));
+        // Unsupported audio formats
+        assert!(!supports_signing("audio", "audio/flac"));
+        assert!(!supports_signing("audio", "audio/ogg"));
+        assert!(!supports_signing("audio", "audio/mp4"));
     }
 
     #[test]
     fn rejects_unsupported_formats() {
         assert!(!supports_signing("document", "application/pdf"));
-        assert!(!supports_signing("video", "video/mp4"));
         assert!(!supports_signing("image", "image/gif"));
         assert!(!supports_signing("image", "image/bmp"));
         assert!(!supports_signing("3d", "model/stl"));

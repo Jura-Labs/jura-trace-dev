@@ -67,6 +67,12 @@ pub struct VerificationResult {
     pub colour_temperature_result: Option<sidecar::ColourTemperatureResult>,
     pub splice_boundary_result: Option<sidecar::SpliceBoundaryResult>,
     pub ai_generator: Option<String>,
+    /// Watermark extraction result for image files (standard/deep/archival modes).
+    pub watermark_extract_result: Option<sidecar::WatermarkExtractResult>,
+    /// Video metadata for video content types.
+    pub video_metadata: Option<sidecar::VideoMetadataResult>,
+    /// Audio metadata for audio content types.
+    pub audio_metadata: Option<sidecar::AudioMetadataResult>,
 }
 
 /// Application statistics for the dashboard.
@@ -594,6 +600,8 @@ fn verify_content_inner(
     //   archival   → all detectors (scanner-calibrated)
     let app = state.lock().map_err(|e| e.to_string())?;
     let is_image = info.content_type == format_router::ContentType::Image;
+    let is_video = info.content_type == format_router::ContentType::Video;
+    let is_audio = info.content_type == format_router::ContentType::Audio;
     let effective_mode = match mode {
         Some("fast") | Some("quick") => "quick",
         Some("standard") => "standard",
@@ -602,7 +610,10 @@ fn verify_content_inner(
         _ => "standard", // default to standard (was "deep" — too slow for typical use)
     };
     let is_quick = effective_mode == "quick";
-    let sidecar_up = is_image && !is_quick && app.sidecar.is_available();
+    // Single availability probe — reused for all sidecar calls in this pipeline
+    // to avoid multiple HTTP round-trips.
+    let sidecar_available = !is_quick && app.sidecar.is_available();
+    let sidecar_up = is_image && sidecar_available;
     let is_deep = matches!(effective_mode, "deep" | "archival");
     log::info!(
         "Verify pipeline: is_image={}, mode={:?}, effective={}, sidecar_up={}, is_deep={}",
@@ -772,6 +783,50 @@ fn verify_content_inner(
         None
     };
 
+    // Watermark extraction — run for images in standard/deep/archival mode.
+    // Tries to detect whether the image carries an invisible DWT-DCT-SVD
+    // watermark (or any watermark the sidecar supports). The result is
+    // informational; it does not affect the trust score.
+    let watermark_extract_result = if sidecar_up && is_image {
+        match app.sidecar.check_watermark_extract(&path) {
+            Ok(result) => Some(result),
+            Err(e) => {
+                log::warn!("Sidecar watermark extraction failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // Video metadata — run for video content type when sidecar is available.
+    // Not mode-gated beyond the quick-mode exclusion (basic metadata is fast).
+    let video_metadata = if is_video && sidecar_available {
+        match app.sidecar.check_video_metadata(&path) {
+            Ok(result) => Some(result),
+            Err(e) => {
+                log::warn!("Sidecar video metadata extraction failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // Audio metadata — run for audio content type when sidecar is available.
+    // Not mode-gated beyond the quick-mode exclusion.
+    let audio_metadata = if is_audio && sidecar_available {
+        match app.sidecar.check_audio_metadata(&path) {
+            Ok(result) => Some(result),
+            Err(e) => {
+                log::warn!("Sidecar audio metadata extraction failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     // Build metadata flags from findings
     let metadata_flags: Vec<String> = exif_analysis
         .as_ref()
@@ -881,6 +936,9 @@ fn verify_content_inner(
         colour_temperature_result,
         splice_boundary_result,
         ai_generator,
+        watermark_extract_result,
+        video_metadata,
+        audio_metadata,
     })
 }
 
@@ -1900,6 +1958,9 @@ mod tests {
             colour_temperature_result: None,
             splice_boundary_result: None,
             ai_generator: None,
+            watermark_extract_result: None,
+            video_metadata: None,
+            audio_metadata: None,
         };
         let json = serde_json::to_string(&result).unwrap();
         assert!(

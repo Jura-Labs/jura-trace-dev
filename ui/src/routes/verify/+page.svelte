@@ -2311,6 +2311,139 @@
         </section>
       {/if}
 
+      <!-- ── Jura Trace Watermark Detection ────────────────────────── -->
+      {#if result.watermarkExtractResult}
+        {@const wm = result.watermarkExtractResult}
+        <section
+          class="px-5 py-4 border-t border-border-light dark:border-border-dark"
+          aria-labelledby="watermark-detect-heading"
+        >
+          <div class="flex items-center gap-3 mb-3">
+            <h2
+              id="watermark-detect-heading"
+              class="text-sm font-medium text-text-light dark:text-quartz"
+              style="font-family: Georgia, 'Times New Roman', serif;"
+            >
+              Jura Trace Watermark
+            </h2>
+            <span
+              class="text-xs font-medium px-2 py-0.5 rounded border
+                     {wm.hasWatermark
+                       ? 'bg-malachite/15 text-malachite dark:text-malachite-light border-malachite/30'
+                       : 'bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border-border-light dark:border-border-dark'}"
+            >
+              {wm.hasWatermark ? 'Detected' : 'Not Found'}
+            </span>
+          </div>
+
+          {#if wm.hasWatermark}
+            <!-- Found: show extracted payload + confidence -->
+            <div class="space-y-3">
+              <div class="flex items-center gap-2">
+                <span
+                  class="flex-shrink-0 w-2 h-2 rounded-full bg-malachite"
+                  aria-hidden="true"
+                ></span>
+                <p class="text-sm text-malachite dark:text-malachite-light font-medium">
+                  Watermark detected — this file carries Jura Trace provenance data.
+                </p>
+              </div>
+
+              {#if wm.extractedPayload}
+                <div class="rounded-md bg-gray-50 dark:bg-obsidian/50 border border-border-light dark:border-border-dark px-4 py-3">
+                  <p class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-1">Extracted Institution</p>
+                  <p class="text-sm text-text-light dark:text-quartz font-mono break-all">{wm.extractedPayload}</p>
+                </div>
+              {/if}
+
+              <div class="grid grid-cols-2 gap-4 text-xs">
+                <div>
+                  <span class="text-flint dark:text-flint-light">Confidence</span>
+                  <p class="text-text-light dark:text-quartz tabular-nums mt-0.5">
+                    {Math.round(wm.confidence * 100)}%
+                  </p>
+                </div>
+                {#if wm.extractedHex}
+                  <div>
+                    <span class="text-flint dark:text-flint-light">Hex Payload</span>
+                    <p class="text-text-light dark:text-quartz font-mono text-xs mt-0.5 break-all">{wm.extractedHex}</p>
+                  </div>
+                {/if}
+              </div>
+
+              <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
+                This watermark was embedded using Jura Trace. The extracted institution name can be
+                used to verify the asset's provenance against the originating collection record.
+              </p>
+            </div>
+
+          {:else}
+            <!-- Not found -->
+            <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+              No Jura Trace invisible watermark was detected in this file. The file may originate
+              from outside the Jura Archive workflow, or the watermark may have been removed or
+              degraded by subsequent processing.
+            </p>
+          {/if}
+
+          {#if !wm.success && wm.message}
+            <p class="mt-2 text-xs text-amber dark:text-amber-light">
+              Note: {wm.message}
+            </p>
+          {/if}
+        </section>
+      {/if}
+
+      <!-- ── Video Frame Thumbnails ────────────────────────────────── -->
+      {#if result.videoFramesResult?.success && result.videoFramesResult.frames.length > 0}
+        {@const vf = result.videoFramesResult}
+        <section
+          class="px-5 py-4 border-t border-border-light dark:border-border-dark"
+          aria-labelledby="video-frames-heading"
+        >
+          <div class="flex items-center gap-3 mb-3">
+            <h2
+              id="video-frames-heading"
+              class="text-sm font-medium text-text-light dark:text-quartz"
+              style="font-family: Georgia, 'Times New Roman', serif;"
+            >
+              Video Frame Samples
+            </h2>
+            <span class="text-xs text-flint dark:text-flint-light">
+              {vf.count} frame{vf.count !== 1 ? 's' : ''}
+              {#if vf.duration != null}
+                &middot; {Math.floor(vf.duration / 60)}:{String(Math.round(vf.duration % 60)).padStart(2, '0')} duration
+              {/if}
+            </span>
+          </div>
+
+          <div
+            class="grid gap-2"
+            style="grid-template-columns: repeat({Math.min(vf.frames.length, 4)}, 1fr);"
+            role="list"
+            aria-label="Representative video frame thumbnails"
+          >
+            {#each vf.frames as frame, i (i)}
+              <div
+                class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian aspect-video"
+                role="listitem"
+              >
+                <img
+                  src="data:image/jpeg;base64,{frame}"
+                  alt="Frame {i + 1} of {vf.frames.length} from video"
+                  class="w-full h-full object-cover"
+                />
+              </div>
+            {/each}
+          </div>
+
+          <p class="mt-2 text-xs text-flint dark:text-flint-light leading-relaxed">
+            Representative frames sampled evenly across the video duration. Inspect for visual
+            discontinuities, splice artefacts, or temporal inconsistencies.
+          </p>
+        </section>
+      {/if}
+
       </div>
       {/if}
       <!-- End Technical Details -->

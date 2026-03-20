@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { AppStats, Asset, AuditLogEntry, Fingerprint, ManifestInfo, MetadataSigningWarning, MonitorOverview, SidecarHealth, SimilarAsset, VerificationResult, VerificationSummary, VerifyMode, WatermarkEmbedResult, WatermarkExtractResult } from './types';
+import type { AppStats, Asset, AudioMetadataResult, AuditLogEntry, Fingerprint, ManifestInfo, MetadataSigningWarning, MonitorOverview, SidecarHealth, SimilarAsset, VerificationResult, VerificationSummary, VerifyMode, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -476,5 +476,76 @@ export async function extractWatermark(assetId: string): Promise<WatermarkExtrac
     confidence: 0,
     success: true,
     message: 'No watermark detected (mock)',
+  };
+}
+
+// ── Video / Audio Metadata ──────────────────────────────────────────
+
+/**
+ * Retrieve technical metadata from a video asset.
+ * @param assetId  The asset to inspect.
+ */
+export async function getVideoMetadata(assetId: string): Promise<VideoMetadataResult> {
+  if (isTauri) {
+    return invoke<VideoMetadataResult>('get_video_metadata', { assetId });
+  }
+  // Browser mock
+  return {
+    duration: 142.5,
+    codec: 'h264',
+    width: 1920,
+    height: 1080,
+    fps: 25,
+    hasAudio: true,
+    audioCodec: 'aac',
+    bitrate: 4500000,
+    fileSize: undefined,
+    success: true,
+    message: 'Video metadata (mock)',
+  };
+}
+
+/**
+ * Retrieve technical metadata from an audio asset.
+ * @param assetId  The asset to inspect.
+ */
+export async function getAudioMetadata(assetId: string): Promise<AudioMetadataResult> {
+  if (isTauri) {
+    return invoke<AudioMetadataResult>('get_audio_metadata', { assetId });
+  }
+  // Browser mock
+  return {
+    duration: 210.3,
+    codec: 'flac',
+    sampleRate: 44100,
+    channels: 2,
+    bitrate: 1411200,
+    fileSize: undefined,
+    success: true,
+    message: 'Audio metadata (mock)',
+  };
+}
+
+/**
+ * Extract representative frame thumbnails from a video asset.
+ * Returns a small set of base64-encoded JPEG thumbnails evenly spaced
+ * across the video duration.
+ * @param assetId  The video asset to sample.
+ * @param count    Number of frames to extract (default 4).
+ */
+export async function getVideoFrames(
+  assetId: string,
+  count: number = 4,
+): Promise<VideoFramesResult> {
+  if (isTauri) {
+    return invoke<VideoFramesResult>('get_video_frames', { assetId, count });
+  }
+  // Browser mock — return an empty result so the UI degrades gracefully
+  return {
+    frames: [],
+    count: 0,
+    duration: undefined,
+    success: false,
+    message: 'Video frame extraction not available (mock)',
   };
 }

@@ -1,9 +1,12 @@
 <script lang="ts">
-  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, getFingerprints, findSimilar, checkMetadataBeforeSign, embedWatermark } from '$lib/api';
+  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, getFingerprints, findSimilar, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames } from '$lib/api';
   import {
     type Asset,
     type ContentType,
     type ImageMetadata,
+    type VideoMetadataResult,
+    type AudioMetadataResult,
+    type VideoFramesResult,
     type Fingerprint,
     type SimilarAsset,
     type MetadataSigningWarning,
@@ -53,6 +56,12 @@
   let watermarkStrength = $state<number>(2); // 1 = low, 2 = medium, 3 = high
   let watermarking = $state(false);
   let watermarkResult = $state<WatermarkEmbedResult | null>(null);
+
+  // ── Video / Audio metadata state ───────────────────────────────────
+  let videoMetadata = $state<VideoMetadataResult | null>(null);
+  let audioMetadata = $state<AudioMetadataResult | null>(null);
+  let videoFrames = $state<VideoFramesResult | null>(null);
+  let loadingMediaMeta = $state(false);
 
   // ── Selected asset ────────────────────────────────────────────────
   let selectedAsset: Asset | null = $state(null);
@@ -158,6 +167,9 @@
   function selectAsset(asset: Asset) {
     if (selectedAsset?.assetId === asset.assetId) {
       selectedAsset = null;
+      videoMetadata = null;
+      audioMetadata = null;
+      videoFrames = null;
     } else {
       selectedAsset = asset;
       // Close any open panels when switching rows
@@ -165,6 +177,33 @@
       signingAssetId = null;
       watermarkAssetId = null;
       watermarkResult = null;
+      // Reset and fetch media metadata for video/audio assets
+      videoMetadata = null;
+      audioMetadata = null;
+      videoFrames = null;
+      if (asset.contentType === 'video' || asset.contentType === 'audio') {
+        fetchMediaMetadata(asset);
+      }
+    }
+  }
+
+  async function fetchMediaMetadata(asset: Asset) {
+    loadingMediaMeta = true;
+    try {
+      if (asset.contentType === 'video') {
+        const [meta, frames] = await Promise.all([
+          getVideoMetadata(asset.assetId),
+          getVideoFrames(asset.assetId, 4),
+        ]);
+        videoMetadata = meta;
+        videoFrames = frames;
+      } else if (asset.contentType === 'audio') {
+        audioMetadata = await getAudioMetadata(asset.assetId);
+      }
+    } catch {
+      // Non-fatal — media metadata is supplementary
+    } finally {
+      loadingMediaMeta = false;
     }
   }
 
@@ -283,6 +322,20 @@
     link.download = `jura_assets_${dateStr}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  // ── Format video/audio duration as mm:ss ──────────────────────────
+  function formatDurationSecs(seconds: number): string {
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  // ── Format bitrate for display ────────────────────────────────────
+  function formatBitrate(bps: number): string {
+    if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} Mbps`;
+    if (bps >= 1_000) return `${Math.round(bps / 1_000)} kbps`;
+    return `${bps} bps`;
   }
 
   // ── Content type icon ────────────────────────────────────────────
@@ -702,6 +755,134 @@
                     <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">GPS</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.gpsLatitude.toFixed(6)}, {meta.gpsLongitude.toFixed(6)}</p>
                   </div>
+                {/if}
+              {/if}
+
+              <!-- ── Video metadata ──────────────────────────────── -->
+              {#if asset.contentType === 'video'}
+                {#if loadingMediaMeta && selectedAsset?.assetId === asset.assetId}
+                  <div class="col-span-full flex items-center gap-2 mt-1">
+                    <span
+                      class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
+                      aria-hidden="true"
+                    ></span>
+                    <p class="text-xs text-flint dark:text-flint-light">Loading video metadata...</p>
+                  </div>
+                {:else if videoMetadata && selectedAsset?.assetId === asset.assetId && videoMetadata.success}
+                  {#if videoMetadata.duration != null}
+                    <div>
+                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Duration</span>
+                      <p class="text-text-light dark:text-quartz mt-0.5">{formatDurationSecs(videoMetadata.duration)}</p>
+                    </div>
+                  {/if}
+                  {#if videoMetadata.codec}
+                    <div>
+                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Video Codec</span>
+                      <p class="text-text-light dark:text-quartz mt-0.5 uppercase">{videoMetadata.codec}</p>
+                    </div>
+                  {/if}
+                  {#if videoMetadata.width && videoMetadata.height}
+                    <div>
+                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Resolution</span>
+                      <p class="text-text-light dark:text-quartz mt-0.5">{videoMetadata.width} &times; {videoMetadata.height}</p>
+                    </div>
+                  {/if}
+                  {#if videoMetadata.fps != null}
+                    <div>
+                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Frame Rate</span>
+                      <p class="text-text-light dark:text-quartz mt-0.5">{videoMetadata.fps} fps</p>
+                    </div>
+                  {/if}
+                  {#if videoMetadata.bitrate != null}
+                    <div>
+                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Bitrate</span>
+                      <p class="text-text-light dark:text-quartz mt-0.5">{formatBitrate(videoMetadata.bitrate)}</p>
+                    </div>
+                  {/if}
+                  <div>
+                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Audio</span>
+                    <p class="text-text-light dark:text-quartz mt-0.5">
+                      {videoMetadata.hasAudio
+                        ? videoMetadata.audioCodec
+                          ? videoMetadata.audioCodec.toUpperCase()
+                          : 'Present'
+                        : 'None'}
+                    </p>
+                  </div>
+                {/if}
+
+                <!-- Video frame thumbnails -->
+                {#if videoFrames && selectedAsset?.assetId === asset.assetId && videoFrames.success && videoFrames.frames.length > 0}
+                  <div class="col-span-full mt-2">
+                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide block mb-2">
+                      Frame Samples
+                    </span>
+                    <div
+                      class="grid gap-1.5"
+                      style="grid-template-columns: repeat({Math.min(videoFrames.frames.length, 4)}, 1fr);"
+                      role="list"
+                      aria-label="Representative video frame thumbnails"
+                    >
+                      {#each videoFrames.frames as frame, i (i)}
+                        <div
+                          class="rounded overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian aspect-video"
+                          role="listitem"
+                        >
+                          <img
+                            src="data:image/jpeg;base64,{frame}"
+                            alt="Frame {i + 1} of {videoFrames.frames.length}"
+                            class="w-full h-full object-cover"
+                          />
+                        </div>
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
+              {/if}
+
+              <!-- ── Audio metadata ──────────────────────────────── -->
+              {#if asset.contentType === 'audio'}
+                {#if loadingMediaMeta && selectedAsset?.assetId === asset.assetId}
+                  <div class="col-span-full flex items-center gap-2 mt-1">
+                    <span
+                      class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
+                      aria-hidden="true"
+                    ></span>
+                    <p class="text-xs text-flint dark:text-flint-light">Loading audio metadata...</p>
+                  </div>
+                {:else if audioMetadata && selectedAsset?.assetId === asset.assetId && audioMetadata.success}
+                  {#if audioMetadata.duration != null}
+                    <div>
+                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Duration</span>
+                      <p class="text-text-light dark:text-quartz mt-0.5">{formatDurationSecs(audioMetadata.duration)}</p>
+                    </div>
+                  {/if}
+                  {#if audioMetadata.codec}
+                    <div>
+                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Codec</span>
+                      <p class="text-text-light dark:text-quartz mt-0.5 uppercase">{audioMetadata.codec}</p>
+                    </div>
+                  {/if}
+                  {#if audioMetadata.sampleRate != null}
+                    <div>
+                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Sample Rate</span>
+                      <p class="text-text-light dark:text-quartz mt-0.5">{(audioMetadata.sampleRate / 1000).toFixed(1)} kHz</p>
+                    </div>
+                  {/if}
+                  {#if audioMetadata.channels != null}
+                    <div>
+                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Channels</span>
+                      <p class="text-text-light dark:text-quartz mt-0.5">
+                        {audioMetadata.channels === 1 ? 'Mono' : audioMetadata.channels === 2 ? 'Stereo' : `${audioMetadata.channels} ch`}
+                      </p>
+                    </div>
+                  {/if}
+                  {#if audioMetadata.bitrate != null}
+                    <div>
+                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Bitrate</span>
+                      <p class="text-text-light dark:text-quartz mt-0.5">{formatBitrate(audioMetadata.bitrate)}</p>
+                    </div>
+                  {/if}
                 {/if}
               {/if}
 

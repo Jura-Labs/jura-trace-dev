@@ -2,6 +2,8 @@
 Jura Trace Sidecar — Health check endpoint.
 """
 
+import shutil
+
 import httpx
 from fastapi import APIRouter
 
@@ -34,6 +36,9 @@ async def health() -> HealthResponse:
     # RAG claim checking is available whenever Ollama is reachable.
     rag_available = ollama_status == "available"
 
+    # FFmpeg availability gates video/audio services.
+    ffmpeg_available = shutil.which("ffprobe") is not None
+
     return HealthResponse(
         status="ok",
         version="0.2.0",
@@ -41,6 +46,9 @@ async def health() -> HealthResponse:
         capabilities=CapabilitiesResponse(
             ela=True, noise=True, copy_move=True, deepfake=True,
             watermark=True, clip_detect=clip_available, rag=rag_available,
+            video_metadata=ffmpeg_available,
+            audio_metadata=ffmpeg_available,
+            video_frames=ffmpeg_available,
         ),
         ollama=ollama_status,
     )

@@ -349,6 +349,93 @@ pub struct SpliceBoundaryResult {
     pub summary: String,
 }
 
+/// Watermark extraction result from the sidecar.
+///
+/// Attempts to extract an invisible watermark payload from an image file.
+/// Returns the decoded hex payload when extraction succeeds, along with a
+/// confidence score in [0, 1].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatermarkExtractResult {
+    /// The extracted payload as a UTF-8 string, if decoding succeeded.
+    #[serde(default, alias = "extracted_payload")]
+    pub extracted_payload: Option<String>,
+    /// The extracted payload as a lowercase hex string, if decoding succeeded.
+    #[serde(default, alias = "extracted_hex")]
+    pub extracted_hex: Option<String>,
+    /// Number of bytes decoded.
+    #[serde(alias = "payload_length")]
+    pub payload_length: u32,
+    /// Watermark algorithm used for extraction (e.g. `"DWT-DCT-SVD"`).
+    pub algorithm: String,
+    /// Whether a watermark was detected in the image.
+    #[serde(alias = "has_watermark")]
+    pub has_watermark: bool,
+    /// Extraction confidence in [0, 1].
+    pub confidence: f64,
+    /// Whether the extraction operation completed without error.
+    pub success: bool,
+    /// Human-readable status message.
+    pub message: String,
+}
+
+/// Video metadata result from the sidecar.
+///
+/// Basic container and codec information extracted from a video file.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoMetadataResult {
+    /// Duration in seconds.
+    pub duration: Option<f64>,
+    /// Video codec name (e.g. `"h264"`, `"vp9"`).
+    pub codec: Option<String>,
+    /// Frame width in pixels.
+    pub width: Option<u32>,
+    /// Frame height in pixels.
+    pub height: Option<u32>,
+    /// Frame rate in frames per second.
+    pub fps: Option<f64>,
+    /// Whether an audio stream is present.
+    #[serde(default, alias = "has_audio")]
+    pub has_audio: bool,
+    /// Audio codec name when an audio stream is present (e.g. `"aac"`).
+    #[serde(default, alias = "audio_codec")]
+    pub audio_codec: Option<String>,
+    /// File size in bytes.
+    #[serde(default, alias = "file_size")]
+    pub file_size: Option<u64>,
+    /// Whether the operation completed without error.
+    pub success: bool,
+    /// Human-readable status message.
+    pub message: String,
+}
+
+/// Audio metadata result from the sidecar.
+///
+/// Basic container and codec information extracted from an audio file.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioMetadataResult {
+    /// Duration in seconds.
+    pub duration: Option<f64>,
+    /// Audio codec name (e.g. `"pcm_s16le"`, `"mp3"`, `"flac"`).
+    pub codec: Option<String>,
+    /// Sample rate in Hz.
+    #[serde(default, alias = "sample_rate")]
+    pub sample_rate: Option<u32>,
+    /// Number of audio channels.
+    pub channels: Option<u32>,
+    /// Bit rate in bits per second.
+    pub bitrate: Option<u32>,
+    /// File size in bytes.
+    #[serde(default, alias = "file_size")]
+    pub file_size: Option<u64>,
+    /// Whether the operation completed without error.
+    pub success: bool,
+    /// Human-readable status message.
+    pub message: String,
+}
+
 /// HTTP client for the Python ML sidecar.
 pub struct SidecarClient {
     base_url: String,
@@ -720,6 +807,92 @@ impl SidecarClient {
 
         resp.json::<SpliceBoundaryResult>()
             .map_err(|e| format!("Failed to parse splice boundary response: {e}"))
+    }
+
+    /// Attempt to extract an invisible watermark payload from an image file.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/watermark/extract`.
+    /// Returns a [`WatermarkExtractResult`] indicating whether a watermark was
+    /// found and what payload was decoded.
+    pub fn check_watermark_extract(
+        &self,
+        image_path: &Path,
+    ) -> Result<WatermarkExtractResult, String> {
+        let form = self.build_image_form(image_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/watermark/extract", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(30))
+            .send()
+            .map_err(|e| format!("Sidecar watermark extract request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!(
+                "Sidecar watermark extract returned {status}: {body}"
+            ));
+        }
+
+        resp.json::<WatermarkExtractResult>()
+            .map_err(|e| format!("Failed to parse watermark extract response: {e}"))
+    }
+
+    /// Extract basic metadata from a video file.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/video/metadata`.
+    /// Returns codec, resolution, frame rate, duration, and audio stream
+    /// information.
+    pub fn check_video_metadata(&self, video_path: &Path) -> Result<VideoMetadataResult, String> {
+        let form = self.build_image_form(video_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/video/metadata", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(30))
+            .send()
+            .map_err(|e| format!("Sidecar video metadata request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!(
+                "Sidecar video metadata returned {status}: {body}"
+            ));
+        }
+
+        resp.json::<VideoMetadataResult>()
+            .map_err(|e| format!("Failed to parse video metadata response: {e}"))
+    }
+
+    /// Extract basic metadata from an audio file.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/audio/metadata`.
+    /// Returns codec, sample rate, channels, bit rate, and duration information.
+    pub fn check_audio_metadata(&self, audio_path: &Path) -> Result<AudioMetadataResult, String> {
+        let form = self.build_image_form(audio_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/audio/metadata", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(30))
+            .send()
+            .map_err(|e| format!("Sidecar audio metadata request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!(
+                "Sidecar audio metadata returned {status}: {body}"
+            ));
+        }
+
+        resp.json::<AudioMetadataResult>()
+            .map_err(|e| format!("Failed to parse audio metadata response: {e}"))
     }
 
     /// Build a multipart form with an image file.
@@ -1331,5 +1504,190 @@ mod tests {
         assert!(!result.suspicious);
         assert_eq!(result.boundaries.len(), 0);
         assert_eq!(result.total_boundaries_checked, 16);
+    }
+
+    // ── New Sprint 12-13 struct deserialization tests ────────────────────────
+
+    #[test]
+    fn test_watermark_extract_result_deserialise_snake_case() {
+        // Python sidecar returns snake_case; alias annotations translate it
+        let json = r#"{
+            "extracted_payload": "juralabs-cic",
+            "extracted_hex": "6a7572616c6162732d636963",
+            "payload_length": 12,
+            "algorithm": "DWT-DCT-SVD",
+            "has_watermark": true,
+            "confidence": 0.94,
+            "success": true,
+            "message": "Watermark extracted successfully"
+        }"#;
+        let result: WatermarkExtractResult = serde_json::from_str(json).unwrap();
+        assert!(result.has_watermark);
+        assert!(result.success);
+        assert_eq!(result.payload_length, 12);
+        assert_eq!(result.algorithm, "DWT-DCT-SVD");
+        assert_eq!(result.extracted_payload, Some("juralabs-cic".to_string()));
+        assert_eq!(
+            result.extracted_hex,
+            Some("6a7572616c6162732d636963".to_string())
+        );
+        assert!((result.confidence - 0.94).abs() < 0.001);
+        assert_eq!(result.message, "Watermark extracted successfully");
+    }
+
+    #[test]
+    fn test_watermark_extract_result_no_watermark() {
+        // No watermark found: has_watermark=false, payload fields None
+        let json = r#"{
+            "payload_length": 0,
+            "algorithm": "DWT-DCT-SVD",
+            "has_watermark": false,
+            "confidence": 0.0,
+            "success": true,
+            "message": "No watermark detected"
+        }"#;
+        let result: WatermarkExtractResult = serde_json::from_str(json).unwrap();
+        assert!(!result.has_watermark);
+        assert!(result.success);
+        assert_eq!(result.extracted_payload, None);
+        assert_eq!(result.extracted_hex, None);
+        assert_eq!(result.payload_length, 0);
+        assert!((result.confidence - 0.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_watermark_extract_result_failure() {
+        // Sidecar returns success=false when extraction errors
+        let json = r#"{
+            "payload_length": 0,
+            "algorithm": "DWT-DCT-SVD",
+            "has_watermark": false,
+            "confidence": 0.0,
+            "success": false,
+            "message": "Image too small for DWT-DCT-SVD extraction"
+        }"#;
+        let result: WatermarkExtractResult = serde_json::from_str(json).unwrap();
+        assert!(!result.success);
+        assert!(!result.has_watermark);
+        assert!(result.message.contains("too small"));
+    }
+
+    #[test]
+    fn test_video_metadata_result_deserialise_snake_case() {
+        // Python sidecar returns snake_case for multi-word fields
+        let json = r#"{
+            "duration": 125.4,
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "fps": 29.97,
+            "has_audio": true,
+            "audio_codec": "aac",
+            "file_size": 52428800,
+            "success": true,
+            "message": "Video metadata extracted successfully"
+        }"#;
+        let result: VideoMetadataResult = serde_json::from_str(json).unwrap();
+        assert!(result.success);
+        assert!((result.duration.unwrap() - 125.4).abs() < 0.001);
+        assert_eq!(result.codec, Some("h264".to_string()));
+        assert_eq!(result.width, Some(1920));
+        assert_eq!(result.height, Some(1080));
+        assert!((result.fps.unwrap() - 29.97).abs() < 0.001);
+        assert!(result.has_audio);
+        assert_eq!(result.audio_codec, Some("aac".to_string()));
+        assert_eq!(result.file_size, Some(52_428_800));
+    }
+
+    #[test]
+    fn test_video_metadata_result_no_audio() {
+        // Video with no audio track
+        let json = r#"{
+            "duration": 10.0,
+            "codec": "vp9",
+            "width": 1280,
+            "height": 720,
+            "fps": 24.0,
+            "has_audio": false,
+            "file_size": 1048576,
+            "success": true,
+            "message": "Video metadata extracted successfully"
+        }"#;
+        let result: VideoMetadataResult = serde_json::from_str(json).unwrap();
+        assert!(!result.has_audio);
+        assert_eq!(result.audio_codec, None);
+        assert_eq!(result.codec, Some("vp9".to_string()));
+    }
+
+    #[test]
+    fn test_video_metadata_result_failure() {
+        let json = r#"{
+            "success": false,
+            "message": "Unsupported container format"
+        }"#;
+        let result: VideoMetadataResult = serde_json::from_str(json).unwrap();
+        assert!(!result.success);
+        assert!(!result.has_audio);
+        assert_eq!(result.duration, None);
+        assert_eq!(result.codec, None);
+    }
+
+    #[test]
+    fn test_audio_metadata_result_deserialise_snake_case() {
+        // Python sidecar returns snake_case for multi-word fields
+        let json = r#"{
+            "duration": 213.7,
+            "codec": "flac",
+            "sample_rate": 44100,
+            "channels": 2,
+            "bitrate": 1411200,
+            "file_size": 37748736,
+            "success": true,
+            "message": "Audio metadata extracted successfully"
+        }"#;
+        let result: AudioMetadataResult = serde_json::from_str(json).unwrap();
+        assert!(result.success);
+        assert!((result.duration.unwrap() - 213.7).abs() < 0.001);
+        assert_eq!(result.codec, Some("flac".to_string()));
+        assert_eq!(result.sample_rate, Some(44_100));
+        assert_eq!(result.channels, Some(2));
+        assert_eq!(result.bitrate, Some(1_411_200));
+        assert_eq!(result.file_size, Some(37_748_736));
+    }
+
+    #[test]
+    fn test_audio_metadata_result_minimal() {
+        // Minimal response: only required fields
+        let json = r#"{
+            "success": false,
+            "message": "Could not read audio stream"
+        }"#;
+        let result: AudioMetadataResult = serde_json::from_str(json).unwrap();
+        assert!(!result.success);
+        assert_eq!(result.duration, None);
+        assert_eq!(result.codec, None);
+        assert_eq!(result.sample_rate, None);
+        assert_eq!(result.channels, None);
+        assert_eq!(result.bitrate, None);
+        assert_eq!(result.file_size, None);
+    }
+
+    #[test]
+    fn test_audio_metadata_result_mono() {
+        // Single-channel WAV
+        let json = r#"{
+            "duration": 5.2,
+            "codec": "pcm_s16le",
+            "sample_rate": 22050,
+            "channels": 1,
+            "bitrate": 352800,
+            "file_size": 229376,
+            "success": true,
+            "message": "Audio metadata extracted successfully"
+        }"#;
+        let result: AudioMetadataResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.channels, Some(1));
+        assert_eq!(result.sample_rate, Some(22_050));
+        assert_eq!(result.codec, Some("pcm_s16le".to_string()));
     }
 }

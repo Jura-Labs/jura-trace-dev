@@ -6,6 +6,7 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from app.config import settings
 from app.models.schemas import (
+    AudioMetadataResponse,
     CaResponse,
     ClaimCheckResponse,
     ClipDetectionResponse,
@@ -19,6 +20,8 @@ from app.models.schemas import (
     SegmentedElaResponse,
     ShadowConsistencyResponse,
     SpliceBoundaryResponse,
+    VideoFramesResponse,
+    VideoMetadataResponse,
     WatermarkEmbedResponse,
     WatermarkExtractResponse,
 )
@@ -35,6 +38,9 @@ from app.services.npr import perform_npr_analysis
 from app.services.segmented_ela import perform_segmented_ela
 from app.services.shadow_consistency import perform_shadow_consistency
 from app.services.splice_boundary import perform_splice_boundary
+from app.services.audio_metadata import perform_audio_metadata
+from app.services.video_frames import perform_frame_extraction
+from app.services.video_metadata import perform_video_metadata
 from app.services.watermark import perform_watermark_embed, perform_watermark_extract
 
 router = APIRouter()
@@ -433,3 +439,52 @@ async def watermark_extract(
 
     result = perform_watermark_extract(image_bytes, payload_length)
     return result
+
+
+@router.post("/video/metadata", response_model=VideoMetadataResponse)
+async def video_metadata(
+    file: UploadFile = File(...),
+) -> VideoMetadataResponse:
+    """
+    Extract video metadata using FFmpeg/ffprobe.
+
+    Returns codec, resolution, frame rate, duration, audio stream info,
+    bitrate, and file size. Requires FFmpeg to be installed on the system.
+    """
+    contents = await file.read()
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Empty file uploaded")
+    return perform_video_metadata(contents)
+
+
+@router.post("/audio/metadata", response_model=AudioMetadataResponse)
+async def audio_metadata(
+    file: UploadFile = File(...),
+) -> AudioMetadataResponse:
+    """
+    Extract audio metadata using FFmpeg/ffprobe.
+
+    Returns codec, sample rate, channels, duration, bitrate, and file size.
+    Requires FFmpeg to be installed on the system.
+    """
+    contents = await file.read()
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Empty file uploaded")
+    return perform_audio_metadata(contents)
+
+
+@router.post("/video/frames", response_model=VideoFramesResponse)
+async def video_frames(
+    file: UploadFile = File(...),
+    count: int = Query(default=6, ge=1, le=12),
+) -> VideoFramesResponse:
+    """
+    Extract evenly-spaced frames from a video as base64 JPEG strings.
+
+    Returns up to ``count`` frames sampled at equal intervals through the
+    video duration. Requires FFmpeg to be installed on the system.
+    """
+    contents = await file.read()
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Empty file uploaded")
+    return perform_frame_extraction(contents, count=count)

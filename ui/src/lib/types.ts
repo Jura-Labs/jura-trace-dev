@@ -313,6 +313,8 @@ export interface VerificationResult {
   colourTemperatureResult?: ColourTemperatureResult | null;
   spliceBoundaryResult?: SpliceBoundaryResult | null;
   aiGenerator?: string;
+  watermarkExtractResult?: WatermarkExtractResult | null;
+  videoFramesResult?: VideoFramesResult | null;
 }
 
 /** Severity level for an EXIF anomaly finding */
@@ -498,6 +500,44 @@ export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
   web: 'Web',
   unknown: 'Unknown',
 };
+
+// ── Video / Audio types ───────────────────────────────────────────
+
+/** Technical metadata extracted from a video file */
+export interface VideoMetadataResult {
+  duration?: number;
+  codec?: string;
+  width?: number;
+  height?: number;
+  fps?: number;
+  hasAudio: boolean;
+  audioCodec?: string;
+  bitrate?: number;
+  fileSize?: number;
+  success: boolean;
+  message: string;
+}
+
+/** Technical metadata extracted from an audio file */
+export interface AudioMetadataResult {
+  duration?: number;
+  codec?: string;
+  sampleRate?: number;
+  channels?: number;
+  bitrate?: number;
+  fileSize?: number;
+  success: boolean;
+  message: string;
+}
+
+/** A set of representative frame thumbnails from a video */
+export interface VideoFramesResult {
+  frames: string[];  // base64-encoded JPEG thumbnails
+  count: number;
+  duration?: number;
+  success: boolean;
+  message: string;
+}
 
 // ── Watermarking ──────────────────────────────────────────────────
 

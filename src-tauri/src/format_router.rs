@@ -251,12 +251,23 @@ mod tests {
 
     #[test]
     fn classify_mime_video() {
+        // All standard video MIME types must route to Video
         assert_eq!(classify_mime("video/mp4"), ContentType::Video);
+        assert_eq!(classify_mime("video/quicktime"), ContentType::Video);
+        assert_eq!(classify_mime("video/webm"), ContentType::Video);
+        assert_eq!(classify_mime("video/x-msvideo"), ContentType::Video);
+        assert_eq!(classify_mime("video/x-matroska"), ContentType::Video);
     }
 
     #[test]
     fn classify_mime_audio() {
+        // All standard audio MIME types must route to Audio
         assert_eq!(classify_mime("audio/wav"), ContentType::Audio);
+        assert_eq!(classify_mime("audio/mpeg"), ContentType::Audio);
+        assert_eq!(classify_mime("audio/flac"), ContentType::Audio);
+        assert_eq!(classify_mime("audio/ogg"), ContentType::Audio);
+        assert_eq!(classify_mime("audio/aac"), ContentType::Audio);
+        assert_eq!(classify_mime("audio/mp4"), ContentType::Audio);
     }
 
     #[test]

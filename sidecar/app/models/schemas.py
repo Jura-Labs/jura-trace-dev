@@ -282,6 +282,45 @@ class WatermarkExtractResponse(BaseModel):
     message: str
 
 
+class VideoMetadataResponse(BaseModel):
+    """Video metadata extraction result."""
+
+    duration: float | None = None
+    codec: str | None = None
+    width: int | None = None
+    height: int | None = None
+    fps: float | None = None
+    has_audio: bool = False
+    audio_codec: str | None = None
+    bitrate: int | None = None
+    file_size: int | None = None
+    success: bool
+    message: str
+
+
+class AudioMetadataResponse(BaseModel):
+    """Audio metadata extraction result."""
+
+    duration: float | None = None
+    codec: str | None = None
+    sample_rate: int | None = None
+    channels: int | None = None
+    bitrate: int | None = None
+    file_size: int | None = None
+    success: bool
+    message: str
+
+
+class VideoFramesResponse(BaseModel):
+    """Video frame extraction result."""
+
+    frames: list[str] = []  # base64 JPEG strings
+    count: int = 0
+    duration: float | None = None
+    success: bool
+    message: str
+
+
 class CapabilitiesResponse(BaseModel):
     """Sidecar capability flags."""
 
@@ -299,6 +338,9 @@ class CapabilitiesResponse(BaseModel):
     watermark: bool = True
     clip_detect: bool = False
     rag: bool = False
+    video_metadata: bool = False
+    audio_metadata: bool = False
+    video_frames: bool = False
 
 
 class HealthResponse(BaseModel):
