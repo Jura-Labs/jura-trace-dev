@@ -134,6 +134,10 @@ pub struct DeepfakeResult {
     pub summary: String,
     #[serde(default)]
     pub watermarks: Vec<WatermarkDetection>,
+    #[serde(alias = "classifier_score")]
+    pub classifier_score: Option<f64>,
+    #[serde(default, alias = "classifier_available")]
+    pub classifier_available: bool,
 }
 
 /// NPR (Neighbouring Pixel Relationships) analysis result.
@@ -998,6 +1002,43 @@ mod tests {
         }"#;
         let result: DeepfakeResult = serde_json::from_str(json).unwrap();
         assert_eq!(result.verdict_level, None);
+    }
+
+    #[test]
+    fn test_deepfake_result_with_classifier_fields() {
+        // New sidecar responses include trained-classifier score and availability flag.
+        let json = r#"{
+            "score": 0.83,
+            "suspicious": true,
+            "confidence": "high",
+            "verdict_level": "synthetic",
+            "signals": [],
+            "heatmap_base64": "iVBOR...",
+            "summary": "Trained classifier confirms synthetic origin",
+            "classifier_score": 0.91,
+            "classifier_available": true
+        }"#;
+        let result: DeepfakeResult = serde_json::from_str(json).unwrap();
+        assert!((result.score - 0.83).abs() < 0.001);
+        assert_eq!(result.classifier_score, Some(0.91));
+        assert!(result.classifier_available);
+    }
+
+    #[test]
+    fn test_deepfake_result_without_classifier_fields() {
+        // Backwards compat: old sidecar responses without classifier fields.
+        // classifier_score must be None; classifier_available must default to false.
+        let json = r#"{
+            "score": 0.72,
+            "suspicious": true,
+            "confidence": "high",
+            "signals": [],
+            "heatmap_base64": "iVBOR...",
+            "summary": "Strong synthetic indicators"
+        }"#;
+        let result: DeepfakeResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.classifier_score, None);
+        assert!(!result.classifier_available);
     }
 
     #[test]

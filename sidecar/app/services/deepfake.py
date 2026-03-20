@@ -28,6 +28,183 @@ from app.models.schemas import DeepfakeResponse, DeepfakeSignal, WatermarkDetect
 # Maximum analysis dimension (longest edge)
 ANALYSIS_SIZE = 512
 
+# ── Stable Feature Vector ──────────────────────────────────────────────
+# Ordered list of every feature key produced by the 8 core extractors
+# plus the 5 new-signal extractors. Conditional (lossless-only) features
+# are included at the end; they default to NaN when not applicable.
+
+FEATURE_NAMES: list[str] = [
+    # _extract_frequency_features (9)
+    "spectral_decay_beta",
+    "hf_energy_ratio",
+    "mf_energy_ratio",
+    "hf_to_mf_ratio",
+    "az_var_band_0",
+    "az_var_band_1",
+    "az_var_band_2",
+    "az_var_band_3",
+    "spectral_entropy",
+    # _extract_noise_features (9)
+    "noise_mean_abs",
+    "noise_std",
+    "noise_kurtosis",
+    "noise_skewness",
+    "noise_autocorr_h1",
+    "noise_autocorr_v1",
+    "noise_autocorr_d1",
+    "noise_var_cv",
+    "noise_spectral_flatness",
+    # _extract_color_features (22)
+    "color_b_mean",
+    "color_b_std",
+    "color_b_skew",
+    "color_b_kurt",
+    "color_b_entropy",
+    "color_g_mean",
+    "color_g_std",
+    "color_g_skew",
+    "color_g_kurt",
+    "color_g_entropy",
+    "color_r_mean",
+    "color_r_std",
+    "color_r_skew",
+    "color_r_kurt",
+    "color_r_entropy",
+    "color_corr_rg",
+    "color_corr_rb",
+    "color_corr_gb",
+    "sat_mean",
+    "sat_std",
+    "sat_kurtosis",
+    "color_gamut_coverage",
+    # _extract_texture_features (15)
+    "lbp_entropy",
+    "lbp_uniformity",
+    "lbp_mean",
+    "lbp_var",
+    "lbp_block_var_mean",
+    "lbp_block_var_std",
+    "lbp_block_var_cv",
+    "glcm_contrast_mean",
+    "glcm_contrast_std",
+    "glcm_homogeneity_mean",
+    "glcm_homogeneity_std",
+    "glcm_energy_mean",
+    "glcm_energy_std",
+    "glcm_correlation_mean",
+    "glcm_correlation_std",
+    # _extract_jpeg_features (5)
+    "dct_benford_div",
+    "dct_ac_mean",
+    "dct_ac_std",
+    "dct_ac_kurtosis",
+    "blocking_strength",
+    # _extract_edge_features (9)
+    "edge_mag_mean",
+    "edge_mag_std",
+    "edge_mag_kurtosis",
+    "edge_dir_entropy",
+    "edge_dir_uniformity",
+    "laplacian_var",
+    "laplacian_mean",
+    "sharpness_cv",
+    # _extract_patch_spectral_features (1)
+    "patch_spectral_cv",
+    # _extract_multiscale_gradient_features (1)
+    "multiscale_gradient_ratio",
+    # _extract_noise_autocorrelation (1)
+    "noise_autocorr_tau",
+    # _extract_cross_channel_noise (2)
+    "cross_channel_noise_corr_mean",
+    "cross_channel_noise_corr_max",
+    # _extract_vae_grid_artefacts (1)
+    "vae_grid_energy_ratio",
+    # _extract_ca_absence (1)
+    "ca_radial_trend",
+    # _extract_saturation_luminance (1)
+    "sat_lum_extreme_ratio",
+    # _extract_bitplane_regularity (lossless-only, 2)
+    "lsb_randomness",
+    "lsb_entropy_mean",
+    # _extract_demosaicing_traces (lossless-only, 2)
+    "demosaic_peak_count",
+    "demosaic_peak_strength",
+]
+
+
+def extract_feature_vector(features: dict[str, float]) -> list[float]:
+    """Return feature values in FEATURE_NAMES order.
+
+    Missing keys are filled with ``float('nan')``.
+    """
+    return [features.get(name, float("nan")) for name in FEATURE_NAMES]
+
+
+def extract_features_for_training(
+    image_bytes: bytes,
+    mime_type: str = "image/jpeg",
+    has_camera_exif: bool = False,
+) -> tuple[dict[str, float], str]:
+    """Extract the raw feature dict and codec class for training.
+
+    Returns:
+        (features_dict, codec_class) — the features dict contains all keys
+        produced by the extractors.  codec_class is one of "raw", "jpeg",
+        "modern_lossy", "lossless".
+    """
+    pil_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    img_array = np.array(pil_image)
+    img_array = _resize(img_array, ANALYSIS_SIZE)
+    img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+    grey = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+
+    features: dict[str, float] = {}
+    features.update(_extract_frequency_features(grey))
+    features.update(_extract_noise_features(img_bgr))
+    features.update(_extract_color_features(img_bgr))
+    features.update(_extract_texture_features(grey))
+    features.update(_extract_jpeg_features(grey))
+    features.update(_extract_edge_features(grey))
+    features.update(_extract_patch_spectral_features(grey))
+    features.update(_extract_multiscale_gradient_features(grey))
+    features.update(_extract_noise_autocorrelation(grey))
+    features.update(_extract_cross_channel_noise(img_bgr))
+    features.update(_extract_vae_grid_artefacts(grey))
+    features.update(_extract_ca_absence(img_bgr))
+    features.update(_extract_saturation_luminance(img_bgr))
+
+    codec_class = _classify_codec(mime_type)
+    if codec_class == "lossless":
+        features.update(_extract_bitplane_regularity(grey))
+        features.update(_extract_demosaicing_traces(img_bgr))
+
+    return features, codec_class
+
+
+# ── Trained Classifier (lazy-loaded) ───────────────────────────────────
+_classifier = None
+_classifier_loaded = False
+
+
+def _load_classifier():
+    """Attempt to load the trained GBM classifier. Returns None on failure."""
+    global _classifier, _classifier_loaded
+    if _classifier_loaded:
+        return _classifier
+    _classifier_loaded = True
+    try:
+        import os
+        import joblib
+        model_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..", "models", "deepfake_classifier.joblib",
+        )
+        model_path = os.path.normpath(model_path)
+        if os.path.exists(model_path):
+            _classifier = joblib.load(model_path)
+    except Exception:
+        _classifier = None
+    return _classifier
+
 # Minimum image dimension for watermark decode
 _WATERMARK_MIN_SIZE = 256
 
@@ -224,9 +401,43 @@ def perform_deepfake_detection(
         features.update(_extract_demosaicing_traces(img_bgr))
 
     # Score via heuristic ensemble with codec-aware thresholds
-    score, signals = _heuristic_score(
+    heuristic_score, signals = _heuristic_score(
         features, codec_class, has_camera_exif=has_camera_exif,
     )
+
+    # ── Classifier blending ────────────────────────────────────────────
+    classifier_score = None
+    classifier_available = False
+    clf = _load_classifier()
+    if clf is not None:
+        try:
+            vec = extract_feature_vector(features)
+            import numpy as _np
+            vec_clean = [0.0 if _np.isnan(v) else v for v in vec]
+            proba = clf.predict_proba([vec_clean])[0]
+            # proba[1] = probability of class 1 (ai_generated)
+            classifier_score = float(proba[1])
+            classifier_available = True
+        except Exception:
+            classifier_score = None
+            classifier_available = False
+
+    if classifier_available and classifier_score is not None:
+        # Blend heuristic and classifier scores.  When the two scores
+        # disagree strongly (one says authentic, one says synthetic),
+        # trust the heuristic more — the classifier was trained on a
+        # small corpus and may not generalise to unseen content types.
+        disagreement = abs(heuristic_score - classifier_score)
+        if disagreement > 0.4:
+            # Large disagreement: heavily favour the heuristic
+            score = 0.70 * heuristic_score + 0.30 * classifier_score
+        else:
+            score = 0.35 * heuristic_score + 0.65 * classifier_score
+        # Camera EXIF is a strong prior — cap classifier uplift
+        if has_camera_exif and classifier_score > heuristic_score:
+            score = min(score, heuristic_score + 0.10)
+    else:
+        score = heuristic_score
 
     # Generate frequency spectrum heatmap
     heatmap_base64 = _generate_spectrum_heatmap(grey)
@@ -272,6 +483,8 @@ def perform_deepfake_detection(
         heatmap_base64=heatmap_base64,
         summary=summary,
         watermarks=watermarks,
+        classifier_score=round(classifier_score, 4) if classifier_score is not None else None,
+        classifier_available=classifier_available,
     )
 
 

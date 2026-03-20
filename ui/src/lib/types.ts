@@ -104,6 +104,8 @@ export interface DeepfakeResult {
   heatmapBase64: string;
   summary: string;
   watermarks?: WatermarkDetection[];
+  classifierScore?: number | null;
+  classifierAvailable?: boolean;
 }
 
 /** NPR (Neighbouring Pixel Relationships) analysis result */

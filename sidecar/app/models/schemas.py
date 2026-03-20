@@ -79,6 +79,8 @@ class DeepfakeResponse(BaseModel):
     heatmap_base64: str
     summary: str
     watermarks: list[WatermarkDetection] = []
+    classifier_score: float | None = None
+    classifier_available: bool = False
 
 
 class JpegGhostResponse(BaseModel):
