@@ -69,6 +69,7 @@
     { href: '/',         label: 'Dashboard', title: 'Overview and statistics' },
     { href: '/protect',  label: 'Protect',   title: 'Safeguard digital assets' },
     { href: '/verify',   label: 'Verify',    title: 'Check content authenticity' },
+    { href: '/monitor',  label: 'Monitor',   title: 'Track content protection and verification' },
     { href: '/settings', label: 'Settings',  title: 'Application preferences' },
   ];
 </script>

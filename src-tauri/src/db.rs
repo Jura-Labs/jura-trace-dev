@@ -3,7 +3,10 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Mutex;
 
-use crate::{AppStats, Asset};
+use crate::{
+    ActivityDay, AppStats, Asset, AuditLogEntry, ProtectionSummary, TrustDistribution,
+    VerificationSummary,
+};
 
 /// Thread-safe database wrapper for SQLite operations.
 pub struct Database {
@@ -98,6 +101,8 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_fingerprints_hash       ON fingerprints(hash_type, hash_value);
             CREATE INDEX IF NOT EXISTS idx_audit_target            ON audit_log(target_id);
             CREATE INDEX IF NOT EXISTS idx_audit_operator          ON audit_log(operator_id);
+            CREATE INDEX IF NOT EXISTS idx_audit_created           ON audit_log(created_at);
+            CREATE INDEX IF NOT EXISTS idx_verifications_created   ON verifications(created_at);
             CREATE INDEX IF NOT EXISTS idx_fp_reports_reason       ON false_positive_reports(reason_code);
             CREATE INDEX IF NOT EXISTS idx_fp_reports_created      ON false_positive_reports(created_at);
             ",
@@ -551,6 +556,231 @@ impl Database {
         })?;
         let reports = rows.collect::<SqliteResult<Vec<_>>>()?;
         Ok(reports)
+    }
+
+    // ── Monitor queries ────────────────────────────────────────────────
+
+    /// Retrieve audit log entries ordered by most recent first.
+    ///
+    /// `limit` caps the number of rows returned. `action_filter` constrains
+    /// results to entries whose `action` column exactly matches the provided
+    /// value (e.g. `"import"`, `"verify"`, `"sign"`).
+    pub fn get_audit_log(
+        &self,
+        limit: u32,
+        action_filter: Option<&str>,
+    ) -> SqliteResult<Vec<AuditLogEntry>> {
+        let conn = self.conn.lock().unwrap();
+
+        // Use a single parameterised query path.  When no filter is needed we
+        // supply a wildcard that matches every action value via LIKE '%%',
+        // avoiding a split if/else that would cause stmt lifetime issues.
+        let sql = "SELECT log_id, action, target_type, target_id, details, created_at
+                   FROM audit_log
+                   WHERE (?1 IS NULL OR action = ?1)
+                   ORDER BY created_at DESC
+                   LIMIT ?2";
+
+        let mut stmt = conn.prepare(sql)?;
+        let rows = stmt.query_map(params![action_filter, limit], |row| {
+            Ok(AuditLogEntry {
+                log_id: row.get(0)?,
+                action: row.get(1)?,
+                target_type: row.get(2)?,
+                target_id: row.get(3)?,
+                details: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })?;
+
+        rows.collect()
+    }
+
+    /// Retrieve lightweight summaries of past verification runs.
+    ///
+    /// Results are ordered most recent first. `offset` supports pagination.
+    pub fn get_verification_history(
+        &self,
+        limit: u32,
+        offset: u32,
+    ) -> SqliteResult<Vec<VerificationSummary>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT verification_id, source_type, content_type,
+                    ela_score, deepfake_score, c2pa_valid,
+                    overall_trust, created_at
+             FROM verifications
+             ORDER BY created_at DESC
+             LIMIT ?1 OFFSET ?2",
+        )?;
+
+        let rows = stmt.query_map(params![limit, offset], |row| {
+            let c2pa_raw: Option<i32> = row.get(5)?;
+            Ok(VerificationSummary {
+                verification_id: row.get(0)?,
+                source_type: row.get(1)?,
+                content_type: row.get(2)?,
+                ela_score: row.get(3)?,
+                deepfake_score: row.get(4)?,
+                c2pa_valid: c2pa_raw.map(|v| v != 0),
+                overall_trust: row.get(6)?,
+                created_at: row.get(7)?,
+            })
+        })?;
+
+        rows.collect()
+    }
+
+    /// Compute the trust-score distribution across all stored verifications.
+    ///
+    /// Thresholds: high >= 0.7, medium 0.4–0.7 (exclusive), low < 0.4.
+    pub fn get_trust_distribution(&self) -> SqliteResult<TrustDistribution> {
+        let conn = self.conn.lock().unwrap();
+
+        let total: u64 =
+            conn.query_row("SELECT COUNT(*) FROM verifications", [], |r| r.get(0))?;
+
+        let high_count: u64 = conn.query_row(
+            "SELECT COUNT(*) FROM verifications WHERE overall_trust >= 0.7",
+            [],
+            |r| r.get(0),
+        )?;
+
+        let medium_count: u64 = conn.query_row(
+            "SELECT COUNT(*) FROM verifications WHERE overall_trust >= 0.4 AND overall_trust < 0.7",
+            [],
+            |r| r.get(0),
+        )?;
+
+        let low_count: u64 = conn.query_row(
+            "SELECT COUNT(*) FROM verifications WHERE overall_trust < 0.4",
+            [],
+            |r| r.get(0),
+        )?;
+
+        let (average_trust, latest_at): (f64, Option<String>) = conn.query_row(
+            "SELECT COALESCE(AVG(overall_trust), 0.0), MAX(created_at) FROM verifications",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+
+        Ok(TrustDistribution {
+            total,
+            high_count,
+            medium_count,
+            low_count,
+            average_trust,
+            latest_at,
+        })
+    }
+
+    /// Aggregate protection statistics across all stored assets.
+    ///
+    /// Counts total assets, C2PA-signed assets, watermarked assets, and the
+    /// number of distinct assets that have at least one fingerprint record.
+    /// Also builds a per-`content_type` count map.
+    pub fn get_protection_summary(&self) -> SqliteResult<ProtectionSummary> {
+        let conn = self.conn.lock().unwrap();
+
+        let total_assets: u64 =
+            conn.query_row("SELECT COUNT(*) FROM assets", [], |r| r.get(0))?;
+
+        let c2pa_signed: u64 = conn.query_row(
+            "SELECT COUNT(*) FROM assets WHERE c2pa_signed = 1",
+            [],
+            |r| r.get(0),
+        )?;
+
+        let watermarked: u64 = conn.query_row(
+            "SELECT COUNT(*) FROM assets WHERE watermarked = 1",
+            [],
+            |r| r.get(0),
+        )?;
+
+        // Distinct assets that have at least one fingerprint record
+        let fingerprinted: u64 = conn.query_row(
+            "SELECT COUNT(DISTINCT asset_id) FROM fingerprints",
+            [],
+            |r| r.get(0),
+        )?;
+
+        // Per-content-type counts
+        let mut by_content_type = std::collections::HashMap::new();
+        {
+            let mut stmt =
+                conn.prepare("SELECT content_type, COUNT(*) FROM assets GROUP BY content_type")?;
+            let rows = stmt.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
+            })?;
+            for row in rows {
+                let (ct, count) = row?;
+                by_content_type.insert(ct, count);
+            }
+        }
+
+        let (earliest_at, latest_at): (Option<String>, Option<String>) = conn.query_row(
+            "SELECT MIN(created_at), MAX(created_at) FROM assets",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+
+        Ok(ProtectionSummary {
+            total_assets,
+            c2pa_signed,
+            watermarked,
+            fingerprinted,
+            by_content_type,
+            earliest_at,
+            latest_at,
+        })
+    }
+
+    /// Return per-day activity counts for the last `days` calendar days.
+    ///
+    /// Each entry aggregates how many audit log entries of each action type
+    /// occurred on that UTC date. Days with no activity are omitted.
+    pub fn get_activity_timeline(&self, days: u32) -> SqliteResult<Vec<ActivityDay>> {
+        let conn = self.conn.lock().unwrap();
+
+        // Collect all relevant rows: (date_str, action)
+        // SQLite's substr gives YYYY-MM-DD from an ISO-8601 timestamp.
+        let cutoff = chrono::Utc::now() - chrono::Duration::days(days as i64);
+        let cutoff_str = cutoff.to_rfc3339();
+
+        let mut stmt = conn.prepare(
+            "SELECT substr(created_at, 1, 10) AS day, action
+             FROM audit_log
+             WHERE created_at >= ?1
+             ORDER BY day ASC",
+        )?;
+
+        // Accumulate into a BTreeMap keyed by date string for stable ordering.
+        let mut map: std::collections::BTreeMap<String, ActivityDay> =
+            std::collections::BTreeMap::new();
+
+        let rows = stmt.query_map(params![cutoff_str], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+
+        for row in rows {
+            let (day, action) = row?;
+            let entry = map.entry(day.clone()).or_insert_with(|| ActivityDay {
+                date: day,
+                imports: 0,
+                verifications: 0,
+                signings: 0,
+                deletions: 0,
+            });
+            match action.as_str() {
+                "import" => entry.imports += 1,
+                "verify" => entry.verifications += 1,
+                "sign" => entry.signings += 1,
+                "delete" => entry.deletions += 1,
+                _ => {} // false_positive, fingerprint, etc. — not surfaced in UI
+            }
+        }
+
+        Ok(map.into_values().collect())
     }
 
     /// Record an action in the immutable audit log.
@@ -1100,5 +1330,295 @@ mod tests {
             )
             .unwrap();
         assert_eq!(stored.as_deref(), Some(meta));
+    }
+
+    // ── Monitor queries ─────────────────────────────────────────────
+
+    #[test]
+    fn get_audit_log_returns_entries_most_recent_first() {
+        let db = open_temp_db();
+
+        db.log_action("import", "asset", "a1", Some("first"), None, None)
+            .unwrap();
+        db.log_action("verify", "file", "a1", Some("second"), None, None)
+            .unwrap();
+        db.log_action("sign", "asset", "a1", Some("third"), None, None)
+            .unwrap();
+
+        let entries = db.get_audit_log(10, None).unwrap();
+        assert_eq!(entries.len(), 3);
+        // Most recent sign action should appear first
+        assert_eq!(entries[0].action, "sign");
+        assert_eq!(entries[2].action, "import");
+    }
+
+    #[test]
+    fn get_audit_log_respects_limit() {
+        let db = open_temp_db();
+        for i in 0..10 {
+            db.log_action("import", "asset", &format!("a{i}"), None, None, None)
+                .unwrap();
+        }
+
+        let entries = db.get_audit_log(3, None).unwrap();
+        assert_eq!(entries.len(), 3);
+    }
+
+    #[test]
+    fn get_audit_log_action_filter() {
+        let db = open_temp_db();
+
+        db.log_action("import", "asset", "a1", None, None, None)
+            .unwrap();
+        db.log_action("verify", "file", "a1", None, None, None)
+            .unwrap();
+        db.log_action("import", "asset", "a2", None, None, None)
+            .unwrap();
+
+        let imports = db.get_audit_log(50, Some("import")).unwrap();
+        assert_eq!(imports.len(), 2);
+        assert!(imports.iter().all(|e| e.action == "import"));
+
+        let verifications = db.get_audit_log(50, Some("verify")).unwrap();
+        assert_eq!(verifications.len(), 1);
+    }
+
+    #[test]
+    fn get_audit_log_entry_fields() {
+        let db = open_temp_db();
+        db.log_action(
+            "import",
+            "asset",
+            "asset-uuid-1",
+            Some("{\"mime\":\"image/jpeg\"}"),
+            None,
+            None,
+        )
+        .unwrap();
+
+        let entries = db.get_audit_log(1, None).unwrap();
+        assert_eq!(entries.len(), 1);
+        let e = &entries[0];
+        assert_eq!(e.action, "import");
+        assert_eq!(e.target_type, "asset");
+        assert_eq!(e.target_id, "asset-uuid-1");
+        assert!(e.details.is_some());
+        assert!(!e.log_id.is_empty());
+        assert!(!e.created_at.is_empty());
+    }
+
+    #[test]
+    fn get_verification_history_returns_summaries() {
+        let db = open_temp_db();
+
+        db.insert_verification("v1", "file", "image", Some(0.12), Some(0.08), Some(true), &[], 0.85)
+            .unwrap();
+        db.insert_verification("v2", "url", "image", Some(0.65), Some(0.72), None, &[], 0.35)
+            .unwrap();
+
+        let history = db.get_verification_history(10, 0).unwrap();
+        assert_eq!(history.len(), 2);
+
+        // Most recent first — v2 was inserted later so it should be first
+        let v2 = &history[0];
+        assert_eq!(v2.verification_id, "v2");
+        assert_eq!(v2.source_type, "url");
+        assert!((v2.overall_trust - 0.35).abs() < 1e-9);
+        assert!(v2.c2pa_valid.is_none());
+
+        let v1 = &history[1];
+        assert_eq!(v1.verification_id, "v1");
+        assert_eq!(v1.c2pa_valid, Some(true));
+        assert!((v1.ela_score.unwrap() - 0.12).abs() < 1e-9);
+    }
+
+    #[test]
+    fn get_verification_history_pagination() {
+        let db = open_temp_db();
+
+        for i in 0..5u32 {
+            db.insert_verification(
+                &format!("v{i}"),
+                "file",
+                "image",
+                None,
+                None,
+                None,
+                &[],
+                0.5,
+            )
+            .unwrap();
+        }
+
+        let page1 = db.get_verification_history(2, 0).unwrap();
+        assert_eq!(page1.len(), 2);
+
+        let page2 = db.get_verification_history(2, 2).unwrap();
+        assert_eq!(page2.len(), 2);
+
+        // Pages should not overlap
+        let ids1: Vec<_> = page1.iter().map(|v| &v.verification_id).collect();
+        let ids2: Vec<_> = page2.iter().map(|v| &v.verification_id).collect();
+        assert!(ids1.iter().all(|id| !ids2.contains(id)));
+    }
+
+    #[test]
+    fn get_trust_distribution_empty_db() {
+        let db = open_temp_db();
+        let dist = db.get_trust_distribution().unwrap();
+        assert_eq!(dist.total, 0);
+        assert_eq!(dist.high_count, 0);
+        assert_eq!(dist.medium_count, 0);
+        assert_eq!(dist.low_count, 0);
+        assert!((dist.average_trust - 0.0).abs() < 1e-9);
+        assert!(dist.latest_at.is_none());
+    }
+
+    #[test]
+    fn get_trust_distribution_bucketing() {
+        let db = open_temp_db();
+
+        // High: >= 0.7
+        db.insert_verification("v1", "file", "image", None, None, None, &[], 0.9)
+            .unwrap();
+        db.insert_verification("v2", "file", "image", None, None, None, &[], 0.7)
+            .unwrap();
+        // Medium: >= 0.4 and < 0.7
+        db.insert_verification("v3", "file", "image", None, None, None, &[], 0.5)
+            .unwrap();
+        // Low: < 0.4
+        db.insert_verification("v4", "file", "image", None, None, None, &[], 0.2)
+            .unwrap();
+
+        let dist = db.get_trust_distribution().unwrap();
+        assert_eq!(dist.total, 4);
+        assert_eq!(dist.high_count, 2);
+        assert_eq!(dist.medium_count, 1);
+        assert_eq!(dist.low_count, 1);
+        assert!(dist.average_trust > 0.0);
+        assert!(dist.latest_at.is_some());
+    }
+
+    #[test]
+    fn get_protection_summary_empty_db() {
+        let db = open_temp_db();
+        let summary = db.get_protection_summary().unwrap();
+        assert_eq!(summary.total_assets, 0);
+        assert_eq!(summary.c2pa_signed, 0);
+        assert_eq!(summary.watermarked, 0);
+        assert_eq!(summary.fingerprinted, 0);
+        assert!(summary.by_content_type.is_empty());
+        assert!(summary.earliest_at.is_none());
+        assert!(summary.latest_at.is_none());
+    }
+
+    #[test]
+    fn get_protection_summary_counts() {
+        let db = open_temp_db();
+
+        let a1 = make_asset("a1", "photo.jpg", "2026-01-01T00:00:00Z");
+        db.insert_asset(&a1).unwrap();
+        db.set_c2pa_signed("a1", "/tmp/photo_c2pa.jpg").unwrap();
+
+        let mut a2 = make_asset("a2", "other.jpg", "2026-01-02T00:00:00Z");
+        a2.content_type = "document".to_string();
+        db.insert_asset(&a2).unwrap();
+
+        db.insert_fingerprint("fp1", "a1", "ahash", "ff00ff00ff00ff00")
+            .unwrap();
+
+        let summary = db.get_protection_summary().unwrap();
+        assert_eq!(summary.total_assets, 2);
+        assert_eq!(summary.c2pa_signed, 1);
+        assert_eq!(summary.fingerprinted, 1);
+        assert_eq!(*summary.by_content_type.get("image").unwrap(), 1);
+        assert_eq!(*summary.by_content_type.get("document").unwrap(), 1);
+        assert!(summary.earliest_at.is_some());
+        assert!(summary.latest_at.is_some());
+    }
+
+    #[test]
+    fn get_activity_timeline_empty_db() {
+        let db = open_temp_db();
+        let days = db.get_activity_timeline(30).unwrap();
+        assert!(days.is_empty());
+    }
+
+    #[test]
+    fn get_activity_timeline_counts_actions() {
+        let db = open_temp_db();
+
+        // All within the last 30 days
+        let now = chrono::Utc::now().to_rfc3339();
+        let conn = db.conn.lock().unwrap();
+        // Insert directly to control timestamps precisely
+        conn.execute(
+            "INSERT INTO audit_log (log_id, action, target_type, target_id, details, operator_id, created_at)
+             VALUES ('l1', 'import', 'asset', 'a1', NULL, 'local_user', ?1)",
+            params![now],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO audit_log (log_id, action, target_type, target_id, details, operator_id, created_at)
+             VALUES ('l2', 'import', 'asset', 'a2', NULL, 'local_user', ?1)",
+            params![now],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO audit_log (log_id, action, target_type, target_id, details, operator_id, created_at)
+             VALUES ('l3', 'verify', 'file', 'a1', NULL, 'local_user', ?1)",
+            params![now],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO audit_log (log_id, action, target_type, target_id, details, operator_id, created_at)
+             VALUES ('l4', 'sign', 'asset', 'a1', NULL, 'local_user', ?1)",
+            params![now],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO audit_log (log_id, action, target_type, target_id, details, operator_id, created_at)
+             VALUES ('l5', 'delete', 'asset', 'a3', NULL, 'local_user', ?1)",
+            params![now],
+        )
+        .unwrap();
+        drop(conn);
+
+        let days = db.get_activity_timeline(30).unwrap();
+        assert_eq!(days.len(), 1);
+
+        let today = &days[0];
+        assert_eq!(today.imports, 2);
+        assert_eq!(today.verifications, 1);
+        assert_eq!(today.signings, 1);
+        assert_eq!(today.deletions, 1);
+    }
+
+    #[test]
+    fn get_activity_timeline_excludes_old_entries() {
+        let db = open_temp_db();
+
+        // One recent, one old (beyond the window)
+        let recent = chrono::Utc::now().to_rfc3339();
+        let old = "2020-01-01T00:00:00Z";
+        let conn = db.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO audit_log (log_id, action, target_type, target_id, details, operator_id, created_at)
+             VALUES ('r1', 'import', 'asset', 'a1', NULL, 'local_user', ?1)",
+            params![recent],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO audit_log (log_id, action, target_type, target_id, details, operator_id, created_at)
+             VALUES ('o1', 'import', 'asset', 'a2', NULL, 'local_user', ?1)",
+            params![old],
+        )
+        .unwrap();
+        drop(conn);
+
+        let days = db.get_activity_timeline(30).unwrap();
+        // Only the recent entry should appear; the 2020 one is outside the window
+        let total_imports: u64 = days.iter().map(|d| d.imports).sum();
+        assert_eq!(total_imports, 1);
     }
 }

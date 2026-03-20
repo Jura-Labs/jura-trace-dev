@@ -78,6 +78,81 @@ pub struct AppStats {
     pub c2pa_signed_count: u64,
 }
 
+// ===== Monitor Types =====
+
+/// A single entry from the audit log, suitable for display in the Monitor tab.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditLogEntry {
+    /// UUID assigned to the log entry (stored as TEXT in SQLite).
+    pub log_id: String,
+    pub action: String,
+    pub target_type: String,
+    pub target_id: String,
+    pub details: Option<String>,
+    pub created_at: String,
+}
+
+/// Lightweight summary of a single verification run for the Monitor history list.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerificationSummary {
+    pub verification_id: String,
+    pub source_type: String,
+    pub content_type: String,
+    pub ela_score: Option<f64>,
+    pub deepfake_score: Option<f64>,
+    pub c2pa_valid: Option<bool>,
+    pub overall_trust: f64,
+    pub created_at: String,
+}
+
+/// Bucketed distribution of trust scores across all verifications.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrustDistribution {
+    pub total: u64,
+    pub high_count: u64,
+    pub medium_count: u64,
+    pub low_count: u64,
+    pub average_trust: f64,
+    pub latest_at: Option<String>,
+}
+
+/// Aggregated protection statistics across the asset library.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProtectionSummary {
+    pub total_assets: u64,
+    pub c2pa_signed: u64,
+    pub watermarked: u64,
+    pub fingerprinted: u64,
+    pub by_content_type: std::collections::HashMap<String, u64>,
+    pub earliest_at: Option<String>,
+    pub latest_at: Option<String>,
+}
+
+/// Activity counts for a single calendar day.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityDay {
+    pub date: String,
+    pub imports: u64,
+    pub verifications: u64,
+    pub signings: u64,
+    pub deletions: u64,
+}
+
+/// Composite overview for the Monitor tab, assembled from multiple queries.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MonitorOverview {
+    pub protection: ProtectionSummary,
+    pub trust: TrustDistribution,
+    pub recent_activity: Vec<AuditLogEntry>,
+    pub activity_days: Vec<ActivityDay>,
+}
+
 /// Managed application state shared across Tauri commands.
 pub struct AppState {
     pub db: db::Database,
@@ -1267,6 +1342,58 @@ fn get_false_positive_stats(
         .map_err(|e| e.to_string())
 }
 
+// ===== Monitor Commands =====
+
+/// Fetch the composite Monitor overview in a single round-trip.
+///
+/// Assembles protection statistics, trust distribution, the 20 most recent
+/// audit log entries, and a 30-day activity timeline.
+#[tauri::command]
+fn get_monitor_overview(state: State<'_, Mutex<AppState>>) -> Result<MonitorOverview, String> {
+    let app = state.lock().map_err(|e| e.to_string())?;
+    let protection = app.db.get_protection_summary().map_err(|e| e.to_string())?;
+    let trust = app.db.get_trust_distribution().map_err(|e| e.to_string())?;
+    let recent_activity = app.db.get_audit_log(20, None).map_err(|e| e.to_string())?;
+    let activity_days = app.db.get_activity_timeline(30).map_err(|e| e.to_string())?;
+    Ok(MonitorOverview {
+        protection,
+        trust,
+        recent_activity,
+        activity_days,
+    })
+}
+
+/// Fetch audit log entries with optional filtering by action type.
+///
+/// `limit` defaults to 50 when omitted. `action_filter` is an exact-match
+/// filter on the `action` column (e.g. `"import"`, `"verify"`, `"sign"`).
+#[tauri::command]
+fn get_audit_log(
+    state: State<'_, Mutex<AppState>>,
+    limit: Option<u32>,
+    action_filter: Option<String>,
+) -> Result<Vec<AuditLogEntry>, String> {
+    let app = state.lock().map_err(|e| e.to_string())?;
+    app.db
+        .get_audit_log(limit.unwrap_or(50), action_filter.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+/// Fetch paginated verification history summaries.
+///
+/// `limit` defaults to 20 and `offset` defaults to 0 when omitted.
+#[tauri::command]
+fn get_verification_history(
+    state: State<'_, Mutex<AppState>>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+) -> Result<Vec<VerificationSummary>, String> {
+    let app = state.lock().map_err(|e| e.to_string())?;
+    app.db
+        .get_verification_history(limit.unwrap_or(20), offset.unwrap_or(0))
+        .map_err(|e| e.to_string())
+}
+
 // ===== Application Entry =====
 
 /// Resolve the database path inside the Tauri app data directory.
@@ -1322,6 +1449,9 @@ pub fn run() {
             get_version,
             mark_false_positive,
             get_false_positive_stats,
+            get_monitor_overview,
+            get_audit_log,
+            get_verification_history,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Jura Trace");

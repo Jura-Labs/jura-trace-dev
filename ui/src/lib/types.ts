@@ -499,6 +499,68 @@ export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
   unknown: 'Unknown',
 };
 
+// ── Monitor types ────────────────────────────────────────────────
+
+/** A single entry from the audit log */
+export interface AuditLogEntry {
+  logId: number;
+  action: string;
+  targetType: string;
+  targetId: string;
+  details?: string;
+  createdAt: string;
+}
+
+/** Summary row from the verifications table */
+export interface VerificationSummary {
+  verificationId: string;
+  sourceType: string;
+  contentType: string;
+  elaScore?: number;
+  deepfakeScore?: number;
+  c2paValid?: boolean;
+  overallTrust: number;
+  createdAt: string;
+}
+
+/** Aggregate trust distribution across all verifications */
+export interface TrustDistribution {
+  total: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  averageTrust: number;
+  latestAt?: string;
+}
+
+/** Aggregate protection statistics across all assets */
+export interface ProtectionSummary {
+  totalAssets: number;
+  c2paSigned: number;
+  watermarked: number;
+  fingerprinted: number;
+  byContentType: Record<string, number>;
+  earliestAt?: string;
+  latestAt?: string;
+}
+
+/** Activity counts for a single calendar day */
+export interface ActivityDay {
+  date: string;
+  imports: number;
+  verifications: number;
+  signings: number;
+  deletions: number;
+}
+
+/** Top-level monitor overview combining all data sources */
+export interface MonitorOverview {
+  protection: ProtectionSummary;
+  trust: TrustDistribution;
+  recentActivity: AuditLogEntry[];
+  activityDays: ActivityDay[];
+}
+
 /** Supported file extensions by content type */
 export const SUPPORTED_EXTENSIONS: Record<ContentType, string[]> = {
   image: ['.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.heic', '.heif', '.bmp', '.gif', '.svg', '.avif', '.ico'],

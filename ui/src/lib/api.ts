@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { AppStats, Asset, Fingerprint, ManifestInfo, MetadataSigningWarning, SidecarHealth, SimilarAsset, VerificationResult, VerifyMode } from './types';
+import type { AppStats, Asset, AuditLogEntry, Fingerprint, ManifestInfo, MetadataSigningWarning, MonitorOverview, SidecarHealth, SimilarAsset, VerificationResult, VerificationSummary, VerifyMode } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -355,5 +355,72 @@ export async function getFalsePositiveStats(): Promise<number> {
     return await invoke<number>('get_false_positive_stats');
   } catch {
     return 0;
+  }
+}
+
+// ── Monitor ────────────────────────────────────────────────────────
+
+/**
+ * Retrieve the Monitor overview: protection summary, trust distribution,
+ * recent audit activity, and daily activity counts.
+ */
+export async function getMonitorOverview(): Promise<MonitorOverview> {
+  try {
+    return await invoke<MonitorOverview>('get_monitor_overview');
+  } catch {
+    return {
+      protection: {
+        totalAssets: 0,
+        c2paSigned: 0,
+        watermarked: 0,
+        fingerprinted: 0,
+        byContentType: {},
+      },
+      trust: {
+        total: 0,
+        highCount: 0,
+        mediumCount: 0,
+        lowCount: 0,
+        averageTrust: 0,
+      },
+      recentActivity: [],
+      activityDays: [],
+    };
+  }
+}
+
+/**
+ * Retrieve audit log entries.
+ * @param limit  Maximum number of entries to return (default 50).
+ * @param actionFilter  If provided, only return entries with this action value.
+ */
+export async function getAuditLog(
+  limit?: number,
+  actionFilter?: string,
+): Promise<AuditLogEntry[]> {
+  try {
+    return await invoke<AuditLogEntry[]>('get_audit_log', {
+      limit: limit ?? null,
+      actionFilter: actionFilter ?? null,
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Retrieve paginated verification history summaries.
+ */
+export async function getVerificationHistory(
+  limit?: number,
+  offset?: number,
+): Promise<VerificationSummary[]> {
+  try {
+    return await invoke<VerificationSummary[]>('get_verification_history', {
+      limit: limit ?? null,
+      offset: offset ?? null,
+    });
+  } catch {
+    return [];
   }
 }

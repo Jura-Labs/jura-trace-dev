@@ -182,6 +182,29 @@
       </p>
     </div>
 
+    <!-- Monitor -->
+    <div class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]">
+      <div class="flex items-baseline gap-4 mb-4">
+        <span class="text-xs uppercase tracking-widest text-flint dark:text-[#A09D95] flex-shrink-0 w-20">Monitor</span>
+        <h2
+          class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
+          style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;"
+        >
+          <a
+            href="/monitor"
+            class="hover:text-lapis dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          >
+            See what has happened to your work
+          </a>
+        </h2>
+      </div>
+      <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
+        Review your content's protection history, track verification outcomes, and follow
+        the complete audit trail of every action taken. A narrative record of your archive,
+        kept entirely on your machine.
+      </p>
+    </div>
+
   </section>
 
   <!-- Philosophy anchor -->
