@@ -137,6 +137,15 @@ async def detect_deepfake(
     """
     image_bytes = await _read_and_validate(file)
 
+    # Auto-detect mime type from file content if not specified or default
+    if mime_type == "image/jpeg":
+        if image_bytes[:4] == b'\x89PNG':
+            mime_type = "image/png"
+        elif image_bytes[:4] == b'RIFF' and image_bytes[8:12] == b'WEBP':
+            mime_type = "image/webp"
+        elif file.content_type and file.content_type != "application/octet-stream":
+            mime_type = file.content_type
+
     try:
         return perform_deepfake_detection(
             image_bytes, mime_type=mime_type, has_camera_exif=has_camera_exif,

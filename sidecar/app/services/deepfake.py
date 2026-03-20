@@ -7,7 +7,7 @@ analysis, JPEG artefacts, and edge structure. Each feature category captures
 different aspects of "naturalness" that distinguish real camera photographs
 from AI-generated content (GANs, diffusion models, etc.).
 
-The heuristic scorer combines 13 weighted signals into a single score.
+The heuristic scorer combines 21 weighted signals into a single score.
 A trained classifier (Random Forest / Gradient Boosting) can be plugged in
 later once training data is assembled.
 """
@@ -21,6 +21,7 @@ import numpy as np
 from PIL import Image
 from scipy.fft import fft2, fftshift, dctn
 from skimage.feature import local_binary_pattern, graycomatrix, graycoprops
+from skimage.restoration import denoise_wavelet
 
 from app.models.schemas import DeepfakeResponse, DeepfakeSignal, WatermarkDetection
 
@@ -128,9 +129,9 @@ CODEC_THRESHOLDS: dict[str, dict[str, float]] = {
         "glcm_energy": 0.06,
     },
     "jpeg": {
-        "noise_std": 1.0, "hf_energy": 0.0002, "noise_cv": 1.0,
-        "lbp_cv": 0.08, "sharp_cv": 0.5, "patch_spec_cv": 0.8,
-        "glcm_energy": 0.06,
+        "noise_std": 0.5, "hf_energy": 0.00003, "noise_cv": 0.3,
+        "lbp_cv": 0.04, "sharp_cv": 0.2, "patch_spec_cv": 0.4,
+        "glcm_energy": 0.04,
     },
     "modern_lossy": {
         "noise_std": 0.8, "hf_energy": 0.0001, "noise_cv": 0.5,
@@ -143,9 +144,9 @@ CODEC_THRESHOLDS: dict[str, dict[str, float]] = {
         "glcm_energy": 0.05,
     },
     "lossless": {
-        "noise_std": 1.5, "hf_energy": 0.0005, "noise_cv": 1.0,
-        "lbp_cv": 0.08, "sharp_cv": 0.5, "patch_spec_cv": 0.8,
-        "glcm_energy": 0.06,
+        "noise_std": 2.5, "hf_energy": 0.001, "noise_cv": 0.7,
+        "lbp_cv": 0.06, "sharp_cv": 0.4, "patch_spec_cv": 0.6,
+        "glcm_energy": 0.05,
     },
 }
 
@@ -207,8 +208,22 @@ def perform_deepfake_detection(
     features.update(_extract_patch_spectral_features(grey))
     features.update(_extract_multiscale_gradient_features(grey))
 
-    # Score via heuristic ensemble with codec-aware thresholds
+    # New signals (15-21)
+    features.update(_extract_noise_autocorrelation(grey))
+    features.update(_extract_cross_channel_noise(img_bgr))
+    features.update(_extract_vae_grid_artefacts(grey))
+    features.update(_extract_ca_absence(img_bgr))
+    features.update(_extract_saturation_luminance(img_bgr))
+
+    # Codec-aware classification (needed for conditional extractors)
     codec_class = _classify_codec(mime_type)
+
+    # Lossless-only extractors
+    if codec_class == "lossless":
+        features.update(_extract_bitplane_regularity(grey))
+        features.update(_extract_demosaicing_traces(img_bgr))
+
+    # Score via heuristic ensemble with codec-aware thresholds
     score, signals = _heuristic_score(
         features, codec_class, has_camera_exif=has_camera_exif,
     )
@@ -674,6 +689,223 @@ def _extract_multiscale_gradient_features(grey: np.ndarray) -> dict[str, float]:
     }
 
 
+# ── New Signal Extractors (Signals 15-21) ─────────────────────────────
+
+
+def _extract_noise_autocorrelation(grey: np.ndarray) -> dict[str, float]:
+    """Signal 15: Noise autocorrelation decay tau.
+
+    Camera noise decorrelates in 1-2 pixels (tau ~0.5-2.0).
+    AI noise decorrelates slowly (tau ~3-10).
+    """
+    try:
+        grey_f = grey.astype(np.float64)
+        denoised = denoise_wavelet(grey_f, rescale_sigma=True)
+        noise = grey_f - denoised
+        h, w = noise.shape
+        max_lag = min(20, w // 4)
+        if max_lag < 4:
+            return {"noise_autocorr_tau": 1.0}
+        noise_centered = noise - noise.mean()
+        var = np.var(noise_centered) + 1e-10
+        autocorr = np.zeros(max_lag)
+        autocorr[0] = 1.0
+        for lag in range(1, max_lag):
+            autocorr[lag] = np.mean(noise_centered[:, :w - lag] * noise_centered[:, lag:]) / var
+        valid = autocorr[1:] > 0.01
+        lags = np.arange(1, max_lag)
+        if valid.sum() >= 3:
+            slope, _ = np.polyfit(lags[valid], np.log(autocorr[1:][valid]), 1)
+            tau = float(np.clip(-1.0 / (slope + 1e-10), 0.1, 50.0))
+        else:
+            tau = 1.0
+        return {"noise_autocorr_tau": tau}
+    except Exception:
+        return {"noise_autocorr_tau": 1.0}
+
+
+def _extract_cross_channel_noise(img_bgr: np.ndarray) -> dict[str, float]:
+    """Signal 16: Cross-channel noise correlation.
+
+    Camera noise is independent per channel; AI noise is correlated.
+    """
+    try:
+        if img_bgr.ndim < 3 or img_bgr.shape[2] < 3:
+            return {"cross_channel_noise_corr_mean": 0.3, "cross_channel_noise_corr_max": 0.3}
+        noises = []
+        for i in range(3):
+            ch = img_bgr[:, :, i].astype(np.float64)
+            denoised = denoise_wavelet(ch, rescale_sigma=True)
+            noises.append((ch - denoised).flatten())
+        correlations = []
+        for i in range(3):
+            for j in range(i + 1, 3):
+                si, sj = np.std(noises[i]), np.std(noises[j])
+                if si > 1e-10 and sj > 1e-10:
+                    correlations.append(abs(np.corrcoef(noises[i], noises[j])[0, 1]))
+                else:
+                    correlations.append(0.0)
+        return {
+            "cross_channel_noise_corr_mean": float(np.mean(correlations)),
+            "cross_channel_noise_corr_max": float(np.max(correlations)),
+        }
+    except Exception:
+        return {"cross_channel_noise_corr_mean": 0.3, "cross_channel_noise_corr_max": 0.3}
+
+
+def _extract_bitplane_regularity(grey: np.ndarray) -> dict[str, float]:
+    """Signal 17: Bit-plane regularity (lossless only).
+
+    Camera LSBs are random; AI LSBs are structured.
+    """
+    try:
+        lsb = (grey & 1).astype(np.float64)
+        h_changes = np.sum(lsb[:, :-1] != lsb[:, 1:])
+        v_changes = np.sum(lsb[:-1, :] != lsb[1:, :])
+        total_pairs = lsb.shape[0] * (lsb.shape[1] - 1) + (lsb.shape[0] - 1) * lsb.shape[1]
+        lsb_complexity = (h_changes + v_changes) / (total_pairs + 1e-10)
+        lsb_randomness = float(lsb_complexity / 0.5)
+        # Block entropy
+        block_size = 32
+        entropies = []
+        for i in range(0, grey.shape[0] - block_size, block_size):
+            for j in range(0, grey.shape[1] - block_size, block_size):
+                block = lsb[i:i + block_size, j:j + block_size].flatten()
+                p1 = np.mean(block)
+                p0 = 1.0 - p1
+                ent = -(p0 * np.log2(p0 + 1e-10) + p1 * np.log2(p1 + 1e-10)) if p0 > 0 and p1 > 0 else 0.0
+                entropies.append(ent)
+        return {
+            "lsb_randomness": lsb_randomness,
+            "lsb_entropy_mean": float(np.mean(entropies)) if entropies else 1.0,
+        }
+    except Exception:
+        return {"lsb_randomness": 1.0, "lsb_entropy_mean": 1.0}
+
+
+def _extract_vae_grid_artefacts(grey: np.ndarray) -> dict[str, float]:
+    """Signal 18: VAE grid artefacts.
+
+    Detects periodic structure from VAE decoder's 8x upsampling.
+    """
+    try:
+        grey_f = grey.astype(np.float64)
+        blurred = cv2.GaussianBlur(grey_f, (0, 0), sigmaX=2.0)
+        residual = grey_f - blurred
+        f = fftshift(fft2(residual))
+        power = np.abs(f) ** 2
+        h, w = power.shape
+        cy, cx = h // 2, w // 2
+        grid_energy = 0.0
+        for mult in [1, 2, 3, 4]:
+            fy = min(cy + (h * mult) // 8, h - 1)
+            fx = min(cx + (w * mult) // 8, w - 1)
+            for dy in range(-2, 3):
+                for dx in range(-2, 3):
+                    yi, xi = np.clip(fy + dy, 0, h - 1), np.clip(fx + dx, 0, w - 1)
+                    grid_energy += power[yi, xi]
+                    yi_m, xi_m = np.clip(2 * cy - fy + dy, 0, h - 1), np.clip(2 * cx - fx + dx, 0, w - 1)
+                    grid_energy += power[yi_m, xi_m]
+        total_energy = power.sum() + 1e-10
+        return {"vae_grid_energy_ratio": float(grid_energy / total_energy)}
+    except Exception:
+        return {"vae_grid_energy_ratio": 0.0}
+
+
+def _extract_ca_absence(img_bgr: np.ndarray) -> dict[str, float]:
+    """Signal 19: Chromatic aberration absence.
+
+    Real lenses have radial CA; AI has none.
+    """
+    try:
+        if img_bgr.ndim < 3 or img_bgr.shape[2] < 3:
+            return {"ca_radial_trend": 0.0}
+        h, w = img_bgr.shape[:2]
+        cy, cx = h // 2, w // 2
+        edges = []
+        for i in range(3):
+            ch = img_bgr[:, :, i].astype(np.float64)
+            gx = cv2.Sobel(ch, cv2.CV_64F, 1, 0, ksize=3)
+            gy = cv2.Sobel(ch, cv2.CV_64F, 0, 1, ksize=3)
+            edges.append(np.sqrt(gx ** 2 + gy ** 2))
+        y_coords, x_coords = np.mgrid[:h, :w]
+        radius = np.sqrt((x_coords - cx) ** 2 + (y_coords - cy) ** 2)
+        max_r = np.sqrt(cx ** 2 + cy ** 2)
+        ca_by_radius = []
+        for band in range(4):
+            r_min, r_max = band * max_r / 4, (band + 1) * max_r / 4
+            mask = (radius >= r_min) & (radius < r_max)
+            if mask.sum() < 100:
+                continue
+            mean_edge = (np.mean(edges[2][mask]) + np.mean(edges[0][mask])) / 2 + 1e-10
+            ca_by_radius.append(float(np.mean(np.abs(edges[2][mask] - edges[0][mask])) / mean_edge))
+        if len(ca_by_radius) >= 3:
+            slope, _ = np.polyfit(np.arange(len(ca_by_radius), dtype=np.float64), ca_by_radius, 1)
+            return {"ca_radial_trend": float(slope)}
+        return {"ca_radial_trend": 0.0}
+    except Exception:
+        return {"ca_radial_trend": 0.0}
+
+
+def _extract_demosaicing_traces(img_bgr: np.ndarray) -> dict[str, float]:
+    """Signal 20: Demosaicing traces (lossless only).
+
+    Camera images have Bayer pattern traces; AI doesn't.
+    """
+    try:
+        if img_bgr.ndim < 3 or img_bgr.shape[2] < 3:
+            return {"demosaic_peak_count": 8.0, "demosaic_peak_strength": 100.0}
+        g = img_bgr[:, :, 1].astype(np.float64)
+        r = img_bgr[:, :, 2].astype(np.float64)
+        b = img_bgr[:, :, 0].astype(np.float64)
+        peaks_detected = 0
+        total_strength = 0.0
+        for diff in [g - r, g - b]:
+            f = fftshift(fft2(diff))
+            power = np.abs(f) ** 2
+            h, w = power.shape
+            cy, cx = h // 2, w // 2
+            median_power = np.median(power)
+            for py, px in [(cy, 0), (cy, w - 1), (0, cx), (h - 1, cx),
+                           (0, 0), (0, w - 1), (h - 1, 0), (h - 1, w - 1)]:
+                y_lo, y_hi = max(py - 2, 0), min(py + 3, h)
+                x_lo, x_hi = max(px - 2, 0), min(px + 3, w)
+                local_max = power[y_lo:y_hi, x_lo:x_hi].max()
+                if local_max > median_power * 10:
+                    peaks_detected += 1
+                    total_strength += local_max / (median_power + 1e-10)
+        return {
+            "demosaic_peak_count": float(peaks_detected),
+            "demosaic_peak_strength": float(total_strength / max(peaks_detected, 1)),
+        }
+    except Exception:
+        return {"demosaic_peak_count": 8.0, "demosaic_peak_strength": 100.0}
+
+
+def _extract_saturation_luminance(img_bgr: np.ndarray) -> dict[str, float]:
+    """Signal 21: Saturation-luminance anomaly.
+
+    AI images often have saturated highlights/shadows.
+    """
+    try:
+        if img_bgr.ndim < 3 or img_bgr.shape[2] < 3:
+            return {"sat_lum_extreme_ratio": 0.2}
+        hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+        v = hsv[:, :, 2].astype(np.float64)
+        s = hsv[:, :, 1].astype(np.float64)
+        bin_edges = np.linspace(0, 255, 11)
+        bin_means = []
+        for i in range(10):
+            mask = (v >= bin_edges[i]) & (v < bin_edges[i + 1])
+            bin_means.append(float(np.mean(s[mask])) if mask.sum() > 50 else 0.0)
+        shadow_sat = np.mean(bin_means[:2]) if any(bin_means[:2]) else 0.0
+        highlight_sat = np.mean(bin_means[-2:]) if any(bin_means[-2:]) else 0.0
+        mid_sat = np.mean(bin_means[3:7]) if any(bin_means[3:7]) else 1.0
+        return {"sat_lum_extreme_ratio": float((shadow_sat + highlight_sat) / 2 / (mid_sat + 1e-10))}
+    except Exception:
+        return {"sat_lum_extreme_ratio": 0.2}
+
+
 # ── Heuristic Scorer ──────────────────────────────────────────────────
 
 
@@ -715,17 +947,17 @@ def _heuristic_score(
     thresholds = CODEC_THRESHOLDS.get(codec_class, CODEC_THRESHOLDS["jpeg"])
 
     # Scoring uses sigmoid activation: the ratio of triggered signal weight
-    # to total weight is mapped through a sigmoid (midpoint=0.18, k=12).
+    # to total weight is mapped through a sigmoid (midpoint=0.15, k=12).
     # This gives:
-    #   0% triggered  → score ~0.10 (authentic)
-    #  10% triggered  → score ~0.27
-    #  18% triggered  → score ~0.50 (suspicious threshold)
-    #  30% triggered  → score ~0.81
+    #   0% triggered  → score ~0.14 (authentic)
+    #  10% triggered  → score ~0.35
+    #  15% triggered  → score ~0.50 (suspicious threshold)
+    #  25% triggered  → score ~0.77
     # 100% triggered  → score ~1.00
     #
-    # Midpoint lowered from 0.25 to 0.18 to compensate for weight dilution
-    # (total weight increased from 12.5 to 17.5 with new signals). Steepness
-    # increased from 10 to 12 for sharper authentic/suspicious separation.
+    # Midpoint lowered from 0.18 to 0.15 to compensate for weight dilution
+    # (total weight increased from 17.5 to ~26 with 7 new signals). Steepness
+    # kept at 12 for sharp authentic/suspicious separation.
     #
     # Signals are designed to be robust against lossy codec artifacts (AVIF, WebP, JPEG)
     # and scene-dependent features (fog, smoke, soft backgrounds). Thresholds are
@@ -821,7 +1053,7 @@ def _heuristic_score(
     out_of_range = beta > 3.5 or beta < 1.0
     _add(
         "spectral_decay",
-        1.5,
+        0.75,
         out_of_range,
         f"Unusual spectral decay (beta={beta:.2f}), expected 1.5-2.5 for natural images",
         f"Normal spectral decay (beta={beta:.2f})",
@@ -873,12 +1105,13 @@ def _heuristic_score(
         f"Normal colour channel variation ({mean_corr:.3f})",
     )
 
-    # 8. Colour gamut
+    # 8. Colour gamut — older cameras and Google Photos recompression
+    #    produce gamut as low as 0.014. Only flag below 0.01.
     gamut = features.get("color_gamut_coverage", 0.1)
     _add(
         "color_gamut",
         0.5,
-        gamut < 0.05,
+        gamut < 0.01,
         f"Narrow colour gamut ({gamut:.3f}), may indicate limited AI colour range",
         f"Normal colour gamut usage ({gamut:.3f})",
     )
@@ -937,11 +1170,74 @@ def _heuristic_score(
     benford_div = features.get("dct_benford_div", 0.0)
     _add(
         "benford_divergence",
-        0.5,
+        0.25,
         benford_div > 0.4,
         f"DCT coefficients deviate from Benford's law (div={benford_div:.3f}), uncommon in natural images",
         f"DCT statistics follow expected distribution (div={benford_div:.3f})",
     )
+
+    # --- Signal 15: Noise autocorrelation decay ---
+    # Real camera JPEGs show tau=25-40 due to JPEG compression + computational
+    # denoising. Only flag very extreme values (>50) or very fast decay in
+    # lossless images where compression doesn't inflate tau.
+    tau = features.get("noise_autocorr_tau", 1.0)
+    tau_thresh = 5.0 if codec_class in ("lossless", "raw") else 50.0
+    _add("noise_autocorr_tau", 2.5, tau > tau_thresh,
+         f"Slow noise autocorrelation decay (tau={tau:.1f}), characteristic of AI generation",
+         f"Fast noise autocorrelation decay (tau={tau:.1f}), consistent with camera sensor")
+
+    # --- Signal 16: Cross-channel noise correlation ---
+    # Real camera JPEGs show 0.84-0.94 correlation due to JPEG compression and
+    # computational photography (Smart HDR, denoising). Only flag >0.96 for
+    # lossy codecs; >0.70 for lossless/raw where noise should be independent.
+    cc_corr = features.get("cross_channel_noise_corr_mean", 0.3)
+    # Real camera JPEGs (including Google Photos recompression and older cameras)
+    # show 0.84-0.99 cross-channel correlation. Only flag > 0.997 for lossy.
+    cc_thresh = 0.70 if codec_class in ("lossless", "raw") else 0.997
+    _add("cross_channel_noise_corr", 2.5, cc_corr > cc_thresh,
+         f"Highly correlated noise across channels ({cc_corr:.3f}), shared generative process",
+         f"Independent noise across channels ({cc_corr:.3f}), consistent with camera sensor")
+
+    # --- Signal 17: Bit-plane regularity (lossless only) ---
+    if codec_class == "lossless":
+        lsb_rand = features.get("lsb_randomness", 1.0)
+        _add("bitplane_regularity", 2.0, lsb_rand < 0.92,
+             f"Structured LSB pattern (randomness={lsb_rand:.3f}), computed pixel values",
+             f"Random LSB pattern (randomness={lsb_rand:.3f}), consistent with sensor noise")
+
+    # --- Signal 18: VAE grid artefacts ---
+    vae_w = 1.5 if codec_class == "lossless" else 0.5
+    vae_grid = features.get("vae_grid_energy_ratio", 0.0)
+    _add("vae_grid_artefacts", vae_w, vae_grid > 0.002,
+         f"Periodic VAE decoder grid detected (ratio={vae_grid:.5f})",
+         f"No periodic grid structure (ratio={vae_grid:.5f})")
+
+    # --- Signal 19: Chromatic aberration absence ---
+    # Use absolute value: real lenses produce both positive and negative CA trends
+    # depending on lens design. Only flag when |trend| is essentially zero.
+    ca_trend = features.get("ca_radial_trend", 0.01)
+    _add("ca_absence", 1.5, abs(ca_trend) < 0.003,
+         f"No radial chromatic aberration (trend={ca_trend:.5f}), inconsistent with optics",
+         f"Radial chromatic aberration present (trend={ca_trend:.5f}), consistent with lens")
+
+    # --- Signal 20: Demosaicing traces (lossless only) ---
+    if codec_class == "lossless":
+        dem_peaks = features.get("demosaic_peak_count", 8.0)
+        dem_strength = features.get("demosaic_peak_strength", 100.0)
+        _add("demosaicing_traces", 2.0, dem_peaks < 3 and dem_strength < 25,
+             f"No Bayer demosaicing traces ({dem_peaks:.0f} peaks), not from camera sensor",
+             f"Bayer demosaicing traces present ({dem_peaks:.0f} peaks), consistent with sensor")
+
+    # --- Signal 21: Saturation-luminance anomaly ---
+    # Real camera photos show ratios of 0.5-1.5 due to lens flare, white balance,
+    # and indoor lighting. Only flag extreme values (>2.0) that indicate AI
+    # generation artefacts where saturation doesn't fall off in shadows/highlights.
+    # Real camera photos (including older cameras, Google Photos recompression)
+    # show ratios of 0.5-1.6. Only flag > 2.0 for genuine AI artefacts.
+    sat_ratio = features.get("sat_lum_extreme_ratio", 0.2)
+    _add("sat_lum_anomaly", 1.5, sat_ratio > 2.0,
+         f"Anomalous saturation in extremes (ratio={sat_ratio:.3f}), violates colour physics",
+         f"Normal saturation-luminance curve (ratio={sat_ratio:.3f})")
 
     # ── Scene complexity adaptation ────────────────────────────────────
     # Low-complexity scenes (fog, snow, overcast) naturally have uniform
@@ -973,7 +1269,7 @@ def _heuristic_score(
 
     # EXIF-informed sigmoid midpoint: camera EXIF is a strong prior toward
     # authenticity — require more evidence (higher midpoint) to flag.
-    midpoint = 0.25 if has_camera_exif else 0.18
+    midpoint = 0.22 if has_camera_exif else 0.15
     score = 1.0 / (1.0 + math.exp(-12.0 * (activation_ratio - midpoint)))
 
     return score, signals
