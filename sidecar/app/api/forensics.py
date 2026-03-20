@@ -19,6 +19,8 @@ from app.models.schemas import (
     SegmentedElaResponse,
     ShadowConsistencyResponse,
     SpliceBoundaryResponse,
+    WatermarkEmbedResponse,
+    WatermarkExtractResponse,
 )
 from app.services.chromatic_aberration import perform_ca_analysis
 from app.services.claim_checker import check_claims as _check_claims
@@ -33,6 +35,7 @@ from app.services.npr import perform_npr_analysis
 from app.services.segmented_ela import perform_segmented_ela
 from app.services.shadow_consistency import perform_shadow_consistency
 from app.services.splice_boundary import perform_splice_boundary
+from app.services.watermark import perform_watermark_embed, perform_watermark_extract
 
 router = APIRouter()
 
@@ -387,3 +390,46 @@ async def claim_check(
         ollama_base_url=settings.ollama_base_url,
         model=settings.llm_model,
     )
+
+
+@router.post("/watermark/embed", response_model=WatermarkEmbedResponse)
+async def watermark_embed(
+    file: UploadFile = File(...),
+    payload: str = Query(default="JuraTrace"),
+    strength: str = Query(default="medium"),
+) -> WatermarkEmbedResponse:
+    """
+    Embed an invisible DWT-DCT-SVD watermark into an uploaded image.
+
+    Encodes the given payload string into the frequency domain of the image.
+    The watermarked image is returned as a base64-encoded PNG (lossless to
+    preserve the watermark). Minimum image size is 256x256.
+
+    The payload is truncated to 64 bytes if longer. Strength parameter
+    accepts "low", "medium", or "high".
+    """
+    image_bytes = await _read_and_validate(file)
+
+    result = perform_watermark_embed(image_bytes, payload, strength)
+    return result
+
+
+@router.post("/watermark/extract", response_model=WatermarkExtractResponse)
+async def watermark_extract(
+    file: UploadFile = File(...),
+    payload_length: int = Query(default=64, ge=1, le=256),
+) -> WatermarkExtractResponse:
+    """
+    Extract an invisible DWT-DCT-SVD watermark from an uploaded image.
+
+    Attempts to decode an embedded payload of the specified byte length.
+    The payload_length must match the length used during embedding for
+    accurate extraction.
+
+    Returns the extracted payload (if found), a hex representation of the
+    raw bytes, and a confidence indicator.
+    """
+    image_bytes = await _read_and_validate(file)
+
+    result = perform_watermark_extract(image_bytes, payload_length)
+    return result

@@ -258,6 +258,30 @@ class SpliceBoundaryResponse(BaseModel):
     summary: str
 
 
+class WatermarkEmbedResponse(BaseModel):
+    """Invisible watermark embedding result."""
+
+    watermarked_image_base64: str | None = None
+    algorithm: str
+    strength: str
+    payload_length: int
+    success: bool
+    message: str
+
+
+class WatermarkExtractResponse(BaseModel):
+    """Invisible watermark extraction result."""
+
+    extracted_payload: str | None = None
+    extracted_hex: str | None = None
+    payload_length: int
+    algorithm: str
+    has_watermark: bool
+    confidence: float
+    success: bool
+    message: str
+
+
 class CapabilitiesResponse(BaseModel):
     """Sidecar capability flags."""
 
@@ -272,6 +296,7 @@ class CapabilitiesResponse(BaseModel):
     shadow_consistency: bool = True
     colour_temperature: bool = True
     splice_boundary: bool = True
+    watermark: bool = True
     clip_detect: bool = False
     rag: bool = False
 

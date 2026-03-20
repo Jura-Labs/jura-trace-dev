@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, getFingerprints, findSimilar, checkMetadataBeforeSign } from '$lib/api';
+  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, getFingerprints, findSimilar, checkMetadataBeforeSign, embedWatermark } from '$lib/api';
   import {
     type Asset,
     type ContentType,
@@ -7,6 +7,7 @@
     type Fingerprint,
     type SimilarAsset,
     type MetadataSigningWarning,
+    type WatermarkEmbedResult,
     parseMetadata,
     formatFileSize,
     CONTENT_TYPE_LABELS,
@@ -45,6 +46,13 @@
   let fingerprints: Fingerprint[] = $state([]);
   let similarAssets: SimilarAsset[] = $state([]);
   let loadingFingerprints = $state(false);
+
+  // ── Watermark state ───────────────────────────────────────────────
+  let watermarkAssetId: string | null = $state(null);
+  let watermarkPayload = $state('');
+  let watermarkStrength = $state<number>(2); // 1 = low, 2 = medium, 3 = high
+  let watermarking = $state(false);
+  let watermarkResult = $state<WatermarkEmbedResult | null>(null);
 
   // ── Selected asset ────────────────────────────────────────────────
   let selectedAsset: Asset | null = $state(null);
@@ -152,9 +160,11 @@
       selectedAsset = null;
     } else {
       selectedAsset = asset;
-      // Close any open fingerprint or signing panel when switching rows
+      // Close any open panels when switching rows
       showFingerprintsFor = null;
       signingAssetId = null;
+      watermarkAssetId = null;
+      watermarkResult = null;
     }
   }
 
@@ -195,6 +205,35 @@
       error = e instanceof Error ? e.message : typeof e === 'string' ? e : 'Signing failed';
     } finally {
       signing = false;
+    }
+  }
+
+  // ── Watermark embedding ──────────────────────────────────────────
+  async function handleWatermark() {
+    if (!watermarkAssetId || !watermarkPayload.trim()) return;
+    watermarking = true;
+    watermarkResult = null;
+    error = null;
+    try {
+      const result = await embedWatermark(
+        watermarkAssetId,
+        watermarkPayload.trim(),
+        watermarkStrength,
+      );
+      watermarkResult = result;
+      if (result.success) {
+        // Mark asset as watermarked in the local list
+        assets = assets.map(a =>
+          a.assetId === watermarkAssetId ? { ...a, watermarked: true } : a,
+        );
+        if (selectedAsset?.assetId === watermarkAssetId) {
+          selectedAsset = { ...selectedAsset, watermarked: true };
+        }
+      }
+    } catch (e) {
+      error = e instanceof Error ? e.message : typeof e === 'string' ? e : 'Watermark embedding failed';
+    } finally {
+      watermarking = false;
     }
   }
 
@@ -784,6 +823,156 @@
                     onclick={() => openSigningPanel(asset.assetId, meta?.artist ?? null)}
                   >
                     Sign with C2PA
+                  </button>
+                {/if}
+              {/if}
+
+              <!-- Watermark embedding -->
+              {#if canSignC2pa(asset)}
+                {#if watermarkAssetId === asset.assetId}
+                  <!-- Watermark form -->
+                  <div
+                    class="col-span-full mt-3 p-3 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark"
+                    role="region"
+                    aria-label="Embed watermark"
+                  >
+                    <p
+                      class="text-sm text-text-light dark:text-quartz mb-3"
+                      style="font-family: Georgia, 'Times New Roman', serif;"
+                    >
+                      Embed Invisible Watermark
+                    </p>
+
+                    {#if watermarkResult}
+                      <!-- Success / error feedback -->
+                      {#if watermarkResult.success}
+                        <div
+                          class="mb-3 px-3 py-2 rounded-md bg-malachite/10 border border-malachite/30 text-xs text-malachite dark:text-malachite-light"
+                          role="status"
+                          aria-live="polite"
+                        >
+                          <span class="font-medium">Watermark embedded.</span>
+                          Output saved to:
+                          <span class="block mt-0.5 font-mono break-all">{watermarkResult.outputPath}</span>
+                        </div>
+                      {:else}
+                        <div
+                          class="mb-3 px-3 py-2 rounded-md bg-cinnabar/10 border border-cinnabar/30 text-xs text-cinnabar dark:text-cinnabar-light"
+                          role="alert"
+                          aria-live="assertive"
+                        >
+                          <span class="font-medium">Embedding failed:</span> {watermarkResult.message}
+                        </div>
+                      {/if}
+                    {/if}
+
+                    <div class="grid grid-cols-1 gap-3">
+                      <!-- Institution / payload input -->
+                      <div>
+                        <label
+                          class="text-xs text-flint dark:text-flint-light uppercase tracking-wide"
+                          for="watermark-payload-{asset.assetId}"
+                        >
+                          Institution Name or Identifier
+                        </label>
+                        <input
+                          id="watermark-payload-{asset.assetId}"
+                          type="text"
+                          bind:value={watermarkPayload}
+                          placeholder="e.g. National Archive UK — 2026"
+                          class="w-full mt-1 px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm
+                                 placeholder:text-flint/60
+                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                          aria-describedby="watermark-payload-hint-{asset.assetId}"
+                        />
+                        <p
+                          id="watermark-payload-hint-{asset.assetId}"
+                          class="mt-1 text-xs text-flint dark:text-flint-light"
+                        >
+                          This text will be encoded invisibly into the file. Max 64 characters.
+                        </p>
+                      </div>
+
+                      <!-- Strength selector -->
+                      <fieldset>
+                        <legend class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-2">
+                          Embedding Strength
+                        </legend>
+                        <div
+                          class="flex gap-2"
+                          role="group"
+                          aria-label="Embedding strength"
+                        >
+                          {#each [
+                            { value: 1, label: 'Low', hint: 'Minimal quality impact, lower robustness' },
+                            { value: 2, label: 'Medium', hint: 'Balanced quality and robustness' },
+                            { value: 3, label: 'High', hint: 'Maximum robustness, slight quality reduction' },
+                          ] as opt (opt.value)}
+                            <button
+                              type="button"
+                              class="flex-1 min-h-[44px] px-3 py-2 text-sm rounded border transition-colors
+                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite
+                                     {watermarkStrength === opt.value
+                                       ? 'border-lapis bg-lapis/10 text-lapis dark:text-lapis-light font-medium'
+                                       : 'border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:border-lapis/50 hover:text-text-light dark:hover:text-quartz'}"
+                              onclick={() => watermarkStrength = opt.value}
+                              aria-pressed={watermarkStrength === opt.value}
+                              title={opt.hint}
+                            >
+                              {opt.label}
+                            </button>
+                          {/each}
+                        </div>
+                      </fieldset>
+                    </div>
+
+                    <div class="flex gap-2 mt-3">
+                      <button
+                        class="px-4 py-2.5 min-h-[44px] inline-flex items-center gap-2 bg-lapis text-white text-sm rounded hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
+                               disabled:opacity-50 disabled:cursor-not-allowed
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                        onclick={handleWatermark}
+                        disabled={watermarking || !watermarkPayload.trim()}
+                        aria-busy={watermarking}
+                      >
+                        {#if watermarking}
+                          <span
+                            class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full motion-safe:animate-spin"
+                            aria-hidden="true"
+                          ></span>
+                          Embedding...
+                        {:else}
+                          Embed Watermark
+                        {/if}
+                      </button>
+                      <button
+                        class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint dark:text-flint-light text-sm rounded hover:text-text-light dark:hover:text-quartz transition-colors
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                        onclick={() => { watermarkAssetId = null; watermarkResult = null; }}
+                        disabled={watermarking}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                {:else if !asset.watermarked}
+                  <!-- Watermark trigger button (only when not yet watermarked) -->
+                  <button
+                    class="col-span-full mt-2 px-4 py-2.5 min-h-[44px] inline-flex items-center text-sm border border-lapis/50 text-lapis rounded
+                           hover:bg-lapis/10 transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                    onclick={() => {
+                      watermarkAssetId = asset.assetId;
+                      watermarkPayload = '';
+                      watermarkStrength = 2;
+                      watermarkResult = null;
+                      // Close other panels
+                      signingAssetId = null;
+                      showFingerprintsFor = null;
+                    }}
+                    aria-label="Embed invisible watermark in {asset.fileName}"
+                  >
+                    Watermark
                   </button>
                 {/if}
               {/if}

@@ -10,6 +10,7 @@ mod fingerprint;
 mod format_router;
 mod metadata;
 mod sidecar;
+mod watermark;
 
 // ===== Types =====
 
@@ -1276,6 +1277,116 @@ fn get_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+// ===== Watermark Commands =====
+
+/// Embed an invisible frequency-domain watermark into an image asset.
+///
+/// Looks up the asset by `asset_id`, validates it supports watermarking,
+/// embeds the provided `payload_hex` using DWT-DCT-SVD, updates the asset
+/// record in the database (sets `watermarked = true`), and logs the action.
+///
+/// The output is always saved as a PNG file alongside the original, with a
+/// `_wm` suffix: e.g. `photo.jpg` → `photo_wm.png`.
+#[tauri::command]
+fn embed_watermark_asset(
+    asset_id: String,
+    payload_hex: String,
+    strength: Option<u32>,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<watermark::WatermarkResult, String> {
+    let app = state.lock().map_err(|e| e.to_string())?;
+
+    let asset = app
+        .db
+        .get_asset_by_id(&asset_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Asset not found: {asset_id}"))?;
+
+    if !watermark::supports_watermarking(&asset.mime_type) {
+        return Err(format!(
+            "Watermarking not supported for {} ({})",
+            asset.content_type, asset.mime_type
+        ));
+    }
+
+    let source = PathBuf::from(&asset.file_path);
+    if !source.exists() {
+        return Err(format!("Source file not found: {}", asset.file_path));
+    }
+
+    let output = watermark::watermark_output_path(&source);
+
+    let options = watermark::WatermarkOptions {
+        payload_hex: payload_hex.clone(),
+        strength,
+    };
+
+    log::info!(
+        "Embedding watermark: asset={}, source={}, output={}, strength={:?}",
+        asset_id,
+        source.display(),
+        output.display(),
+        strength
+    );
+
+    let result = watermark::embed_watermark(&source, &output, &options)?;
+
+    // Update the asset record in the database
+    let output_str = output.to_string_lossy().to_string();
+    app.db
+        .set_watermarked(&asset_id, &output_str)
+        .map_err(|e| e.to_string())?;
+
+    // Audit log
+    let algo_meta = serde_json::json!({
+        "algorithm": "DWT-DCT-SVD",
+        "crate": "blind_watermark",
+        "version": "0.1.2",
+        "strength": strength.unwrap_or(2),
+        "payload_len_bytes": payload_hex.len() / 2,
+    });
+    let _ = app.db.log_action(
+        "watermark",
+        "asset",
+        &asset_id,
+        Some(&format!(
+            "{{\"output\":\"{output_str}\",\"payload_len\":{}}}",
+            payload_hex.len() / 2
+        )),
+        None,
+        Some(&algo_meta.to_string()),
+    );
+
+    log::info!("Watermark embedded for asset {asset_id} -> {output_str}");
+    Ok(result)
+}
+
+/// Extract and optionally verify a watermark from an image file.
+///
+/// `path` is the absolute path to the image to inspect (need not be in the
+/// database — supports verifying third-party copies).
+///
+/// `payload_len_bytes` is the number of bytes in the expected payload (e.g. 16
+/// for a UUID). When omitted, defaults to 16.
+///
+/// `reference_hex` is the expected payload as a hex string. When provided the
+/// result includes a `matches` field indicating whether the extracted payload
+/// matches, and a byte-level `confidence` score.
+#[tauri::command]
+fn extract_watermark_from_path(
+    path: String,
+    payload_len_bytes: Option<usize>,
+    reference_hex: Option<String>,
+) -> Result<watermark::ExtractResult, String> {
+    let file_path = PathBuf::from(&path);
+    if !file_path.exists() {
+        return Err(format!("File not found: {path}"));
+    }
+
+    let len = payload_len_bytes.unwrap_or(16);
+    watermark::extract_watermark(&file_path, len, reference_hex.as_deref())
+}
+
 /// Record a false-positive report for a verification result.
 ///
 /// Stores the report in SQLite so that detection thresholds can be
@@ -1452,6 +1563,8 @@ pub fn run() {
             get_monitor_overview,
             get_audit_log,
             get_verification_history,
+            embed_watermark_asset,
+            extract_watermark_from_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Jura Trace");

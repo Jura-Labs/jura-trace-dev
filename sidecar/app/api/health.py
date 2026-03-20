@@ -40,7 +40,7 @@ async def health() -> HealthResponse:
         service="jura-trace-sidecar",
         capabilities=CapabilitiesResponse(
             ela=True, noise=True, copy_move=True, deepfake=True,
-            clip_detect=clip_available, rag=rag_available,
+            watermark=True, clip_detect=clip_available, rag=rag_available,
         ),
         ollama=ollama_status,
     )

@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { AppStats, Asset, AuditLogEntry, Fingerprint, ManifestInfo, MetadataSigningWarning, MonitorOverview, SidecarHealth, SimilarAsset, VerificationResult, VerificationSummary, VerifyMode } from './types';
+import type { AppStats, Asset, AuditLogEntry, Fingerprint, ManifestInfo, MetadataSigningWarning, MonitorOverview, SidecarHealth, SimilarAsset, VerificationResult, VerificationSummary, VerifyMode, WatermarkEmbedResult, WatermarkExtractResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -423,4 +423,58 @@ export async function getVerificationHistory(
   } catch {
     return [];
   }
+}
+
+// ── Watermarking ────────────────────────────────────────────────────
+
+/**
+ * Embed an invisible watermark into an image asset.
+ * @param assetId  The asset to watermark.
+ * @param payload  Human-readable payload string (e.g. institution name + date).
+ * @param strength Embedding strength: 1 = low, 2 = medium (default), 3 = high.
+ */
+export async function embedWatermark(
+  assetId: string,
+  payload: string,
+  strength: number = 2,
+): Promise<WatermarkEmbedResult> {
+  if (isTauri) {
+    // payload_hex: backend expects a hex-encoded byte string
+    const payloadHex = Array.from(new TextEncoder().encode(payload))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    return invoke<WatermarkEmbedResult>('embed_watermark', {
+      assetId,
+      payloadHex,
+      strength,
+    });
+  }
+  // Browser mock
+  return {
+    outputPath: `/mock/output/${assetId}_watermarked.jpg`,
+    payloadHex: Array.from(new TextEncoder().encode(payload))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join(''),
+    success: true,
+    message: 'Watermark embedded (mock)',
+  };
+}
+
+/**
+ * Extract and check for an invisible watermark in an image asset.
+ * @param assetId  The asset to inspect.
+ */
+export async function extractWatermark(assetId: string): Promise<WatermarkExtractResult> {
+  if (isTauri) {
+    return invoke<WatermarkExtractResult>('extract_watermark', { assetId });
+  }
+  // Browser mock
+  return {
+    extractedPayload: null,
+    extractedHex: null,
+    hasWatermark: false,
+    confidence: 0,
+    success: true,
+    message: 'No watermark detected (mock)',
+  };
 }

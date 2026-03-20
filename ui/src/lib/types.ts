@@ -499,6 +499,26 @@ export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
   unknown: 'Unknown',
 };
 
+// ── Watermarking ──────────────────────────────────────────────────
+
+/** Result from embedding an invisible watermark into an asset */
+export interface WatermarkEmbedResult {
+  outputPath: string;
+  payloadHex: string;
+  success: boolean;
+  message: string;
+}
+
+/** Result from extracting an invisible watermark from an asset */
+export interface WatermarkExtractResult {
+  extractedPayload?: string | null;
+  extractedHex?: string | null;
+  hasWatermark: boolean;
+  confidence: number;
+  success: boolean;
+  message: string;
+}
+
 // ── Monitor types ────────────────────────────────────────────────
 
 /** A single entry from the audit log */

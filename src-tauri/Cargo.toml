@@ -54,6 +54,10 @@ reqwest = { version = "0.12", features = ["blocking", "multipart", "json"] }
 # Temp files for URL verification
 tempfile = "3"
 
+# Frequency-domain invisible watermarking (DWT-DCT-SVD, Phase 3)
+blind_watermark = "0.1"
+bitvec = "1"
+
 [dev-dependencies]
 
 [features]

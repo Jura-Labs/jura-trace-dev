@@ -315,6 +315,17 @@ impl Database {
         Ok(())
     }
 
+    /// Mark an asset as watermarked and update its stored file path to the
+    /// watermarked output file.
+    pub fn set_watermarked(&self, asset_id: &str, file_path: &str) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE assets SET watermarked = 1, file_path = ?1 WHERE asset_id = ?2",
+            params![file_path, asset_id],
+        )?;
+        Ok(())
+    }
+
     // ── Audit log ─────────────────────────────────────────────────────
 
     // ── Verification operations ─────────────────────────────────────────
