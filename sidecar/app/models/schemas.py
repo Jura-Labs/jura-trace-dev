@@ -2,6 +2,8 @@
 Jura Archive Sidecar — Pydantic schemas for API request/response models.
 """
 
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -147,6 +149,109 @@ class ClaimCheckResponse(BaseModel):
     summary: str
 
 
+class ElaRegion(BaseModel):
+    """A single grid cell from segmented ELA analysis."""
+
+    x: int
+    y: int
+    width: int
+    height: int
+    ela_score: float
+    anomalous: bool
+
+
+class SegmentedElaResponse(BaseModel):
+    """Segmented Error Level Analysis result."""
+
+    heatmap_base64: Optional[str] = None
+    regions: list[ElaRegion]
+    anomalous_regions: int
+    total_regions: int
+    inter_region_variance: float
+    score: float
+    suspicious: bool
+    summary: str
+
+
+class ShadowRegion(BaseModel):
+    """A foreground component from shadow consistency analysis."""
+
+    x: int
+    y: int
+    width: int
+    height: int
+    area: int
+    gradient_angle_mean: float
+    deviation_from_global: float
+    inconsistent: bool
+
+
+class ShadowConsistencyResponse(BaseModel):
+    """Shadow/lighting direction consistency analysis result."""
+
+    heatmap_base64: Optional[str] = None
+    global_light_direction: float
+    regions: list[ShadowRegion]
+    inconsistent_regions: int
+    total_regions: int
+    score: float
+    suspicious: bool
+    summary: str
+
+
+class ColourTempRegion(BaseModel):
+    """A grid cell from colour temperature analysis."""
+
+    x: int
+    y: int
+    width: int
+    height: int
+    mean_a: float
+    mean_b: float
+    deviation_from_global: float
+    anomalous: bool
+
+
+class ColourTemperatureResponse(BaseModel):
+    """Colour temperature segmentation analysis result."""
+
+    heatmap_base64: Optional[str] = None
+    regions: list[ColourTempRegion]
+    anomalous_regions: int
+    total_regions: int
+    global_mean_a: float
+    global_mean_b: float
+    score: float
+    suspicious: bool
+    summary: str
+
+
+class SpliceBoundary(BaseModel):
+    """A detected potential splice boundary."""
+
+    x: int
+    y: int
+    width: int
+    height: int
+    jpeg_grid_aligned: bool
+    noise_asymmetric: bool
+    feathering_detected: bool
+    signals_triggered: int
+    confidence: float
+
+
+class SpliceBoundaryResponse(BaseModel):
+    """Splice boundary detection result."""
+
+    heatmap_base64: Optional[str] = None
+    boundaries: list[SpliceBoundary]
+    suspicious_boundaries: int
+    total_boundaries_checked: int
+    score: float
+    suspicious: bool
+    summary: str
+
+
 class CapabilitiesResponse(BaseModel):
     """Sidecar capability flags."""
 
@@ -157,6 +262,10 @@ class CapabilitiesResponse(BaseModel):
     jpeg_ghost: bool = True
     npr: bool = True
     chromatic_aberration: bool = True
+    segmented_ela: bool = True
+    shadow_consistency: bool = True
+    colour_temperature: bool = True
+    splice_boundary: bool = True
     clip_detect: bool = False
     rag: bool = False
 

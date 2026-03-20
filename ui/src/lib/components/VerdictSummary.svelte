@@ -1,6 +1,8 @@
 <script lang="ts">
   import { getTrustLevel } from '$lib/types';
   import type { VerificationResult, VerdictLevel } from '$lib/types';
+  // Note: SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult,
+  // SpliceBoundaryResult are accessed via result fields — no separate import needed.
 
   // ── Props ─────────────────────────────────────────────────────────────
   interface Props {
@@ -65,13 +67,27 @@
   );
 
   /**
+   * Highest-confidence composite signal: both splice boundary AND segmented ELA
+   * agree there is a cut edge. Two independent detectors corroborating each other
+   * is the strongest manipulation signal available from region analysis.
+   */
+  const hasCompositeSpliceSignal = $derived(
+    result.spliceBoundaryResult?.suspicious === true &&
+    result.segmentedElaResult?.suspicious === true
+  );
+
+  /**
    * At least one forensic analysis layer found suspicious patterns
    * consistent with post-capture editing or compositing.
+   * Includes region-based detectors: shadow consistency and colour temperature.
    */
   const hasManipulation = $derived(
     (result.elaResult?.suspicious === true) ||
     (result.noiseResult?.suspicious === true) ||
-    (result.copyMoveResult?.suspicious === true)
+    (result.copyMoveResult?.suspicious === true) ||
+    (result.shadowConsistencyResult?.suspicious === true) ||
+    (result.colourTemperatureResult?.suspicious === true) ||
+    hasCompositeSpliceSignal
   );
 
   /**
@@ -135,6 +151,7 @@
     if (isInconclusive && hasManipulation) return 'Mixed Signals — Further Review Recommended';
     if (isInconclusive) return 'Inconclusive — Further Review Recommended';
     if (hasMixedSignals()) return 'Mixed Signals — Further Review Recommended';
+    if (hasCompositeSpliceSignal) return 'Splice Detected — High Confidence';
     if (hasManipulation && trustLevel() === 'low') return 'Manipulation Detected';
     if (hasManipulation) return 'Possible Manipulation';
     if (hasCriticalExif && trustLevel() === 'low') return 'Provenance Anomalies Found';
@@ -204,6 +221,15 @@
       );
     }
 
+    if (hasCompositeSpliceSignal) {
+      return (
+        `Region-level analysis of "${name}" found corroborating evidence of splicing: ` +
+        `both the segmented compression map and splice boundary detector identified the same anomalous edges. ` +
+        `This is the highest-confidence composite manipulation signal. ` +
+        `The overall trust score is ${scorePercent}%.`
+      );
+    }
+
     if (hasManipulation && hasCriticalExif) {
       return (
         `Forensic analysis of "${name}" found evidence of pixel-level editing and anomalies in the embedded provenance data. ` +
@@ -217,6 +243,8 @@
       if (result.elaResult?.suspicious) layers.push('compression artefact patterns');
       if (result.noiseResult?.suspicious) layers.push('inconsistent noise distribution');
       if (result.copyMoveResult?.suspicious) layers.push('duplicated regions');
+      if (result.shadowConsistencyResult?.suspicious) layers.push('inconsistent shadow direction');
+      if (result.colourTemperatureResult?.suspicious) layers.push('colour temperature anomalies');
       const detail = layers.length > 0
         ? `Specifically, ${layers.join(' and ')} were detected.`
         : 'One or more forensic layers returned suspicious results.';
@@ -288,7 +316,11 @@
 
   /** Is this verdict in the "danger" (red) category? */
   const isDanger = $derived(
-    hasAiWatermark || isAiGenerated || (hasManipulation && trustLevel() === 'low') || trustLevel() === 'low'
+    hasAiWatermark ||
+    isAiGenerated ||
+    hasCompositeSpliceSignal ||
+    (hasManipulation && trustLevel() === 'low') ||
+    trustLevel() === 'low'
   );
 
   /** Is this verdict in the "warning" (amber) category? */

@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
-  import type { VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem } from '$lib/types';
+  import type { VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult } from '$lib/types';
   import VerdictSummary from '$lib/components/VerdictSummary.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
   import InspectionChecklist from '$lib/components/InspectionChecklist.svelte';
@@ -27,6 +27,7 @@
   let showInvestigatePanel = $state(false);
   let showSignalAgreement = $state(false);
   let showInspectionChecklist = $state(false);
+  let showRegionAnalysis = $state(false);
 
   // ── Export state ─────────────────────────────────────────────────
   let showReportModal = $state(false);
@@ -281,6 +282,7 @@
     showInvestigatePanel = false;
     showSignalAgreement = false;
     showInspectionChecklist = false;
+    showRegionAnalysis = false;
   }
 
   // ── Export helpers ────────────────────────────────────────────────
@@ -515,6 +517,46 @@
     if (score < 0.6) return 'bg-amber/15 border-amber/20';
     return 'bg-cinnabar/15 border-cinnabar/20';
   }
+
+  /** Short label for a region detector score. */
+  function regionScoreLabel(score: number): string {
+    if (score < 0.3) return 'Clean';
+    if (score < 0.6) return 'Review';
+    return 'Suspicious';
+  }
+
+  /**
+   * Whether the Region Analysis section should be shown.
+   * Requires deep or archival mode AND at least one regional result present.
+   */
+  const hasRegionResults = $derived(
+    (verifyMode === 'deep' || verifyMode === 'archival') && result != null && (
+      result.segmentedElaResult != null ||
+      result.shadowConsistencyResult != null ||
+      result.colourTemperatureResult != null ||
+      result.spliceBoundaryResult != null
+    )
+  );
+
+  /** Count of regional detectors that returned suspicious. */
+  const regionSuspiciousCount = $derived(
+    result == null ? 0 : [
+      result.segmentedElaResult?.suspicious,
+      result.shadowConsistencyResult?.suspicious,
+      result.colourTemperatureResult?.suspicious,
+      result.spliceBoundaryResult?.suspicious,
+    ].filter(Boolean).length
+  );
+
+  /** Total number of regional detectors that ran (returned a result). */
+  const regionRunCount = $derived(
+    result == null ? 0 : [
+      result.segmentedElaResult,
+      result.shadowConsistencyResult,
+      result.colourTemperatureResult,
+      result.spliceBoundaryResult,
+    ].filter(v => v != null).length
+  );
 </script>
 
 <div class="space-y-6">
@@ -1282,6 +1324,406 @@
               forgery — content appears to have been cloned from one area to another.
             </div>
           {/if}
+        </section>
+      {/if}
+
+      <!-- ── Region Analysis ───────────────────────────────────────── -->
+      {#if hasRegionResults && result}
+        <section class="px-5 py-4 border-b border-border-light dark:border-graphite-light" aria-labelledby="region-analysis-heading">
+
+          <!-- Section header with expand/collapse toggle -->
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <h2 id="region-analysis-heading" class="text-sm font-medium text-quartz">Region Analysis</h2>
+              <!-- Summary badge: n of m suspicious -->
+              <span
+                class="text-xs font-medium px-2 py-0.5 rounded border
+                       {regionSuspiciousCount === 0
+                         ? 'bg-malachite/15 border-malachite/20 text-malachite'
+                         : regionSuspiciousCount >= 2
+                           ? 'bg-cinnabar/15 border-cinnabar/20 text-cinnabar'
+                           : 'bg-amber/15 border-amber/20 text-amber'}"
+                aria-label="{regionSuspiciousCount} of {regionRunCount} region detectors suspicious"
+              >
+                {regionSuspiciousCount} of {regionRunCount} suspicious
+              </span>
+            </div>
+            <button
+              class="flex items-center gap-1 text-xs text-flint hover:text-quartz transition-colors duration-150
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-1"
+              onclick={() => { showRegionAnalysis = !showRegionAnalysis; }}
+              aria-expanded={showRegionAnalysis}
+              aria-controls="region-analysis-detail"
+            >
+              <svg
+                class="w-3.5 h-3.5 transition-transform duration-200 {showRegionAnalysis ? 'rotate-90' : ''}"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+              {showRegionAnalysis ? 'Collapse' : 'Expand'}
+            </button>
+          </div>
+
+          <!-- Collapsed summary: one line per detector -->
+          {#if !showRegionAnalysis}
+            <div class="space-y-1" aria-label="Region detector summary">
+              {#if result.segmentedElaResult}
+                {@const seg = result.segmentedElaResult}
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-flint">Segmented ELA</span>
+                  <span class="{forensicScoreClass(seg.score)} tabular-nums">
+                    {seg.anomalousRegions}/{seg.totalRegions} anomalous regions
+                  </span>
+                </div>
+              {/if}
+              {#if result.shadowConsistencyResult}
+                {@const sh = result.shadowConsistencyResult}
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-flint">Shadow Consistency</span>
+                  <span class="{forensicScoreClass(sh.score)} tabular-nums">
+                    {sh.inconsistentRegions} inconsistent
+                  </span>
+                </div>
+              {/if}
+              {#if result.colourTemperatureResult}
+                {@const ct = result.colourTemperatureResult}
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-flint">Colour Temperature</span>
+                  <span class="{forensicScoreClass(ct.score)} tabular-nums">
+                    {ct.anomalousRegions} deviating regions
+                  </span>
+                </div>
+              {/if}
+              {#if result.spliceBoundaryResult}
+                {@const sb = result.spliceBoundaryResult}
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-flint">Splice Boundary</span>
+                  <span class="{forensicScoreClass(sb.score)} tabular-nums">
+                    {sb.suspiciousBoundaries} of {sb.totalBoundariesChecked} boundaries
+                  </span>
+                </div>
+              {/if}
+            </div>
+          {/if}
+
+          <!-- Expanded detail panels -->
+          {#if showRegionAnalysis}
+            <div id="region-analysis-detail" class="space-y-5 mt-1">
+
+              <!-- Segmented ELA sub-section -->
+              {#if result.segmentedElaResult}
+                {@const seg = result.segmentedElaResult}
+                <details class="group">
+                  <summary
+                    class="flex items-center justify-between cursor-pointer list-none py-2 border-t border-border-light dark:border-graphite-light
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                  >
+                    <div class="flex items-center gap-3">
+                      <span class="text-xs font-medium text-quartz">Segmented ELA</span>
+                      <span
+                        class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(seg.score)} {forensicScoreClass(seg.score)}"
+                        aria-label="Segmented ELA: {regionScoreLabel(seg.score)}"
+                      >
+                        {regionScoreLabel(seg.score)}
+                      </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs tabular-nums {forensicScoreClass(seg.score)}">{(seg.score * 100).toFixed(1)}%</span>
+                      <svg
+                        class="w-3.5 h-3.5 text-flint transition-transform duration-200 group-open:rotate-90"
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </summary>
+
+                  <div class="mt-3 space-y-3">
+                    <p class="text-xs text-flint leading-relaxed">{seg.summary}</p>
+
+                    {#if seg.heatmapBase64}
+                      <div class="rounded-md overflow-hidden border border-border-light dark:border-graphite-light bg-gray-100 dark:bg-obsidian">
+                        <img
+                          src="data:image/png;base64,{seg.heatmapBase64}"
+                          alt="Segmented ELA heatmap showing per-region compression anomaly scores"
+                          class="w-full max-h-64 object-contain"
+                        />
+                      </div>
+                    {/if}
+
+                    <div class="grid grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <span class="text-flint">Anomalous Regions</span>
+                        <p class="text-quartz tabular-nums">{seg.anomalousRegions} / {seg.totalRegions}</p>
+                      </div>
+                      <div>
+                        <span class="text-flint">Inter-region Variance</span>
+                        <p class="text-quartz tabular-nums">{seg.interRegionVariance.toFixed(3)}</p>
+                      </div>
+                      <div>
+                        <span class="text-flint">Total Regions</span>
+                        <p class="text-quartz tabular-nums">{seg.totalRegions}</p>
+                      </div>
+                    </div>
+
+                    {#if seg.suspicious}
+                      <div class="text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+                        Elevated compression variance detected across image regions. Inconsistent ELA patterns
+                        between blocks may indicate that regions were edited or inserted separately.
+                      </div>
+                    {/if}
+                  </div>
+                </details>
+              {/if}
+
+              <!-- Shadow Consistency sub-section -->
+              {#if result.shadowConsistencyResult}
+                {@const sh = result.shadowConsistencyResult}
+                <details class="group">
+                  <summary
+                    class="flex items-center justify-between cursor-pointer list-none py-2 border-t border-border-light dark:border-graphite-light
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                  >
+                    <div class="flex items-center gap-3">
+                      <span class="text-xs font-medium text-quartz">Shadow Consistency</span>
+                      <span
+                        class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(sh.score)} {forensicScoreClass(sh.score)}"
+                        aria-label="Shadow Consistency: {regionScoreLabel(sh.score)}"
+                      >
+                        {regionScoreLabel(sh.score)}
+                      </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs tabular-nums {forensicScoreClass(sh.score)}">{(sh.score * 100).toFixed(1)}%</span>
+                      <svg
+                        class="w-3.5 h-3.5 text-flint transition-transform duration-200 group-open:rotate-90"
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </summary>
+
+                  <div class="mt-3 space-y-3">
+                    <p class="text-xs text-flint leading-relaxed">{sh.summary}</p>
+
+                    {#if sh.heatmapBase64}
+                      <div class="rounded-md overflow-hidden border border-border-light dark:border-graphite-light bg-gray-100 dark:bg-obsidian">
+                        <img
+                          src="data:image/png;base64,{sh.heatmapBase64}"
+                          alt="Shadow consistency heatmap showing regions with inconsistent light direction"
+                          class="w-full max-h-64 object-contain"
+                        />
+                      </div>
+                    {/if}
+
+                    <div class="grid grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <span class="text-flint">Light Direction</span>
+                        <p class="text-quartz tabular-nums">{sh.globalLightDirection.toFixed(1)}&deg;</p>
+                      </div>
+                      <div>
+                        <span class="text-flint">Inconsistent Regions</span>
+                        <p class="text-quartz tabular-nums">{sh.inconsistentRegions} / {sh.totalRegions}</p>
+                      </div>
+                      <div>
+                        <span class="text-flint">Total Regions</span>
+                        <p class="text-quartz tabular-nums">{sh.totalRegions}</p>
+                      </div>
+                    </div>
+
+                    {#if sh.suspicious}
+                      <div class="text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+                        Shadow directions in one or more regions deviate significantly from the global light
+                        direction. This may indicate that elements were composited from differently-lit sources.
+                      </div>
+                    {/if}
+                  </div>
+                </details>
+              {/if}
+
+              <!-- Colour Temperature sub-section -->
+              {#if result.colourTemperatureResult}
+                {@const ct = result.colourTemperatureResult}
+                <details class="group">
+                  <summary
+                    class="flex items-center justify-between cursor-pointer list-none py-2 border-t border-border-light dark:border-graphite-light
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                  >
+                    <div class="flex items-center gap-3">
+                      <span class="text-xs font-medium text-quartz">Colour Temperature</span>
+                      <span
+                        class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(ct.score)} {forensicScoreClass(ct.score)}"
+                        aria-label="Colour Temperature: {regionScoreLabel(ct.score)}"
+                      >
+                        {regionScoreLabel(ct.score)}
+                      </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs tabular-nums {forensicScoreClass(ct.score)}">{(ct.score * 100).toFixed(1)}%</span>
+                      <svg
+                        class="w-3.5 h-3.5 text-flint transition-transform duration-200 group-open:rotate-90"
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </summary>
+
+                  <div class="mt-3 space-y-3">
+                    <p class="text-xs text-flint leading-relaxed">{ct.summary}</p>
+
+                    {#if ct.heatmapBase64}
+                      <div class="rounded-md overflow-hidden border border-border-light dark:border-graphite-light bg-gray-100 dark:bg-obsidian">
+                        <img
+                          src="data:image/png;base64,{ct.heatmapBase64}"
+                          alt="Colour temperature heatmap showing regions deviating from the global colour balance"
+                          class="w-full max-h-64 object-contain"
+                        />
+                      </div>
+                    {/if}
+
+                    <div class="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span class="text-flint">Global A (green-red)</span>
+                        <p class="text-quartz tabular-nums">{ct.globalMeanA.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <span class="text-flint">Global B (blue-yellow)</span>
+                        <p class="text-quartz tabular-nums">{ct.globalMeanB.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <span class="text-flint">Anomalous Regions</span>
+                        <p class="text-quartz tabular-nums">{ct.anomalousRegions} / {ct.totalRegions}</p>
+                      </div>
+                      <div>
+                        <span class="text-flint">Total Regions</span>
+                        <p class="text-quartz tabular-nums">{ct.totalRegions}</p>
+                      </div>
+                    </div>
+
+                    {#if ct.suspicious}
+                      <div class="text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+                        Regions with significantly different colour temperatures were found. Inconsistent
+                        white balance across an image may indicate elements were captured under different
+                        lighting conditions and composited together.
+                      </div>
+                    {/if}
+                  </div>
+                </details>
+              {/if}
+
+              <!-- Splice Boundary sub-section -->
+              {#if result.spliceBoundaryResult}
+                {@const sb = result.spliceBoundaryResult}
+                <details class="group">
+                  <summary
+                    class="flex items-center justify-between cursor-pointer list-none py-2 border-t border-border-light dark:border-graphite-light
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                  >
+                    <div class="flex items-center gap-3">
+                      <span class="text-xs font-medium text-quartz">Splice Boundary</span>
+                      <span
+                        class="text-xs font-medium px-2 py-0.5 rounded border {forensicScoreBgClass(sb.score)} {forensicScoreClass(sb.score)}"
+                        aria-label="Splice Boundary: {regionScoreLabel(sb.score)}"
+                      >
+                        {regionScoreLabel(sb.score)}
+                      </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs tabular-nums {forensicScoreClass(sb.score)}">{(sb.score * 100).toFixed(1)}%</span>
+                      <svg
+                        class="w-3.5 h-3.5 text-flint transition-transform duration-200 group-open:rotate-90"
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </summary>
+
+                  <div class="mt-3 space-y-3">
+                    <p class="text-xs text-flint leading-relaxed">{sb.summary}</p>
+
+                    {#if sb.heatmapBase64}
+                      <div class="rounded-md overflow-hidden border border-border-light dark:border-graphite-light bg-gray-100 dark:bg-obsidian">
+                        <img
+                          src="data:image/png;base64,{sb.heatmapBase64}"
+                          alt="Splice boundary heatmap showing candidate cut edges between composited regions"
+                          class="w-full max-h-64 object-contain"
+                        />
+                      </div>
+                    {/if}
+
+                    <div class="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span class="text-flint">Suspicious Boundaries</span>
+                        <p class="text-quartz tabular-nums">{sb.suspiciousBoundaries}</p>
+                      </div>
+                      <div>
+                        <span class="text-flint">Total Checked</span>
+                        <p class="text-quartz tabular-nums">{sb.totalBoundariesChecked}</p>
+                      </div>
+                    </div>
+
+                    {#if sb.boundaries.length > 0}
+                      <details class="group/inner">
+                        <summary class="text-xs text-lapis cursor-pointer hover:text-lapis-light transition-colors">
+                          {sb.suspiciousBoundaries} candidate {sb.suspiciousBoundaries === 1 ? 'boundary' : 'boundaries'} — view details
+                        </summary>
+                        <div class="mt-2 space-y-1.5" role="list" aria-label="Splice boundary candidates">
+                          {#each sb.boundaries as boundary, i (i)}
+                            <div
+                              class="rounded-md px-3 py-2 text-xs border
+                                     {boundary.confidence > 0.6
+                                       ? 'bg-cinnabar/10 border-cinnabar/20'
+                                       : boundary.confidence > 0.3
+                                         ? 'bg-amber/10 border-amber/20'
+                                         : 'bg-graphite-light/50 border-graphite-light'}"
+                              role="listitem"
+                            >
+                              <div class="flex items-center justify-between gap-2 mb-1">
+                                <span class="font-mono text-quartz">
+                                  ({boundary.x}, {boundary.y}) &mdash; {boundary.width}&times;{boundary.height}px
+                                </span>
+                                <span class="tabular-nums text-flint">{(boundary.confidence * 100).toFixed(0)}% confidence</span>
+                              </div>
+                              <div class="flex flex-wrap gap-x-3 gap-y-0.5 text-flint">
+                                {#if boundary.jpegGridAligned}
+                                  <span>JPEG grid aligned</span>
+                                {/if}
+                                {#if boundary.noiseAsymmetric}
+                                  <span>Asymmetric noise</span>
+                                {/if}
+                                {#if boundary.featheringDetected}
+                                  <span>Feathering detected</span>
+                                {/if}
+                                <span>{boundary.signalsTriggered} signal{boundary.signalsTriggered === 1 ? '' : 's'} triggered</span>
+                              </div>
+                            </div>
+                          {/each}
+                        </div>
+                      </details>
+                    {/if}
+
+                    {#if sb.suspicious}
+                      <div class="text-xs text-cinnabar bg-cinnabar/10 border border-cinnabar/20 rounded-md px-3 py-2">
+                        One or more cut edges with multiple corroborating signals were found. This pattern
+                        is consistent with content being inserted or replaced at a region boundary.
+                      </div>
+                    {/if}
+                  </div>
+                </details>
+              {/if}
+
+            </div>
+          {/if}
+
         </section>
       {/if}
 

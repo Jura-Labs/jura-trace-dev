@@ -9,22 +9,30 @@ from app.models.schemas import (
     CaResponse,
     ClaimCheckResponse,
     ClipDetectionResponse,
+    ColourTemperatureResponse,
     CopyMoveResponse,
     DeepfakeResponse,
     ElaResponse,
     JpegGhostResponse,
     NoiseAnalysisResponse,
     NprResponse,
+    SegmentedElaResponse,
+    ShadowConsistencyResponse,
+    SpliceBoundaryResponse,
 )
 from app.services.chromatic_aberration import perform_ca_analysis
 from app.services.claim_checker import check_claims as _check_claims
 from app.services.clip_detector import perform_clip_detection
+from app.services.colour_temperature import perform_colour_temperature
 from app.services.copy_move import perform_copy_move_detection
 from app.services.deepfake import perform_deepfake_detection
 from app.services.ela import perform_ela
 from app.services.jpeg_ghost import perform_jpeg_ghost_detection
 from app.services.noise_analysis import perform_noise_analysis
 from app.services.npr import perform_npr_analysis
+from app.services.segmented_ela import perform_segmented_ela
+from app.services.shadow_consistency import perform_shadow_consistency
+from app.services.splice_boundary import perform_splice_boundary
 
 router = APIRouter()
 
@@ -201,6 +209,92 @@ async def analyse_chromatic_aberration(
 
     try:
         return perform_ca_analysis(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/segmented-ela", response_model=SegmentedElaResponse)
+async def segmented_ela(
+    file: UploadFile = File(...),
+    quality: int = Query(default=90, ge=1, le=100),
+) -> SegmentedElaResponse:
+    """
+    Perform Segmented Error Level Analysis on an uploaded image.
+
+    Divides the image into an 8x8 grid, computes ELA per cell, and flags
+    anomalous regions. Clusters of 3+ adjacent anomalous cells suggest
+    composite manipulation.
+
+    Returns a heatmap (base64 PNG), per-region scores, anomaly counts,
+    and a manipulation score (0.0 = clean, 1.0 = highly manipulated).
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return perform_segmented_ela(image_bytes, quality=quality)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/shadow-consistency", response_model=ShadowConsistencyResponse)
+async def shadow_consistency(
+    file: UploadFile = File(...),
+) -> ShadowConsistencyResponse:
+    """
+    Analyse shadow/lighting direction consistency in an uploaded image.
+
+    Estimates dominant light direction across image regions using gradient
+    analysis and flags regions with incompatible shadow directions.
+
+    Returns a heatmap (base64 PNG), per-region light directions, and a
+    score (0.0 = consistent, 1.0 = highly inconsistent).
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return perform_shadow_consistency(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/colour-temperature", response_model=ColourTemperatureResponse)
+async def colour_temperature(
+    file: UploadFile = File(...),
+) -> ColourTemperatureResponse:
+    """
+    Analyse colour temperature consistency in an uploaded image.
+
+    Segments the image into a 4x4 grid and checks for discontinuous colour
+    casts in CIELAB space that suggest compositing from multiple sources.
+
+    Returns a heatmap (base64 PNG), per-region colour data, anomaly counts,
+    and a score (0.0 = uniform, 1.0 = significant mismatch).
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return perform_colour_temperature(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/splice-boundary", response_model=SpliceBoundaryResponse)
+async def splice_boundary(
+    file: UploadFile = File(...),
+) -> SpliceBoundaryResponse:
+    """
+    Detect splice boundaries in an uploaded image using three signals:
+    JPEG block grid alignment, noise asymmetry, and feathering profile.
+
+    An edge needs 2 of 3 signals to be classified as a splice candidate.
+
+    Returns a heatmap (base64 PNG), detected boundaries, and a score
+    (0.0 = no splices, 1.0 = strong evidence of compositing).
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return perform_splice_boundary(image_bytes)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

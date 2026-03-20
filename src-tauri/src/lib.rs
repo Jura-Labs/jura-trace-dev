@@ -61,6 +61,10 @@ pub struct VerificationResult {
     pub npr_result: Option<sidecar::NprResult>,
     pub jpeg_ghost_result: Option<sidecar::JpegGhostResult>,
     pub ca_result: Option<sidecar::CaResult>,
+    pub segmented_ela_result: Option<sidecar::SegmentedElaResult>,
+    pub shadow_consistency_result: Option<sidecar::ShadowConsistencyResult>,
+    pub colour_temperature_result: Option<sidecar::ColourTemperatureResult>,
+    pub splice_boundary_result: Option<sidecar::SpliceBoundaryResult>,
     pub ai_generator: Option<String>,
 }
 
@@ -271,6 +275,10 @@ fn get_assets(state: State<'_, Mutex<AppState>>) -> Result<Vec<Asset>, String> {
 ///   manipulation detectors that see AI-generated images as "clean".
 /// - The final forensic trust uses the minimum of manipulation and deepfake
 ///   categories, ensuring either can lower trust.
+/// - Regional detectors (segmented ELA, shadow consistency, colour temperature,
+///   splice boundary) each contribute their own weighted score. When 2 or more
+///   of the four regional detectors are suspicious (score > 0.5) simultaneously,
+///   total trust is capped at 0.55 to reflect the convergence of evidence.
 #[allow(clippy::too_many_arguments)]
 fn compute_trust(
     ela_score: Option<f64>,
@@ -281,6 +289,10 @@ fn compute_trust(
     deepfake_verdict: Option<&str>,
     exif_trust: f64,
     c2pa_valid: Option<bool>,
+    segmented_ela_score: Option<f64>,
+    shadow_consistency_score: Option<f64>,
+    colour_temperature_score: Option<f64>,
+    splice_boundary_score: Option<f64>,
 ) -> f64 {
     let c2pa_bonus = if c2pa_valid == Some(true) { 0.1 } else { 0.0 };
 
@@ -349,12 +361,59 @@ fn compute_trust(
         (None, None) => None,
     };
 
+    // ── Regional detector scores ─────────────────────────────────────
+    // Segmented ELA (weight 1.5) and colour temperature (weight 1.5) are
+    // stronger splice indicators; shadow consistency and splice boundary
+    // carry weight 1.0 each.
+    let regional_signals: Vec<(f64, f64)> = [
+        (segmented_ela_score, 1.5_f64),
+        (shadow_consistency_score, 1.0),
+        (colour_temperature_score, 1.5),
+        (splice_boundary_score, 1.0),
+    ]
+    .iter()
+    .filter_map(|(score_opt, weight)| score_opt.map(|s| (1.0 - s, *weight)))
+    .collect();
+
+    let regional_trust = if regional_signals.is_empty() {
+        None
+    } else {
+        let total_weight: f64 = regional_signals.iter().map(|(_, w)| w).sum();
+        let weighted_avg: f64 =
+            regional_signals.iter().map(|(v, w)| v * w).sum::<f64>() / total_weight;
+        Some(weighted_avg)
+    };
+
+    // Merge regional trust into the overall forensic trust as the worst case.
+    let forensic_trust = match (forensic_trust, regional_trust) {
+        (Some(f), Some(r)) => Some(f.min(r)),
+        (Some(f), None) => Some(f),
+        (None, Some(r)) => Some(r),
+        (None, None) => None,
+    };
+
     let base_trust = if let Some(ft) = forensic_trust {
         // Weight: 40% EXIF metadata, 60% forensic analysis
         (exif_trust * 0.4 + ft * 0.6 + c2pa_bonus).min(1.0)
     } else {
         (exif_trust + c2pa_bonus).min(1.0)
     };
+
+    // ── Composite regional amplification cap ────────────────────────
+    // When 2+ of the four regional detectors simultaneously flag the image
+    // as suspicious (score > 0.5), the convergence of evidence is strong
+    // enough to warrant a hard cap at 0.55 regardless of other signals.
+    let suspicious_regional_count = [
+        segmented_ela_score,
+        shadow_consistency_score,
+        colour_temperature_score,
+        splice_boundary_score,
+    ]
+    .iter()
+    .filter(|s| s.map(|v| v > 0.5).unwrap_or(false))
+    .count();
+
+    let regional_cap = if suspicious_regional_count >= 2 { 0.55_f64 } else { 1.0 };
 
     // ── Verdict ceiling ─────────────────────────────────────────────
     // Prevents high trust scores when the deepfake detector is uncertain
@@ -375,7 +434,7 @@ fn compute_trust(
         _ => 1.0, // no ceiling for authentic or sidecar offline
     };
 
-    base_trust.min(verdict_ceiling)
+    base_trust.min(verdict_ceiling).min(regional_cap)
 }
 
 /// Inner verification logic shared by `verify_content` and `verify_url`.
@@ -585,6 +644,58 @@ fn verify_content_inner(
         None
     };
 
+    // Segmented ELA — per-region compression inconsistency (deep/archival only)
+    let segmented_ela_result = if sidecar_up && is_deep {
+        match app.sidecar.check_segmented_ela(&path) {
+            Ok(result) => Some(result),
+            Err(e) => {
+                log::warn!("Sidecar segmented ELA analysis failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // Shadow consistency analysis (deep/archival only)
+    let shadow_consistency_result = if sidecar_up && is_deep {
+        match app.sidecar.check_shadow_consistency(&path) {
+            Ok(result) => Some(result),
+            Err(e) => {
+                log::warn!("Sidecar shadow consistency analysis failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // Colour temperature consistency analysis (deep/archival only)
+    let colour_temperature_result = if sidecar_up && is_deep {
+        match app.sidecar.check_colour_temperature(&path) {
+            Ok(result) => Some(result),
+            Err(e) => {
+                log::warn!("Sidecar colour temperature analysis failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // Splice boundary detection (deep/archival only)
+    let splice_boundary_result = if sidecar_up && is_deep {
+        match app.sidecar.check_splice_boundary(&path) {
+            Ok(result) => Some(result),
+            Err(e) => {
+                log::warn!("Sidecar splice boundary detection failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     // Build metadata flags from findings
     let metadata_flags: Vec<String> = exif_analysis
         .as_ref()
@@ -599,6 +710,10 @@ fn verify_content_inner(
     let deepfake_verdict = deepfake_result
         .as_ref()
         .and_then(|r| r.verdict_level.as_deref());
+    let segmented_ela_score = segmented_ela_result.as_ref().map(|r| r.score);
+    let shadow_consistency_score = shadow_consistency_result.as_ref().map(|r| r.score);
+    let colour_temperature_score = colour_temperature_result.as_ref().map(|r| r.score);
+    let splice_boundary_score = splice_boundary_result.as_ref().map(|r| r.score);
     let overall_trust = compute_trust(
         ela_score,
         noise_score,
@@ -608,6 +723,10 @@ fn verify_content_inner(
         deepfake_verdict,
         exif_trust,
         c2pa_valid,
+        segmented_ela_score,
+        shadow_consistency_score,
+        colour_temperature_score,
+        splice_boundary_score,
     );
 
     // Store verification in database
@@ -638,6 +757,10 @@ fn verify_content_inner(
                 "npr_score": npr_result.as_ref().map(|r| r.score),
                 "jpeg_ghost_score": jpeg_ghost_result.as_ref().map(|r| r.score),
                 "ca_score": ca_result.as_ref().map(|r| r.score),
+                "segmented_ela_score": segmented_ela_score,
+                "shadow_consistency_score": shadow_consistency_score,
+                "colour_temperature_score": colour_temperature_score,
+                "splice_boundary_score": splice_boundary_score,
                 "c2pa_valid": c2pa_valid,
                 "findings_count": metadata_flags.len(),
             })
@@ -677,6 +800,10 @@ fn verify_content_inner(
         npr_result,
         jpeg_ghost_result,
         ca_result,
+        segmented_ela_result,
+        shadow_consistency_result,
+        colour_temperature_result,
+        splice_boundary_result,
         ai_generator,
     })
 }
@@ -1209,6 +1336,7 @@ mod tests {
         let trust = compute_trust(
             Some(0.04), Some(0.05), Some(0.0), Some(0.15),
             Some("high"), Some("authentic"), 1.0, None,
+            None, None, None, None,
         );
         assert!(trust > 0.85, "Expected >0.85, got {trust:.3}");
     }
@@ -1219,6 +1347,7 @@ mod tests {
         let trust = compute_trust(
             Some(0.7), Some(0.8), Some(0.6), Some(0.2),
             Some("high"), Some("authentic"), 0.5, None,
+            None, None, None, None,
         );
         assert!(trust < 0.5, "Expected <0.5, got {trust:.3}");
     }
@@ -1229,6 +1358,7 @@ mod tests {
         let trust = compute_trust(
             Some(0.04), Some(1.0), Some(1.0), Some(0.15),
             Some("high"), Some("authentic"), 0.80, None,
+            None, None, None, None,
         );
         assert!(trust > 0.60, "Expected >0.60, got {trust:.3}");
     }
@@ -1239,6 +1369,7 @@ mod tests {
         let trust = compute_trust(
             Some(0.7), Some(0.8), Some(0.5), Some(0.2),
             Some("high"), Some("authentic"), 0.8, None,
+            None, None, None, None,
         );
         assert!(trust < 0.55, "Expected <0.55, got {trust:.3}");
     }
@@ -1249,14 +1380,21 @@ mod tests {
         let trust_weighted = compute_trust(
             Some(0.1), Some(0.8), Some(0.5), Some(0.3),
             Some("high"), Some("authentic"), 0.8, None,
+            None, None, None, None,
         );
         assert!(trust_weighted > 0.55, "Expected >0.55, got {trust_weighted:.3}");
     }
 
     #[test]
     fn trust_c2pa_bonus_applied() {
-        let trust_without = compute_trust(Some(0.1), None, None, None, None, None, 0.8, None);
-        let trust_with = compute_trust(Some(0.1), None, None, None, None, None, 0.8, Some(true));
+        let trust_without = compute_trust(
+            Some(0.1), None, None, None, None, None, 0.8, None,
+            None, None, None, None,
+        );
+        let trust_with = compute_trust(
+            Some(0.1), None, None, None, None, None, 0.8, Some(true),
+            None, None, None, None,
+        );
         assert!(
             trust_with > trust_without,
             "C2PA bonus not applied: {trust_with:.3} vs {trust_without:.3}"
@@ -1265,7 +1403,10 @@ mod tests {
 
     #[test]
     fn trust_no_forensics_falls_back_to_exif() {
-        let trust = compute_trust(None, None, None, None, None, None, 0.8, None);
+        let trust = compute_trust(
+            None, None, None, None, None, None, 0.8, None,
+            None, None, None, None,
+        );
         assert!((trust - 0.8).abs() < 0.01, "Expected ~0.8, got {trust:.3}");
     }
 
@@ -1274,6 +1415,7 @@ mod tests {
         let trust = compute_trust(
             Some(0.04), Some(0.76), Some(0.35), Some(0.15),
             Some("high"), Some("authentic"), 0.95, None,
+            None, None, None, None,
         );
         assert!(trust > 0.75, "AVIF news image should score >75%, got {:.1}%", trust * 100.0);
     }
@@ -1283,6 +1425,7 @@ mod tests {
         let trust = compute_trust(
             Some(0.0), Some(0.0), Some(0.0), Some(0.0),
             Some("high"), Some("authentic"), 1.0, Some(true),
+            None, None, None, None,
         );
         assert!(trust <= 1.0, "Trust exceeded 1.0: {trust:.3}");
     }
@@ -1296,6 +1439,7 @@ mod tests {
         let trust = compute_trust(
             None, None, None, Some(0.31),
             Some("low"), Some("inconclusive"), 0.8, None,
+            None, None, None, None,
         );
         assert!(trust <= 0.60, "Inconclusive verdict should cap trust at 0.60, got {trust:.3}");
         assert!(trust >= 0.30, "Trust should still be in medium range, got {trust:.3}");
@@ -1306,6 +1450,7 @@ mod tests {
         let trust = compute_trust(
             None, None, None, Some(0.85),
             Some("high"), Some("synthetic"), 0.8, None,
+            None, None, None, None,
         );
         assert!(trust <= 0.25, "Synthetic+high should cap at 0.25, got {trust:.3}");
     }
@@ -1316,6 +1461,7 @@ mod tests {
         let trust = compute_trust(
             None, None, None, Some(0.7),
             Some("low"), Some("synthetic"), 0.8, None,
+            None, None, None, None,
         );
         assert!(trust <= 0.45, "Synthetic+low should cap at 0.45, got {trust:.3}");
     }
@@ -1325,6 +1471,7 @@ mod tests {
         let trust = compute_trust(
             Some(0.04), Some(0.05), Some(0.0), Some(0.15),
             Some("high"), Some("authentic"), 1.0, Some(true),
+            None, None, None, None,
         );
         assert!(trust > 0.85, "Authentic verdict should allow high trust, got {trust:.3}");
     }
@@ -1332,7 +1479,10 @@ mod tests {
     #[test]
     fn trust_no_verdict_no_ceiling() {
         // Sidecar offline — no verdict available, should not impose ceiling
-        let trust = compute_trust(Some(0.04), None, None, None, None, None, 0.8, None);
+        let trust = compute_trust(
+            Some(0.04), None, None, None, None, None, 0.8, None,
+            None, None, None, None,
+        );
         assert!(trust > 0.70, "No sidecar should fall back to EXIF, got {trust:.3}");
     }
 
@@ -1466,6 +1616,7 @@ mod tests {
             Some("low"), Some("inconclusive"),
             0.95,       // Good EXIF (web image with some data)
             None,
+            None, None, None, None, // no regional detectors
         );
         assert!(
             trust <= 0.60,
@@ -1500,12 +1651,128 @@ mod tests {
             npr_result: None,
             jpeg_ghost_result: None,
             ca_result: None,
+            segmented_ela_result: None,
+            shadow_consistency_result: None,
+            colour_temperature_result: None,
+            splice_boundary_result: None,
             ai_generator: None,
         };
         let json = serde_json::to_string(&result).unwrap();
         assert!(
             json.contains("\"mode\":\"standard\""),
             "mode field missing or wrong value in serialised JSON: {json}"
+        );
+    }
+
+    // ── Regional detector trust tests ─────────────────────────────────
+
+    #[test]
+    fn trust_single_regional_detector_lowers_trust() {
+        // Segmented ELA alone (score 0.7) should lower trust below a clean baseline
+        let trust_with = compute_trust(
+            Some(0.05), Some(0.05), Some(0.0), Some(0.15),
+            Some("high"), Some("authentic"), 0.95, None,
+            Some(0.7), None, None, None,
+        );
+        let trust_without = compute_trust(
+            Some(0.05), Some(0.05), Some(0.0), Some(0.15),
+            Some("high"), Some("authentic"), 0.95, None,
+            None, None, None, None,
+        );
+        assert!(
+            trust_with < trust_without,
+            "Regional segmented ELA should lower trust: {trust_with:.3} vs {trust_without:.3}"
+        );
+    }
+
+    #[test]
+    fn trust_two_suspicious_regional_detectors_cap_at_055() {
+        // Two regional detectors both > 0.5 → composite amplification cap applies
+        let trust = compute_trust(
+            Some(0.05), Some(0.05), Some(0.0), Some(0.10),
+            Some("high"), Some("authentic"), 0.95, None,
+            Some(0.7),  // segmented ELA suspicious
+            None,
+            Some(0.65), // colour temperature suspicious
+            None,
+        );
+        assert!(
+            trust <= 0.55,
+            "Two suspicious regional detectors should cap trust at 0.55, got {trust:.3}"
+        );
+    }
+
+    #[test]
+    fn trust_three_suspicious_regional_detectors_still_capped() {
+        // Three suspicious regional detectors — cap must still hold
+        let trust = compute_trust(
+            Some(0.05), None, None, Some(0.10),
+            Some("high"), Some("authentic"), 0.9, None,
+            Some(0.8),  // segmented ELA
+            Some(0.6),  // shadow consistency
+            Some(0.75), // colour temperature
+            None,
+        );
+        assert!(
+            trust <= 0.55,
+            "Three suspicious regional detectors should cap at 0.55, got {trust:.3}"
+        );
+    }
+
+    #[test]
+    fn trust_one_suspicious_regional_detector_no_cap() {
+        // Only one regional detector suspicious (score > 0.5) — cap should NOT fire
+        let trust = compute_trust(
+            Some(0.04), Some(0.05), Some(0.0), Some(0.15),
+            Some("high"), Some("authentic"), 0.95, None,
+            Some(0.6),  // segmented ELA suspicious
+            None,       // shadow — absent
+            Some(0.3),  // colour temperature clean
+            None,       // splice boundary — absent
+        );
+        assert!(
+            trust > 0.55,
+            "Single suspicious regional detector should not trigger the 0.55 cap, got {trust:.3}"
+        );
+    }
+
+    #[test]
+    fn trust_regional_detectors_all_clean_no_penalty() {
+        // All four regional detectors clean — trust should match no-regional baseline
+        let trust_regional = compute_trust(
+            Some(0.04), Some(0.05), Some(0.0), Some(0.15),
+            Some("high"), Some("authentic"), 0.95, None,
+            Some(0.05), Some(0.04), Some(0.06), Some(0.03),
+        );
+        let trust_no_regional = compute_trust(
+            Some(0.04), Some(0.05), Some(0.0), Some(0.15),
+            Some("high"), Some("authentic"), 0.95, None,
+            None, None, None, None,
+        );
+        // With all regional detectors clean the trust should be close to the
+        // no-regional baseline (regional scores ≈ 0 contribute ~1.0 trust).
+        assert!(
+            (trust_regional - trust_no_regional).abs() < 0.05,
+            "Clean regional detectors should not significantly alter trust: \
+             regional={trust_regional:.3} vs baseline={trust_no_regional:.3}"
+        );
+    }
+
+    #[test]
+    fn trust_regional_cap_overrides_verdict_ceiling() {
+        // Regional cap (0.55) is stricter than the inconclusive verdict ceiling (0.60)
+        // — the minimum of both must apply.
+        let trust = compute_trust(
+            Some(0.05), None, None, Some(0.31),
+            Some("low"), Some("inconclusive"), 0.8, None,
+            Some(0.7),  // two regional detectors suspicious → cap 0.55
+            None,
+            Some(0.65),
+            None,
+        );
+        assert!(
+            trust <= 0.55,
+            "Regional cap should be binding when stricter than verdict ceiling, got {trust:.3}"
         );
     }
 }

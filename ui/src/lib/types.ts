@@ -139,6 +139,103 @@ export interface CaResult {
   summary: string;
 }
 
+// ── Region-based Forensic Detectors ───────────────────────────────
+
+/** A single region analysed by the segmented ELA detector */
+export interface ElaRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  elaScore: number;
+  anomalous: boolean;
+}
+
+/** Segmented (region-aware) Error Level Analysis result */
+export interface SegmentedElaResult {
+  heatmapBase64: string | null;
+  regions: ElaRegion[];
+  anomalousRegions: number;
+  totalRegions: number;
+  interRegionVariance: number;
+  score: number;
+  suspicious: boolean;
+  summary: string;
+}
+
+/** A single region analysed by the shadow consistency detector */
+export interface ShadowRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  area: number;
+  gradientAngleMean: number;
+  deviationFromGlobal: number;
+  inconsistent: boolean;
+}
+
+/** Shadow direction consistency analysis result */
+export interface ShadowConsistencyResult {
+  heatmapBase64: string | null;
+  globalLightDirection: number;
+  regions: ShadowRegion[];
+  inconsistentRegions: number;
+  totalRegions: number;
+  score: number;
+  suspicious: boolean;
+  summary: string;
+}
+
+/** A single region analysed by the colour temperature detector */
+export interface ColourTempRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  meanA: number;
+  meanB: number;
+  deviationFromGlobal: number;
+  anomalous: boolean;
+}
+
+/** Colour temperature consistency analysis result */
+export interface ColourTemperatureResult {
+  heatmapBase64: string | null;
+  regions: ColourTempRegion[];
+  anomalousRegions: number;
+  totalRegions: number;
+  globalMeanA: number;
+  globalMeanB: number;
+  score: number;
+  suspicious: boolean;
+  summary: string;
+}
+
+/** A candidate splice boundary detected at a grid junction */
+export interface SpliceBoundary {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  jpegGridAligned: boolean;
+  noiseAsymmetric: boolean;
+  featheringDetected: boolean;
+  signalsTriggered: number;
+  confidence: number;
+}
+
+/** Splice boundary detection result */
+export interface SpliceBoundaryResult {
+  heatmapBase64: string | null;
+  boundaries: SpliceBoundary[];
+  suspiciousBoundaries: number;
+  totalBoundariesChecked: number;
+  score: number;
+  suspicious: boolean;
+  summary: string;
+}
+
 /** ML sidecar capability flags */
 export interface SidecarCapabilities {
   ela: boolean;
@@ -181,6 +278,10 @@ export interface VerificationResult {
   nprResult?: NprResult;
   jpegGhostResult?: JpegGhostResult;
   caResult?: CaResult;
+  segmentedElaResult?: SegmentedElaResult | null;
+  shadowConsistencyResult?: ShadowConsistencyResult | null;
+  colourTemperatureResult?: ColourTemperatureResult | null;
+  spliceBoundaryResult?: SpliceBoundaryResult | null;
   aiGenerator?: string;
 }
 

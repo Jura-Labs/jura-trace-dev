@@ -187,6 +187,164 @@ pub struct CaResult {
     pub summary: String,
 }
 
+/// A region within a segmented ELA heatmap.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ElaRegion {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    #[serde(alias = "ela_score")]
+    pub ela_score: f64,
+    pub anomalous: bool,
+}
+
+/// Segmented ELA result: per-region compression inconsistency analysis.
+///
+/// Divides the image into blocks and computes independent ELA scores for each,
+/// surfacing localised splice artefacts that global ELA may miss.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SegmentedElaResult {
+    #[serde(alias = "heatmap_base64")]
+    pub heatmap_base64: Option<String>,
+    pub regions: Vec<ElaRegion>,
+    #[serde(alias = "anomalous_regions")]
+    pub anomalous_regions: u32,
+    #[serde(alias = "total_regions")]
+    pub total_regions: u32,
+    #[serde(alias = "inter_region_variance")]
+    pub inter_region_variance: f64,
+    pub score: f64,
+    pub suspicious: bool,
+    pub summary: String,
+}
+
+/// A shadow region flagged for directional inconsistency.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShadowRegion {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    pub area: u32,
+    #[serde(alias = "gradient_angle_mean")]
+    pub gradient_angle_mean: f64,
+    #[serde(alias = "deviation_from_global")]
+    pub deviation_from_global: f64,
+    pub inconsistent: bool,
+}
+
+/// Shadow consistency analysis result.
+///
+/// Authentic camera images exhibit a consistent global light direction;
+/// composites often have shadow regions that deviate from the dominant angle.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShadowConsistencyResult {
+    #[serde(alias = "heatmap_base64")]
+    pub heatmap_base64: Option<String>,
+    #[serde(alias = "global_light_direction")]
+    pub global_light_direction: f64,
+    pub regions: Vec<ShadowRegion>,
+    #[serde(alias = "inconsistent_regions")]
+    pub inconsistent_regions: u32,
+    #[serde(alias = "total_regions")]
+    pub total_regions: u32,
+    pub score: f64,
+    pub suspicious: bool,
+    pub summary: String,
+}
+
+/// A region with anomalous colour temperature in Lab colour space.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ColourTempRegion {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    /// Mean a* value (green–red axis) for this region.
+    #[serde(alias = "mean_a")]
+    pub mean_a: f64,
+    /// Mean b* value (blue–yellow axis) for this region.
+    #[serde(alias = "mean_b")]
+    pub mean_b: f64,
+    #[serde(alias = "deviation_from_global")]
+    pub deviation_from_global: f64,
+    pub anomalous: bool,
+}
+
+/// Colour temperature consistency analysis result.
+///
+/// Checks whether the colour temperature (Lab a*/b* chromaticity) is uniform
+/// across the frame. Spliced regions lit under different conditions show
+/// localised temperature deviations that betray composite origin.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ColourTemperatureResult {
+    #[serde(alias = "heatmap_base64")]
+    pub heatmap_base64: Option<String>,
+    pub regions: Vec<ColourTempRegion>,
+    #[serde(alias = "anomalous_regions")]
+    pub anomalous_regions: u32,
+    #[serde(alias = "total_regions")]
+    pub total_regions: u32,
+    /// Global mean a* (green–red) across the whole image.
+    #[serde(alias = "global_mean_a")]
+    pub global_mean_a: f64,
+    /// Global mean b* (blue–yellow) across the whole image.
+    #[serde(alias = "global_mean_b")]
+    pub global_mean_b: f64,
+    pub score: f64,
+    pub suspicious: bool,
+    pub summary: String,
+}
+
+/// A candidate splice boundary between two image regions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpliceBoundary {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    /// Whether the boundary aligns with the 8×8 JPEG DCT block grid.
+    #[serde(alias = "jpeg_grid_aligned")]
+    pub jpeg_grid_aligned: bool,
+    /// Whether noise variance is asymmetric across this boundary.
+    #[serde(alias = "noise_asymmetric")]
+    pub noise_asymmetric: bool,
+    /// Whether edge-feathering consistent with compositing was detected.
+    #[serde(alias = "feathering_detected")]
+    pub feathering_detected: bool,
+    /// Number of individual signals that fired for this boundary.
+    #[serde(alias = "signals_triggered")]
+    pub signals_triggered: u32,
+    pub confidence: f64,
+}
+
+/// Splice boundary detection result.
+///
+/// Searches for regions where multiple low-level signals (JPEG grid alignment,
+/// noise asymmetry, edge feathering) converge — a strong composite indicator.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpliceBoundaryResult {
+    #[serde(alias = "heatmap_base64")]
+    pub heatmap_base64: Option<String>,
+    pub boundaries: Vec<SpliceBoundary>,
+    #[serde(alias = "suspicious_boundaries")]
+    pub suspicious_boundaries: u32,
+    #[serde(alias = "total_boundaries_checked")]
+    pub total_boundaries_checked: u32,
+    pub score: f64,
+    pub suspicious: bool,
+    pub summary: String,
+}
+
 /// HTTP client for the Python ML sidecar.
 pub struct SidecarClient {
     base_url: String,
@@ -438,6 +596,126 @@ impl SidecarClient {
 
         resp.json::<CaResult>()
             .map_err(|e| format!("Failed to parse chromatic aberration response: {e}"))
+    }
+
+    /// Run segmented ELA on an image file.
+    ///
+    /// Divides the image into blocks and computes per-region ELA scores,
+    /// surfacing localised compression inconsistencies that indicate splicing.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/segmented-ela`.
+    pub fn check_segmented_ela(&self, image_path: &Path) -> Result<SegmentedElaResult, String> {
+        let form = self.build_image_form(image_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/segmented-ela", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(30))
+            .send()
+            .map_err(|e| format!("Sidecar segmented ELA request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!("Sidecar segmented ELA returned {status}: {body}"));
+        }
+
+        resp.json::<SegmentedElaResult>()
+            .map_err(|e| format!("Failed to parse segmented ELA response: {e}"))
+    }
+
+    /// Run shadow consistency analysis on an image file.
+    ///
+    /// Checks whether shadow gradient directions are consistent across the
+    /// frame. Composites often contain regions lit from incompatible angles.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/shadow-consistency`.
+    pub fn check_shadow_consistency(
+        &self,
+        image_path: &Path,
+    ) -> Result<ShadowConsistencyResult, String> {
+        let form = self.build_image_form(image_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/shadow-consistency", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(30))
+            .send()
+            .map_err(|e| format!("Sidecar shadow consistency request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!(
+                "Sidecar shadow consistency returned {status}: {body}"
+            ));
+        }
+
+        resp.json::<ShadowConsistencyResult>()
+            .map_err(|e| format!("Failed to parse shadow consistency response: {e}"))
+    }
+
+    /// Run colour temperature consistency analysis on an image file.
+    ///
+    /// Compares Lab chromaticity (a*/b*) across image blocks to detect
+    /// regions lit under incompatible colour temperatures — a composite marker.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/colour-temperature`.
+    pub fn check_colour_temperature(
+        &self,
+        image_path: &Path,
+    ) -> Result<ColourTemperatureResult, String> {
+        let form = self.build_image_form(image_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/colour-temperature", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(30))
+            .send()
+            .map_err(|e| format!("Sidecar colour temperature request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!(
+                "Sidecar colour temperature returned {status}: {body}"
+            ));
+        }
+
+        resp.json::<ColourTemperatureResult>()
+            .map_err(|e| format!("Failed to parse colour temperature response: {e}"))
+    }
+
+    /// Run splice boundary detection on an image file.
+    ///
+    /// Searches for boundaries where JPEG grid alignment, noise asymmetry,
+    /// and edge feathering converge — a strong indicator of compositing.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/splice-boundary`.
+    pub fn check_splice_boundary(&self, image_path: &Path) -> Result<SpliceBoundaryResult, String> {
+        let form = self.build_image_form(image_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/splice-boundary", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(30))
+            .send()
+            .map_err(|e| format!("Sidecar splice boundary request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!(
+                "Sidecar splice boundary returned {status}: {body}"
+            ));
+        }
+
+        resp.json::<SpliceBoundaryResult>()
+            .map_err(|e| format!("Failed to parse splice boundary response: {e}"))
     }
 
     /// Build a multipart form with an image file.
@@ -803,5 +1081,214 @@ mod tests {
         assert!(!result.suspicious);
         assert_eq!(result.sample_count, 48);
         assert!(!result.summary.is_empty());
+    }
+
+    #[test]
+    fn test_segmented_ela_result_deserialise_snake_case() {
+        // Python sidecar returns snake_case; the alias annotations handle both
+        let json = r#"{
+            "heatmap_base64": "iVBOR...",
+            "regions": [
+                {
+                    "x": 0, "y": 0, "width": 64, "height": 64,
+                    "ela_score": 0.12, "anomalous": false
+                },
+                {
+                    "x": 64, "y": 0, "width": 64, "height": 64,
+                    "ela_score": 0.78, "anomalous": true
+                }
+            ],
+            "anomalous_regions": 1,
+            "total_regions": 2,
+            "inter_region_variance": 0.44,
+            "score": 0.61,
+            "suspicious": true,
+            "summary": "One region shows elevated compression inconsistency"
+        }"#;
+        let result: SegmentedElaResult = serde_json::from_str(json).unwrap();
+        assert!((result.score - 0.61).abs() < 0.001);
+        assert!(result.suspicious);
+        assert_eq!(result.anomalous_regions, 1);
+        assert_eq!(result.total_regions, 2);
+        assert!((result.inter_region_variance - 0.44).abs() < 0.001);
+        assert_eq!(result.regions.len(), 2);
+        assert!(result.regions[1].anomalous);
+        assert!((result.regions[1].ela_score - 0.78).abs() < 0.001);
+        assert_eq!(result.heatmap_base64, Some("iVBOR...".to_string()));
+    }
+
+    #[test]
+    fn test_segmented_ela_result_no_heatmap() {
+        // heatmap_base64 is optional — should deserialise to None when absent
+        let json = r#"{
+            "regions": [],
+            "anomalous_regions": 0,
+            "total_regions": 0,
+            "inter_region_variance": 0.0,
+            "score": 0.0,
+            "suspicious": false,
+            "summary": "No regions analysed"
+        }"#;
+        let result: SegmentedElaResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.heatmap_base64, None);
+        assert!(!result.suspicious);
+    }
+
+    #[test]
+    fn test_shadow_consistency_result_deserialise_snake_case() {
+        // Python sidecar returns snake_case
+        let json = r#"{
+            "heatmap_base64": "iVBOR...",
+            "global_light_direction": 135.0,
+            "regions": [
+                {
+                    "x": 100, "y": 50, "width": 80, "height": 80,
+                    "area": 6400,
+                    "gradient_angle_mean": 42.5,
+                    "deviation_from_global": 92.5,
+                    "inconsistent": true
+                }
+            ],
+            "inconsistent_regions": 1,
+            "total_regions": 8,
+            "score": 0.55,
+            "suspicious": true,
+            "summary": "One shadow region deviates significantly from the global light direction"
+        }"#;
+        let result: ShadowConsistencyResult = serde_json::from_str(json).unwrap();
+        assert!((result.score - 0.55).abs() < 0.001);
+        assert!(result.suspicious);
+        assert!((result.global_light_direction - 135.0).abs() < 0.001);
+        assert_eq!(result.inconsistent_regions, 1);
+        assert_eq!(result.total_regions, 8);
+        assert_eq!(result.regions.len(), 1);
+        assert!(result.regions[0].inconsistent);
+        assert!((result.regions[0].deviation_from_global - 92.5).abs() < 0.001);
+        assert_eq!(result.regions[0].area, 6400);
+    }
+
+    #[test]
+    fn test_shadow_consistency_no_heatmap() {
+        // heatmap_base64 is optional
+        let json = r#"{
+            "global_light_direction": 90.0,
+            "regions": [],
+            "inconsistent_regions": 0,
+            "total_regions": 0,
+            "score": 0.0,
+            "suspicious": false,
+            "summary": "Insufficient shadow data"
+        }"#;
+        let result: ShadowConsistencyResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.heatmap_base64, None);
+    }
+
+    #[test]
+    fn test_colour_temperature_result_deserialise_snake_case() {
+        // Python sidecar returns snake_case Lab colour values
+        let json = r#"{
+            "heatmap_base64": "iVBOR...",
+            "regions": [
+                {
+                    "x": 0, "y": 0, "width": 50, "height": 50,
+                    "mean_a": 2.1, "mean_b": 8.4,
+                    "deviation_from_global": 0.05, "anomalous": false
+                },
+                {
+                    "x": 200, "y": 150, "width": 50, "height": 50,
+                    "mean_a": 14.7, "mean_b": -6.3,
+                    "deviation_from_global": 18.2, "anomalous": true
+                }
+            ],
+            "anomalous_regions": 1,
+            "total_regions": 2,
+            "global_mean_a": 2.3,
+            "global_mean_b": 7.9,
+            "score": 0.67,
+            "suspicious": true,
+            "summary": "One region shows a significant colour temperature shift"
+        }"#;
+        let result: ColourTemperatureResult = serde_json::from_str(json).unwrap();
+        assert!((result.score - 0.67).abs() < 0.001);
+        assert!(result.suspicious);
+        assert_eq!(result.anomalous_regions, 1);
+        assert_eq!(result.total_regions, 2);
+        assert!((result.global_mean_a - 2.3).abs() < 0.001);
+        assert!((result.global_mean_b - 7.9).abs() < 0.001);
+        assert_eq!(result.regions.len(), 2);
+        assert!(result.regions[1].anomalous);
+        assert!((result.regions[1].mean_a - 14.7).abs() < 0.001);
+        assert!((result.regions[1].deviation_from_global - 18.2).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_colour_temperature_no_heatmap() {
+        let json = r#"{
+            "regions": [],
+            "anomalous_regions": 0,
+            "total_regions": 0,
+            "global_mean_a": 0.0,
+            "global_mean_b": 0.0,
+            "score": 0.0,
+            "suspicious": false,
+            "summary": "No regions analysed"
+        }"#;
+        let result: ColourTemperatureResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.heatmap_base64, None);
+    }
+
+    #[test]
+    fn test_splice_boundary_result_deserialise_snake_case() {
+        // Python sidecar returns snake_case; boolean signal flags use snake_case
+        let json = r#"{
+            "heatmap_base64": "iVBOR...",
+            "boundaries": [
+                {
+                    "x": 120, "y": 0, "width": 8, "height": 256,
+                    "jpeg_grid_aligned": true,
+                    "noise_asymmetric": true,
+                    "feathering_detected": false,
+                    "signals_triggered": 2,
+                    "confidence": 0.74
+                }
+            ],
+            "suspicious_boundaries": 1,
+            "total_boundaries_checked": 12,
+            "score": 0.74,
+            "suspicious": true,
+            "summary": "One boundary shows JPEG grid alignment and noise asymmetry"
+        }"#;
+        let result: SpliceBoundaryResult = serde_json::from_str(json).unwrap();
+        assert!((result.score - 0.74).abs() < 0.001);
+        assert!(result.suspicious);
+        assert_eq!(result.suspicious_boundaries, 1);
+        assert_eq!(result.total_boundaries_checked, 12);
+        assert_eq!(result.boundaries.len(), 1);
+        let b = &result.boundaries[0];
+        assert!(b.jpeg_grid_aligned);
+        assert!(b.noise_asymmetric);
+        assert!(!b.feathering_detected);
+        assert_eq!(b.signals_triggered, 2);
+        assert!((b.confidence - 0.74).abs() < 0.001);
+        assert_eq!(b.x, 120);
+        assert_eq!(b.width, 8);
+    }
+
+    #[test]
+    fn test_splice_boundary_no_suspicious_boundaries() {
+        // Clean image: no boundaries, score 0
+        let json = r#"{
+            "boundaries": [],
+            "suspicious_boundaries": 0,
+            "total_boundaries_checked": 16,
+            "score": 0.0,
+            "suspicious": false,
+            "summary": "No suspicious boundaries detected"
+        }"#;
+        let result: SpliceBoundaryResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.heatmap_base64, None);
+        assert!(!result.suspicious);
+        assert_eq!(result.boundaries.len(), 0);
+        assert_eq!(result.total_boundaries_checked, 16);
     }
 }
