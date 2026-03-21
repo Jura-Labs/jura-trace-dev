@@ -6,6 +6,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Sprint 14 — Video Deepfake Analysis, Batch Watermarking & Security Hardening
+
+### Week 26 — Video Deepfake + Security Audit (21 Mar 2026)
+
+#### Video Deepfake Analysis
+
+**Added**
+- Video deepfake analysis service (`video_deepfake.py`): runs the existing per-image deepfake pipeline across evenly-spaced frames extracted from a video file
+- Three analysis modes: standard (6 frames, ~12 s), deep (20 frames, ~40 s), archival (40 frames, ~80 s)
+- Temporal consistency signals: noise drift, spectral drift, LBP drift — detect frame-level inconsistencies that per-frame scoring alone cannot surface
+- Aggregation formula: `0.5 × mean_score + 0.3 × max_score + 0.2 × temporal_score`
+- `POST /forensics/video/deepfake` endpoint with 120 s timeout
+- `deepfake.py` refactored: extracted `perform_deepfake_detection_with_features()` to expose raw feature vectors for internal reuse by the video pipeline
+- `FrameDeepfakeResult` and `VideoDeepfakeResult` Rust structs with serde camelCase/snake_case aliases
+- `SidecarClient::analyse_video_deepfake()` method
+- `analyse_video_deepfake` Tauri command wired into the verify pipeline
+- Verify page frame timeline: coloured score badges per frame (green/amber/red) and aggregate verdict panel
+- `FrameDeepfakeResult` and `VideoDeepfakeResult` TypeScript interfaces
+
+#### Batch Watermarking UI
+
+**Added**
+- "Watermark All Images" button on the Protect page — queues all un-watermarked image assets for batch processing
+- Progress bar showing completion count against total (e.g. 12 / 47)
+- Cancel button aborts the remaining queue and reports how many were completed
+- Completion summary panel: assets processed, skipped (non-image), and any errors
+
+#### Security Audit & Hardening
+
+**Added**
+- Full security audit report (`docs/security-audit-report.md`): 21 findings across four severity levels (3 critical, 6 high, 7 medium, 5 low), with remediation status for each
+- `url` crate dependency added to `Cargo.toml` for structured URL parsing
+
+**Fixed**
+- **CRITICAL-1 — SSRF in `verify_url`**: added URL validation before download; blocks loopback addresses (127.0.0.1, ::1, localhost), link-local ranges (169.254.0.0/16, fe80::/10), and RFC 1918 private networks (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16). Parsing via `url` crate prevents scheme confusion and encoded bypasses.
+- **CRITICAL-2 — Over-broad filesystem capability**: Tauri `fs` capability scope restricted from wildcard to user directories only (`$HOME`, `$DOCUMENT`, `$DOWNLOAD`, `$DESKTOP`, `$TEMP`)
+- **CRITICAL-3 — Unpinned CSP `connect-src`**: Content Security Policy `connect-src` directive pinned to explicit origins `http://127.0.0.1:8200` and `http://127.0.0.1:11434` only; wildcard removed
+
+**Test counts**: 183 Rust, 292 Python (+3 skipped without ffprobe, +14 CLIP skipped), 104 Playwright e2e, 177 SvelteKit files, 0 svelte-check errors
+
+---
+
 ## Sprint 13 — Video Frames, Audio Metadata & Extended C2PA
 
 ### Week 25 — Frame Extraction + Audio Support (21 Mar 2026)

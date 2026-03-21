@@ -24,11 +24,12 @@ def perform_video_metadata(video_bytes: bytes) -> VideoMetadataResponse:
     Returns:
         VideoMetadataResponse with codec, resolution, fps, duration, etc.
     """
-    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
-        f.write(video_bytes)
-        tmp_path = f.name
-
+    tmp_path: str | None = None
     try:
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            f.write(video_bytes)
+            tmp_path = f.name
+
         result = subprocess.run(
             [
                 "ffprobe", "-v", "quiet", "-print_format", "json",
@@ -86,7 +87,11 @@ def perform_video_metadata(video_bytes: bytes) -> VideoMetadataResponse:
     except Exception as e:
         return _error_result(f"Video analysis failed: {e}")
     finally:
-        os.unlink(tmp_path)
+        if tmp_path is not None:
+            try:
+                os.unlink(tmp_path)
+            except FileNotFoundError:
+                pass
 
 
 def _parse_fps(fps_str: str) -> float | None:

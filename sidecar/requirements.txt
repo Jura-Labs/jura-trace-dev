@@ -29,6 +29,9 @@ open-clip-torch>=2.24.0
 chromadb==0.5.*
 sentence-transformers==3.*
 
+# Audio/video transcription (optional — graceful degradation if absent)
+# faster-whisper>=1.0.0
+
 # Utilities
 python-dotenv==1.*
 pydantic==2.*

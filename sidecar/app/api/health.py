@@ -39,6 +39,14 @@ async def health() -> HealthResponse:
     # FFmpeg availability gates video/audio services.
     ffmpeg_available = shutil.which("ffprobe") is not None
 
+    # Check if faster-whisper is available for transcription.
+    whisper_available = False
+    try:
+        from app.services.transcription import is_whisper_available
+        whisper_available = is_whisper_available()
+    except Exception:
+        pass
+
     return HealthResponse(
         status="ok",
         version="0.2.0",
@@ -50,6 +58,7 @@ async def health() -> HealthResponse:
             audio_metadata=ffmpeg_available,
             video_frames=ffmpeg_available,
             video_deepfake=ffmpeg_available,
+            transcription=whisper_available,
         ),
         ollama=ollama_status,
     )

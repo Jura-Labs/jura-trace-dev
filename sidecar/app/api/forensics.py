@@ -20,6 +20,7 @@ from app.models.schemas import (
     SegmentedElaResponse,
     ShadowConsistencyResponse,
     SpliceBoundaryResponse,
+    TranscriptionResponse,
     VideoDeepfakeResponse,
     VideoFramesResponse,
     VideoMetadataResponse,
@@ -40,6 +41,7 @@ from app.services.segmented_ela import perform_segmented_ela
 from app.services.shadow_consistency import perform_shadow_consistency
 from app.services.splice_boundary import perform_splice_boundary
 from app.services.audio_metadata import perform_audio_metadata
+from app.services.transcription import perform_transcription
 from app.services.video_deepfake import perform_video_deepfake_analysis
 from app.services.video_frames import perform_frame_extraction
 from app.services.video_metadata import perform_video_metadata
@@ -73,7 +75,7 @@ def _has_camera_exif(image_bytes: bytes) -> bool:
 
 
 async def _read_and_validate(file: UploadFile) -> bytes:
-    """Read and validate an uploaded file."""
+    """Read and validate an uploaded image file."""
     image_bytes = await file.read()
 
     if len(image_bytes) == 0:
@@ -86,6 +88,46 @@ async def _read_and_validate(file: UploadFile) -> bytes:
         )
 
     return image_bytes
+
+
+# Maximum sizes for media file uploads.
+# Video/audio files are larger than images by design, but still need a hard
+# upper limit to prevent the sidecar process from being OOM-killed by a
+# client submitting a multi-gigabyte file via the /video/* or /audio/*
+# endpoints, which historically bypassed the image-specific _read_and_validate
+# helper.
+_MAX_VIDEO_SIZE: int = 500 * 1024 * 1024   # 500 MB
+_MAX_AUDIO_SIZE: int = 100 * 1024 * 1024   # 100 MB
+
+
+async def _read_media(file: UploadFile, max_size: int, media_label: str) -> bytes:
+    """Read and size-validate an uploaded video or audio file.
+
+    Args:
+        file:        The uploaded file from FastAPI.
+        max_size:    Maximum accepted byte count.
+        media_label: Human-readable label used in error messages (e.g. "video").
+
+    Returns:
+        Raw bytes of the file.
+
+    Raises:
+        HTTPException 400 if the file is empty.
+        HTTPException 413 if the file exceeds *max_size*.
+    """
+    contents = await file.read()
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Empty file uploaded")
+    if len(contents) > max_size:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"{media_label.capitalize()} file too large "
+                f"({len(contents):,} bytes). "
+                f"Maximum accepted size is {max_size // (1024 * 1024)} MB."
+            ),
+        )
+    return contents
 
 
 @router.post("/ela", response_model=ElaResponse)
@@ -453,9 +495,7 @@ async def video_metadata(
     Returns codec, resolution, frame rate, duration, audio stream info,
     bitrate, and file size. Requires FFmpeg to be installed on the system.
     """
-    contents = await file.read()
-    if len(contents) == 0:
-        raise HTTPException(status_code=400, detail="Empty file uploaded")
+    contents = await _read_media(file, _MAX_VIDEO_SIZE, "video")
     return perform_video_metadata(contents)
 
 
@@ -469,9 +509,7 @@ async def audio_metadata(
     Returns codec, sample rate, channels, duration, bitrate, and file size.
     Requires FFmpeg to be installed on the system.
     """
-    contents = await file.read()
-    if len(contents) == 0:
-        raise HTTPException(status_code=400, detail="Empty file uploaded")
+    contents = await _read_media(file, _MAX_AUDIO_SIZE, "audio")
     return perform_audio_metadata(contents)
 
 
@@ -495,10 +533,7 @@ async def analyse_video_deepfake(
             detail=f"Invalid mode '{mode}'. Must be one of: standard, deep, archival",
         )
 
-    contents = await file.read()
-    if len(contents) == 0:
-        raise HTTPException(status_code=400, detail="Empty file uploaded")
-
+    contents = await _read_media(file, _MAX_VIDEO_SIZE, "video")
     return perform_video_deepfake_analysis(contents, mode=mode)
 
 
@@ -513,7 +548,43 @@ async def video_frames(
     Returns up to ``count`` frames sampled at equal intervals through the
     video duration. Requires FFmpeg to be installed on the system.
     """
+    contents = await _read_media(file, _MAX_VIDEO_SIZE, "video")
+    return perform_frame_extraction(contents, count=count)
+
+
+@router.post("/transcribe", response_model=TranscriptionResponse)
+async def transcribe(
+    file: UploadFile = File(...),
+    language: str | None = Query(default=None),
+    model_size: str = Query(default="base"),
+) -> TranscriptionResponse:
+    """
+    Transcribe speech from an audio or video file using Whisper.
+
+    Accepts audio (WAV, MP3, FLAC) and video (MP4, MOV) files.
+    For video files, the audio track is extracted via FFmpeg first.
+    Uses faster-whisper for efficient CPU inference.
+
+    The ``language`` parameter accepts an ISO 639-1 code (e.g. "en").
+    Leave unset for automatic language detection.
+
+    Model sizes: ``tiny`` (~75 MB), ``base`` (~150 MB), ``small`` (~500 MB).
+    Models are downloaded on first use.
+
+    Requires the optional ``faster-whisper`` package.
+    If not installed, returns ``success=False`` with a descriptive message.
+    """
     contents = await file.read()
     if len(contents) == 0:
         raise HTTPException(status_code=400, detail="Empty file uploaded")
-    return perform_frame_extraction(contents, count=count)
+
+    if model_size not in ("tiny", "base", "small"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid model_size '{model_size}'. Must be one of: tiny, base, small",
+        )
+
+    result = perform_transcription(
+        contents, language=language, model_size=model_size,
+    )
+    return TranscriptionResponse(**result)

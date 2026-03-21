@@ -354,6 +354,27 @@ class VideoDeepfakeResponse(BaseModel):
     message: str
 
 
+class TranscriptionSegment(BaseModel):
+    """A single timestamped segment from speech transcription."""
+
+    start: float  # seconds
+    end: float
+    text: str
+
+
+class TranscriptionResponse(BaseModel):
+    """Audio/video speech transcription result."""
+
+    text: str  # full transcription
+    segments: list[TranscriptionSegment] = []
+    language: str | None = None
+    language_probability: float | None = None
+    duration: float | None = None
+    model_size: str = "base"
+    success: bool
+    message: str
+
+
 class CapabilitiesResponse(BaseModel):
     """Sidecar capability flags."""
 
@@ -375,6 +396,7 @@ class CapabilitiesResponse(BaseModel):
     audio_metadata: bool = False
     video_frames: bool = False
     video_deepfake: bool = False
+    transcription: bool = False
 
 
 class HealthResponse(BaseModel):

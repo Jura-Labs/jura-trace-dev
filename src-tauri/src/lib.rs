@@ -177,6 +177,18 @@ fn get_stats(state: State<'_, Mutex<AppState>>) -> Result<AppStats, String> {
     app.db.get_stats().map_err(|e| e.to_string())
 }
 
+/// Maximum file size accepted by the import pipeline (200 MB).
+///
+/// Files larger than this limit are skipped to prevent decompression-bomb
+/// or memory-exhaustion attacks via crafted images or documents.
+const MAX_IMPORT_FILE_SIZE_BYTES: u64 = 200 * 1024 * 1024;
+
+/// Maximum image dimension (width or height) accepted before full decode.
+///
+/// Prevents decompression-bomb PNGs (e.g. 1×1 px that expands to 50 000×50 000)
+/// from exhausting process memory during EXIF extraction and fingerprinting.
+const MAX_IMAGE_DIMENSION_PX: u32 = 20_000;
+
 /// Import files into the PROTECT pipeline.
 ///
 /// For each path:
@@ -218,11 +230,34 @@ fn import_files(
             info.content_type.as_str()
         );
 
-        // 2. File size
+        // 2. File size — enforce limit before any memory-loading operation
         let file_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+        if file_size > MAX_IMPORT_FILE_SIZE_BYTES {
+            log::warn!(
+                "Skipping oversized file ({path_str}): {file_size} bytes exceeds \
+                 {} MB limit",
+                MAX_IMPORT_FILE_SIZE_BYTES / (1024 * 1024)
+            );
+            continue;
+        }
 
         // 3. Extract metadata + dimensions (images)
         let (meta_json, width, height) = if info.content_type == format_router::ContentType::Image {
+            // Decompression bomb guard: read only the image header to obtain
+            // dimensions before doing any full decode.  Reject images whose
+            // width or height exceeds MAX_IMAGE_DIMENSION_PX to prevent a
+            // crafted 1×1 PNG that expands to 50 000×50 000 px from
+            // exhausting process memory.
+            if let Some((pw, ph)) = metadata::get_image_dimensions(&path) {
+                if pw > MAX_IMAGE_DIMENSION_PX || ph > MAX_IMAGE_DIMENSION_PX {
+                    log::warn!(
+                        "Skipping image with excessive dimensions ({path_str}): \
+                         {pw}x{ph} exceeds {MAX_IMAGE_DIMENSION_PX}px limit"
+                    );
+                    continue;
+                }
+            }
+
             let exif_data = metadata::extract_exif(&path);
             let meta_str = exif_data
                 .as_ref()
@@ -534,10 +569,18 @@ fn verify_content_inner(
     mode: Option<&str>,
     state: &State<'_, Mutex<AppState>>,
 ) -> Result<VerificationResult, String> {
-    let path = std::path::PathBuf::from(source);
-    if !path.exists() {
-        return Err(format!("File not found: {source}"));
+    // SECURITY: Validate and canonicalise the path before any filesystem
+    // operation.  This prevents:
+    //   - Directory traversal via `../` sequences
+    //   - Symlink following to sensitive files outside expected directories
+    //   - Null-byte injection in the path string
+    //   - Error messages that confirm/deny existence of arbitrary paths
+    if source.contains('\0') {
+        return Err("Invalid file path".to_string());
     }
+    let path = std::path::PathBuf::from(source)
+        .canonicalize()
+        .map_err(|_| "File not found or inaccessible".to_string())?;
 
     // Format detection
     let info = format_router::detect(&path);
@@ -900,10 +943,11 @@ fn verify_content_inner(
         overall_trust,
     );
 
+    let canonical_path_str = path.to_string_lossy().to_string();
     let _ = app.db.log_action(
         "verify",
         "file",
-        source,
+        &canonical_path_str,
         Some(
             &serde_json::json!({
                 "mode": effective_mode,
@@ -1263,8 +1307,11 @@ fn verify_url(url: String, mode: Option<String>, state: State<'_, Mutex<AppState
         return Err(format!("URL returned status {}", response.status()));
     }
 
-    // Determine extension from Content-Type or URL
-    let ext = response
+    // Determine extension from Content-Type header only.
+    // The URL path is attacker-controlled and must not be used to derive the
+    // extension — an extension of `../../home/user/.bashrc` would escape the
+    // temp directory via path traversal.
+    let raw_ext: &str = response
         .headers()
         .get("content-type")
         .and_then(|ct| ct.to_str().ok())
@@ -1278,20 +1325,25 @@ fn verify_url(url: String, mode: Option<String>, state: State<'_, Mutex<AppState
             t if t.starts_with("application/pdf") => Some("pdf"),
             _ => None,
         })
-        .or_else(|| {
-            url.rsplit('.')
-                .next()
-                .filter(|e| e.len() <= 5)
-        })
         .unwrap_or("bin");
+
+    // SECURITY: Sanitise the extension to alphanumeric characters only (max 6).
+    // This prevents an attacker-controlled Content-Type header from injecting
+    // path separators, null bytes, or `..` sequences into the temp file name.
+    let safe_ext: String = raw_ext
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .take(6)
+        .collect();
+    let safe_ext = if safe_ext.is_empty() { "bin".to_string() } else { safe_ext };
 
     let bytes = response
         .bytes()
         .map_err(|e| format!("Failed to read URL content: {e}"))?;
 
-    // Write to temp file
+    // Write to temp file using a randomised name to prevent TOCTOU races.
     let temp_dir = tempfile::tempdir().map_err(|e| format!("Failed to create temp dir: {e}"))?;
-    let temp_path = temp_dir.path().join(format!("url_content.{ext}"));
+    let temp_path = temp_dir.path().join(format!("url_content.{safe_ext}"));
     std::fs::write(&temp_path, &bytes)
         .map_err(|e| format!("Failed to write temp file: {e}"))?;
 

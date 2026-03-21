@@ -403,9 +403,20 @@ impl Database {
         }
         if let Some(query) = search_query {
             if !query.is_empty() {
+                // SECURITY: Escape SQLite LIKE metacharacters before interpolating
+                // into the pattern.  Without escaping, a user who searches for `%`
+                // would match every row, and `_` would act as a single-character
+                // wildcard — this is LIKE injection (not SQL injection, but still
+                // a correctness and DoS concern).
+                let escaped = query
+                    .replace('\\', "\\\\")
+                    .replace('%', "\\%")
+                    .replace('_', "\\_");
                 let n = param_values.len() + 1;
-                conditions.push(format!("(file_name LIKE ?{n} OR mime_type LIKE ?{n})"));
-                param_values.push(Box::new(format!("%{query}%")));
+                conditions.push(format!(
+                    "(file_name LIKE ?{n} ESCAPE '\\' OR mime_type LIKE ?{n} ESCAPE '\\')"
+                ));
+                param_values.push(Box::new(format!("%{escaped}%")));
             }
         }
 

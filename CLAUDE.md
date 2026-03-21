@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 **Developed by**: Juralabs Community Interest Company (UK) — https://juralabs.org
 **Licence**: PolyForm Noncommercial 1.0.0
-**Current Version**: 0.4.0-dev (Phase 3 active — Sprints 11-13)
+**Current Version**: 0.4.0-dev (Phase 3 active — Sprints 11-14)
 
 ## Core Architecture
 
@@ -41,6 +41,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 │  Watermark Embed/Extract                │
 │  Video Metadata | Audio Metadata        │
 │  Video Frame Extraction                 │
+│  Video Deepfake (per-frame + temporal)  │
 └────────────────┬────────────────────────┘
                  │
 ┌────────────────▼────────────────────────┐
@@ -58,7 +59,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 | Frontend | SvelteKit 5 + TailwindCSS (SPA mode, static adapter, Svelte 5 runes) |
 | Core engine | Rust (c2pa-rs, rusqlite, image_hasher, reqwest) |
 | Auto-catalogue | Tier 1: EXIF (Rust), Tier 2: CLIP/ONNX (optional), Tier 3: Ollama (optional) |
-| ML sidecar | Python 3.13 + FastAPI (ELA, noise, copy-move, deepfake, NPR, chromatic aberration, JPEG ghost, segmented ELA, shadow consistency, colour temperature, splice boundary, CLIP detection, watermark embed/extract, video metadata, audio metadata, video frame extraction) |
+| ML sidecar | Python 3.13 + FastAPI (ELA, noise, copy-move, deepfake, NPR, chromatic aberration, JPEG ghost, segmented ELA, shadow consistency, colour temperature, splice boundary, CLIP detection, watermark embed/extract, video metadata, audio metadata, video frame extraction, video deepfake per-frame analysis) |
 | CLIP detection | open_clip ViT-B/32 — optional (~350 MB, lazy-loaded, graceful degradation) |
 | LLM runtime | Ollama — optional (LLaVA for Tier 3 descriptions, Qwen2.5 for RAG claim verification) |
 | Database | SQLite (via rusqlite in Rust) |
@@ -84,13 +85,13 @@ cd ui && npx svelte-check
 # Check Rust compilation
 cd src-tauri && cargo check
 
-# Run Rust tests (180 tests)
+# Run Rust tests (183 tests)
 cd src-tauri && cargo test
 
 # Run Rust linter
 cd src-tauri && cargo clippy -- -D warnings
 
-# Run Python sidecar tests (280 tests; 3 skipped without ffprobe, 14 CLIP skipped when open_clip unavailable)
+# Run Python sidecar tests (292 tests; 3 skipped without ffprobe, 14 CLIP skipped when open_clip unavailable)
 cd sidecar && python -m pytest tests/ -v
 
 # Run Playwright e2e tests (104 tests)
@@ -138,10 +139,11 @@ juralabs/
 │   │                    #   colour_temperature, splice_boundary,
 │   │                    #   clip_detector, claim_checker,
 │   │                    #   watermark, video_metadata,
-│   │                    #   audio_metadata, video_frames
+│   │                    #   audio_metadata, video_frames,
+│   │                    #   video_deepfake
 │   ├── app/api/         # FastAPI routers (health, forensics, video, audio)
 │   ├── app/models/      # Pydantic schemas
-│   ├── tests/           # pytest test suite (280 tests; 3 skipped without ffprobe)
+│   ├── tests/           # pytest test suite (292 tests; 3 skipped without ffprobe)
 │   ├── main.py          # FastAPI app entry point
 │   └── requirements.txt # Python dependencies
 ├── docs/                # Documentation
@@ -188,6 +190,8 @@ juralabs/
 - **Video metadata service**: `sidecar/app/services/video_metadata.py` — FFmpeg/ffprobe video codec, resolution, FPS, duration, audio track info
 - **Audio metadata service**: `sidecar/app/services/audio_metadata.py` — FFmpeg/ffprobe audio codec, sample rate, channels, bitrate
 - **Video frames service**: `sidecar/app/services/video_frames.py` — evenly-spaced frame thumbnail extraction as base64 JPEG
+- **Video deepfake service**: `sidecar/app/services/video_deepfake.py` — per-frame AI detection with temporal consistency signals; `POST /forensics/video/deepfake` endpoint (120 s timeout)
+- **Security audit report**: `docs/security-audit-report.md` — full audit findings (3 critical, 6 high, 7 medium, 5 low) and remediation status
 - **CI/CD workflows**: `.github/workflows/` — CI (Rust + Python + Frontend), Release (4-platform matrix), Dependabot
 
 ## Design Principles
@@ -219,7 +223,11 @@ juralabs/
 
 **Sprint 13 (Phase 3)**: Complete — Video frame extraction (evenly-spaced thumbnails as base64 JPEG). `POST /video/frames` endpoint. Frame thumbnail strip on verify page. Audio metadata via FFmpeg/ffprobe — codec, sample rate, channels, bitrate. `POST /audio/metadata` endpoint. C2PA signing extended to `audio/wav` and `audio/mpeg`. Protect page video/audio metadata display. FFmpeg availability detection with graceful degradation.
 
-**Test counts**: 180 Rust tests, 280 Python tests (+3 skipped without ffprobe, +14 CLIP skipped when open_clip unavailable), 104 Playwright e2e tests, 177 SvelteKit files with 0 svelte-check errors, clippy clean.
+**Sprint 14 (Phase 3)**: Complete — Video deepfake analysis: per-frame AI detection using the existing deepfake pipeline across three analysis modes (standard 6 frames ~12 s, deep 20 frames ~40 s, archival 40 frames ~80 s). Temporal consistency signals: noise drift, spectral drift, LBP drift. Aggregation formula: 0.5×mean + 0.3×max + 0.2×temporal. `deepfake.py` refactored to expose `perform_deepfake_detection_with_features()` for internal feature access. `POST /forensics/video/deepfake` endpoint with 120 s timeout. `FrameDeepfakeResult` and `VideoDeepfakeResult` Rust structs with full sidecar client wiring and Tauri command. Verify page frame timeline with coloured score badges and aggregate verdict. Batch watermarking UI on the Protect page: "Watermark All Images" button with progress bar, cancel, and completion summary.
+
+**Security fixes (Sprint 14)**: Full security audit (`docs/security-audit-report.md`, 3 critical / 6 high / 7 medium / 5 low). Three critical issues remediated: SSRF prevention in `verify_url` (URL validation, loopback and private network blocking via `url` crate); scoped filesystem capability restricted to user directories only; CSP `connect-src` pinned to `127.0.0.1:8200` and `127.0.0.1:11434` only.
+
+**Test counts**: 183 Rust tests, 292 Python tests (+3 skipped without ffprobe, +14 CLIP skipped when open_clip unavailable), 104 Playwright e2e tests, 177 SvelteKit files with 0 svelte-check errors, clippy clean.
 
 ## British Spelling
 

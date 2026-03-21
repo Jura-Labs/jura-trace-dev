@@ -28,11 +28,12 @@ def perform_frame_extraction(
     Returns:
         VideoFramesResponse with list of base64 JPEG frames.
     """
-    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
-        f.write(video_bytes)
-        tmp_path = f.name
-
+    tmp_path: str | None = None
     try:
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            f.write(video_bytes)
+            tmp_path = f.name
+
         # Get video duration via ffprobe
         duration = _get_duration(tmp_path)
         if duration is None:
@@ -65,7 +66,11 @@ def perform_frame_extraction(
     except Exception as e:
         return _error_result(f"Frame extraction failed: {e}")
     finally:
-        os.unlink(tmp_path)
+        if tmp_path is not None:
+            try:
+                os.unlink(tmp_path)
+            except FileNotFoundError:
+                pass
 
 
 def _get_duration(file_path: str) -> float | None:

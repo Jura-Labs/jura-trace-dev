@@ -163,6 +163,22 @@ pub fn ensure_certificate(data_dir: &Path) -> Result<(Vec<u8>, Vec<u8>), String>
     std::fs::write(&key_path, key_pem.as_bytes())
         .map_err(|e| format!("Failed to write key: {e}"))?;
 
+    // SECURITY: Restrict the private key file to owner-read/write only (0600).
+    // Without this, the file inherits the process umask, which is typically
+    // 0644 — meaning any other process running as the same OS user (or with
+    // access to the user's home directory) can read the signing key and forge
+    // C2PA provenance chains under the institution's identity.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&key_path)
+            .map_err(|e| format!("Failed to stat key file: {e}"))?
+            .permissions();
+        perms.set_mode(0o600);
+        std::fs::set_permissions(&key_path, perms)
+            .map_err(|e| format!("Failed to set key file permissions: {e}"))?;
+    }
+
     log::info!(
         "Generated C2PA certificate chain at {}",
         cert_path.display()

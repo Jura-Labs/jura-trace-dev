@@ -24,11 +24,12 @@ def perform_audio_metadata(audio_bytes: bytes) -> AudioMetadataResponse:
     Returns:
         AudioMetadataResponse with codec, sample_rate, channels, duration, etc.
     """
-    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
-        f.write(audio_bytes)
-        tmp_path = f.name
-
+    tmp_path: str | None = None
     try:
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+            f.write(audio_bytes)
+            tmp_path = f.name
+
         result = subprocess.run(
             [
                 "ffprobe", "-v", "quiet", "-print_format", "json",
@@ -86,7 +87,11 @@ def perform_audio_metadata(audio_bytes: bytes) -> AudioMetadataResponse:
     except Exception as e:
         return _error_result(f"Audio analysis failed: {e}")
     finally:
-        os.unlink(tmp_path)
+        if tmp_path is not None:
+            try:
+                os.unlink(tmp_path)
+            except FileNotFoundError:
+                pass
 
 
 def _error_result(msg: str) -> AudioMetadataResponse:
