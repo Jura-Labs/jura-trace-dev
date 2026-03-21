@@ -6,6 +6,96 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Sprint 13 — Video Frames, Audio Metadata & Extended C2PA
+
+### Week 25 — Frame Extraction + Audio Support (21 Mar 2026)
+
+#### Video Frame Extraction
+
+**Added**
+- Video frame extraction service (`video_frames.py`): evenly-spaced thumbnails extracted from video as base64 JPEG via FFmpeg
+- `POST /video/frames` endpoint returning frame count, timestamps, and base64-encoded thumbnail array
+- Frame thumbnail strip on the verify page for visual inspection of video content
+- `VideoFramesResult` Pydantic model, Rust struct, and TypeScript interface
+
+#### Audio Metadata
+
+**Added**
+- Audio metadata extraction service (`audio_metadata.py`): codec, sample rate, channels, bitrate, duration via FFmpeg/ffprobe
+- `POST /audio/metadata` endpoint
+- `AudioMetadataResult` Pydantic model, Rust struct, and TypeScript interface
+- C2PA signing extended to `audio/wav` and `audio/mpeg` content types
+- Audio metadata display on the Protect page (codec, sample rate, channels, bitrate, duration)
+
+#### FFmpeg Integration
+
+**Added**
+- FFmpeg availability detection with graceful degradation — audio/video metadata and frame extraction skipped cleanly when FFmpeg is not installed
+- Shared `ffprobe_extract()` helper used across video and audio metadata services
+
+**Test counts**: 180 Rust, 280 Python (+3 skipped without ffprobe), 104 Playwright e2e, 177 SvelteKit files, 0 svelte-check errors
+
+---
+
+## Sprint 12 — Watermark Extraction, Video Metadata & Extended C2PA
+
+### Week 24 — Verify Pipeline Watermark + Video Basics (21 Mar 2026)
+
+#### Watermark Detection in Verify Pipeline
+
+**Added**
+- Watermark extraction wired into the verify pipeline — runs automatically on all protected images
+- Watermark detection panel on the verify page showing institution name and confidence score
+- `WatermarkExtractionResult` fields on `VerificationResult` (institution, confidence, payload)
+
+#### Video Metadata
+
+**Added**
+- Video metadata extraction service (`video_metadata.py`): codec, resolution, FPS, duration, audio track information via FFmpeg/ffprobe
+- `POST /video/metadata` endpoint
+- `VideoMetadataResult` Pydantic model, Rust struct, and TypeScript interface
+- C2PA signing extended to `video/mp4` and `video/quicktime` content types
+- Video metadata display on the Protect page (codec, resolution, FPS, duration)
+
+#### Batch Watermarking Preparation
+
+**Added**
+- Batch watermarking infrastructure: queue management and progress tracking (UI wiring deferred to Sprint 14)
+
+**Test counts**: 165 Rust, 258 Python, 98 Playwright e2e, 177 SvelteKit files, 0 svelte-check errors
+
+---
+
+## Sprint 11 — Invisible Watermarking & CI/CD
+
+### Week 23 — DWT-DCT-SVD Watermarking + GitHub Actions (21 Mar 2026)
+
+#### Invisible Watermarking
+
+**Added**
+- Rust `watermark.rs` module using the `blind_watermark` crate — frequency-domain DWT-DCT-SVD invisible watermarking
+- Three watermark strength levels: Low (~48 dB PSNR, maximum invisibility), Medium (~42 dB, balanced), High (~36 dB, maximum robustness)
+- 128-bit UUID payload embedded per asset; survives JPEG compression at Q70+, proportional resize, and up to 30% crop
+- `embed_watermark_asset` and `extract_watermark_from_path` Tauri commands
+- Python watermark service (`watermark.py`) using `imwatermark` library with DWT-DCT-SVD algorithm
+- `POST /forensics/watermark/embed` endpoint — embeds watermark and returns protected image
+- `POST /forensics/watermark/extract` endpoint — recovers payload, confidence, and strength estimate
+- `WatermarkEmbedRequest`, `WatermarkExtractRequest`, `WatermarkExtractResult` Pydantic models, Rust structs, and TypeScript interfaces
+- Protect page watermark UI: institution name field, strength selector (Low / Medium / High), embed button
+- `watermark_payload` and `watermark_strength` columns added to assets table in SQLite
+
+#### CI/CD Infrastructure
+
+**Added**
+- GitHub Actions CI workflow: Rust (`cargo test` + `cargo clippy`), Python (`pytest`), and Frontend (`svelte-check`) jobs run in parallel on push and pull request
+- GitHub Actions Release workflow: 4-platform matrix build (macOS x64, macOS arm64, Windows x64, Linux x64) triggered on version tag
+- Dependabot configuration for Cargo, npm, and pip dependency updates
+- `scripts/release.sh`: version-bump helper that updates `tauri.conf.json`, `Cargo.toml`, and `package.json` in lockstep
+
+**Test counts**: 150 Rust, 240 Python, 92 Playwright e2e, 177 SvelteKit files, 0 svelte-check errors
+
+---
+
 ## Sprint 10 — Trained AI Image Classifier
 
 ### Week 22 — GBM Classifier + Corpus Pipeline (20 Mar 2026)

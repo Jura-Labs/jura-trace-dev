@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 **Developed by**: Juralabs Community Interest Company (UK) — https://juralabs.org
 **Licence**: PolyForm Noncommercial 1.0.0
-**Current Version**: 0.3.0-dev (Phase 2 complete, Sprint 9 active)
+**Current Version**: 0.4.0-dev (Phase 3 active — Sprints 11-13)
 
 ## Core Architecture
 
@@ -27,6 +27,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 │          Rust Core Engine               │
 │  C2PA | Fingerprint | EXIF Anomaly      │
 │  Metadata | Format Router | Sidecar     │
+│  Watermark | Video/Audio Metadata       │
 │  SQLite Database                        │
 └────────────────┬────────────────────────┘
                  │ HTTP (localhost:8200)
@@ -37,6 +38,9 @@ This file provides guidance to Claude Code when working with code in this reposi
 │  Segmented ELA | Shadow Consistency     │
 │  Colour Temperature | Splice Boundary   │
 │  CLIP Detector | RAG Claim Checker      │
+│  Watermark Embed/Extract                │
+│  Video Metadata | Audio Metadata        │
+│  Video Frame Extraction                 │
 └────────────────┬────────────────────────┘
                  │
 ┌────────────────▼────────────────────────┐
@@ -54,7 +58,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 | Frontend | SvelteKit 5 + TailwindCSS (SPA mode, static adapter, Svelte 5 runes) |
 | Core engine | Rust (c2pa-rs, rusqlite, image_hasher, reqwest) |
 | Auto-catalogue | Tier 1: EXIF (Rust), Tier 2: CLIP/ONNX (optional), Tier 3: Ollama (optional) |
-| ML sidecar | Python 3.13 + FastAPI (ELA, noise, copy-move, deepfake, NPR, chromatic aberration, JPEG ghost, segmented ELA, shadow consistency, colour temperature, splice boundary, CLIP detection) |
+| ML sidecar | Python 3.13 + FastAPI (ELA, noise, copy-move, deepfake, NPR, chromatic aberration, JPEG ghost, segmented ELA, shadow consistency, colour temperature, splice boundary, CLIP detection, watermark embed/extract, video metadata, audio metadata, video frame extraction) |
 | CLIP detection | open_clip ViT-B/32 — optional (~350 MB, lazy-loaded, graceful degradation) |
 | LLM runtime | Ollama — optional (LLaVA for Tier 3 descriptions, Qwen2.5 for RAG claim verification) |
 | Database | SQLite (via rusqlite in Rust) |
@@ -80,16 +84,16 @@ cd ui && npx svelte-check
 # Check Rust compilation
 cd src-tauri && cargo check
 
-# Run Rust tests (138 tests)
+# Run Rust tests (180 tests)
 cd src-tauri && cargo test
 
 # Run Rust linter
 cd src-tauri && cargo clippy -- -D warnings
 
-# Run Python sidecar tests (263 tests; 14 CLIP tests skipped when open_clip unavailable)
+# Run Python sidecar tests (280 tests; 3 skipped without ffprobe, 14 CLIP skipped when open_clip unavailable)
 cd sidecar && python -m pytest tests/ -v
 
-# Run Playwright e2e tests (92 tests)
+# Run Playwright e2e tests (104 tests)
 cd ui && npx playwright test
 
 # Run SvelteKit type check
@@ -109,6 +113,7 @@ juralabs/
 │   │   ├── fingerprint.rs   # Perceptual hashing (aHash, dHash, pHash)
 │   │   ├── format_router.rs # MIME detection + content type routing
 │   │   ├── metadata.rs      # EXIF metadata extraction
+│   │   ├── watermark.rs     # DWT-DCT-SVD invisible watermarking (embed + extract)
 │   │   └── sidecar.rs       # HTTP client for Python ML sidecar
 │   ├── Cargo.toml       # Rust dependencies
 │   └── tauri.conf.json  # Tauri app configuration
@@ -123,7 +128,7 @@ juralabs/
 │   │   ├── pdf.ts       # Trust report PDF generation
 │   │   ├── zip.ts       # Case export ZIP generation
 │   │   └── stores/      # Svelte stores (deployment profiles)
-│   ├── tests/           # Playwright e2e tests (92 tests)
+│   ├── tests/           # Playwright e2e tests (104 tests)
 │   └── package.json     # Node dependencies
 ├── sidecar/             # Python ML sidecar (FastAPI, port 8200)
 │   ├── app/api/         # FastAPI routers (health, forensics)
@@ -131,9 +136,12 @@ juralabs/
 │   │                    #   chromatic_aberration, jpeg_ghost,
 │   │                    #   segmented_ela, shadow_consistency,
 │   │                    #   colour_temperature, splice_boundary,
-│   │                    #   clip_detector, claim_checker
+│   │                    #   clip_detector, claim_checker,
+│   │                    #   watermark, video_metadata,
+│   │                    #   audio_metadata, video_frames
+│   ├── app/api/         # FastAPI routers (health, forensics, video, audio)
 │   ├── app/models/      # Pydantic schemas
-│   ├── tests/           # pytest test suite (261 tests)
+│   ├── tests/           # pytest test suite (280 tests; 3 skipped without ffprobe)
 │   ├── main.py          # FastAPI app entry point
 │   └── requirements.txt # Python dependencies
 ├── docs/                # Documentation
@@ -150,6 +158,7 @@ juralabs/
 - **Brand**: `docs/BRAND_GUIDELINES.md` — visual identity, colour palette
 - **Tauri config**: `src-tauri/tauri.conf.json` — app name, window, permissions
 - **Rust entry**: `src-tauri/src/lib.rs` — Tauri commands, verify pipeline, VerificationResult
+- **Watermark module**: `src-tauri/src/watermark.rs` — DWT-DCT-SVD invisible watermarking; `embed_watermark_asset` and `extract_watermark_from_path` Tauri commands
 - **Sidecar client**: `src-tauri/src/sidecar.rs` — HTTP client for Python ML sidecar
 - **Frontend types**: `ui/src/lib/types.ts` — TypeScript interfaces mirroring Rust structs
 - **Frontend API**: `ui/src/lib/api.ts` — Tauri IPC wrapper with browser mock fallback
@@ -175,6 +184,11 @@ juralabs/
 - **Calibration pipeline**: `scripts/calibrate.py` — batch detector evaluation + threshold recommendations
 - **Logo component**: `ui/src/lib/components/LogoMark.svelte` — eye logo mark SVG
 - **Sprint plan**: `docs/sprint-plans/sprint-region-forensics.md` — Sprint 9 region-based forensics plan
+- **Watermark service**: `sidecar/app/services/watermark.py` — Python DWT-DCT-SVD watermark embed/extract via imwatermark
+- **Video metadata service**: `sidecar/app/services/video_metadata.py` — FFmpeg/ffprobe video codec, resolution, FPS, duration, audio track info
+- **Audio metadata service**: `sidecar/app/services/audio_metadata.py` — FFmpeg/ffprobe audio codec, sample rate, channels, bitrate
+- **Video frames service**: `sidecar/app/services/video_frames.py` — evenly-spaced frame thumbnail extraction as base64 JPEG
+- **CI/CD workflows**: `.github/workflows/` — CI (Rust + Python + Frontend), Release (4-platform matrix), Dependabot
 
 ## Design Principles
 
@@ -199,7 +213,13 @@ juralabs/
 
 **Sprint 10 (Week 22)**: Complete — Trained GBM classifier for AI image detection. 80-feature vector extracted from existing deepfake pipeline, trained on 545-image corpus (326 authentic + 219 AI-generated). Cross-validation AUC-ROC 0.945. Detection rate: 68% (13/19 AI images flagged, all 12 Gemini PNGs caught). Authentic FP rate: 14%. Classifier blends with heuristic score (35/65 split). Graceful degradation when model absent. Calibration pipeline and corpus builder scripts.
 
-**Test counts**: 138 Rust tests, 263 Python tests (+ 14 CLIP skipped when open_clip unavailable), 92 Playwright e2e tests, 175 SvelteKit files with 0 svelte-check errors, clippy clean.
+**Sprint 11 (Phase 3)**: Complete — Invisible frequency-domain watermarking via DWT-DCT-SVD. Rust `watermark.rs` with `blind_watermark` crate. Three strength levels (Low ~48 dB / Medium ~42 dB / High ~36 dB). 128-bit UUID payload survives JPEG Q70+, resize, and 30% crop. Python sidecar watermark service (`imwatermark`). `POST /forensics/watermark/embed` and `/extract` endpoints. Protect page watermark UI with institution name and strength selector. CI/CD: GitHub Actions CI, Release workflow (4-platform matrix), Dependabot.
+
+**Sprint 12 (Phase 3)**: Complete — Watermark extraction wired into verify pipeline with detection panel (institution name, confidence). Video metadata via FFmpeg/ffprobe — codec, resolution, FPS, duration, audio info. `POST /video/metadata` endpoint. C2PA signing extended to `video/mp4` and `video/quicktime`. Batch watermarking preparation.
+
+**Sprint 13 (Phase 3)**: Complete — Video frame extraction (evenly-spaced thumbnails as base64 JPEG). `POST /video/frames` endpoint. Frame thumbnail strip on verify page. Audio metadata via FFmpeg/ffprobe — codec, sample rate, channels, bitrate. `POST /audio/metadata` endpoint. C2PA signing extended to `audio/wav` and `audio/mpeg`. Protect page video/audio metadata display. FFmpeg availability detection with graceful degradation.
+
+**Test counts**: 180 Rust tests, 280 Python tests (+3 skipped without ffprobe, +14 CLIP skipped when open_clip unavailable), 104 Playwright e2e tests, 177 SvelteKit files with 0 svelte-check errors, clippy clean.
 
 ## British Spelling
 

@@ -1,0 +1,887 @@
+{
+  "generated_at": "2026-03-21T01:06:56.806387",
+  "corpus_dir": "corpus/authentic",
+  "corpus_size": 20,
+  "payload": "JuralabsCIC",
+  "payload_length_bytes": 11,
+  "strength": "medium",
+  "summary": [
+    {
+      "degradation": "Original (PNG)",
+      "survived": 20,
+      "total": 20,
+      "rate_pct": 100.0
+    },
+    {
+      "degradation": "JPEG Q95",
+      "survived": 20,
+      "total": 20,
+      "rate_pct": 100.0
+    },
+    {
+      "degradation": "JPEG Q85",
+      "survived": 20,
+      "total": 20,
+      "rate_pct": 100.0
+    },
+    {
+      "degradation": "JPEG Q70",
+      "survived": 0,
+      "total": 20,
+      "rate_pct": 0.0
+    },
+    {
+      "degradation": "JPEG Q60",
+      "survived": 0,
+      "total": 20,
+      "rate_pct": 0.0
+    },
+    {
+      "degradation": "Resize 50%->100%",
+      "survived": 20,
+      "total": 20,
+      "rate_pct": 100.0
+    },
+    {
+      "degradation": "Resize 75%",
+      "survived": 0,
+      "total": 20,
+      "rate_pct": 0.0
+    },
+    {
+      "degradation": "Crop 20%",
+      "survived": 0,
+      "total": 20,
+      "rate_pct": 0.0
+    },
+    {
+      "degradation": "Screenshot sim",
+      "survived": 0,
+      "total": 20,
+      "rate_pct": 0.0
+    }
+  ],
+  "per_image": [
+    {
+      "file": "2026feb01_3285e542.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "Jurala`sCHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\ntr`labsC\bC"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": "\u0000\u0000\u0000\u0000 \u0000\u0000@\ufffd\u0004"
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb02_636b5cf9.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "Jur!la`sCHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\ntr\u0000la\u0000sC\bC"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb03_a8e213eb.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "Jur!la`sCHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\ndr\u0000la\u0000sC\bC"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb04_e674d465.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "Jur!la`sCHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\ndr\u0000ha qC\bC"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb05_8e81145a.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "Jur!la`sCHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\ntr`la`sC\bC"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb06_5ffadf5a.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "\bq0ah!B\u0012CHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\ba0!\b B\"\u0002\bB"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0010"
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb06_bf2f4b17.jpg",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "\bq0al B3CHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\ba0aH\u0000B\u0001CHC"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": "\u0000\u0000\u0000\u0000\b"
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb08_d9e44198.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "Jur!la`sCHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\ntr`la`3C\bB"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000 "
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb09_ffdcf073.jpg",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "J4r\u0000ha 1C\b\u0002"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\b\u0000`\u0000H!\u0000!B\b"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb10_561f5925.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "Jur!la`sCHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\ntr\u0000la`sC\bC"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb11_24090510.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "Jur la`sCHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\ndr\u0000la\u00001C\b\u0002"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb12_ad193a10.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "Jur!la`sCHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\ndr\u0000ha\u00001C\b\u0002"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb13_1729f475.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "\bqral!B\u0013CHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "Hq2al BsC\tC"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": "H\u0000\ufffd\u0000@\u0000\u0000\u0000\u0000\u0000B"
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": "\ufffd\b\u0000\f\u0004\u0000\u001c\u0000\u0000@0"
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": "\u0001\u0000\u0000\u0001\u0000\u0000\u0000\u0000\ufffd \u0001"
+        }
+      }
+    },
+    {
+      "file": "2026feb13_b55ae003.jpg",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "\bq0al!B2CHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\ba0a\f B\"\u0002HC"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": "\u0004\u0000\u0010T\u0004\u0000\u0000\u0000\u0002\u0018"
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": "\ufffd\ufffd\ufffd\u0014@@@\ufffd\u0016\u000bb"
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": "\u00120\u0002@\ufffd\u0002 R\u0000 \ufffd"
+        }
+      }
+    },
+    {
+      "file": "2026feb15_bdd63b26.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "Jur!la`sCHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\ndr la sC\b\u0003"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb16_312526bc.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "Jur la`sCHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\n$r\u0000ha\u0000sC\b\u0002"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb17_7d367989.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "Jur la`sCHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\n4r ha`sC\bC"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": "\u0000\u0000\u0000\u0000\u0000\u001e"
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": "\u0000\u0010\u0000\u0000\u0000\u0000\u0000\u0000\b"
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb18_69d3ac75.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "Jur!la`sCHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\ntr la sC\bC"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb19_1caab246.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "Jur!la`sCHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\ntr\u0000la\u0000sC\bC"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": null
+        }
+      }
+    },
+    {
+      "file": "2026feb20_23162658.png",
+      "degradations": {
+        "Original (PNG)": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q95": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q85": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "JPEG Q70": {
+          "survived": false,
+          "extracted": "\bq0ah!B\u0013CHC"
+        },
+        "JPEG Q60": {
+          "survived": false,
+          "extracted": "\bq2al b3CHC"
+        },
+        "Resize 50%->100%": {
+          "survived": true,
+          "extracted": "JuralabsCIC"
+        },
+        "Resize 75%": {
+          "survived": false,
+          "extracted": "\u0000\ufffd"
+        },
+        "Crop 20%": {
+          "survived": false,
+          "extracted": null
+        },
+        "Screenshot sim": {
+          "survived": false,
+          "extracted": "\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001"
+        }
+      }
+    }
+  ],
+  "errors": []
+}
