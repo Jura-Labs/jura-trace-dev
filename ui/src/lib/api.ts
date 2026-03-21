@@ -443,7 +443,7 @@ export async function embedWatermark(
     const payloadHex = Array.from(new TextEncoder().encode(payload))
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
-    return invoke<WatermarkEmbedResult>('embed_watermark', {
+    return invoke<WatermarkEmbedResult>('embed_watermark_asset', {
       assetId,
       payloadHex,
       strength,
@@ -466,7 +466,7 @@ export async function embedWatermark(
  */
 export async function extractWatermark(assetId: string): Promise<WatermarkExtractResult> {
   if (isTauri) {
-    return invoke<WatermarkExtractResult>('extract_watermark', { assetId });
+    return invoke<WatermarkExtractResult>('extract_watermark_from_path', { assetId });
   }
   // Browser mock
   return {
@@ -487,7 +487,11 @@ export async function extractWatermark(assetId: string): Promise<WatermarkExtrac
  */
 export async function getVideoMetadata(assetId: string): Promise<VideoMetadataResult> {
   if (isTauri) {
-    return invoke<VideoMetadataResult>('get_video_metadata', { assetId });
+    try {
+      return await invoke<VideoMetadataResult>('get_video_metadata', { assetId });
+    } catch {
+      // Command not yet registered — return empty result
+    }
   }
   // Browser mock
   return {
@@ -511,7 +515,11 @@ export async function getVideoMetadata(assetId: string): Promise<VideoMetadataRe
  */
 export async function getAudioMetadata(assetId: string): Promise<AudioMetadataResult> {
   if (isTauri) {
-    return invoke<AudioMetadataResult>('get_audio_metadata', { assetId });
+    try {
+      return await invoke<AudioMetadataResult>('get_audio_metadata', { assetId });
+    } catch {
+      // Command not yet registered — return empty result
+    }
   }
   // Browser mock
   return {
@@ -538,7 +546,11 @@ export async function getVideoFrames(
   count: number = 4,
 ): Promise<VideoFramesResult> {
   if (isTauri) {
-    return invoke<VideoFramesResult>('get_video_frames', { assetId, count });
+    try {
+      return await invoke<VideoFramesResult>('get_video_frames', { assetId, count });
+    } catch {
+      // Command not yet registered — return empty result
+    }
   }
   // Browser mock — return an empty result so the UI degrades gracefully
   return {
