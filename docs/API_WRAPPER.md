@@ -152,7 +152,25 @@ Expected response (sidecar available):
   "sidecar": {
     "available": true,
     "url": "http://127.0.0.1:8200",
-    "capabilities": ["ela", "noise", "copy_move", "deepfake", "rag"]
+    "capabilities": {
+      "ela": true,
+      "noise": true,
+      "copy_move": true,
+      "deepfake": true,
+      "jpeg_ghost": true,
+      "npr": true,
+      "chromatic_aberration": true,
+      "segmented_ela": true,
+      "shadow_consistency": true,
+      "colour_temperature": true,
+      "splice_boundary": true,
+      "watermark": true,
+      "clip_detect": false,
+      "rag": false,
+      "video_metadata": false,
+      "audio_metadata": false,
+      "video_frames": false
+    }
   },
   "capabilities": {
     "c2pa": true,
@@ -160,10 +178,12 @@ Expected response (sidecar available):
     "exif_anomaly": true,
     "forensics": true,
     "deepfake": true,
-    "rag": true
+    "rag": false
   }
 }
 ```
+
+> **Note**: JSON field names in the API wrapper follow snake_case convention throughout (matching REST and Python sidecar conventions). The desktop application receives the same data serialised to camelCase via Tauri's `serde(rename_all = "camelCase")` — but clients calling the API wrapper directly should expect snake_case field names in all responses.
 
 ---
 
@@ -418,23 +438,28 @@ Authorization: Bearer jt_...
 
 **Response:** `200 OK`, `application/json`
 
+The response schema mirrors `ClaimCheckResponse` from the Python ML sidecar (`sidecar/app/models/schemas.py`). Claim checking uses local TF-IDF retrieval against text files in `sidecar/knowledge_base/` — there is no web retrieval and no external URLs in the response.
+
 ```json
 {
-  "claim": "This photograph shows flooding in Valencia on 29 October 2024.",
-  "verdict": "partially_supported",
-  "confidence": 0.71,
-  "summary": "The DANA floods in Valencia did occur on this date. However, reverse image analysis suggests this specific photograph may originate from an earlier flooding event in a different region.",
-  "sources": [
+  "overall_verdict": "disputed",
+  "claims": [
     {
-      "title": "Spain floods: Valencia declares state of emergency",
-      "url": "https://...",
-      "source_type": "verified_news",
-      "relevance": 0.89
+      "claim": "This photograph shows flooding in Valencia on 29 October 2024.",
+      "verdict": "disputed",
+      "explanation": "The DANA floods in Valencia did occur on this date. However, cross-referencing against the local knowledge base finds no corroborating material specifically placing this image at that location and time.",
+      "confidence": 0.68
     }
   ],
-  "processing_time_ms": 2341
+  "model_used": "qwen2.5:7b",
+  "methodology": "TF-IDF retrieval from local knowledge base, followed by LLM-assisted reasoning. No web retrieval is performed — results reflect only locally indexed material.",
+  "summary": "One claim assessed. The event is documented in the knowledge base but the specific image origin could not be verified from available local sources."
 }
 ```
+
+**Possible `verdict` values for individual claims**: `supported`, `disputed`, `unverified`, `unavailable`
+
+**Possible `overall_verdict` values**: `supported`, `disputed`, `unverified`, `mixed`, `unavailable`
 
 ---
 
@@ -461,7 +486,7 @@ Returns aggregate statistics for the local installation.
   "verifications_today": 23,
   "deepfake_verdicts": {
     "authentic": 1609,
-    "uncertain": 183,
+    "inconclusive": 183,
     "synthetic": 55
   },
   "false_positive_rate": 0.006,
@@ -488,70 +513,137 @@ Use this endpoint to generate typed client SDKs in any language using tools such
 
 The primary verification response schema. Mirrors the `VerificationResult` struct in `src-tauri/src/lib.rs` and the TypeScript interface in `ui/src/lib/types.ts`.
 
+All field names are snake_case in API wrapper responses. The schema mirrors the `VerificationResult` struct in `src-tauri/src/lib.rs` (annotated `serde(rename_all = "camelCase")` for the desktop app, but serialised to snake_case for the REST API).
+
+Optional fields are omitted when not applicable (for example, `ela_result` is `null` if the sidecar was offline or the file is not an image). All responses include a top-level `api_version` field for client compatibility checks.
+
 ```json
 {
-  "fileInfo": {
-    "path": "/tmp/upload_abc.jpg",
-    "name": "evidence_photo.jpg",
-    "sizeBytes": 2847392,
-    "mimeType": "image/jpeg",
-    "modifiedAt": "2026-03-20T14:22:00Z"
-  },
-  "c2paResult": {
-    "hasCertificate": true,
-    "isValid": true,
-    "issuer": "Juralabs CIC",
-    "signingTime": "2026-03-15T10:00:00Z",
-    "claimsCount": 3,
-    "validationStatus": "valid"
-  },
-  "exifResult": {
-    "hasExif": true,
-    "anomalyScore": 0.12,
-    "anomalies": [],
-    "softwareTag": "Adobe Photoshop 2025",
-    "gpsPresent": false
-  },
-  "fingerprintResult": {
-    "hashes": [
-      { "algorithm": "phash", "hashHex": "a3f2..." },
-      { "algorithm": "ahash", "hashHex": "b7c1..." }
-    ],
-    "matchFound": false,
-    "matchAssetId": null
-  },
-  "forensicsResult": {
-    "available": true,
-    "elaScore": 0.23,
-    "noiseScore": 0.18,
-    "copyMoveDetected": false,
-    "compressionArtifacts": false
-  },
-  "deepfakeResult": {
-    "available": true,
-    "score": 0.08,
-    "verdictLevel": "authentic",
-    "verdictLabel": "Likely authentic",
-    "classifierScore": 0.11,
-    "classifierAvailable": true,
-    "signalCount": 21,
-    "flaggedSignals": []
-  },
-  "overallTrust": 0.91,
-  "trustLabel": "High confidence — likely authentic",
-  "processingTimeMs": 3241,
+  "api_version": "0.2.0-dev",
+  "source_type": "file",
+  "content_type": "image",
   "mode": "standard",
-  "apiVersion": "0.2.0-dev"
+  "overall_trust": 0.91,
+  "c2pa_valid": true,
+  "ela_score": 0.14,
+  "noise_score": 0.09,
+  "copy_move_score": 0.03,
+  "deepfake_score": 0.08,
+  "metadata_flags": [],
+  "ai_generator": null,
+  "claim_verdict": null,
+  "exif_analysis": {
+    "findings": [],
+    "trust_score": 0.95,
+    "fields_populated": 24,
+    "fields_total": 30,
+    "has_exif": true
+  },
+  "c2pa_manifest": {
+    "title": "evidence_photo.jpg",
+    "format": "image/jpeg",
+    "claim_generator": "Jura Archive/0.2.0",
+    "assertions": [
+      { "label": "c2pa.actions", "value": "c2pa.created" }
+    ],
+    "is_valid": true,
+    "signed_at": "2026-03-15T10:00:00Z"
+  },
+  "ela_result": {
+    "ela_image_base64": "<base64>",
+    "max_difference": 18.4,
+    "mean_difference": 3.1,
+    "score": 0.14,
+    "suspicious": false
+  },
+  "noise_result": {
+    "heatmap_base64": "<base64>",
+    "block_variances": [2.1, 1.8, 2.4],
+    "global_variance": 2.1,
+    "anomalous_blocks": 0,
+    "total_blocks": 64,
+    "score": 0.09,
+    "suspicious": false
+  },
+  "copy_move_result": {
+    "visualisation_base64": "<base64>",
+    "clone_regions": [],
+    "matched_pairs": 0,
+    "score": 0.03,
+    "suspicious": false
+  },
+  "deepfake_result": {
+    "score": 0.08,
+    "suspicious": false,
+    "confidence": "high",
+    "verdict_level": "authentic",
+    "signals": [
+      {
+        "name": "noise_residual",
+        "description": "Natural sensor noise level detected",
+        "weight": 3.0,
+        "triggered": false
+      }
+    ],
+    "heatmap_base64": "<base64>",
+    "summary": "Image appears authentic (1 of 21 signals triggered)",
+    "watermarks": [],
+    "classifier_score": 0.11,
+    "classifier_available": true
+  },
+  "npr_result": {
+    "score": 0.07,
+    "suspicious": false,
+    "hv_correlation": 0.82,
+    "diff_variance_ratio": 1.1,
+    "hf_energy_ratio": 0.042,
+    "heatmap_base64": "<base64>",
+    "summary": "Neighbouring pixel relationships consistent with camera capture"
+  },
+  "jpeg_ghost_result": {
+    "score": 0.04,
+    "suspicious": false,
+    "ghost_quality": 75,
+    "quality_variance": 0.02,
+    "deviating_blocks": 1,
+    "total_blocks": 256,
+    "heatmap_base64": "<base64>",
+    "summary": "No JPEG ghost artefacts detected"
+  },
+  "ca_result": {
+    "r_squared": 0.97,
+    "is_consistent": true,
+    "score": 0.05,
+    "suspicious": false,
+    "sample_count": 120,
+    "summary": "Chromatic aberration pattern consistent across the frame"
+  },
+  "segmented_ela_result": null,
+  "shadow_consistency_result": null,
+  "colour_temperature_result": null,
+  "splice_boundary_result": null,
+  "watermark_extract_result": {
+    "extracted_payload": "JL-2026-evidence_photo",
+    "extracted_hex": "4a4c2d323032362d...",
+    "has_watermark": true,
+    "confidence": 0.94,
+    "success": true,
+    "message": "Watermark extracted successfully"
+  },
+  "video_metadata": null,
+  "audio_metadata": null
 }
 ```
 
-**Verdict levels** (`verdictLevel` field):
+**Verdict levels** (`verdict_level` field on `deepfake_result`):
 
-| Value        | Display label               | Score range |
-|--------------|-----------------------------|-------------|
-| `authentic`  | Likely authentic            | 0.00–0.30   |
-| `uncertain`  | Cannot determine            | 0.31–0.69   |
-| `synthetic`  | Likely AI-generated         | 0.70–1.00   |
+| Value           | Display label       | Score range   |
+|-----------------|---------------------|---------------|
+| `authentic`     | Likely authentic    | 0.00–0.29     |
+| `inconclusive`  | Cannot determine    | 0.30–0.64     |
+| `synthetic`     | Likely AI-generated | 0.65–1.00     |
+
+Score thresholds are calibrated in `sidecar/app/services/deepfake.py`. The `synthetic` verdict is also triggered when one or more invisible AI watermarks are detected (Stable Diffusion, SDXL, or Flux watermark patterns), regardless of the numeric score.
 
 ---
 
@@ -588,8 +680,8 @@ When the Python ML sidecar (port 8200) is offline, the API wrapper returns `200 
 ```json
 {
   "degraded": true,
-  "degradedReason": "Python ML sidecar unavailable at http://127.0.0.1:8200",
-  "overallTrust": null,
+  "degraded_reason": "Python ML sidecar unavailable at http://127.0.0.1:8200",
+  "overall_trust": null,
   ...
 }
 ```
@@ -648,17 +740,17 @@ with open("evidence_photo.jpg", "rb") as f:
 
 result = response.json()
 
-# Extract key verdicts
-verdict = result["deepfakeResult"]["verdictLevel"]
-trust = result["overallTrust"]
-anomalies = result["exifResult"]["anomalies"]
+# Extract key verdicts — API wrapper uses snake_case field names
+verdict = result["deepfake_result"]["verdict_level"]  # authentic | inconclusive | synthetic
+trust = result["overall_trust"]
+findings = result["exif_analysis"]["findings"] if result.get("exif_analysis") else []
 
 print(f"Deepfake verdict: {verdict}")
 print(f"Overall trust score: {trust:.2f}")
-print(f"EXIF anomalies: {len(anomalies)}")
+print(f"EXIF anomaly findings: {len(findings)}")
 
-# Flag for human review if uncertain or synthetic
-if verdict in ("uncertain", "synthetic"):
+# Flag for human review if inconclusive or synthetic
+if verdict in ("inconclusive", "synthetic"):
     print("Flagged for human review.")
 ```
 
@@ -711,10 +803,10 @@ async function verifyFile(filePath, mode = 'standard') {
   return response.json();
 }
 
-// Usage
+// Usage — API wrapper uses snake_case field names
 const result = await verifyFile('./submission_photo.jpg', 'deep');
-console.log(`Trust score: ${result.overallTrust}`);
-console.log(`Deepfake verdict: ${result.deepfakeResult.verdictLevel}`);
+console.log(`Trust score: ${result.overall_trust}`);
+console.log(`Deepfake verdict: ${result.deepfake_result?.verdict_level}`);
 ```
 
 ### Moodle plugin (PHP)
