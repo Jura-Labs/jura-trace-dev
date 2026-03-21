@@ -315,6 +315,7 @@ export interface VerificationResult {
   aiGenerator?: string;
   watermarkExtractResult?: WatermarkExtractResult | null;
   videoFramesResult?: VideoFramesResult | null;
+  videoDeepfakeResult?: VideoDeepfakeResult | null;
 }
 
 /** Severity level for an EXIF anomaly finding */
@@ -535,6 +536,39 @@ export interface VideoFramesResult {
   frames: string[];  // base64-encoded JPEG thumbnails
   count: number;
   duration?: number;
+  success: boolean;
+  message: string;
+}
+
+// ── Video Deepfake Analysis ───────────────────────────────────────
+
+/** Per-frame deepfake analysis result within a video */
+export interface FrameDeepfakeResult {
+  frameIndex: number;
+  timestamp: number;
+  score: number;
+  suspicious: boolean;
+  verdictLevel: VerdictLevel;
+  signals: DeepfakeSignal[];
+  classifierScore?: number | null;
+  classifierAvailable?: boolean;
+  heatmapBase64?: string;
+}
+
+/** Video-level deepfake analysis result aggregated from per-frame scoring */
+export interface VideoDeepfakeResult {
+  frameResults: FrameDeepfakeResult[];
+  aggregateScore: number;
+  aggregateVerdict: VerdictLevel;
+  aggregateConfidence: string;
+  framesAnalysed: number;
+  framesRequested: number;
+  temporalAvailable: boolean;
+  temporalNoiseDrift?: number | null;
+  temporalSpectralDrift?: number | null;
+  temporalLbpDrift?: number | null;
+  mode: string;
+  duration?: number | null;
   success: boolean;
   message: string;
 }

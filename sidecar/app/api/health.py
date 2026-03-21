@@ -49,6 +49,7 @@ async def health() -> HealthResponse:
             video_metadata=ffmpeg_available,
             audio_metadata=ffmpeg_available,
             video_frames=ffmpeg_available,
+            video_deepfake=ffmpeg_available,
         ),
         ollama=ollama_status,
     )

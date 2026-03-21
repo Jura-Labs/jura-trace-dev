@@ -20,6 +20,7 @@ from app.models.schemas import (
     SegmentedElaResponse,
     ShadowConsistencyResponse,
     SpliceBoundaryResponse,
+    VideoDeepfakeResponse,
     VideoFramesResponse,
     VideoMetadataResponse,
     WatermarkEmbedResponse,
@@ -39,6 +40,7 @@ from app.services.segmented_ela import perform_segmented_ela
 from app.services.shadow_consistency import perform_shadow_consistency
 from app.services.splice_boundary import perform_splice_boundary
 from app.services.audio_metadata import perform_audio_metadata
+from app.services.video_deepfake import perform_video_deepfake_analysis
 from app.services.video_frames import perform_frame_extraction
 from app.services.video_metadata import perform_video_metadata
 from app.services.watermark import perform_watermark_embed, perform_watermark_extract
@@ -471,6 +473,33 @@ async def audio_metadata(
     if len(contents) == 0:
         raise HTTPException(status_code=400, detail="Empty file uploaded")
     return perform_audio_metadata(contents)
+
+
+@router.post("/video/deepfake", response_model=VideoDeepfakeResponse)
+async def analyse_video_deepfake(
+    file: UploadFile = File(...),
+    mode: str = Query(default="standard"),
+) -> VideoDeepfakeResponse:
+    """
+    Analyse a video for AI-generated or manipulated frames.
+
+    Extracts evenly-spaced frames and runs the deepfake detector on each.
+    Per-frame scores are aggregated into a video-level verdict.
+
+    Modes: ``standard`` (6 frames), ``deep`` (20), ``archival`` (40).
+    Requires FFmpeg to be installed on the system.
+    """
+    if mode not in ("standard", "deep", "archival"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid mode '{mode}'. Must be one of: standard, deep, archival",
+        )
+
+    contents = await file.read()
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Empty file uploaded")
+
+    return perform_video_deepfake_analysis(contents, mode=mode)
 
 
 @router.post("/video/frames", response_model=VideoFramesResponse)

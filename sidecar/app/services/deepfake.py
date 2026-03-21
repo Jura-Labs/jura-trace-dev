@@ -342,6 +342,26 @@ def _classify_codec(mime_type: str) -> str:
     return "jpeg"
 
 
+def perform_deepfake_detection_with_features(
+    image_bytes: bytes,
+    analysis_size: int = ANALYSIS_SIZE,
+    mime_type: str = "image/jpeg",
+    has_camera_exif: bool = False,
+    univfd_score: float | None = None,
+) -> tuple[DeepfakeResponse, dict[str, float]]:
+    """
+    Detect AI-generated content and return both the response and feature dict.
+
+    Returns:
+        Tuple of (DeepfakeResponse, feature_dict). The feature dict contains
+        all extracted features including at minimum ``noise_std``,
+        ``spectral_decay_beta``, and ``glcm_contrast_mean`` keys.
+    """
+    return _perform_deepfake_detection_impl(
+        image_bytes, analysis_size, mime_type, has_camera_exif, univfd_score,
+    )
+
+
 def perform_deepfake_detection(
     image_bytes: bytes,
     analysis_size: int = ANALYSIS_SIZE,
@@ -364,6 +384,20 @@ def perform_deepfake_detection(
     Raises:
         ValueError: If image cannot be decoded.
     """
+    response, _features = _perform_deepfake_detection_impl(
+        image_bytes, analysis_size, mime_type, has_camera_exif, univfd_score,
+    )
+    return response
+
+
+def _perform_deepfake_detection_impl(
+    image_bytes: bytes,
+    analysis_size: int = ANALYSIS_SIZE,
+    mime_type: str = "image/jpeg",
+    has_camera_exif: bool = False,
+    univfd_score: float | None = None,
+) -> tuple[DeepfakeResponse, dict[str, float]]:
+    """Internal implementation shared by both public entry points."""
     try:
         pil_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         img_array = np.array(pil_image)
@@ -505,7 +539,7 @@ def perform_deepfake_detection(
     else:
         verdict_level = "inconclusive"
 
-    return DeepfakeResponse(
+    response = DeepfakeResponse(
         score=round(score, 4),
         suspicious=score > 0.5,
         confidence=confidence,
@@ -519,6 +553,7 @@ def perform_deepfake_detection(
         univfd_score=round(univfd_score, 4) if univfd_score is not None else None,
         univfd_available=univfd_available,
     )
+    return response, features
 
 
 # ── Feature Extractors ────────────────────────────────────────────────

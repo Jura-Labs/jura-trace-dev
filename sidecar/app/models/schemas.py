@@ -321,6 +321,39 @@ class VideoFramesResponse(BaseModel):
     message: str
 
 
+class FrameDeepfakeResult(BaseModel):
+    """Per-frame deepfake analysis result within a video."""
+
+    frame_index: int
+    timestamp: float = 0.0
+    score: float
+    suspicious: bool
+    verdict_level: str  # "authentic" | "inconclusive" | "synthetic"
+    signals: list[DeepfakeSignal]
+    classifier_score: float | None = None
+    classifier_available: bool = False
+    heatmap_base64: str = ""
+
+
+class VideoDeepfakeResponse(BaseModel):
+    """Video-level deepfake analysis result aggregated from per-frame scoring."""
+
+    frame_results: list[FrameDeepfakeResult]
+    aggregate_score: float
+    aggregate_verdict: str  # "authentic" | "inconclusive" | "synthetic"
+    aggregate_confidence: str  # "high" | "medium" | "low"
+    frames_analysed: int
+    frames_requested: int
+    temporal_available: bool
+    temporal_noise_drift: float | None = None
+    temporal_spectral_drift: float | None = None
+    temporal_lbp_drift: float | None = None
+    mode: str
+    duration: float | None = None
+    success: bool
+    message: str
+
+
 class CapabilitiesResponse(BaseModel):
     """Sidecar capability flags."""
 
@@ -341,6 +374,7 @@ class CapabilitiesResponse(BaseModel):
     video_metadata: bool = False
     audio_metadata: bool = False
     video_frames: bool = False
+    video_deepfake: bool = False
 
 
 class HealthResponse(BaseModel):

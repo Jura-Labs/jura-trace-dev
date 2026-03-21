@@ -436,6 +436,57 @@ pub struct AudioMetadataResult {
     pub message: String,
 }
 
+/// Per-frame deepfake analysis result within a video.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FrameDeepfakeResult {
+    #[serde(alias = "frame_index")]
+    pub frame_index: u32,
+    pub timestamp: f64,
+    pub score: f64,
+    pub suspicious: bool,
+    #[serde(alias = "verdict_level")]
+    pub verdict_level: String,
+    pub signals: Vec<DeepfakeSignal>,
+    #[serde(default, alias = "classifier_score")]
+    pub classifier_score: Option<f64>,
+    #[serde(default, alias = "classifier_available")]
+    pub classifier_available: bool,
+    #[serde(default, alias = "heatmap_base64")]
+    pub heatmap_base64: String,
+}
+
+/// Video-level deepfake analysis result aggregated from per-frame scoring.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoDeepfakeResult {
+    #[serde(alias = "frame_results")]
+    pub frame_results: Vec<FrameDeepfakeResult>,
+    #[serde(alias = "aggregate_score")]
+    pub aggregate_score: f64,
+    #[serde(alias = "aggregate_verdict")]
+    pub aggregate_verdict: String,
+    #[serde(alias = "aggregate_confidence")]
+    pub aggregate_confidence: String,
+    #[serde(alias = "frames_analysed")]
+    pub frames_analysed: u32,
+    #[serde(alias = "frames_requested")]
+    pub frames_requested: u32,
+    #[serde(alias = "temporal_available")]
+    pub temporal_available: bool,
+    #[serde(default, alias = "temporal_noise_drift")]
+    pub temporal_noise_drift: Option<f64>,
+    #[serde(default, alias = "temporal_spectral_drift")]
+    pub temporal_spectral_drift: Option<f64>,
+    #[serde(default, alias = "temporal_lbp_drift")]
+    pub temporal_lbp_drift: Option<f64>,
+    pub mode: String,
+    #[serde(default)]
+    pub duration: Option<f64>,
+    pub success: bool,
+    pub message: String,
+}
+
 /// HTTP client for the Python ML sidecar.
 pub struct SidecarClient {
     base_url: String,
@@ -893,6 +944,41 @@ impl SidecarClient {
 
         resp.json::<AudioMetadataResult>()
             .map_err(|e| format!("Failed to parse audio metadata response: {e}"))
+    }
+
+    /// Analyse a video for AI-generated or manipulated frames.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/video/deepfake`
+    /// with the analysis mode as a query parameter. Uses a 120-second timeout
+    /// because video analysis processes multiple frames sequentially.
+    pub fn analyse_video_deepfake(
+        &self,
+        video_path: &Path,
+        mode: &str,
+    ) -> Result<VideoDeepfakeResult, String> {
+        let form = self.build_image_form(video_path)?;
+
+        let resp = self
+            .client
+            .post(format!(
+                "{}/forensics/video/deepfake?mode={}",
+                self.base_url, mode
+            ))
+            .multipart(form)
+            .timeout(Duration::from_secs(120))
+            .send()
+            .map_err(|e| format!("Sidecar video deepfake request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!(
+                "Sidecar video deepfake returned {status}: {body}"
+            ));
+        }
+
+        resp.json::<VideoDeepfakeResult>()
+            .map_err(|e| format!("Failed to parse video deepfake response: {e}"))
     }
 
     /// Build a multipart form with an image file.
@@ -1689,5 +1775,123 @@ mod tests {
         assert_eq!(result.channels, Some(1));
         assert_eq!(result.sample_rate, Some(22_050));
         assert_eq!(result.codec, Some("pcm_s16le".to_string()));
+    }
+
+    #[test]
+    fn test_video_deepfake_result_deserialise_snake_case() {
+        let json = r#"{
+            "frame_results": [
+                {
+                    "frame_index": 0,
+                    "timestamp": 1.5,
+                    "score": 0.42,
+                    "suspicious": false,
+                    "verdict_level": "inconclusive",
+                    "signals": [
+                        {
+                            "name": "noise_residual",
+                            "description": "Low noise residual",
+                            "weight": 2.0,
+                            "triggered": true
+                        }
+                    ],
+                    "classifier_score": 0.38,
+                    "classifier_available": true,
+                    "heatmap_base64": ""
+                },
+                {
+                    "frame_index": 1,
+                    "timestamp": 3.0,
+                    "score": 0.71,
+                    "suspicious": true,
+                    "verdict_level": "synthetic",
+                    "signals": [],
+                    "heatmap_base64": ""
+                }
+            ],
+            "aggregate_score": 0.55,
+            "aggregate_verdict": "inconclusive",
+            "aggregate_confidence": "medium",
+            "frames_analysed": 2,
+            "frames_requested": 6,
+            "temporal_available": false,
+            "temporal_noise_drift": null,
+            "temporal_spectral_drift": null,
+            "temporal_lbp_drift": null,
+            "mode": "standard",
+            "duration": 10.5,
+            "success": true,
+            "message": "Analysed 2 frames in standard mode."
+        }"#;
+        let result: VideoDeepfakeResult = serde_json::from_str(json).unwrap();
+        assert!(result.success);
+        assert_eq!(result.frames_analysed, 2);
+        assert_eq!(result.frames_requested, 6);
+        assert!((result.aggregate_score - 0.55).abs() < 0.001);
+        assert_eq!(result.aggregate_verdict, "inconclusive");
+        assert_eq!(result.aggregate_confidence, "medium");
+        assert!(!result.temporal_available);
+        assert_eq!(result.temporal_noise_drift, None);
+        assert_eq!(result.mode, "standard");
+        assert!((result.duration.unwrap() - 10.5).abs() < 0.001);
+        // Check frame results
+        assert_eq!(result.frame_results.len(), 2);
+        assert_eq!(result.frame_results[0].frame_index, 0);
+        assert!((result.frame_results[0].score - 0.42).abs() < 0.001);
+        assert!(!result.frame_results[0].suspicious);
+        assert_eq!(result.frame_results[0].verdict_level, "inconclusive");
+        assert_eq!(result.frame_results[0].signals.len(), 1);
+        assert!(result.frame_results[0].signals[0].triggered);
+        assert_eq!(result.frame_results[0].classifier_score, Some(0.38));
+        assert!(result.frame_results[0].classifier_available);
+        assert_eq!(result.frame_results[1].frame_index, 1);
+        assert!(result.frame_results[1].suspicious);
+        assert_eq!(result.frame_results[1].verdict_level, "synthetic");
+    }
+
+    #[test]
+    fn test_video_deepfake_result_with_temporal_signals() {
+        let json = r#"{
+            "frame_results": [],
+            "aggregate_score": 0.35,
+            "aggregate_verdict": "authentic",
+            "aggregate_confidence": "high",
+            "frames_analysed": 6,
+            "frames_requested": 6,
+            "temporal_available": true,
+            "temporal_noise_drift": 0.12,
+            "temporal_spectral_drift": 0.08,
+            "temporal_lbp_drift": 0.15,
+            "mode": "standard",
+            "duration": 30.0,
+            "success": true,
+            "message": "Analysis complete"
+        }"#;
+        let result: VideoDeepfakeResult = serde_json::from_str(json).unwrap();
+        assert!(result.temporal_available);
+        assert!((result.temporal_noise_drift.unwrap() - 0.12).abs() < 0.001);
+        assert!((result.temporal_spectral_drift.unwrap() - 0.08).abs() < 0.001);
+        assert!((result.temporal_lbp_drift.unwrap() - 0.15).abs() < 0.001);
+        assert_eq!(result.frames_analysed, 6);
+    }
+
+    #[test]
+    fn test_video_deepfake_result_failure() {
+        let json = r#"{
+            "frame_results": [],
+            "aggregate_score": 0.0,
+            "aggregate_verdict": "inconclusive",
+            "aggregate_confidence": "low",
+            "frames_analysed": 0,
+            "frames_requested": 6,
+            "temporal_available": false,
+            "mode": "standard",
+            "success": false,
+            "message": "FFmpeg is not installed"
+        }"#;
+        let result: VideoDeepfakeResult = serde_json::from_str(json).unwrap();
+        assert!(!result.success);
+        assert_eq!(result.frames_analysed, 0);
+        assert_eq!(result.duration, None);
     }
 }

@@ -73,6 +73,8 @@ pub struct VerificationResult {
     pub video_metadata: Option<sidecar::VideoMetadataResult>,
     /// Audio metadata for audio content types.
     pub audio_metadata: Option<sidecar::AudioMetadataResult>,
+    /// Video deepfake analysis result for video content types.
+    pub video_deepfake_result: Option<sidecar::VideoDeepfakeResult>,
 }
 
 /// Application statistics for the dashboard.
@@ -813,6 +815,31 @@ fn verify_content_inner(
         None
     };
 
+    // Video deepfake analysis — run for video content type in standard/deep/archival modes.
+    // Quick mode skips sidecar entirely (consistent with image behaviour).
+    let video_deepfake_result = if is_video && sidecar_available {
+        let deepfake_mode = match effective_mode {
+            "archival" => "archival",
+            "deep" => "deep",
+            _ => "standard",
+        };
+        match app.sidecar.analyse_video_deepfake(&path, deepfake_mode) {
+            Ok(result) => {
+                log::info!(
+                    "Video deepfake: score={:.2}, verdict={}, frames={}",
+                    result.aggregate_score, result.aggregate_verdict, result.frames_analysed
+                );
+                Some(result)
+            }
+            Err(e) => {
+                log::warn!("Sidecar video deepfake analysis failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     // Audio metadata — run for audio content type when sidecar is available.
     // Not mode-gated beyond the quick-mode exclusion.
     let audio_metadata = if is_audio && sidecar_available {
@@ -939,6 +966,7 @@ fn verify_content_inner(
         watermark_extract_result,
         video_metadata,
         audio_metadata,
+        video_deepfake_result,
     })
 }
 
@@ -1252,6 +1280,37 @@ fn check_sidecar_health(
 ) -> Result<sidecar::SidecarHealth, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     app.sidecar.check_health()
+}
+
+/// Analyse a video file for AI-generated or manipulated frames.
+///
+/// Sends the file to the Python sidecar for per-frame deepfake detection.
+/// Returns an aggregate score, per-frame scores, and temporal consistency signals.
+#[tauri::command]
+fn analyse_video_deepfake(
+    file_path: String,
+    mode: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<sidecar::VideoDeepfakeResult, String> {
+    let path = std::path::Path::new(&file_path);
+    if !path.exists() {
+        return Err(format!("File not found: {file_path}"));
+    }
+
+    let valid_modes = ["standard", "deep", "archival"];
+    if !valid_modes.contains(&mode.as_str()) {
+        return Err(format!(
+            "Invalid mode '{}'. Must be one of: standard, deep, archival",
+            mode
+        ));
+    }
+
+    let app = state.lock().map_err(|e| e.to_string())?;
+    if !app.sidecar.is_available() {
+        return Err("ML sidecar is not available".to_string());
+    }
+
+    app.sidecar.analyse_video_deepfake(path, &mode)
 }
 
 /// Warning about existing metadata before C2PA signing.
@@ -1623,6 +1682,7 @@ pub fn run() {
             get_verification_history,
             embed_watermark_asset,
             extract_watermark_from_path,
+            analyse_video_deepfake,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Jura Trace");
@@ -1961,6 +2021,7 @@ mod tests {
             watermark_extract_result: None,
             video_metadata: None,
             audio_metadata: None,
+            video_deepfake_result: None,
         };
         let json = serde_json::to_string(&result).unwrap();
         assert!(

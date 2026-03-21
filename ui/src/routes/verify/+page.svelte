@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
-  import type { VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult } from '$lib/types';
+  import type { VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult } from '$lib/types';
   import VerdictSummary from '$lib/components/VerdictSummary.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
   import InspectionChecklist from '$lib/components/InspectionChecklist.svelte';
@@ -2394,8 +2394,142 @@
         </section>
       {/if}
 
-      <!-- ── Video Frame Thumbnails ────────────────────────────────── -->
-      {#if result.videoFramesResult?.success && result.videoFramesResult.frames.length > 0}
+      <!-- ── Video Analysis ──────────────────────────────────────────── -->
+      {#if result.videoDeepfakeResult?.success}
+        {@const vd = result.videoDeepfakeResult}
+        <section
+          class="px-5 py-4 border-t border-border-light dark:border-border-dark"
+          aria-labelledby="video-analysis-heading"
+        >
+          <div class="flex items-center gap-3 mb-3">
+            <h2
+              id="video-analysis-heading"
+              class="text-sm font-medium text-text-light dark:text-quartz"
+              style="font-family: Georgia, 'Times New Roman', serif;"
+            >
+              Video Analysis
+            </h2>
+            <span
+              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                {vd.aggregateVerdict === 'authentic' ? 'bg-malachite/10 text-malachite' :
+                 vd.aggregateVerdict === 'synthetic' ? 'bg-cinnabar/10 text-cinnabar' :
+                 'bg-amber/10 text-amber'}"
+            >
+              {vd.aggregateVerdict === 'authentic' ? 'Authentic' :
+               vd.aggregateVerdict === 'synthetic' ? 'Synthetic' : 'Inconclusive'}
+            </span>
+            <span class="text-xs text-flint dark:text-flint-light">
+              Score: {(vd.aggregateScore * 100).toFixed(0)}%
+              &middot; {vd.framesAnalysed} frame{vd.framesAnalysed !== 1 ? 's' : ''} analysed
+              {#if vd.duration != null}
+                &middot; {Math.floor(vd.duration / 60)}:{String(Math.round(vd.duration % 60)).padStart(2, '0')} duration
+              {/if}
+            </span>
+          </div>
+
+          <!-- Temporal consistency -->
+          {#if vd.temporalAvailable}
+            <p class="text-xs text-flint dark:text-flint-light mb-3">
+              {#if (vd.temporalNoiseDrift ?? 0) > 0.4 || (vd.temporalSpectralDrift ?? 0) > 0.4 || (vd.temporalLbpDrift ?? 0) > 0.4}
+                Frame-to-frame drift detected in forensic features.
+              {:else}
+                Temporal signals: stable across frames.
+              {/if}
+            </p>
+          {/if}
+
+          <!-- Frame timeline with score badges -->
+          {#if vd.frameResults.length > 0}
+            {@const frames = result.videoFramesResult?.frames ?? []}
+            <div
+              class="grid gap-2 mb-3"
+              style="grid-template-columns: repeat({Math.min(vd.frameResults.length, 6)}, 1fr);"
+              role="list"
+              aria-label="Video frame deepfake analysis timeline"
+            >
+              {#each vd.frameResults as fr, i (i)}
+                {@const verdictColour = fr.verdictLevel === 'authentic' ? 'malachite' :
+                  fr.verdictLevel === 'synthetic' ? 'cinnabar' : 'amber'}
+                <div
+                  class="relative rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian"
+                  role="listitem"
+                >
+                  <!-- Thumbnail if available -->
+                  {#if frames[i]}
+                    <div class="aspect-video">
+                      <img
+                        src="data:image/jpeg;base64,{frames[i]}"
+                        alt="Frame {i + 1}: {fr.verdictLevel} (score {(fr.score * 100).toFixed(0)}%)"
+                        class="w-full h-full object-cover"
+                      />
+                    </div>
+                  {:else}
+                    <div class="aspect-video flex items-center justify-center">
+                      <span class="text-xs text-flint dark:text-flint-light">F{i + 1}</span>
+                    </div>
+                  {/if}
+
+                  <!-- Score badge -->
+                  <span
+                    class="absolute bottom-1 right-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium
+                      bg-{verdictColour}/20 text-{verdictColour}"
+                    style="color: var(--color-{verdictColour}); background: var(--color-{verdictColour}-bg, rgba(128,128,128,0.15));"
+                  >
+                    {(fr.score * 100).toFixed(0)}%
+                  </span>
+
+                  <!-- Score bar -->
+                  <div class="h-1.5 w-full bg-graphite/20">
+                    <div
+                      class="h-full transition-all"
+                      style="width: {Math.max(2, fr.score * 100)}%;
+                        background-color: {fr.verdictLevel === 'authentic' ? 'rgb(76, 175, 80)' :
+                          fr.verdictLevel === 'synthetic' ? 'rgb(211, 47, 47)' : 'rgb(255, 160, 0)'};"
+                    ></div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+
+            <!-- Colour key -->
+            <div class="flex items-center gap-4 text-[10px] text-flint dark:text-flint-light mb-2">
+              <span class="flex items-center gap-1">
+                <span class="inline-block w-2 h-2 rounded-full" style="background: rgb(76, 175, 80);"></span>
+                Authentic (&lt;35%)
+              </span>
+              <span class="flex items-center gap-1">
+                <span class="inline-block w-2 h-2 rounded-full" style="background: rgb(255, 160, 0);"></span>
+                Inconclusive (35-60%)
+              </span>
+              <span class="flex items-center gap-1">
+                <span class="inline-block w-2 h-2 rounded-full" style="background: rgb(211, 47, 47);"></span>
+                Synthetic (&gt;60%)
+              </span>
+            </div>
+          {/if}
+
+          <!-- Summary -->
+          <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
+            {vd.message}
+          </p>
+        </section>
+
+      {:else if result.videoDeepfakeResult && !result.videoDeepfakeResult.success}
+        <section class="px-5 py-4 border-t border-border-light dark:border-border-dark">
+          <h2
+            class="text-sm font-medium text-text-light dark:text-quartz mb-2"
+            style="font-family: Georgia, 'Times New Roman', serif;"
+          >
+            Video Analysis
+          </h2>
+          <p class="text-xs text-cinnabar">
+            {result.videoDeepfakeResult.message}
+          </p>
+        </section>
+      {/if}
+
+      <!-- ── Video Frame Thumbnails (when no deepfake analysis) ────── -->
+      {#if !result.videoDeepfakeResult && result.videoFramesResult?.success && result.videoFramesResult.frames.length > 0}
         {@const vf = result.videoFramesResult}
         <section
           class="px-5 py-4 border-t border-border-light dark:border-border-dark"

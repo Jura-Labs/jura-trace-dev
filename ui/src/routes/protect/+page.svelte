@@ -57,6 +57,19 @@
   let watermarking = $state(false);
   let watermarkResult = $state<WatermarkEmbedResult | null>(null);
 
+  // ── Batch watermark state ─────────────────────────────────────────
+  let showBatchWatermark = $state(false);
+  let batchPayload = $state('');
+  let batchStrength = $state<number>(2);
+  let batchRunning = $state(false);
+  let batchProgress = $state(0);
+  let batchTotal = $state(0);
+  let batchCurrentFile = $state('');
+  let batchSuccessCount = $state(0);
+  let batchFailCount = $state(0);
+  let batchCancelled = $state(false);
+  let batchDone = $state(false);
+
   // ── Video / Audio metadata state ───────────────────────────────────
   let videoMetadata = $state<VideoMetadataResult | null>(null);
   let audioMetadata = $state<AudioMetadataResult | null>(null);
@@ -104,6 +117,11 @@
       }
       return sortDir === 'asc' ? cmp : -cmp;
     })
+  );
+
+  // ── Images eligible for batch watermarking ───────────────────────
+  const unwatermarkedImages = $derived(
+    assets.filter(a => a.contentType === 'image' && !a.watermarked)
   );
 
   // ── Sort handler ─────────────────────────────────────────────────
@@ -324,6 +342,58 @@
     URL.revokeObjectURL(url);
   }
 
+  // ── Batch watermark handler ───────────────────────────────────────
+  async function handleBatchWatermark() {
+    if (!batchPayload.trim() || unwatermarkedImages.length === 0) return;
+    batchRunning = true;
+    batchDone = false;
+    batchProgress = 0;
+    batchTotal = unwatermarkedImages.length;
+    batchSuccessCount = 0;
+    batchFailCount = 0;
+    batchCancelled = false;
+    batchCurrentFile = '';
+
+    for (const asset of unwatermarkedImages) {
+      if (batchCancelled) break;
+      batchCurrentFile = asset.fileName;
+      batchProgress++;
+
+      try {
+        const result = await embedWatermark(asset.assetId, batchPayload.trim(), batchStrength);
+        if (result.success) {
+          assets = assets.map(a => a.assetId === asset.assetId ? { ...a, watermarked: true } : a);
+          batchSuccessCount++;
+        } else {
+          batchFailCount++;
+        }
+      } catch {
+        batchFailCount++;
+      }
+    }
+
+    batchRunning = false;
+    batchDone = true;
+    batchCurrentFile = '';
+  }
+
+  function openBatchWatermark() {
+    showBatchWatermark = true;
+    batchDone = false;
+    batchProgress = 0;
+    batchSuccessCount = 0;
+    batchFailCount = 0;
+    batchCancelled = false;
+    batchCurrentFile = '';
+    // Pre-fill from last single-asset watermark payload if available
+    batchPayload = watermarkPayload || batchPayload;
+  }
+
+  function closeBatchWatermark() {
+    if (batchRunning) return; // block dismiss while running
+    showBatchWatermark = false;
+  }
+
   // ── Format video/audio duration as mm:ss ──────────────────────────
   function formatDurationSecs(seconds: number): string {
     const m = Math.floor(seconds / 60);
@@ -368,14 +438,28 @@
       </p>
     </div>
 
-    <!-- Asset count + CSV export -->
-    <div class="flex items-center gap-3 flex-shrink-0 pt-1">
+    <!-- Asset count + bulk actions + CSV export -->
+    <div class="flex items-center gap-3 flex-shrink-0 pt-1 flex-wrap justify-end">
       <span class="text-xs text-flint dark:text-flint-light" aria-live="polite" aria-atomic="true">
         {displayedAssets.length} asset{displayedAssets.length !== 1 ? 's' : ''}
         {#if displayedAssets.length !== assets.length}
           <span class="sr-only">(filtered)</span>
         {/if}
       </span>
+      {#if unwatermarkedImages.length > 0}
+        <button
+          class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+          onclick={openBatchWatermark}
+          aria-label="Watermark all unwatermarked images ({unwatermarkedImages.length} eligible)"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.955 11.955 0 010 12c0 6.627 5.373 12 12 12s12-5.373 12-12c0-2.416-.714-4.668-1.952-6.56m-8.048.56A4 4 0 0112 8v4m0 0v4m0-4h4m-4 0H8" />
+          </svg>
+          Watermark All Images
+          <span class="ml-0.5 text-[10px] opacity-70">({unwatermarkedImages.length})</span>
+        </button>
+      {/if}
       {#if displayedAssets.length > 0}
         <button
           class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center rounded border border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
@@ -521,6 +605,219 @@
       </button>
     {/if}
   </div>
+
+  <!-- Batch watermark panel -->
+  {#if showBatchWatermark}
+    <div
+      class="bg-white dark:bg-graphite rounded-lg border border-lapis/30 dark:border-lapis/20 shadow-sm overflow-hidden"
+      role="region"
+      aria-label="Batch watermark panel"
+      aria-live="polite"
+    >
+      <!-- Panel header -->
+      <div class="px-5 py-4 border-b border-border-light dark:border-graphite-light/50 flex items-center justify-between gap-4">
+        <h2
+          class="text-base text-text-light dark:text-quartz"
+          style="font-family: Georgia, 'Times New Roman', serif;"
+        >
+          Watermark All Images
+        </h2>
+        {#if !batchRunning}
+          <button
+            class="text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite rounded px-2 py-1 min-h-[44px] inline-flex items-center"
+            onclick={closeBatchWatermark}
+            aria-label="Close batch watermark panel"
+          >
+            Close
+          </button>
+        {/if}
+      </div>
+
+      <div class="px-5 py-4">
+
+        <!-- Stage: configuration -->
+        {#if !batchRunning && !batchDone}
+          <div class="space-y-4">
+
+            <!-- Eligible image count -->
+            <p class="text-sm text-flint dark:text-flint-light">
+              <span class="font-medium text-text-light dark:text-quartz">{unwatermarkedImages.length}</span>
+              {unwatermarkedImages.length === 1 ? 'image' : 'images'} eligible &mdash; not yet watermarked.
+            </p>
+
+            <!-- Institution name input -->
+            <div>
+              <label
+                class="text-xs text-flint dark:text-flint-light uppercase tracking-wide"
+                for="batch-watermark-payload"
+              >
+                Organisation Name or Identifier
+              </label>
+              <input
+                id="batch-watermark-payload"
+                type="text"
+                bind:value={batchPayload}
+                placeholder="e.g. National Archive UK — 2026"
+                maxlength={64}
+                class="w-full mt-1.5 px-3 py-2.5 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm
+                       placeholder:text-flint/50
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                aria-describedby="batch-payload-hint"
+              />
+              <p id="batch-payload-hint" class="mt-1 text-xs text-flint dark:text-flint-light">
+                Encoded invisibly into each file. Maximum 64 characters.
+              </p>
+            </div>
+
+            <!-- Strength selector -->
+            <fieldset>
+              <legend class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-2">
+                Embedding Strength
+              </legend>
+              <div class="flex gap-2">
+                {#each [
+                  { value: 1, label: 'Low', hint: 'Minimal quality impact, lower robustness' },
+                  { value: 2, label: 'Medium', hint: 'Balanced quality and robustness' },
+                  { value: 3, label: 'High', hint: 'Maximum robustness, slight quality reduction' },
+                ] as opt (opt.value)}
+                  <button
+                    type="button"
+                    class="flex-1 min-h-[44px] px-3 py-2 text-sm rounded border transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite
+                           {batchStrength === opt.value
+                             ? 'border-lapis bg-lapis/10 text-lapis dark:text-lapis-light font-medium'
+                             : 'border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:border-lapis/50 hover:text-text-light dark:hover:text-quartz'}"
+                    onclick={() => batchStrength = opt.value}
+                    aria-pressed={batchStrength === opt.value}
+                    title={opt.hint}
+                  >
+                    {opt.label}
+                  </button>
+                {/each}
+              </div>
+            </fieldset>
+
+            <!-- Action buttons -->
+            <div class="flex gap-3 pt-1">
+              <button
+                class="px-5 py-2.5 min-h-[44px] inline-flex items-center gap-2 bg-lapis text-white text-sm rounded hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
+                       disabled:opacity-50 disabled:cursor-not-allowed
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                onclick={handleBatchWatermark}
+                disabled={!batchPayload.trim() || unwatermarkedImages.length === 0}
+                aria-label="Begin watermarking {unwatermarkedImages.length} {unwatermarkedImages.length === 1 ? 'image' : 'images'}"
+              >
+                Begin Watermarking
+              </button>
+              <button
+                class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint dark:text-flint-light text-sm rounded hover:text-text-light dark:hover:text-quartz transition-colors
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                onclick={closeBatchWatermark}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+
+        <!-- Stage: in progress -->
+        {:else if batchRunning}
+          <div class="space-y-4" aria-live="polite" aria-atomic="false">
+            <!-- Progress status label -->
+            <p class="text-sm text-text-light dark:text-quartz font-medium">
+              Watermarking {batchProgress} of {batchTotal} {batchTotal === 1 ? 'image' : 'images'}...
+            </p>
+
+            <!-- Current file name -->
+            {#if batchCurrentFile}
+              <p class="text-xs text-flint dark:text-flint-light truncate" aria-live="polite">
+                Current: <span class="text-text-light dark:text-quartz">{batchCurrentFile}</span>
+              </p>
+            {/if}
+
+            <!-- Progress bar -->
+            <div
+              class="h-1.5 w-full rounded-full bg-gray-200 dark:bg-graphite-light overflow-hidden"
+              role="progressbar"
+              aria-valuenow={batchProgress}
+              aria-valuemin={0}
+              aria-valuemax={batchTotal}
+              aria-label="Batch watermarking progress"
+            >
+              <div
+                class="h-full bg-lapis dark:bg-lapis-light rounded-full motion-safe:transition-all motion-safe:duration-200"
+                style="width: {batchTotal > 0 ? Math.round((batchProgress / batchTotal) * 100) : 0}%"
+              ></div>
+            </div>
+
+            <!-- Cancel -->
+            <button
+              class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint dark:text-flint-light text-sm rounded border border-border-light dark:border-border-dark hover:text-text-light dark:hover:text-quartz hover:border-cinnabar/50 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+              onclick={() => batchCancelled = true}
+              aria-label="Cancel batch watermarking after current file completes"
+            >
+              Stop after Current File
+            </button>
+
+            {#if batchCancelled}
+              <p class="text-xs text-amber dark:text-amber-light" role="status" aria-live="polite">
+                Cancelling after current file...
+              </p>
+            {/if}
+          </div>
+
+        <!-- Stage: complete -->
+        {:else if batchDone}
+          <div class="space-y-4">
+            {#if batchFailCount === 0}
+              <div
+                class="px-4 py-3 rounded-md bg-malachite/10 border border-malachite/30 text-sm text-malachite dark:text-malachite-light"
+                role="status"
+                aria-live="polite"
+              >
+                <span class="font-medium">Complete.</span>
+                {batchSuccessCount} {batchSuccessCount === 1 ? 'image' : 'images'} watermarked successfully.
+                {#if batchCancelled}
+                  <span class="block mt-0.5 text-xs opacity-80">Stopped early by request.</span>
+                {/if}
+              </div>
+            {:else if batchSuccessCount === 0}
+              <div
+                class="px-4 py-3 rounded-md bg-cinnabar/10 border border-cinnabar/30 text-sm text-cinnabar dark:text-cinnabar-light"
+                role="alert"
+                aria-live="assertive"
+              >
+                <span class="font-medium">No images watermarked.</span>
+                {batchFailCount} {batchFailCount === 1 ? 'file' : 'files'} failed.
+              </div>
+            {:else}
+              <div
+                class="px-4 py-3 rounded-md bg-amber/10 border border-amber/30 text-sm text-amber dark:text-amber-light"
+                role="status"
+                aria-live="polite"
+              >
+                <span class="font-medium">Partial success.</span>
+                {batchSuccessCount} succeeded, {batchFailCount} failed.
+                {#if batchCancelled}
+                  <span class="block mt-0.5 text-xs opacity-80">Stopped early by request.</span>
+                {/if}
+              </div>
+            {/if}
+
+            <button
+              class="px-5 py-2.5 min-h-[44px] inline-flex items-center bg-lapis text-white text-sm rounded hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+              onclick={closeBatchWatermark}
+            >
+              Done
+            </button>
+          </div>
+        {/if}
+
+      </div>
+    </div>
+  {/if}
 
   <!-- Asset list -->
   {#if displayedAssets.length === 0 && importingCount === 0}
