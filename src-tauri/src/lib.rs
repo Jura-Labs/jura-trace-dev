@@ -1222,6 +1222,37 @@ fn get_recent_assets(
 fn verify_url(url: String, mode: Option<String>, state: State<'_, Mutex<AppState>>) -> Result<VerificationResult, String> {
     log::info!("Verifying URL: {url} [mode={:?}]", mode);
 
+    // SECURITY: Validate URL to prevent SSRF attacks
+    let parsed = url::Url::parse(&url).map_err(|e| format!("Invalid URL: {e}"))?;
+
+    // Only allow HTTP(S) schemes
+    match parsed.scheme() {
+        "http" | "https" => {}
+        scheme => return Err(format!("Unsupported URL scheme: {scheme}. Only http and https are allowed.")),
+    }
+
+    // Block requests to loopback, private, and link-local addresses
+    if let Some(host) = parsed.host_str() {
+        let host_lower = host.to_lowercase();
+        if host_lower == "localhost"
+            || host_lower == "127.0.0.1"
+            || host_lower == "::1"
+            || host_lower == "0.0.0.0"
+            || host_lower.starts_with("10.")
+            || host_lower.starts_with("192.168.")
+            || host_lower.starts_with("169.254.")
+            || (host_lower.starts_with("172.") && {
+                host_lower[4..].split('.').next()
+                    .and_then(|s| s.parse::<u8>().ok())
+                    .is_some_and(|n| (16..=31).contains(&n))
+            })
+        {
+            return Err("Cannot verify URLs pointing to local or private network addresses.".to_string());
+        }
+    } else {
+        return Err("URL must contain a valid host.".to_string());
+    }
+
     let response = reqwest::blocking::Client::new()
         .get(&url)
         .timeout(std::time::Duration::from_secs(30))

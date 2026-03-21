@@ -50,6 +50,7 @@ image_hasher = "3.1"
 
 # HTTP client for Python ML sidecar (Phase 2)
 reqwest = { version = "0.12", features = ["blocking", "multipart", "json"] }
+url = "2"
 
 # Temp files for URL verification
 tempfile = "3"
