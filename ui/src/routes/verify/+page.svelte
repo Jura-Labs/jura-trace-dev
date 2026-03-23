@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
+  import { createBlobTracker } from '$lib/blob';
   import type { VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult } from '$lib/types';
   import VerdictSummary from '$lib/components/VerdictSummary.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
@@ -28,6 +29,12 @@
   let showSignalAgreement = $state(false);
   let showInspectionChecklist = $state(false);
   let showRegionAnalysis = $state(false);
+  let expandedFrameIndex = $state<number | null>(null);
+
+  // Blob URL tracker — converts base64 data to CSP-safe blob: URLs and
+  // revokes them on component destroy to prevent memory leaks.
+  const blobs = createBlobTracker();
+  onDestroy(() => blobs.revokeAll());
 
   // ── Export state ─────────────────────────────────────────────────
   let showReportModal = $state(false);
@@ -1271,7 +1278,7 @@
           <!-- ELA heatmap -->
           <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
             <img
-              src="data:image/png;base64,{ela.elaImageBase64}"
+              src={blobs.url(ela.elaImageBase64, 'image/png')}
               alt="Error Level Analysis heatmap showing compression artefact differences"
               class="w-full max-h-64 object-contain"
             />
@@ -1332,7 +1339,7 @@
           {#if noise.heatmapBase64}
             <div class="mb-3 rounded-md overflow-hidden border border-border-dark bg-obsidian">
               <img
-                src="data:image/png;base64,{noise.heatmapBase64}"
+                src={blobs.url(noise.heatmapBase64, 'image/png')}
                 alt="Noise variance heatmap — blue is low variance, red is high variance"
                 class="w-full max-h-64 object-contain"
               />
@@ -1386,7 +1393,7 @@
           {#if cm.visualisationBase64}
             <div class="mb-3 rounded-md overflow-hidden border border-border-dark bg-obsidian">
               <img
-                src="data:image/png;base64,{cm.visualisationBase64}"
+                src={blobs.url(cm.visualisationBase64, 'image/png')}
                 alt="Copy-move detection visualisation showing matched feature pairs and clone region bounding boxes"
                 class="w-full max-h-64 object-contain"
               />
@@ -1534,7 +1541,7 @@
                     {#if seg.heatmapBase64}
                       <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
                         <img
-                          src="data:image/png;base64,{seg.heatmapBase64}"
+                          src={blobs.url(seg.heatmapBase64, 'image/png')}
                           alt="Segmented ELA heatmap showing per-region compression anomaly scores"
                           class="w-full max-h-64 object-contain"
                         />
@@ -1601,7 +1608,7 @@
                     {#if sh.heatmapBase64}
                       <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
                         <img
-                          src="data:image/png;base64,{sh.heatmapBase64}"
+                          src={blobs.url(sh.heatmapBase64, 'image/png')}
                           alt="Shadow consistency heatmap showing regions with inconsistent light direction"
                           class="w-full max-h-64 object-contain"
                         />
@@ -1668,7 +1675,7 @@
                     {#if ct.heatmapBase64}
                       <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
                         <img
-                          src="data:image/png;base64,{ct.heatmapBase64}"
+                          src={blobs.url(ct.heatmapBase64, 'image/png')}
                           alt="Colour temperature heatmap showing regions deviating from the global colour balance"
                           class="w-full max-h-64 object-contain"
                         />
@@ -1740,7 +1747,7 @@
                     {#if sb.heatmapBase64}
                       <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
                         <img
-                          src="data:image/png;base64,{sb.heatmapBase64}"
+                          src={blobs.url(sb.heatmapBase64, 'image/png')}
                           alt="Splice boundary heatmap showing candidate cut edges between composited regions"
                           class="w-full max-h-64 object-contain"
                         />
@@ -1836,7 +1843,7 @@
           {#if npr.heatmapBase64}
             <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
               <img
-                src="data:image/png;base64,{npr.heatmapBase64}"
+                src={blobs.url(npr.heatmapBase64, 'image/png')}
                 alt="Neighbouring pixel relationship heatmap showing local correlation anomalies"
                 class="w-full max-h-64 object-contain"
               />
@@ -1893,7 +1900,7 @@
           {#if jg.heatmapBase64}
             <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
               <img
-                src="data:image/png;base64,{jg.heatmapBase64}"
+                src={blobs.url(jg.heatmapBase64, 'image/png')}
                 alt="JPEG ghost heatmap showing blocks with mismatched compression quality history"
                 class="w-full max-h-64 object-contain"
               />
@@ -2101,7 +2108,7 @@
           {#if df.heatmapBase64}
             <div class="mb-3 rounded-md overflow-hidden border border-border-dark bg-obsidian">
               <img
-                src="data:image/png;base64,{df.heatmapBase64}"
+                src={blobs.url(df.heatmapBase64, 'image/png')}
                 alt="Frequency spectrum heatmap for AI generation detection"
                 class="w-full max-h-64 object-contain"
               />
@@ -2450,43 +2457,107 @@
               {#each vd.frameResults as fr, i (i)}
                 {@const verdictColour = fr.verdictLevel === 'authentic' ? 'malachite' :
                   fr.verdictLevel === 'synthetic' ? 'cinnabar' : 'amber'}
+                {@const isExpanded = expandedFrameIndex === i}
                 <div
-                  class="relative rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian"
+                  class="relative rounded-md overflow-hidden border transition-colors
+                    {isExpanded ? 'border-lapis ring-1 ring-lapis/30' : 'border-border-light dark:border-border-dark'}
+                    bg-gray-100 dark:bg-obsidian cursor-pointer"
                   role="listitem"
                 >
-                  <!-- Thumbnail if available -->
-                  {#if frames[i]}
-                    <div class="aspect-video">
-                      <img
-                        src="data:image/jpeg;base64,{frames[i]}"
-                        alt="Frame {i + 1}: {fr.verdictLevel} (score {(fr.score * 100).toFixed(0)}%)"
-                        class="w-full h-full object-cover"
-                      />
+                  <!-- Clickable thumbnail + badge -->
+                  <button
+                    type="button"
+                    class="w-full text-left"
+                    aria-expanded={isExpanded}
+                    aria-controls="frame-detail-{i}"
+                    onclick={() => { expandedFrameIndex = isExpanded ? null : i; }}
+                  >
+                    {#if frames[i]}
+                      <div class="aspect-video">
+                        <img
+                          src={blobs.url(frames[i], 'image/jpeg')}
+                          alt="Frame {i + 1}: {fr.verdictLevel} (score {(fr.score * 100).toFixed(0)}%)"
+                          class="w-full h-full object-cover"
+                        />
+                      </div>
+                    {:else}
+                      <div class="aspect-video flex items-center justify-center">
+                        <span class="text-xs text-flint dark:text-flint-light">F{i + 1}</span>
+                      </div>
+                    {/if}
+
+                    <!-- Score badge -->
+                    <span
+                      class="absolute bottom-1 right-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
+                      style="color: {fr.verdictLevel === 'authentic' ? 'rgb(76, 175, 80)' :
+                        fr.verdictLevel === 'synthetic' ? 'rgb(211, 47, 47)' : 'rgb(255, 160, 0)'};
+                        background: {fr.verdictLevel === 'authentic' ? 'rgba(76,175,80,0.15)' :
+                        fr.verdictLevel === 'synthetic' ? 'rgba(211,47,47,0.15)' : 'rgba(255,160,0,0.15)'};"
+                    >
+                      {(fr.score * 100).toFixed(0)}%
+                    </span>
+
+                    <!-- Score bar -->
+                    <div class="h-1.5 w-full bg-graphite/20">
+                      <div
+                        class="h-full transition-all"
+                        style="width: {Math.max(2, fr.score * 100)}%;
+                          background-color: {fr.verdictLevel === 'authentic' ? 'rgb(76, 175, 80)' :
+                            fr.verdictLevel === 'synthetic' ? 'rgb(211, 47, 47)' : 'rgb(255, 160, 0)'};"
+                      ></div>
                     </div>
-                  {:else}
-                    <div class="aspect-video flex items-center justify-center">
-                      <span class="text-xs text-flint dark:text-flint-light">F{i + 1}</span>
+                  </button>
+
+                  <!-- Expanded frame detail accordion -->
+                  {#if isExpanded}
+                    <div
+                      id="frame-detail-{i}"
+                      class="p-3 border-t border-border-light dark:border-border-dark bg-white dark:bg-graphite space-y-2"
+                    >
+                      <div class="flex items-center justify-between">
+                        <span class="text-xs font-medium text-text-light dark:text-quartz">
+                          Frame {fr.frameIndex + 1} at {fr.timestamp.toFixed(1)}s
+                        </span>
+                        <span class="text-xs tabular-nums {fr.verdictLevel === 'authentic' ? 'text-malachite' : fr.verdictLevel === 'synthetic' ? 'text-cinnabar' : 'text-amber'}">
+                          {fr.verdictLevel.charAt(0).toUpperCase() + fr.verdictLevel.slice(1)} ({(fr.score * 100).toFixed(1)}%)
+                        </span>
+                      </div>
+
+                      {#if fr.classifierAvailable && fr.classifierScore != null}
+                        <div class="text-[10px] text-flint dark:text-flint-light">
+                          GBM classifier: {(fr.classifierScore * 100).toFixed(1)}%
+                        </div>
+                      {/if}
+
+                      <!-- Per-frame heatmap -->
+                      {#if fr.heatmapBase64}
+                        <div class="rounded overflow-hidden border border-border-light dark:border-border-dark">
+                          <img
+                            src={blobs.url(fr.heatmapBase64, 'image/png')}
+                            alt="Frequency spectrum heatmap for frame {fr.frameIndex + 1}"
+                            class="w-full max-h-48 object-contain"
+                          />
+                        </div>
+                      {/if}
+
+                      <!-- Signals list -->
+                      {#if fr.signals.length > 0}
+                        <div class="space-y-1">
+                          <span class="text-[10px] font-medium text-flint dark:text-flint-light uppercase tracking-wider">Signals</span>
+                          {#each fr.signals as signal}
+                            <div class="flex items-center gap-2 text-[10px]">
+                              <span
+                                class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                style="background: {signal.triggered ? 'rgb(211, 47, 47)' : 'rgb(76, 175, 80)'};"
+                              ></span>
+                              <span class="text-flint dark:text-flint-light flex-1">{signal.name}</span>
+                              <span class="tabular-nums text-text-light dark:text-quartz">{(signal.weight * 100).toFixed(0)}%</span>
+                            </div>
+                          {/each}
+                        </div>
+                      {/if}
                     </div>
                   {/if}
-
-                  <!-- Score badge -->
-                  <span
-                    class="absolute bottom-1 right-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium
-                      bg-{verdictColour}/20 text-{verdictColour}"
-                    style="color: var(--color-{verdictColour}); background: var(--color-{verdictColour}-bg, rgba(128,128,128,0.15));"
-                  >
-                    {(fr.score * 100).toFixed(0)}%
-                  </span>
-
-                  <!-- Score bar -->
-                  <div class="h-1.5 w-full bg-graphite/20">
-                    <div
-                      class="h-full transition-all"
-                      style="width: {Math.max(2, fr.score * 100)}%;
-                        background-color: {fr.verdictLevel === 'authentic' ? 'rgb(76, 175, 80)' :
-                          fr.verdictLevel === 'synthetic' ? 'rgb(211, 47, 47)' : 'rgb(255, 160, 0)'};"
-                    ></div>
-                  </div>
                 </div>
               {/each}
             </div>
@@ -2563,7 +2634,7 @@
                 role="listitem"
               >
                 <img
-                  src="data:image/jpeg;base64,{frame}"
+                  src={blobs.url(frame, 'image/jpeg')}
                   alt="Frame {i + 1} of {vf.frames.length} from video"
                   class="w-full h-full object-cover"
                 />

@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, getFingerprints, findSimilar, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames } from '$lib/api';
+  import { createBlobTracker } from '$lib/blob';
   import {
     type Asset,
     type ContentType,
@@ -16,6 +18,9 @@
     CONTENT_TYPE_LABELS,
     HASH_TYPE_LABELS,
   } from '$lib/types';
+
+  const blobs = createBlobTracker();
+  onDestroy(() => blobs.revokeAll());
 
   // ── Filter state ───────────────────────────────────────────────────
   let filterContentType = $state<string>('');   // '' = All Types
@@ -1126,7 +1131,7 @@
                           role="listitem"
                         >
                           <img
-                            src="data:image/jpeg;base64,{frame}"
+                            src={blobs.url(frame, 'image/jpeg')}
                             alt="Frame {i + 1} of {videoFrames.frames.length}"
                             class="w-full h-full object-cover"
                           />

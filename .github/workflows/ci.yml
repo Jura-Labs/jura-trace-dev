@@ -126,13 +126,13 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Cache pip downloads keyed on requirements.txt so repeated runs skip
+      # Cache pip downloads keyed on requirements.lock so repeated runs skip
       # the heavy ML library downloads (torch, opencv, etc.).
       - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ hashFiles('sidecar/requirements.txt') }}
+          key: pip-${{ runner.os }}-${{ hashFiles('sidecar/requirements.lock') }}
           restore-keys: pip-${{ runner.os }}-
 
       # Install ruff separately (fast, no heavy deps) so lint runs even if
@@ -146,12 +146,19 @@ jobs:
       - name: Format check
         run: cd sidecar && ruff format --check .
 
-      # Install full sidecar dependencies for pytest.
-      # open-clip-torch pulls in PyTorch (~700 MB); we accept this cost because
-      # test_clip_detector.py exercises the CLIP-based AI image detector path.
-      # The pip cache above keeps subsequent runs fast.
+      # Install from pinned lock file for reproducible builds.
+      # Falls back to requirements.txt if lock file is absent.
       - name: Install sidecar dependencies
-        run: pip install -r sidecar/requirements.txt
+        run: |
+          if [ -f sidecar/requirements.lock ]; then
+            pip install -r sidecar/requirements.lock
+          else
+            pip install -r sidecar/requirements.txt
+          fi
+
+      # Audit installed packages for known CVEs.
+      - name: pip-audit
+        run: pip install pip-audit && pip-audit
 
       - name: Run pytest
         run: cd sidecar && python -m pytest tests/ -v
