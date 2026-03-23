@@ -1,10 +1,17 @@
 # Jura Trace — Python ML Sidecar Dependencies
+#
+# Pin strategy: all production packages use exact versions (==) to prevent
+# silent upgrades from introducing breaking changes or security regressions.
+# Use `pip-compile requirements.txt --generate-hashes --output-file requirements.lock`
+# to regenerate requirements.lock after any version bump here.
+# CI should install from requirements.lock (with hashes) and run pip-audit
+# against it to detect known CVEs before deployment.
 
 # API framework
 fastapi==0.115.*
 uvicorn[standard]==0.34.*
-httpx>=0.27.0
-pydantic-settings>=2.0
+httpx==0.28.1
+pydantic-settings==2.13.1
 
 # Image forensics
 Pillow==11.*
@@ -13,21 +20,21 @@ numpy==2.*
 opencv-python-headless==4.*
 
 # Copy-move detection clustering
-scikit-learn>=1.5
+scikit-learn==1.8.0
 
 # Deepfake detection (texture, frequency, JPEG analysis)
-scikit-image>=0.24
-scipy>=1.14
+scikit-image==0.26.0
+scipy==1.17.1
 
 # AI watermark detection (SD/SDXL/Flux)
-invisible-watermark>=0.2.0
+invisible-watermark==0.2.0
 
 # CLIP-based AI image detection (optional — graceful degradation if absent)
-open-clip-torch>=2.24.0
+open-clip-torch==3.3.0
 
 # RAG pipeline (Phase 2, Weeks 19-20)
-chromadb==0.5.*
-sentence-transformers==3.*
+chromadb==0.5.23
+sentence-transformers==3.4.1
 
 # Audio/video transcription (optional — graceful degradation if absent)
 # faster-whisper>=1.0.0

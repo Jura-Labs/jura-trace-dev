@@ -75,6 +75,10 @@ pub struct VerificationResult {
     pub audio_metadata: Option<sidecar::AudioMetadataResult>,
     /// Video deepfake analysis result for video content types.
     pub video_deepfake_result: Option<sidecar::VideoDeepfakeResult>,
+    /// Speech transcription result for audio/video content types.
+    pub transcription_result: Option<sidecar::TranscriptionResult>,
+    /// RAG claim check result (fed by transcription text or other claims).
+    pub claim_check_result: Option<sidecar::ClaimCheckResult>,
 }
 
 /// Application statistics for the dashboard.
@@ -665,55 +669,7 @@ fn verify_content_inner(
         is_image, mode, effective_mode, sidecar_up, is_deep
     );
 
-    // ELA
-    let (ela_score, ela_result) = if sidecar_up {
-        match app.sidecar.analyse_ela(&path) {
-            Ok(result) => {
-                let score = result.score;
-                (Some(score), Some(result))
-            }
-            Err(e) => {
-                log::warn!("Sidecar ELA failed: {e}");
-                (None, None)
-            }
-        }
-    } else {
-        (None, None)
-    };
-
-    // Noise variance analysis (deep/archival only — slow)
-    let (noise_score, noise_result) = if sidecar_up && is_deep {
-        match app.sidecar.analyse_noise(&path) {
-            Ok(result) => {
-                let score = result.score;
-                (Some(score), Some(result))
-            }
-            Err(e) => {
-                log::warn!("Sidecar noise analysis failed: {e}");
-                (None, None)
-            }
-        }
-    } else {
-        (None, None)
-    };
-
-    // Copy-move detection (deep/archival only — slow)
-    let (copy_move_score, copy_move_result) = if sidecar_up && is_deep {
-        match app.sidecar.detect_copy_move(&path) {
-            Ok(result) => {
-                let score = result.score;
-                (Some(score), Some(result))
-            }
-            Err(e) => {
-                log::warn!("Sidecar copy-move detection failed: {e}");
-                (None, None)
-            }
-        }
-    } else {
-        (None, None)
-    };
-
-    // Whether the image has camera-origin EXIF (make, model, GPS, etc.).
+    // ── Whether the image has camera-origin EXIF ────────────────────────
     // Images with at least 4 populated EXIF fields are more likely to be
     // genuine camera shots; the sidecar uses this as a detection prior.
     let has_camera_exif = exif_analysis
@@ -721,170 +677,343 @@ fn verify_content_inner(
         .map(|a| a.has_exif && a.fields_populated >= 4)
         .unwrap_or(false);
 
-    // Deepfake / AI-generated image detection (codec-aware)
-    let (deepfake_score, deepfake_result) = if sidecar_up {
-        match app.sidecar.detect_deepfake(&path, &info.mime_type, has_camera_exif) {
-            Ok(result) => {
-                let score = result.score;
-                (Some(score), Some(result))
-            }
-            Err(e) => {
-                log::warn!("Sidecar deepfake detection failed: {e}");
+    // ── Standard parallel group ──────────────────────────────────────────
+    // ELA + deepfake + watermark extraction are independent and each takes
+    // 1-5 s. Running them concurrently cuts standard-mode wall time from
+    // ~10 s sequential to the slowest single detector (~5 s).
+    //
+    // `std::thread::scope` guarantees all threads finish before we proceed
+    // and avoids the overhead of a separate thread pool. Each thread
+    // receives a cheap `SidecarClient::clone()` (Arc-based connection pool)
+    // and an owned `PathBuf`.
+    let (ela_score, ela_result, deepfake_score, deepfake_result, watermark_extract_result) =
+        if sidecar_up {
+            let t_standard = std::time::Instant::now();
+
+            let ela_path = path.to_path_buf();
+            let df_path = path.to_path_buf();
+            let wm_path = path.to_path_buf();
+            let ela_client = app.sidecar.clone();
+            let df_client = app.sidecar.clone();
+            let wm_client = app.sidecar.clone();
+            let mime = info.mime_type.clone();
+
+            let (ela_out, df_out, wm_out) = std::thread::scope(|s| {
+                let ela_h = s.spawn(move || ela_client.analyse_ela(&ela_path));
+                let df_h = s.spawn(move || {
+                    df_client.detect_deepfake(&df_path, &mime, has_camera_exif)
+                });
+                let wm_h = s.spawn(move || wm_client.check_watermark_extract(&wm_path));
+                (ela_h.join(), df_h.join(), wm_h.join())
+            });
+
+            log::info!(
+                "Standard detectors (parallel): {:?}",
+                t_standard.elapsed()
+            );
+
+            let (ela_score, ela_result) = match ela_out {
+                Ok(Ok(r)) => {
+                    let score = r.score;
+                    (Some(score), Some(r))
+                }
+                Ok(Err(e)) => {
+                    log::warn!("Sidecar ELA failed: {e}");
+                    (None, None)
+                }
+                Err(_) => {
+                    log::warn!("Sidecar ELA thread panicked");
+                    (None, None)
+                }
+            };
+            let (deepfake_score, deepfake_result) = match df_out {
+                Ok(Ok(r)) => {
+                    let score = r.score;
+                    (Some(score), Some(r))
+                }
+                Ok(Err(e)) => {
+                    log::warn!("Sidecar deepfake detection failed: {e}");
+                    (None, None)
+                }
+                Err(_) => {
+                    log::warn!("Sidecar deepfake thread panicked");
+                    (None, None)
+                }
+            };
+            let watermark_extract_result = match wm_out {
+                Ok(Ok(r)) => Some(r),
+                Ok(Err(e)) => {
+                    log::warn!("Sidecar watermark extraction failed: {e}");
+                    None
+                }
+                Err(_) => {
+                    log::warn!("Sidecar watermark extract thread panicked");
+                    None
+                }
+            };
+
+            (
+                ela_score,
+                ela_result,
+                deepfake_score,
+                deepfake_result,
+                watermark_extract_result,
+            )
+        } else {
+            (None, None, None, None, None)
+        };
+
+    // ── Deep parallel group ──────────────────────────────────────────────
+    // Nine detectors run concurrently when in deep/archival mode.
+    // Slowest is copy-move (~5 s); without parallelism the group takes
+    // ~25 s sequentially. With parallelism wall time is bounded by the
+    // slowest single detector rather than the sum of all detectors.
+    let (
+        noise_score,
+        noise_result,
+        copy_move_score,
+        copy_move_result,
+        npr_result,
+        jpeg_ghost_result,
+        ca_result,
+        segmented_ela_result,
+        shadow_consistency_result,
+        colour_temperature_result,
+        splice_boundary_result,
+    ) = if sidecar_up && is_deep {
+        let t_deep = std::time::Instant::now();
+
+        let noise_path = path.to_path_buf();
+        let cm_path = path.to_path_buf();
+        let npr_path = path.to_path_buf();
+        let jg_path = path.to_path_buf();
+        let ca_path = path.to_path_buf();
+        let seg_path = path.to_path_buf();
+        let shad_path = path.to_path_buf();
+        let ct_path = path.to_path_buf();
+        let sb_path = path.to_path_buf();
+
+        let noise_client = app.sidecar.clone();
+        let cm_client = app.sidecar.clone();
+        let npr_client = app.sidecar.clone();
+        let jg_client = app.sidecar.clone();
+        let ca_client = app.sidecar.clone();
+        let seg_client = app.sidecar.clone();
+        let shad_client = app.sidecar.clone();
+        let ct_client = app.sidecar.clone();
+        let sb_client = app.sidecar.clone();
+
+        let (noise_out, cm_out, npr_out, jg_out, ca_out, seg_out, shad_out, ct_out, sb_out) =
+            std::thread::scope(|s| {
+                let noise_h = s.spawn(move || noise_client.analyse_noise(&noise_path));
+                let cm_h = s.spawn(move || cm_client.detect_copy_move(&cm_path));
+                let npr_h = s.spawn(move || npr_client.analyse_npr(&npr_path));
+                let jg_h = s.spawn(move || jg_client.detect_jpeg_ghost(&jg_path));
+                let ca_h = s.spawn(move || ca_client.analyse_ca(&ca_path));
+                let seg_h = s.spawn(move || seg_client.check_segmented_ela(&seg_path));
+                let shad_h = s.spawn(move || shad_client.check_shadow_consistency(&shad_path));
+                let ct_h = s.spawn(move || ct_client.check_colour_temperature(&ct_path));
+                let sb_h = s.spawn(move || sb_client.check_splice_boundary(&sb_path));
+                (
+                    noise_h.join(),
+                    cm_h.join(),
+                    npr_h.join(),
+                    jg_h.join(),
+                    ca_h.join(),
+                    seg_h.join(),
+                    shad_h.join(),
+                    ct_h.join(),
+                    sb_h.join(),
+                )
+            });
+
+        log::info!("Deep detectors (parallel): {:?}", t_deep.elapsed());
+
+        let (noise_score, noise_result) = match noise_out {
+            Ok(Ok(r)) => (Some(r.score), Some(r)),
+            Ok(Err(e)) => {
+                log::warn!("Sidecar noise analysis failed: {e}");
                 (None, None)
             }
+            Err(_) => {
+                log::warn!("Sidecar noise thread panicked");
+                (None, None)
+            }
+        };
+        let (copy_move_score, copy_move_result) = match cm_out {
+            Ok(Ok(r)) => (Some(r.score), Some(r)),
+            Ok(Err(e)) => {
+                log::warn!("Sidecar copy-move detection failed: {e}");
+                (None, None)
+            }
+            Err(_) => {
+                log::warn!("Sidecar copy-move thread panicked");
+                (None, None)
+            }
+        };
+        let npr_result = match npr_out {
+            Ok(Ok(r)) => Some(r),
+            Ok(Err(e)) => {
+                log::warn!("Sidecar NPR analysis failed: {e}");
+                None
+            }
+            Err(_) => {
+                log::warn!("Sidecar NPR thread panicked");
+                None
+            }
+        };
+        let jpeg_ghost_result = match jg_out {
+            Ok(Ok(r)) => Some(r),
+            Ok(Err(e)) => {
+                log::warn!("Sidecar JPEG ghost detection failed: {e}");
+                None
+            }
+            Err(_) => {
+                log::warn!("Sidecar JPEG ghost thread panicked");
+                None
+            }
+        };
+        let ca_result = match ca_out {
+            Ok(Ok(r)) => Some(r),
+            Ok(Err(e)) => {
+                log::warn!("Sidecar chromatic aberration analysis failed: {e}");
+                None
+            }
+            Err(_) => {
+                log::warn!("Sidecar chromatic aberration thread panicked");
+                None
+            }
+        };
+        let segmented_ela_result = match seg_out {
+            Ok(Ok(r)) => Some(r),
+            Ok(Err(e)) => {
+                log::warn!("Sidecar segmented ELA analysis failed: {e}");
+                None
+            }
+            Err(_) => {
+                log::warn!("Sidecar segmented ELA thread panicked");
+                None
+            }
+        };
+        let shadow_consistency_result = match shad_out {
+            Ok(Ok(r)) => Some(r),
+            Ok(Err(e)) => {
+                log::warn!("Sidecar shadow consistency analysis failed: {e}");
+                None
+            }
+            Err(_) => {
+                log::warn!("Sidecar shadow consistency thread panicked");
+                None
+            }
+        };
+        let colour_temperature_result = match ct_out {
+            Ok(Ok(r)) => Some(r),
+            Ok(Err(e)) => {
+                log::warn!("Sidecar colour temperature analysis failed: {e}");
+                None
+            }
+            Err(_) => {
+                log::warn!("Sidecar colour temperature thread panicked");
+                None
+            }
+        };
+        let splice_boundary_result = match sb_out {
+            Ok(Ok(r)) => Some(r),
+            Ok(Err(e)) => {
+                log::warn!("Sidecar splice boundary detection failed: {e}");
+                None
+            }
+            Err(_) => {
+                log::warn!("Sidecar splice boundary thread panicked");
+                None
+            }
+        };
+
+        (
+            noise_score,
+            noise_result,
+            copy_move_score,
+            copy_move_result,
+            npr_result,
+            jpeg_ghost_result,
+            ca_result,
+            segmented_ela_result,
+            shadow_consistency_result,
+            colour_temperature_result,
+            splice_boundary_result,
+        )
+    } else {
+        (
+            None, None, None, None, None, None, None, None, None, None, None,
+        )
+    };
+
+    // ── Video parallel group ─────────────────────────────────────────────
+    // Video metadata and video deepfake analysis are independent; run them
+    // concurrently. Deepfake analysis can take up to 120 s for long videos;
+    // metadata extraction is fast (~1 s) and must not be delayed.
+    let (video_metadata, video_deepfake_result) = if is_video && sidecar_available {
+        let t_video = std::time::Instant::now();
+
+        let vm_path = path.to_path_buf();
+        let vd_path = path.to_path_buf();
+        let vm_client = app.sidecar.clone();
+        let vd_client = app.sidecar.clone();
+        let deepfake_mode_owned = match effective_mode {
+            "archival" => "archival",
+            "deep" => "deep",
+            _ => "standard",
         }
+        .to_string();
+
+        let (vm_out, vd_out) = std::thread::scope(|s| {
+            let vm_h = s.spawn(move || vm_client.check_video_metadata(&vm_path));
+            let vd_h = s.spawn(move || {
+                vd_client.analyse_video_deepfake(&vd_path, &deepfake_mode_owned)
+            });
+            (vm_h.join(), vd_h.join())
+        });
+
+        log::info!("Video detectors (parallel): {:?}", t_video.elapsed());
+
+        let video_metadata = match vm_out {
+            Ok(Ok(r)) => Some(r),
+            Ok(Err(e)) => {
+                log::warn!("Sidecar video metadata extraction failed: {e}");
+                None
+            }
+            Err(_) => {
+                log::warn!("Sidecar video metadata thread panicked");
+                None
+            }
+        };
+        let video_deepfake_result = match vd_out {
+            Ok(Ok(r)) => {
+                log::info!(
+                    "Video deepfake: score={:.2}, verdict={}, frames={}",
+                    r.aggregate_score,
+                    r.aggregate_verdict,
+                    r.frames_analysed
+                );
+                Some(r)
+            }
+            Ok(Err(e)) => {
+                log::warn!("Sidecar video deepfake analysis failed: {e}");
+                None
+            }
+            Err(_) => {
+                log::warn!("Sidecar video deepfake thread panicked");
+                None
+            }
+        };
+
+        (video_metadata, video_deepfake_result)
     } else {
         (None, None)
     };
 
-    // NPR (Neighbouring Pixel Relationships) analysis (deep/archival only)
-    let npr_result = if sidecar_up && is_deep {
-        match app.sidecar.analyse_npr(&path) {
-            Ok(result) => Some(result),
-            Err(e) => {
-                log::warn!("Sidecar NPR analysis failed: {e}");
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    // JPEG ghost detection (deep/archival only)
-    let jpeg_ghost_result = if sidecar_up && is_deep {
-        match app.sidecar.detect_jpeg_ghost(&path) {
-            Ok(result) => Some(result),
-            Err(e) => {
-                log::warn!("Sidecar JPEG ghost detection failed: {e}");
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    // Chromatic Aberration consistency analysis (deep/archival only)
-    let ca_result = if sidecar_up && is_deep {
-        match app.sidecar.analyse_ca(&path) {
-            Ok(result) => Some(result),
-            Err(e) => {
-                log::warn!("Sidecar chromatic aberration analysis failed: {e}");
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    // Segmented ELA — per-region compression inconsistency (deep/archival only)
-    let segmented_ela_result = if sidecar_up && is_deep {
-        match app.sidecar.check_segmented_ela(&path) {
-            Ok(result) => Some(result),
-            Err(e) => {
-                log::warn!("Sidecar segmented ELA analysis failed: {e}");
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    // Shadow consistency analysis (deep/archival only)
-    let shadow_consistency_result = if sidecar_up && is_deep {
-        match app.sidecar.check_shadow_consistency(&path) {
-            Ok(result) => Some(result),
-            Err(e) => {
-                log::warn!("Sidecar shadow consistency analysis failed: {e}");
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    // Colour temperature consistency analysis (deep/archival only)
-    let colour_temperature_result = if sidecar_up && is_deep {
-        match app.sidecar.check_colour_temperature(&path) {
-            Ok(result) => Some(result),
-            Err(e) => {
-                log::warn!("Sidecar colour temperature analysis failed: {e}");
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    // Splice boundary detection (deep/archival only)
-    let splice_boundary_result = if sidecar_up && is_deep {
-        match app.sidecar.check_splice_boundary(&path) {
-            Ok(result) => Some(result),
-            Err(e) => {
-                log::warn!("Sidecar splice boundary detection failed: {e}");
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    // Watermark extraction — run for images in standard/deep/archival mode.
-    // Tries to detect whether the image carries an invisible DWT-DCT-SVD
-    // watermark (or any watermark the sidecar supports). The result is
-    // informational; it does not affect the trust score.
-    let watermark_extract_result = if sidecar_up && is_image {
-        match app.sidecar.check_watermark_extract(&path) {
-            Ok(result) => Some(result),
-            Err(e) => {
-                log::warn!("Sidecar watermark extraction failed: {e}");
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    // Video metadata — run for video content type when sidecar is available.
-    // Not mode-gated beyond the quick-mode exclusion (basic metadata is fast).
-    let video_metadata = if is_video && sidecar_available {
-        match app.sidecar.check_video_metadata(&path) {
-            Ok(result) => Some(result),
-            Err(e) => {
-                log::warn!("Sidecar video metadata extraction failed: {e}");
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    // Video deepfake analysis — run for video content type in standard/deep/archival modes.
-    // Quick mode skips sidecar entirely (consistent with image behaviour).
-    let video_deepfake_result = if is_video && sidecar_available {
-        let deepfake_mode = match effective_mode {
-            "archival" => "archival",
-            "deep" => "deep",
-            _ => "standard",
-        };
-        match app.sidecar.analyse_video_deepfake(&path, deepfake_mode) {
-            Ok(result) => {
-                log::info!(
-                    "Video deepfake: score={:.2}, verdict={}, frames={}",
-                    result.aggregate_score, result.aggregate_verdict, result.frames_analysed
-                );
-                Some(result)
-            }
-            Err(e) => {
-                log::warn!("Sidecar video deepfake analysis failed: {e}");
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    // Audio metadata — run for audio content type when sidecar is available.
-    // Not mode-gated beyond the quick-mode exclusion.
+    // ── Audio metadata ────────────────────────────────────────────────────
+    // Audio metadata is a single fast call; no parallel group needed.
     let audio_metadata = if is_audio && sidecar_available {
         match app.sidecar.check_audio_metadata(&path) {
             Ok(result) => Some(result),
@@ -892,6 +1021,54 @@ fn verify_content_inner(
                 log::warn!("Sidecar audio metadata extraction failed: {e}");
                 None
             }
+        }
+    } else {
+        None
+    };
+
+    // Transcription for audio/video — run when sidecar is available (not quick mode).
+    // Transcription is optional: the pipeline continues if faster-whisper is not installed.
+    let transcription_result = if (is_audio || is_video) && sidecar_available && !is_quick {
+        match app.sidecar.transcribe(&path) {
+            Ok(t) if t.success => {
+                log::info!(
+                    "Transcription: lang={:?}, duration={:?}, segments={}",
+                    t.language, t.duration, t.segments.len()
+                );
+                Some(t)
+            }
+            Ok(t) => {
+                log::info!("Transcription unavailable: {}", t.message);
+                None
+            }
+            Err(e) => {
+                log::warn!("Sidecar transcription failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // If we have a transcription, use it for RAG claim checking via the sidecar.
+    // This feeds the spoken content into the knowledge-base-backed claim verifier.
+    let claim_check_result = if let Some(ref transcript) = transcription_result {
+        if !transcript.text.is_empty() && sidecar_available {
+            match app.sidecar.check_claim(&transcript.text) {
+                Ok(claim_result) => {
+                    log::info!(
+                        "Claim check: verdict={}, claims={}",
+                        claim_result.overall_verdict, claim_result.claims.len()
+                    );
+                    Some(claim_result)
+                }
+                Err(e) => {
+                    log::warn!("Sidecar claim check failed: {e}");
+                    None
+                }
+            }
+        } else {
+            None
         }
     } else {
         None
@@ -1011,6 +1188,8 @@ fn verify_content_inner(
         video_metadata,
         audio_metadata,
         video_deepfake_result,
+        transcription_result,
+        claim_check_result,
     })
 }
 
@@ -1264,7 +1443,12 @@ fn get_recent_assets(
 /// verification pipeline. Supports images and documents.
 #[tauri::command]
 fn verify_url(url: String, mode: Option<String>, state: State<'_, Mutex<AppState>>) -> Result<VerificationResult, String> {
-    log::info!("Verifying URL: {url} [mode={:?}]", mode);
+    // Redact query string and fragment before logging — URLs may contain
+    // credentials or tokens in the query string (e.g. ?token=abc123).
+    let log_url = url::Url::parse(&url)
+        .map(|mut u| { u.set_query(None); u.set_fragment(None); u.to_string() })
+        .unwrap_or_else(|_| "<invalid URL>".to_string());
+    log::info!("Verifying URL: {log_url} [mode={:?}]", mode);
 
     // SECURITY: Validate URL to prevent SSRF attacks
     let parsed = url::Url::parse(&url).map_err(|e| format!("Invalid URL: {e}"))?;
@@ -1734,7 +1918,8 @@ pub fn run() {
 
             let database = db::Database::open(&db_path).expect("failed to open database");
 
-            let sidecar_client = sidecar::SidecarClient::new("http://127.0.0.1:8200");
+            let sidecar_key = std::env::var("JURA_SIDECAR_KEY").unwrap_or_default();
+            let sidecar_client = sidecar::SidecarClient::new("http://127.0.0.1:8200", &sidecar_key);
             app.manage(Mutex::new(AppState {
                 db: database,
                 sidecar: sidecar_client,
@@ -2105,6 +2290,8 @@ mod tests {
             video_metadata: None,
             audio_metadata: None,
             video_deepfake_result: None,
+            transcription_result: None,
+            claim_check_result: None,
         };
         let json = serde_json::to_string(&result).unwrap();
         assert!(

@@ -316,6 +316,8 @@ export interface VerificationResult {
   watermarkExtractResult?: WatermarkExtractResult | null;
   videoFramesResult?: VideoFramesResult | null;
   videoDeepfakeResult?: VideoDeepfakeResult | null;
+  transcriptionResult?: TranscriptionResult | null;
+  claimCheckResult?: ClaimCheckResult | null;
 }
 
 /** Severity level for an EXIF anomaly finding */
@@ -501,6 +503,44 @@ export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
   web: 'Web',
   unknown: 'Unknown',
 };
+
+// ── Transcription types ───────────────────────────────────────────
+
+/** A single timestamped segment from speech transcription */
+export interface TranscriptionSegment {
+  start: number;
+  end: number;
+  text: string;
+}
+
+/** Audio/video speech transcription result from the ML sidecar */
+export interface TranscriptionResult {
+  text: string;
+  segments: TranscriptionSegment[];
+  language?: string;
+  languageProbability?: number;
+  duration?: number;
+  modelSize: string;
+  success: boolean;
+  message: string;
+}
+
+/** A single claim verdict from the RAG claim checker */
+export interface ClaimCheckVerdict {
+  claim: string;
+  verdict: string;
+  explanation: string;
+  confidence: number;
+}
+
+/** RAG claim verification result from the sidecar */
+export interface ClaimCheckResult {
+  overallVerdict: string;
+  claims: ClaimCheckVerdict[];
+  modelUsed: string;
+  methodology: string;
+  summary: string;
+}
 
 // ── Video / Audio types ───────────────────────────────────────────
 

@@ -240,11 +240,12 @@ def _extract_many_frames(video_bytes: bytes, count: int):
     import subprocess
     import tempfile
 
-    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
-        f.write(video_bytes)
-        tmp_path = f.name
-
+    tmp_path: str | None = None
     try:
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            f.write(video_bytes)
+            tmp_path = f.name
+
         from app.services.video_frames import _get_duration, _extract_frame_at
         from app.models.schemas import VideoFramesResponse
 
@@ -282,4 +283,8 @@ def _extract_many_frames(video_bytes: bytes, count: int):
             success=False, message=f"Frame extraction failed: {e}",
         )
     finally:
-        os.unlink(tmp_path)
+        if tmp_path is not None:
+            try:
+                os.unlink(tmp_path)
+            except FileNotFoundError:
+                pass

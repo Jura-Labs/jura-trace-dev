@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code when working with code in this repository.
 
+## Jura Labs Ecosystem
+
+Jura Trace is one of two products built by **Jura Labs** (UK Social Enterprise — CIC registration pending). The full technology stack, infrastructure, and strategic context are documented in:
+
+- **Tech stack reference**: `../jura-labs-docs/JURA-LABS-TECH-STACK-UPDATED.md`
+- **Project management**: [Plane workspace](https://app.plane.so/jura-labs/) — connected to Claude Code via MCP (user scope)
+- **Sister product**: ROOTED (carbon emissions guidance) — see `../ecoadvisor/`
+- **Shared docs**: `../jura-labs-docs/`
+
 ## Project Overview
 
 **Jura Trace** is a local-first desktop application for content verification and protection. In a world of synthetic media, verification matters. It helps cultural institutions protect their digital assets from unauthorised AI extraction, and helps communities verify content authenticity.

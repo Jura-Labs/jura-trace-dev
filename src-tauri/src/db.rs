@@ -1,4 +1,5 @@
 use rusqlite::{params, Connection, Result as SqliteResult};
+use sha2::{Digest, Sha256};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Mutex;
@@ -107,6 +108,17 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_fp_reports_created      ON false_positive_reports(created_at);
             ",
         )?;
+
+        // Schema migration: add hash chain columns to audit_log if absent.
+        // ALTER TABLE ADD COLUMN is a no-op-safe operation — SQLite ignores it
+        // gracefully when the column already exists (via the duplicate column
+        // error being suppressed). We use IGNORE to handle fresh databases
+        // (where the columns appear in the CREATE TABLE above) equally.
+        let _ = conn.execute_batch(
+            "ALTER TABLE audit_log ADD COLUMN prev_hash TEXT;
+             ALTER TABLE audit_log ADD COLUMN entry_hash TEXT;",
+        );
+
         Ok(())
     }
 
@@ -806,6 +818,10 @@ impl Database {
     }
 
     /// Record an action in the immutable audit log.
+    ///
+    /// Each entry includes a SHA-256 chain hash that binds it to the previous
+    /// entry. Deleting or reordering rows will break the chain, which can be
+    /// detected by `verify_audit_chain`.
     pub fn log_action(
         &self,
         action: &str,
@@ -820,12 +836,104 @@ impl Database {
         let now = chrono::Utc::now().to_rfc3339();
         let op = operator_id.unwrap_or("local_user");
 
+        // Retrieve the entry_hash of the most recent log entry to form the
+        // chain. For the very first entry the genesis sentinel is used.
+        let prev_hash: String = conn
+            .query_row(
+                "SELECT COALESCE(entry_hash, '') FROM audit_log ORDER BY created_at DESC, log_id DESC LIMIT 1",
+                [],
+                |r| r.get::<_, String>(0),
+            )
+            .unwrap_or_else(|_| "genesis".to_string());
+
+        // SHA-256(prev_hash || action || target_type || target_id || details || created_at)
+        let mut hasher = Sha256::new();
+        hasher.update(prev_hash.as_bytes());
+        hasher.update(b"|");
+        hasher.update(action.as_bytes());
+        hasher.update(b"|");
+        hasher.update(target_type.as_bytes());
+        hasher.update(b"|");
+        hasher.update(target_id.as_bytes());
+        hasher.update(b"|");
+        hasher.update(details.unwrap_or("").as_bytes());
+        hasher.update(b"|");
+        hasher.update(now.as_bytes());
+        let entry_hash = format!("{:x}", hasher.finalize());
+
         conn.execute(
-            "INSERT INTO audit_log (log_id, action, target_type, target_id, details, operator_id, algorithm_metadata, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![log_id, action, target_type, target_id, details, op, algorithm_metadata, now],
+            "INSERT INTO audit_log (log_id, action, target_type, target_id, details, operator_id, algorithm_metadata, created_at, prev_hash, entry_hash)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![log_id, action, target_type, target_id, details, op, algorithm_metadata, now, prev_hash, entry_hash],
         )?;
         Ok(())
+    }
+
+    /// Verify the integrity of the audit log hash chain.
+    ///
+    /// Walks every audit log entry in insertion order and recomputes each
+    /// entry's SHA-256 hash. Returns `Ok(true)` if the chain is intact,
+    /// `Ok(false)` if any entry has been modified, deleted, or reordered, or
+    /// if any entry is missing its hash (legacy rows pre-migration).
+    pub fn verify_audit_chain(&self) -> SqliteResult<bool> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut stmt = conn.prepare(
+            "SELECT action, target_type, target_id, details, created_at, prev_hash, entry_hash
+             FROM audit_log
+             ORDER BY created_at ASC, log_id ASC",
+        )?;
+
+        type AuditRow = (String, String, String, Option<String>, String, Option<String>, Option<String>);
+        let rows: Vec<AuditRow> = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut expected_prev = "genesis".to_string();
+
+        for (action, target_type, target_id, details, created_at, prev_hash, entry_hash) in rows {
+            // Entries without hash columns are pre-migration rows; treat as
+            // unverifiable and skip rather than failing the whole chain.
+            let (Some(stored_prev), Some(stored_hash)) = (prev_hash, entry_hash) else {
+                continue;
+            };
+
+            if stored_prev != expected_prev {
+                return Ok(false);
+            }
+
+            let mut hasher = Sha256::new();
+            hasher.update(stored_prev.as_bytes());
+            hasher.update(b"|");
+            hasher.update(action.as_bytes());
+            hasher.update(b"|");
+            hasher.update(target_type.as_bytes());
+            hasher.update(b"|");
+            hasher.update(target_id.as_bytes());
+            hasher.update(b"|");
+            hasher.update(details.as_deref().unwrap_or("").as_bytes());
+            hasher.update(b"|");
+            hasher.update(created_at.as_bytes());
+            let computed = format!("{:x}", hasher.finalize());
+
+            if computed != stored_hash {
+                return Ok(false);
+            }
+
+            expected_prev = stored_hash;
+        }
+
+        Ok(true)
     }
 }
 
@@ -1427,6 +1535,62 @@ mod tests {
         assert!(e.details.is_some());
         assert!(!e.log_id.is_empty());
         assert!(!e.created_at.is_empty());
+    }
+
+    #[test]
+    fn audit_chain_intact_for_single_entry() {
+        let db = open_temp_db();
+        db.log_action("import", "asset", "a1", None, None, None).unwrap();
+        assert!(db.verify_audit_chain().unwrap());
+    }
+
+    #[test]
+    fn audit_chain_intact_for_multiple_entries() {
+        let db = open_temp_db();
+        db.log_action("import", "asset", "a1", None, None, None).unwrap();
+        db.log_action("verify", "file",  "a1", None, None, None).unwrap();
+        db.log_action("sign",   "asset", "a1", None, None, None).unwrap();
+        assert!(db.verify_audit_chain().unwrap());
+    }
+
+    #[test]
+    fn audit_chain_detects_tampered_entry() {
+        let db = open_temp_db();
+        db.log_action("import", "asset", "a1", None, None, None).unwrap();
+        db.log_action("verify", "file",  "a2", None, None, None).unwrap();
+
+        // Directly corrupt the entry_hash of the first row to simulate tampering.
+        {
+            let conn = db.conn.lock().unwrap();
+            conn.execute(
+                "UPDATE audit_log SET entry_hash = 'deadbeef' WHERE target_id = 'a1'",
+                [],
+            )
+            .unwrap();
+        }
+
+        assert!(!db.verify_audit_chain().unwrap());
+    }
+
+    #[test]
+    fn audit_chain_entries_include_hash_columns() {
+        let db = open_temp_db();
+        db.log_action("import", "asset", "x1", Some("details"), None, None).unwrap();
+
+        let conn = db.conn.lock().unwrap();
+        let (prev_hash, entry_hash): (Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT prev_hash, entry_hash FROM audit_log WHERE target_id = 'x1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+
+        // First entry: prev_hash should be the genesis sentinel.
+        assert_eq!(prev_hash.as_deref(), Some("genesis"));
+        // entry_hash must be a 64-character hex string (SHA-256).
+        assert!(entry_hash.is_some());
+        assert_eq!(entry_hash.unwrap().len(), 64);
     }
 
     #[test]

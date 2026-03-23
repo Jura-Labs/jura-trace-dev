@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
-  import type { VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult } from '$lib/types';
+  import type { VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult } from '$lib/types';
   import VerdictSummary from '$lib/components/VerdictSummary.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
   import InspectionChecklist from '$lib/components/InspectionChecklist.svelte';
@@ -2574,6 +2574,145 @@
           <p class="mt-2 text-xs text-flint dark:text-flint-light leading-relaxed">
             Representative frames sampled evenly across the video duration. Inspect for visual
             discontinuities, splice artefacts, or temporal inconsistencies.
+          </p>
+        </section>
+      {/if}
+
+      <!-- ── Transcription ──────────────────────────────────────────── -->
+      {#if result.transcriptionResult?.success}
+        {@const tr = result.transcriptionResult}
+        <section
+          class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5"
+          aria-labelledby="transcription-heading"
+        >
+          <div class="flex items-center justify-between mb-4">
+            <h3
+              id="transcription-heading"
+              class="font-serif text-base font-semibold text-obsidian dark:text-white"
+              style="font-family: Georgia, 'Times New Roman', serif;"
+            >
+              Transcription
+            </h3>
+            {#if tr.language}
+              <span class="text-xs text-flint dark:text-flint-light">
+                Language: <span class="font-medium text-obsidian dark:text-white">{tr.language.toUpperCase()}</span>
+                {#if tr.languageProbability != null}
+                  <span class="ml-1 text-flint dark:text-flint-light">({(tr.languageProbability * 100).toFixed(1)}%)</span>
+                {/if}
+                {#if tr.duration != null}
+                  <span class="mx-1">·</span>
+                  <span>{tr.duration.toFixed(1)}s</span>
+                {/if}
+                <span class="mx-1">·</span>
+                <span>Model: {tr.modelSize}</span>
+              </span>
+            {/if}
+          </div>
+
+          <!-- Full transcript text -->
+          {#if tr.text}
+            <div
+              class="mb-4 max-h-48 overflow-y-auto rounded-md border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian p-3"
+            >
+              <p class="text-sm text-obsidian dark:text-white leading-relaxed whitespace-pre-wrap">{tr.text}</p>
+            </div>
+          {/if}
+
+          <!-- Timestamped segments -->
+          {#if tr.segments && tr.segments.length > 0}
+            <details class="group">
+              <summary class="cursor-pointer text-xs font-medium text-lapis hover:underline">
+                Show {tr.segments.length} timestamped segment{tr.segments.length !== 1 ? 's' : ''}
+              </summary>
+              <div class="mt-2 max-h-64 overflow-y-auto space-y-1">
+                {#each tr.segments as seg, i}
+                  <div class="flex gap-3 py-1 px-2 rounded text-xs {i % 2 === 0 ? 'bg-gray-50 dark:bg-obsidian/50' : ''}">
+                    <span class="flex-shrink-0 font-mono text-flint dark:text-flint-light w-24">
+                      {seg.start.toFixed(1)}s – {seg.end.toFixed(1)}s
+                    </span>
+                    <span class="text-obsidian dark:text-white">{seg.text}</span>
+                  </div>
+                {/each}
+              </div>
+            </details>
+          {/if}
+        </section>
+      {:else if (result.contentType === 'audio' || result.contentType === 'video') && !result.transcriptionResult}
+        <section
+          class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5"
+          aria-labelledby="transcription-unavailable-heading"
+        >
+          <h3
+            id="transcription-unavailable-heading"
+            class="font-serif text-base font-semibold text-obsidian dark:text-white mb-2"
+            style="font-family: Georgia, 'Times New Roman', serif;"
+          >
+            Transcription
+          </h3>
+          <p class="text-xs text-flint dark:text-flint-light">
+            Speech transcription model not available. Install <code class="bg-gray-100 dark:bg-obsidian px-1 rounded">faster-whisper</code> in the sidecar to enable audio transcription.
+          </p>
+        </section>
+      {/if}
+
+      <!-- ── Claim Check (from transcription) ──────────────────────── -->
+      {#if result.claimCheckResult}
+        {@const cc = result.claimCheckResult}
+        <section
+          class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5"
+          aria-labelledby="claim-check-heading"
+        >
+          <div class="flex items-center justify-between mb-4">
+            <h3
+              id="claim-check-heading"
+              class="font-serif text-base font-semibold text-obsidian dark:text-white"
+              style="font-family: Georgia, 'Times New Roman', serif;"
+            >
+              Claim Verification
+            </h3>
+            <span class="text-xs px-2 py-0.5 rounded font-medium
+              {cc.overallVerdict === 'supported' ? 'bg-malachite/10 text-malachite' :
+               cc.overallVerdict === 'disputed' ? 'bg-cinnabar/10 text-cinnabar' :
+               cc.overallVerdict === 'mixed' ? 'bg-amber/10 text-amber' :
+               'bg-graphite/20 text-flint dark:text-flint-light'}">
+              {cc.overallVerdict.charAt(0).toUpperCase() + cc.overallVerdict.slice(1)}
+            </span>
+          </div>
+
+          <p class="text-xs text-flint dark:text-flint-light mb-3">{cc.summary}</p>
+
+          {#if cc.claims.length > 0}
+            <div class="space-y-2">
+              {#each cc.claims as claim}
+                <div class="rounded-md border border-border-light dark:border-border-dark p-3">
+                  <div class="flex items-start justify-between gap-2 mb-1">
+                    <p class="text-xs font-medium text-obsidian dark:text-white">{claim.claim}</p>
+                    <span class="flex-shrink-0 text-xs px-1.5 py-0.5 rounded
+                      {claim.verdict === 'supported' ? 'bg-malachite/10 text-malachite' :
+                       claim.verdict === 'disputed' ? 'bg-cinnabar/10 text-cinnabar' :
+                       'bg-graphite/20 text-flint dark:text-flint-light'}">
+                      {claim.verdict}
+                    </span>
+                  </div>
+                  <p class="text-xs text-flint dark:text-flint-light">{claim.explanation}</p>
+                  {#if claim.confidence > 0}
+                    <div class="mt-1 flex items-center gap-1">
+                      <div class="h-1 w-16 rounded-full bg-gray-200 dark:bg-obsidian">
+                        <div
+                          class="h-1 rounded-full {claim.verdict === 'supported' ? 'bg-malachite' : claim.verdict === 'disputed' ? 'bg-cinnabar' : 'bg-amber'}"
+                          style="width: {claim.confidence * 100}%"
+                        ></div>
+                      </div>
+                      <span class="text-[10px] text-flint dark:text-flint-light">{(claim.confidence * 100).toFixed(0)}%</span>
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
+
+          <p class="mt-3 text-[10px] text-flint dark:text-flint-light">
+            Model: {cc.modelUsed} · {cc.methodology}
           </p>
         </section>
       {/if}

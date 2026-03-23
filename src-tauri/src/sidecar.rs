@@ -487,7 +487,64 @@ pub struct VideoDeepfakeResult {
     pub message: String,
 }
 
+/// A single timestamped segment from speech transcription.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscriptionSegment {
+    pub start: f64,
+    pub end: f64,
+    pub text: String,
+}
+
+/// Audio/video speech transcription result from the sidecar.
+///
+/// Uses faster-whisper for CPU-based speech-to-text. Gracefully degrades
+/// when the model is not installed (success=false, message explains why).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscriptionResult {
+    pub text: String,
+    pub segments: Vec<TranscriptionSegment>,
+    pub language: Option<String>,
+    #[serde(alias = "language_probability")]
+    pub language_probability: Option<f64>,
+    pub duration: Option<f64>,
+    #[serde(alias = "model_size")]
+    pub model_size: String,
+    pub success: bool,
+    pub message: String,
+}
+
+/// A single claim verdict from the RAG claim checker.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaimVerdict {
+    pub claim: String,
+    pub verdict: String,
+    pub explanation: String,
+    pub confidence: f64,
+}
+
+/// RAG claim verification result from the sidecar.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaimCheckResult {
+    #[serde(alias = "overall_verdict")]
+    pub overall_verdict: String,
+    pub claims: Vec<ClaimVerdict>,
+    #[serde(alias = "model_used")]
+    pub model_used: String,
+    pub methodology: String,
+    pub summary: String,
+}
+
 /// HTTP client for the Python ML sidecar.
+///
+/// Cheaply cloneable — the inner `reqwest::blocking::Client` uses an `Arc`
+/// internally, so cloning shares the connection pool rather than creating a
+/// new one. This is required by the parallel verification pipeline, which
+/// spawns one thread per detector and clones the client for each.
+#[derive(Clone)]
 pub struct SidecarClient {
     base_url: String,
     client: reqwest::blocking::Client,
@@ -495,9 +552,29 @@ pub struct SidecarClient {
 
 impl SidecarClient {
     /// Create a new sidecar client pointing at the given base URL.
-    pub fn new(base_url: &str) -> Self {
+    ///
+    /// `api_key` is the value of the `JURA_SIDECAR_KEY` environment variable
+    /// (or empty string if not set). When non-empty it is attached as the
+    /// `X-Jura-API-Key` default header on every request so the sidecar
+    /// authentication middleware can authorise the caller.
+    pub fn new(base_url: &str, api_key: &str) -> Self {
+        let mut headers = reqwest::header::HeaderMap::new();
+        if !api_key.is_empty() {
+            match reqwest::header::HeaderValue::from_str(api_key) {
+                Ok(value) => {
+                    headers.insert("X-Jura-API-Key", value);
+                }
+                Err(_) => {
+                    log::warn!(
+                        "JURA_SIDECAR_KEY contains characters that cannot be used in an HTTP header                          — authentication header will not be sent"
+                    );
+                }
+            }
+        }
+
         let client = reqwest::blocking::Client::builder()
             .connect_timeout(Duration::from_secs(5))
+            .default_headers(headers)
             .build()
             .expect("failed to build HTTP client");
 
@@ -981,6 +1058,62 @@ impl SidecarClient {
             .map_err(|e| format!("Failed to parse video deepfake response: {e}"))
     }
 
+    /// Transcribe speech from an audio or video file.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/transcribe`.
+    /// Uses a 120-second timeout because transcription can be slow on CPU.
+    /// Returns a `TranscriptionResult` with the full text and timestamped segments.
+    pub fn transcribe(&self, media_path: &Path) -> Result<TranscriptionResult, String> {
+        let form = self.build_image_form(media_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/transcribe", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(120))
+            .send()
+            .map_err(|e| format!("Sidecar transcription request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!(
+                "Sidecar transcription returned {status}: {body}"
+            ));
+        }
+
+        resp.json::<TranscriptionResult>()
+            .map_err(|e| format!("Failed to parse transcription response: {e}"))
+    }
+
+    /// Check claims against the RAG knowledge base via the sidecar.
+    ///
+    /// Sends claims text as a query parameter to `POST /forensics/claim-check`.
+    /// Returns a `ClaimCheckResult` with per-claim verdicts.
+    pub fn check_claim(&self, claims_text: &str) -> Result<ClaimCheckResult, String> {
+        let resp = self
+            .client
+            .post(format!(
+                "{}/forensics/claim-check",
+                self.base_url
+            ))
+            .query(&[("claims_text", claims_text)])
+            .timeout(Duration::from_secs(60))
+            .send()
+            .map_err(|e| format!("Sidecar claim check request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!(
+                "Sidecar claim check returned {status}: {body}"
+            ));
+        }
+
+        resp.json::<ClaimCheckResult>()
+            .map_err(|e| format!("Failed to parse claim check response: {e}"))
+    }
+
     /// Build a multipart form with an image file.
     fn build_image_form(
         &self,
@@ -1009,20 +1142,20 @@ mod tests {
 
     #[test]
     fn test_client_creation() {
-        let client = SidecarClient::new("http://127.0.0.1:8200");
+        let client = SidecarClient::new("http://127.0.0.1:8200", "");
         assert_eq!(client.base_url, "http://127.0.0.1:8200");
     }
 
     #[test]
     fn test_client_strips_trailing_slash() {
-        let client = SidecarClient::new("http://127.0.0.1:8200/");
+        let client = SidecarClient::new("http://127.0.0.1:8200/", "");
         assert_eq!(client.base_url, "http://127.0.0.1:8200");
     }
 
     #[test]
     fn test_is_available_when_offline() {
         // No sidecar running — should return false, not panic
-        let client = SidecarClient::new("http://127.0.0.1:19999");
+        let client = SidecarClient::new("http://127.0.0.1:19999", "");
         assert!(!client.is_available());
     }
 
@@ -1060,7 +1193,7 @@ mod tests {
 
     #[test]
     fn test_health_check_fails_gracefully() {
-        let client = SidecarClient::new("http://127.0.0.1:19999");
+        let client = SidecarClient::new("http://127.0.0.1:19999", "");
         let result = client.check_health();
         assert!(result.is_err());
     }
@@ -1893,5 +2026,82 @@ mod tests {
         assert!(!result.success);
         assert_eq!(result.frames_analysed, 0);
         assert_eq!(result.duration, None);
+    }
+
+    #[test]
+    fn test_transcription_result_deserialise_snake_case() {
+        // Python sidecar returns snake_case for multi-word fields
+        let json = r#"{
+            "text": "Hello world, this is a transcription test.",
+            "segments": [
+                { "start": 0.0, "end": 2.5, "text": "Hello world," },
+                { "start": 2.5, "end": 5.1, "text": "this is a transcription test." }
+            ],
+            "language": "en",
+            "language_probability": 0.9876,
+            "duration": 5.1,
+            "model_size": "base",
+            "success": true,
+            "message": "Transcribed 5.1s of audio (en, 2 segments)"
+        }"#;
+        let result: TranscriptionResult = serde_json::from_str(json).unwrap();
+        assert!(result.success);
+        assert_eq!(result.text, "Hello world, this is a transcription test.");
+        assert_eq!(result.segments.len(), 2);
+        assert!((result.segments[0].start - 0.0).abs() < 0.001);
+        assert!((result.segments[0].end - 2.5).abs() < 0.001);
+        assert_eq!(result.segments[0].text, "Hello world,");
+        assert_eq!(result.language, Some("en".to_string()));
+        assert!((result.language_probability.unwrap() - 0.9876).abs() < 0.0001);
+        assert!((result.duration.unwrap() - 5.1).abs() < 0.001);
+        assert_eq!(result.model_size, "base");
+    }
+
+    #[test]
+    fn test_transcription_result_failure() {
+        // Sidecar returns success=false when faster-whisper is not installed
+        let json = r#"{
+            "text": "",
+            "segments": [],
+            "language": null,
+            "language_probability": null,
+            "duration": null,
+            "model_size": "base",
+            "success": false,
+            "message": "Transcription unavailable: faster-whisper is not installed."
+        }"#;
+        let result: TranscriptionResult = serde_json::from_str(json).unwrap();
+        assert!(!result.success);
+        assert!(result.text.is_empty());
+        assert!(result.segments.is_empty());
+        assert_eq!(result.language, None);
+        assert_eq!(result.language_probability, None);
+        assert_eq!(result.duration, None);
+        assert!(result.message.contains("faster-whisper"));
+    }
+
+    #[test]
+    fn test_claim_check_result_deserialise_snake_case() {
+        let json = r#"{
+            "overall_verdict": "supported",
+            "claims": [
+                {
+                    "claim": "The photograph was taken in Edinburgh.",
+                    "verdict": "supported",
+                    "explanation": "GPS metadata and landmarks are consistent.",
+                    "confidence": 0.85
+                }
+            ],
+            "model_used": "qwen2.5:7b-instruct",
+            "methodology": "RAG with local knowledge base",
+            "summary": "Analysed 1 claim. 1 supported."
+        }"#;
+        let result: ClaimCheckResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.overall_verdict, "supported");
+        assert_eq!(result.claims.len(), 1);
+        assert_eq!(result.claims[0].verdict, "supported");
+        assert!((result.claims[0].confidence - 0.85).abs() < 0.001);
+        assert_eq!(result.model_used, "qwen2.5:7b-instruct");
+        assert!(!result.summary.is_empty());
     }
 }
