@@ -5,12 +5,15 @@ use tauri::{Manager, State};
 
 mod c2pa;
 mod db;
+mod error;
 mod exif_anomaly;
 mod fingerprint;
 mod format_router;
 mod metadata;
 mod sidecar;
 mod watermark;
+
+use error::AppError;
 
 // ===== Types =====
 
@@ -576,7 +579,10 @@ fn verify_content_inner(
     source_type: &str,
     mode: Option<&str>,
     state: &State<'_, Mutex<AppState>>,
-) -> Result<VerificationResult, String> {
+) -> Result<VerificationResult, AppError> {
+    // ── Overall pipeline timer ───────────────────────────────────────────
+    let t_pipeline = std::time::Instant::now();
+
     // SECURITY: Validate and canonicalise the path before any filesystem
     // operation.  This prevents:
     //   - Directory traversal via `../` sequences
@@ -584,15 +590,22 @@ fn verify_content_inner(
     //   - Null-byte injection in the path string
     //   - Error messages that confirm/deny existence of arbitrary paths
     if source.contains('\0') {
-        return Err("Invalid file path".to_string());
+        return Err(AppError::Validation("Invalid file path".to_string()));
     }
     let path = std::path::PathBuf::from(source)
         .canonicalize()
-        .map_err(|_| "File not found or inaccessible".to_string())?;
+        .map_err(|e| {
+            log::error!("Path canonicalisation failed for '{}': {}", source, e);
+            AppError::Validation("File not found or inaccessible".to_string())
+        })?;
 
-    // Format detection
+    // ── Format detection ─────────────────────────────────────────────────
+    let t_format = std::time::Instant::now();
     let info = format_router::detect(&path);
+    log::info!("PERF: format routing took {:?}", t_format.elapsed());
 
+    // ── EXIF metadata extraction ─────────────────────────────────────────
+    let t_exif = std::time::Instant::now();
     // EXIF analysis (images only)
     let exif_analysis = if info.content_type == format_router::ContentType::Image {
         let meta = metadata::extract_exif(&path);
@@ -634,8 +647,10 @@ fn verify_content_inner(
     } else {
         None
     };
+    log::info!("PERF: EXIF metadata extraction took {:?}", t_exif.elapsed());
 
-    // C2PA check
+    // ── C2PA verification ────────────────────────────────────────────────
+    let t_c2pa = std::time::Instant::now();
     let c2pa_manifest = c2pa::read_manifest(&path).ok().flatten();
     let c2pa_valid = c2pa_manifest.as_ref().map(|m| m.is_valid);
 
@@ -644,6 +659,7 @@ fn verify_content_inner(
         .as_ref()
         .and_then(|m| m.claim_generator.as_deref())
         .and_then(c2pa::detect_ai_generator);
+    log::info!("PERF: C2PA verification took {:?}", t_c2pa.elapsed());
 
     // Sidecar-based analysis (optional — graceful degradation)
     // Mode determines which detectors run:
@@ -651,7 +667,10 @@ fn verify_content_inner(
     //   standard   → ELA + deepfake only
     //   deep       → all detectors
     //   archival   → all detectors (scanner-calibrated)
-    let app = state.lock().map_err(|e| e.to_string())?;
+    let app = state.lock().map_err(|e| {
+        log::error!("AppState mutex poisoned in verify pipeline: {}", e);
+        AppError::Internal("Failed to acquire application state".to_string())
+    })?;
     let is_image = info.content_type == format_router::ContentType::Image;
     let is_video = info.content_type == format_router::ContentType::Video;
     let is_audio = info.content_type == format_router::ContentType::Audio;
@@ -707,14 +726,31 @@ fn verify_content_inner(
             let mime = info.mime_type.clone();
 
             let (ela_out, df_out, wm_out) = std::thread::scope(|s| {
-                let ela_h = s.spawn(move || ela_client.analyse_ela(&ela_path));
-                let df_h =
-                    s.spawn(move || df_client.detect_deepfake(&df_path, &mime, has_camera_exif));
-                let wm_h = s.spawn(move || wm_client.check_watermark_extract(&wm_path));
+                let ela_h = s.spawn(move || {
+                    let t = std::time::Instant::now();
+                    let r = ela_client.analyse_ela(&ela_path);
+                    log::info!("PERF: ELA took {:?}", t.elapsed());
+                    r
+                });
+                let df_h = s.spawn(move || {
+                    let t = std::time::Instant::now();
+                    let r = df_client.detect_deepfake(&df_path, &mime, has_camera_exif);
+                    log::info!("PERF: deepfake took {:?}", t.elapsed());
+                    r
+                });
+                let wm_h = s.spawn(move || {
+                    let t = std::time::Instant::now();
+                    let r = wm_client.check_watermark_extract(&wm_path);
+                    log::info!("PERF: watermark extraction took {:?}", t.elapsed());
+                    r
+                });
                 (ela_h.join(), df_h.join(), wm_h.join())
             });
 
-            log::info!("Standard detectors (parallel): {:?}", t_standard.elapsed());
+            log::info!(
+                "PERF: standard group (ELA + deepfake + watermark, parallel) took {:?}",
+                t_standard.elapsed()
+            );
 
             let (ela_score, ela_result) = match ela_out {
                 Ok(Ok(r)) => {
@@ -809,15 +845,60 @@ fn verify_content_inner(
 
         let (noise_out, cm_out, npr_out, jg_out, ca_out, seg_out, shad_out, ct_out, sb_out) =
             std::thread::scope(|s| {
-                let noise_h = s.spawn(move || noise_client.analyse_noise(&noise_path));
-                let cm_h = s.spawn(move || cm_client.detect_copy_move(&cm_path));
-                let npr_h = s.spawn(move || npr_client.analyse_npr(&npr_path));
-                let jg_h = s.spawn(move || jg_client.detect_jpeg_ghost(&jg_path));
-                let ca_h = s.spawn(move || ca_client.analyse_ca(&ca_path));
-                let seg_h = s.spawn(move || seg_client.check_segmented_ela(&seg_path));
-                let shad_h = s.spawn(move || shad_client.check_shadow_consistency(&shad_path));
-                let ct_h = s.spawn(move || ct_client.check_colour_temperature(&ct_path));
-                let sb_h = s.spawn(move || sb_client.check_splice_boundary(&sb_path));
+                let noise_h = s.spawn(move || {
+                    let t = std::time::Instant::now();
+                    let r = noise_client.analyse_noise(&noise_path);
+                    log::info!("PERF: noise analysis took {:?}", t.elapsed());
+                    r
+                });
+                let cm_h = s.spawn(move || {
+                    let t = std::time::Instant::now();
+                    let r = cm_client.detect_copy_move(&cm_path);
+                    log::info!("PERF: copy-move detection took {:?}", t.elapsed());
+                    r
+                });
+                let npr_h = s.spawn(move || {
+                    let t = std::time::Instant::now();
+                    let r = npr_client.analyse_npr(&npr_path);
+                    log::info!("PERF: NPR analysis took {:?}", t.elapsed());
+                    r
+                });
+                let jg_h = s.spawn(move || {
+                    let t = std::time::Instant::now();
+                    let r = jg_client.detect_jpeg_ghost(&jg_path);
+                    log::info!("PERF: JPEG ghost detection took {:?}", t.elapsed());
+                    r
+                });
+                let ca_h = s.spawn(move || {
+                    let t = std::time::Instant::now();
+                    let r = ca_client.analyse_ca(&ca_path);
+                    log::info!("PERF: chromatic aberration analysis took {:?}", t.elapsed());
+                    r
+                });
+                let seg_h = s.spawn(move || {
+                    let t = std::time::Instant::now();
+                    let r = seg_client.check_segmented_ela(&seg_path);
+                    log::info!("PERF: segmented ELA took {:?}", t.elapsed());
+                    r
+                });
+                let shad_h = s.spawn(move || {
+                    let t = std::time::Instant::now();
+                    let r = shad_client.check_shadow_consistency(&shad_path);
+                    log::info!("PERF: shadow consistency took {:?}", t.elapsed());
+                    r
+                });
+                let ct_h = s.spawn(move || {
+                    let t = std::time::Instant::now();
+                    let r = ct_client.check_colour_temperature(&ct_path);
+                    log::info!("PERF: colour temperature took {:?}", t.elapsed());
+                    r
+                });
+                let sb_h = s.spawn(move || {
+                    let t = std::time::Instant::now();
+                    let r = sb_client.check_splice_boundary(&sb_path);
+                    log::info!("PERF: splice boundary took {:?}", t.elapsed());
+                    r
+                });
                 (
                     noise_h.join(),
                     cm_h.join(),
@@ -831,7 +912,7 @@ fn verify_content_inner(
                 )
             });
 
-        log::info!("Deep detectors (parallel): {:?}", t_deep.elapsed());
+        log::info!("PERF: deep group (noise + copy-move + NPR + JPEG ghost + CA + segmented ELA + shadow + colour-temp + splice-boundary, parallel) took {:?}", t_deep.elapsed());
 
         let (noise_score, noise_result) = match noise_out {
             Ok(Ok(r)) => (Some(r.score), Some(r)),
@@ -953,87 +1034,171 @@ fn verify_content_inner(
     };
 
     // ── Video parallel group ─────────────────────────────────────────────
-    // Video metadata and video deepfake analysis are independent; run them
-    // concurrently. Deepfake analysis can take up to 120 s for long videos;
-    // metadata extraction is fast (~1 s) and must not be delayed.
-    let (video_metadata, video_deepfake_result) = if is_video && sidecar_available {
-        let t_video = std::time::Instant::now();
+    // Video metadata, video deepfake analysis, and transcription are all
+    // independent; run them concurrently. Deepfake analysis can take up to
+    // 120 s for long videos; transcription ~10-30 s; metadata ~1 s.
+    // Without parallelism total wall time would be their sum (~150 s worst
+    // case); with parallelism it's bounded by the slowest (~120 s).
+    let (video_metadata, video_deepfake_result, transcription_result) =
+        if is_video && sidecar_available {
+            let t_video = std::time::Instant::now();
 
-        let vm_path = path.to_path_buf();
-        let vd_path = path.to_path_buf();
-        let vm_client = app.sidecar.clone();
-        let vd_client = app.sidecar.clone();
-        let deepfake_mode_owned = match effective_mode {
-            "archival" => "archival",
-            "deep" => "deep",
-            _ => "standard",
-        }
-        .to_string();
+            let vm_path = path.to_path_buf();
+            let vd_path = path.to_path_buf();
+            let vm_client = app.sidecar.clone();
+            let vd_client = app.sidecar.clone();
+            let deepfake_mode_owned = match effective_mode {
+                "archival" => "archival",
+                "deep" => "deep",
+                _ => "standard",
+            }
+            .to_string();
 
-        let (vm_out, vd_out) = std::thread::scope(|s| {
-            let vm_h = s.spawn(move || vm_client.check_video_metadata(&vm_path));
-            let vd_h =
-                s.spawn(move || vd_client.analyse_video_deepfake(&vd_path, &deepfake_mode_owned));
-            (vm_h.join(), vd_h.join())
+            // Transcription runs in parallel too (unless quick mode)
+            let run_transcription = !is_quick;
+            let tr_path = path.to_path_buf();
+            let tr_client = app.sidecar.clone();
+
+            let (vm_out, vd_out, tr_out) = std::thread::scope(|s| {
+                let vm_h = s.spawn(move || {
+                    let t = std::time::Instant::now();
+                    let r = vm_client.check_video_metadata(&vm_path);
+                    log::info!("PERF: video metadata took {:?}", t.elapsed());
+                    r
+                });
+                let vd_h = s.spawn(move || {
+                    let t = std::time::Instant::now();
+                    let r = vd_client.analyse_video_deepfake(&vd_path, &deepfake_mode_owned);
+                    log::info!("PERF: video deepfake analysis took {:?}", t.elapsed());
+                    r
+                });
+                let tr_h = s.spawn(move || {
+                    if !run_transcription {
+                        return None;
+                    }
+                    let t = std::time::Instant::now();
+                    let r = tr_client.transcribe(&tr_path);
+                    log::info!("PERF: transcription took {:?}", t.elapsed());
+                    Some(r)
+                });
+                (vm_h.join(), vd_h.join(), tr_h.join())
+            });
+
+            log::info!(
+                "PERF: video group (metadata + deepfake + transcription, parallel) took {:?}",
+                t_video.elapsed()
+            );
+
+            let video_metadata = match vm_out {
+                Ok(Ok(r)) => Some(r),
+                Ok(Err(e)) => {
+                    log::warn!("Sidecar video metadata extraction failed: {e}");
+                    None
+                }
+                Err(_) => {
+                    log::warn!("Sidecar video metadata thread panicked");
+                    None
+                }
+            };
+            let video_deepfake_result = match vd_out {
+                Ok(Ok(r)) => {
+                    log::info!(
+                        "Video deepfake: score={:.2}, verdict={}, frames={}",
+                        r.aggregate_score,
+                        r.aggregate_verdict,
+                        r.frames_analysed
+                    );
+                    Some(r)
+                }
+                Ok(Err(e)) => {
+                    log::warn!("Sidecar video deepfake analysis failed: {e}");
+                    None
+                }
+                Err(_) => {
+                    log::warn!("Sidecar video deepfake thread panicked");
+                    None
+                }
+            };
+            let transcription_result = match tr_out {
+                Ok(Some(Ok(t))) if t.success => {
+                    log::info!(
+                        "Transcription: lang={:?}, duration={:?}, segments={}",
+                        t.language,
+                        t.duration,
+                        t.segments.len()
+                    );
+                    Some(t)
+                }
+                Ok(Some(Ok(t))) => {
+                    log::info!("Transcription unavailable: {}", t.message);
+                    None
+                }
+                Ok(Some(Err(e))) => {
+                    log::warn!("Sidecar transcription failed: {e}");
+                    None
+                }
+                Ok(None) => None, // quick mode — transcription skipped
+                Err(_) => {
+                    log::warn!("Sidecar transcription thread panicked");
+                    None
+                }
+            };
+
+            (video_metadata, video_deepfake_result, transcription_result)
+        } else {
+            (None, None, None)
+        };
+
+    // ── Audio parallel group ──────────────────────────────────────────────
+    // Audio metadata and transcription are independent; run them in parallel.
+    // Metadata is fast (~1 s), transcription ~10-30 s. Without parallelism
+    // wall time is their sum; with parallelism it's bounded by transcription.
+    let (audio_metadata, transcription_result) = if is_audio && sidecar_available {
+        let t_audio = std::time::Instant::now();
+
+        let am_path = path.to_path_buf();
+        let am_client = app.sidecar.clone();
+        let run_transcription = !is_quick && transcription_result.is_none();
+        let tr_path = path.to_path_buf();
+        let tr_client = app.sidecar.clone();
+
+        let (am_out, tr_out) = std::thread::scope(|s| {
+            let am_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = am_client.check_audio_metadata(&am_path);
+                log::info!("PERF: audio metadata took {:?}", t.elapsed());
+                r
+            });
+            let tr_h = s.spawn(move || {
+                if !run_transcription {
+                    return None;
+                }
+                let t = std::time::Instant::now();
+                let r = tr_client.transcribe(&tr_path);
+                log::info!("PERF: transcription took {:?}", t.elapsed());
+                Some(r)
+            });
+            (am_h.join(), tr_h.join())
         });
 
-        log::info!("Video detectors (parallel): {:?}", t_video.elapsed());
+        log::info!(
+            "PERF: audio group (metadata + transcription, parallel) took {:?}",
+            t_audio.elapsed()
+        );
 
-        let video_metadata = match vm_out {
+        let audio_metadata = match am_out {
             Ok(Ok(r)) => Some(r),
             Ok(Err(e)) => {
-                log::warn!("Sidecar video metadata extraction failed: {e}");
-                None
-            }
-            Err(_) => {
-                log::warn!("Sidecar video metadata thread panicked");
-                None
-            }
-        };
-        let video_deepfake_result = match vd_out {
-            Ok(Ok(r)) => {
-                log::info!(
-                    "Video deepfake: score={:.2}, verdict={}, frames={}",
-                    r.aggregate_score,
-                    r.aggregate_verdict,
-                    r.frames_analysed
-                );
-                Some(r)
-            }
-            Ok(Err(e)) => {
-                log::warn!("Sidecar video deepfake analysis failed: {e}");
-                None
-            }
-            Err(_) => {
-                log::warn!("Sidecar video deepfake thread panicked");
-                None
-            }
-        };
-
-        (video_metadata, video_deepfake_result)
-    } else {
-        (None, None)
-    };
-
-    // ── Audio metadata ────────────────────────────────────────────────────
-    // Audio metadata is a single fast call; no parallel group needed.
-    let audio_metadata = if is_audio && sidecar_available {
-        match app.sidecar.check_audio_metadata(&path) {
-            Ok(result) => Some(result),
-            Err(e) => {
                 log::warn!("Sidecar audio metadata extraction failed: {e}");
                 None
             }
-        }
-    } else {
-        None
-    };
-
-    // Transcription for audio/video — run when sidecar is available (not quick mode).
-    // Transcription is optional: the pipeline continues if faster-whisper is not installed.
-    let transcription_result = if (is_audio || is_video) && sidecar_available && !is_quick {
-        match app.sidecar.transcribe(&path) {
-            Ok(t) if t.success => {
+            Err(_) => {
+                log::warn!("Sidecar audio metadata thread panicked");
+                None
+            }
+        };
+        let transcription_result = match tr_out {
+            Ok(Some(Ok(t))) if t.success => {
                 log::info!(
                     "Transcription: lang={:?}, duration={:?}, segments={}",
                     t.language,
@@ -1042,24 +1207,33 @@ fn verify_content_inner(
                 );
                 Some(t)
             }
-            Ok(t) => {
+            Ok(Some(Ok(t))) => {
                 log::info!("Transcription unavailable: {}", t.message);
                 None
             }
-            Err(e) => {
+            Ok(Some(Err(e))) => {
                 log::warn!("Sidecar transcription failed: {e}");
                 None
             }
-        }
+            Ok(None) => transcription_result, // keep any existing result
+            Err(_) => {
+                log::warn!("Sidecar audio transcription thread panicked");
+                None
+            }
+        };
+
+        (audio_metadata, transcription_result)
     } else {
-        None
+        (None, transcription_result)
     };
 
+    // ── RAG claim check ───────────────────────────────────────────────────
     // If we have a transcription, use it for RAG claim checking via the sidecar.
     // This feeds the spoken content into the knowledge-base-backed claim verifier.
     let claim_check_result = if let Some(ref transcript) = transcription_result {
         if !transcript.text.is_empty() && sidecar_available {
-            match app.sidecar.check_claim(&transcript.text) {
+            let t_claim = std::time::Instant::now();
+            let result = match app.sidecar.check_claim(&transcript.text) {
                 Ok(claim_result) => {
                     log::info!(
                         "Claim check: verdict={}, claims={}",
@@ -1072,7 +1246,9 @@ fn verify_content_inner(
                     log::warn!("Sidecar claim check failed: {e}");
                     None
                 }
-            }
+            };
+            log::info!("PERF: RAG claim check took {:?}", t_claim.elapsed());
+            result
         } else {
             None
         }
@@ -1086,7 +1262,8 @@ fn verify_content_inner(
         .map(|a| a.findings.iter().map(|f| f.title.clone()).collect())
         .unwrap_or_default();
 
-    // Compute overall trust score
+    // ── Trust score computation ───────────────────────────────────────────
+    let t_trust = std::time::Instant::now();
     let exif_trust = exif_analysis.as_ref().map(|a| a.trust_score).unwrap_or(0.5);
     let deepfake_confidence = deepfake_result.as_ref().map(|r| r.confidence.as_str());
     let deepfake_verdict = deepfake_result
@@ -1110,8 +1287,10 @@ fn verify_content_inner(
         colour_temperature_score,
         splice_boundary_score,
     );
+    log::info!("PERF: trust score computation took {:?}", t_trust.elapsed());
 
-    // Store verification in database
+    // ── Database operations ───────────────────────────────────────────────
+    let t_db = std::time::Instant::now();
     let verification_id = uuid::Uuid::new_v4().to_string();
     let _ = app.db.insert_verification(
         &verification_id,
@@ -1152,6 +1331,7 @@ fn verify_content_inner(
         None,
         None,
     );
+    log::info!("PERF: database operations took {:?}", t_db.elapsed());
 
     log::info!(
         "Verification complete: mode={effective_mode}, trust={overall_trust:.2}, exif_trust={exif_trust:.2}, ela={:?}, noise={:?}, copy_move={:?}, deepfake={:?}, findings={}",
@@ -1161,6 +1341,7 @@ fn verify_content_inner(
         deepfake_score,
         metadata_flags.len()
     );
+    log::info!("PERF: total pipeline took {:?}", t_pipeline.elapsed());
 
     Ok(VerificationResult {
         source_type: source_type.to_string(),
@@ -1207,7 +1388,7 @@ fn verify_content(
     source_type: String,
     mode: Option<String>,
     state: State<'_, Mutex<AppState>>,
-) -> Result<VerificationResult, String> {
+) -> Result<VerificationResult, AppError> {
     log::info!(
         "Verifying content: {source} ({source_type}) [mode={:?}]",
         mode
@@ -1455,7 +1636,7 @@ fn verify_url(
     url: String,
     mode: Option<String>,
     state: State<'_, Mutex<AppState>>,
-) -> Result<VerificationResult, String> {
+) -> Result<VerificationResult, AppError> {
     // Redact query string and fragment before logging — URLs may contain
     // credentials or tokens in the query string (e.g. ?token=abc123).
     let log_url = url::Url::parse(&url)
@@ -1468,15 +1649,18 @@ fn verify_url(
     log::info!("Verifying URL: {log_url} [mode={:?}]", mode);
 
     // SECURITY: Validate URL to prevent SSRF attacks
-    let parsed = url::Url::parse(&url).map_err(|e| format!("Invalid URL: {e}"))?;
+    let parsed = url::Url::parse(&url).map_err(|e| {
+        log::warn!("URL parse failure: {}", e);
+        AppError::Validation(format!("Invalid URL: {e}"))
+    })?;
 
     // Only allow HTTP(S) schemes
     match parsed.scheme() {
         "http" | "https" => {}
         scheme => {
-            return Err(format!(
+            return Err(AppError::Validation(format!(
                 "Unsupported URL scheme: {scheme}. Only http and https are allowed."
-            ))
+            )))
         }
     }
 
@@ -1498,22 +1682,31 @@ fn verify_url(
                     .is_some_and(|n| (16..=31).contains(&n))
             })
         {
-            return Err(
+            return Err(AppError::Validation(
                 "Cannot verify URLs pointing to local or private network addresses.".to_string(),
-            );
+            ));
         }
     } else {
-        return Err("URL must contain a valid host.".to_string());
+        return Err(AppError::Validation(
+            "URL must contain a valid host.".to_string(),
+        ));
     }
 
     let response = reqwest::blocking::Client::new()
         .get(&url)
         .timeout(std::time::Duration::from_secs(30))
         .send()
-        .map_err(|e| format!("Failed to download URL: {e}"))?;
+        .map_err(|e| {
+            log::error!("HTTP request failed for URL {}: {}", log_url, e);
+            AppError::Sidecar("Failed to download the URL content".to_string())
+        })?;
 
     if !response.status().is_success() {
-        return Err(format!("URL returned status {}", response.status()));
+        let status = response.status();
+        log::warn!("URL {} returned HTTP {}", log_url, status);
+        return Err(AppError::Validation(format!(
+            "URL returned status {status}"
+        )));
     }
 
     // Determine extension from Content-Type header only.
@@ -1550,14 +1743,21 @@ fn verify_url(
         safe_ext
     };
 
-    let bytes = response
-        .bytes()
-        .map_err(|e| format!("Failed to read URL content: {e}"))?;
+    let bytes = response.bytes().map_err(|e| {
+        log::error!("Failed to read body from URL {}: {}", log_url, e);
+        AppError::Sidecar("Failed to read the URL content".to_string())
+    })?;
 
     // Write to temp file using a randomised name to prevent TOCTOU races.
-    let temp_dir = tempfile::tempdir().map_err(|e| format!("Failed to create temp dir: {e}"))?;
+    let temp_dir = tempfile::tempdir().map_err(|e| {
+        log::error!("Failed to create temp dir: {}", e);
+        AppError::FileSystem("Failed to create temporary directory".to_string())
+    })?;
     let temp_path = temp_dir.path().join(format!("url_content.{safe_ext}"));
-    std::fs::write(&temp_path, &bytes).map_err(|e| format!("Failed to write temp file: {e}"))?;
+    std::fs::write(&temp_path, &bytes).map_err(|e| {
+        log::error!("Failed to write temp file: {}", e);
+        AppError::FileSystem("Failed to write temporary file".to_string())
+    })?;
 
     let temp_str = temp_path.to_string_lossy().to_string();
 

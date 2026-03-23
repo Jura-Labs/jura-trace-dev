@@ -4,15 +4,19 @@ Jura Trace Sidecar — Video deepfake analysis.
 Analyses video files for AI-generated or manipulated frames by running
 the image deepfake detector on evenly-spaced frames extracted via FFmpeg.
 Per-frame scores are aggregated into a video-level verdict.
+
+Near-duplicate frames are detected via mean absolute pixel difference and
+skipped to avoid redundant analysis on static or near-static video segments.
 """
 
 import base64
+import io
 import logging
 
 import numpy as np
+from PIL import Image
 
 from app.models.schemas import (
-    DeepfakeSignal,
     FrameDeepfakeResult,
     VideoDeepfakeResponse,
 )
@@ -24,21 +28,98 @@ logger = logging.getLogger(__name__)
 # Frame counts by analysis mode
 FRAME_COUNTS = {"standard": 6, "deep": 20, "archival": 40}
 
+# Default similarity threshold for near-duplicate frame skipping.
+# Two frames with normalised MAD similarity >= this value are considered
+# near-duplicates and the second is skipped.
+DEFAULT_SIMILARITY_THRESHOLD = 0.95
+
+
+def _decode_frame_to_array(frame_b64: str) -> np.ndarray:
+    """Decode a base64 JPEG frame to a numpy array (RGB, uint8)."""
+    frame_bytes = base64.b64decode(frame_b64)
+    img = Image.open(io.BytesIO(frame_bytes)).convert("RGB")
+    return np.asarray(img, dtype=np.uint8)
+
+
+def _frame_similarity(arr_a: np.ndarray, arr_b: np.ndarray) -> float:
+    """
+    Compute normalised similarity between two frames.
+
+    Uses mean absolute difference (MAD) of pixel values, normalised to [0, 1].
+    Returns 1.0 for identical frames and 0.0 for maximally different frames.
+
+    Both arrays are resized to the same small resolution (64x64) before
+    comparison so the metric is fast regardless of input resolution.
+    """
+    # Resize to 64x64 for speed
+    target_size = (64, 64)
+    a_small = np.asarray(Image.fromarray(arr_a).resize(target_size), dtype=np.float32)
+    b_small = np.asarray(Image.fromarray(arr_b).resize(target_size), dtype=np.float32)
+
+    mad = np.mean(np.abs(a_small - b_small))
+    # Normalise: max possible MAD is 255.0
+    return 1.0 - float(mad / 255.0)
+
+
+def deduplicate_frames(
+    frames_b64: list[str],
+    similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
+) -> tuple[list[str], list[int], int]:
+    """
+    Remove near-duplicate consecutive frames from a list of base64 JPEG frames.
+
+    Args:
+        frames_b64: List of base64-encoded JPEG frame strings.
+        similarity_threshold: Frames with similarity >= this value are
+            considered near-duplicates.  Range [0.0, 1.0].
+
+    Returns:
+        Tuple of (kept_frames_b64, kept_original_indices, skipped_count).
+    """
+    if not frames_b64:
+        return [], [], 0
+
+    kept: list[str] = [frames_b64[0]]
+    kept_indices: list[int] = [0]
+    prev_arr = _decode_frame_to_array(frames_b64[0])
+    skipped = 0
+
+    for i in range(1, len(frames_b64)):
+        curr_arr = _decode_frame_to_array(frames_b64[i])
+        sim = _frame_similarity(prev_arr, curr_arr)
+
+        if sim >= similarity_threshold:
+            skipped += 1
+            logger.debug(
+                "Skipping frame %d (similarity %.4f >= %.4f threshold)",
+                i, sim, similarity_threshold,
+            )
+        else:
+            kept.append(frames_b64[i])
+            kept_indices.append(i)
+            prev_arr = curr_arr
+
+    return kept, kept_indices, skipped
+
 
 def perform_video_deepfake_analysis(
     video_bytes: bytes,
     mode: str = "standard",
+    similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
 ) -> VideoDeepfakeResponse:
     """
     Analyse video for AI-generated or manipulated frames.
 
-    Extracts N evenly-spaced frames from the video, runs each through the
-    image deepfake detector, and aggregates per-frame scores into a
+    Extracts N evenly-spaced frames from the video, removes near-duplicate
+    consecutive frames (adaptive sampling), runs each remaining frame through
+    the image deepfake detector, and aggregates per-frame scores into a
     video-level verdict.
 
     Args:
         video_bytes: Raw bytes of the input video file.
         mode: Analysis mode — "standard" (6 frames), "deep" (20), "archival" (40).
+        similarity_threshold: Frames with normalised MAD similarity >= this
+            value are considered near-duplicates and skipped.  Range [0.0, 1.0].
 
     Returns:
         VideoDeepfakeResponse with per-frame and aggregate results.
@@ -59,6 +140,7 @@ def perform_video_deepfake_analysis(
             aggregate_confidence="low",
             frames_analysed=0,
             frames_requested=count,
+            frames_skipped=0,
             temporal_available=False,
             mode=mode,
             duration=frames_response.duration,
@@ -66,23 +148,37 @@ def perform_video_deepfake_analysis(
             message=frames_response.message or "Frame extraction failed",
         )
 
-    # Step 2: Run deepfake detection on each frame
+    # Step 1b: Adaptive frame sampling — skip near-duplicate frames
+    raw_frames = frames_response.frames
+    kept_frames, kept_indices, frames_skipped = deduplicate_frames(
+        raw_frames, similarity_threshold=similarity_threshold,
+    )
+    if frames_skipped > 0:
+        logger.info(
+            "Adaptive sampling: skipped %d/%d near-duplicate frames (threshold=%.2f)",
+            frames_skipped, len(raw_frames), similarity_threshold,
+        )
+
+    # Step 2: Run deepfake detection on each kept frame
     frame_results: list[FrameDeepfakeResult] = []
     feature_dicts: list[dict[str, float]] = []
     duration = frames_response.duration or 0.0
-    num_frames = len(frames_response.frames)
+    total_extracted = len(raw_frames)
 
-    for i, frame_b64 in enumerate(frames_response.frames):
+    for kept_idx, frame_b64 in zip(kept_indices, kept_frames):
         try:
             frame_bytes = base64.b64decode(frame_b64)
             response, features = perform_deepfake_detection_with_features(
                 frame_bytes, mime_type="image/jpeg",
             )
-            # Compute approximate timestamp
-            timestamp = duration * (i + 1) / (num_frames + 1) if duration > 0 else 0.0
+            # Compute approximate timestamp using original frame index
+            timestamp = (
+                duration * (kept_idx + 1) / (total_extracted + 1)
+                if duration > 0 else 0.0
+            )
 
             frame_results.append(FrameDeepfakeResult(
-                frame_index=i,
+                frame_index=kept_idx,
                 timestamp=round(timestamp, 2),
                 score=response.score,
                 suspicious=response.suspicious,
@@ -94,10 +190,10 @@ def perform_video_deepfake_analysis(
             ))
             feature_dicts.append(features)
         except Exception as exc:
-            logger.warning("Frame %d deepfake analysis failed: %s", i, exc)
+            logger.warning("Frame %d deepfake analysis failed: %s", kept_idx, exc)
             # Include a failed frame result with neutral score
             frame_results.append(FrameDeepfakeResult(
-                frame_index=i,
+                frame_index=kept_idx,
                 timestamp=0.0,
                 score=0.5,
                 suspicious=False,
@@ -113,6 +209,7 @@ def perform_video_deepfake_analysis(
             aggregate_confidence="low",
             frames_analysed=0,
             frames_requested=count,
+            frames_skipped=frames_skipped,
             temporal_available=False,
             mode=mode,
             duration=duration,
@@ -171,6 +268,8 @@ def perform_video_deepfake_analysis(
         f"Analysed {len(frame_results)} frames in {mode} mode. "
         f"{triggered_frames} frame{'s' if triggered_frames != 1 else ''} flagged as suspicious."
     )
+    if frames_skipped > 0:
+        summary += f" {frames_skipped} near-duplicate frame{'s' if frames_skipped != 1 else ''} skipped."
     if temporal_available and temporal_score > 0.4:
         summary += " Frame-to-frame drift detected in forensic features."
 
@@ -181,6 +280,7 @@ def perform_video_deepfake_analysis(
         aggregate_confidence=confidence,
         frames_analysed=len(frame_results),
         frames_requested=count,
+        frames_skipped=frames_skipped,
         temporal_available=temporal_available,
         temporal_noise_drift=round(temporal_noise_drift, 4) if temporal_noise_drift is not None else None,
         temporal_spectral_drift=round(temporal_spectral_drift, 4) if temporal_spectral_drift is not None else None,
@@ -235,9 +335,7 @@ def _extract_many_frames(video_bytes: bytes, count: int):
     """
     # The video_frames module caps at 12 — for higher counts, we modify
     # the call to allow more frames by calling the internal logic directly.
-    import json
     import os
-    import subprocess
     import tempfile
 
     tmp_path: str | None = None

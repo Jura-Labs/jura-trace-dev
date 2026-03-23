@@ -74,6 +74,10 @@
   let batchFailCount = $state(0);
   let batchCancelled = $state(false);
   let batchDone = $state(false);
+  let batchEta = $state<string | null>(null);  // "~X min remaining"
+  let batchErrors = $state<{ fileName: string; error: string }[]>([]);
+  let showBatchErrors = $state(false);
+  let _batchTimes: number[] = [];  // per-file durations in ms for ETA
 
   // ── Video / Audio metadata state ───────────────────────────────────
   let videoMetadata = $state<VideoMetadataResult | null>(null);
@@ -358,12 +362,17 @@
     batchFailCount = 0;
     batchCancelled = false;
     batchCurrentFile = '';
+    batchEta = null;
+    batchErrors = [];
+    showBatchErrors = false;
+    _batchTimes = [];
 
     for (const asset of unwatermarkedImages) {
       if (batchCancelled) break;
       batchCurrentFile = asset.fileName;
       batchProgress++;
 
+      const t0 = performance.now();
       try {
         const result = await embedWatermark(asset.assetId, batchPayload.trim(), batchStrength);
         if (result.success) {
@@ -371,15 +380,45 @@
           batchSuccessCount++;
         } else {
           batchFailCount++;
+          batchErrors = [...batchErrors, { fileName: asset.fileName, error: result.message || 'Watermark failed' }];
         }
-      } catch {
+      } catch (e) {
         batchFailCount++;
+        batchErrors = [...batchErrors, { fileName: asset.fileName, error: e instanceof Error ? e.message : 'Unknown error' }];
+      }
+      _batchTimes.push(performance.now() - t0);
+
+      // Compute ETA from rolling average of per-file times
+      const remaining = batchTotal - batchProgress;
+      if (remaining > 0 && _batchTimes.length > 0) {
+        const avg = _batchTimes.reduce((a, b) => a + b, 0) / _batchTimes.length;
+        const etaMs = avg * remaining;
+        if (etaMs < 60_000) {
+          batchEta = `~${Math.max(1, Math.round(etaMs / 1000))}s remaining`;
+        } else {
+          batchEta = `~${Math.ceil(etaMs / 60_000)} min remaining`;
+        }
+      } else {
+        batchEta = null;
       }
     }
 
     batchRunning = false;
     batchDone = true;
     batchCurrentFile = '';
+    batchEta = null;
+  }
+
+  function exportBatchErrors() {
+    if (batchErrors.length === 0) return;
+    const csv = ['File Name,Error', ...batchErrors.map(e => `"${e.fileName.replace(/"/g, '""')}","${e.error.replace(/"/g, '""')}"`)].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `jura_batch_errors_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   function openBatchWatermark() {
@@ -390,6 +429,7 @@
     batchFailCount = 0;
     batchCancelled = false;
     batchCurrentFile = '';
+    batchEta = null;
     // Pre-fill from last single-asset watermark payload if available
     batchPayload = watermarkPayload || batchPayload;
   }
@@ -733,10 +773,13 @@
               Watermarking {batchProgress} of {batchTotal} {batchTotal === 1 ? 'image' : 'images'}...
             </p>
 
-            <!-- Current file name -->
+            <!-- Current file name + ETA -->
             {#if batchCurrentFile}
               <p class="text-xs text-flint dark:text-flint-light truncate" aria-live="polite">
                 Current: <span class="text-text-light dark:text-quartz">{batchCurrentFile}</span>
+                {#if batchEta}
+                  <span class="ml-2 text-flint/60">{batchEta}</span>
+                {/if}
               </p>
             {/if}
 
@@ -806,6 +849,37 @@
                 {batchSuccessCount} succeeded, {batchFailCount} failed.
                 {#if batchCancelled}
                   <span class="block mt-0.5 text-xs opacity-80">Stopped early by request.</span>
+                {/if}
+              </div>
+            {/if}
+
+            <!-- Per-file error list (dismissible) -->
+            {#if batchErrors.length > 0}
+              <div class="space-y-2">
+                <button
+                  class="text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors"
+                  onclick={() => showBatchErrors = !showBatchErrors}
+                  aria-expanded={showBatchErrors}
+                >
+                  {showBatchErrors ? 'Hide' : 'Show'} {batchErrors.length} failed {batchErrors.length === 1 ? 'file' : 'files'}
+                </button>
+
+                {#if showBatchErrors}
+                  <ul class="text-xs space-y-1 max-h-32 overflow-y-auto rounded border border-border-light dark:border-border-dark p-2 bg-white/50 dark:bg-obsidian/50">
+                    {#each batchErrors as err}
+                      <li class="flex gap-2">
+                        <span class="text-text-light dark:text-quartz truncate flex-1">{err.fileName}</span>
+                        <span class="text-cinnabar dark:text-cinnabar-light flex-shrink-0">{err.error}</span>
+                      </li>
+                    {/each}
+                  </ul>
+
+                  <button
+                    class="text-xs text-lapis hover:text-lapis-dark dark:hover:text-lapis-light transition-colors"
+                    onclick={exportBatchErrors}
+                  >
+                    Export errors as CSV
+                  </button>
                 {/if}
               </div>
             {/if}

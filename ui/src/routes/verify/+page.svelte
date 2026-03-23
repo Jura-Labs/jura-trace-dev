@@ -22,6 +22,28 @@
   let checked = $state(false);
   let loading = $state(false);
   let error = $state<string | null>(null);
+  let errorType = $state<'sidecar' | 'format' | 'network' | 'general' | null>(null);
+
+  /** Classify an error and set both error message and type. */
+  function setError(e: unknown, context: string) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes('Tauri not available') || msg.includes('invoke')) {
+      error = `${context}: application bridge unavailable`;
+      errorType = 'general';
+    } else if (msg.includes('Unsupported') || msg.includes('format') || msg.includes('MIME')) {
+      error = `Unsupported file format. Jura Trace supports JPEG, PNG, TIFF, WebP, PDF, MP4, MOV, WAV, and MP3.`;
+      errorType = 'format';
+    } else if (msg.includes('sidecar') || msg.includes('connection refused') || msg.includes('127.0.0.1:8200')) {
+      error = `Analysis services are not running. Start the sidecar with: uvicorn main:app --host 127.0.0.1 --port 8200`;
+      errorType = 'sidecar';
+    } else if (msg.includes('fetch') || msg.includes('network') || msg.includes('SSRF') || msg.includes('URL')) {
+      error = `Could not fetch the URL. Check the address is correct and publicly accessible.`;
+      errorType = 'network';
+    } else {
+      error = `${context}: ${msg}`;
+      errorType = 'general';
+    }
+  }
   let dragOver = $state(false);
   let sidecarHealth = $state<SidecarHealth | null>(null);
   let verifyMode = $state<VerifyMode>('standard');
@@ -45,6 +67,9 @@
   if (typeof window !== 'undefined') {
     (window as any).__juraSetVerifyResult = (data: VerificationResult) => {
       _testResultStore.set(data);
+    };
+    (window as any).__juraSetVerifyError = (msg: string) => {
+      setError(msg, 'Verification');
     };
   }
   // Bridge store into $state via $effect. The _testApplied guard
@@ -132,6 +157,24 @@
   });
 
   const sidecarAvailable = $derived(sidecarHealth?.status === 'ok');
+
+  // Degraded = sidecar is connected but some optional capabilities are missing
+  const sidecarDegraded = $derived(() => {
+    if (!sidecarHealth?.capabilities) return false;
+    const c = sidecarHealth.capabilities;
+    return sidecarAvailable && (!c.videoMetadata || !c.transcription);
+  });
+
+  const sidecarDegradedHint = $derived(() => {
+    if (!sidecarHealth?.capabilities) return '';
+    const missing: string[] = [];
+    const c = sidecarHealth.capabilities;
+    if (!c.videoMetadata) missing.push('FFmpeg');
+    if (!c.transcription) missing.push('Whisper');
+    if (!c.clipDetect) missing.push('CLIP');
+    if (!c.rag) missing.push('Ollama');
+    return missing.length > 0 ? `Missing: ${missing.join(', ')}` : '';
+  });
 
   // ── Lifecycle ─────────────────────────────────────────────────────
   onMount(() => {
@@ -276,14 +319,14 @@
     fileName = name;
     result = null;
     checked = false;
-    error = null;
+    error = null; errorType = null;
     loading = true;
 
     try {
       result = await verifyFile(path, verifyMode);
       checked = true;
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Verification failed';
+      setError(e, 'File verification failed');
     } finally {
       loading = false;
     }
@@ -298,13 +341,14 @@
     result = null;
     checked = false;
     error = null;
+    errorType = null;
     loading = true;
 
     try {
       result = await verifyUrl(url, verifyMode);
       checked = true;
     } catch (e) {
-      error = e instanceof Error ? e.message : 'URL verification failed';
+      setError(e, 'URL verification failed');
     } finally {
       loading = false;
     }
@@ -516,7 +560,7 @@
           ? `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(sourceUrl)}`
           : 'https://lens.google.com',
         title: sourceUrl
-          ? 'Search for this image via Google Lens'
+          ? 'Search via Google Lens — this will share the image URL with Google'
           : 'Open Google Lens — upload the file manually',
       },
       {
@@ -525,7 +569,7 @@
           ? `https://tineye.com/search?url=${encodeURIComponent(sourceUrl)}`
           : 'https://tineye.com',
         title: sourceUrl
-          ? 'Search for this image via TinEye reverse image search'
+          ? 'Search via TinEye — this will share the image URL with TinEye'
           : 'Open TinEye — upload the file manually',
       },
       {
@@ -534,7 +578,7 @@
           ? `https://yandex.com/images/search?rpt=imageview&url=${encodeURIComponent(sourceUrl)}`
           : 'https://yandex.com/images',
         title: sourceUrl
-          ? 'Search for this image via Yandex Images'
+          ? 'Search via Yandex — this will share the image URL with Yandex'
           : 'Open Yandex Images — upload the file manually',
       },
     ];
@@ -640,29 +684,45 @@
       <div
         class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border
                {sidecarAvailable
-                 ? 'bg-malachite/10 text-malachite dark:text-malachite-light border-malachite/20'
+                 ? sidecarDegraded()
+                   ? 'bg-amber/10 text-amber dark:text-amber-light border-amber/20'
+                   : 'bg-malachite/10 text-malachite dark:text-malachite-light border-malachite/20'
                  : 'bg-white dark:bg-graphite text-flint dark:text-flint-light border-border-light dark:border-border-dark'}"
         title={sidecarAvailable
-          ? `Analysis services v${sidecarHealth?.version} — forensics available`
+          ? sidecarDegraded()
+            ? `Analysis services limited — ${sidecarDegradedHint()}`
+            : `Analysis services v${sidecarHealth?.version} — all capabilities available`
           : 'Analysis services offline — forensics not available'}
       >
         <span
-          class="w-1.5 h-1.5 rounded-full {sidecarAvailable ? 'bg-malachite' : 'bg-flint/50'}"
+          class="w-1.5 h-1.5 rounded-full {sidecarAvailable ? sidecarDegraded() ? 'bg-amber' : 'bg-malachite' : 'bg-flint/50'}"
           aria-hidden="true"
         ></span>
-        {sidecarAvailable ? 'Analysis services connected' : 'Analysis services offline'}
+        {sidecarAvailable
+          ? sidecarDegraded() ? 'Analysis services limited' : 'Analysis services connected'
+          : 'Analysis services offline'}
       </div>
     </div>
   </div>
 
-  <!-- Error banner -->
+  <!-- Error banner — structured by error type -->
   {#if error}
     <div
-      class="bg-cinnabar/10 border border-cinnabar/30 rounded-lg px-4 py-3 text-sm text-cinnabar dark:text-cinnabar-light"
+      class="rounded-lg px-4 py-3 text-sm border
+        {errorType === 'sidecar' ? 'bg-amber/10 border-amber/30 text-amber dark:text-amber-light' :
+         errorType === 'format' ? 'bg-lapis/10 border-lapis/30 text-lapis dark:text-lapis-light' :
+         'bg-cinnabar/10 border-cinnabar/30 text-cinnabar dark:text-cinnabar-light'}"
       role="alert"
       aria-live="assertive"
     >
-      <span class="font-medium">Error:</span> {error}
+      <div class="flex items-start gap-2">
+        <span class="font-medium flex-shrink-0">
+          {errorType === 'sidecar' ? 'Sidecar offline' :
+           errorType === 'format' ? 'Unsupported format' :
+           errorType === 'network' ? 'Network error' : 'Error'}:
+        </span>
+        <span>{error}</span>
+      </div>
     </div>
   {/if}
 
@@ -1183,6 +1243,10 @@
                 {#if result.sourceType !== 'url'}
                   The file path cannot be sent directly — open the search engine's upload page and
                   drag the file in manually.
+                {:else}
+                  <span class="block mt-1 text-amber/80">
+                    Privacy note: clicking a link will share the image URL with the selected search engine.
+                  </span>
                 {/if}
               </p>
               <div class="flex flex-wrap gap-2" role="group" aria-label="Search engine links">

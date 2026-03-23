@@ -344,6 +344,7 @@ class VideoDeepfakeResponse(BaseModel):
     aggregate_confidence: str  # "high" | "medium" | "low"
     frames_analysed: int
     frames_requested: int
+    frames_skipped: int = 0
     temporal_available: bool
     temporal_noise_drift: float | None = None
     temporal_spectral_drift: float | None = None

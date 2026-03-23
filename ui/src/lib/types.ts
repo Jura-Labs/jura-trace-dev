@@ -248,6 +248,13 @@ export interface SidecarCapabilities {
   npr: boolean;
   chromaticAberration: boolean;
   rag: boolean;
+  watermark: boolean;
+  clipDetect: boolean;
+  videoMetadata: boolean;
+  audioMetadata: boolean;
+  videoFrames: boolean;
+  videoDeepfake: boolean;
+  transcription: boolean;
 }
 
 /** ML sidecar health response */

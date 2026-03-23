@@ -86,3 +86,53 @@ All data is stored locally:
 | Ollama models (Tier 3) | `~/.ollama/models/` |
 
 No data is sent to external servers. No telemetry is collected.
+
+### Data-at-Rest Security
+
+The SQLite database stores asset metadata, fingerprint hashes, verification results, and audit logs. **The database is not encrypted at rest.** This means anyone with file-system access to the device can read its contents.
+
+**Risk assessment**: For single-user workstations this is generally acceptable — the database contains metadata about files, not the files themselves. For shared workstations or high-security environments, this warrants mitigation.
+
+**Recommended mitigations (in order of preference)**:
+
+1. **OS-level disk encryption** — Enable FileVault (macOS), BitLocker (Windows), or LUKS (Linux). This protects all local data transparently and is the recommended approach for v1.0.
+2. **User account separation** — Ensure each user has a separate OS account. The database is stored in the user's app data directory, which is not accessible to other standard users.
+3. **SQLCipher** (planned for v1.1) — A future release will offer optional AES-256 encryption of the SQLite database via SQLCipher. This will require a passphrase on first run and adds ~200 ms to startup. See the [v1.1 backlog](../docs/sprint-plans/sprint-15-to-v1.0-plan.md#v11-backlog-post-v10) for status.
+
+**What is stored in the database**:
+- File names, paths, sizes, content types, and import dates
+- EXIF metadata summaries and anomaly findings
+- Perceptual fingerprint hashes (aHash, dHash, pHash)
+- C2PA manifest digests (not full manifests)
+- Verification trust scores and verdict history
+- Watermark embed/extract records
+- Audit log of all user actions (with SHA-256 hash chain)
+
+**What is NOT stored in the database**:
+- Original file contents or pixel data
+- Forensic heatmap images (generated on demand, not persisted)
+- Ollama API keys or credentials (there are none — local-only)
+
+---
+
+## Python ML Sidecar
+
+The Python sidecar provides forensic analysis (ELA, noise, copy-move, deepfake, etc.) and runs on `localhost:8200`. It is optional — the application functions without it, but forensic detectors will be unavailable.
+
+### Starting the sidecar
+
+```bash
+cd sidecar
+pip install -r requirements.txt
+uvicorn main:app --host 127.0.0.1 --port 8200
+```
+
+### Optional dependencies
+
+| Feature | Dependency | Size |
+|---------|-----------|------|
+| Video/audio metadata | FFmpeg + ffprobe | ~100 MB |
+| Speech transcription | faster-whisper model | ~500 MB |
+| CLIP AI detection | open_clip ViT-B/32 | ~350 MB |
+
+The sidecar degrades gracefully when optional dependencies are absent — affected endpoints return informative error messages rather than crashing.
