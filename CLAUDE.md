@@ -17,7 +17,7 @@ Jura Trace is one of two products built by **Jura Labs** (UK Social Enterprise �
 
 **Developed by**: Juralabs Community Interest Company (UK) — https://juralabs.org
 **Licence**: PolyForm Noncommercial 1.0.0
-**Current Version**: 0.4.0-dev (Phase 3 active — Sprints 11-14)
+**Current Version**: 0.5.0-dev (Phase 3 active — Sprint 15 complete, Sprint 16 next)
 
 ## Core Architecture
 
@@ -138,7 +138,7 @@ juralabs/
 │   │   ├── pdf.ts       # Trust report PDF generation
 │   │   ├── zip.ts       # Case export ZIP generation
 │   │   └── stores/      # Svelte stores (deployment profiles)
-│   ├── tests/           # Playwright e2e tests (104 tests)
+│   ├── tests/           # Playwright e2e tests (110 tests)
 │   └── package.json     # Node dependencies
 ├── sidecar/             # Python ML sidecar (FastAPI, port 8200)
 │   ├── app/api/         # FastAPI routers (health, forensics)
@@ -152,7 +152,7 @@ juralabs/
 │   │                    #   video_deepfake
 │   ├── app/api/         # FastAPI routers (health, forensics, video, audio)
 │   ├── app/models/      # Pydantic schemas
-│   ├── tests/           # pytest test suite (292 tests; 3 skipped without ffprobe)
+│   ├── tests/           # pytest test suite (308 tests; 5 skipped without ffprobe/whisper)
 │   ├── main.py          # FastAPI app entry point
 │   └── requirements.txt # Python dependencies
 ├── docs/                # Documentation
@@ -201,7 +201,9 @@ juralabs/
 - **Video frames service**: `sidecar/app/services/video_frames.py` — evenly-spaced frame thumbnail extraction as base64 JPEG
 - **Video deepfake service**: `sidecar/app/services/video_deepfake.py` — per-frame AI detection with temporal consistency signals; `POST /forensics/video/deepfake` endpoint (120 s timeout)
 - **Security audit report**: `docs/security-audit-report.md` — full audit findings (3 critical, 6 high, 7 medium, 5 low) and remediation status
-- **CI/CD workflows**: `.github/workflows/` — CI (Rust + Python + Frontend), Release (4-platform matrix), Dependabot
+- **Blob utility**: `ui/src/lib/blob.ts` — base64-to-blob URL converter with `createBlobTracker` for CSP-safe image rendering and memory management
+- **Sprint 15-to-v1.0 plan**: `docs/sprint-plans/sprint-15-to-v1.0-plan.md` — 6-sprint roadmap to v1.0 (Sprints 15–20, targeting 27 Jun 2026)
+- **CI/CD workflows**: `.github/workflows/` — CI (Rust + Python + Frontend with pip-audit), Release (4-platform matrix), Dependabot
 
 ## Design Principles
 
@@ -236,7 +238,9 @@ juralabs/
 
 **Security fixes (Sprint 14)**: Full security audit (`docs/security-audit-report.md`, 3 critical / 6 high / 7 medium / 5 low). Three critical issues remediated: SSRF prevention in `verify_url` (URL validation, loopback and private network blocking via `url` crate); scoped filesystem capability restricted to user directories only; CSP `connect-src` pinned to `127.0.0.1:8200` and `127.0.0.1:11434` only.
 
-**Test counts**: 183 Rust tests, 292 Python tests (+3 skipped without ffprobe, +14 CLIP skipped when open_clip unavailable), 104 Playwright e2e tests, 177 SvelteKit files with 0 svelte-check errors, clippy clean.
+**Sprint 15 (Phase 3)**: Complete — "Hardened & Heard". All 7 MEDIUM security issues resolved: sidecar API key authentication via `X-Jura-API-Key` header (MEDIUM-1); audit log SHA-256 hash chain with `verify_audit_chain` integrity check (MEDIUM-2); CSP `data:` removal — all base64 image src attributes converted to `blob:` URLs via `createBlobTracker` utility (MEDIUM-3); URL query-string redaction in logging (MEDIUM-5); sidecar temp file cleanup on exception paths (MEDIUM-6); Python dependencies pinned with `requirements.lock` and CI updated with `pip-audit` (MEDIUM-7). Two LOW items cleared: `withGlobalTauri: false` in tauri.conf.json (LOW-1); FastAPI `/docs` and `/redoc` disabled in production (LOW-3). Audio/video transcription via faster-whisper wired into verify pipeline with `TranscriptionResult` struct and transcript panel in UI. Transcription text fed into RAG claim checker. Parallel sidecar calls via `tokio::join!` (ELA + deepfake + watermark concurrent). Frame accordion expand/collapse on video deepfake timeline with per-frame signals, classifier score, and heatmap. Sprint 15-to-v1.0 release plan document (`docs/sprint-plans/sprint-15-to-v1.0-plan.md`).
+
+**Test counts**: 190 Rust tests, 308 Python tests (+5 skipped without ffprobe/whisper, +14 CLIP skipped when open_clip unavailable), 110 Playwright e2e tests, 179 SvelteKit files with 0 svelte-check errors, clippy clean.
 
 ## British Spelling
 
