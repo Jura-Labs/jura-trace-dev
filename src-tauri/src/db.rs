@@ -1,6 +1,6 @@
 use rusqlite::{params, Connection, Result as SqliteResult};
-use sha2::{Digest, Sha256};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -386,10 +386,7 @@ impl Database {
             "DELETE FROM fingerprints WHERE asset_id = ?1",
             params![asset_id],
         )?;
-        conn.execute(
-            "DELETE FROM assets WHERE asset_id = ?1",
-            params![asset_id],
-        )?;
+        conn.execute("DELETE FROM assets WHERE asset_id = ?1", params![asset_id])?;
         Ok(())
     }
 
@@ -451,8 +448,9 @@ impl Database {
 
         let rows = stmt.query_map(param_refs.as_slice(), |row| {
             let tags_json: Option<String> = row.get(9)?;
-            let ai_tags: Option<Vec<String>> =
-                tags_json.as_deref().and_then(|s| serde_json::from_str(s).ok());
+            let ai_tags: Option<Vec<String>> = tags_json
+                .as_deref()
+                .and_then(|s| serde_json::from_str(s).ok());
 
             Ok(Asset {
                 asset_id: row.get(0)?,
@@ -487,8 +485,9 @@ impl Database {
 
         let rows = stmt.query_map(params![limit], |row| {
             let tags_json: Option<String> = row.get(9)?;
-            let ai_tags: Option<Vec<String>> =
-                tags_json.as_deref().and_then(|s| serde_json::from_str(s).ok());
+            let ai_tags: Option<Vec<String>> = tags_json
+                .as_deref()
+                .and_then(|s| serde_json::from_str(s).ok());
 
             Ok(Asset {
                 asset_id: row.get(0)?,
@@ -671,8 +670,7 @@ impl Database {
     pub fn get_trust_distribution(&self) -> SqliteResult<TrustDistribution> {
         let conn = self.conn.lock().unwrap();
 
-        let total: u64 =
-            conn.query_row("SELECT COUNT(*) FROM verifications", [], |r| r.get(0))?;
+        let total: u64 = conn.query_row("SELECT COUNT(*) FROM verifications", [], |r| r.get(0))?;
 
         let high_count: u64 = conn.query_row(
             "SELECT COUNT(*) FROM verifications WHERE overall_trust >= 0.7",
@@ -716,8 +714,7 @@ impl Database {
     pub fn get_protection_summary(&self) -> SqliteResult<ProtectionSummary> {
         let conn = self.conn.lock().unwrap();
 
-        let total_assets: u64 =
-            conn.query_row("SELECT COUNT(*) FROM assets", [], |r| r.get(0))?;
+        let total_assets: u64 = conn.query_row("SELECT COUNT(*) FROM assets", [], |r| r.get(0))?;
 
         let c2pa_signed: u64 = conn.query_row(
             "SELECT COUNT(*) FROM assets WHERE c2pa_signed = 1",
@@ -884,7 +881,15 @@ impl Database {
              ORDER BY created_at ASC, log_id ASC",
         )?;
 
-        type AuditRow = (String, String, String, Option<String>, String, Option<String>, Option<String>);
+        type AuditRow = (
+            String,
+            String,
+            String,
+            Option<String>,
+            String,
+            Option<String>,
+            Option<String>,
+        );
         let rows: Vec<AuditRow> = stmt
             .query_map([], |row| {
                 Ok((
@@ -1106,15 +1111,8 @@ mod tests {
     #[test]
     fn audit_log_custom_operator() {
         let db = open_temp_db();
-        db.log_action(
-            "verify",
-            "asset",
-            "a2",
-            None,
-            Some("museum_admin"),
-            None,
-        )
-        .unwrap();
+        db.log_action("verify", "asset", "a2", None, Some("museum_admin"), None)
+            .unwrap();
 
         let conn = db.conn.lock().unwrap();
         let operator: String = conn
@@ -1297,9 +1295,7 @@ mod tests {
         doc.content_type = "document".to_string();
         db.insert_asset(&doc).unwrap();
 
-        let images = db
-            .get_filtered_assets(Some("image"), None, None)
-            .unwrap();
+        let images = db.get_filtered_assets(Some("image"), None, None).unwrap();
         assert_eq!(images.len(), 1);
         assert_eq!(images[0].asset_id, "a1");
 
@@ -1319,15 +1315,11 @@ mod tests {
             .unwrap();
         db.set_c2pa_signed("a2", "/tmp/other_c2pa.jpg").unwrap();
 
-        let signed = db
-            .get_filtered_assets(None, Some(true), None)
-            .unwrap();
+        let signed = db.get_filtered_assets(None, Some(true), None).unwrap();
         assert_eq!(signed.len(), 1);
         assert_eq!(signed[0].asset_id, "a2");
 
-        let unsigned = db
-            .get_filtered_assets(None, Some(false), None)
-            .unwrap();
+        let unsigned = db.get_filtered_assets(None, Some(false), None).unwrap();
         assert_eq!(unsigned.len(), 1);
         assert_eq!(unsigned[0].asset_id, "a1");
     }
@@ -1335,20 +1327,24 @@ mod tests {
     #[test]
     fn filter_by_search_query() {
         let db = open_temp_db();
-        db.insert_asset(&make_asset("a1", "sunset_beach.jpg", "2026-01-01T00:00:00Z"))
-            .unwrap();
-        db.insert_asset(&make_asset("a2", "mountain_view.jpg", "2026-01-02T00:00:00Z"))
-            .unwrap();
+        db.insert_asset(&make_asset(
+            "a1",
+            "sunset_beach.jpg",
+            "2026-01-01T00:00:00Z",
+        ))
+        .unwrap();
+        db.insert_asset(&make_asset(
+            "a2",
+            "mountain_view.jpg",
+            "2026-01-02T00:00:00Z",
+        ))
+        .unwrap();
 
-        let results = db
-            .get_filtered_assets(None, None, Some("sunset"))
-            .unwrap();
+        let results = db.get_filtered_assets(None, None, Some("sunset")).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].asset_id, "a1");
 
-        let all = db
-            .get_filtered_assets(None, None, Some(""))
-            .unwrap();
+        let all = db.get_filtered_assets(None, None, Some("")).unwrap();
         assert_eq!(all.len(), 2);
     }
 
@@ -1432,7 +1428,10 @@ mod tests {
         let r1 = reports.iter().find(|r| r.id == "r1").unwrap();
         assert_eq!(r1.verification_id.as_deref(), Some("v1"));
         assert_eq!(r1.reason_code, "ela_codec_artefact");
-        assert_eq!(r1.reason_note.as_deref(), Some("WebP compression artefact."));
+        assert_eq!(
+            r1.reason_note.as_deref(),
+            Some("WebP compression artefact.")
+        );
         assert_eq!(r1.mime_type.as_deref(), Some("image/webp"));
         assert!((r1.deepfake_score.unwrap() - 0.55).abs() < 1e-9);
         assert_eq!(r1.deepfake_verdict.as_deref(), Some("inconclusive"));
@@ -1540,24 +1539,30 @@ mod tests {
     #[test]
     fn audit_chain_intact_for_single_entry() {
         let db = open_temp_db();
-        db.log_action("import", "asset", "a1", None, None, None).unwrap();
+        db.log_action("import", "asset", "a1", None, None, None)
+            .unwrap();
         assert!(db.verify_audit_chain().unwrap());
     }
 
     #[test]
     fn audit_chain_intact_for_multiple_entries() {
         let db = open_temp_db();
-        db.log_action("import", "asset", "a1", None, None, None).unwrap();
-        db.log_action("verify", "file",  "a1", None, None, None).unwrap();
-        db.log_action("sign",   "asset", "a1", None, None, None).unwrap();
+        db.log_action("import", "asset", "a1", None, None, None)
+            .unwrap();
+        db.log_action("verify", "file", "a1", None, None, None)
+            .unwrap();
+        db.log_action("sign", "asset", "a1", None, None, None)
+            .unwrap();
         assert!(db.verify_audit_chain().unwrap());
     }
 
     #[test]
     fn audit_chain_detects_tampered_entry() {
         let db = open_temp_db();
-        db.log_action("import", "asset", "a1", None, None, None).unwrap();
-        db.log_action("verify", "file",  "a2", None, None, None).unwrap();
+        db.log_action("import", "asset", "a1", None, None, None)
+            .unwrap();
+        db.log_action("verify", "file", "a2", None, None, None)
+            .unwrap();
 
         // Directly corrupt the entry_hash of the first row to simulate tampering.
         {
@@ -1575,7 +1580,8 @@ mod tests {
     #[test]
     fn audit_chain_entries_include_hash_columns() {
         let db = open_temp_db();
-        db.log_action("import", "asset", "x1", Some("details"), None, None).unwrap();
+        db.log_action("import", "asset", "x1", Some("details"), None, None)
+            .unwrap();
 
         let conn = db.conn.lock().unwrap();
         let (prev_hash, entry_hash): (Option<String>, Option<String>) = conn
@@ -1597,10 +1603,28 @@ mod tests {
     fn get_verification_history_returns_summaries() {
         let db = open_temp_db();
 
-        db.insert_verification("v1", "file", "image", Some(0.12), Some(0.08), Some(true), &[], 0.85)
-            .unwrap();
-        db.insert_verification("v2", "url", "image", Some(0.65), Some(0.72), None, &[], 0.35)
-            .unwrap();
+        db.insert_verification(
+            "v1",
+            "file",
+            "image",
+            Some(0.12),
+            Some(0.08),
+            Some(true),
+            &[],
+            0.85,
+        )
+        .unwrap();
+        db.insert_verification(
+            "v2",
+            "url",
+            "image",
+            Some(0.65),
+            Some(0.72),
+            None,
+            &[],
+            0.35,
+        )
+        .unwrap();
 
         let history = db.get_verification_history(10, 0).unwrap();
         assert_eq!(history.len(), 2);

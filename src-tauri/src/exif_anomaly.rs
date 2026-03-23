@@ -347,9 +347,7 @@ fn check_dimensions(
     let swapped_match = exif_w == actual_h && exif_h == actual_w;
 
     // Orientations 5-8 swap width and height
-    let orientation_swaps = meta
-        .orientation
-        .is_some_and(|o| (5..=8).contains(&o));
+    let orientation_swaps = meta.orientation.is_some_and(|o| (5..=8).contains(&o));
 
     let matches = if orientation_swaps {
         swapped_match || normal_match
@@ -420,22 +418,54 @@ fn check_gps(meta: &ImageMetadata, findings: &mut Vec<AnomalyFinding>) {
 
 fn compute_completeness(meta: &ImageMetadata) -> (u32, u32) {
     let mut count = 0u32;
-    if meta.camera_make.is_some() { count += 1; }
-    if meta.camera_model.is_some() { count += 1; }
-    if meta.software.is_some() { count += 1; }
-    if meta.datetime_original.is_some() { count += 1; }
-    if meta.datetime_modified.is_some() { count += 1; }
-    if meta.exif_width.is_some() { count += 1; }
-    if meta.exif_height.is_some() { count += 1; }
-    if meta.color_space.is_some() { count += 1; }
-    if meta.gps_latitude.is_some() { count += 1; }
-    if meta.gps_longitude.is_some() { count += 1; }
-    if meta.iso.is_some() { count += 1; }
-    if meta.focal_length.is_some() { count += 1; }
-    if meta.exposure_time.is_some() { count += 1; }
-    if meta.f_number.is_some() { count += 1; }
-    if meta.copyright.is_some() { count += 1; }
-    if meta.artist.is_some() { count += 1; }
+    if meta.camera_make.is_some() {
+        count += 1;
+    }
+    if meta.camera_model.is_some() {
+        count += 1;
+    }
+    if meta.software.is_some() {
+        count += 1;
+    }
+    if meta.datetime_original.is_some() {
+        count += 1;
+    }
+    if meta.datetime_modified.is_some() {
+        count += 1;
+    }
+    if meta.exif_width.is_some() {
+        count += 1;
+    }
+    if meta.exif_height.is_some() {
+        count += 1;
+    }
+    if meta.color_space.is_some() {
+        count += 1;
+    }
+    if meta.gps_latitude.is_some() {
+        count += 1;
+    }
+    if meta.gps_longitude.is_some() {
+        count += 1;
+    }
+    if meta.iso.is_some() {
+        count += 1;
+    }
+    if meta.focal_length.is_some() {
+        count += 1;
+    }
+    if meta.exposure_time.is_some() {
+        count += 1;
+    }
+    if meta.f_number.is_some() {
+        count += 1;
+    }
+    if meta.copyright.is_some() {
+        count += 1;
+    }
+    if meta.artist.is_some() {
+        count += 1;
+    }
     (count, 16)
 }
 
@@ -508,7 +538,11 @@ mod tests {
         let meta = camera_meta();
         let result = analyse(Some(&meta), Some(8192), Some(5464));
         assert!(result.has_exif);
-        assert!(result.trust_score >= 0.9, "Expected high score, got {}", result.trust_score);
+        assert!(
+            result.trust_score >= 0.9,
+            "Expected high score, got {}",
+            result.trust_score
+        );
         assert_eq!(result.fields_populated, 16); // description is None but all others present
     }
 
@@ -519,7 +553,10 @@ mod tests {
         let mut meta = empty_meta();
         meta.software = Some("DALL-E 3".into());
         let result = analyse(Some(&meta), None, None);
-        let ai_finding = result.findings.iter().find(|f| f.check_id == "software_ai_generator");
+        let ai_finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "software_ai_generator");
         assert!(ai_finding.is_some());
         assert_eq!(ai_finding.unwrap().severity, Severity::Critical);
     }
@@ -529,7 +566,10 @@ mod tests {
         let mut meta = camera_meta();
         meta.software = Some("Adobe Photoshop 25.0".into());
         let result = analyse(Some(&meta), Some(8192), Some(5464));
-        let ed_finding = result.findings.iter().find(|f| f.check_id == "software_editor");
+        let ed_finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "software_editor");
         assert!(ed_finding.is_some());
         assert_eq!(ed_finding.unwrap().severity, Severity::Low);
     }
@@ -622,7 +662,7 @@ mod tests {
     fn orientation_swap_no_finding() {
         let mut meta = camera_meta();
         meta.orientation = Some(6); // 90° rotation swaps w/h
-        // EXIF says 8192x5464, actual is 5464x8192 (swapped)
+                                    // EXIF says 8192x5464, actual is 5464x8192 (swapped)
         let result = analyse(Some(&meta), Some(5464), Some(8192));
         let dim_finding = result
             .findings
@@ -667,10 +707,7 @@ mod tests {
         meta.gps_latitude = Some(51.5);
         meta.gps_longitude = None;
         let result = analyse(Some(&meta), Some(8192), Some(5464));
-        let gps_finding = result
-            .findings
-            .iter()
-            .find(|f| f.check_id == "gps_partial");
+        let gps_finding = result.findings.iter().find(|f| f.check_id == "gps_partial");
         assert!(gps_finding.is_some());
         assert_eq!(gps_finding.unwrap().severity, Severity::Low);
     }

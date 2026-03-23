@@ -188,7 +188,9 @@ mod tests {
 
     #[test]
     fn classify_extension_images() {
-        for ext in &["jpg", "jpeg", "png", "gif", "webp", "tiff", "tif", "bmp", "svg", "avif", "heic", "ico"] {
+        for ext in &[
+            "jpg", "jpeg", "png", "gif", "webp", "tiff", "tif", "bmp", "svg", "avif", "heic", "ico",
+        ] {
             let (ct, _) = classify_extension(ext);
             assert_eq!(ct, ContentType::Image, "extension {ext} should be Image");
         }
@@ -196,9 +198,15 @@ mod tests {
 
     #[test]
     fn classify_extension_documents() {
-        for ext in &["pdf", "docx", "odt", "epub", "txt", "rtf", "md", "csv", "xlsx"] {
+        for ext in &[
+            "pdf", "docx", "odt", "epub", "txt", "rtf", "md", "csv", "xlsx",
+        ] {
             let (ct, _) = classify_extension(ext);
-            assert_eq!(ct, ContentType::Document, "extension {ext} should be Document");
+            assert_eq!(
+                ct,
+                ContentType::Document,
+                "extension {ext} should be Document"
+            );
         }
     }
 
@@ -212,7 +220,9 @@ mod tests {
 
     #[test]
     fn classify_extension_audio() {
-        for ext in &["wav", "mp3", "flac", "ogg", "aac", "m4a", "aiff", "aif", "opus"] {
+        for ext in &[
+            "wav", "mp3", "flac", "ogg", "aac", "m4a", "aiff", "aif", "opus",
+        ] {
             let (ct, _) = classify_extension(ext);
             assert_eq!(ct, ContentType::Audio, "extension {ext} should be Audio");
         }
@@ -220,7 +230,9 @@ mod tests {
 
     #[test]
     fn classify_extension_3d() {
-        for ext in &["stl", "obj", "gltf", "glb", "fbx", "ply", "usdz", "3mf", "dae"] {
+        for ext in &[
+            "stl", "obj", "gltf", "glb", "fbx", "ply", "usdz", "3mf", "dae",
+        ] {
             let (ct, _) = classify_extension(ext);
             assert_eq!(ct, ContentType::ThreeD, "extension {ext} should be ThreeD");
         }

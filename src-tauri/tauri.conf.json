@@ -7,10 +7,10 @@
     "beforeDevCommand": "cd ui && npm run dev",
     "beforeBuildCommand": "cd ui && npm run build",
     "devUrl": "http://localhost:1420",
-    "frontendDist": "../ui/build",
-    "withGlobalTauri": false
+    "frontendDist": "../ui/build"
   },
   "app": {
+    "withGlobalTauri": false,
     "windows": [
       {
         "title": "Jura Trace — Know What's Real",

@@ -141,12 +141,7 @@ fn strength_to_param(strength: u32) -> i32 {
 pub fn supports_watermarking(mime_type: &str) -> bool {
     matches!(
         mime_type,
-        "image/jpeg"
-            | "image/png"
-            | "image/tiff"
-            | "image/webp"
-            | "image/bmp"
-            | "image/avif"
+        "image/jpeg" | "image/png" | "image/tiff" | "image/webp" | "image/bmp" | "image/avif"
     )
 }
 
@@ -155,10 +150,7 @@ pub fn supports_watermarking(mime_type: &str) -> bool {
 /// Appends `_wm` to the file stem and forces `.png` as the extension:
 /// `photo.jpg` → `photo_wm.png`
 pub fn watermark_output_path(source: &Path) -> PathBuf {
-    let stem = source
-        .file_stem()
-        .unwrap_or_default()
-        .to_string_lossy();
+    let stem = source.file_stem().unwrap_or_default().to_string_lossy();
     source.with_file_name(format!("{stem}_wm.png"))
 }
 
@@ -182,8 +174,8 @@ pub fn embed_watermark(
     options: &WatermarkOptions,
 ) -> Result<WatermarkResult, String> {
     // Validate and decode the payload
-    let payload_bytes = decode_hex(&options.payload_hex)
-        .map_err(|e| format!("Invalid payload_hex: {e}"))?;
+    let payload_bytes =
+        decode_hex(&options.payload_hex).map_err(|e| format!("Invalid payload_hex: {e}"))?;
 
     if payload_bytes.is_empty() {
         return Err("payload_hex must not be empty".to_string());
@@ -222,10 +214,7 @@ pub fn embed_watermark(
         .add_padding()
         .dwt()
         .cut()
-        .embed_watermark_bits(
-            bitvec::slice::BitSlice::from_slice(&payload_bytes),
-            &config,
-        )
+        .embed_watermark_bits(bitvec::slice::BitSlice::from_slice(&payload_bytes), &config)
         .assemble()
         .idwt()
         .remove_padding();
@@ -233,15 +222,14 @@ pub fn embed_watermark(
     // Convert back to RGB8 (RGBA32F → DynamicImage → RGB8 for PNG output)
     let rgba32f: image::Rgba32FImage = processed.into();
     let dynamic: image::DynamicImage = rgba32f.into();
-    dynamic
-        .to_rgb8()
-        .save(output_path)
-        .map_err(|e| format!("Cannot save watermarked image '{}': {e}", output_path.display()))?;
+    dynamic.to_rgb8().save(output_path).map_err(|e| {
+        format!(
+            "Cannot save watermarked image '{}': {e}",
+            output_path.display()
+        )
+    })?;
 
-    log::info!(
-        "Watermark embedded successfully: {}",
-        output_path.display()
-    );
+    log::info!("Watermark embedded successfully: {}", output_path.display());
 
     Ok(WatermarkResult {
         output_path: output_path.to_string_lossy().to_string(),
@@ -278,9 +266,7 @@ pub fn extract_watermark(
 
     // Parse the optional reference to derive a matching seed
     let reference_bytes: Option<Vec<u8>> = match reference_hex {
-        Some(hex) => Some(
-            decode_hex(hex).map_err(|e| format!("Invalid reference_hex: {e}"))?,
-        ),
+        Some(hex) => Some(decode_hex(hex).map_err(|e| format!("Invalid reference_hex: {e}"))?),
         None => None,
     };
 
@@ -581,7 +567,11 @@ mod tests {
             },
         );
 
-        assert!(embed_result.is_ok(), "embed failed: {:?}", embed_result.err());
+        assert!(
+            embed_result.is_ok(),
+            "embed failed: {:?}",
+            embed_result.err()
+        );
         let embed_result = embed_result.unwrap();
         assert!(embed_result.success);
         assert!(output_path.exists(), "output file was not created");

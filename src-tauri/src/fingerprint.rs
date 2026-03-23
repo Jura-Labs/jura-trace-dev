@@ -28,7 +28,6 @@ impl HashAlgorithm {
             Self::PHash => "phash",
         }
     }
-
 }
 
 /// Result of computing a single perceptual hash.
@@ -88,11 +87,7 @@ pub fn compute_hashes(path: &Path) -> Vec<HashResult> {
                 .hash_size(8, 8)
                 .to_hasher();
             let hash = hasher.hash_image(&img);
-            let raw_hex: String = hash
-                .as_bytes()
-                .iter()
-                .map(|b| format!("{b:02x}"))
-                .collect();
+            let raw_hex: String = hash.as_bytes().iter().map(|b| format!("{b:02x}")).collect();
             // Zero-pad to 16 chars (64 bits) for consistent Hamming distance
             let hash_hex = format!("{raw_hex:0>16}");
             HashResult {
@@ -110,10 +105,10 @@ pub fn compute_hashes(path: &Path) -> Vec<HashResult> {
 /// Lower distance = more similar. Identical images return 0.
 /// Maximum distance is 64 (every bit differs).
 pub fn hamming_distance(hash_a: &str, hash_b: &str) -> Result<u32, String> {
-    let a = u64::from_str_radix(hash_a, 16)
-        .map_err(|e| format!("Invalid hex hash '{hash_a}': {e}"))?;
-    let b = u64::from_str_radix(hash_b, 16)
-        .map_err(|e| format!("Invalid hex hash '{hash_b}': {e}"))?;
+    let a =
+        u64::from_str_radix(hash_a, 16).map_err(|e| format!("Invalid hex hash '{hash_a}': {e}"))?;
+    let b =
+        u64::from_str_radix(hash_b, 16).map_err(|e| format!("Invalid hex hash '{hash_b}': {e}"))?;
     Ok((a ^ b).count_ones())
 }
 
@@ -188,7 +183,11 @@ mod tests {
 
     #[test]
     fn three_algorithm_variants() {
-        let algos = [HashAlgorithm::AHash, HashAlgorithm::DHash, HashAlgorithm::PHash];
+        let algos = [
+            HashAlgorithm::AHash,
+            HashAlgorithm::DHash,
+            HashAlgorithm::PHash,
+        ];
         assert_eq!(algos.len(), 3);
     }
 
@@ -212,7 +211,12 @@ mod tests {
         let hashes = compute_hashes(&path);
         assert_eq!(hashes.len(), 3);
         for h in &hashes {
-            assert_eq!(h.hash_hex.len(), 16, "Expected 16 hex chars, got {}", h.hash_hex.len());
+            assert_eq!(
+                h.hash_hex.len(),
+                16,
+                "Expected 16 hex chars, got {}",
+                h.hash_hex.len()
+            );
             assert!(
                 u64::from_str_radix(&h.hash_hex, 16).is_ok(),
                 "Invalid hex: {}",

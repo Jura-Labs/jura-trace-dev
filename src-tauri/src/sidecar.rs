@@ -796,10 +796,7 @@ impl SidecarClient {
 
         let resp = self
             .client
-            .post(format!(
-                "{}/forensics/chromatic-aberration",
-                self.base_url
-            ))
+            .post(format!("{}/forensics/chromatic-aberration", self.base_url))
             .multipart(form)
             .timeout(Duration::from_secs(30))
             .send()
@@ -928,9 +925,7 @@ impl SidecarClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().unwrap_or_default();
-            return Err(format!(
-                "Sidecar splice boundary returned {status}: {body}"
-            ));
+            return Err(format!("Sidecar splice boundary returned {status}: {body}"));
         }
 
         resp.json::<SpliceBoundaryResult>()
@@ -987,9 +982,7 @@ impl SidecarClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().unwrap_or_default();
-            return Err(format!(
-                "Sidecar video metadata returned {status}: {body}"
-            ));
+            return Err(format!("Sidecar video metadata returned {status}: {body}"));
         }
 
         resp.json::<VideoMetadataResult>()
@@ -1014,9 +1007,7 @@ impl SidecarClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().unwrap_or_default();
-            return Err(format!(
-                "Sidecar audio metadata returned {status}: {body}"
-            ));
+            return Err(format!("Sidecar audio metadata returned {status}: {body}"));
         }
 
         resp.json::<AudioMetadataResult>()
@@ -1049,9 +1040,7 @@ impl SidecarClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().unwrap_or_default();
-            return Err(format!(
-                "Sidecar video deepfake returned {status}: {body}"
-            ));
+            return Err(format!("Sidecar video deepfake returned {status}: {body}"));
         }
 
         resp.json::<VideoDeepfakeResult>()
@@ -1077,9 +1066,7 @@ impl SidecarClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().unwrap_or_default();
-            return Err(format!(
-                "Sidecar transcription returned {status}: {body}"
-            ));
+            return Err(format!("Sidecar transcription returned {status}: {body}"));
         }
 
         resp.json::<TranscriptionResult>()
@@ -1093,10 +1080,7 @@ impl SidecarClient {
     pub fn check_claim(&self, claims_text: &str) -> Result<ClaimCheckResult, String> {
         let resp = self
             .client
-            .post(format!(
-                "{}/forensics/claim-check",
-                self.base_url
-            ))
+            .post(format!("{}/forensics/claim-check", self.base_url))
             .query(&[("claims_text", claims_text)])
             .timeout(Duration::from_secs(60))
             .send()
@@ -1105,9 +1089,7 @@ impl SidecarClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().unwrap_or_default();
-            return Err(format!(
-                "Sidecar claim check returned {status}: {body}"
-            ));
+            return Err(format!("Sidecar claim check returned {status}: {body}"));
         }
 
         resp.json::<ClaimCheckResult>()

@@ -536,7 +536,11 @@ fn compute_trust(
     .filter(|s| s.map(|v| v > 0.5).unwrap_or(false))
     .count();
 
-    let regional_cap = if suspicious_regional_count >= 2 { 0.55_f64 } else { 1.0 };
+    let regional_cap = if suspicious_regional_count >= 2 {
+        0.55_f64
+    } else {
+        1.0
+    };
 
     // ── Verdict ceiling ─────────────────────────────────────────────
     // Prevents high trust scores when the deepfake detector is uncertain
@@ -666,7 +670,11 @@ fn verify_content_inner(
     let is_deep = matches!(effective_mode, "deep" | "archival");
     log::info!(
         "Verify pipeline: is_image={}, mode={:?}, effective={}, sidecar_up={}, is_deep={}",
-        is_image, mode, effective_mode, sidecar_up, is_deep
+        is_image,
+        mode,
+        effective_mode,
+        sidecar_up,
+        is_deep
     );
 
     // ── Whether the image has camera-origin EXIF ────────────────────────
@@ -700,17 +708,13 @@ fn verify_content_inner(
 
             let (ela_out, df_out, wm_out) = std::thread::scope(|s| {
                 let ela_h = s.spawn(move || ela_client.analyse_ela(&ela_path));
-                let df_h = s.spawn(move || {
-                    df_client.detect_deepfake(&df_path, &mime, has_camera_exif)
-                });
+                let df_h =
+                    s.spawn(move || df_client.detect_deepfake(&df_path, &mime, has_camera_exif));
                 let wm_h = s.spawn(move || wm_client.check_watermark_extract(&wm_path));
                 (ela_h.join(), df_h.join(), wm_h.join())
             });
 
-            log::info!(
-                "Standard detectors (parallel): {:?}",
-                t_standard.elapsed()
-            );
+            log::info!("Standard detectors (parallel): {:?}", t_standard.elapsed());
 
             let (ela_score, ela_result) = match ela_out {
                 Ok(Ok(r)) => {
@@ -968,9 +972,8 @@ fn verify_content_inner(
 
         let (vm_out, vd_out) = std::thread::scope(|s| {
             let vm_h = s.spawn(move || vm_client.check_video_metadata(&vm_path));
-            let vd_h = s.spawn(move || {
-                vd_client.analyse_video_deepfake(&vd_path, &deepfake_mode_owned)
-            });
+            let vd_h =
+                s.spawn(move || vd_client.analyse_video_deepfake(&vd_path, &deepfake_mode_owned));
             (vm_h.join(), vd_h.join())
         });
 
@@ -1033,7 +1036,9 @@ fn verify_content_inner(
             Ok(t) if t.success => {
                 log::info!(
                     "Transcription: lang={:?}, duration={:?}, segments={}",
-                    t.language, t.duration, t.segments.len()
+                    t.language,
+                    t.duration,
+                    t.segments.len()
                 );
                 Some(t)
             }
@@ -1058,7 +1063,8 @@ fn verify_content_inner(
                 Ok(claim_result) => {
                     log::info!(
                         "Claim check: verdict={}, claims={}",
-                        claim_result.overall_verdict, claim_result.claims.len()
+                        claim_result.overall_verdict,
+                        claim_result.claims.len()
                     );
                     Some(claim_result)
                 }
@@ -1082,9 +1088,7 @@ fn verify_content_inner(
 
     // Compute overall trust score
     let exif_trust = exif_analysis.as_ref().map(|a| a.trust_score).unwrap_or(0.5);
-    let deepfake_confidence = deepfake_result
-        .as_ref()
-        .map(|r| r.confidence.as_str());
+    let deepfake_confidence = deepfake_result.as_ref().map(|r| r.confidence.as_str());
     let deepfake_verdict = deepfake_result
         .as_ref()
         .and_then(|r| r.verdict_level.as_deref());
@@ -1204,7 +1208,10 @@ fn verify_content(
     mode: Option<String>,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<VerificationResult, String> {
-    log::info!("Verifying content: {source} ({source_type}) [mode={:?}]", mode);
+    log::info!(
+        "Verifying content: {source} ({source_type}) [mode={:?}]",
+        mode
+    );
     verify_content_inner(&source, &source_type, mode.as_deref(), &state)
 }
 
@@ -1420,7 +1427,9 @@ fn get_filtered_assets(
 fn delete_asset(asset_id: String, state: State<'_, Mutex<AppState>>) -> Result<(), String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     app.db.delete_asset(&asset_id).map_err(|e| e.to_string())?;
-    let _ = app.db.log_action("delete", "asset", &asset_id, None, None, None);
+    let _ = app
+        .db
+        .log_action("delete", "asset", &asset_id, None, None, None);
     log::info!("Deleted asset {asset_id}");
     Ok(())
 }
@@ -1442,11 +1451,19 @@ fn get_recent_assets(
 /// Downloads the content to a temp file and runs it through the
 /// verification pipeline. Supports images and documents.
 #[tauri::command]
-fn verify_url(url: String, mode: Option<String>, state: State<'_, Mutex<AppState>>) -> Result<VerificationResult, String> {
+fn verify_url(
+    url: String,
+    mode: Option<String>,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<VerificationResult, String> {
     // Redact query string and fragment before logging — URLs may contain
     // credentials or tokens in the query string (e.g. ?token=abc123).
     let log_url = url::Url::parse(&url)
-        .map(|mut u| { u.set_query(None); u.set_fragment(None); u.to_string() })
+        .map(|mut u| {
+            u.set_query(None);
+            u.set_fragment(None);
+            u.to_string()
+        })
         .unwrap_or_else(|_| "<invalid URL>".to_string());
     log::info!("Verifying URL: {log_url} [mode={:?}]", mode);
 
@@ -1456,7 +1473,11 @@ fn verify_url(url: String, mode: Option<String>, state: State<'_, Mutex<AppState
     // Only allow HTTP(S) schemes
     match parsed.scheme() {
         "http" | "https" => {}
-        scheme => return Err(format!("Unsupported URL scheme: {scheme}. Only http and https are allowed.")),
+        scheme => {
+            return Err(format!(
+                "Unsupported URL scheme: {scheme}. Only http and https are allowed."
+            ))
+        }
     }
 
     // Block requests to loopback, private, and link-local addresses
@@ -1470,12 +1491,16 @@ fn verify_url(url: String, mode: Option<String>, state: State<'_, Mutex<AppState
             || host_lower.starts_with("192.168.")
             || host_lower.starts_with("169.254.")
             || (host_lower.starts_with("172.") && {
-                host_lower[4..].split('.').next()
+                host_lower[4..]
+                    .split('.')
+                    .next()
                     .and_then(|s| s.parse::<u8>().ok())
                     .is_some_and(|n| (16..=31).contains(&n))
             })
         {
-            return Err("Cannot verify URLs pointing to local or private network addresses.".to_string());
+            return Err(
+                "Cannot verify URLs pointing to local or private network addresses.".to_string(),
+            );
         }
     } else {
         return Err("URL must contain a valid host.".to_string());
@@ -1519,7 +1544,11 @@ fn verify_url(url: String, mode: Option<String>, state: State<'_, Mutex<AppState
         .filter(|c| c.is_alphanumeric())
         .take(6)
         .collect();
-    let safe_ext = if safe_ext.is_empty() { "bin".to_string() } else { safe_ext };
+    let safe_ext = if safe_ext.is_empty() {
+        "bin".to_string()
+    } else {
+        safe_ext
+    };
 
     let bytes = response
         .bytes()
@@ -1528,8 +1557,7 @@ fn verify_url(url: String, mode: Option<String>, state: State<'_, Mutex<AppState
     // Write to temp file using a randomised name to prevent TOCTOU races.
     let temp_dir = tempfile::tempdir().map_err(|e| format!("Failed to create temp dir: {e}"))?;
     let temp_path = temp_dir.path().join(format!("url_content.{safe_ext}"));
-    std::fs::write(&temp_path, &bytes)
-        .map_err(|e| format!("Failed to write temp file: {e}"))?;
+    std::fs::write(&temp_path, &bytes).map_err(|e| format!("Failed to write temp file: {e}"))?;
 
     let temp_str = temp_path.to_string_lossy().to_string();
 
@@ -1828,13 +1856,9 @@ fn mark_false_positive(
 ///
 /// Intended for the Settings page to surface calibration data to the user.
 #[tauri::command]
-fn get_false_positive_stats(
-    state: State<'_, Mutex<AppState>>,
-) -> Result<u64, String> {
+fn get_false_positive_stats(state: State<'_, Mutex<AppState>>) -> Result<u64, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
-    app.db
-        .get_false_positive_count()
-        .map_err(|e| e.to_string())
+    app.db.get_false_positive_count().map_err(|e| e.to_string())
 }
 
 // ===== Monitor Commands =====
@@ -1849,7 +1873,10 @@ fn get_monitor_overview(state: State<'_, Mutex<AppState>>) -> Result<MonitorOver
     let protection = app.db.get_protection_summary().map_err(|e| e.to_string())?;
     let trust = app.db.get_trust_distribution().map_err(|e| e.to_string())?;
     let recent_activity = app.db.get_audit_log(20, None).map_err(|e| e.to_string())?;
-    let activity_days = app.db.get_activity_timeline(30).map_err(|e| e.to_string())?;
+    let activity_days = app
+        .db
+        .get_activity_timeline(30)
+        .map_err(|e| e.to_string())?;
     Ok(MonitorOverview {
         protection,
         trust,
@@ -1964,9 +1991,18 @@ mod tests {
     fn trust_clean_image_with_exif() {
         // All signals clean, full EXIF, authentic verdict → high trust
         let trust = compute_trust(
-            Some(0.04), Some(0.05), Some(0.0), Some(0.15),
-            Some("high"), Some("authentic"), 1.0, None,
-            None, None, None, None,
+            Some(0.04),
+            Some(0.05),
+            Some(0.0),
+            Some(0.15),
+            Some("high"),
+            Some("authentic"),
+            1.0,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
         assert!(trust > 0.85, "Expected >0.85, got {trust:.3}");
     }
@@ -1975,9 +2011,18 @@ mod tests {
     fn trust_manipulated_image() {
         // ELA, noise, and copy-move all suspicious → low trust
         let trust = compute_trust(
-            Some(0.7), Some(0.8), Some(0.6), Some(0.2),
-            Some("high"), Some("authentic"), 0.5, None,
-            None, None, None, None,
+            Some(0.7),
+            Some(0.8),
+            Some(0.6),
+            Some(0.2),
+            Some("high"),
+            Some("authentic"),
+            0.5,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
         assert!(trust < 0.5, "Expected <0.5, got {trust:.3}");
     }
@@ -1986,9 +2031,18 @@ mod tests {
     fn trust_concordance_dampens_false_positives() {
         // ELA clean, deepfake clean, but noise+copymove maxed (codec false positive)
         let trust = compute_trust(
-            Some(0.04), Some(1.0), Some(1.0), Some(0.15),
-            Some("high"), Some("authentic"), 0.80, None,
-            None, None, None, None,
+            Some(0.04),
+            Some(1.0),
+            Some(1.0),
+            Some(0.15),
+            Some("high"),
+            Some("authentic"),
+            0.80,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
         assert!(trust > 0.60, "Expected >0.60, got {trust:.3}");
     }
@@ -1997,9 +2051,18 @@ mod tests {
     fn trust_genuine_manipulation_not_boosted() {
         // ELA is suspicious → concordance boost should NOT fire
         let trust = compute_trust(
-            Some(0.7), Some(0.8), Some(0.5), Some(0.2),
-            Some("high"), Some("authentic"), 0.8, None,
-            None, None, None, None,
+            Some(0.7),
+            Some(0.8),
+            Some(0.5),
+            Some(0.2),
+            Some("high"),
+            Some("authentic"),
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
         assert!(trust < 0.55, "Expected <0.55, got {trust:.3}");
     }
@@ -2008,22 +2071,54 @@ mod tests {
     fn trust_ela_weighted_higher() {
         // ELA clean but noise suspicious — ELA's 2.0 weight should pull up
         let trust_weighted = compute_trust(
-            Some(0.1), Some(0.8), Some(0.5), Some(0.3),
-            Some("high"), Some("authentic"), 0.8, None,
-            None, None, None, None,
+            Some(0.1),
+            Some(0.8),
+            Some(0.5),
+            Some(0.3),
+            Some("high"),
+            Some("authentic"),
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
-        assert!(trust_weighted > 0.55, "Expected >0.55, got {trust_weighted:.3}");
+        assert!(
+            trust_weighted > 0.55,
+            "Expected >0.55, got {trust_weighted:.3}"
+        );
     }
 
     #[test]
     fn trust_c2pa_bonus_applied() {
         let trust_without = compute_trust(
-            Some(0.1), None, None, None, None, None, 0.8, None,
-            None, None, None, None,
+            Some(0.1),
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
         let trust_with = compute_trust(
-            Some(0.1), None, None, None, None, None, 0.8, Some(true),
-            None, None, None, None,
+            Some(0.1),
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            Some(true),
+            None,
+            None,
+            None,
+            None,
         );
         assert!(
             trust_with > trust_without,
@@ -2034,8 +2129,7 @@ mod tests {
     #[test]
     fn trust_no_forensics_falls_back_to_exif() {
         let trust = compute_trust(
-            None, None, None, None, None, None, 0.8, None,
-            None, None, None, None,
+            None, None, None, None, None, None, 0.8, None, None, None, None, None,
         );
         assert!((trust - 0.8).abs() < 0.01, "Expected ~0.8, got {trust:.3}");
     }
@@ -2043,19 +2137,41 @@ mod tests {
     #[test]
     fn trust_avif_news_image_regression() {
         let trust = compute_trust(
-            Some(0.04), Some(0.76), Some(0.35), Some(0.15),
-            Some("high"), Some("authentic"), 0.95, None,
-            None, None, None, None,
+            Some(0.04),
+            Some(0.76),
+            Some(0.35),
+            Some(0.15),
+            Some("high"),
+            Some("authentic"),
+            0.95,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
-        assert!(trust > 0.75, "AVIF news image should score >75%, got {:.1}%", trust * 100.0);
+        assert!(
+            trust > 0.75,
+            "AVIF news image should score >75%, got {:.1}%",
+            trust * 100.0
+        );
     }
 
     #[test]
     fn trust_score_bounded() {
         let trust = compute_trust(
-            Some(0.0), Some(0.0), Some(0.0), Some(0.0),
-            Some("high"), Some("authentic"), 1.0, Some(true),
-            None, None, None, None,
+            Some(0.0),
+            Some(0.0),
+            Some(0.0),
+            Some(0.0),
+            Some("high"),
+            Some("authentic"),
+            1.0,
+            Some(true),
+            None,
+            None,
+            None,
+            None,
         );
         assert!(trust <= 1.0, "Trust exceeded 1.0: {trust:.3}");
     }
@@ -2067,53 +2183,117 @@ mod tests {
         // Fake wedding image scenario: deepfake score 0.31, inconclusive verdict.
         // Previously scored 92% "High Trust" — now capped at 60%.
         let trust = compute_trust(
-            None, None, None, Some(0.31),
-            Some("low"), Some("inconclusive"), 0.8, None,
-            None, None, None, None,
+            None,
+            None,
+            None,
+            Some(0.31),
+            Some("low"),
+            Some("inconclusive"),
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
-        assert!(trust <= 0.60, "Inconclusive verdict should cap trust at 0.60, got {trust:.3}");
-        assert!(trust >= 0.30, "Trust should still be in medium range, got {trust:.3}");
+        assert!(
+            trust <= 0.60,
+            "Inconclusive verdict should cap trust at 0.60, got {trust:.3}"
+        );
+        assert!(
+            trust >= 0.30,
+            "Trust should still be in medium range, got {trust:.3}"
+        );
     }
 
     #[test]
     fn trust_synthetic_high_confidence_very_low() {
         let trust = compute_trust(
-            None, None, None, Some(0.85),
-            Some("high"), Some("synthetic"), 0.8, None,
-            None, None, None, None,
+            None,
+            None,
+            None,
+            Some(0.85),
+            Some("high"),
+            Some("synthetic"),
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
-        assert!(trust <= 0.25, "Synthetic+high should cap at 0.25, got {trust:.3}");
+        assert!(
+            trust <= 0.25,
+            "Synthetic+high should cap at 0.25, got {trust:.3}"
+        );
     }
 
     #[test]
     fn trust_synthetic_low_confidence_capped() {
         // Synthetic with low confidence ≈ inconclusive, caps at 0.45
         let trust = compute_trust(
-            None, None, None, Some(0.7),
-            Some("low"), Some("synthetic"), 0.8, None,
-            None, None, None, None,
+            None,
+            None,
+            None,
+            Some(0.7),
+            Some("low"),
+            Some("synthetic"),
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
-        assert!(trust <= 0.45, "Synthetic+low should cap at 0.45, got {trust:.3}");
+        assert!(
+            trust <= 0.45,
+            "Synthetic+low should cap at 0.45, got {trust:.3}"
+        );
     }
 
     #[test]
     fn trust_authentic_verdict_no_ceiling() {
         let trust = compute_trust(
-            Some(0.04), Some(0.05), Some(0.0), Some(0.15),
-            Some("high"), Some("authentic"), 1.0, Some(true),
-            None, None, None, None,
+            Some(0.04),
+            Some(0.05),
+            Some(0.0),
+            Some(0.15),
+            Some("high"),
+            Some("authentic"),
+            1.0,
+            Some(true),
+            None,
+            None,
+            None,
+            None,
         );
-        assert!(trust > 0.85, "Authentic verdict should allow high trust, got {trust:.3}");
+        assert!(
+            trust > 0.85,
+            "Authentic verdict should allow high trust, got {trust:.3}"
+        );
     }
 
     #[test]
     fn trust_no_verdict_no_ceiling() {
         // Sidecar offline — no verdict available, should not impose ceiling
         let trust = compute_trust(
-            Some(0.04), None, None, None, None, None, 0.8, None,
-            None, None, None, None,
+            Some(0.04),
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
-        assert!(trust > 0.70, "No sidecar should fall back to EXIF, got {trust:.3}");
+        assert!(
+            trust > 0.70,
+            "No sidecar should fall back to EXIF, got {trust:.3}"
+        );
     }
 
     #[test]
@@ -2243,10 +2423,14 @@ mod tests {
             Some(0.06), // Noise clean
             Some(0.0),  // Copy-move clean
             Some(0.31), // Deepfake borderline
-            Some("low"), Some("inconclusive"),
-            0.95,       // Good EXIF (web image with some data)
+            Some("low"),
+            Some("inconclusive"),
+            0.95, // Good EXIF (web image with some data)
             None,
-            None, None, None, None, // no regional detectors
+            None,
+            None,
+            None,
+            None, // no regional detectors
         );
         assert!(
             trust <= 0.60,
@@ -2306,14 +2490,32 @@ mod tests {
     fn trust_single_regional_detector_lowers_trust() {
         // Segmented ELA alone (score 0.7) should lower trust below a clean baseline
         let trust_with = compute_trust(
-            Some(0.05), Some(0.05), Some(0.0), Some(0.15),
-            Some("high"), Some("authentic"), 0.95, None,
-            Some(0.7), None, None, None,
+            Some(0.05),
+            Some(0.05),
+            Some(0.0),
+            Some(0.15),
+            Some("high"),
+            Some("authentic"),
+            0.95,
+            None,
+            Some(0.7),
+            None,
+            None,
+            None,
         );
         let trust_without = compute_trust(
-            Some(0.05), Some(0.05), Some(0.0), Some(0.15),
-            Some("high"), Some("authentic"), 0.95, None,
-            None, None, None, None,
+            Some(0.05),
+            Some(0.05),
+            Some(0.0),
+            Some(0.15),
+            Some("high"),
+            Some("authentic"),
+            0.95,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
         assert!(
             trust_with < trust_without,
@@ -2325,9 +2527,15 @@ mod tests {
     fn trust_two_suspicious_regional_detectors_cap_at_055() {
         // Two regional detectors both > 0.5 → composite amplification cap applies
         let trust = compute_trust(
-            Some(0.05), Some(0.05), Some(0.0), Some(0.10),
-            Some("high"), Some("authentic"), 0.95, None,
-            Some(0.7),  // segmented ELA suspicious
+            Some(0.05),
+            Some(0.05),
+            Some(0.0),
+            Some(0.10),
+            Some("high"),
+            Some("authentic"),
+            0.95,
+            None,
+            Some(0.7), // segmented ELA suspicious
             None,
             Some(0.65), // colour temperature suspicious
             None,
@@ -2342,8 +2550,14 @@ mod tests {
     fn trust_three_suspicious_regional_detectors_still_capped() {
         // Three suspicious regional detectors — cap must still hold
         let trust = compute_trust(
-            Some(0.05), None, None, Some(0.10),
-            Some("high"), Some("authentic"), 0.9, None,
+            Some(0.05),
+            None,
+            None,
+            Some(0.10),
+            Some("high"),
+            Some("authentic"),
+            0.9,
+            None,
             Some(0.8),  // segmented ELA
             Some(0.6),  // shadow consistency
             Some(0.75), // colour temperature
@@ -2359,12 +2573,18 @@ mod tests {
     fn trust_one_suspicious_regional_detector_no_cap() {
         // Only one regional detector suspicious (score > 0.5) — cap should NOT fire
         let trust = compute_trust(
-            Some(0.04), Some(0.05), Some(0.0), Some(0.15),
-            Some("high"), Some("authentic"), 0.95, None,
-            Some(0.6),  // segmented ELA suspicious
-            None,       // shadow — absent
-            Some(0.3),  // colour temperature clean
-            None,       // splice boundary — absent
+            Some(0.04),
+            Some(0.05),
+            Some(0.0),
+            Some(0.15),
+            Some("high"),
+            Some("authentic"),
+            0.95,
+            None,
+            Some(0.6), // segmented ELA suspicious
+            None,      // shadow — absent
+            Some(0.3), // colour temperature clean
+            None,      // splice boundary — absent
         );
         assert!(
             trust > 0.55,
@@ -2376,14 +2596,32 @@ mod tests {
     fn trust_regional_detectors_all_clean_no_penalty() {
         // All four regional detectors clean — trust should match no-regional baseline
         let trust_regional = compute_trust(
-            Some(0.04), Some(0.05), Some(0.0), Some(0.15),
-            Some("high"), Some("authentic"), 0.95, None,
-            Some(0.05), Some(0.04), Some(0.06), Some(0.03),
+            Some(0.04),
+            Some(0.05),
+            Some(0.0),
+            Some(0.15),
+            Some("high"),
+            Some("authentic"),
+            0.95,
+            None,
+            Some(0.05),
+            Some(0.04),
+            Some(0.06),
+            Some(0.03),
         );
         let trust_no_regional = compute_trust(
-            Some(0.04), Some(0.05), Some(0.0), Some(0.15),
-            Some("high"), Some("authentic"), 0.95, None,
-            None, None, None, None,
+            Some(0.04),
+            Some(0.05),
+            Some(0.0),
+            Some(0.15),
+            Some("high"),
+            Some("authentic"),
+            0.95,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
         // With all regional detectors clean the trust should be close to the
         // no-regional baseline (regional scores ≈ 0 contribute ~1.0 trust).
@@ -2399,9 +2637,15 @@ mod tests {
         // Regional cap (0.55) is stricter than the inconclusive verdict ceiling (0.60)
         // — the minimum of both must apply.
         let trust = compute_trust(
-            Some(0.05), None, None, Some(0.31),
-            Some("low"), Some("inconclusive"), 0.8, None,
-            Some(0.7),  // two regional detectors suspicious → cap 0.55
+            Some(0.05),
+            None,
+            None,
+            Some(0.31),
+            Some("low"),
+            Some("inconclusive"),
+            0.8,
+            None,
+            Some(0.7), // two regional detectors suspicious → cap 0.55
             None,
             Some(0.65),
             None,

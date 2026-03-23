@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { writable } from 'svelte/store';
   import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
@@ -35,6 +36,31 @@
   // revokes them on component destroy to prevent memory leaks.
   const blobs = createBlobTracker();
   onDestroy(() => blobs.revokeAll());
+
+  // ── Test hook: allow Playwright to inject a mock result ──────────
+  // Writable store bridges external Playwright calls into Svelte 5
+  // reactivity. The $-prefixed store reference in $effect creates
+  // a proper reactive subscription.
+  const _testResultStore = writable<VerificationResult | null>(null);
+  if (typeof window !== 'undefined') {
+    (window as any).__juraSetVerifyResult = (data: VerificationResult) => {
+      _testResultStore.set(data);
+    };
+  }
+  // Bridge store into $state via $effect. The _testApplied guard
+  // prevents the infinite loop that occurs because $effect tracks
+  // result reads elsewhere in the template.
+  let _testApplied = false;
+  $effect(() => {
+    const injected = $_testResultStore;
+    if (injected && !_testApplied) {
+      _testApplied = true;
+      result = structuredClone(injected) as VerificationResult;
+      checked = true;
+      loading = false;
+      error = null;
+    }
+  });
 
   // ── Export state ─────────────────────────────────────────────────
   let showReportModal = $state(false);

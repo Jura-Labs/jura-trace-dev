@@ -55,10 +55,9 @@ pub fn ensure_certificate(data_dir: &Path) -> Result<(Vec<u8>, Vec<u8>), String>
     let key_path = certs_dir.join("jura_key.pem");
 
     if cert_path.exists() && key_path.exists() {
-        let cert = std::fs::read(&cert_path)
-            .map_err(|e| format!("Failed to read certificate: {e}"))?;
-        let key = std::fs::read(&key_path)
-            .map_err(|e| format!("Failed to read key: {e}"))?;
+        let cert =
+            std::fs::read(&cert_path).map_err(|e| format!("Failed to read certificate: {e}"))?;
+        let key = std::fs::read(&key_path).map_err(|e| format!("Failed to read key: {e}"))?;
         return Ok((cert, key));
     }
 
@@ -121,9 +120,8 @@ pub fn ensure_certificate(data_dir: &Path) -> Result<(Vec<u8>, Vec<u8>), String>
     let ee_key = rcgen::KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256)
         .map_err(|e| format!("Failed to generate EE key pair: {e}"))?;
 
-    let mut ee_params =
-        rcgen::CertificateParams::new(vec!["jura-trace.local".to_string()])
-            .map_err(|e| format!("Failed to create EE cert params: {e}"))?;
+    let mut ee_params = rcgen::CertificateParams::new(vec!["jura-trace.local".to_string()])
+        .map_err(|e| format!("Failed to create EE cert params: {e}"))?;
     ee_params.distinguished_name.push(
         rcgen::DnType::CommonName,
         rcgen::DnValue::Utf8String("Jura Trace Signing Certificate".to_string()),
@@ -133,8 +131,7 @@ pub fn ensure_certificate(data_dir: &Path) -> Result<(Vec<u8>, Vec<u8>), String>
         rcgen::DnValue::Utf8String("Juralabs CIC".to_string()),
     );
     ee_params.key_usages = vec![rcgen::KeyUsagePurpose::DigitalSignature];
-    ee_params.extended_key_usages =
-        vec![rcgen::ExtendedKeyUsagePurpose::EmailProtection];
+    ee_params.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::EmailProtection];
     // AKI is populated by rcgen from the issuer (CA) cert's subject key.
     ee_params.use_authority_key_identifier_extension = true;
     // Explicit non-CA so validators can distinguish from intermediate CAs.
@@ -319,13 +316,11 @@ pub fn read_manifest(path: &Path) -> Result<Option<ManifestInfo>, String> {
     // For self-signed certificates, c2pa-rs always reports signingCredential.untrusted.
     // We treat that as valid because the manifest itself is structurally sound — the
     // cert simply isn't in any external trust store.
-    let is_valid = reader
-        .validation_status()
-        .is_none_or(|statuses| {
-            statuses
-                .iter()
-                .all(|s| s.code() == "signingCredential.untrusted")
-        });
+    let is_valid = reader.validation_status().is_none_or(|statuses| {
+        statuses
+            .iter()
+            .all(|s| s.code() == "signingCredential.untrusted")
+    });
 
     let signed_at = manifest
         .get("signature_info")
@@ -349,13 +344,8 @@ pub fn read_manifest(path: &Path) -> Result<Option<ManifestInfo>, String> {
 ///
 /// Adds `_c2pa` before the file extension: `photo.jpg` -> `photo_c2pa.jpg`
 pub fn signed_output_path(source: &Path) -> PathBuf {
-    let stem = source
-        .file_stem()
-        .unwrap_or_default()
-        .to_string_lossy();
-    let ext = source
-        .extension()
-        .map(|e| e.to_string_lossy().to_string());
+    let stem = source.file_stem().unwrap_or_default().to_string_lossy();
+    let ext = source.extension().map(|e| e.to_string_lossy().to_string());
 
     let new_name = match ext {
         Some(e) => format!("{stem}_c2pa.{e}"),
@@ -547,14 +537,19 @@ mod tests {
         let data_dir = tmp.path().join("data");
 
         // Step 1: Generate certificates
-        let (cert, key) = ensure_certificate(&data_dir)
-            .expect("ensure_certificate should succeed");
+        let (cert, key) = ensure_certificate(&data_dir).expect("ensure_certificate should succeed");
 
         // Verify cert + key are non-empty PEM
         let cert_str = std::str::from_utf8(&cert).expect("cert should be UTF-8");
         let key_str = std::str::from_utf8(&key).expect("key should be UTF-8");
-        assert!(cert_str.contains("BEGIN CERTIFICATE"), "cert PEM should contain BEGIN CERTIFICATE");
-        assert!(key_str.contains("BEGIN PRIVATE KEY"), "key PEM should contain BEGIN PRIVATE KEY");
+        assert!(
+            cert_str.contains("BEGIN CERTIFICATE"),
+            "cert PEM should contain BEGIN CERTIFICATE"
+        );
+        assert!(
+            key_str.contains("BEGIN PRIVATE KEY"),
+            "key PEM should contain BEGIN PRIVATE KEY"
+        );
         // Chain should have two certs (EE + CA)
         assert_eq!(
             cert_str.matches("BEGIN CERTIFICATE").count(),
@@ -596,10 +591,12 @@ mod tests {
                 if let Some(statuses) = reader.validation_status() {
                     eprintln!("  validation_status ({} issues):", statuses.len());
                     for s in statuses {
-                        eprintln!("    - code={} url={:?} explanation={:?}",
+                        eprintln!(
+                            "    - code={} url={:?} explanation={:?}",
                             s.code(),
                             s.url(),
-                            s.explanation());
+                            s.explanation()
+                        );
                     }
                 } else {
                     eprintln!("  validation_status: None (all good)");
