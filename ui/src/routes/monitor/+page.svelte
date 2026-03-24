@@ -128,6 +128,42 @@
     </p>
   </section>
 
+  <!-- ── AI training limitation notice ────────────────────────── -->
+  <div
+    role="note"
+    aria-label="AI training detection limitation"
+    class="mx-auto max-w-2xl mb-8 rounded-lg border border-lapis/30 bg-lapis/10 px-5 py-4"
+  >
+    <div class="flex gap-3">
+      <!-- Circle-i info icon -->
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 20 20"
+        fill="currentColor"
+        class="mt-0.5 h-4 w-4 flex-shrink-0 text-lapis dark:text-lapis-light"
+        aria-hidden="true"
+      >
+        <path
+          fill-rule="evenodd"
+          d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z"
+          clip-rule="evenodd"
+        />
+      </svg>
+      <p class="text-xs leading-relaxed text-lapis dark:text-lapis-light">
+        Content monitoring cannot detect whether your content has been used to train AI models.
+        Watermarks and C2PA Content Credentials do not survive AI model training — they are
+        designed to detect republication and unauthorised hosting, not extraction into training
+        datasets.{' '}
+        <a
+          href="/help/methodology"
+          class="underline underline-offset-2 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded-sm"
+        >
+          Learn more
+        </a>
+      </p>
+    </div>
+  </div>
+
   <!-- ── Earth line ────────────────────────────────────────────── -->
   <div class="earth-line" aria-hidden="true"></div>
 
