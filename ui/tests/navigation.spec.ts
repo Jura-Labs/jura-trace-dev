@@ -51,9 +51,9 @@ test.describe('Navigation and layout', () => {
     await expect(aboutLink).toHaveAttribute('href', 'https://juralabs.org/jura-trace');
   });
 
-  test('footer contains version string v0.2.0-dev', async ({ page }) => {
+  test('footer contains version string', async ({ page }) => {
     const footer = page.locator('footer');
-    await expect(footer).toContainText('v0.2.0-dev');
+    await expect(footer).toContainText(/v\d+\.\d+\.\d+-dev/);
   });
 });
 

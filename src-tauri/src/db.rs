@@ -106,6 +106,55 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_verifications_created   ON verifications(created_at);
             CREATE INDEX IF NOT EXISTS idx_fp_reports_reason       ON false_positive_reports(reason_code);
             CREATE INDEX IF NOT EXISTS idx_fp_reports_created      ON false_positive_reports(created_at);
+
+            CREATE TABLE IF NOT EXISTS monitor_urls (
+                url_id              TEXT PRIMARY KEY,
+                asset_id            TEXT
+                                        REFERENCES assets(asset_id)
+                                        ON DELETE SET NULL,
+                url                 TEXT NOT NULL,
+                label               TEXT,
+                check_frequency     TEXT NOT NULL DEFAULT 'daily',
+                last_checked_at     TEXT,
+                last_status         TEXT,
+                last_content_hash   TEXT,
+                last_c2pa_valid     INTEGER,
+                last_watermark_match INTEGER,
+                enabled             INTEGER NOT NULL DEFAULT 1,
+                created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS monitor_events (
+                event_id            TEXT PRIMARY KEY,
+                url_id              TEXT NOT NULL
+                                        REFERENCES monitor_urls(url_id)
+                                        ON DELETE CASCADE,
+                event_type          TEXT NOT NULL,
+                checked_at          TEXT NOT NULL DEFAULT (datetime('now')),
+                content_hash        TEXT,
+                c2pa_valid          INTEGER,
+                watermark_uuid      TEXT,
+                watermark_confidence REAL,
+                http_status         INTEGER,
+                response_time_ms    INTEGER,
+                case_status         TEXT NOT NULL DEFAULT 'new',
+                case_notes          TEXT,
+                case_updated_at     TEXT,
+                detail_json         TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_monitor_urls_asset
+                ON monitor_urls(asset_id);
+            CREATE INDEX IF NOT EXISTS idx_monitor_urls_enabled_checked
+                ON monitor_urls(enabled, last_checked_at);
+            CREATE INDEX IF NOT EXISTS idx_monitor_events_url_checked
+                ON monitor_events(url_id, checked_at);
+            CREATE INDEX IF NOT EXISTS idx_monitor_events_type
+                ON monitor_events(event_type);
+            CREATE INDEX IF NOT EXISTS idx_monitor_events_case_active
+                ON monitor_events(case_status, checked_at)
+                WHERE case_status NOT IN ('dismissed', 'check_ok');
             ",
         )?;
 
@@ -940,6 +989,145 @@ impl Database {
 
         Ok(true)
     }
+
+    // ── Monitor URL operations ─────────────────────────────────────────
+
+    /// Register a URL for periodic monitoring.
+    ///
+    /// Generates a new UUID for `url_id`, inserts the row, and returns the
+    /// fully-populated `MonitorUrl` struct.
+    pub fn add_monitor_url(
+        &self,
+        url: &str,
+        label: Option<&str>,
+        asset_id: Option<&str>,
+        frequency: &str,
+    ) -> SqliteResult<MonitorUrl> {
+        let conn = self.conn.lock().unwrap();
+        let url_id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO monitor_urls
+             (url_id, asset_id, url, label, check_frequency, enabled, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?6)",
+            params![url_id, asset_id, url, label, frequency, now],
+        )?;
+        Ok(MonitorUrl {
+            url_id,
+            asset_id: asset_id.map(str::to_string),
+            url: url.to_string(),
+            label: label.map(str::to_string),
+            check_frequency: frequency.to_string(),
+            last_checked_at: None,
+            last_status: None,
+            last_content_hash: None,
+            last_c2pa_valid: None,
+            last_watermark_match: None,
+            enabled: true,
+            created_at: now.clone(),
+            updated_at: now,
+        })
+    }
+
+    /// Delete a monitored URL and all its events (CASCADE).
+    pub fn remove_monitor_url(&self, url_id: &str) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "DELETE FROM monitor_urls WHERE url_id = ?1",
+            params![url_id],
+        )?;
+        Ok(())
+    }
+
+    /// Return all monitored URLs, optionally restricted to enabled entries only.
+    ///
+    /// Results are ordered by `created_at` descending so the most recently
+    /// added URLs appear first.
+    pub fn list_monitor_urls(&self, enabled_only: bool) -> SqliteResult<Vec<MonitorUrl>> {
+        let conn = self.conn.lock().unwrap();
+        let sql = "SELECT url_id, asset_id, url, label, check_frequency,
+                          last_checked_at, last_status, last_content_hash,
+                          last_c2pa_valid, last_watermark_match, enabled,
+                          created_at, updated_at
+                   FROM monitor_urls
+                   WHERE (?1 = 0 OR enabled = 1)
+                   ORDER BY created_at DESC";
+        let mut stmt = conn.prepare(sql)?;
+        let rows = stmt.query_map(params![enabled_only as i32], |row| {
+            Ok(MonitorUrl {
+                url_id: row.get(0)?,
+                asset_id: row.get(1)?,
+                url: row.get(2)?,
+                label: row.get(3)?,
+                check_frequency: row.get(4)?,
+                last_checked_at: row.get(5)?,
+                last_status: row.get(6)?,
+                last_content_hash: row.get(7)?,
+                last_c2pa_valid: row.get::<_, Option<i32>>(8)?.map(|v| v != 0),
+                last_watermark_match: row.get::<_, Option<i32>>(9)?.map(|v| v != 0),
+                enabled: row.get::<_, i32>(10)? != 0,
+                created_at: row.get(11)?,
+                updated_at: row.get(12)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Return the most recent events for a given URL, newest first.
+    pub fn get_monitor_events(
+        &self,
+        url_id: &str,
+        limit: u32,
+    ) -> SqliteResult<Vec<MonitorEvent>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT event_id, url_id, event_type, checked_at,
+                    content_hash, c2pa_valid, watermark_uuid, watermark_confidence,
+                    http_status, response_time_ms,
+                    case_status, case_notes, case_updated_at
+             FROM monitor_events
+             WHERE url_id = ?1
+             ORDER BY checked_at DESC
+             LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(params![url_id, limit], |row| {
+            Ok(MonitorEvent {
+                event_id: row.get(0)?,
+                url_id: row.get(1)?,
+                event_type: row.get(2)?,
+                checked_at: row.get(3)?,
+                content_hash: row.get(4)?,
+                c2pa_valid: row.get::<_, Option<i32>>(5)?.map(|v| v != 0),
+                watermark_uuid: row.get(6)?,
+                watermark_confidence: row.get(7)?,
+                http_status: row.get(8)?,
+                response_time_ms: row.get(9)?,
+                case_status: row.get(10)?,
+                case_notes: row.get(11)?,
+                case_updated_at: row.get(12)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Update the case management status and optional notes on a monitor event.
+    ///
+    /// Also stamps `case_updated_at` with the current UTC time.
+    pub fn update_case_status(
+        &self,
+        event_id: &str,
+        status: &str,
+        notes: Option<&str>,
+    ) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE monitor_events
+             SET case_status = ?1, case_notes = ?2, case_updated_at = datetime('now')
+             WHERE event_id = ?3",
+            params![status, notes, event_id],
+        )?;
+        Ok(())
+    }
 }
 
 /// Row data for a fingerprint record.
@@ -971,6 +1159,70 @@ pub struct FalsePositiveReport {
     pub deepfake_verdict: Option<String>,
     /// ISO-8601 timestamp when the report was submitted.
     pub created_at: String,
+}
+
+/// A URL registered for periodic monitoring.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MonitorUrl {
+    /// UUID (v4) primary key.
+    pub url_id: String,
+    /// Optional link to an asset in the local catalogue.
+    pub asset_id: Option<String>,
+    /// Absolute URL being monitored.
+    pub url: String,
+    /// User-supplied human label.
+    pub label: Option<String>,
+    /// Scheduling cadence: `"hourly"` | `"daily"` | `"weekly"`.
+    pub check_frequency: String,
+    /// ISO 8601 timestamp of the most recent check.
+    pub last_checked_at: Option<String>,
+    /// Outcome of the most recent check: `"ok"` | `"changed"` | `"missing"` | `"error"`.
+    pub last_status: Option<String>,
+    /// SHA-256 hex of content at the last check.
+    pub last_content_hash: Option<String>,
+    /// Whether the C2PA manifest was valid at the last check.
+    pub last_c2pa_valid: Option<bool>,
+    /// Whether the watermark matched at the last check.
+    pub last_watermark_match: Option<bool>,
+    /// `true` if monitoring is active; `false` if paused.
+    pub enabled: bool,
+    /// ISO 8601 timestamp when this URL was first added.
+    pub created_at: String,
+    /// ISO 8601 timestamp of the most recent metadata update.
+    pub updated_at: String,
+}
+
+/// One recorded check result for a monitored URL.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MonitorEvent {
+    /// UUID (v4) primary key.
+    pub event_id: String,
+    /// The URL this event belongs to.
+    pub url_id: String,
+    /// Categorised outcome (e.g. `"check_ok"`, `"content_changed"`, `"c2pa_stripped"`).
+    pub event_type: String,
+    /// ISO 8601 timestamp when this check was performed.
+    pub checked_at: String,
+    /// SHA-256 hex of content at this check.
+    pub content_hash: Option<String>,
+    /// Whether the C2PA manifest was valid at this check.
+    pub c2pa_valid: Option<bool>,
+    /// Extracted watermark UUID, if any.
+    pub watermark_uuid: Option<String>,
+    /// Watermark extraction confidence 0.0–1.0.
+    pub watermark_confidence: Option<f64>,
+    /// HTTP status code returned by the server.
+    pub http_status: Option<i32>,
+    /// Round-trip response time in milliseconds.
+    pub response_time_ms: Option<i32>,
+    /// Case management state: `"new"` | `"investigating"` | `"resolved"` | `"escalated"` | `"dismissed"`.
+    pub case_status: String,
+    /// Free-text notes from the user about this event.
+    pub case_notes: Option<String>,
+    /// ISO 8601 timestamp of the most recent `case_status` change.
+    pub case_updated_at: Option<String>,
 }
 
 /// Row data for inserting a new asset (internal use).
@@ -1830,5 +2082,142 @@ mod tests {
         // Only the recent entry should appear; the 2020 one is outside the window
         let total_imports: u64 = days.iter().map(|d| d.imports).sum();
         assert_eq!(total_imports, 1);
+    }
+
+    // ── Monitor URLs ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_add_and_list_monitor_urls() {
+        let db = open_temp_db();
+
+        db.add_monitor_url("https://example.com/image1.jpg", Some("Test Image 1"), None, "daily")
+            .unwrap();
+        db.add_monitor_url("https://example.com/image2.jpg", None, None, "weekly")
+            .unwrap();
+
+        let urls = db.list_monitor_urls(false).unwrap();
+        assert_eq!(urls.len(), 2);
+
+        // Both should be enabled by default
+        assert!(urls.iter().all(|u| u.enabled));
+
+        // check_frequency should be preserved
+        let u1 = urls.iter().find(|u| u.label.as_deref() == Some("Test Image 1")).unwrap();
+        assert_eq!(u1.check_frequency, "daily");
+        assert_eq!(u1.url, "https://example.com/image1.jpg");
+
+        let u2 = urls.iter().find(|u| u.url == "https://example.com/image2.jpg").unwrap();
+        assert_eq!(u2.check_frequency, "weekly");
+        assert!(u2.label.is_none());
+    }
+
+    #[test]
+    fn test_remove_monitor_url_cascades_events() {
+        let db = open_temp_db();
+
+        let monitor = db
+            .add_monitor_url("https://example.com/photo.jpg", None, None, "daily")
+            .unwrap();
+        let url_id = monitor.url_id.clone();
+
+        // Insert an event directly via raw SQL to simulate a check having been run
+        {
+            let conn = db.conn.lock().unwrap();
+            let event_id = uuid::Uuid::new_v4().to_string();
+            conn.execute(
+                "INSERT INTO monitor_events
+                 (event_id, url_id, event_type, checked_at, case_status)
+                 VALUES (?1, ?2, 'check_ok', datetime('now'), 'new')",
+                params![event_id, url_id],
+            )
+            .unwrap();
+        }
+
+        // Confirm the event exists
+        let events = db.get_monitor_events(&url_id, 10).unwrap();
+        assert_eq!(events.len(), 1);
+
+        // Remove the URL — should CASCADE-delete the event
+        db.remove_monitor_url(&url_id).unwrap();
+
+        // URL is gone
+        let urls = db.list_monitor_urls(false).unwrap();
+        assert!(urls.is_empty());
+
+        // Events are gone too
+        let events_after = db.get_monitor_events(&url_id, 10).unwrap();
+        assert!(events_after.is_empty());
+    }
+
+    #[test]
+    fn test_update_case_status() {
+        let db = open_temp_db();
+
+        let monitor = db
+            .add_monitor_url("https://example.com/doc.pdf", None, None, "daily")
+            .unwrap();
+        let url_id = monitor.url_id.clone();
+
+        // Insert an event directly
+        let event_id = uuid::Uuid::new_v4().to_string();
+        {
+            let conn = db.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO monitor_events
+                 (event_id, url_id, event_type, checked_at, case_status)
+                 VALUES (?1, ?2, 'content_changed', datetime('now'), 'new')",
+                params![event_id, url_id],
+            )
+            .unwrap();
+        }
+
+        // Verify initial state
+        let events = db.get_monitor_events(&url_id, 10).unwrap();
+        assert_eq!(events[0].case_status, "new");
+        assert!(events[0].case_notes.is_none());
+
+        // Update the status
+        db.update_case_status(&event_id, "investigating", Some("Checking with rights holder"))
+            .unwrap();
+
+        let events = db.get_monitor_events(&url_id, 10).unwrap();
+        assert_eq!(events[0].case_status, "investigating");
+        assert_eq!(
+            events[0].case_notes.as_deref(),
+            Some("Checking with rights holder")
+        );
+        assert!(events[0].case_updated_at.is_some());
+    }
+
+    #[test]
+    fn test_list_monitor_urls_enabled_filter() {
+        let db = open_temp_db();
+
+        let enabled = db
+            .add_monitor_url("https://example.com/active.jpg", Some("Active"), None, "daily")
+            .unwrap();
+
+        // Add a second URL then disable it via raw SQL
+        let disabled = db
+            .add_monitor_url("https://example.com/paused.jpg", Some("Paused"), None, "weekly")
+            .unwrap();
+        {
+            let conn = db.conn.lock().unwrap();
+            conn.execute(
+                "UPDATE monitor_urls SET enabled = 0 WHERE url_id = ?1",
+                params![disabled.url_id],
+            )
+            .unwrap();
+        }
+
+        // Without filter: both returned
+        let all = db.list_monitor_urls(false).unwrap();
+        assert_eq!(all.len(), 2);
+
+        // With filter: only the enabled one
+        let active = db.list_monitor_urls(true).unwrap();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].url_id, enabled.url_id);
+        assert!(active[0].enabled);
     }
 }

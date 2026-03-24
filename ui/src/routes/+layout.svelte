@@ -124,6 +124,7 @@
           class="text-xs text-flint dark:text-flint-light hover:text-lapis dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
         >
           Juralabs.org
+          <span class="sr-only">(opens in new tab)</span>
         </a>
 
         <!-- Dark mode toggle -->
@@ -197,6 +198,7 @@
             class="flex items-center h-[44px] px-2 text-sm text-flint dark:text-flint-light hover:text-lapis dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis rounded"
           >
             Juralabs.org
+            <span class="sr-only">(opens in new tab)</span>
           </a>
         </nav>
       </div>
@@ -219,7 +221,7 @@
         <div class="flex items-center gap-3">
           <LogoMark size={16} />
           <span class="brand-name text-xs text-text-light dark:text-text-dark">Jura Trace</span>
-          <span class="text-xs">v0.2.0-dev</span>
+          <span class="text-xs">v0.5.0-dev</span>
         </div>
         <p class="text-xs text-center italic text-flint dark:text-flint-light max-w-sm leading-relaxed">
           Keep people at the heart of every decision. Use technology to support and guide, not to take over.
@@ -232,6 +234,7 @@
             class="hover:text-lapis dark:hover:text-lapis-light transition-colors underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
             Juralabs CIC
+            <span class="sr-only">(opens in new tab)</span>
           </a>
           <a
             href="https://juralabs.org/jura-trace"
@@ -240,6 +243,7 @@
             class="hover:text-lapis dark:hover:text-lapis-light transition-colors underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
             About
+            <span class="sr-only">(opens in new tab)</span>
           </a>
         </div>
       </div>

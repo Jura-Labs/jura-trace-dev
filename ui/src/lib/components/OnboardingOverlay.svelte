@@ -156,9 +156,9 @@
           </p>
 
           <!-- Headline -->
-          <h1 class="font-heading text-2xl font-semibold text-quartz leading-tight mb-4" style="letter-spacing: -0.01em;">
+          <h2 class="font-heading text-2xl font-semibold text-quartz leading-tight mb-4" style="letter-spacing: -0.01em;">
             Know What's Real
-          </h1>
+          </h2>
 
           <!-- Body -->
           <p class="text-sm text-quartz leading-relaxed mb-3">
@@ -235,9 +235,9 @@
           </p>
 
           <!-- Headline -->
-          <h1 class="font-heading text-2xl font-semibold text-quartz leading-tight mb-4" style="letter-spacing: -0.01em;">
+          <h2 class="font-heading text-2xl font-semibold text-quartz leading-tight mb-4" style="letter-spacing: -0.01em;">
             Start with Verify or Protect
-          </h1>
+          </h2>
 
           <!-- Body -->
           <p class="text-sm text-quartz leading-relaxed mb-8">

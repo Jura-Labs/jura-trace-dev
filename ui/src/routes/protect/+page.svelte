@@ -541,7 +541,8 @@
     ondragleave={handleDragLeave}
     ondrop={handleDrop}
     onclick={handleFilePicker}
-    aria-disabled={importingCount > 0}
+    disabled={importingCount > 0}
+    aria-label={importingCount > 0 ? 'Importing files, please wait' : 'Drop files here or click to browse and import files'}
   >
     {#if importingCount > 0}
       <div class="flex flex-col items-center gap-3">
@@ -855,15 +856,16 @@
             {#if batchErrors.length > 0}
               <div class="space-y-2">
                 <button
-                  class="text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors"
+                  class="text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                   onclick={() => showBatchErrors = !showBatchErrors}
                   aria-expanded={showBatchErrors}
+                  aria-controls="batch-error-list"
                 >
                   {showBatchErrors ? 'Hide' : 'Show'} {batchErrors.length} failed {batchErrors.length === 1 ? 'file' : 'files'}
                 </button>
 
                 {#if showBatchErrors}
-                  <ul class="text-xs space-y-1 max-h-32 overflow-y-auto rounded border border-border-light dark:border-border-dark p-2 bg-white/50 dark:bg-obsidian/50">
+                  <ul id="batch-error-list" aria-label="Failed watermark files" class="text-xs space-y-1 max-h-32 overflow-y-auto rounded border border-border-light dark:border-border-dark p-2 bg-white/50 dark:bg-obsidian/50">
                     {#each batchErrors as err}
                       <li class="flex gap-2">
                         <span class="text-text-light dark:text-quartz truncate flex-1">{err.fileName}</span>
@@ -873,8 +875,9 @@
                   </ul>
 
                   <button
-                    class="text-xs text-lapis hover:text-lapis-dark dark:hover:text-lapis-light transition-colors"
+                    class="text-xs text-lapis hover:text-lapis-dark dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded min-h-[24px]"
                     onclick={exportBatchErrors}
+                    aria-label="Export failed watermark files as CSV"
                   >
                     Export errors as CSV
                   </button>
@@ -920,7 +923,7 @@
       <div
         class="hidden sm:grid grid-cols-[1fr_100px_110px_130px] gap-4 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint dark:text-flint-light uppercase tracking-wide"
         role="row"
-        aria-label="Sort column headers"
+        aria-label="Asset list column headers"
       >
         <!-- File Name -->
         <button
@@ -941,7 +944,7 @@
         </button>
 
         <!-- Type (non-sortable label) -->
-        <span>Type</span>
+        <span role="columnheader">Type</span>
 
         <!-- File Size -->
         <button

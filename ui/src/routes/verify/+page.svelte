@@ -744,6 +744,12 @@
             ? `Analysis services limited — ${sidecarDegradedHint()}`
             : `Analysis services v${sidecarHealth?.version} — all capabilities available`
           : 'Analysis services offline — forensics not available'}
+        aria-label={sidecarAvailable
+          ? sidecarDegraded()
+            ? `Analysis services limited — ${sidecarDegradedHint()}`
+            : `Analysis services version ${sidecarHealth?.version} — all capabilities available`
+          : 'Analysis services offline — forensics not available'}
+        role="status"
       >
         <span
           class="w-1.5 h-1.5 rounded-full {sidecarAvailable ? sidecarDegraded() ? 'bg-amber' : 'bg-malachite' : 'bg-flint/50'}"
@@ -782,54 +788,63 @@
   <!-- ── Input Tabs ─────────────────────────────────────────────────── -->
   <div>
     <!-- Tab bar — soft pill style -->
-    <div class="flex border-b border-border-light dark:border-[rgba(122,119,112,0.15)] mb-4" role="tablist">
-      <button
-        class="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
-               {activeTab === 'file'
-                 ? 'text-lapis dark:text-lapis-light border-lapis'
-                 : 'text-flint dark:text-flint-light border-transparent hover:text-text-light dark:hover:text-quartz'}"
-        role="tab"
-        aria-selected={activeTab === 'file'}
-        onclick={() => { activeTab = 'file'; }}
-      >
-        File
-      </button>
-      <button
-        class="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
-               {activeTab === 'batch'
-                 ? 'text-lapis dark:text-lapis-light border-lapis'
-                 : 'text-flint dark:text-flint-light border-transparent hover:text-text-light dark:hover:text-quartz'}"
-        role="tab"
-        aria-selected={activeTab === 'batch'}
-        onclick={() => { activeTab = 'batch'; }}
-      >
-        Batch
-        {#if batchItems.length > 0}
-          <span class="ml-1 text-xs text-flint dark:text-flint-light">({batchItems.length})</span>
-        {/if}
-      </button>
-      <button
-        class="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
-               {activeTab === 'url'
-                 ? 'text-lapis dark:text-lapis-light border-lapis'
-                 : 'text-flint dark:text-flint-light border-transparent hover:text-text-light dark:hover:text-quartz'}"
-        role="tab"
-        aria-selected={activeTab === 'url'}
-        onclick={() => { activeTab = 'url'; }}
-      >
-        URL
-      </button>
-      <div class="flex-1"></div>
-      <div class="px-4 py-2.5 text-xs text-flint/50 border-b-2 border-transparent">
-        Claim checking — Phase 2
+    <div class="flex items-end border-b border-border-light dark:border-[rgba(122,119,112,0.15)] mb-4">
+      <div role="tablist" aria-label="Verification input method" class="flex">
+        <button
+          class="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
+                 {activeTab === 'file'
+                   ? 'text-lapis dark:text-lapis-light border-lapis'
+                   : 'text-flint dark:text-flint-light border-transparent hover:text-text-light dark:hover:text-quartz'}"
+          role="tab"
+          aria-selected={activeTab === 'file'}
+          aria-controls="tab-panel-file"
+          id="tab-file"
+          onclick={() => { activeTab = 'file'; }}
+        >
+          File
+        </button>
+        <button
+          class="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
+                 {activeTab === 'batch'
+                   ? 'text-lapis dark:text-lapis-light border-lapis'
+                   : 'text-flint dark:text-flint-light border-transparent hover:text-text-light dark:hover:text-quartz'}"
+          role="tab"
+          aria-selected={activeTab === 'batch'}
+          aria-controls="tab-panel-batch"
+          id="tab-batch"
+          onclick={() => { activeTab = 'batch'; }}
+        >
+          Batch
+          {#if batchItems.length > 0}
+            <span class="ml-1 text-xs text-flint dark:text-flint-light" aria-label="{batchItems.length} files queued">({batchItems.length})</span>
+          {/if}
+        </button>
+        <button
+          class="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
+                 {activeTab === 'url'
+                   ? 'text-lapis dark:text-lapis-light border-lapis'
+                   : 'text-flint dark:text-flint-light border-transparent hover:text-text-light dark:hover:text-quartz'}"
+          role="tab"
+          aria-selected={activeTab === 'url'}
+          aria-controls="tab-panel-url"
+          id="tab-url"
+          onclick={() => { activeTab = 'url'; }}
+        >
+          URL
+        </button>
       </div>
+      <div class="flex-1"></div>
+      <p class="px-4 pb-2.5 text-xs text-flint/50" aria-label="Claim checking is planned for a future phase">
+        Claim checking — Phase 2
+      </p>
     </div>
 
     <!-- File tab -->
     {#if activeTab === 'file'}
+    <div id="tab-panel-file" role="tabpanel" aria-labelledby="tab-file">
       <button
         class="w-full border-2 border-dashed rounded-lg p-10 text-center transition-all duration-200 cursor-pointer
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
@@ -869,10 +884,12 @@
           </div>
         {/if}
       </button>
+    </div>
     {/if}
 
     <!-- Batch tab -->
     {#if activeTab === 'batch'}
+    <div id="tab-panel-batch" role="tabpanel" aria-labelledby="tab-batch">
       <!-- Drop zone -->
       <button
         class="w-full border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200 cursor-pointer
@@ -1041,12 +1058,16 @@
           {/each}
         </div>
       {/if}
+    </div>
     {/if}
 
     <!-- URL tab -->
     {#if activeTab === 'url'}
+    <div id="tab-panel-url" role="tabpanel" aria-labelledby="tab-url">
       <div class="flex gap-3">
+        <label for="url-verify-input" class="sr-only">URL to verify</label>
         <input
+          id="url-verify-input"
           type="url"
           bind:value={urlInput}
           placeholder="https://example.com/image.jpg"
@@ -1073,6 +1094,7 @@
       <p class="text-xs text-flint dark:text-flint-light mt-2">
         Enter a URL to an image or document. The content will be downloaded and analysed locally.
       </p>
+    </div>
     {/if}
   </div>
 
@@ -1245,7 +1267,7 @@
       <div class="px-5 py-3 border-b border-border-dark">
         <button
           class="flex items-center gap-2 text-sm text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
-                 focus:outline-none focus:ring-2 focus:ring-lapis rounded"
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           onclick={() => { showSignalAgreement = !showSignalAgreement; }}
           aria-expanded={showSignalAgreement}
           aria-controls="signal-agreement-panel"
@@ -1271,7 +1293,7 @@
       <div class="px-5 py-3 border-b border-border-dark">
         <button
           class="flex items-center gap-2 text-sm text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
-                 focus:outline-none focus:ring-2 focus:ring-lapis rounded"
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           onclick={() => { showInspectionChecklist = !showInspectionChecklist; }}
           aria-expanded={showInspectionChecklist}
           aria-controls="inspection-checklist-panel"
@@ -1297,7 +1319,7 @@
       <div class="px-5 py-3 border-b border-border-dark">
         <button
           class="flex items-center gap-2 text-sm text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
-                 focus:outline-none focus:ring-2 focus:ring-lapis rounded"
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           onclick={() => { showInvestigatePanel = !showInvestigatePanel; }}
           aria-expanded={showInvestigatePanel}
           aria-controls="investigate-further-panel"
@@ -1365,11 +1387,11 @@
                     target="_blank"
                     rel="noopener noreferrer"
                     title={link.title}
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
-                           border border-lapis/40 text-lapis hover:bg-lapis/10 hover:border-lapis/70
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md min-h-[44px]
+                           border border-lapis/40 text-lapis dark:text-lapis-light hover:bg-lapis/10 hover:border-lapis/70
                            transition-colors duration-150
-                           focus:outline-none focus:ring-2 focus:ring-lapis focus:ring-offset-2
-                           focus:ring-offset-obsidian"
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                           focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
                   >
                     {link.label}
                     <!-- External link indicator -->
@@ -3047,7 +3069,7 @@
             Reason <span class="text-cinnabar" aria-hidden="true">*</span>
             <span class="sr-only">(required)</span>
           </legend>
-          <div class="space-y-2" role="radiogroup" aria-label="False positive reason">
+          <div class="space-y-2">
             {#each [
               { code: 'modern_codec', label: 'Modern codec (AVIF/WebP)', description: 'Modern compression introduces patterns that resemble manipulation artefacts' },
               { code: 'social_media', label: 'Social media re-upload', description: 'Re-encoding from social platforms degrades metadata and introduces artefacts' },
@@ -3149,8 +3171,8 @@
         maxlength={500}
         bind:value={analystNote}
       ></textarea>
-      <p class="text-xs text-flint/50 mt-1 mb-4 text-right">
-        {analystNote.length} / 500
+      <p class="text-xs text-flint/50 mt-1 mb-4 text-right" aria-live="polite" aria-atomic="true">
+        <span class="sr-only">Characters used: </span>{analystNote.length} / 500
       </p>
 
       <div class="flex gap-3 justify-end">
