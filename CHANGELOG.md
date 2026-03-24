@@ -6,6 +6,56 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Sprint 19 — Release Candidate (in progress, 25 Mar 2026)
+
+### Accessibility
+
+**Fixed**
+- WCAG 2.2 AA audit: 14 issues fixed across verify, protect, settings, onboarding, and root layout
+- Verify page: tabpanel ARIA (`role="tabpanel"`, `aria-controls`, `aria-labelledby`), URL input label, sidecar status badge `role="status"`, focus-visible rings on expand buttons, reverse image search link targets (44px), analyst note character counter `aria-live`
+- Protect page: drop zone `disabled` state (was `aria-disabled` only), batch errors toggle `aria-controls` + focus ring
+- Onboarding: dialog headings h1 → h2 (avoids duplicate h1 per page)
+- Root layout + Settings: external links now announce "(opens in new tab)" for screen readers
+- Footer version test decoupled from hardcoded string (regex match)
+
+### C2PA AI Detection
+
+**Fixed**
+- C2PA manifests declaring AI generation (e.g. Google Gemini `trainedAlgorithmicMedia`) now correctly penalise trust instead of rewarding it
+- New `detect_ai_from_assertions()` scans C2PA assertions for IPTC `trainedAlgorithmicMedia` digitalSourceType, AI keywords ("generative ai", "ai-generated"), and known generator names (gemini, dall-e, sora, firefly, flux, etc.)
+- `ai_generator` field now populated from both `claim_generator` strings AND assertion content
+- Trust penalty: -0.25 for images/video (was +0.10 bonus), 0.10 for documents (was 0.82)
+- Verify page: amber provenance banner when C2PA confirms AI generation — "This content carries a valid, signed C2PA provenance record which confirms it was created using AI generation"
+
+### Help System
+
+**Added**
+- Monitor help guide: 8 sections (dashboard, audit trail, hash chain integrity, AI training limitation, URL watchlist preview, best practices)
+- Settings help guide: 5 sections (Ollama configuration, deployment profiles, service status, database location, about)
+
+### MONITOR Infrastructure
+
+**Added**
+- `monitor_urls` and `monitor_events` tables wired into `db.rs init_schema()`
+- `MonitorUrl` and `MonitorEvent` Rust structs with serde camelCase
+- 5 CRUD functions: `add_monitor_url`, `remove_monitor_url`, `list_monitor_urls`, `get_monitor_events`, `update_case_status`
+- Partial index on `monitor_events(case_status)` for alert inbox performance
+
+### RAG Knowledge Base
+
+**Added**
+- Expanded 4 existing knowledge base files (~2x content each): AI generators, C2PA provenance, misinformation patterns, image forensics
+- 2 new domain files: `video_forensics.txt`, `digital_rights_and_cultural_heritage.txt`
+- Total: 314 lines across 6 documents, ~150 passages (was 158 lines, 4 docs, ~79 passages)
+
+### Test Counts
+- Rust: 227 tests (was 215), clippy clean
+- Python: 308 tests
+- Playwright: 164 tests
+- SvelteKit: 201 files, 0 svelte-check errors
+
+---
+
 ## Sprint 18 — Platform Installers & Deployment Readiness (24 Mar 2026)
 
 ### Platform Build Infrastructure

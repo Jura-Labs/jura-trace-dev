@@ -17,7 +17,7 @@ Jura Trace is one of two products built by **Jura Labs** (UK Social Enterprise �
 
 **Developed by**: Juralabs Community Interest Company (UK) — https://juralabs.org
 **Licence**: PolyForm Noncommercial 1.0.0
-**Current Version**: 0.7.0-dev (Phase 3 active — Sprint 18 complete, Sprint 19 next)
+**Current Version**: 0.8.0-dev (Phase 3 active — Sprint 19 in progress, Sprint 20 next)
 
 ## Core Architecture
 
@@ -266,7 +266,9 @@ juralabs/
 
 **Sprint 18 (Phase 3)**: Complete — "Platform Installers & Deployment Readiness". PyInstaller cross-platform sidecar: `JURA_MODELS_DIR` env var override in `deepfake.py`, spec parameterised for macOS/Windows/Linux (auto-detect target_arch, platform-conditional UPX excludes). Tauri sidecar auto-launch: `externalBin` config, `tauri-plugin-shell` spawn with exponential-backoff health polling, clean process kill on `RunEvent::Exit`, `AppState.sidecar_process` field. Platform icons: `.icns` (macOS), `.ico` (Windows), full PNG set. macOS `Entitlements.plist` with network.client, files.user-selected, allow-unsigned-executable-memory, disable-library-validation. macOS DMG builds successfully (15 MB unsigned, `minimumSystemVersion: "13.0"`). Linux font fallback: DejaVu Serif + Noto Serif added to all font stacks, 38 inline font-family declarations refactored to CSS class. Settings path separator: `@tauri-apps/api/path` join replaces fragile heuristic. Linux bundle: `category: "Utility"`, deb depends (libwebkit2gtk-4.1-0, libgtk-3-0, libayatana). GitHub Actions release workflow: 4-platform matrix with PyInstaller sidecar build per platform, changelog extraction, pip cache. Monitor AI training disclaimer: permanent lapis info banner on Monitor tab. MONITOR SQLite schema spike: `monitor_urls` and `monitor_events` tables designed with case management fields. Three platform install guides (macOS/Windows/Linux unsigned). Pilot testing script (30-min structured session, 4 persona variants). Linux smoke test checklist. Feature scoping: online monitoring 3-layer architecture, paid tier structure (Flint/Stratum/Geode/Bedrock), 11 backlog items created in Plane.
 
-**Test counts**: 211 Rust tests, 308 Python tests (+5 skipped without ffprobe/whisper, +14 CLIP skipped when open_clip unavailable), 164 Playwright e2e tests, 201 SvelteKit files with 0 svelte-check errors, clippy clean.
+**Sprint 19 (Phase 3)**: In progress — "Release Candidate". WCAG 2.2 AA accessibility audit: 14 issues fixed across 5 files (tabpanel ARIA, URL input label, focus-visible rings, external link new-tab announcements, dialog heading hierarchy). Monitor and Settings help guides: full content replacing stubs (8 sections each). MONITOR CRUD wired into `db.rs`: `monitor_urls` and `monitor_events` tables in `init_schema()`, `MonitorUrl`/`MonitorEvent` structs, 5 CRUD functions (`add_monitor_url`, `remove_monitor_url`, `list_monitor_urls`, `get_monitor_events`, `update_case_status`), 4 new tests. RAG knowledge base expanded: 6 documents, ~314 lines, ~150 passages (was 4 docs, 158 lines) — added video forensics, digital rights/cultural heritage domains. C2PA AI declaration detection: `detect_ai_from_assertions()` scans C2PA assertions for `trainedAlgorithmicMedia` digitalSourceType, AI keywords, and known generator names. Trust scoring: C2PA declaring AI generation penalised -0.25 (images/video) or 0.10 trust (documents) — was previously rewarded. Verify page: amber provenance banner when C2PA confirms AI generation ("This content carries a valid, signed C2PA provenance record which confirms it was created using AI generation").
+
+**Test counts**: 227 Rust tests, 308 Python tests (+5 skipped without ffprobe/whisper, +14 CLIP skipped when open_clip unavailable), 164 Playwright e2e tests, 201 SvelteKit files with 0 svelte-check errors, clippy clean.
 
 ## British Spelling
 
