@@ -6,6 +6,71 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Sprint 18 — Platform Installers & Deployment Readiness (24 Mar 2026)
+
+### Platform Build Infrastructure
+
+**Added**
+- Platform icon generation: `.icns` (macOS), `.ico` (Windows), full PNG set; `tauri.conf.json` `bundle.icon` updated
+- macOS `Entitlements.plist`: `network.client`, `files.user-selected.read-write`, `allow-unsigned-executable-memory`, `disable-library-validation`; `minimumSystemVersion: "13.0"`
+- macOS DMG builds successfully: 15 MB unsigned, `Jura Trace_0.4.0_aarch64.dmg`
+- Linux bundle config: `category: "Utility"`, deb depends (`libwebkit2gtk-4.1-0`, `libgtk-3-0`, `libayatana-appindicator3-1`)
+
+### Sidecar Auto-Launch (S18-A2)
+
+**Added**
+- Tauri sidecar plugin integration: `externalBin` config in `tauri.conf.json`, `shell:allow-execute` and `shell:allow-spawn` in capabilities
+- Sidecar lifecycle management in `lib.rs`: spawn on app start (release builds only), exponential-backoff health polling (up to 10 attempts, ~10s), clean process kill on `RunEvent::Exit`
+- `AppState.sidecar_process` field for lifecycle tracking
+- Platform-specific placeholder stubs in `src-tauri/binaries/` (replaced by CI with real PyInstaller output)
+- Builder pattern changed from `.run(ctx)` to `.build(ctx).run(callback)` for exit event handling
+
+### PyInstaller Cross-Platform (S18-A1)
+
+**Fixed**
+- `deepfake.py` model path: `JURA_MODELS_DIR` env var override for frozen PyInstaller context, `__file__`-relative fallback for dev mode
+- `jura-sidecar.spec`: auto-detect `target_arch` via `platform.machine()`, platform-conditional UPX excludes (`.dylib`/`.dll`/`.so`), `codesign_identity=None` placeholder
+
+### Frontend Cross-Platform Fixes
+
+**Fixed**
+- Linux font fallback: added `'DejaVu Serif', 'Noto Serif'` to Tailwind `font-heading` config and `app.css`; removed 38 inline `font-family` declarations, replaced with CSS class
+- Settings path separator: replaced `selected.includes('/')` heuristic with `@tauri-apps/api/path` `join` for cross-platform correctness
+
+### Release Infrastructure (S18-B1)
+
+**Added**
+- GitHub Actions release workflow: 4-platform matrix (macOS ARM, macOS Intel, Windows, Linux) with PyInstaller sidecar build per platform
+- Changelog extraction from `CHANGELOG.md` for release notes
+- Pip cache per platform, `patchelf` for Linux AppImage, 90-min timeout
+- Code signing env vars commented out (placeholder for Sprint 19)
+
+### MONITOR Preparation
+
+**Added**
+- AI training detection disclaimer: permanent lapis info banner on Monitor tab — "Content monitoring cannot detect whether your content has been used to train AI models"
+- MONITOR SQLite schema design: `monitor_urls` and `monitor_events` tables with case management (`new`/`investigating`/`resolved`/`escalated`/`dismissed`), partial indexes, denormalised last-status; migration at `src-tauri/migrations/003_monitor_tables.sql`
+
+### Documentation
+
+**Added**
+- macOS unsigned install guide (`docs/install-guides/macos-unsigned.md`): 3 Gatekeeper bypass methods, Sequoia workaround
+- Windows unsigned install guide (`docs/install-guides/windows-unsigned.md`): SmartScreen, Firewall, WebView2, enterprise Group Policy
+- Linux requirements guide (`docs/install-guides/linux-requirements.md`): AppImage/deb/rpm, WebKitGTK, font rendering, Wayland
+- Pilot testing script (`docs/pilot-testing/test-script.md`): 30-minute structured session, 4 persona variants
+- Linux smoke test checklist (`docs/pilot-testing/linux-smoke-test.md`)
+- MONITOR schema design document (`docs/monitor-schema-design.md`)
+- Feature scoping: online monitoring 3-layer architecture + paid tier structure (`docs/feature-scoping/`)
+- Sprint 18 plan (`docs/sprint-plans/sprint-18-plan.md`)
+
+### Test Counts
+- Rust: 211 tests, clippy clean
+- Python: 308 tests (+47 deepfake passed with path fix)
+- Playwright: 164 tests
+- SvelteKit: 201 files, 0 svelte-check errors
+
+---
+
 ## Sprint 17 — Quality Floor & Deployment Readiness (24 Mar 2026)
 
 ### IPC Error Architecture (S17-A1, A2, A3)

@@ -17,7 +17,7 @@ Jura Trace is one of two products built by **Jura Labs** (UK Social Enterprise �
 
 **Developed by**: Juralabs Community Interest Company (UK) — https://juralabs.org
 **Licence**: PolyForm Noncommercial 1.0.0
-**Current Version**: 0.6.0-dev (Phase 3 active — Sprint 17 complete, Sprint 18 next)
+**Current Version**: 0.7.0-dev (Phase 3 active — Sprint 18 complete, Sprint 19 next)
 
 ## Core Architecture
 
@@ -217,6 +217,13 @@ juralabs/
 - **Feature scoping**: `docs/feature-scoping/online-monitoring-and-help-system.md` — online monitoring 3-layer architecture, paid tier structure
 - **Sprint 17 plan**: `docs/sprint-plans/sprint-17-plan.md` — quality floor and deployment readiness
 - **Sprint 18 plan**: `docs/sprint-plans/sprint-18-plan.md` — unsigned platform installers, frozen sidecar
+- **Entitlements**: `src-tauri/Entitlements.plist` — macOS hardened runtime capabilities
+- **Sidecar binaries**: `src-tauri/binaries/` — platform-specific sidecar stubs (replaced by CI with PyInstaller output)
+- **MONITOR schema**: `src-tauri/migrations/003_monitor_tables.sql` — monitor_urls + monitor_events table design
+- **Schema design doc**: `docs/monitor-schema-design.md` — MONITOR table rationale, query patterns, case management
+- **Install guides**: `docs/install-guides/` — macOS unsigned, Windows unsigned, Linux requirements
+- **Pilot test script**: `docs/pilot-testing/test-script.md` — 30-minute structured test session
+- **Linux smoke test**: `docs/pilot-testing/linux-smoke-test.md` — AppImage verification checklist
 
 ## Design Principles
 
@@ -257,7 +264,9 @@ juralabs/
 
 **Sprint 17 (Phase 3)**: Complete — "Quality Floor & Deployment Readiness". IPC error propagation: `parseAppError` in `api.ts`, `AppErrorResponse` in `types.ts`, `setError()` upgraded to use structured error codes with string-sniff fallback. Tiered sidecar error banners: dev mode shows technical details, production shows user-friendly messages. Test hooks (`__juraSetVerifyResult`, `__juraSetVerifyError`) gated behind `import.meta.env.DEV`. Database path configurability: three-source priority resolution (`JURA_DB_PATH` env > `config.json` > default), `get_db_path`/`set_db_path` Tauri commands with atomic copy + SQLite integrity check, Settings page folder picker. Frame dedup rolling buffer (buffer_size=5) in video deepfake pipeline. Source protection privacy warning in Investigate Further panel. PDF trust scoring: `document_trust()` helper (C2PA valid 0.82, invalid 0.25, none 0.50) with limited-analysis info banner. DEPLOYMENT.md updated for Phase 3. PyInstaller sidecar bundling spike: GO for Sprint 18, 315 MB binary, all core endpoints work, 2 path fixes needed. In-app help documentation system: `/help` route with sidebar navigation, 7 content pages (Protect guide, Verify guide, Methodology transparency with 16 detectors, Glossary with 34 terms, Persona guides for 4 user types, Monitor and Settings stubs), `HelpSidebar` and `ContextualHelpLink` components, contextual `?` links on verify/protect/monitor pages.
 
-**Test counts**: 211 Rust tests, 308 Python tests (+5 skipped without ffprobe/whisper, +14 CLIP skipped when open_clip unavailable), 164 Playwright e2e tests, 200 SvelteKit files with 0 svelte-check errors, clippy clean.
+**Sprint 18 (Phase 3)**: Complete — "Platform Installers & Deployment Readiness". PyInstaller cross-platform sidecar: `JURA_MODELS_DIR` env var override in `deepfake.py`, spec parameterised for macOS/Windows/Linux (auto-detect target_arch, platform-conditional UPX excludes). Tauri sidecar auto-launch: `externalBin` config, `tauri-plugin-shell` spawn with exponential-backoff health polling, clean process kill on `RunEvent::Exit`, `AppState.sidecar_process` field. Platform icons: `.icns` (macOS), `.ico` (Windows), full PNG set. macOS `Entitlements.plist` with network.client, files.user-selected, allow-unsigned-executable-memory, disable-library-validation. macOS DMG builds successfully (15 MB unsigned, `minimumSystemVersion: "13.0"`). Linux font fallback: DejaVu Serif + Noto Serif added to all font stacks, 38 inline font-family declarations refactored to CSS class. Settings path separator: `@tauri-apps/api/path` join replaces fragile heuristic. Linux bundle: `category: "Utility"`, deb depends (libwebkit2gtk-4.1-0, libgtk-3-0, libayatana). GitHub Actions release workflow: 4-platform matrix with PyInstaller sidecar build per platform, changelog extraction, pip cache. Monitor AI training disclaimer: permanent lapis info banner on Monitor tab. MONITOR SQLite schema spike: `monitor_urls` and `monitor_events` tables designed with case management fields. Three platform install guides (macOS/Windows/Linux unsigned). Pilot testing script (30-min structured session, 4 persona variants). Linux smoke test checklist. Feature scoping: online monitoring 3-layer architecture, paid tier structure (Flint/Stratum/Geode/Bedrock), 11 backlog items created in Plane.
+
+**Test counts**: 211 Rust tests, 308 Python tests (+5 skipped without ffprobe/whisper, +14 CLIP skipped when open_clip unavailable), 164 Playwright e2e tests, 201 SvelteKit files with 0 svelte-check errors, clippy clean.
 
 ## British Spelling
 
