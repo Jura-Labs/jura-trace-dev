@@ -5,7 +5,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        heading: ['Georgia', 'Times New Roman', 'DejaVu Serif', 'serif'],
+        heading: ['Georgia', 'Times New Roman', 'DejaVu Serif', 'Noto Serif', 'serif'],
         body: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'sans-serif'],
         mono: ['SF Mono', 'Menlo', 'Monaco', 'Courier New', 'monospace']
       },

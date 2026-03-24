@@ -71,9 +71,9 @@
         return;
       }
 
-      // Append the filename to the chosen directory
-      const sep = selected.includes('/') ? '/' : '\\';
-      const newPath = selected + sep + 'jura_archive.db';
+      // Append the filename to the chosen directory using the platform-aware path API
+      const { join } = await import('@tauri-apps/api/path');
+      const newPath = await join(selected, 'jura_archive.db');
 
       const result = await setDbPath(newPath);
       currentDbPath = result;
@@ -199,14 +199,14 @@
 </script>
 
 <div class="space-y-6">
-  <h1 class="text-2xl font-heading text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Settings</h1>
+  <h1 class="text-2xl font-heading text-text-light dark:text-quartz">Settings</h1>
 
   <!-- Ollama Configuration -->
   <section
     class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="ollama-heading"
   >
-    <h2 id="ollama-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4" style="font-family: Georgia, 'Times New Roman', serif;">Ollama Configuration</h2>
+    <h2 id="ollama-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4">Ollama Configuration</h2>
     <div class="space-y-4">
 
       <div>
@@ -297,7 +297,7 @@
   >
     <div class="flex items-center justify-between mb-4">
       <div>
-        <h2 id="profiles-heading" class="text-lg font-heading text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Deployment Profiles</h2>
+        <h2 id="profiles-heading" class="text-lg font-heading text-text-light dark:text-quartz">Deployment Profiles</h2>
         <p class="text-xs text-flint dark:text-flint-light mt-0.5">
           Save the current Ollama settings as a named profile to switch between environments quickly.
         </p>
@@ -499,7 +499,7 @@
     aria-labelledby="status-heading"
   >
     <div class="flex items-center justify-between mb-4">
-      <h2 id="status-heading" class="text-lg font-heading text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Service Status</h2>
+      <h2 id="status-heading" class="text-lg font-heading text-text-light dark:text-quartz">Service Status</h2>
       <button
         class="text-xs px-3 py-2.5 min-h-[44px] rounded border border-border-light dark:border-border-dark text-flint hover:text-text-light dark:hover:text-text-light dark:hover:text-quartz hover:border-lapis/50
                transition-colors disabled:opacity-50
@@ -600,7 +600,7 @@
     class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="db-location-heading"
   >
-    <h2 id="db-location-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-1" style="font-family: Georgia, 'Times New Roman', serif;">Database Location</h2>
+    <h2 id="db-location-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-1">Database Location</h2>
     <p class="text-xs text-flint dark:text-flint-light mb-4">
       Where assets, fingerprints, and verification records are stored. Useful for institutional deployments where data must reside on a shared or managed drive.
     </p>
@@ -668,7 +668,7 @@
     class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="about-heading"
   >
-    <h2 id="about-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4" style="font-family: Georgia, 'Times New Roman', serif;">About</h2>
+    <h2 id="about-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4">About</h2>
     <dl class="grid grid-cols-[max-content_1fr] gap-x-8 gap-y-2 text-sm max-w-md">
       <dt class="text-flint dark:text-flint-light">Version</dt>
       <dd class="text-text-light dark:text-quartz">{appVersion}</dd>

@@ -695,7 +695,7 @@
   <!-- Page heading + sidecar status -->
   <div class="flex items-start justify-between">
     <div>
-      <h1 class="text-2xl font-heading text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Verify</h1>
+      <h1 class="text-2xl font-heading text-text-light dark:text-quartz">Verify</h1>
       <p class="text-flint dark:text-flint-light text-sm mt-1">
         Check the authenticity and provenance of files. All analysis happens locally on your device.
       </p>
@@ -2528,7 +2528,6 @@
             <h2
               id="watermark-detect-heading"
               class="text-sm font-medium text-text-light dark:text-quartz"
-              style="font-family: Georgia, 'Times New Roman', serif;"
             >
               Jura Trace Watermark
             </h2>
@@ -2611,7 +2610,6 @@
             <h2
               id="video-analysis-heading"
               class="text-sm font-medium text-text-light dark:text-quartz"
-              style="font-family: Georgia, 'Times New Roman', serif;"
             >
               Video Analysis
             </h2>
@@ -2786,10 +2784,7 @@
 
       {:else if result.videoDeepfakeResult && !result.videoDeepfakeResult.success}
         <section class="px-5 py-4 border-t border-border-light dark:border-border-dark">
-          <h2
-            class="text-sm font-medium text-text-light dark:text-quartz mb-2"
-            style="font-family: Georgia, 'Times New Roman', serif;"
-          >
+          <h2 class="text-sm font-medium text-text-light dark:text-quartz mb-2">
             Video Analysis
           </h2>
           <p class="text-xs text-cinnabar">
@@ -2809,7 +2804,6 @@
             <h2
               id="video-frames-heading"
               class="text-sm font-medium text-text-light dark:text-quartz"
-              style="font-family: Georgia, 'Times New Roman', serif;"
             >
               Video Frame Samples
             </h2>
@@ -2859,7 +2853,6 @@
             <h3
               id="transcription-heading"
               class="font-serif text-base font-semibold text-obsidian dark:text-white"
-              style="font-family: Georgia, 'Times New Roman', serif;"
             >
               Transcription
             </h3>
@@ -2915,7 +2908,6 @@
           <h3
             id="transcription-unavailable-heading"
             class="font-serif text-base font-semibold text-obsidian dark:text-white mb-2"
-            style="font-family: Georgia, 'Times New Roman', serif;"
           >
             Transcription
           </h3>
@@ -2936,7 +2928,6 @@
             <h3
               id="claim-check-heading"
               class="font-serif text-base font-semibold text-obsidian dark:text-white"
-              style="font-family: Georgia, 'Times New Roman', serif;"
             >
               Claim Verification
             </h3>

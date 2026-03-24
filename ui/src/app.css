@@ -44,7 +44,7 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: Georgia, 'Times New Roman', 'DejaVu Serif', serif;
+    font-family: Georgia, 'Times New Roman', 'DejaVu Serif', 'Noto Serif', serif;
     letter-spacing: -0.01em;
   }
 }
@@ -63,7 +63,7 @@
 
   /* Brand name styling */
   .brand-name {
-    font-family: Georgia, 'Times New Roman', serif;
+    font-family: Georgia, 'Times New Roman', 'DejaVu Serif', 'Noto Serif', serif;
     letter-spacing: 0.15em;
     text-transform: uppercase;
   }

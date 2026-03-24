@@ -156,7 +156,7 @@
           </p>
 
           <!-- Headline -->
-          <h1 class="font-heading text-2xl font-semibold text-quartz leading-tight mb-4" style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;">
+          <h1 class="font-heading text-2xl font-semibold text-quartz leading-tight mb-4" style="letter-spacing: -0.01em;">
             Know What's Real
           </h1>
 
@@ -235,7 +235,7 @@
           </p>
 
           <!-- Headline -->
-          <h1 class="font-heading text-2xl font-semibold text-quartz leading-tight mb-4" style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;">
+          <h1 class="font-heading text-2xl font-semibold text-quartz leading-tight mb-4" style="letter-spacing: -0.01em;">
             Start with Verify or Protect
           </h1>
 

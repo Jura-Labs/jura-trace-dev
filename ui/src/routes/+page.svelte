@@ -30,7 +30,7 @@
     <p class="text-xs text-flint dark:text-[#A09D95] uppercase tracking-widest mb-5">Local-first content integrity</p>
     <h1
       class="text-4xl font-heading text-text-light dark:text-quartz mb-5 font-normal"
-      style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em; line-height: 1.3;"
+      style="letter-spacing: -0.01em; line-height: 1.3;"
     >
       Know What's Real
     </h1>
@@ -53,7 +53,7 @@
     <div class="text-center">
       <p
         class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
-        style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.02em;"
+        style="letter-spacing: -0.02em;"
         aria-label="{stats.totalAssets.toLocaleString()} assets protected"
       >
         {stats.totalAssets.toLocaleString()}
@@ -64,7 +64,7 @@
     <div class="text-center">
       <p
         class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
-        style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.02em;"
+        style="letter-spacing: -0.02em;"
         aria-label="{stats.c2paSignedCount.toLocaleString()} content credentials"
       >
         {stats.c2paSignedCount.toLocaleString()}
@@ -75,7 +75,7 @@
     <div class="text-center">
       <p
         class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
-        style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.02em;"
+        style="letter-spacing: -0.02em;"
         aria-label="{stats.totalFingerprints.toLocaleString()} fingerprints"
       >
         {stats.totalFingerprints.toLocaleString()}
@@ -86,7 +86,7 @@
     <div class="text-center">
       <p
         class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
-        style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.02em;"
+        style="letter-spacing: -0.02em;"
         aria-label="{stats.totalVerifications.toLocaleString()} verifications"
       >
         {stats.totalVerifications.toLocaleString()}
@@ -130,7 +130,7 @@
         <span class="text-xs uppercase tracking-widest text-flint dark:text-[#A09D95] flex-shrink-0 w-20">Protect</span>
         <h2
           class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
-          style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;"
+          style="letter-spacing: -0.01em;"
         >
           <a
             href="/protect"
@@ -165,7 +165,7 @@
         <span class="text-xs uppercase tracking-widest text-flint dark:text-[#A09D95] flex-shrink-0 w-20">Verify</span>
         <h2
           class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
-          style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;"
+          style="letter-spacing: -0.01em;"
         >
           <a
             href="/verify"
@@ -188,7 +188,7 @@
         <span class="text-xs uppercase tracking-widest text-flint dark:text-[#A09D95] flex-shrink-0 w-20">Monitor</span>
         <h2
           class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
-          style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;"
+          style="letter-spacing: -0.01em;"
         >
           <a
             href="/monitor"
@@ -222,7 +222,7 @@
       <p class="text-xs text-flint dark:text-[#A09D95] uppercase tracking-widest mb-6">The human centre</p>
       <blockquote
         class="font-heading text-xl font-normal text-text-light dark:text-quartz leading-relaxed mb-5"
-        style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;"
+        style="letter-spacing: -0.01em;"
       >
         Keep people at the heart of every decision.<br>
         <em class="text-lapis-light dark:text-[#8AABBF] not-italic">Use technology to support and guide, not to take over.</em>

@@ -478,7 +478,7 @@
   <!-- Page header -->
   <div class="flex items-start justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-heading text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Protect</h1>
+      <h1 class="text-2xl font-heading text-text-light dark:text-quartz">Protect</h1>
       <p class="text-flint dark:text-flint-light text-sm mt-1">
         Import, catalogue, and safeguard your digital content.
       </p>
@@ -561,7 +561,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
             d="M12 16V4m0 0L8 8m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4" />
         </svg>
-        <p class="text-text-light dark:text-quartz" style="font-family: Georgia, 'Times New Roman', serif;">Drop files or folders here</p>
+        <p class="font-heading text-text-light dark:text-quartz">Drop files or folders here</p>
         <p class="text-xs text-flint dark:text-flint-light mt-1">
           or click to browse &mdash; JPEG, PNG, TIFF, WebP, PDF, MP4, WAV, and more
         </p>
@@ -662,10 +662,7 @@
     >
       <!-- Panel header -->
       <div class="px-5 py-4 border-b border-border-light dark:border-graphite-light/50 flex items-center justify-between gap-4">
-        <h2
-          class="text-base text-text-light dark:text-quartz"
-          style="font-family: Georgia, 'Times New Roman', serif;"
-        >
+        <h2 class="text-base text-text-light dark:text-quartz">
           Watermark All Images
         </h2>
         {#if !batchRunning}
@@ -1395,10 +1392,7 @@
                     aria-label="Embed watermark"
                   >
                     <div class="flex items-center gap-1.5 mb-3">
-                      <p
-                        class="text-sm text-text-light dark:text-quartz"
-                        style="font-family: Georgia, 'Times New Roman', serif;"
-                      >
+                      <p class="font-heading text-sm text-text-light dark:text-quartz">
                         Embed Invisible Watermark
                       </p>
                       <ContextualHelpLink href="/help/protect#watermarking" label="Learn about watermarking" />

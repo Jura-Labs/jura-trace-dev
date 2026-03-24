@@ -15,6 +15,8 @@ later once training data is assembled.
 import base64
 import io
 import math
+import os
+import sys
 
 import cv2
 import numpy as np
@@ -24,6 +26,26 @@ from skimage.feature import local_binary_pattern, graycomatrix, graycoprops
 from skimage.restoration import denoise_wavelet
 
 from app.models.schemas import DeepfakeResponse, DeepfakeSignal, WatermarkDetection
+
+
+def _resolve_models_dir() -> str:
+    """Resolve the models directory. Supports both dev and frozen (PyInstaller) contexts.
+
+    In a frozen binary (sys.frozen == True), the caller (Tauri Rust backend) is
+    expected to set JURA_MODELS_DIR to the absolute path of the models/ directory
+    shipped alongside the binary. In dev mode the variable is typically unset, so
+    we fall back to the path relative to this source file.
+    """
+    env_dir = os.environ.get("JURA_MODELS_DIR")
+    if env_dir and os.path.isdir(env_dir):
+        return env_dir
+    # Dev mode: sidecar/app/services/deepfake.py → ../../.. → sidecar/ → ../models/
+    return os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "models")
+    )
+
+
+MODELS_DIR: str = _resolve_models_dir()
 
 # Maximum analysis dimension (longest edge)
 ANALYSIS_SIZE = 512
@@ -193,12 +215,8 @@ def _load_classifier():
         return _classifier
     _classifier_loaded = True
     try:
-        import os
         import joblib
-        model_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "..", "models", "deepfake_classifier.joblib",
-        )
-        model_path = os.path.normpath(model_path)
+        model_path = os.path.join(MODELS_DIR, "deepfake_classifier.joblib")
         if os.path.exists(model_path):
             _classifier = joblib.load(model_path)
     except Exception:

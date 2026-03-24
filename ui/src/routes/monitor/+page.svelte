@@ -116,7 +116,7 @@
     </p>
     <h1
       class="text-4xl font-heading text-text-light dark:text-quartz mb-5 font-normal"
-      style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em; line-height: 1.3;"
+      style="letter-spacing: -0.01em; line-height: 1.3;"
     >
       What has happened to your work
     </h1>
@@ -182,7 +182,7 @@
       <h2
         id="chronicle-heading"
         class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
-        style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;"
+        style="letter-spacing: -0.01em;"
       >
         <a
           href="/protect"
@@ -212,7 +212,7 @@
         <div class="text-center">
           <p
             class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
-            style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.02em;"
+            style="letter-spacing: -0.02em;"
             aria-label="{p.totalAssets.toLocaleString()} total assets"
           >
             {p.totalAssets.toLocaleString()}
@@ -225,7 +225,7 @@
         <div class="text-center">
           <p
             class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
-            style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.02em;"
+            style="letter-spacing: -0.02em;"
             aria-label="{p.c2paSigned.toLocaleString()} with Content Credentials"
           >
             {p.c2paSigned.toLocaleString()}
@@ -238,7 +238,7 @@
         <div class="text-center">
           <p
             class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
-            style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.02em;"
+            style="letter-spacing: -0.02em;"
             aria-label="{p.fingerprinted.toLocaleString()} fingerprinted"
           >
             {p.fingerprinted.toLocaleString()}
@@ -293,7 +293,7 @@
       <h2
         id="trust-heading"
         class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
-        style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;"
+        style="letter-spacing: -0.01em;"
       >
         How verified content is holding up
       </h2>
@@ -360,7 +360,7 @@
       <div class="pl-24 mt-8">
         <p
           class="font-heading text-4xl font-normal tracking-tight {trustColour(t.averageTrust)}"
-          style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.02em;"
+          style="letter-spacing: -0.02em;"
           aria-label="Average trust score: {Math.round(t.averageTrust * 100)} per cent"
         >
           {Math.round(t.averageTrust * 100)}%
@@ -403,7 +403,7 @@
         <h2
           id="activity-heading"
           class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
-          style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;"
+          style="letter-spacing: -0.01em;"
         >
           Everything that happened here
         </h2>
@@ -492,7 +492,7 @@
       </p>
       <blockquote
         class="font-heading text-xl font-normal text-text-light dark:text-quartz leading-relaxed mb-5"
-        style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;"
+        style="letter-spacing: -0.01em;"
       >
         Keep people at the heart of every decision.<br>
         <em class="text-lapis-light dark:text-[#8AABBF] not-italic">

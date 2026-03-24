@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Allow localhost HTTP connections to the Python ML sidecar on port 8200 -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <!-- Allow read/write access to user-selected files via native file dialog -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    <!-- Required by some ML libraries (numpy, opencv, torch) that use JIT compilation -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <!-- Allow the app to spawn the frozen sidecar binary -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>
