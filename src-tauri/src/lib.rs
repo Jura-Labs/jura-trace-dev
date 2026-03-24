@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Manager, State};
+use tauri_plugin_shell::ShellExt;
 
 mod c2pa;
 mod db;
@@ -176,6 +177,10 @@ pub struct AppState {
     /// The current database file path (may differ from app_data_dir default
     /// if the user has configured a custom location).
     pub db_path: String,
+    /// Handle to the spawned PyInstaller sidecar process.
+    /// Present only in production builds where the binary was found and launched
+    /// successfully. `None` in development (manual uvicorn) or if spawn failed.
+    pub sidecar_process: Option<tauri_plugin_shell::process::CommandChild>,
 }
 
 // ===== Tauri Commands =====
@@ -2378,10 +2383,119 @@ pub fn run() {
 
             let sidecar_key = std::env::var("JURA_SIDECAR_KEY").unwrap_or_default();
             let sidecar_client = sidecar::SidecarClient::new("http://127.0.0.1:8200", &sidecar_key);
+
+            // ── Sidecar auto-launch ──────────────────────────────────────────
+            // In production builds the frozen PyInstaller binary is bundled
+            // under `binaries/jura-sidecar-<target-triple>`.  We attempt to
+            // spawn it here and store the child handle so we can kill it on
+            // exit.  In development the binary is absent; we log a notice and
+            // let the developer start `uvicorn` manually.
+            //
+            // `cfg!(debug_assertions)` is true for `cargo tauri dev` and false
+            // for `cargo tauri build --release`, which is the right proxy for
+            // "are we in dev mode?".
+            let sidecar_child: Option<tauri_plugin_shell::process::CommandChild> =
+                if cfg!(debug_assertions) {
+                    log::info!(
+                        "Dev mode: sidecar assumed to be running manually on \
+                         http://127.0.0.1:8200"
+                    );
+                    None
+                } else {
+                    match app.shell().sidecar("jura-sidecar") {
+                        Err(e) => {
+                            log::warn!(
+                                "Could not locate sidecar binary: {e}. \
+                                 Forensic analysis will be unavailable."
+                            );
+                            None
+                        }
+                        Ok(cmd) => {
+                            match cmd.args(["--host", "127.0.0.1", "--port", "8200"]).spawn() {
+                                Err(e) => {
+                                    log::warn!(
+                                        "Failed to spawn sidecar: {e}. \
+                                         Forensic analysis will be unavailable."
+                                    );
+                                    None
+                                }
+                                Ok((mut rx, child)) => {
+                                    // Forward sidecar stdout/stderr to the app
+                                    // log at DEBUG level in a background task.
+                                    tauri::async_runtime::spawn(async move {
+                                        use tauri_plugin_shell::process::CommandEvent;
+                                        while let Some(event) = rx.recv().await {
+                                            match event {
+                                                CommandEvent::Stdout(line) => {
+                                                    log::debug!(
+                                                        "sidecar: {}",
+                                                        String::from_utf8_lossy(&line)
+                                                    );
+                                                }
+                                                CommandEvent::Stderr(line) => {
+                                                    log::debug!(
+                                                        "sidecar: {}",
+                                                        String::from_utf8_lossy(&line)
+                                                    );
+                                                }
+                                                CommandEvent::Terminated(p) => {
+                                                    log::info!(
+                                                        "Sidecar process terminated \
+                                                         (code: {:?})",
+                                                        p.code
+                                                    );
+                                                    break;
+                                                }
+                                                _ => {}
+                                            }
+                                        }
+                                    });
+                                    Some(child)
+                                }
+                            }
+                        }
+                    }
+                };
+
+            // ── Sidecar readiness check ──────────────────────────────────────
+            // Poll /health with exponential backoff (up to ~10 s total).
+            // This is a blocking check on the setup thread, which is
+            // acceptable — Tauri's window is not shown until setup returns.
+            // We cap the total wait so a missing sidecar never stalls startup.
+            if sidecar_child.is_some() {
+                let client = reqwest::blocking::Client::builder()
+                    .timeout(std::time::Duration::from_secs(2))
+                    .build()
+                    .unwrap_or_default();
+                let mut ready = false;
+                for attempt in 0u32..10 {
+                    // 200 ms → 400 → 800 → 1600 ms (capped at 1600 ms per attempt)
+                    let delay_ms = 200u64 * (1u64 << attempt.min(3));
+                    std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+                    if client
+                        .get("http://127.0.0.1:8200/health")
+                        .send()
+                        .map(|r| r.status().is_success())
+                        .unwrap_or(false)
+                    {
+                        log::info!("Sidecar ready after {} poll attempt(s)", attempt + 1);
+                        ready = true;
+                        break;
+                    }
+                }
+                if !ready {
+                    log::warn!(
+                        "Sidecar did not respond within timeout. \
+                         Forensic analysis will be unavailable."
+                    );
+                }
+            }
+
             app.manage(Mutex::new(AppState {
                 db: database,
                 sidecar: sidecar_client,
                 db_path: db_path.to_string_lossy().into_owned(),
+                sidecar_process: sidecar_child,
             }));
             Ok(())
         })
@@ -2413,8 +2527,23 @@ pub fn run() {
             get_db_path,
             set_db_path,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Jura Trace");
+        .build(tauri::generate_context!())
+        .expect("error while building Jura Trace")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Kill the sidecar process when the app exits so it does not
+                // linger in the background consuming system resources.
+                if let Ok(mut state) = app.state::<Mutex<AppState>>().lock() {
+                    if let Some(child) = state.sidecar_process.take() {
+                        if let Err(e) = child.kill() {
+                            log::warn!("Failed to kill sidecar on exit: {e}");
+                        } else {
+                            log::info!("Sidecar process terminated on app exit");
+                        }
+                    }
+                }
+            }
+        });
 }
 
 #[cfg(test)]

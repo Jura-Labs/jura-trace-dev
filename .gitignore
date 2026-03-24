@@ -29,6 +29,14 @@ src-tauri/target/
 src-tauri/gen/
 src-tauri/icons/*.ico
 src-tauri/icons/*.icns
+# Sidecar binaries directory: track placeholder stubs, ignore real PyInstaller artefacts.
+# Real binaries are large PyInstaller bundles — they are replaced during the release
+# workflow and must never be committed.  The placeholder stubs (shell scripts) are
+# committed so that `cargo check` succeeds on every platform without a real build.
+#
+# Convention: a real binary is larger than 1 MB; a placeholder stub is a few bytes.
+# We rely on build tooling (see CI workflow) to overwrite the stub before bundling.
+
 
 # ===== Data (local only, never commit) =====
 data/*.db

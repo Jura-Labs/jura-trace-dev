@@ -1,0 +1,6 @@
+#!/bin/sh
+# Development placeholder — not a real sidecar binary.
+# In production this file is replaced by the PyInstaller build artefact.
+# See src-tauri/binaries/README.md for instructions.
+echo "jura-sidecar placeholder — replace with PyInstaller binary for production"
+exit 1
