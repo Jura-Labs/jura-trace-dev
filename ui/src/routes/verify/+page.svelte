@@ -1076,6 +1076,31 @@
 
   {#if checked && result}
 
+    <!-- Document analysis notice -->
+    {#if result.contentType === 'document'}
+      <div
+        class="rounded-lg border border-lapis/30 bg-lapis/10 px-4 py-3 mb-4 flex gap-3"
+        role="note"
+        aria-label="Limited analysis notice"
+      >
+        <svg
+          class="w-4 h-4 flex-shrink-0 mt-0.5 text-lapis dark:text-lapis-light"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 110 20 10 10 0 010-20z" />
+        </svg>
+        <div class="text-xs text-lapis dark:text-lapis-light leading-relaxed">
+          <p class="font-semibold mb-1">Document analysis — limited signals available</p>
+          <p>Image forensic detectors (ELA, noise analysis, deepfake detection) do not apply to PDF documents.
+             Trust is based on C2PA Content Credentials{result.c2paValid === true ? ' (valid credential found)' : result.c2paValid === false ? ' (invalid credential detected)' : ' (no credentials present)'}
+             and file metadata only.</p>
+        </div>
+      </div>
+    {/if}
+
     <!-- Trust Score header -->
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark overflow-hidden">
       <div class="px-5 py-4 border-b border-border-light dark:border-border-dark flex items-center justify-between gap-4">

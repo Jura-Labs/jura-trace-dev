@@ -570,6 +570,23 @@ fn compute_trust(
     base_trust.min(verdict_ceiling).min(regional_cap)
 }
 
+/// Trust score for non-analysable content types (PDFs, documents).
+///
+/// Forensic image/video detectors do not apply — trust is based solely on C2PA provenance.
+///
+/// | `c2pa_valid`   | Score | Rationale                                        |
+/// |----------------|-------|--------------------------------------------------|
+/// | `Some(true)`   | 0.82  | Valid manifest — strong provenance signal        |
+/// | `Some(false)`  | 0.25  | Manifest present but invalid/tampered — suspect  |
+/// | `None`         | 0.50  | No provenance data — genuinely inconclusive      |
+fn document_trust(c2pa_valid: Option<bool>) -> f64 {
+    match c2pa_valid {
+        Some(true) => 0.82,
+        Some(false) => 0.25,
+        None => 0.50,
+    }
+}
+
 /// Inner verification logic shared by `verify_content` and `verify_url`.
 ///
 /// `mode` controls which pipeline stages run:
@@ -1276,20 +1293,27 @@ fn verify_content_inner(
     let shadow_consistency_score = shadow_consistency_result.as_ref().map(|r| r.score);
     let colour_temperature_score = colour_temperature_result.as_ref().map(|r| r.score);
     let splice_boundary_score = splice_boundary_result.as_ref().map(|r| r.score);
-    let overall_trust = compute_trust(
-        ela_score,
-        noise_score,
-        copy_move_score,
-        deepfake_score,
-        deepfake_confidence,
-        deepfake_verdict,
-        exif_trust,
-        c2pa_valid,
-        segmented_ela_score,
-        shadow_consistency_score,
-        colour_temperature_score,
-        splice_boundary_score,
-    );
+    // PDFs and other documents have no applicable forensic detectors.
+    // Use a lightweight C2PA-only path rather than defaulting to 0.50 from
+    // the unwrap_or on missing EXIF data.
+    let overall_trust = if !is_image && !is_video && !is_audio {
+        document_trust(c2pa_valid)
+    } else {
+        compute_trust(
+            ela_score,
+            noise_score,
+            copy_move_score,
+            deepfake_score,
+            deepfake_confidence,
+            deepfake_verdict,
+            exif_trust,
+            c2pa_valid,
+            segmented_ela_score,
+            shadow_consistency_score,
+            colour_temperature_score,
+            splice_boundary_score,
+        )
+    };
     log::info!("PERF: trust score computation took {:?}", t_trust.elapsed());
 
     // ── Database operations ───────────────────────────────────────────────
@@ -3176,5 +3200,37 @@ mod tests {
             default.clone()
         };
         assert_eq!(chosen, default, "Default path should be used as fallback");
+    }
+
+    // ── document_trust ────────────────────────────────────────────────────────
+
+    #[test]
+    fn trust_document_with_valid_c2pa() {
+        // A PDF with a valid C2PA manifest should receive a high-confidence score.
+        assert_eq!(
+            document_trust(Some(true)),
+            0.82,
+            "Valid C2PA on a document should yield 0.82"
+        );
+    }
+
+    #[test]
+    fn trust_document_with_invalid_c2pa() {
+        // A PDF whose C2PA manifest fails validation is actively suspicious.
+        assert_eq!(
+            document_trust(Some(false)),
+            0.25,
+            "Invalid C2PA on a document should yield 0.25"
+        );
+    }
+
+    #[test]
+    fn trust_document_without_c2pa() {
+        // A PDF with no C2PA data at all is genuinely inconclusive — not suspicious.
+        assert_eq!(
+            document_trust(None),
+            0.50,
+            "Document with no C2PA data should yield 0.50"
+        );
     }
 }
