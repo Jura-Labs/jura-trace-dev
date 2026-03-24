@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8200 http://127.0.0.1:11434"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; connect-src ipc: http://ipc.localhost http://127.0.0.1:8200 http://127.0.0.1:11434; object-src 'none'; base-uri 'self'; frame-ancestors 'none';"
     }
   },
   "bundle": {

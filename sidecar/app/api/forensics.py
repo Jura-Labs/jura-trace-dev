@@ -573,10 +573,14 @@ async def transcribe(
 
     Requires the optional ``faster-whisper`` package.
     If not installed, returns ``success=False`` with a descriptive message.
+
+    File size is capped at the video limit (500 MB) since video files are the
+    largest accepted media type.  This prevents OOM via crafted large uploads.
     """
-    contents = await file.read()
-    if len(contents) == 0:
-        raise HTTPException(status_code=400, detail="Empty file uploaded")
+    # SECURITY: Apply the video size limit because transcription accepts both
+    # audio and video; without a limit an attacker could submit an arbitrarily
+    # large file and exhaust process memory before any processing begins.
+    contents = await _read_media(file, _MAX_VIDEO_SIZE, "media")
 
     if model_size not in ("tiny", "base", "small"):
         raise HTTPException(

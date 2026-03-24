@@ -95,6 +95,19 @@
   let dragOver = $state(false);
   let sidecarHealth = $state<SidecarHealth | null>(null);
   let verifyMode = $state<VerifyMode>('standard');
+
+  // ── Video analysis progress state ─────────────────────────────────
+  /** Human-readable phase description shown beneath the spinner for video files. */
+  let analysisPhase = $state<string | null>(null);
+  /** Set to true when the user cancels mid-analysis; causes the result to be discarded. */
+  let cancelled = $state(false);
+
+  /** Estimated analysis duration label based on the current verify mode. */
+  const estimatedTime = $derived(
+    verifyMode === 'archival' ? 'Estimated time: ~90 seconds'
+    : verifyMode === 'deep' ? 'Estimated time: ~45 seconds'
+    : 'Estimated time: ~15 seconds'
+  );
   let showTechnicalDetails = $state(false);
   let showInvestigatePanel = $state(false);
   let showSignalAgreement = $state(false);
@@ -294,8 +307,7 @@
         } else if (showReportModal) {
           showReportModal = false;
         } else if (loading) {
-          loading = false;
-          error = 'Cancelled';
+          cancelAnalysis();
         } else if (result) {
           reset();
         }
@@ -362,21 +374,75 @@
   }
 
   // ── Core verification ─────────────────────────────────────────────
+
+  /** Returns true if the given filename has a video file extension. */
+  function isVideoFileName(name: string): boolean {
+    return /\.(mp4|mov|avi|mkv|webm)$/i.test(name);
+  }
+
+  function cancelAnalysis() {
+    cancelled = true;
+    loading = false;
+    analysisPhase = null;
+    error = 'Analysis cancelled.';
+    errorType = 'general';
+  }
+
   async function runFileVerification(path: string, name: string) {
     filePath = path;
     fileName = name;
     result = null;
     checked = false;
-    error = null; errorType = null;
+    error = null;
+    errorType = null;
+    cancelled = false;
     loading = true;
 
-    try {
-      result = await verifyFile(path, verifyMode);
-      checked = true;
-    } catch (e) {
-      setError(e, 'File verification failed');
-    } finally {
-      loading = false;
+    const isVideo = isVideoFileName(name);
+
+    if (isVideo) {
+      analysisPhase = 'Extracting video frames...';
+      // After a short delay, move to the deepfake detection phase message.
+      // The timer is intentionally fire-and-forget; we guard with `loading` so
+      // the message does not appear after a fast completion or cancellation.
+      const phaseTimer = setTimeout(() => {
+        if (loading && !cancelled) {
+          analysisPhase = 'Running deepfake detection...';
+        }
+      }, 3000);
+
+      try {
+        result = await verifyFile(path, verifyMode);
+        clearTimeout(phaseTimer);
+        if (!cancelled) {
+          checked = true;
+        }
+      } catch (e) {
+        clearTimeout(phaseTimer);
+        if (!cancelled) {
+          setError(e, 'File verification failed');
+        }
+      } finally {
+        if (!cancelled) {
+          loading = false;
+        }
+        analysisPhase = null;
+      }
+    } else {
+      try {
+        result = await verifyFile(path, verifyMode);
+        if (!cancelled) {
+          checked = true;
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e, 'File verification failed');
+        }
+      } finally {
+        if (!cancelled) {
+          loading = false;
+        }
+      }
     }
   }
 
@@ -410,6 +476,8 @@
     checked = false;
     error = null;
     loading = false;
+    analysisPhase = null;
+    cancelled = false;
     showInvestigatePanel = false;
     showSignalAgreement = false;
     showInspectionChecklist = false;
@@ -864,9 +932,14 @@
             <div
               class="w-6 h-6 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
               role="status"
-              aria-label="Analysing file"
+              aria-label={analysisPhase ?? 'Analysing file'}
             ></div>
-            <p class="text-sm text-flint dark:text-flint-light">Analysing file — this may take a moment...</p>
+            {#if analysisPhase}
+              <!-- Video analysis: show the current phase message -->
+              <p class="text-sm text-flint dark:text-flint-light">{analysisPhase}</p>
+            {:else}
+              <p class="text-sm text-flint dark:text-flint-light">Analysing file — this may take a moment...</p>
+            {/if}
             {#if fileName}
               <p class="text-xs text-flint/70">{fileName}</p>
             {/if}
@@ -884,6 +957,38 @@
           </div>
         {/if}
       </button>
+
+      <!-- Video analysis progress footer — rendered below the drop zone so the
+           cancel button is outside the outer <button> element (nested buttons
+           are invalid HTML and would be unreachable). Only shown during video
+           file loading. -->
+      {#if loading && analysisPhase !== null}
+        <div
+          class="mt-3 flex flex-col items-center gap-2"
+          role="status"
+          aria-live="polite"
+          aria-atomic="false"
+          aria-label="Video analysis progress"
+        >
+          <p class="text-xs text-flint dark:text-flint-light">{estimatedTime}</p>
+          <button
+            type="button"
+            onclick={cancelAnalysis}
+            class="text-xs px-3 py-1.5 min-h-[32px] rounded border border-border-light dark:border-border-dark
+                   text-flint dark:text-flint-light
+                   hover:text-cinnabar hover:border-cinnabar/50 dark:hover:text-cinnabar dark:hover:border-cinnabar/50
+                   transition-colors duration-150
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                   focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+            aria-label="Cancel video analysis"
+          >
+            Cancel analysis
+          </button>
+          <p class="text-xs text-flint/50 dark:text-flint-light/50">
+            Press Escape to cancel
+          </p>
+        </div>
+      {/if}
     </div>
     {/if}
 
