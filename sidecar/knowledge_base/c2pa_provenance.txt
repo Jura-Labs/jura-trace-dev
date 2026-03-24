@@ -11,13 +11,31 @@ A C2PA manifest consists of one or more "assertions" — structured data objects
 
 C2PA manifests are signed using X.509 digital certificates, the same certificate infrastructure used for TLS (HTTPS). The signing certificate chain is validated against a trust list maintained by the C2PA organisation. A valid C2PA signature proves the manifest has not been altered since signing.
 
-C2PA manifests can be embedded in JPEG, PNG, MP4, WebP, HEIC, HEIF, PDF, and several other file formats. For JPEG files, the manifest is stored in the APP11 segment. For PNG files, it is stored in an ancillary chunk.
+C2PA manifests can be embedded in JPEG, PNG, MP4, WebP, HEIC, HEIF, PDF, and several other file formats. For JPEG files, the manifest is stored in the APP11 segment. For PNG files, it is stored in an ancillary chunk. For MP4 video files, the manifest is stored in a JUMBF box within the BMFF container structure.
 
 C2PA validation checks three things: (1) the cryptographic signature is valid, (2) the signing certificate is trusted and not expired, (3) the manifest content hash matches the content hash of the file. If any of these checks fail, the manifest is considered invalid.
 
 A "soft binding" in C2PA refers to a manifest that is stored separately from the content (e.g. a cloud manifest store) and linked by a URL. A "hard binding" embeds the manifest directly in the file. Hard bindings survive most file transfers but may be stripped by social media platforms during upload processing.
 
-Many social media platforms strip metadata from uploaded images, including C2PA manifests. As of 2025, only a small number of platforms (including LinkedIn and certain Adobe products) preserve C2PA manifests through their upload pipelines. The absence of a C2PA manifest in an image downloaded from social media does not indicate the original had no manifest.
+Many social media platforms strip metadata from uploaded images, including C2PA manifests. As of 2025, only a small number of platforms preserve C2PA manifests through their upload pipelines. The absence of a C2PA manifest in an image downloaded from social media does not indicate the original had no manifest.
+
+C2PA specification version 1.3 was published in April 2023. C2PA specification version 2.0 was published in January 2025, introducing several significant changes: improved trust list infrastructure with a standardised trust list format; enhanced support for video streaming formats including DASH and HLS; a new "claim review" assertion type for third-party verification; improved cloud manifest storage with standardised REST API endpoints; and tighter alignment with W3C Verifiable Credentials for identity assertions.
+
+C2PA 2.0 introduced the concept of "named actors" with verified identities, allowing creators to cryptographically link their identity to content without exposing personal data publicly. This uses a privacy-preserving approach based on selective disclosure of identity claims.
+
+Camera manufacturer C2PA adoption timeline: Leica announced C2PA support in the M11-P camera in October 2023, making it the first consumer camera with built-in content credentials. Nikon announced C2PA integration into the Z6III mirrorless camera in June 2024, with firmware updates planned for the Z8 and Z9 models. Sony announced C2PA-capable Alpha cameras in 2024, initially targeting professional photojournalism bodies. Canon announced plans to implement C2PA signing in professional EOS cameras, with availability expected in 2025. These cameras sign images at capture time using a hardware-backed key stored in the camera's secure element.
+
+Social media platform C2PA support as of early 2025: LinkedIn actively preserves and displays C2PA Content Credentials on uploaded images and has been a leader in platform adoption. X (formerly Twitter) announced support for reading and displaying C2PA metadata in 2024, with gradual rollout. Meta (Facebook, Instagram) began testing C2PA metadata detection to label AI-generated content, initially focusing on images from Adobe Firefly, Midjourney, and DALL-E. TikTok launched a pilot programme in 2024 to label content carrying C2PA metadata indicating AI generation. YouTube displays contextual labels when C2PA metadata indicates synthetic or significantly altered content.
+
+Adobe Firefly's Content Credentials workflow records the generation prompt, model version, creation timestamp, and a declaration that the content is AI-generated, all within a signed C2PA manifest. When a Firefly image is edited in Photoshop or Lightroom, the editing tool appends a new claim with ingredient references to the original Firefly generation claim, creating a full provenance chain.
+
+The C2PA Trust List is a curated set of root certificates that validators use to determine whether a signing certificate is trusted. Governance of the trust list is managed by the C2PA organisation. Inclusion in the trust list requires meeting specific security and identity verification requirements. The trust list is not exhaustive — a valid signature from a certificate not on the trust list is cryptographically valid but untrusted. This distinction between signature validity and trust evaluation is fundamental to C2PA.
+
+C2PA limitations: C2PA manifests can be stripped from files by any image processing tool, social media upload pipeline, or deliberate action. C2PA does not prevent a bad actor from signing a manipulated image with their own certificate — it records who made the assertion, not whether the assertion is true. C2PA cannot retroactively protect content that was created before C2PA adoption. The absence of C2PA metadata is the default state for the vast majority of images and does not indicate manipulation.
+
+The CAWG (Creator Assertions Working Group) is an extension effort within the C2PA ecosystem focused on standardising creator identity assertions. CAWG defines how content creators can bind their verified identity (name, social media handles, organisational affiliation) to C2PA manifests in a privacy-preserving way. CAWG uses decentralised identifiers (DIDs) and verifiable credentials to enable creators to prove authorship without relying on a single centralised identity provider.
+
+Legal weight of C2PA metadata varies by jurisdiction. No major jurisdiction as of early 2025 has enacted legislation specifically granting evidentiary status to C2PA manifests. In the UK, C2PA metadata would likely be admissible as digital evidence under the Civil Evidence Act 1995 and Police and Criminal Evidence Act 1984, subject to expert testimony establishing its reliability. In the EU, the AI Act (Regulation 2024/1689) Article 50 requires providers of AI systems that generate synthetic content to ensure outputs are machine-readably marked — C2PA is one mechanism that satisfies this requirement. In the US, C2PA metadata has been referenced in proposed federal legislation (e.g. the AI Labeling Act) but no binding law mandates its use.
 
 Nikon announced C2PA integration into its Z-series mirrorless cameras in 2024. Leica cameras have supported C2PA signing since the M11-P (announced October 2023). Sony announced C2PA-capable cameras in 2024. These cameras can sign images at capture time using a hardware-backed key stored in the camera.
 
@@ -28,8 +46,6 @@ The presence of a valid C2PA manifest provides positive evidence of provenance �
 C2PA manifests support "ingredient" references — pointers to the manifests of source images used to create a composite. This creates a provenance chain: a manipulated image can reference the original, recording what was changed. Tools like Adobe Photoshop and Lightroom write C2PA ingredient references automatically.
 
 The c2pa-rs Rust library (https://github.com/contentauth/c2pa-rs) is the reference implementation for C2PA in Rust. It is maintained by Adobe and is used by Jura Trace for C2PA signing and verification. The library supports reading, verifying, and writing C2PA manifests.
-
-C2PA specification version 1.3 was published in April 2023. Version 2.0 was in draft as of 2024, with proposed improvements to the trust list infrastructure and support for video streaming formats.
 
 IPTC metadata and XMP metadata are older provenance standards that predate C2PA. They are not cryptographically signed and can be modified without detection. C2PA is designed to complement and eventually supersede these formats for provenance purposes, though IPTC/XMP will remain widely used.
 
