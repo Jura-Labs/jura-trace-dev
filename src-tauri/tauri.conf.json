@@ -41,6 +41,12 @@
     "macOS": {
       "entitlements": "Entitlements.plist",
       "minimumSystemVersion": "13.0"
-    }
+    },
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0", "libayatana-appindicator3-1"]
+      }
+    },
+    "category": "Utility"
   }
 }
