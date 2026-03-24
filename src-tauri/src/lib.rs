@@ -427,8 +427,18 @@ fn compute_trust(
     shadow_consistency_score: Option<f64>,
     colour_temperature_score: Option<f64>,
     splice_boundary_score: Option<f64>,
+    ai_declared_by_c2pa: bool,
 ) -> f64 {
-    let c2pa_bonus = if c2pa_valid == Some(true) { 0.1 } else { 0.0 };
+    // C2PA that honestly declares AI generation should penalise trust — the
+    // content's own provenance record confirms it is synthetic.  A valid
+    // manifest without an AI declaration is still a positive provenance signal.
+    let c2pa_bonus = if ai_declared_by_c2pa {
+        -0.15 // Penalty: manifest explicitly declares AI-generated content
+    } else if c2pa_valid == Some(true) {
+        0.1 // Bonus: valid provenance, not declared AI
+    } else {
+        0.0
+    };
 
     // Use the raw deepfake score for forensic trust. Confidence is expressed
     // via the verdict ceiling below, not by scaling the score down. The old
@@ -579,12 +589,16 @@ fn compute_trust(
 ///
 /// Forensic image/video detectors do not apply — trust is based solely on C2PA provenance.
 ///
-/// | `c2pa_valid`   | Score | Rationale                                        |
-/// |----------------|-------|--------------------------------------------------|
-/// | `Some(true)`   | 0.82  | Valid manifest — strong provenance signal        |
-/// | `Some(false)`  | 0.25  | Manifest present but invalid/tampered — suspect  |
-/// | `None`         | 0.50  | No provenance data — genuinely inconclusive      |
-fn document_trust(c2pa_valid: Option<bool>) -> f64 {
+/// | `ai_declared` | `c2pa_valid`   | Score | Rationale                                        |
+/// |---------------|----------------|-------|--------------------------------------------------|
+/// | `true`        | any            | 0.15  | Manifest confirms AI generation — very low trust |
+/// | `false`       | `Some(true)`   | 0.82  | Valid manifest — strong provenance signal        |
+/// | `false`       | `Some(false)`  | 0.25  | Manifest present but invalid/tampered — suspect  |
+/// | `false`       | `None`         | 0.50  | No provenance data — genuinely inconclusive      |
+fn document_trust(c2pa_valid: Option<bool>, ai_declared: bool) -> f64 {
+    if ai_declared {
+        return 0.15; // C2PA explicitly confirms AI generation
+    }
     match c2pa_valid {
         Some(true) => 0.82,
         Some(false) => 0.25,
@@ -679,11 +693,22 @@ fn verify_content_inner(
     let c2pa_manifest = c2pa::read_manifest(&path).ok().flatten();
     let c2pa_valid = c2pa_manifest.as_ref().map(|m| m.is_valid);
 
-    // Check C2PA claim_generator for known AI image generators
-    let ai_generator = c2pa_manifest
-        .as_ref()
-        .and_then(|m| m.claim_generator.as_deref())
-        .and_then(c2pa::detect_ai_generator);
+    // Check C2PA claim_generator AND assertions for known AI generators.
+    // Generators such as Google Gemini embed their AI declaration in the
+    // c2pa.actions assertion body (digitalSourceType / description) rather
+    // than in the claim_generator string, so both paths are required.
+    let ai_generator = c2pa_manifest.as_ref().and_then(|m| {
+        // 1. claim_generator string (covers DALL-E, Midjourney, Firefly …)
+        if let Some(gen) = m
+            .claim_generator
+            .as_deref()
+            .and_then(c2pa::detect_ai_generator)
+        {
+            return Some(gen);
+        }
+        // 2. Assertion values (covers digitalSourceType + action descriptions)
+        c2pa::detect_ai_from_assertions(&m.assertions)
+    });
     log::info!("PERF: C2PA verification took {:?}", t_c2pa.elapsed());
 
     // Sidecar-based analysis (optional — graceful degradation)
@@ -1301,8 +1326,9 @@ fn verify_content_inner(
     // PDFs and other documents have no applicable forensic detectors.
     // Use a lightweight C2PA-only path rather than defaulting to 0.50 from
     // the unwrap_or on missing EXIF data.
+    let ai_declared_by_c2pa = ai_generator.is_some();
     let overall_trust = if !is_image && !is_video && !is_audio {
-        document_trust(c2pa_valid)
+        document_trust(c2pa_valid, ai_declared_by_c2pa)
     } else {
         compute_trust(
             ela_score,
@@ -1317,6 +1343,7 @@ fn verify_content_inner(
             shadow_consistency_score,
             colour_temperature_score,
             splice_boundary_score,
+            ai_declared_by_c2pa,
         )
     };
     log::info!("PERF: trust score computation took {:?}", t_trust.elapsed());
@@ -2566,6 +2593,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         assert!(trust > 0.85, "Expected >0.85, got {trust:.3}");
     }
@@ -2586,6 +2614,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         assert!(trust < 0.5, "Expected <0.5, got {trust:.3}");
     }
@@ -2606,6 +2635,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         assert!(trust > 0.60, "Expected >0.60, got {trust:.3}");
     }
@@ -2626,6 +2656,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         assert!(trust < 0.55, "Expected <0.55, got {trust:.3}");
     }
@@ -2646,6 +2677,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         assert!(
             trust_weighted > 0.55,
@@ -2668,6 +2700,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         let trust_with = compute_trust(
             Some(0.1),
@@ -2682,6 +2715,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         assert!(
             trust_with > trust_without,
@@ -2692,7 +2726,7 @@ mod tests {
     #[test]
     fn trust_no_forensics_falls_back_to_exif() {
         let trust = compute_trust(
-            None, None, None, None, None, None, 0.8, None, None, None, None, None,
+            None, None, None, None, None, None, 0.8, None, None, None, None, None, false,
         );
         assert!((trust - 0.8).abs() < 0.01, "Expected ~0.8, got {trust:.3}");
     }
@@ -2712,6 +2746,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         assert!(
             trust > 0.75,
@@ -2735,6 +2770,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         assert!(trust <= 1.0, "Trust exceeded 1.0: {trust:.3}");
     }
@@ -2758,6 +2794,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         assert!(
             trust <= 0.60,
@@ -2784,6 +2821,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         assert!(
             trust <= 0.25,
@@ -2807,6 +2845,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         assert!(
             trust <= 0.45,
@@ -2829,6 +2868,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         assert!(
             trust > 0.85,
@@ -2852,6 +2892,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         assert!(
             trust > 0.70,
@@ -2993,7 +3034,8 @@ mod tests {
             None,
             None,
             None,
-            None, // no regional detectors
+            None,  // no regional detectors
+            false,
         );
         assert!(
             trust <= 0.60,
@@ -3065,6 +3107,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         let trust_without = compute_trust(
             Some(0.05),
@@ -3079,6 +3122,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         assert!(
             trust_with < trust_without,
@@ -3102,6 +3146,7 @@ mod tests {
             None,
             Some(0.65), // colour temperature suspicious
             None,
+            false,
         );
         assert!(
             trust <= 0.55,
@@ -3125,6 +3170,7 @@ mod tests {
             Some(0.6),  // shadow consistency
             Some(0.75), // colour temperature
             None,
+            false,
         );
         assert!(
             trust <= 0.55,
@@ -3148,6 +3194,7 @@ mod tests {
             None,      // shadow — absent
             Some(0.3), // colour temperature clean
             None,      // splice boundary — absent
+            false,
         );
         assert!(
             trust > 0.55,
@@ -3171,6 +3218,7 @@ mod tests {
             Some(0.04),
             Some(0.06),
             Some(0.03),
+            false,
         );
         let trust_no_regional = compute_trust(
             Some(0.04),
@@ -3185,6 +3233,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         // With all regional detectors clean the trust should be close to the
         // no-regional baseline (regional scores ≈ 0 contribute ~1.0 trust).
@@ -3212,6 +3261,7 @@ mod tests {
             None,
             Some(0.65),
             None,
+            false,
         );
         assert!(
             trust <= 0.55,
@@ -3331,13 +3381,124 @@ mod tests {
         assert_eq!(chosen, default, "Default path should be used as fallback");
     }
 
+    // ── AI-declared C2PA trust tests ──────────────────────────────────────────
+
+    #[test]
+    fn trust_c2pa_ai_declared_penalises_compute_trust() {
+        // When C2PA declares AI generation, trust must be LOWER than the same
+        // content without the AI declaration — not rewarded with a C2PA bonus.
+        let trust_ai_declared = compute_trust(
+            Some(0.1),
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            Some(true), // valid C2PA
+            None,
+            None,
+            None,
+            None,
+            true, // AI declared
+        );
+        let trust_no_ai = compute_trust(
+            Some(0.1),
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            Some(true), // valid C2PA, no AI declaration
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
+        assert!(
+            trust_ai_declared < trust_no_ai,
+            "AI-declared C2PA should produce lower trust than non-AI C2PA: \
+             ai={trust_ai_declared:.3} vs clean={trust_no_ai:.3}"
+        );
+    }
+
+    #[test]
+    fn trust_c2pa_ai_declared_lower_than_no_c2pa() {
+        // AI-declared content must score lower than content with NO C2PA at all.
+        // A manifest that confirms AI generation is worse than no manifest.
+        let trust_ai = compute_trust(
+            None, None, None, None, None, None, 0.8, Some(true), None, None, None, None, true,
+        );
+        let trust_none = compute_trust(
+            None, None, None, None, None, None, 0.8, None, None, None, None, None, false,
+        );
+        assert!(
+            trust_ai < trust_none,
+            "AI-declared should score below no-C2PA: ai={trust_ai:.3} vs none={trust_none:.3}"
+        );
+    }
+
+    #[test]
+    fn trust_c2pa_ai_declared_penalty_value() {
+        // Verify the penalty is -0.15 relative to valid non-AI C2PA (+0.10 bonus).
+        // With exif_trust 1.0 and no forensics: valid C2PA → 1.0, AI C2PA → 0.85.
+        let trust_valid = compute_trust(
+            None, None, None, None, None, None, 1.0, Some(true), None, None, None, None, false,
+        );
+        let trust_ai = compute_trust(
+            None, None, None, None, None, None, 1.0, Some(true), None, None, None, None, true,
+        );
+        // valid: 1.0 + 0.10 capped at 1.0 = 1.0
+        assert!(
+            (trust_valid - 1.0).abs() < 0.001,
+            "Valid C2PA + perfect EXIF should reach 1.0: got {trust_valid:.3}"
+        );
+        // AI declared: 1.0 - 0.15 = 0.85
+        assert!(
+            (trust_ai - 0.85).abs() < 0.001,
+            "AI-declared C2PA should yield 0.85 with perfect EXIF: got {trust_ai:.3}"
+        );
+    }
+
     // ── document_trust ────────────────────────────────────────────────────────
+
+    #[test]
+    fn trust_document_ai_declared_very_low() {
+        // A document whose C2PA manifest declares AI generation must score very low.
+        assert_eq!(
+            document_trust(Some(true), true),
+            0.15,
+            "AI-declared document should yield 0.15 regardless of C2PA validity"
+        );
+        assert_eq!(
+            document_trust(Some(false), true),
+            0.15,
+            "AI-declared document (invalid C2PA) should still yield 0.15"
+        );
+        assert_eq!(
+            document_trust(None, true),
+            0.15,
+            "AI-declared document (no C2PA) should still yield 0.15"
+        );
+    }
+
+    #[test]
+    fn trust_document_ai_declared_lower_than_valid_c2pa() {
+        let ai_trust = document_trust(Some(true), true);
+        let clean_trust = document_trust(Some(true), false);
+        assert!(
+            ai_trust < clean_trust,
+            "AI-declared document trust {ai_trust:.2} must be below valid C2PA trust {clean_trust:.2}"
+        );
+    }
 
     #[test]
     fn trust_document_with_valid_c2pa() {
         // A PDF with a valid C2PA manifest should receive a high-confidence score.
         assert_eq!(
-            document_trust(Some(true)),
+            document_trust(Some(true), false),
             0.82,
             "Valid C2PA on a document should yield 0.82"
         );
@@ -3347,7 +3508,7 @@ mod tests {
     fn trust_document_with_invalid_c2pa() {
         // A PDF whose C2PA manifest fails validation is actively suspicious.
         assert_eq!(
-            document_trust(Some(false)),
+            document_trust(Some(false), false),
             0.25,
             "Invalid C2PA on a document should yield 0.25"
         );
@@ -3357,7 +3518,7 @@ mod tests {
     fn trust_document_without_c2pa() {
         // A PDF with no C2PA data at all is genuinely inconclusive — not suspicious.
         assert_eq!(
-            document_trust(None),
+            document_trust(None, false),
             0.50,
             "Document with no C2PA data should yield 0.50"
         );
