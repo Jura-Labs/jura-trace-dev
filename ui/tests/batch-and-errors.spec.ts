@@ -11,44 +11,40 @@ test.describe('Verify error states', () => {
     await page.waitForTimeout(300);
   });
 
-  test('shows sidecar error with amber styling', async ({ page }) => {
+  test('classifies sidecar connection errors as sidecar type', async ({ page }) => {
     await page.evaluate(() => {
       (window as any).__juraSetVerifyError('sidecar connection refused');
     });
-    const alert = page.locator('[role="alert"]');
-    await expect(alert).toBeVisible();
-    await expect(alert).toContainText('Sidecar offline');
-    await expect(alert).toContainText('Analysis services are not running');
+    const banner = page.locator('[data-testid="error-banner"]');
+    await expect(banner).toBeVisible();
+    await expect(banner).toHaveAttribute('data-error-code', 'sidecar');
   });
 
-  test('shows format error with lapis styling', async ({ page }) => {
+  test('classifies unsupported format errors as format type', async ({ page }) => {
     await page.evaluate(() => {
       (window as any).__juraSetVerifyError('unsupported format');
     });
-    const alert = page.locator('[role="alert"]');
-    await expect(alert).toBeVisible();
-    await expect(alert).toContainText('Unsupported format');
-    await expect(alert).toContainText('JPEG, PNG, TIFF');
+    const banner = page.locator('[data-testid="error-banner"]');
+    await expect(banner).toBeVisible();
+    await expect(banner).toHaveAttribute('data-error-code', 'format');
   });
 
-  test('shows network error for URL failures', async ({ page }) => {
+  test('classifies fetch failures as network type', async ({ page }) => {
     await page.evaluate(() => {
       (window as any).__juraSetVerifyError('fetch failed');
     });
-    const alert = page.locator('[role="alert"]');
-    await expect(alert).toBeVisible();
-    await expect(alert).toContainText('Network error');
-    await expect(alert).toContainText('Check the address');
+    const banner = page.locator('[data-testid="error-banner"]');
+    await expect(banner).toBeVisible();
+    await expect(banner).toHaveAttribute('data-error-code', 'network');
   });
 
-  test('shows general error for unknown failures', async ({ page }) => {
+  test('classifies unknown failures as general type', async ({ page }) => {
     await page.evaluate(() => {
       (window as any).__juraSetVerifyError('Tauri not available');
     });
-    const alert = page.locator('[role="alert"]');
-    await expect(alert).toBeVisible();
-    await expect(alert).toContainText('Error');
-    await expect(alert).toContainText('application bridge unavailable');
+    const banner = page.locator('[data-testid="error-banner"]');
+    await expect(banner).toBeVisible();
+    await expect(banner).toHaveAttribute('data-error-code', 'general');
   });
 });
 

@@ -41,18 +41,29 @@
       switch (code) {
         case 'Sidecar':
           errorType = 'sidecar';
-          error = message;
+          error = import.meta.env.DEV
+            ? message
+            : 'Forensic analysis is temporarily unavailable. If the problem persists, restart Jura Trace.';
           break;
         case 'Validation':
           errorType = 'format';
-          error = message;
+          error = message; // already user-safe from the backend
           break;
         case 'FileSystem':
+          errorType = 'general';
+          error = 'The file could not be read. Check it is not open in another application and try again.';
+          break;
         case 'Database':
+          errorType = 'general';
+          error = 'A database error occurred. Your work has been saved. Restart Jura Trace if the problem persists.';
+          break;
         case 'C2pa':
+          errorType = 'general';
+          error = 'The content credential operation could not be completed. The file has not been modified.';
+          break;
         case 'Internal':
           errorType = 'general';
-          error = message;
+          error = 'An unexpected error occurred. Please restart Jura Trace.';
           break;
         default:
           errorType = 'general';
@@ -100,7 +111,7 @@
   // reactivity. The $-prefixed store reference in $effect creates
   // a proper reactive subscription.
   const _testResultStore = writable<VerificationResult | null>(null);
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && import.meta.env.DEV) {
     (window as any).__juraSetVerifyResult = (data: VerificationResult) => {
       _testResultStore.set(data);
     };
@@ -750,6 +761,8 @@
          'bg-cinnabar/10 border-cinnabar/30 text-cinnabar dark:text-cinnabar-light'}"
       role="alert"
       aria-live="assertive"
+      data-testid="error-banner"
+      data-error-code={errorType}
     >
       <div class="flex items-start gap-2">
         <span class="font-medium flex-shrink-0">
