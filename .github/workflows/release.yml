@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  # ── Phase 1: Create a draft release to receive build artefacts ──────────────
+  # ── Phase 1: Create a draft release with changelog body ───────────────────
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
@@ -19,25 +19,62 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Extract the most recent sprint section from CHANGELOG.md as the release
+      # body. The CHANGELOG uses "## Sprint N — ..." headings (not semver
+      # headings), so we pull everything from the first "## " heading down to
+      # the line before the next "## " heading. The result is truncated at 8 000
+      # characters to stay within the GitHub API body limit.
+      - name: Extract changelog section
+        id: changelog
+        shell: bash
+        run: |
+          python3 - <<'PYEOF'
+          import os, re, pathlib
+
+          text = pathlib.Path("CHANGELOG.md").read_text()
+          # Find the first ## heading and capture until the next ## heading.
+          # CHANGELOG.md uses "## Sprint N — ..." headings, not semver headings.
+          m = re.search(r'(^## .+?)(?=^## |\Z)', text, re.MULTILINE | re.DOTALL)
+          if m:
+              body = m.group(1).strip()
+          else:
+              body = "See CHANGELOG.md for details."
+
+          # Truncate so the GitHub API does not reject an oversized body.
+          if len(body) > 8000:
+              body = body[:7950] + "\n\n...(truncated - see CHANGELOG.md for full details)"
+
+          # Write to GITHUB_OUTPUT as a multiline value.
+          # GitHub Actions injects GITHUB_OUTPUT into the environment automatically.
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write("body<<BODY_EOF\n")
+              fh.write(body + "\n")
+              fh.write("BODY_EOF\n")
+          PYEOF
+
       - name: Create draft release
         id: create
         uses: actions/github-script@v7
         with:
           script: |
             const tag = context.ref.replace('refs/tags/', '');
+            const body = process.env.CHANGELOG_BODY
+              || `## Jura Trace ${tag}\n\nSee [CHANGELOG.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CHANGELOG.md) for details.`;
             const { data } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: tag,
               name: `Jura Trace ${tag}`,
-              body: `## Jura Trace ${tag}\n\nSee [CHANGELOG.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CHANGELOG.md) for details.`,
+              body,
               draft: true,
-              // Mark as pre-release if the tag contains -rc, -beta, or -alpha
+              // Mark as pre-release if the tag contains -rc, -beta, or -alpha.
               prerelease: /-(rc|beta|alpha)/.test(tag),
             });
             return data.id;
+        env:
+          CHANGELOG_BODY: ${{ steps.changelog.outputs.body }}
 
-  # ── Phase 2: Build platform artefacts in parallel ────────────────────────────
+  # ── Phase 2: Build platform artefacts in parallel ────────────────────────
   build:
     name: Build (${{ matrix.label }})
     needs: create-release
@@ -50,31 +87,47 @@ jobs:
           - label: macOS (Apple Silicon)
             runner: macos-latest
             target: aarch64-apple-darwin
+            # Tauri's externalBin expects the binary name to include the full
+            # Rust target triple as a suffix.
+            sidecar_name: jura-sidecar-aarch64-apple-darwin
 
           # macOS Intel — macos-13 is the last Intel GHA runner
           - label: macOS (Intel)
             runner: macos-13
             target: x86_64-apple-darwin
+            sidecar_name: jura-sidecar-x86_64-apple-darwin
 
           # Windows x64 — produces both MSI and NSIS installers
           - label: Windows (x64)
             runner: windows-latest
             target: x86_64-pc-windows-msvc
+            # Windows: Tauri looks for the .exe-suffixed name.
+            sidecar_name: jura-sidecar-x86_64-pc-windows-msvc.exe
 
           # Linux x64 — produces AppImage and .deb
+          # ubuntu-22.04 is pinned (not ubuntu-latest) because Tauri's AppImage
+          # must link against the oldest available glibc to run on downstream
+          # distros; ubuntu-latest may bump glibc sooner than expected.
           - label: Linux (x64)
             runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
+            sidecar_name: jura-sidecar-x86_64-unknown-linux-gnu
 
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    # The sidecar build (torch + open_clip) can take 10-20 minutes alone on
+    # a cold cache. Allow 90 minutes total to cover cold starts.
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4
 
-      # Linux only: Tauri v2 requires webkit2gtk 4.1, GTK 3, and related libs.
-      # libsoup-3.0-dev is a webkit2gtk 4.1 transitive requirement.
-      # libjavascriptcoregtk-4.1-dev ships the JSC headers needed by tauri-build.
+      # ── Linux: Tauri v2 system dependencies ─────────────────────────────
+      # Tauri v2 requires webkit2gtk 4.1 (not 4.0 from Tauri v1).
+      # libayatana-appindicator3-dev covers the system-tray feature.
+      # libsoup-3.0-dev is a webkit2gtk 4.1 transitive dependency.
+      # libjavascriptcoregtk-4.1-dev provides the JSC headers for tauri-build.
+      # patchelf is required by tauri-action to patch ELF interpreter paths
+      # in the AppImage.
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
         run: |
@@ -86,8 +139,10 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libjavascriptcoregtk-4.1-dev \
-            libsoup-3.0-dev
+            libsoup-3.0-dev \
+            patchelf
 
+      # ── Rust toolchain ───────────────────────────────────────────────────
       # Pin to the same Rust version as rust-version in Cargo.toml (1.88).
       - name: Install Rust 1.88
         uses: dtolnay/rust-toolchain@stable
@@ -95,7 +150,7 @@ jobs:
           toolchain: "1.88"
           targets: ${{ matrix.target }}
 
-      # Cache per target triple — macOS arm64 and x64 have different build artefacts.
+      # Cache per target triple — macOS arm64 and x64 produce different artefacts.
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
@@ -108,33 +163,106 @@ jobs:
           key: cargo-release-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.lock') }}
           restore-keys: cargo-release-${{ matrix.target }}-
 
+      # ── Python: build the frozen sidecar binary ──────────────────────────
+      # The sidecar targets Python 3.13 but we use 3.12 here because macOS
+      # and Windows GHA runners ship 3.12 as the latest stable version available
+      # via setup-python as of 2026-Q1. Update to 3.13 once runners ship it.
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Cache the pip download cache keyed on the pinned lock file so the
+      # heavy ML library downloads (torch, opencv, etc.) are skipped on
+      # subsequent runs. The PyInstaller build directory is NOT cached because
+      # PyInstaller outputs depend on the Python bytecode and linked dylibs,
+      # which can vary between runners — a stale cache causes silent breakage.
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-pyinstaller-${{ matrix.target }}-${{ hashFiles('sidecar/requirements.lock') }}
+          restore-keys: pip-pyinstaller-${{ matrix.target }}-
+
+      # Install from the pinned lock file for reproducible builds.
+      # PyInstaller is intentionally excluded from requirements.txt and
+      # requirements.lock (it is a build tool, not a runtime dependency), so it
+      # is installed separately here. Pin to 6.x to match the spike version.
+      - name: Install sidecar dependencies
+        run: |
+          if [ -f sidecar/requirements.lock ]; then
+            pip install -r sidecar/requirements.lock
+          else
+            pip install -r sidecar/requirements.txt
+          fi
+          pip install "pyinstaller>=6,<7"
+        shell: bash
+
+      # PyInstaller builds a single self-contained executable (--onefile mode
+      # is configured in jura-sidecar.spec via the EXE object — no COLLECT).
+      # Output: sidecar/dist/jura-sidecar  (sidecar/dist/jura-sidecar.exe on Windows)
+      #
+      # JURA_MODELS_DIR is NOT set here because the models/ directory is not
+      # bundled inside the frozen binary — see docs/pyinstaller-spike-findings.md.
+      # The Rust sidecar.rs sets JURA_MODELS_DIR at spawn time, pointing to the
+      # models/ directory that ships alongside the app bundle.
+      - name: Build frozen sidecar
+        run: python -m PyInstaller jura-sidecar.spec --noconfirm
+        working-directory: sidecar
+
+      # Copy the PyInstaller output to src-tauri/binaries/ with the Tauri-
+      # expected platform triple suffix. Tauri's externalBin resolution strips
+      # the suffix at build time and re-adds it for each target platform.
+      #
+      # The binaries/ directory is gitignored (it holds large native binaries).
+      # Create it if it does not already exist from a previous CI step.
+      - name: Copy sidecar binary to Tauri binaries (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p src-tauri/binaries
+          cp sidecar/dist/jura-sidecar src-tauri/binaries/${{ matrix.sidecar_name }}
+
+      - name: Copy sidecar binary to Tauri binaries (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri\binaries | Out-Null
+          Copy-Item sidecar\dist\jura-sidecar.exe src-tauri\binaries\${{ matrix.sidecar_name }}
+
+      # ── Node.js: build the SvelteKit frontend ───────────────────────────
+      # tauri-action calls `npm install` in the project root by default, but
+      # our frontend lives in ui/. Install deps there explicitly before handing
+      # off to tauri-action. The beforeBuildCommand in tauri.conf.json
+      # (`cd ui && npm run build`) handles the Vite build step at tauri build time.
       - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-          # Root package-lock.json doesn't exist; key on the ui/ one.
+          # Root package-lock.json does not exist; key on the ui/ one.
           cache-dependency-path: ui/package-lock.json
 
-      # tauri-action calls `npm install` in the project root by default.
-      # Our frontend lives in ui/, so we install deps there explicitly before
-      # handing off to tauri-action. The beforeBuildCommand in tauri.conf.json
-      # (`cd ui && npm run build`) handles the Vite build step at tauri build time.
       - name: Install frontend dependencies
         run: cd ui && npm ci
 
+      # ── Tauri: build and upload release artefacts ────────────────────────
       # tauri-apps/tauri-action@v0 is the Tauri v2-compatible release of the action.
       # It finds tauri.conf.json in src-tauri/ automatically (standard layout).
-      # tauriScript: "cargo tauri" is used because this project installs the
-      # Tauri CLI via cargo (cargo install tauri-cli) rather than via npm.
-      # Code signing is intentionally disabled — add secrets and uncomment the
-      # env vars below when Apple Developer / Windows EV certificates are available.
+      # tauriScript: "cargo tauri" is used because this project installs the Tauri
+      # CLI via cargo (cargo install tauri-cli), not via @tauri-apps/cli in npm.
+      #
+      # The action uploads all produced installer artefacts (DMG, MSI, NSIS,
+      # AppImage, .deb) to the draft release created by the create-release job.
       - name: Build and upload release artefacts
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          # ── macOS code signing (uncomment when certificates are configured) ──
+          # ── macOS code signing (Sprint 19) ────────────────────────────────
+          # Uncomment when an Apple Developer ID Application certificate has been
+          # exported as a base64 PEM and stored in GitHub Secrets. Notarisation
+          # requires an app-specific password for the Apple ID.
+          #
           # APPLE_CERTIFICATE:          ${{ secrets.APPLE_CERTIFICATE }}
           # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           # APPLE_SIGNING_IDENTITY:     ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -142,25 +270,25 @@ jobs:
           # APPLE_PASSWORD:             ${{ secrets.APPLE_PASSWORD }}
           # APPLE_TEAM_ID:              ${{ secrets.APPLE_TEAM_ID }}
 
-          # ── Windows Authenticode signing (uncomment when certificate is ready) ─
-          # TAURI_SIGNING_PRIVATE_KEY:  ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # ── Windows Authenticode signing (Sprint 19) ──────────────────────
+          # Uncomment when a code-signing certificate (EV or OV) is available.
+          # TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           # Use cargo tauri (CLI installed via cargo) rather than npx tauri.
-          # @tauri-apps/cli is not listed in any package.json in this project.
           tauriScript: cargo tauri
           args: --target ${{ matrix.target }}
 
-  # ── Phase 3: Publish the draft release once all platform builds succeed ──────
+  # ── Phase 3: Publish the draft release once all platform builds succeed ──
   publish-release:
     name: Publish Release
     needs: [create-release, build]
     runs-on: ubuntu-latest
     # Protect production release publishing behind an environment approval gate.
     # Configure the "production" environment at:
-    # Settings > Environments > production > Required reviewers
+    #   Settings > Environments > production > Required reviewers
     environment: production
     steps:
       - name: Publish release
