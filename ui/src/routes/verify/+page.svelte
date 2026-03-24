@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
-  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive } from '$lib/api';
+  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive, parseAppError } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
   import type { VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult } from '$lib/types';
@@ -22,25 +22,61 @@
   let checked = $state(false);
   let loading = $state(false);
   let error = $state<string | null>(null);
+  /** Machine-readable error category derived from AppError.code or legacy string-sniffing. */
   let errorType = $state<'sidecar' | 'format' | 'network' | 'general' | null>(null);
 
-  /** Classify an error and set both error message and type. */
+  /**
+   * Classify a caught error from a Tauri command into one of four categories
+   * and set the `error` / `errorType` reactive state.
+   *
+   * Handles both structured AppError responses (`{ code, message }`) from
+   * commands that have been migrated to AppError, and plain strings from
+   * commands still using `map_err(|e| e.to_string())`.
+   */
   function setError(e: unknown, context: string) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes('Tauri not available') || msg.includes('invoke')) {
+    const { code, message } = parseAppError(e);
+
+    // Determine category from structured code first (most reliable)
+    if (code !== null) {
+      switch (code) {
+        case 'Sidecar':
+          errorType = 'sidecar';
+          error = message;
+          break;
+        case 'Validation':
+          errorType = 'format';
+          error = message;
+          break;
+        case 'FileSystem':
+        case 'Database':
+        case 'C2pa':
+        case 'Internal':
+          errorType = 'general';
+          error = message;
+          break;
+        default:
+          errorType = 'general';
+          error = message;
+      }
+      return;
+    }
+
+    // Fallback: string-sniff for plain string errors from unmigrated commands
+    const lower = message.toLowerCase();
+    if (lower.includes('tauri not available') || lower.includes('invoke')) {
       error = `${context}: application bridge unavailable`;
       errorType = 'general';
-    } else if (msg.includes('Unsupported') || msg.includes('format') || msg.includes('MIME')) {
+    } else if (lower.includes('unsupported') || lower.includes('format') || lower.includes('mime')) {
       error = `Unsupported file format. Jura Trace supports JPEG, PNG, TIFF, WebP, PDF, MP4, MOV, WAV, and MP3.`;
       errorType = 'format';
-    } else if (msg.includes('sidecar') || msg.includes('connection refused') || msg.includes('127.0.0.1:8200')) {
+    } else if (lower.includes('sidecar') || lower.includes('connection refused') || lower.includes('127.0.0.1:8200')) {
       error = `Analysis services are not running. Start the sidecar with: uvicorn main:app --host 127.0.0.1 --port 8200`;
       errorType = 'sidecar';
-    } else if (msg.includes('fetch') || msg.includes('network') || msg.includes('SSRF') || msg.includes('URL')) {
+    } else if (lower.includes('fetch') || lower.includes('network') || lower.includes('ssrf') || lower.includes('url')) {
       error = `Could not fetch the URL. Check the address is correct and publicly accessible.`;
       errorType = 'network';
     } else {
-      error = `${context}: ${msg}`;
+      error = `${context}: ${message}`;
       errorType = 'general';
     }
   }
@@ -1233,6 +1269,34 @@
         </button>
         {#if showInvestigatePanel}
           <div id="investigate-further-panel" class="mt-3">
+            <!-- Source protection privacy warning -->
+            <div
+              class="rounded-lg border border-amber/30 bg-amber/10 px-4 py-3 mb-3 flex gap-3"
+              role="note"
+              aria-label="Source protection privacy caution"
+            >
+              <svg
+                class="w-4 h-4 flex-shrink-0 mt-0.5 text-amber dark:text-amber-light"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                />
+              </svg>
+              <p class="text-xs text-amber dark:text-amber-light leading-relaxed">
+                <span class="font-semibold">Caution:</span> using reverse image search services will share
+                the image URL (and your IP address) with third-party commercial services. If you are
+                verifying sensitive or unpublished material, consider whether this is appropriate for your
+                source protection obligations.
+              </p>
+            </div>
+
             <div
               class="rounded-lg border border-border-dark bg-obsidian/50 px-4 py-3"
               aria-label="Reverse image search options"

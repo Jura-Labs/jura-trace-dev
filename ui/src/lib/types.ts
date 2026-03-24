@@ -5,6 +5,20 @@
  */
 
 /**
+ * Structured error response from Tauri commands that use AppError.
+ *
+ * Commands migrated to AppError serialise their errors as:
+ *   { "code": "Sidecar", "message": "Analysis service unavailable: ..." }
+ *
+ * Commands still using `map_err(|e| e.to_string())` return a plain string.
+ * Use `parseAppError` in api.ts to handle both forms.
+ */
+export interface AppErrorResponse {
+  code: 'Database' | 'FileSystem' | 'Sidecar' | 'Validation' | 'C2pa' | 'Internal';
+  message: string;
+}
+
+/**
  * Verify pipeline investigation modes:
  * - standard: EXIF + C2PA + ELA + deepfake ensemble (~15s) — default
  * - deep: Full pipeline including all detectors (~60s)

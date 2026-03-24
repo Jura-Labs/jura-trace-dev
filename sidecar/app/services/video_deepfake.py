@@ -4,19 +4,15 @@ Jura Trace Sidecar — Video deepfake analysis.
 Analyses video files for AI-generated or manipulated frames by running
 the image deepfake detector on evenly-spaced frames extracted via FFmpeg.
 Per-frame scores are aggregated into a video-level verdict.
-
-Near-duplicate frames are detected via mean absolute pixel difference and
-skipped to avoid redundant analysis on static or near-static video segments.
 """
 
 import base64
-import io
 import logging
 
 import numpy as np
-from PIL import Image
 
 from app.models.schemas import (
+    DeepfakeSignal,
     FrameDeepfakeResult,
     VideoDeepfakeResponse,
 )
@@ -28,98 +24,104 @@ logger = logging.getLogger(__name__)
 # Frame counts by analysis mode
 FRAME_COUNTS = {"standard": 6, "deep": 20, "archival": 40}
 
-# Default similarity threshold for near-duplicate frame skipping.
-# Two frames with normalised MAD similarity >= this value are considered
-# near-duplicates and the second is skipped.
-DEFAULT_SIMILARITY_THRESHOLD = 0.95
-
-
-def _decode_frame_to_array(frame_b64: str) -> np.ndarray:
-    """Decode a base64 JPEG frame to a numpy array (RGB, uint8)."""
-    frame_bytes = base64.b64decode(frame_b64)
-    img = Image.open(io.BytesIO(frame_bytes)).convert("RGB")
-    return np.asarray(img, dtype=np.uint8)
-
-
-def _frame_similarity(arr_a: np.ndarray, arr_b: np.ndarray) -> float:
-    """
-    Compute normalised similarity between two frames.
-
-    Uses mean absolute difference (MAD) of pixel values, normalised to [0, 1].
-    Returns 1.0 for identical frames and 0.0 for maximally different frames.
-
-    Both arrays are resized to the same small resolution (64x64) before
-    comparison so the metric is fast regardless of input resolution.
-    """
-    # Resize to 64x64 for speed
-    target_size = (64, 64)
-    a_small = np.asarray(Image.fromarray(arr_a).resize(target_size), dtype=np.float32)
-    b_small = np.asarray(Image.fromarray(arr_b).resize(target_size), dtype=np.float32)
-
-    mad = np.mean(np.abs(a_small - b_small))
-    # Normalise: max possible MAD is 255.0
-    return 1.0 - float(mad / 255.0)
+# Default similarity threshold for frame deduplication (SSIM-like metric)
+DEDUP_SIMILARITY_THRESHOLD = 0.95
 
 
 def deduplicate_frames(
     frames_b64: list[str],
-    similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
-) -> tuple[list[str], list[int], int]:
+    threshold: float = DEDUP_SIMILARITY_THRESHOLD,
+    buffer_size: int = 5,
+) -> list[str]:
     """
-    Remove near-duplicate consecutive frames from a list of base64 JPEG frames.
+    Remove near-duplicate frames using a rolling buffer.
+
+    Compares each candidate frame against the last `buffer_size` kept frames.
+    A frame is skipped if its similarity to ANY frame in the buffer exceeds
+    the threshold.
 
     Args:
         frames_b64: List of base64-encoded JPEG frame strings.
-        similarity_threshold: Frames with similarity >= this value are
-            considered near-duplicates.  Range [0.0, 1.0].
+        threshold: Similarity threshold in [0, 1]. Frames above this are skipped.
+        buffer_size: Number of recent kept frames to compare against.
 
     Returns:
-        Tuple of (kept_frames_b64, kept_original_indices, skipped_count).
+        Filtered list of base64-encoded frame strings with duplicates removed.
     """
-    if not frames_b64:
-        return [], [], 0
+    if not frames_b64 or buffer_size < 1:
+        return list(frames_b64)
 
-    kept: list[str] = [frames_b64[0]]
-    kept_indices: list[int] = [0]
-    prev_arr = _decode_frame_to_array(frames_b64[0])
-    skipped = 0
+    from PIL import Image
+    import io
 
-    for i in range(1, len(frames_b64)):
-        curr_arr = _decode_frame_to_array(frames_b64[i])
-        sim = _frame_similarity(prev_arr, curr_arr)
+    def _decode_frame(b64_str: str) -> np.ndarray:
+        """Decode a base64 JPEG string to a grayscale numpy array."""
+        raw = base64.b64decode(b64_str)
+        img = Image.open(io.BytesIO(raw)).convert("L")
+        # Resize to a small standard size for fast comparison
+        img = img.resize((64, 64), Image.BILINEAR)
+        return np.asarray(img, dtype=np.float64)
 
-        if sim >= similarity_threshold:
-            skipped += 1
-            logger.debug(
-                "Skipping frame %d (similarity %.4f >= %.4f threshold)",
-                i, sim, similarity_threshold,
-            )
-        else:
-            kept.append(frames_b64[i])
-            kept_indices.append(i)
-            prev_arr = curr_arr
+    def _similarity(a: np.ndarray, b: np.ndarray) -> float:
+        """Compute normalised correlation similarity in [0, 1]."""
+        a_flat = a.ravel()
+        b_flat = b.ravel()
+        a_mean = a_flat - a_flat.mean()
+        b_mean = b_flat - b_flat.mean()
+        norm_a = np.linalg.norm(a_mean)
+        norm_b = np.linalg.norm(b_mean)
+        if norm_a < 1e-10 or norm_b < 1e-10:
+            # Constant images — treat as identical if both constant
+            return 1.0 if norm_a < 1e-10 and norm_b < 1e-10 else 0.0
+        return float(np.dot(a_mean, b_mean) / (norm_a * norm_b))
 
-    return kept, kept_indices, skipped
+    kept_b64: list[str] = []
+    # Rolling buffer of decoded arrays for the last `buffer_size` kept frames
+    buffer: list[np.ndarray] = []
+
+    for frame_b64 in frames_b64:
+        try:
+            candidate = _decode_frame(frame_b64)
+        except Exception:
+            # If we can't decode, keep the frame to avoid data loss
+            kept_b64.append(frame_b64)
+            continue
+
+        # Check against all frames in the rolling buffer
+        is_duplicate = False
+        for buf_frame in buffer:
+            if _similarity(candidate, buf_frame) > threshold:
+                is_duplicate = True
+                break
+
+        if not is_duplicate:
+            kept_b64.append(frame_b64)
+            buffer.append(candidate)
+            # Maintain rolling buffer size
+            if len(buffer) > buffer_size:
+                buffer.pop(0)
+
+    logger.debug(
+        "Frame deduplication: %d -> %d frames (buffer_size=%d, threshold=%.2f)",
+        len(frames_b64), len(kept_b64), buffer_size, threshold,
+    )
+    return kept_b64
 
 
 def perform_video_deepfake_analysis(
     video_bytes: bytes,
     mode: str = "standard",
-    similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
 ) -> VideoDeepfakeResponse:
     """
     Analyse video for AI-generated or manipulated frames.
 
-    Extracts N evenly-spaced frames from the video, removes near-duplicate
-    consecutive frames (adaptive sampling), runs each remaining frame through
-    the image deepfake detector, and aggregates per-frame scores into a
+    Extracts N evenly-spaced frames from the video, runs each through the
+    image deepfake detector, and aggregates per-frame scores into a
     video-level verdict.
 
     Args:
         video_bytes: Raw bytes of the input video file.
         mode: Analysis mode — "standard" (6 frames), "deep" (20), "archival" (40).
-        similarity_threshold: Frames with normalised MAD similarity >= this
-            value are considered near-duplicates and skipped.  Range [0.0, 1.0].
 
     Returns:
         VideoDeepfakeResponse with per-frame and aggregate results.
@@ -140,7 +142,6 @@ def perform_video_deepfake_analysis(
             aggregate_confidence="low",
             frames_analysed=0,
             frames_requested=count,
-            frames_skipped=0,
             temporal_available=False,
             mode=mode,
             duration=frames_response.duration,
@@ -148,37 +149,32 @@ def perform_video_deepfake_analysis(
             message=frames_response.message or "Frame extraction failed",
         )
 
-    # Step 1b: Adaptive frame sampling — skip near-duplicate frames
+    # Step 1b: Deduplicate frames (rolling buffer catches cyclical repeats)
     raw_frames = frames_response.frames
-    kept_frames, kept_indices, frames_skipped = deduplicate_frames(
-        raw_frames, similarity_threshold=similarity_threshold,
-    )
-    if frames_skipped > 0:
+    deduped_frames = deduplicate_frames(raw_frames)
+    if len(deduped_frames) < len(raw_frames):
         logger.info(
-            "Adaptive sampling: skipped %d/%d near-duplicate frames (threshold=%.2f)",
-            frames_skipped, len(raw_frames), similarity_threshold,
+            "Deduplicated %d -> %d frames",
+            len(raw_frames), len(deduped_frames),
         )
 
-    # Step 2: Run deepfake detection on each kept frame
+    # Step 2: Run deepfake detection on each frame
     frame_results: list[FrameDeepfakeResult] = []
     feature_dicts: list[dict[str, float]] = []
     duration = frames_response.duration or 0.0
-    total_extracted = len(raw_frames)
+    num_frames = len(deduped_frames)
 
-    for kept_idx, frame_b64 in zip(kept_indices, kept_frames):
+    for i, frame_b64 in enumerate(deduped_frames):
         try:
             frame_bytes = base64.b64decode(frame_b64)
             response, features = perform_deepfake_detection_with_features(
                 frame_bytes, mime_type="image/jpeg",
             )
-            # Compute approximate timestamp using original frame index
-            timestamp = (
-                duration * (kept_idx + 1) / (total_extracted + 1)
-                if duration > 0 else 0.0
-            )
+            # Compute approximate timestamp
+            timestamp = duration * (i + 1) / (num_frames + 1) if duration > 0 else 0.0
 
             frame_results.append(FrameDeepfakeResult(
-                frame_index=kept_idx,
+                frame_index=i,
                 timestamp=round(timestamp, 2),
                 score=response.score,
                 suspicious=response.suspicious,
@@ -190,10 +186,10 @@ def perform_video_deepfake_analysis(
             ))
             feature_dicts.append(features)
         except Exception as exc:
-            logger.warning("Frame %d deepfake analysis failed: %s", kept_idx, exc)
+            logger.warning("Frame %d deepfake analysis failed: %s", i, exc)
             # Include a failed frame result with neutral score
             frame_results.append(FrameDeepfakeResult(
-                frame_index=kept_idx,
+                frame_index=i,
                 timestamp=0.0,
                 score=0.5,
                 suspicious=False,
@@ -209,7 +205,6 @@ def perform_video_deepfake_analysis(
             aggregate_confidence="low",
             frames_analysed=0,
             frames_requested=count,
-            frames_skipped=frames_skipped,
             temporal_available=False,
             mode=mode,
             duration=duration,
@@ -268,8 +263,6 @@ def perform_video_deepfake_analysis(
         f"Analysed {len(frame_results)} frames in {mode} mode. "
         f"{triggered_frames} frame{'s' if triggered_frames != 1 else ''} flagged as suspicious."
     )
-    if frames_skipped > 0:
-        summary += f" {frames_skipped} near-duplicate frame{'s' if frames_skipped != 1 else ''} skipped."
     if temporal_available and temporal_score > 0.4:
         summary += " Frame-to-frame drift detected in forensic features."
 
@@ -280,7 +273,6 @@ def perform_video_deepfake_analysis(
         aggregate_confidence=confidence,
         frames_analysed=len(frame_results),
         frames_requested=count,
-        frames_skipped=frames_skipped,
         temporal_available=temporal_available,
         temporal_noise_drift=round(temporal_noise_drift, 4) if temporal_noise_drift is not None else None,
         temporal_spectral_drift=round(temporal_spectral_drift, 4) if temporal_spectral_drift is not None else None,
@@ -335,15 +327,16 @@ def _extract_many_frames(video_bytes: bytes, count: int):
     """
     # The video_frames module caps at 12 — for higher counts, we modify
     # the call to allow more frames by calling the internal logic directly.
+    import json
     import os
+    import subprocess
     import tempfile
 
-    tmp_path: str | None = None
-    try:
-        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
-            f.write(video_bytes)
-            tmp_path = f.name
+    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+        f.write(video_bytes)
+        tmp_path = f.name
 
+    try:
         from app.services.video_frames import _get_duration, _extract_frame_at
         from app.models.schemas import VideoFramesResponse
 
@@ -381,8 +374,4 @@ def _extract_many_frames(video_bytes: bytes, count: int):
             success=False, message=f"Frame extraction failed: {e}",
         )
     finally:
-        if tmp_path is not None:
-            try:
-                os.unlink(tmp_path)
-            except FileNotFoundError:
-                pass
+        os.unlink(tmp_path)

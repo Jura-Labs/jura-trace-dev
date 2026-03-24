@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getVersion, checkSidecarHealth } from '$lib/api';
+  import { getVersion, checkSidecarHealth, getDbPath, setDbPath } from '$lib/api';
   import type { SidecarHealth } from '$lib/types';
   import {
     type DeploymentProfile,
@@ -47,6 +47,49 @@
     healthLoading = true;
     sidecarHealth = await checkSidecarHealth();
     healthLoading = false;
+  }
+
+  // ── Database location state ───────────────────────────────────────
+  let currentDbPath   = $state('');
+  let dbPathChanging  = $state(false);
+  let dbPathFeedback  = $state<{ ok: boolean; message: string } | null>(null);
+  let dbFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  async function handleChangeDbLocation() {
+    if (!isTauri()) return;
+    dbPathChanging = true;
+    dbPathFeedback = null;
+
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const selected = await open({
+        directory: true,
+        title: 'Choose Database Location',
+      });
+      if (!selected || typeof selected !== 'string') {
+        dbPathChanging = false;
+        return;
+      }
+
+      // Append the filename to the chosen directory
+      const sep = selected.includes('/') ? '/' : '\\';
+      const newPath = selected + sep + 'jura_archive.db';
+
+      const result = await setDbPath(newPath);
+      currentDbPath = result;
+      dbPathFeedback = { ok: true, message: 'Database location updated. Restart the application for the change to take full effect.' };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      dbPathFeedback = { ok: false, message: `Failed to move database: ${msg}` };
+    } finally {
+      dbPathChanging = false;
+      if (dbFeedbackTimer !== null) clearTimeout(dbFeedbackTimer);
+      dbFeedbackTimer = setTimeout(() => { dbPathFeedback = null; }, 8000);
+    }
+  }
+
+  function isTauri(): boolean {
+    return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
   }
 
   // ── Deployment profiles state ─────────────────────────────────
@@ -140,6 +183,7 @@
     appVersion  = await getVersion();
     sidecarHealth = await checkSidecarHealth();
     reloadProfiles();
+    currentDbPath = await getDbPath();
   });
 
   function saveSettings() {
@@ -551,37 +595,71 @@
     </div>
   </section>
 
-  <!-- Data Storage -->
+  <!-- Database Location -->
   <section
     class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
-    aria-labelledby="storage-heading"
+    aria-labelledby="db-location-heading"
   >
-    <h2 id="storage-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4" style="font-family: Georgia, 'Times New Roman', serif;">Data Storage</h2>
+    <h2 id="db-location-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-1" style="font-family: Georgia, 'Times New Roman', serif;">Database Location</h2>
+    <p class="text-xs text-flint dark:text-flint-light mb-4">
+      Where assets, fingerprints, and verification records are stored. Useful for institutional deployments where data must reside on a shared or managed drive.
+    </p>
+
     <div>
-      <label for="data-dir" class="block text-sm font-medium text-text-light dark:text-quartz mb-1">
-        Data Directory
+      <label for="db-path" class="block text-sm font-medium text-text-light dark:text-quartz mb-1">
+        Current database file
       </label>
-      <div class="flex gap-2 max-w-md">
+      <div class="flex gap-2 max-w-xl">
         <input
-          id="data-dir"
+          id="db-path"
           type="text"
-          value="./data"
+          value={currentDbPath || 'Loading…'}
           readonly
-          class="flex-1 px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
+          class="flex-1 px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm font-mono
                  cursor-not-allowed opacity-70"
           aria-readonly="true"
+          aria-describedby="db-path-hint"
         />
         <button
-          class="px-4 py-2.5 min-h-[44px] rounded border border-border-light dark:border-border-dark text-sm text-text-light dark:text-quartz
-                 hover:border-lapis transition-colors
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+          onclick={handleChangeDbLocation}
+          disabled={dbPathChanging || !isTauri()}
+          class="shrink-0 px-4 py-2.5 min-h-[44px] rounded border text-sm font-medium transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                 {dbPathChanging || !isTauri()
+                   ? 'border-graphite-light text-flint cursor-not-allowed opacity-50'
+                   : 'border-lapis/60 text-lapis dark:text-lapis-light hover:bg-lapis/10 hover:border-lapis'}"
+          aria-busy={dbPathChanging}
         >
-          Browse
+          {#if dbPathChanging}
+            <span class="flex items-center gap-1.5">
+              <span
+                class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
+                aria-hidden="true"
+              ></span>
+              Moving…
+            </span>
+          {:else}
+            Change Location…
+          {/if}
         </button>
       </div>
-      <p class="text-xs text-flint dark:text-flint-light mt-1">
-        Where assets, fingerprints, and verification data are stored
+
+      <p id="db-path-hint" class="text-xs text-flint dark:text-flint-light mt-1">
+        The database will be copied atomically to the new location. The original file is not deleted until the move is verified.
       </p>
+
+      {#if dbPathFeedback !== null}
+        <p
+          class="mt-3 text-sm px-3 py-2 rounded border
+                 {dbPathFeedback.ok
+                   ? 'text-malachite dark:text-malachite-light border-malachite/20 bg-malachite/5'
+                   : 'text-cinnabar dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
+          role="status"
+          aria-live="polite"
+        >
+          {dbPathFeedback.message}
+        </p>
+      {/if}
     </div>
   </section>
 

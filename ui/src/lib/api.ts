@@ -6,10 +6,50 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { AppStats, Asset, AudioMetadataResult, AuditLogEntry, Fingerprint, ManifestInfo, MetadataSigningWarning, MonitorOverview, SidecarHealth, SimilarAsset, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
+import type { AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, Fingerprint, ManifestInfo, MetadataSigningWarning, MonitorOverview, SidecarHealth, SimilarAsset, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+/**
+ * Parse an error thrown by a Tauri `invoke()` call into a structured object.
+ *
+ * Tauri commands that use `AppError` serialise their errors as a JSON object:
+ *   `{ "code": "Sidecar", "message": "Analysis service unavailable: ..." }`
+ *
+ * Commands still using `map_err(|e| e.to_string())` return a plain string.
+ * This helper normalises both into `{ code, message }` so callers can branch
+ * on `code` without string-sniffing.
+ */
+export function parseAppError(err: unknown): { code: AppErrorResponse['code'] | null; message: string } {
+  // Structured AppError from a migrated command — { code, message }
+  if (
+    err !== null &&
+    typeof err === 'object' &&
+    'code' in err &&
+    'message' in err &&
+    typeof (err as Record<string, unknown>).code === 'string' &&
+    typeof (err as Record<string, unknown>).message === 'string'
+  ) {
+    return {
+      code: (err as AppErrorResponse).code,
+      message: (err as AppErrorResponse).message,
+    };
+  }
+
+  // Plain string from a command using map_err(|e| e.to_string())
+  if (typeof err === 'string') {
+    return { code: null, message: err };
+  }
+
+  // Error object (e.g. thrown from the browser mock invoke())
+  if (err instanceof Error) {
+    return { code: null, message: err.message };
+  }
+
+  // Fallback for unknown shapes
+  return { code: null, message: String(err) };
+}
 
 /**
  * Invoke a Tauri command, falling back to mock data in browser.
@@ -560,6 +600,34 @@ export async function getVideoFrames(
     success: false,
     message: 'Video frame extraction not available (mock)',
   };
+}
+
+// ── Database Path Configuration ────────────────────────────────────
+
+/**
+ * Return the current database file path.
+ * Returns an empty string if the command is unavailable (browser context).
+ */
+export async function getDbPath(): Promise<string> {
+  try {
+    return await invoke<string>('get_db_path');
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Move the database to a new location.
+ *
+ * The Rust backend copies the existing database to the new path atomically
+ * (copy to temp, verify with SQLite, rename), then persists the new path in
+ * config.json. If any step fails, the original path is unchanged.
+ *
+ * @param newPath  Absolute path to the new database file location.
+ * @returns        The resolved new path on success, or throws with an error message.
+ */
+export async function setDbPath(newPath: string): Promise<string> {
+  return invoke<string>('set_db_path', { newPath });
 }
 
 // ── Video Deepfake Analysis ─────────────────────────────────────────

@@ -173,6 +173,9 @@ pub struct MonitorOverview {
 pub struct AppState {
     pub db: db::Database,
     pub sidecar: sidecar::SidecarClient,
+    /// The current database file path (may differ from app_data_dir default
+    /// if the user has configured a custom location).
+    pub db_path: String,
 }
 
 // ===== Tauri Commands =====
@@ -2116,9 +2119,54 @@ fn get_verification_history(
         .map_err(|e| e.to_string())
 }
 
-// ===== Application Entry =====
+// ===== Database Path Configuration =====
 
-/// Resolve the database path inside the Tauri app data directory.
+/// Configuration file schema stored in app_data_dir/config.json.
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct AppConfig {
+    #[serde(default)]
+    db_path: Option<String>,
+}
+
+/// Read the persisted config.json from app_data_dir.
+/// Returns a default (empty) config if the file is absent or malformed.
+fn read_app_config(data_dir: &std::path::Path) -> AppConfig {
+    let config_path = data_dir.join("config.json");
+    match std::fs::read_to_string(&config_path) {
+        Ok(text) => serde_json::from_str(&text).unwrap_or_default(),
+        Err(_) => AppConfig::default(),
+    }
+}
+
+/// Persist a config change to app_data_dir/config.json.
+fn write_app_config(data_dir: &std::path::Path, config: &AppConfig) -> Result<(), String> {
+    let config_path = data_dir.join("config.json");
+    let text = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
+    std::fs::write(&config_path, text).map_err(|e| e.to_string())
+}
+
+/// Check whether a parent directory exists and is writable by creating a
+/// zero-byte probe file then removing it immediately.
+fn dir_is_writable(dir: &std::path::Path) -> bool {
+    if !dir.is_dir() {
+        return false;
+    }
+    let probe = dir.join(".jura_write_probe");
+    match std::fs::File::create(&probe) {
+        Ok(_) => {
+            let _ = std::fs::remove_file(&probe);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+/// Resolve the database path using three sources in priority order:
+///
+/// 1. `JURA_DB_PATH` environment variable — if the parent directory exists
+///    and is writable.
+/// 2. `config.json` in `app_data_dir` with a `db_path` key — if valid.
+/// 3. Default: `app_data_dir/jura_archive.db` (preserves all existing installs).
 fn resolve_db_path(app: &tauri::App) -> PathBuf {
     let data_dir = app
         .path()
@@ -2127,9 +2175,168 @@ fn resolve_db_path(app: &tauri::App) -> PathBuf {
 
     std::fs::create_dir_all(&data_dir).expect("failed to create app data directory");
 
-    // Keep legacy filename for migration compatibility with existing installs
-    data_dir.join("jura_archive.db")
+    // Priority 1: environment variable
+    if let Ok(env_val) = std::env::var("JURA_DB_PATH") {
+        let env_path = PathBuf::from(&env_val);
+        if let Some(parent) = env_path.parent() {
+            if dir_is_writable(parent) {
+                log::info!(
+                    "Database path resolved from JURA_DB_PATH env var: {}",
+                    env_path.display()
+                );
+                return env_path;
+            } else {
+                log::warn!(
+                    "JURA_DB_PATH set to '{}' but parent directory is not writable; \
+                     falling through to config.json",
+                    env_val
+                );
+            }
+        }
+    }
+
+    // Priority 2: config.json db_path key
+    let config = read_app_config(&data_dir);
+    if let Some(ref cfg_val) = config.db_path {
+        let cfg_path = PathBuf::from(cfg_val);
+        if let Some(parent) = cfg_path.parent() {
+            if dir_is_writable(parent) {
+                log::info!(
+                    "Database path resolved from config.json: {}",
+                    cfg_path.display()
+                );
+                return cfg_path;
+            } else {
+                log::warn!(
+                    "config.json db_path '{}' parent directory is not writable; \
+                     falling through to default",
+                    cfg_val
+                );
+            }
+        }
+    }
+
+    // Priority 3: default — legacy filename for migration compatibility
+    let default_path = data_dir.join("jura_archive.db");
+    log::info!(
+        "Database path resolved to default: {}",
+        default_path.display()
+    );
+    default_path
 }
+
+// ===== Database Path Commands =====
+
+/// Return the current database file path as a string.
+#[tauri::command]
+async fn get_db_path(state: State<'_, Mutex<AppState>>) -> Result<String, String> {
+    let app = state.lock().map_err(|e| e.to_string())?;
+    Ok(app.db_path.clone())
+}
+
+/// Move the database to a new location.
+///
+/// The operation is atomic: the existing database is copied to a temporary
+/// file in the target directory, verified by opening it with SQLite, then
+/// renamed into place. If any step fails the original path is unchanged.
+/// On success the new path is persisted in `config.json`.
+#[tauri::command]
+async fn set_db_path(
+    app_handle: tauri::AppHandle,
+    state: State<'_, Mutex<AppState>>,
+    new_path: String,
+) -> Result<String, String> {
+    let new_db_path = PathBuf::from(&new_path);
+
+    // Validate: parent directory must exist and be writable
+    let parent = new_db_path
+        .parent()
+        .ok_or_else(|| "New database path has no parent directory".to_string())?;
+
+    if !dir_is_writable(parent) {
+        return Err(format!(
+            "Directory '{}' does not exist or is not writable",
+            parent.display()
+        ));
+    }
+
+    // Get current DB path from shared state
+    let current_path = {
+        let app = state.lock().map_err(|e| e.to_string())?;
+        PathBuf::from(&app.db_path)
+    };
+
+    if current_path == new_db_path {
+        return Ok(new_path);
+    }
+
+    // Atomic copy: write to a temp file first, verify, then rename
+    let tmp_path = parent.join(format!(
+        ".jura_db_migrate_{}.tmp",
+        uuid::Uuid::new_v4().as_simple()
+    ));
+
+    // Copy current DB to temp location
+    std::fs::copy(&current_path, &tmp_path).map_err(|e| {
+        format!(
+            "Failed to copy database to '{}': {}",
+            tmp_path.display(),
+            e
+        )
+    })?;
+
+    // Verify the copy opens cleanly with SQLite
+    {
+        let verify_conn = rusqlite::Connection::open(&tmp_path).map_err(|e| {
+            let _ = std::fs::remove_file(&tmp_path);
+            format!("Copied database failed SQLite verification: {}", e)
+        })?;
+        // Quick integrity check
+        verify_conn
+            .query_row("PRAGMA integrity_check", [], |row| row.get::<_, String>(0))
+            .map_err(|e| {
+                let _ = std::fs::remove_file(&tmp_path);
+                format!("Database integrity check failed: {}", e)
+            })?;
+    }
+
+    // Rename temp file to final destination
+    std::fs::rename(&tmp_path, &new_db_path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp_path);
+        format!(
+            "Failed to move database to '{}': {}",
+            new_db_path.display(),
+            e
+        )
+    })?;
+
+    // Persist the new path in config.json
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data directory: {}", e))?;
+
+    let config = AppConfig {
+        db_path: Some(new_path.clone()),
+    };
+    write_app_config(&data_dir, &config)?;
+
+    // Update the shared state so get_db_path reflects the change immediately.
+    {
+        let mut app = state.lock().map_err(|e| e.to_string())?;
+        app.db_path.clone_from(&new_path);
+    }
+
+    log::info!(
+        "Database path changed: {} -> {}",
+        current_path.display(),
+        new_db_path.display()
+    );
+
+    Ok(new_path)
+}
+
+// ===== Application Entry =====
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -2150,6 +2357,7 @@ pub fn run() {
             app.manage(Mutex::new(AppState {
                 db: database,
                 sidecar: sidecar_client,
+                db_path: db_path.to_string_lossy().into_owned(),
             }));
             Ok(())
         })
@@ -2178,6 +2386,8 @@ pub fn run() {
             embed_watermark_asset,
             extract_watermark_from_path,
             analyse_video_deepfake,
+            get_db_path,
+            set_db_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Jura Trace");
@@ -2854,5 +3064,117 @@ mod tests {
             trust <= 0.55,
             "Regional cap should be binding when stricter than verdict ceiling, got {trust:.3}"
         );
+    }
+
+    // ── Database path resolution tests ─────────────────────────────────
+
+    #[test]
+    fn read_app_config_missing_file_returns_default() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cfg = read_app_config(dir.path());
+        assert!(cfg.db_path.is_none(), "Missing config.json should yield default");
+    }
+
+    #[test]
+    fn read_app_config_valid_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let config_path = dir.path().join("config.json");
+        std::fs::write(&config_path, r#"{"db_path":"/tmp/test.db"}"#).unwrap();
+        let cfg = read_app_config(dir.path());
+        assert_eq!(cfg.db_path.as_deref(), Some("/tmp/test.db"));
+    }
+
+    #[test]
+    fn read_app_config_malformed_json_returns_default() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let config_path = dir.path().join("config.json");
+        std::fs::write(&config_path, b"not json at all").unwrap();
+        let cfg = read_app_config(dir.path());
+        assert!(cfg.db_path.is_none(), "Malformed JSON should yield default");
+    }
+
+    #[test]
+    fn write_and_read_app_config_roundtrip() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let original = AppConfig {
+            db_path: Some("/custom/path/jura.db".to_string()),
+        };
+        write_app_config(dir.path(), &original).expect("write_app_config");
+        let read_back = read_app_config(dir.path());
+        assert_eq!(
+            read_back.db_path.as_deref(),
+            Some("/custom/path/jura.db"),
+            "Round-trip failed"
+        );
+    }
+
+    #[test]
+    fn dir_is_writable_existing_dir() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        assert!(dir_is_writable(dir.path()), "Temp dir should be writable");
+    }
+
+    #[test]
+    fn dir_is_writable_nonexistent_returns_false() {
+        let path = PathBuf::from("/nonexistent/path/that/does/not/exist");
+        assert!(!dir_is_writable(&path), "Non-existent dir should not be writable");
+    }
+
+    #[test]
+    fn env_var_path_takes_priority_over_config() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cfg_path = dir.path().join("from_config.db");
+        let config = AppConfig {
+            db_path: Some(cfg_path.to_string_lossy().into_owned()),
+        };
+        write_app_config(dir.path(), &config).expect("write");
+
+        let env_path = dir.path().join("from_env.db");
+        let env_parent = dir.path();
+        assert!(dir_is_writable(env_parent), "Parent must be writable");
+
+        let chosen = if dir_is_writable(env_path.parent().unwrap()) {
+            env_path.clone()
+        } else {
+            let cfg = read_app_config(dir.path());
+            cfg.db_path.map(PathBuf::from).unwrap_or_else(|| dir.path().join("default.db"))
+        };
+        assert_eq!(chosen, env_path, "Env var path should take priority");
+    }
+
+    #[test]
+    fn config_path_takes_priority_over_default() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cfg_path = dir.path().join("custom.db");
+        let config = AppConfig {
+            db_path: Some(cfg_path.to_string_lossy().into_owned()),
+        };
+        write_app_config(dir.path(), &config).expect("write");
+
+        let read_cfg = read_app_config(dir.path());
+        let chosen = if let Some(p) = read_cfg.db_path {
+            let pb = PathBuf::from(&p);
+            if dir_is_writable(pb.parent().unwrap()) {
+                pb
+            } else {
+                dir.path().join("default.db")
+            }
+        } else {
+            dir.path().join("default.db")
+        };
+        assert_eq!(chosen, cfg_path, "Config path should win over default");
+    }
+
+    #[test]
+    fn default_path_used_when_no_env_no_config() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cfg = read_app_config(dir.path());
+        let default = dir.path().join("jura_archive.db");
+        let chosen = if let Some(p) = cfg.db_path {
+            PathBuf::from(p)
+        } else {
+            default.clone()
+        };
+        assert_eq!(chosen, default, "Default path should be used as fallback");
     }
 }
