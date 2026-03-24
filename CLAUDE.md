@@ -17,7 +17,7 @@ Jura Trace is one of two products built by **Jura Labs** (UK Social Enterprise �
 
 **Developed by**: Juralabs Community Interest Company (UK) — https://juralabs.org
 **Licence**: PolyForm Noncommercial 1.0.0
-**Current Version**: 0.5.0-dev (Phase 3 active — Sprint 15 complete, Sprint 16 next)
+**Current Version**: 0.6.0-dev (Phase 3 active — Sprint 17 complete, Sprint 18 next)
 
 ## Core Architecture
 
@@ -128,17 +128,18 @@ juralabs/
 │   ├── Cargo.toml       # Rust dependencies
 │   └── tauri.conf.json  # Tauri app configuration
 ├── ui/                  # SvelteKit frontend
-│   ├── src/routes/      # Page routes (protect/, verify/, settings/)
+│   ├── src/routes/      # Page routes (protect/, verify/, settings/, help/)
 │   ├── src/lib/
 │   │   ├── components/  # LogoMark, VerdictSummary, OnboardingOverlay,
 │   │   │                #   MethodologyPanel, InspectionChecklist,
-│   │   │                #   SignalAgreement
+│   │   │                #   SignalAgreement, HelpSidebar,
+│   │   │                #   ContextualHelpLink
 │   │   ├── types.ts     # TypeScript interfaces mirroring Rust structs
 │   │   ├── api.ts       # Tauri IPC wrapper with browser mock fallback
 │   │   ├── pdf.ts       # Trust report PDF generation
 │   │   ├── zip.ts       # Case export ZIP generation
 │   │   └── stores/      # Svelte stores (deployment profiles)
-│   ├── tests/           # Playwright e2e tests (110 tests)
+│   ├── tests/           # Playwright e2e tests (164 tests)
 │   └── package.json     # Node dependencies
 ├── sidecar/             # Python ML sidecar (FastAPI, port 8200)
 │   ├── app/api/         # FastAPI routers (health, forensics)
@@ -204,6 +205,18 @@ juralabs/
 - **Blob utility**: `ui/src/lib/blob.ts` — base64-to-blob URL converter with `createBlobTracker` for CSP-safe image rendering and memory management
 - **Sprint 15-to-v1.0 plan**: `docs/sprint-plans/sprint-15-to-v1.0-plan.md` — 6-sprint roadmap to v1.0 (Sprints 15–20, targeting 27 Jun 2026)
 - **CI/CD workflows**: `.github/workflows/` — CI (Rust + Python + Frontend with pip-audit), Release (4-platform matrix), Dependabot
+- **Error module**: `src-tauri/src/error.rs` — `AppError` enum with structured IPC serialisation `{ code, message }`
+- **Help layout**: `ui/src/routes/help/+layout.svelte` — help section sidebar + content layout
+- **Methodology page**: `ui/src/routes/help/methodology/+page.svelte` — all 16 detectors explained, trust scoring, limitations
+- **Glossary**: `ui/src/routes/help/glossary/+page.svelte` — 34 terms A-Z with sticky alphabet jump bar
+- **Persona guides**: `ui/src/routes/help/personas/+page.svelte` — museum staff, journalists, creators, researchers workflows
+- **HelpSidebar**: `ui/src/lib/components/HelpSidebar.svelte` — help section navigation component
+- **ContextualHelpLink**: `ui/src/lib/components/ContextualHelpLink.svelte` — inline `?` help link component
+- **PyInstaller spec**: `sidecar/jura-sidecar.spec` — PyInstaller spec for frozen sidecar binary (macOS arm64)
+- **PyInstaller findings**: `docs/pyinstaller-spike-findings.md` — spike results, GO verdict for Sprint 18
+- **Feature scoping**: `docs/feature-scoping/online-monitoring-and-help-system.md` — online monitoring 3-layer architecture, paid tier structure
+- **Sprint 17 plan**: `docs/sprint-plans/sprint-17-plan.md` — quality floor and deployment readiness
+- **Sprint 18 plan**: `docs/sprint-plans/sprint-18-plan.md` — unsigned platform installers, frozen sidecar
 
 ## Design Principles
 
@@ -240,7 +253,11 @@ juralabs/
 
 **Sprint 15 (Phase 3)**: Complete — "Hardened & Heard". All 7 MEDIUM security issues resolved: sidecar API key authentication via `X-Jura-API-Key` header (MEDIUM-1); audit log SHA-256 hash chain with `verify_audit_chain` integrity check (MEDIUM-2); CSP `data:` removal — all base64 image src attributes converted to `blob:` URLs via `createBlobTracker` utility (MEDIUM-3); URL query-string redaction in logging (MEDIUM-5); sidecar temp file cleanup on exception paths (MEDIUM-6); Python dependencies pinned with `requirements.lock` and CI updated with `pip-audit` (MEDIUM-7). Two LOW items cleared: `withGlobalTauri: false` in tauri.conf.json (LOW-1); FastAPI `/docs` and `/redoc` disabled in production (LOW-3). Audio/video transcription via faster-whisper wired into verify pipeline with `TranscriptionResult` struct and transcript panel in UI. Transcription text fed into RAG claim checker. Parallel sidecar calls via `tokio::join!` (ELA + deepfake + watermark concurrent). Frame accordion expand/collapse on video deepfake timeline with per-frame signals, classifier score, and heatmap. Sprint 15-to-v1.0 release plan document (`docs/sprint-plans/sprint-15-to-v1.0-plan.md`).
 
-**Test counts**: 190 Rust tests, 308 Python tests (+5 skipped without ffprobe/whisper, +14 CLIP skipped when open_clip unavailable), 110 Playwright e2e tests, 179 SvelteKit files with 0 svelte-check errors, clippy clean.
+**Sprint 16 (Phase 3)**: Complete — "Fast & Stable". Performance optimisation, pipeline parallelism, error handling improvements. `AppError` enum with structured IPC serialisation (`{ code, message }`) in `src-tauri/src/error.rs`. LOW security remediations completed.
+
+**Sprint 17 (Phase 3)**: Complete — "Quality Floor & Deployment Readiness". IPC error propagation: `parseAppError` in `api.ts`, `AppErrorResponse` in `types.ts`, `setError()` upgraded to use structured error codes with string-sniff fallback. Tiered sidecar error banners: dev mode shows technical details, production shows user-friendly messages. Test hooks (`__juraSetVerifyResult`, `__juraSetVerifyError`) gated behind `import.meta.env.DEV`. Database path configurability: three-source priority resolution (`JURA_DB_PATH` env > `config.json` > default), `get_db_path`/`set_db_path` Tauri commands with atomic copy + SQLite integrity check, Settings page folder picker. Frame dedup rolling buffer (buffer_size=5) in video deepfake pipeline. Source protection privacy warning in Investigate Further panel. PDF trust scoring: `document_trust()` helper (C2PA valid 0.82, invalid 0.25, none 0.50) with limited-analysis info banner. DEPLOYMENT.md updated for Phase 3. PyInstaller sidecar bundling spike: GO for Sprint 18, 315 MB binary, all core endpoints work, 2 path fixes needed. In-app help documentation system: `/help` route with sidebar navigation, 7 content pages (Protect guide, Verify guide, Methodology transparency with 16 detectors, Glossary with 34 terms, Persona guides for 4 user types, Monitor and Settings stubs), `HelpSidebar` and `ContextualHelpLink` components, contextual `?` links on verify/protect/monitor pages.
+
+**Test counts**: 211 Rust tests, 308 Python tests (+5 skipped without ffprobe/whisper, +14 CLIP skipped when open_clip unavailable), 164 Playwright e2e tests, 200 SvelteKit files with 0 svelte-check errors, clippy clean.
 
 ## British Spelling
 

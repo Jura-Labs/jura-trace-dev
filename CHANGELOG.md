@@ -6,6 +6,93 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Sprint 17 — Quality Floor & Deployment Readiness (24 Mar 2026)
+
+### IPC Error Architecture (S17-A1, A2, A3)
+
+**Added**
+- `AppErrorResponse` TypeScript interface in `types.ts`: `{ code: 'Database' | 'FileSystem' | 'Sidecar' | 'Validation' | 'C2pa' | 'Internal', message: string }`
+- `parseAppError()` in `api.ts`: normalises structured `AppError` and plain string errors into `{ code, message }`
+- `setError()` on verify page upgraded to match on `AppError.code` first, string-sniff fallback for unmigrated commands
+- Tiered error banner messages: dev mode shows technical details (uvicorn command), production shows user-friendly restart instructions
+- `data-testid="error-banner"` and `data-error-code={errorType}` attributes on error banner
+- `__juraSetVerifyResult` and `__juraSetVerifyError` test hooks gated behind `import.meta.env.DEV` (security: removed from production builds)
+- Playwright error tests migrated from `toContainText` copy matching to `toHaveAttribute('data-error-code', type)`
+
+### Database Path Configurability (S17-B1)
+
+**Added**
+- Three-source priority resolution: `JURA_DB_PATH` env var > `config.json` `db_path` key > default `app_data_dir/jura_archive.db`
+- `AppConfig` struct with `read_app_config()` / `write_app_config()` helpers
+- `dir_is_writable()` probe-file check (cross-platform)
+- `get_db_path` and `set_db_path` Tauri commands with atomic copy + SQLite integrity check
+- `AppState.db_path` field for runtime path tracking
+- Settings page: "Database Location" section with folder picker, progress spinner, success/error feedback
+- `getDbPath()` and `setDbPath()` IPC wrappers in `api.ts`
+- 8 new Rust unit tests for config round-trip, writable check, priority logic
+
+### Video Deepfake Quality (S17-C1)
+
+**Added**
+- Rolling buffer frame deduplication (`deduplicate_frames()`, `buffer_size=5`) catches cyclical video repeats
+- Normalised correlation similarity metric for frame comparison
+- 12 new Python tests: cyclical dedup, buffer size limits, threshold sensitivity, performance (<50ms for 40 frames)
+
+### Privacy & UX (S17-D1)
+
+**Added**
+- Source protection privacy warning in Investigate Further panel: cautions about sharing URLs with third-party search services
+
+### PDF Trust Scoring
+
+**Fixed**
+- PDFs no longer always score 50% — `document_trust()` helper: C2PA valid = 0.82, C2PA invalid = 0.25, no C2PA = 0.50
+- Limited-analysis info banner on verify page for document content types
+
+### In-App Help Documentation System
+
+**Added**
+- `/help` route with responsive sidebar navigation (desktop sidebar, mobile tab strip)
+- `HelpSidebar` component with grouped sections, `aria-current="page"` active state
+- Help index page with topic card grid
+- Protect guide: C2PA signing, watermarking (3 strength levels), batch, asset management, best practices
+- Verify guide: investigation modes, trust scores, verdicts, video/audio, exports, document analysis
+- Methodology transparency page: all 16 detectors explained with `<details>` disclosures, trust scoring formula, signal weighting, honest limitations
+- Glossary: 34 terms A-Z with sticky alphabet jump bar and deep-link anchors
+- Persona usage guides: museum staff, journalists, content creators, researchers — recommended workflows, modes, tips
+- Monitor and Settings stub pages
+- `ContextualHelpLink` component (`?` icon) added to verify (modes, trust score), protect (watermark), monitor pages
+- Help link added to main navigation
+- 30 new Playwright tests for contextual help links
+
+### Deployment & Documentation (S17-B2, E1)
+
+**Changed**
+- `DEPLOYMENT.md` updated for Phase 3: sidecar API key auth, database path configurability, speech transcription setup, Windows/Linux status → Sprint 18
+
+**Added**
+- PyInstaller sidecar bundling spike: GO for Sprint 18, 315 MB binary (with CLIP/torch), all core endpoints work on macOS arm64, `jura-sidecar.spec` produced, 2 path-resolution fixes documented
+- Feature scoping document: online content monitoring (3-layer architecture), in-app help system, paid tier structure (Flint/Stratum/Geode/Bedrock)
+- Sprint 18 plan: unsigned platform installers, frozen sidecar production integration
+
+### Test Counts
+- Rust: 211 tests (was 190), clippy clean
+- Python: 308 tests (+12 new dedup), +5 skipped without ffprobe/whisper
+- Playwright: 164 tests (was 110, +30 help + 4 error + 20 other)
+- SvelteKit: 200 files, 0 svelte-check errors (was 180)
+
+---
+
+## Sprint 16 — Performance, Error Handling & Pipeline Parallelism
+
+**Added**
+- `AppError` enum in `src-tauri/src/error.rs` with structured IPC serialisation
+- Performance timing instrumentation across verify pipeline
+- Error classification on verify page with `errorType` state
+- LOW security remediations completed
+
+---
+
 ## Sprint 14 — Video Deepfake Analysis, Batch Watermarking & Security Hardening
 
 ### Week 26 — Video Deepfake + Security Audit (21 Mar 2026)
