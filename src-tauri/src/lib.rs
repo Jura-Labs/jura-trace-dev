@@ -433,7 +433,7 @@ fn compute_trust(
     // content's own provenance record confirms it is synthetic.  A valid
     // manifest without an AI declaration is still a positive provenance signal.
     let c2pa_bonus = if ai_declared_by_c2pa {
-        -0.15 // Penalty: manifest explicitly declares AI-generated content
+        -0.25 // Penalty: manifest explicitly declares AI-generated content
     } else if c2pa_valid == Some(true) {
         0.1 // Bonus: valid provenance, not declared AI
     } else {
@@ -597,7 +597,7 @@ fn compute_trust(
 /// | `false`       | `None`         | 0.50  | No provenance data — genuinely inconclusive      |
 fn document_trust(c2pa_valid: Option<bool>, ai_declared: bool) -> f64 {
     if ai_declared {
-        return 0.15; // C2PA explicitly confirms AI generation
+        return 0.10; // C2PA explicitly confirms AI generation — very low trust
     }
     match c2pa_valid {
         Some(true) => 0.82,
@@ -3442,8 +3442,8 @@ mod tests {
 
     #[test]
     fn trust_c2pa_ai_declared_penalty_value() {
-        // Verify the penalty is -0.15 relative to valid non-AI C2PA (+0.10 bonus).
-        // With exif_trust 1.0 and no forensics: valid C2PA → 1.0, AI C2PA → 0.85.
+        // Verify the penalty is -0.25 relative to valid non-AI C2PA (+0.10 bonus).
+        // With exif_trust 1.0 and no forensics: valid C2PA → 1.0, AI C2PA → 0.75.
         let trust_valid = compute_trust(
             None, None, None, None, None, None, 1.0, Some(true), None, None, None, None, false,
         );
@@ -3455,10 +3455,10 @@ mod tests {
             (trust_valid - 1.0).abs() < 0.001,
             "Valid C2PA + perfect EXIF should reach 1.0: got {trust_valid:.3}"
         );
-        // AI declared: 1.0 - 0.15 = 0.85
+        // AI declared: 1.0 - 0.25 = 0.75
         assert!(
-            (trust_ai - 0.85).abs() < 0.001,
-            "AI-declared C2PA should yield 0.85 with perfect EXIF: got {trust_ai:.3}"
+            (trust_ai - 0.75).abs() < 0.001,
+            "AI-declared C2PA should yield 0.75 with perfect EXIF: got {trust_ai:.3}"
         );
     }
 
@@ -3469,18 +3469,18 @@ mod tests {
         // A document whose C2PA manifest declares AI generation must score very low.
         assert_eq!(
             document_trust(Some(true), true),
-            0.15,
-            "AI-declared document should yield 0.15 regardless of C2PA validity"
+            0.10,
+            "AI-declared document should yield 0.10 regardless of C2PA validity"
         );
         assert_eq!(
             document_trust(Some(false), true),
-            0.15,
-            "AI-declared document (invalid C2PA) should still yield 0.15"
+            0.10,
+            "AI-declared document (invalid C2PA) should still yield 0.10"
         );
         assert_eq!(
             document_trust(None, true),
-            0.15,
-            "AI-declared document (no C2PA) should still yield 0.15"
+            0.10,
+            "AI-declared document (no C2PA) should still yield 0.10"
         );
     }
 

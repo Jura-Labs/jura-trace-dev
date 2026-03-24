@@ -2471,12 +2471,30 @@
               <span
                 class="text-xs font-medium px-2 py-0.5 rounded
                        bg-cinnabar/15 text-cinnabar-light border border-cinnabar/20"
-                title="C2PA credentials indicate this was created by an AI image generator"
+                aria-label="AI-generated content detected"
               >
-                AI: {result.aiGenerator}
+                AI-Generated
               </span>
             {/if}
           </div>
+
+          {#if result.aiGenerator}
+            <div
+              class="rounded-lg border border-amber/30 bg-amber/10 px-4 py-3 mb-4 flex gap-3"
+              role="note"
+              aria-label="AI generation provenance confirmation"
+            >
+              <svg class="w-4 h-4 flex-shrink-0 mt-0.5 text-amber dark:text-amber-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <div class="text-xs text-amber dark:text-amber-light leading-relaxed">
+                <p class="font-semibold mb-1">Verified AI-generated content</p>
+                <p>This content carries a valid, signed C2PA provenance record which confirms it was created using AI generation.
+                   Source: <span class="font-medium">{result.aiGenerator}</span>.
+                   The provenance chain is cryptographically intact — the content itself declares its synthetic origin.</p>
+              </div>
+            </div>
+          {/if}
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm mb-4">
             {#if manifest.claimGenerator}
