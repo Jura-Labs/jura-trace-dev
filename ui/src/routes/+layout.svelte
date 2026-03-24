@@ -71,6 +71,7 @@
     { href: '/verify',   label: 'Verify',    title: 'Check content authenticity' },
     { href: '/monitor',  label: 'Monitor',   title: 'Track content protection and verification' },
     { href: '/settings', label: 'Settings',  title: 'Application preferences' },
+    { href: '/help',     label: 'Help',      title: 'Documentation and guidance' },
   ];
 </script>
 

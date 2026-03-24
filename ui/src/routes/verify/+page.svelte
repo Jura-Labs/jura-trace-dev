@@ -9,6 +9,7 @@
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
   import InspectionChecklist from '$lib/components/InspectionChecklist.svelte';
   import SignalAgreement from '$lib/components/SignalAgreement.svelte';
+  import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import { generateTrustReport } from '$lib/pdf';
   import { exportCaseZip } from '$lib/zip';
   import { getVersion } from '$lib/api';
@@ -701,30 +702,33 @@
     </div>
     <div class="flex items-center gap-3">
       <!-- Mode toggle -->
-      <div
-        class="flex items-center text-xs rounded-full border border-border-light dark:border-border-dark overflow-hidden"
-        role="radiogroup"
-        aria-label="Verification mode"
-      >
-        {#each [
-          { mode: 'standard' as VerifyMode, label: 'Standard', title: 'Standard: EXIF + C2PA + ELA + AI detection (under 15 seconds)' },
-          { mode: 'deep' as VerifyMode, label: 'Deep', title: 'Deep: full forensic pipeline with all detectors (30-60 seconds)' },
-          { mode: 'archival' as VerifyMode, label: 'Archival', title: 'Archival: deep analysis with scanner-calibrated tolerances' },
-        ] as opt}
-          <button
-            class="px-3 py-2.5 min-h-[44px] transition-colors duration-150
-                   {verifyMode === opt.mode
-                     ? 'bg-lapis/20 text-lapis dark:text-lapis-light'
-                     : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}
-                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis"
-            role="radio"
-            aria-checked={verifyMode === opt.mode}
-            onclick={() => { verifyMode = opt.mode; localStorage.setItem('jura-verify-mode', opt.mode); }}
-            title={opt.title}
-          >
-            {opt.label}
-          </button>
-        {/each}
+      <div class="flex items-center gap-1.5">
+        <div
+          class="flex items-center text-xs rounded-full border border-border-light dark:border-border-dark overflow-hidden"
+          role="radiogroup"
+          aria-label="Verification mode"
+        >
+          {#each [
+            { mode: 'standard' as VerifyMode, label: 'Standard', title: 'Standard: EXIF + C2PA + ELA + AI detection (under 15 seconds)' },
+            { mode: 'deep' as VerifyMode, label: 'Deep', title: 'Deep: full forensic pipeline with all detectors (30-60 seconds)' },
+            { mode: 'archival' as VerifyMode, label: 'Archival', title: 'Archival: deep analysis with scanner-calibrated tolerances' },
+          ] as opt}
+            <button
+              class="px-3 py-2.5 min-h-[44px] transition-colors duration-150
+                     {verifyMode === opt.mode
+                       ? 'bg-lapis/20 text-lapis dark:text-lapis-light'
+                       : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis"
+              role="radio"
+              aria-checked={verifyMode === opt.mode}
+              onclick={() => { verifyMode = opt.mode; localStorage.setItem('jura-verify-mode', opt.mode); }}
+              title={opt.title}
+            >
+              {opt.label}
+            </button>
+          {/each}
+        </div>
+        <ContextualHelpLink href="/help/verify#investigation-modes" label="Learn about investigation modes" />
       </div>
 
       <!-- Sidecar status -->
@@ -1106,7 +1110,10 @@
       <div class="px-5 py-4 border-b border-border-light dark:border-border-dark flex items-center justify-between gap-4">
         <div class="flex items-center gap-4 min-w-0">
           <div>
-            <p class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-0.5">Trust Score</p>
+            <div class="flex items-center gap-1.5 mb-0.5">
+              <p class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Trust Score</p>
+              <ContextualHelpLink href="/help/verify#trust-score" label="Learn about trust scores" />
+            </div>
             <div class="flex items-baseline gap-2">
               <span
                 class="text-3xl font-heading tabular-nums {trustTextClass()}"

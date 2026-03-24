@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { getMonitorOverview, getAuditLog } from '$lib/api';
   import type { MonitorOverview, AuditLogEntry } from '$lib/types';
+  import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
 
   // ── State ──────────────────────────────────────────────────────
 
@@ -362,13 +363,16 @@
       >
         Record
       </span>
-      <h2
-        id="activity-heading"
-        class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
-        style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;"
-      >
-        Everything that happened here
-      </h2>
+      <div class="flex items-center gap-2">
+        <h2
+          id="activity-heading"
+          class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
+          style="font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;"
+        >
+          Everything that happened here
+        </h2>
+        <ContextualHelpLink href="/help/monitor" label="Learn about the monitor" />
+      </div>
     </div>
 
     <!-- Filter tabs -->

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, getFingerprints, findSimilar, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames } from '$lib/api';
+  import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import { createBlobTracker } from '$lib/blob';
   import {
     type Asset,
@@ -1393,12 +1394,15 @@
                     role="region"
                     aria-label="Embed watermark"
                   >
-                    <p
-                      class="text-sm text-text-light dark:text-quartz mb-3"
-                      style="font-family: Georgia, 'Times New Roman', serif;"
-                    >
-                      Embed Invisible Watermark
-                    </p>
+                    <div class="flex items-center gap-1.5 mb-3">
+                      <p
+                        class="text-sm text-text-light dark:text-quartz"
+                        style="font-family: Georgia, 'Times New Roman', serif;"
+                      >
+                        Embed Invisible Watermark
+                      </p>
+                      <ContextualHelpLink href="/help/protect#watermarking" label="Learn about watermarking" />
+                    </div>
 
                     {#if watermarkResult}
                       <!-- Success / error feedback -->
