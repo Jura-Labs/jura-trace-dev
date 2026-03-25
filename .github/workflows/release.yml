@@ -250,8 +250,11 @@ jobs:
         run: cd ui && npm ci
 
       # ── Install Tauri CLI ─────────────────────────────────────────────────
+      # Use cargo-binstall for fast pre-built binary download (~10s vs ~5min compile)
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2" --locked
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+          cargo binstall tauri-cli --version "^2" --no-confirm
 
       # ── Tauri: build and upload release artefacts ────────────────────────
       # tauri-apps/tauri-action@v0 is the Tauri v2-compatible release of the action.
