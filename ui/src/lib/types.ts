@@ -29,6 +29,34 @@ export interface AppErrorResponse {
  */
 export type VerifyMode = 'standard' | 'deep' | 'archival';
 
+/**
+ * Licence tier for this installation.
+ *
+ * Values mirror the `LicenceTier` Rust enum with `serde(rename_all = "camelCase")`.
+ * Internal geological codenames: Community=Flint, Professional=Stratum,
+ * Team=Geode, Enterprise=Bedrock.
+ *
+ * During the pilot phase this can be set manually from Settings.
+ * Post-v1.0, tier enforcement will use a signed JWT.
+ */
+export type LicenceTier = 'community' | 'professional' | 'team' | 'enterprise';
+
+/** Display metadata for a licence tier. */
+export interface TierInfo {
+  /** Internal tier value (matches the Rust enum variant, camelCase). */
+  tier: LicenceTier;
+  /** User-facing plain name. */
+  name: string;
+  /** Internal geological codename (used only in admin/pilot UI). */
+  codename: string;
+  /** Short description for the Settings panel. */
+  description: string;
+  /** Tailwind colour class for the badge background. */
+  badgeClass: string;
+  /** Tailwind text colour class for the badge. */
+  badgeTextClass: string;
+}
+
 /** Asset record stored in the local database */
 export interface Asset {
   assetId: string;

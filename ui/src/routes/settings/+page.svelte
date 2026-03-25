@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getVersion, checkSidecarHealth, getDbPath, setDbPath } from '$lib/api';
-  import type { SidecarHealth } from '$lib/types';
+  import { getVersion, checkSidecarHealth, getDbPath, setDbPath, getLicenceTier, setLicenceTier } from '$lib/api';
+  import type { LicenceTier, SidecarHealth, TierInfo } from '$lib/types';
   import {
     type DeploymentProfile,
     MAX_PROFILES,
@@ -184,6 +184,7 @@
     sidecarHealth = await checkSidecarHealth();
     reloadProfiles();
     currentDbPath = await getDbPath();
+    currentTier = await getLicenceTier();
   });
 
   function saveSettings() {
@@ -258,6 +259,75 @@
       } else {
         updateStatus = { state: 'error', message };
       }
+    }
+  }
+
+  // ── Licence Tier ──────────────────────────────────────────────────────────
+  // Pilot-phase tier indicator. Allows demonstration of tier value propositions
+  // without a licence server. The tier is stored in config.json and persists
+  // across restarts. In production this will be replaced by signed JWT enforcement.
+
+  const TIER_INFO: Record<LicenceTier, TierInfo> = {
+    community: {
+      tier: 'community',
+      name: 'Community',
+      codename: 'Flint',
+      description: 'Free, non-commercial use. Full verification pipeline, all 17+ detectors, batch processing, PDF reports, and MONITOR Layer 1. Community support via GitHub Issues.',
+      badgeClass: 'bg-flint/15 border border-flint/30',
+      badgeTextClass: 'text-flint dark:text-flint-light',
+    },
+    professional: {
+      tier: 'professional',
+      name: 'Professional',
+      codename: 'Stratum',
+      description: 'Individual commercial licence. Adds report customisation (your name, organisation, case reference), full methodology versioning, comparative analysis, MONITOR Layer 2 (reverse image search), extended audit log retention (24 months), and priority email support.',
+      badgeClass: 'bg-lapis/15 border border-lapis/30',
+      badgeTextClass: 'text-lapis dark:text-lapis-light',
+    },
+    team: {
+      tier: 'team',
+      name: 'Team',
+      codename: 'Geode',
+      description: 'Team commercial licence, 3–20 seats. Adds API access (port 8300), sector-specific report templates, shared asset database, managed reverse image search, and dedicated 24-hour support.',
+      badgeClass: 'bg-malachite/15 border border-malachite/30',
+      badgeTextClass: 'text-malachite dark:text-malachite-light',
+    },
+    enterprise: {
+      tier: 'enterprise',
+      name: 'Enterprise',
+      codename: 'Bedrock',
+      description: 'Unlimited commercial licence. Adds silent installer with MDM templates, central TOML configuration, custom RAG knowledge base, bulk watched-folder signing, white-label rights, and SLA-backed support.',
+      badgeClass: 'bg-amber/15 border border-amber/30',
+      badgeTextClass: 'text-amber',
+    },
+  };
+
+  let currentTier = $state<LicenceTier>('community');
+  let tierChanging = $state(false);
+  let tierFeedback = $state<{ ok: boolean; message: string } | null>(null);
+  let tierFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const currentTierInfo = $derived(TIER_INFO[currentTier]);
+
+  async function handleTierChange(event: Event) {
+    const select = event.currentTarget as HTMLSelectElement;
+    const newTier = select.value as LicenceTier;
+    if (newTier === currentTier) return;
+
+    tierChanging = true;
+    tierFeedback = null;
+
+    try {
+      await setLicenceTier(newTier);
+      currentTier = newTier;
+      tierFeedback = { ok: true, message: `Plan updated to ${TIER_INFO[newTier].name}.` };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      tierFeedback = { ok: false, message: `Failed to update plan: ${msg}` };
+    } finally {
+      tierChanging = false;
+      if (tierFeedbackTimer !== null) clearTimeout(tierFeedbackTimer);
+      tierFeedbackTimer = setTimeout(() => { tierFeedback = null; }, 5000);
     }
   }
 </script>
@@ -823,5 +893,78 @@
         Updates are downloaded and applied locally. No telemetry is sent.
       </p>
     </div>
+  </section>
+
+  <!-- Your Plan -->
+  <section
+    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
+    aria-labelledby="plan-heading"
+  >
+    <h2 id="plan-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-1">Your Plan</h2>
+    <p class="text-xs text-flint dark:text-flint-light mb-4">
+      Pilot mode — tier selection is manual. In production, this will reflect your licence agreement.
+    </p>
+
+    <!-- Current tier badge + description -->
+    <div class="flex items-start gap-3 mb-5 p-4 rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40">
+      <span
+        class="shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {currentTierInfo.badgeClass} {currentTierInfo.badgeTextClass}"
+        aria-label="Current plan: {currentTierInfo.name}"
+      >
+        {currentTierInfo.name}
+      </span>
+      <div class="min-w-0">
+        <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
+          {currentTierInfo.description}
+        </p>
+        <p class="text-xs text-flint/60 dark:text-flint-light/60 mt-1">
+          Internal codename: {currentTierInfo.codename}
+        </p>
+      </div>
+    </div>
+
+    <!-- Change plan dropdown -->
+    <div class="flex flex-col gap-2 max-w-xs">
+      <label for="tier-select" class="block text-sm font-medium text-text-light dark:text-quartz">
+        Change plan
+      </label>
+      <select
+        id="tier-select"
+        value={currentTier}
+        onchange={handleTierChange}
+        disabled={tierChanging}
+        class="px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm transition-colors
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent
+               disabled:opacity-50 disabled:cursor-not-allowed"
+        aria-describedby="tier-select-hint"
+      >
+        <option value="community">Community — Free (non-commercial)</option>
+        <option value="professional">Professional — £199/year</option>
+        <option value="team">Team — £79/seat/month</option>
+        <option value="enterprise">Enterprise — From £6,000/year</option>
+      </select>
+      <p id="tier-select-hint" class="text-xs text-flint dark:text-flint-light">
+        Pilot mode: tier changes are saved to your local config and persist across restarts.
+        Visit <a
+          href="https://juralabs.org"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+        >juralabs.org<span class="sr-only"> (opens in new tab)</span></a> to purchase a licence.
+      </p>
+    </div>
+
+    {#if tierFeedback !== null}
+      <p
+        class="mt-3 text-sm px-3 py-2 rounded border
+               {tierFeedback.ok
+                 ? 'text-malachite dark:text-malachite-light border-malachite/20 bg-malachite/5'
+                 : 'text-cinnabar dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
+        role="status"
+        aria-live="polite"
+      >
+        {tierFeedback.message}
+      </p>
+    {/if}
   </section>
 </div>

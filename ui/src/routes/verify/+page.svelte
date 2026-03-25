@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
-  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive, parseAppError } from '$lib/api';
+  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive, parseAppError, getLicenceTier } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
-  import type { VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult } from '$lib/types';
+  import type { LicenceTier, VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult } from '$lib/types';
   import VerdictSummary from '$lib/components/VerdictSummary.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
   import InspectionChecklist from '$lib/components/InspectionChecklist.svelte';
@@ -156,6 +156,7 @@
   let exportingReport = $state(false);
   let exportingCase = $state(false);
   let appVersion = $state('0.2.0-dev');
+  let licenceTier = $state<LicenceTier>('community');
 
   // ── False positive state ──────────────────────────────────────────
   let showFalsePositiveModal = $state(false);
@@ -251,6 +252,7 @@
     (async () => {
       sidecarHealth = await checkSidecarHealth();
       appVersion = await getVersion();
+      licenceTier = await getLicenceTier();
     })();
 
     // Keyboard shortcuts
@@ -1440,6 +1442,9 @@
           </svg>
           Investigate Further
           <span class="text-xs text-flint/60">reverse image search</span>
+          {#if licenceTier === 'community'}
+            <span class="text-xs text-flint/50 italic">Professional plan includes API-integrated search</span>
+          {/if}
         </button>
         {#if showInvestigatePanel}
           <div id="investigate-further-panel" class="mt-3">
@@ -1539,6 +1544,12 @@
         <span class="text-xs text-flint/50">
           {modKey}+E report &middot; {modKey}+Shift+E case
         </span>
+
+        {#if licenceTier === 'community'}
+          <span class="text-xs text-flint dark:text-flint-light">
+            Professional plan includes branded reports with your organisation name and case reference.
+          </span>
+        {/if}
 
         <!-- False positive report — secondary action, pushed to far right -->
         <div class="flex-1 flex justify-end">

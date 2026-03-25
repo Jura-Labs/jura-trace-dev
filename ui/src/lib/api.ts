@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, Fingerprint, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, SidecarHealth, SimilarAsset, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
+import type { AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, SidecarHealth, SimilarAsset, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -704,6 +704,34 @@ export async function getDbPath(): Promise<string> {
  */
 export async function setDbPath(newPath: string): Promise<string> {
   return invoke<string>('set_db_path', { newPath });
+}
+
+// ── Licence Tier ────────────────────────────────────────────────────
+
+/**
+ * Return the current licence tier from the Rust backend.
+ *
+ * The tier is loaded from config.json at startup and defaults to 'community'.
+ * This is a pilot-phase helper — it does not enforce feature gates.
+ */
+export async function getLicenceTier(): Promise<LicenceTier> {
+  try {
+    return await invoke<LicenceTier>('get_licence_tier');
+  } catch {
+    return 'community';
+  }
+}
+
+/**
+ * Persist a licence tier change to config.json.
+ *
+ * For pilot/admin use only. The change takes effect immediately in the
+ * running session and survives application restarts.
+ *
+ * @param tier  The tier to activate.
+ */
+export async function setLicenceTier(tier: LicenceTier): Promise<void> {
+  return invoke<void>('set_licence_tier', { tier });
 }
 
 // ── Video Deepfake Analysis ─────────────────────────────────────────

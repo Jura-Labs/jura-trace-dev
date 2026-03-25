@@ -177,6 +177,8 @@ pub struct AppState {
     /// The current database file path (may differ from app_data_dir default
     /// if the user has configured a custom location).
     pub db_path: String,
+    /// Active licence tier for this installation (pilot phase: manually settable).
+    pub licence_tier: LicenceTier,
     /// Handle to the spawned PyInstaller sidecar process.
     /// Present only in production builds where the binary was found and launched
     /// successfully. `None` in development (manual uvicorn) or if spawn failed.
@@ -2428,6 +2430,67 @@ fn get_verification_history(
         .map_err(|e| e.to_string())
 }
 
+// ===== Licence Tier =====
+
+/// The licence tier active for this installation.
+///
+/// Internal codenames (Flint / Stratum / Geode / Bedrock) are used in code;
+/// user-facing display maps these to plain English names
+/// (Community / Professional / Team / Enterprise).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum LicenceTier {
+    /// Free tier — PolyForm Noncommercial 1.0.0. Full pipeline, non-commercial use.
+    #[default]
+    Community,
+    /// Individual commercial licence — £199/year.
+    Professional,
+    /// Team commercial licence — £79/seat/month, 3–20 seats.
+    Team,
+    /// Enterprise licence — from £6,000/year, unlimited seats.
+    Enterprise,
+}
+
+/// Return the current licence tier from `AppState`.
+///
+/// The tier is loaded from `config.json` at startup and defaults to
+/// `Community`. This command is intended for the Settings page and for
+/// pilot demonstrations; it does not enforce feature gates.
+#[tauri::command]
+fn get_licence_tier(state: State<'_, Mutex<AppState>>) -> Result<LicenceTier, String> {
+    let app = state.lock().map_err(|e| e.to_string())?;
+    Ok(app.licence_tier)
+}
+
+/// Persist a licence tier change to `config.json` and update the live state.
+///
+/// This command is intentionally low-security for the pilot phase — it writes
+/// a plain value to the local config file with no licence validation.
+/// Production licence enforcement will use a signed JWT (post-v1.0 scope).
+#[tauri::command]
+fn set_licence_tier(
+    app_handle: tauri::AppHandle,
+    state: State<'_, Mutex<AppState>>,
+    tier: LicenceTier,
+) -> Result<(), String> {
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+
+    // Read the current config, update the tier, and write back.
+    let mut config = read_app_config(&data_dir);
+    config.licence_tier = tier;
+    write_app_config(&data_dir, &config)?;
+
+    // Update the live state so subsequent get_licence_tier calls reflect the change.
+    let mut app = state.lock().map_err(|e| e.to_string())?;
+    app.licence_tier = tier;
+
+    log::info!("Licence tier updated to {:?}", tier);
+    Ok(())
+}
+
 // ===== Database Path Configuration =====
 
 /// Configuration file schema stored in app_data_dir/config.json.
@@ -2435,6 +2498,9 @@ fn get_verification_history(
 struct AppConfig {
     #[serde(default)]
     db_path: Option<String>,
+    /// Pilot-phase tier indicator. Defaults to Community.
+    #[serde(default)]
+    licence_tier: LicenceTier,
 }
 
 /// Read the persisted config.json from app_data_dir.
@@ -2646,9 +2712,10 @@ async fn set_db_path(
         .app_data_dir()
         .map_err(|e| format!("Failed to resolve app data directory: {}", e))?;
 
-    let config = AppConfig {
-        db_path: Some(new_path.clone()),
-    };
+    // Read the current config so we preserve the licence_tier (and any future
+    // fields), then update only db_path.
+    let mut config = read_app_config(&data_dir);
+    config.db_path = Some(new_path.clone());
     write_app_config(&data_dir, &config)?;
 
     // Update the shared state so get_db_path reflects the change immediately.
@@ -2680,6 +2747,15 @@ pub fn run() {
         .setup(|app| {
             let db_path = resolve_db_path(app);
             log::info!("Database: {}", db_path.display());
+
+            // Read the licence tier from config.json (defaults to Community).
+            let data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("failed to resolve app data directory");
+            let startup_config = read_app_config(&data_dir);
+            let licence_tier = startup_config.licence_tier;
+            log::info!("Licence tier: {:?}", licence_tier);
 
             let database = db::Database::open(&db_path).expect("failed to open database");
 
@@ -2830,6 +2906,7 @@ pub fn run() {
                 db: database,
                 sidecar: sidecar_client,
                 db_path: db_path.to_string_lossy().into_owned(),
+                licence_tier,
                 sidecar_process: sidecar_child,
             }));
             Ok(())
@@ -2867,6 +2944,8 @@ pub fn run() {
             analyse_video_deepfake,
             get_db_path,
             set_db_path,
+            get_licence_tier,
+            set_licence_tier,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Jura Trace")
@@ -3618,6 +3697,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let original = AppConfig {
             db_path: Some("/custom/path/jura.db".to_string()),
+            ..Default::default()
         };
         write_app_config(dir.path(), &original).expect("write_app_config");
         let read_back = read_app_config(dir.path());
@@ -3649,6 +3729,7 @@ mod tests {
         let cfg_path = dir.path().join("from_config.db");
         let config = AppConfig {
             db_path: Some(cfg_path.to_string_lossy().into_owned()),
+            ..Default::default()
         };
         write_app_config(dir.path(), &config).expect("write");
 
@@ -3673,6 +3754,7 @@ mod tests {
         let cfg_path = dir.path().join("custom.db");
         let config = AppConfig {
             db_path: Some(cfg_path.to_string_lossy().into_owned()),
+            ..Default::default()
         };
         write_app_config(dir.path(), &config).expect("write");
 
@@ -3880,6 +3962,96 @@ mod tests {
             0.50,
             "Document with no C2PA data should yield 0.50"
         );
+    }
+
+    // ── Licence tier persistence tests ───────────────────────────────────────
+
+    #[test]
+    fn licence_tier_defaults_to_community() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cfg = read_app_config(dir.path());
+        assert_eq!(
+            cfg.licence_tier,
+            LicenceTier::Community,
+            "Default tier should be Community when no config exists"
+        );
+    }
+
+    #[test]
+    fn licence_tier_roundtrip_professional() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let config = AppConfig {
+            licence_tier: LicenceTier::Professional,
+            ..Default::default()
+        };
+        write_app_config(dir.path(), &config).expect("write_app_config");
+        let read_back = read_app_config(dir.path());
+        assert_eq!(
+            read_back.licence_tier,
+            LicenceTier::Professional,
+            "Professional tier should round-trip through config.json"
+        );
+    }
+
+    #[test]
+    fn licence_tier_roundtrip_enterprise() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let config = AppConfig {
+            licence_tier: LicenceTier::Enterprise,
+            ..Default::default()
+        };
+        write_app_config(dir.path(), &config).expect("write_app_config");
+        let read_back = read_app_config(dir.path());
+        assert_eq!(
+            read_back.licence_tier,
+            LicenceTier::Enterprise,
+            "Enterprise tier should round-trip through config.json"
+        );
+    }
+
+    #[test]
+    fn licence_tier_preserved_when_db_path_updated() {
+        // set_db_path must not clobber the licence_tier stored in config.json.
+        let dir = tempfile::tempdir().expect("tempdir");
+        // Write an initial config with a non-default tier.
+        let initial = AppConfig {
+            db_path: Some("/old/path.db".to_string()),
+            licence_tier: LicenceTier::Team,
+        };
+        write_app_config(dir.path(), &initial).expect("write initial config");
+
+        // Simulate what set_db_path does: read → update db_path → write.
+        let mut config = read_app_config(dir.path());
+        config.db_path = Some("/new/path.db".to_string());
+        write_app_config(dir.path(), &config).expect("write updated config");
+
+        let read_back = read_app_config(dir.path());
+        assert_eq!(
+            read_back.licence_tier,
+            LicenceTier::Team,
+            "Updating db_path must not overwrite licence_tier"
+        );
+        assert_eq!(
+            read_back.db_path.as_deref(),
+            Some("/new/path.db"),
+            "db_path must be updated correctly"
+        );
+    }
+
+    #[test]
+    fn licence_tier_serde_camel_case() {
+        // Verify the serde encoding is camelCase as the frontend expects.
+        let json = serde_json::to_string(&LicenceTier::Professional).expect("serialize");
+        assert_eq!(json, r#""professional""#, "LicenceTier::Professional must serialize as camelCase");
+
+        let json_team = serde_json::to_string(&LicenceTier::Team).expect("serialize");
+        assert_eq!(json_team, r#""team""#, "LicenceTier::Team must serialize as 'team'");
+
+        let json_enterprise = serde_json::to_string(&LicenceTier::Enterprise).expect("serialize");
+        assert_eq!(json_enterprise, r#""enterprise""#);
+
+        let json_community = serde_json::to_string(&LicenceTier::Community).expect("serialize");
+        assert_eq!(json_community, r#""community""#);
     }
 
     // ── Corrupt / truncated file rejection tests ──────────────────────────────
