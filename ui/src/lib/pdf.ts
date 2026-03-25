@@ -15,14 +15,46 @@ export interface ReportMeta {
   appVersion?: string;
 }
 
+/**
+ * Analyst declaration fields shown at the top of the PDF.
+ * All fields are optional — if none are provided the header block is omitted
+ * entirely so Community-tier users who skip the modal see no change.
+ */
+export interface ReportContext {
+  analystName?: string;
+  organisation?: string;
+  caseReference?: string;
+  analysisDate?: string;
+}
+
 const PAGE_WIDTH = 210; // A4 mm
 const MARGIN = 15;
 const CONTENT_WIDTH = PAGE_WIDTH - 2 * MARGIN;
 const LINE_HEIGHT = 5;
 const SECTION_GAP = 8;
 
+// ── Column positions for signal score tables ─────────────────────
+// The four columns are: Detector (widest), Score, Threshold, Status.
+// Positions are absolute x values in mm from the left edge of the page.
+const COL_DETECTOR = MARGIN;           // left-aligned label (~85 mm available)
+const COL_SCORE = MARGIN + 88;         // right of label column
+const COL_THRESHOLD = MARGIN + 110;    // next column
+const COL_STATUS = MARGIN + 130;       // final column
+
+// Known thresholds for primary detectors (mirrors Python sidecar defaults).
+// Detectors without a single fixed published threshold use null — shown as "—".
+const DETECTOR_THRESHOLDS: Record<string, number | null> = {
+  ela: 0.30,
+  noise: 0.25,
+  copyMove: 0.10,
+  deepfake: 0.50,
+  npr: null,
+  ca: null,
+  jpegGhost: null,
+};
+
 /** Generate a trust report PDF and return as a Blob. */
-export function generateTrustReport(result: VerificationResult, meta: ReportMeta): Blob {
+export function generateTrustReport(result: VerificationResult, meta: ReportMeta, ctx?: ReportContext): Blob {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const version = meta.appVersion ?? '0.2.0';
   let y = MARGIN;
@@ -89,6 +121,91 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
     y += lines.length * (fontSize * 0.4) + 2;
   }
 
+  /** Render the four-column header for a signal score table. */
+  function signalTableHeader() {
+    checkPage(10);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(80);
+    doc.text('Detector', COL_DETECTOR, y);
+    doc.text('Score', COL_SCORE, y);
+    doc.text('Threshold', COL_THRESHOLD, y);
+    doc.text('Status', COL_STATUS, y);
+    y += 3;
+    doc.setDrawColor(160);
+    doc.setLineWidth(0.2);
+    doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
+    y += 3;
+    doc.setFont('helvetica', 'normal');
+  }
+
+  /**
+   * Render a single row in a signal score table.
+   * @param detectorLabel  Human-readable detector name
+   * @param score          Normalised score 0.0–1.0, or null/undefined if not run
+   * @param threshold      Fixed threshold 0.0–1.0, or null if no published threshold
+   * @param suspicious     Result-level suspicious flag; used when threshold is null
+   */
+  function signalTableRow(
+    detectorLabel: string,
+    score: number | null | undefined,
+    threshold: number | null,
+    suspicious: boolean | null | undefined
+  ) {
+    checkPage(LINE_HEIGHT + 1);
+    const notRun = score == null;
+    const scoreText = notRun ? '\u2014' : score.toFixed(2);
+    const thresholdText = threshold != null ? threshold.toFixed(2) : '\u2014';
+
+    let statusText: string;
+    let statusR: number;
+    let statusG: number;
+    let statusB: number;
+    if (notRun) {
+      statusText = '\u2014';
+      statusR = 140; statusG = 140; statusB = 140;
+    } else if (threshold != null) {
+      if (score! >= threshold) {
+        statusText = 'Flagged';
+        statusR = 180; statusG = 60; statusB = 60;
+      } else {
+        statusText = 'Clean';
+        statusR = 40; statusG = 120; statusB = 60;
+      }
+    } else {
+      // No fixed threshold — use the result's own suspicious flag
+      if (suspicious === true) {
+        statusText = 'Flagged';
+        statusR = 180; statusG = 60; statusB = 60;
+      } else if (suspicious === false) {
+        statusText = 'Clean';
+        statusR = 40; statusG = 120; statusB = 60;
+      } else {
+        statusText = '\u2014';
+        statusR = 140; statusG = 140; statusB = 140;
+      }
+    }
+
+    doc.setFontSize(8);
+    doc.setTextColor(50);
+    doc.text(detectorLabel, COL_DETECTOR, y);
+
+    doc.setTextColor(40);
+    doc.text(scoreText, COL_SCORE, y);
+    doc.text(thresholdText, COL_THRESHOLD, y);
+
+    doc.setTextColor(statusR, statusG, statusB);
+    doc.text(statusText, COL_STATUS, y);
+    doc.setTextColor(40); // reset
+
+    y += LINE_HEIGHT;
+
+    // Light hairline separator between rows
+    doc.setDrawColor(220);
+    doc.setLineWidth(0.1);
+    doc.line(MARGIN, y - 1, PAGE_WIDTH - MARGIN, y - 1);
+  }
+
   // ── Header ──────────────────────────────────────────────────
   doc.setFontSize(16);
   doc.setTextColor(30);
@@ -103,6 +220,92 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
   doc.setFontSize(8);
   doc.text(`Juralabs CIC — ${new Date(meta.analysedAt).toLocaleString('en-GB')}`, MARGIN, y);
   y += SECTION_GAP;
+
+  // ── Analyst Declaration (only when at least one field is populated) ──
+  const hasDeclaration = ctx && (
+    (ctx.analystName?.trim()) ||
+    (ctx.organisation?.trim()) ||
+    (ctx.caseReference?.trim()) ||
+    (ctx.analysisDate?.trim())
+  );
+
+  if (hasDeclaration && ctx) {
+    // Top rule
+    doc.setDrawColor(60);
+    doc.setLineWidth(0.4);
+    doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
+    y += 5;
+
+    doc.setFontSize(9);
+    doc.setTextColor(40);
+    doc.setFont('helvetica', 'bold');
+    doc.text('FORENSIC ANALYSIS REPORT', MARGIN, y);
+    y += 5;
+
+    // Divider
+    doc.setDrawColor(60);
+    doc.setLineWidth(0.4);
+    doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
+    y += 5;
+
+    doc.setFont('helvetica', 'normal');
+
+    // Analyst + Date on the same row when both present
+    if (ctx.analystName?.trim() && ctx.analysisDate?.trim()) {
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.text('Analyst:', MARGIN, y);
+      doc.setTextColor(40);
+      doc.text(ctx.analystName.trim(), MARGIN + 20, y);
+      doc.setTextColor(100);
+      doc.text('Date:', PAGE_WIDTH / 2, y);
+      doc.setTextColor(40);
+      doc.text(ctx.analysisDate.trim(), PAGE_WIDTH / 2 + 12, y);
+      y += LINE_HEIGHT;
+    } else {
+      if (ctx.analystName?.trim()) {
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.text('Analyst:', MARGIN, y);
+        doc.setTextColor(40);
+        doc.text(ctx.analystName.trim(), MARGIN + 20, y);
+        y += LINE_HEIGHT;
+      }
+      if (ctx.analysisDate?.trim()) {
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.text('Date:', MARGIN, y);
+        doc.setTextColor(40);
+        doc.text(ctx.analysisDate.trim(), MARGIN + 20, y);
+        y += LINE_HEIGHT;
+      }
+    }
+
+    if (ctx.organisation?.trim()) {
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.text('Organisation:', MARGIN, y);
+      doc.setTextColor(40);
+      doc.text(ctx.organisation.trim(), MARGIN + 27, y);
+      y += LINE_HEIGHT;
+    }
+
+    if (ctx.caseReference?.trim()) {
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.text('Case Reference:', MARGIN, y);
+      doc.setTextColor(40);
+      doc.text(ctx.caseReference.trim(), MARGIN + 31, y);
+      y += LINE_HEIGHT;
+    }
+
+    // Bottom rule
+    y += 2;
+    doc.setDrawColor(60);
+    doc.setLineWidth(0.4);
+    doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
+    y += SECTION_GAP;
+  }
 
   // ── Summary ─────────────────────────────────────────────────
   heading('Summary');
@@ -270,13 +473,226 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
     y += SECTION_GAP;
   }
 
-  // ── Methodology Disclosure ──────────────────────────────────
+  // ── Forensic Signal Scores ───────────────────────────────────
+  // Determine which primary and regional detector results are present
+  const hasAnySignalScores =
+    result.elaResult != null ||
+    result.noiseResult != null ||
+    result.copyMoveResult != null ||
+    result.deepfakeResult != null ||
+    result.nprResult != null ||
+    result.caResult != null ||
+    result.jpegGhostResult != null;
+
+  const hasRegionalScores =
+    result.segmentedElaResult != null ||
+    result.shadowConsistencyResult != null ||
+    result.colourTemperatureResult != null ||
+    result.spliceBoundaryResult != null;
+
+  if (hasAnySignalScores || hasRegionalScores) {
+    heading('Forensic Signal Scores');
+
+    paragraph(
+      'Raw numerical scores from each detector (range 0.00\u20131.00, normalised). ' +
+      'A score at or above the listed threshold triggers a \u201cFlagged\u201d status. ' +
+      'Detectors without a fixed published threshold are marked \u2014 and use their own internal suspicious flag instead. ' +
+      '\u201cNot run\u201d (\u2014) indicates the detector was skipped in the selected analysis mode.',
+      7
+    );
+    y += 2;
+  }
+
+  if (hasAnySignalScores) {
+    signalTableHeader();
+
+    signalTableRow(
+      'Error Level Analysis (ELA)',
+      result.elaResult?.score,
+      DETECTOR_THRESHOLDS.ela,
+      result.elaResult?.suspicious
+    );
+    signalTableRow(
+      'Noise Analysis',
+      result.noiseResult?.score,
+      DETECTOR_THRESHOLDS.noise,
+      result.noiseResult?.suspicious
+    );
+    signalTableRow(
+      'Copy-Move Detection',
+      result.copyMoveResult?.score,
+      DETECTOR_THRESHOLDS.copyMove,
+      result.copyMoveResult?.suspicious
+    );
+    signalTableRow(
+      'AI Generation (Deepfake)',
+      result.deepfakeResult?.score,
+      DETECTOR_THRESHOLDS.deepfake,
+      result.deepfakeResult?.suspicious
+    );
+    signalTableRow(
+      'Neighbouring Pixel Relationships',
+      result.nprResult?.score,
+      DETECTOR_THRESHOLDS.npr,
+      result.nprResult?.suspicious
+    );
+    signalTableRow(
+      'Chromatic Aberration',
+      result.caResult?.score,
+      DETECTOR_THRESHOLDS.ca,
+      result.caResult?.suspicious
+    );
+    signalTableRow(
+      'JPEG Ghost',
+      result.jpegGhostResult?.score,
+      DETECTOR_THRESHOLDS.jpegGhost,
+      result.jpegGhostResult?.suspicious
+    );
+
+    y += 2;
+  }
+
+  // Regional Analysis subsection (deep / archival mode only)
+  if (hasRegionalScores) {
+    checkPage(12);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(60);
+    doc.text('Regional Analysis Scores', MARGIN, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+
+    signalTableHeader();
+
+    signalTableRow(
+      'Segmented ELA',
+      result.segmentedElaResult?.score,
+      null,
+      result.segmentedElaResult?.suspicious
+    );
+    signalTableRow(
+      'Shadow Consistency',
+      result.shadowConsistencyResult?.score,
+      null,
+      result.shadowConsistencyResult?.suspicious
+    );
+    signalTableRow(
+      'Colour Temperature',
+      result.colourTemperatureResult?.score,
+      null,
+      result.colourTemperatureResult?.suspicious
+    );
+    signalTableRow(
+      'Splice Boundary',
+      result.spliceBoundaryResult?.score,
+      null,
+      result.spliceBoundaryResult?.suspicious
+    );
+
+    y += 2;
+  }
+
+  if (hasAnySignalScores || hasRegionalScores) {
+    y += SECTION_GAP;
+  }
+
+  // ── Methodology ─────────────────────────────────────────────
+  heading('Methodology');
+
+  // Structured pipeline metadata block
+  const analysisMode = result.mode ?? 'standard';
+  const modeLabel =
+    analysisMode === 'archival' ? 'Archival' :
+    analysisMode === 'deep' ? 'Deep' :
+    'Standard';
+
+  // Build the list of detectors that actually ran
+  const detectorsRun: string[] = [];
+  if (result.elaResult) detectorsRun.push('ELA');
+  if (result.noiseResult) detectorsRun.push('Noise Analysis');
+  if (result.copyMoveResult) detectorsRun.push('Copy-Move Detection');
+  if (result.deepfakeResult) detectorsRun.push('AI Generation Detection');
+  if (result.nprResult) detectorsRun.push('Neighbouring Pixel Relationships');
+  if (result.caResult) detectorsRun.push('Chromatic Aberration');
+  if (result.jpegGhostResult) detectorsRun.push('JPEG Ghost');
+  if (result.segmentedElaResult) detectorsRun.push('Segmented ELA');
+  if (result.shadowConsistencyResult) detectorsRun.push('Shadow Consistency');
+  if (result.colourTemperatureResult) detectorsRun.push('Colour Temperature');
+  if (result.spliceBoundaryResult) detectorsRun.push('Splice Boundary');
+  if (result.clipResult) detectorsRun.push('CLIP Detection');
+  if (result.exifAnalysis) detectorsRun.push('EXIF Anomaly Analysis');
+  if (result.c2paManifest !== undefined) detectorsRun.push('C2PA Credential Verification');
+
+  const detectorsRunText = detectorsRun.length > 0 ? detectorsRun.join(', ') : 'None recorded';
+
+  const metaRows: [string, string][] = [
+    ['Analysis mode', modeLabel],
+    ['Pipeline version', `Jura Trace v${version}`],
+    ['Trust formula', '40% EXIF metadata + 60% forensic analysis'],
+    ['C2PA adjustment', '+0.10 (valid, no AI declared) / \u22120.25 (AI declared)'],
+    ['Detectors run', detectorsRunText],
+    ['Analysis date', new Date(meta.analysedAt).toISOString()],
+  ];
+
+  // Estimate height needed: 6 rows × 5 mm plus 2 mm padding each side
+  checkPage(metaRows.length * 6 + 6);
+
+  // Light box around the metadata block
+  const boxStartY = y - 2;
+  // Render rows first so we know the actual height consumed
+  const boxContentStartY = y;
+  doc.setDrawColor(200);
+  doc.setLineWidth(0.2);
+
+  for (const [k, v] of metaRows) {
+    checkPage(LINE_HEIGHT);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(80);
+    doc.text(`${k}:`, MARGIN + 2, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(40);
+    // Word-wrap long values (the detectors list in particular can overflow)
+    const valueLines = doc.splitTextToSize(v, CONTENT_WIDTH - 42);
+    doc.text(valueLines, MARGIN + 40, y);
+    y += valueLines.length > 1 ? valueLines.length * 4 : LINE_HEIGHT;
+  }
+
+  y += 3;
+  // Now draw the box retrospectively around the content we just rendered
+  doc.rect(MARGIN, boxStartY, CONTENT_WIDTH, y - boxContentStartY + 4);
+
+  // Inline disclaimer
+  y += 3;
+  checkPage(10);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(100);
+  const inlineDisclaimer =
+    'This report was generated by Jura Trace, a local-first forensic verification tool. ' +
+    'Results are probabilistic indicators, not legal proof. ' +
+    'See juralabs.org/methodology for full documentation.';
+  const idLines = doc.splitTextToSize(inlineDisclaimer, CONTENT_WIDTH);
+  doc.text(idLines, MARGIN, y);
+  y += idLines.length * 3 + 2;
+  doc.setFont('helvetica', 'normal');
+
+  y += SECTION_GAP;
+
+  // ── Methodology Disclosure (detector descriptions) ───────────
   heading('Methodology Disclosure');
   const methodologyText = [
     'Error Level Analysis (ELA): Recompresses the image at a fixed JPEG quality and measures pixel-level differences. Regions with inconsistent compression artefacts may indicate editing.',
     'Noise Analysis: Divides the image into blocks and measures variance in each. Inconsistent noise patterns across blocks can indicate splicing or inpainting.',
     'Copy-Move Detection: Uses ORB feature matching to find duplicated regions within the image. Clustered matches suggest content has been cloned from one area to another.',
     'AI Generation Detection: An ensemble of 13 statistical signals analyses frequency spectra, gradient patterns, noise consistency, colour distribution, and other features to estimate the likelihood of AI generation.',
+    'Neighbouring Pixel Relationships (NPR): Analyses statistical correlations between adjacent pixels in horizontal, vertical, and diagonal directions. AI-generated images often exhibit atypical inter-pixel dependencies.',
+    'Chromatic Aberration: Measures the radial shift between colour channels towards the image periphery. Absent or artificially uniform chromatic aberration can indicate a synthetic or composited origin.',
+    'JPEG Ghost: Recompresses the image across multiple JPEG quality levels and identifies regions that deviate significantly from a consistent quality history, suggesting prior manipulation.',
+    'Segmented ELA: Divides the image into an 8x8 grid and computes per-region ELA scores. High inter-region variance suggests inconsistent editing or compositing.',
+    'Shadow Consistency: Estimates the dominant light direction in each image region using gradient analysis. Significant directional inconsistencies between regions suggest compositing.',
+    'Colour Temperature: Segments the image in CIELAB colour space and measures per-region colour temperature. Abrupt temperature changes across regions can indicate splicing.',
+    'Splice Boundary: Applies three complementary edge detectors (JPEG grid alignment, noise asymmetry, feathering patterns) at grid junctions to locate compositing boundaries.',
     'EXIF Anomaly Analysis: Checks embedded metadata for consistency, completeness, and known manipulation patterns. Missing or contradictory metadata reduces trust.',
     'C2PA Content Credentials: Verifies cryptographically signed provenance manifests embedded in the file, following the Coalition for Content Provenance and Authenticity specification.',
     'All analysis is performed locally on the user\'s device. No data is transmitted to external servers at any point during the verification process.',

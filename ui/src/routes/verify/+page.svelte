@@ -11,6 +11,7 @@
   import SignalAgreement from '$lib/components/SignalAgreement.svelte';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import { generateTrustReport } from '$lib/pdf';
+  import type { ReportContext } from '$lib/pdf';
   import { exportCaseZip } from '$lib/zip';
   import { getVersion } from '$lib/api';
 
@@ -153,10 +154,26 @@
   // ── Export state ─────────────────────────────────────────────────
   let showReportModal = $state(false);
   let analystNote = $state('');
+  // Analyst declaration fields — name and organisation persist across sessions
+  let analystName = $state('');
+  let analystOrg = $state('');
+  let analystCaseRef = $state('');
+  let analystDate = $state('');
   let exportingReport = $state(false);
   let exportingCase = $state(false);
   let appVersion = $state('0.2.0-dev');
   let licenceTier = $state<LicenceTier>('community');
+
+  // Focus the first input when the report modal opens (WCAG 2.4.3 Focus Order)
+  $effect(() => {
+    if (showReportModal) {
+      // Defer to next microtask so the DOM has been painted
+      Promise.resolve().then(() => {
+        const el = document.getElementById('decl-analyst-name');
+        if (el) (el as HTMLElement).focus();
+      });
+    }
+  });
 
   // ── False positive state ──────────────────────────────────────────
   let showFalsePositiveModal = $state(false);
@@ -247,6 +264,16 @@
     if (savedMode === 'standard' || savedMode === 'deep' || savedMode === 'archival') {
       verifyMode = savedMode;
     }
+
+    // Restore persisted analyst declaration fields
+    analystName = localStorage.getItem('jura-analyst-name') ?? '';
+    analystOrg = localStorage.getItem('jura-analyst-org') ?? '';
+    // Populate analysis date with today — user may edit
+    analystDate = new Date().toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
 
     // Async init — fire-and-forget; cleanup is returned synchronously below
     (async () => {
@@ -502,13 +529,36 @@
     if (!result || exportingReport) return;
     exportingReport = true;
     try {
-      const blob = generateTrustReport(result, {
-        fileName: fileName ?? 'Unknown',
-        fileSize: 0,
-        analysedAt: new Date().toISOString(),
-        analystNote: analystNote.trim() || undefined,
-        appVersion,
-      });
+      // Persist analyst name and organisation for future sessions
+      if (analystName.trim()) {
+        localStorage.setItem('jura-analyst-name', analystName.trim());
+      } else {
+        localStorage.removeItem('jura-analyst-name');
+      }
+      if (analystOrg.trim()) {
+        localStorage.setItem('jura-analyst-org', analystOrg.trim());
+      } else {
+        localStorage.removeItem('jura-analyst-org');
+      }
+
+      const ctx: ReportContext = {
+        analystName: analystName.trim() || undefined,
+        organisation: analystOrg.trim() || undefined,
+        caseReference: analystCaseRef.trim() || undefined,
+        analysisDate: analystDate.trim() || undefined,
+      };
+
+      const blob = generateTrustReport(
+        result,
+        {
+          fileName: fileName ?? 'Unknown',
+          fileSize: 0,
+          analysedAt: new Date().toISOString(),
+          analystNote: analystNote.trim() || undefined,
+          appVersion,
+        },
+        ctx,
+      );
       const ts = Math.floor(Date.now() / 1000);
       const safeName = (fileName ?? 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
       triggerDownload(blob, `jura-report-${safeName}-${ts}.pdf`);
@@ -516,6 +566,7 @@
       exportingReport = false;
       showReportModal = false;
       analystNote = '';
+      analystCaseRef = '';
     }
   }
 
@@ -3278,8 +3329,9 @@
   </div>
 {/if}
 
-<!-- ── Analyst Note Modal ─────────────────────────────────────────── -->
+<!-- ── Analyst Declaration Modal ──────────────────────────────────── -->
 {#if showReportModal}
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     role="dialog"
@@ -3289,38 +3341,130 @@
     onkeydown={(e) => { if (e.key === 'Escape') showReportModal = false; }}
     onclick={(e) => { if (e.target === e.currentTarget) showReportModal = false; }}
   >
-    <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
-      <h2 id="report-modal-title" class="text-lg font-medium text-text-light dark:text-quartz mb-1">Export Trust Report</h2>
-      <p class="text-sm text-flint dark:text-flint-light mb-4">
-        Add an optional analyst note to include in the PDF report.
-      </p>
+    <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-lg shadow-xl w-full max-w-lg mx-4 p-6">
 
-      <label for="analyst-note" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
-        Analyst Note <span class="text-flint/50">(optional, max 500 chars)</span>
-      </label>
-      <textarea
-        id="analyst-note"
-        class="w-full h-24 px-3 py-2 text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded
-               text-text-light dark:text-quartz placeholder:text-flint/40 resize-none
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
-        placeholder="e.g. Initial assessment suggests authentic capture with minor metadata gaps..."
-        maxlength={500}
-        bind:value={analystNote}
-      ></textarea>
-      <p class="text-xs text-flint/50 mt-1 mb-4 text-right" aria-live="polite" aria-atomic="true">
-        <span class="sr-only">Characters used: </span>{analystNote.length} / 500
-      </p>
+      <!-- Modal heading -->
+      <div class="mb-5">
+        <h2 id="report-modal-title" class="text-lg font-medium text-text-light dark:text-quartz">Export Forensic Report</h2>
+        <p class="text-sm text-flint dark:text-flint-light mt-1">
+          Add your details to the report declaration. All fields are optional — leave blank to export without attribution.
+        </p>
+      </div>
 
-      <div class="flex gap-3 justify-end">
+      <!-- Field grid -->
+      <div class="space-y-4">
+
+        <!-- Row 1: Analyst name + Date -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label for="decl-analyst-name" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
+              Analyst Name
+              <span class="text-flint/50 font-normal ml-1">(optional)</span>
+            </label>
+            <input
+              id="decl-analyst-name"
+              type="text"
+              class="w-full px-3 py-2.5 min-h-[44px] text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded
+                     text-text-light dark:text-quartz placeholder:text-flint/40
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
+              placeholder="e.g. Niamh Farrell"
+              autocomplete="name"
+              bind:value={analystName}
+            />
+          </div>
+          <div>
+            <label for="decl-analysis-date" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
+              Date of Analysis
+            </label>
+            <input
+              id="decl-analysis-date"
+              type="text"
+              class="w-full px-3 py-2.5 min-h-[44px] text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded
+                     text-text-light dark:text-quartz placeholder:text-flint/40
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
+              bind:value={analystDate}
+            />
+          </div>
+        </div>
+
+        <!-- Row 2: Organisation -->
+        <div>
+          <label for="decl-organisation" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
+            Organisation
+            <span class="text-flint/50 font-normal ml-1">(optional)</span>
+          </label>
+          <input
+            id="decl-organisation"
+            type="text"
+            class="w-full px-3 py-2.5 min-h-[44px] text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded
+                   text-text-light dark:text-quartz placeholder:text-flint/40
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
+            placeholder="e.g. Clarke &amp; Associates Solicitors"
+            autocomplete="organization"
+            bind:value={analystOrg}
+          />
+          <p class="text-xs text-flint/50 mt-1">Name and organisation are remembered for your next export.</p>
+        </div>
+
+        <!-- Row 3: Case reference -->
+        <div>
+          <label for="decl-case-ref" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
+            Case Reference
+            <span class="text-flint/50 font-normal ml-1">(optional, not saved)</span>
+          </label>
+          <input
+            id="decl-case-ref"
+            type="text"
+            class="w-full px-3 py-2.5 min-h-[44px] text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded
+                   text-text-light dark:text-quartz placeholder:text-flint/40
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
+            placeholder="e.g. CF-2026-0047"
+            bind:value={analystCaseRef}
+          />
+        </div>
+
+        <!-- Row 4: Analyst note (existing) -->
+        <div>
+          <label for="analyst-note" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
+            Analyst Note
+            <span class="text-flint/50 font-normal ml-1">(optional, max 500 chars)</span>
+          </label>
+          <textarea
+            id="analyst-note"
+            class="w-full h-20 px-3 py-2 text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded
+                   text-text-light dark:text-quartz placeholder:text-flint/40 resize-none
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
+            placeholder="e.g. Initial assessment suggests authentic capture with minor metadata gaps..."
+            maxlength={500}
+            bind:value={analystNote}
+          ></textarea>
+          <p class="text-xs text-flint/50 mt-1 text-right" aria-live="polite" aria-atomic="true">
+            <span class="sr-only">Characters used: </span>{analystNote.length} / 500
+          </p>
+        </div>
+
+      </div>
+
+      <!-- Tier hint for Community plan -->
+      {#if licenceTier === 'community'}
+        <p class="mt-4 text-xs text-lapis dark:text-lapis-light bg-lapis/8 dark:bg-lapis/10 border border-lapis/20 rounded px-3 py-2.5">
+          Professional plan includes branded reports — upgrade for your organisation's logo and sector-specific templates.
+        </p>
+      {/if}
+
+      <!-- Actions -->
+      <div class="flex gap-3 justify-end mt-5">
         <button
+          type="button"
           class="px-4 py-2.5 min-h-[44px] text-sm text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-          onclick={() => { analystNote = ''; handleExportReport(); }}
+          onclick={() => { showReportModal = false; }}
           disabled={exportingReport}
         >
-          Export without note
+          Cancel
         </button>
         <button
+          type="button"
           class="px-4 py-2.5 min-h-[44px] text-sm bg-lapis hover:bg-lapis-dark dark:hover:bg-lapis-light text-white rounded transition-colors
                  disabled:opacity-50 disabled:cursor-not-allowed
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
@@ -3330,6 +3474,7 @@
           {exportingReport ? 'Generating...' : 'Export Report'}
         </button>
       </div>
+
     </div>
   </div>
 {/if}

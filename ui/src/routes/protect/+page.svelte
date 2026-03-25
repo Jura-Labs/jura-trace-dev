@@ -49,6 +49,7 @@
   let signing = $state(false);
   let metadataWarning = $state<MetadataSigningWarning | null>(null);
   let metadataWarningLoading = $state(false);
+  let lastSignedAssetId: string | null = $state(null); // tracks which asset was most recently signed
 
   // ── Fingerprint state ─────────────────────────────────────────────
   let showFingerprintsFor: string | null = $state(null);
@@ -205,6 +206,7 @@
       signingAssetId = null;
       watermarkAssetId = null;
       watermarkResult = null;
+      lastSignedAssetId = null;
       // Reset and fetch media metadata for video/audio assets
       videoMetadata = null;
       audioMetadata = null;
@@ -268,6 +270,7 @@
       assets = assets.map(a => a.assetId === updated.assetId ? updated : a);
       selectedAsset = updated;
       signingAssetId = null;
+      lastSignedAssetId = updated.assetId;
     } catch (e) {
       error = e instanceof Error ? e.message : typeof e === 'string' ? e : 'Signing failed';
     } finally {
@@ -1383,6 +1386,32 @@
                     Sign with C2PA
                   </button>
                 {/if}
+              {/if}
+
+              <!-- Metadata preservation statement — shown after a successful C2PA sign in this session -->
+              {#if asset.c2paSigned && lastSignedAssetId === asset.assetId}
+                <div
+                  class="col-span-full rounded-lg border border-malachite/20 bg-malachite/5 px-4 py-3 mt-3"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <div class="flex items-start gap-3">
+                    <svg
+                      class="w-4 h-4 flex-shrink-0 mt-0.5 text-malachite dark:text-malachite-light"
+                      aria-hidden="true"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke-width="2"
+                      stroke="currentColor"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+                    </svg>
+                    <div class="text-xs text-malachite dark:text-malachite-light leading-relaxed">
+                      <p class="font-semibold mb-1">Content Credential signed successfully</p>
+                      <p>Existing file metadata (EXIF, IPTC, XMP) has been preserved. The C2PA manifest was added alongside your existing metadata — no fields were removed or overwritten.</p>
+                    </div>
+                  </div>
+                </div>
               {/if}
 
               <!-- Watermark embedding -->
