@@ -249,11 +249,14 @@ jobs:
       - name: Install frontend dependencies
         run: cd ui && npm ci
 
+      # ── Install Tauri CLI ─────────────────────────────────────────────────
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
       # ── Tauri: build and upload release artefacts ────────────────────────
       # tauri-apps/tauri-action@v0 is the Tauri v2-compatible release of the action.
       # It finds tauri.conf.json in src-tauri/ automatically (standard layout).
-      # tauriScript: "cargo tauri" is used because this project installs the Tauri
-      # CLI via cargo (cargo install tauri-cli), not via @tauri-apps/cli in npm.
+      # tauriScript: "cargo tauri" uses the CLI installed above.
       #
       # The action uploads all produced installer artefacts (DMG, MSI, NSIS,
       # AppImage, .deb) to the draft release created by the create-release job.
