@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, Fingerprint, ManifestInfo, MetadataSigningWarning, MonitorOverview, SidecarHealth, SimilarAsset, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
+import type { AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, Fingerprint, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, SidecarHealth, SimilarAsset, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -463,6 +463,82 @@ export async function getVerificationHistory(
   } catch {
     return [];
   }
+}
+
+// ── Monitor URL Watchlist ────────────────────────────────────────────
+
+/**
+ * Register a URL for periodic monitoring.
+ * @param url  The absolute URL to monitor.
+ * @param label  Optional human-readable label.
+ * @param frequency  Check cadence: "hourly" | "daily" (default) | "weekly".
+ */
+export async function addMonitorUrl(
+  url: string,
+  label?: string,
+  frequency?: string,
+): Promise<MonitorUrl> {
+  return invoke<MonitorUrl>('add_monitor_url', {
+    url,
+    label: label ?? null,
+    assetId: null,
+    frequency: frequency ?? null,
+  });
+}
+
+/**
+ * Remove a monitored URL and all its associated events.
+ */
+export async function removeMonitorUrl(urlId: string): Promise<void> {
+  return invoke<void>('remove_monitor_url', { urlId });
+}
+
+/**
+ * List all monitored URLs.
+ * @param enabledOnly  If true, only return enabled (active) URLs.
+ */
+export async function listMonitorUrls(enabledOnly?: boolean): Promise<MonitorUrl[]> {
+  try {
+    return await invoke<MonitorUrl[]>('list_monitor_urls', {
+      enabledOnly: enabledOnly ?? null,
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Return the most recent check events for a given monitored URL.
+ * @param urlId  The URL record ID.
+ * @param limit  Maximum number of events to return (default 50).
+ */
+export async function getMonitorEvents(urlId: string, limit?: number): Promise<MonitorEvent[]> {
+  try {
+    return await invoke<MonitorEvent[]>('get_monitor_events', {
+      urlId,
+      limit: limit ?? null,
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Update the case management status and optional notes on a monitor event.
+ * @param eventId  The event record ID.
+ * @param status   One of: "new" | "investigating" | "resolved" | "escalated" | "dismissed".
+ * @param notes    Optional free-text annotation.
+ */
+export async function updateMonitorCaseStatus(
+  eventId: string,
+  status: string,
+  notes?: string,
+): Promise<void> {
+  return invoke<void>('update_monitor_case_status', {
+    eventId,
+    status,
+    notes: notes ?? null,
+  });
 }
 
 // ── Watermarking ────────────────────────────────────────────────────

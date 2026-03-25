@@ -716,6 +716,45 @@ export interface MonitorOverview {
   activityDays: ActivityDay[];
 }
 
+// ── Monitor URL Watchlist types ───────────────────────────────────
+
+/** A URL registered for periodic monitoring */
+export interface MonitorUrl {
+  urlId: string;
+  assetId: string | null;
+  url: string;
+  label: string | null;
+  checkFrequency: string;
+  lastCheckedAt: string | null;
+  /** Outcome of the most recent check: "ok" | "changed" | "missing" | "error" */
+  lastStatus: string | null;
+  lastContentHash: string | null;
+  lastC2paValid: boolean | null;
+  lastWatermarkMatch: boolean | null;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** One recorded check result for a monitored URL */
+export interface MonitorEvent {
+  eventId: string;
+  urlId: string;
+  /** Categorised outcome: "check_ok" | "content_changed" | "c2pa_stripped" | etc. */
+  eventType: string;
+  checkedAt: string;
+  contentHash: string | null;
+  c2paValid: boolean | null;
+  watermarkUuid: string | null;
+  watermarkConfidence: number | null;
+  httpStatus: number | null;
+  responseTimeMs: number | null;
+  /** Case state: "new" | "investigating" | "resolved" | "escalated" | "dismissed" */
+  caseStatus: string;
+  caseNotes: string | null;
+  caseUpdatedAt: string | null;
+}
+
 /** Supported file extensions by content type */
 export const SUPPORTED_EXTENSIONS: Record<ContentType, string[]> = {
   image: ['.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.heic', '.heif', '.bmp', '.gif', '.svg', '.avif', '.ico'],

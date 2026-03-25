@@ -889,7 +889,7 @@ impl Database {
         // chain. For the very first entry the genesis sentinel is used.
         let prev_hash: String = conn
             .query_row(
-                "SELECT COALESCE(entry_hash, '') FROM audit_log ORDER BY created_at DESC, log_id DESC LIMIT 1",
+                "SELECT COALESCE(entry_hash, '') FROM audit_log ORDER BY rowid DESC LIMIT 1",
                 [],
                 |r| r.get::<_, String>(0),
             )
@@ -930,7 +930,7 @@ impl Database {
         let mut stmt = conn.prepare(
             "SELECT action, target_type, target_id, details, created_at, prev_hash, entry_hash
              FROM audit_log
-             ORDER BY created_at ASC, log_id ASC",
+             ORDER BY rowid ASC",
         )?;
 
         type AuditRow = (
