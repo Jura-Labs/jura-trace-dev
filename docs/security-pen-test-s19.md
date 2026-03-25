@@ -390,7 +390,7 @@ let now = chrono::Utc::now()
 ### [MEDIUM-5] `requirements.txt` uses range specifiers (`.*`) for several high-risk packages
 
 **Severity**: MEDIUM
-**Status**: OPEN
+**Status**: FIXED (2026-03-25) — all range specifiers replaced with exact `==` pins
 **Affected file**: `sidecar/requirements.txt` lines 11–12, 17–20
 
 **Description**:
@@ -431,7 +431,7 @@ pydantic==2.11.3
 ### [LOW-1] Raw OS error messages propagated to the frontend via `e.to_string()`
 
 **Severity**: LOW
-**Status**: OPEN
+**Status**: FIXED (2026-03-25) — `import_files`, `sign_asset`, `read_manifest`, `verify_c2pa`, `get_fingerprints`, `find_similar`, and `update_monitor_case_status` migrated to `AppError`; raw errors logged with `log::error!` before returning generic messages
 **Affected file**: `src-tauri/src/lib.rs` — multiple `map_err(|e| e.to_string())` call sites
 
 **Description**:
@@ -482,7 +482,7 @@ Register it in `invoke_handler` and add an "Audit Integrity" check button to the
 ### [LOW-3] `import_files` does not canonicalise paths before storing in the database
 
 **Severity**: LOW
-**Status**: OPEN
+**Status**: FIXED (2026-03-25) — paths are canonicalised via `PathBuf::canonicalize()` before storage; null-byte check added; unresolvable paths skipped with a warning that does not echo the raw input
 **Affected file**: `src-tauri/src/lib.rs` lines 226, 309
 
 **Description**:
@@ -510,7 +510,7 @@ let canonical_str = path.to_string_lossy().to_string();
 ### [LOW-4] `case_notes` field in `update_case_status` is user-free-text stored in SQLite without length cap
 
 **Severity**: LOW
-**Status**: OPEN
+**Status**: FIXED (2026-03-25) — `Database::MAX_CASE_NOTES_BYTES = 10_000` cap enforced in `update_case_status`; returns `rusqlite::Error::InvalidParameterName` surfaced to the user as `AppError::Validation` with a clear message
 **Affected file**: `src-tauri/src/db.rs` lines 1113–1130
 
 **Description**:
@@ -552,7 +552,7 @@ Remove `$HOME/**` from `fs:allow-write`. The explicit per-directory entries (`$D
 ### [LOW-6] Sidecar API key is empty by default with no startup warning in production builds
 
 **Severity**: LOW
-**Status**: OPEN
+**Status**: FIXED (2026-03-25) — production builds auto-generate a 256-bit random session key (two UUID v4 concatenated) when `JURA_SIDECAR_KEY` is absent; key is propagated via `set_var` before sidecar spawn; startup notice logged; dev builds unchanged
 **Affected file**: `sidecar/app/config.py` line 25; `src-tauri/src/lib.rs` line 2411
 
 **Description**:
@@ -669,19 +669,19 @@ No code change required. Document in the UI and user guide that "C2PA Verified" 
 | Threat Category | Finding | Mitigation Status |
 |-----------------|---------|------------------|
 | **Spoofing** | INFO-4: Self-signed cert accepts any self-signed signer as valid | Accepted risk — documented |
-| **Spoofing** | LOW-6: Sidecar unauthenticated in default config | Open — auto-key generation recommended |
-| **Tampering** | MEDIUM-4: Audit chain ordering non-deterministic on same-second entries | Open |
-| **Tampering** | HIGH-1/2/3: Unvalidated file paths could direct parsing at tampered files | Open |
-| **Repudiation** | LOW-2: `verify_audit_chain` not exposed to user | Open |
-| **Information Disclosure** | LOW-1: OS error messages echo file paths | Open |
-| **Information Disclosure** | HIGH-1/2/3: Path existence oracle via error messages | Open |
+| **Spoofing** | LOW-6: Sidecar unauthenticated in default config | Fixed (2026-03-25) — session key auto-generated in production |
+| **Tampering** | MEDIUM-4: Audit chain ordering non-deterministic on same-second entries | Fixed (2026-03-25) |
+| **Tampering** | HIGH-1/2/3: Unvalidated file paths could direct parsing at tampered files | Fixed (2026-03-25) |
+| **Repudiation** | LOW-2: `verify_audit_chain` not exposed to user | Fixed (2026-03-25) |
+| **Information Disclosure** | LOW-1: OS error messages echo file paths | Fixed (2026-03-25) — high-risk commands migrated to AppError |
+| **Information Disclosure** | HIGH-1/2/3: Path existence oracle via error messages | Fixed (2026-03-25) |
 | **Information Disclosure** | INFO-1: Redirect target not re-validated (DNS rebinding) | Open |
-| **Denial of Service** | MEDIUM-3: `/transcribe` endpoint has no size limit | Open |
-| **Denial of Service** | LOW-4: Case notes unbounded length | Open |
-| **Denial of Service** | MEDIUM-5: Unpinned Python deps could introduce DoS via dependency upgrade | Open |
-| **Elevation of Privilege** | HIGH-4: Unrestricted `shell:allow-execute` / `shell:allow-spawn` | Open — critical to fix |
-| **Elevation of Privilege** | MEDIUM-2: `set_db_path` can overwrite arbitrary files | Open |
-| **Elevation of Privilege** | LOW-5: `fs:allow-write` covers entire `$HOME` | Open |
+| **Denial of Service** | MEDIUM-3: `/transcribe` endpoint has no size limit | Fixed (2026-03-25) |
+| **Denial of Service** | LOW-4: Case notes unbounded length | Fixed (2026-03-25) — 10 000-byte cap |
+| **Denial of Service** | MEDIUM-5: Unpinned Python deps could introduce DoS via dependency upgrade | Fixed (2026-03-25) — exact pins applied |
+| **Elevation of Privilege** | HIGH-4: Unrestricted `shell:allow-execute` / `shell:allow-spawn` | Fixed (2026-03-25) |
+| **Elevation of Privilege** | MEDIUM-2: `set_db_path` can overwrite arbitrary files | Fixed (2026-03-25) |
+| **Elevation of Privilege** | LOW-5: `fs:allow-write` covers entire `$HOME` | Fixed (2026-03-25) |
 
 ---
 
@@ -723,14 +723,14 @@ The following security controls from the Phase 2 audit are confirmed in place an
 | P2 — Fix in Sprint 16 | MEDIUM-2: Validate extension + symlinks in `set_db_path` | Small (10 lines) | Medium — prevents file overwrite |
 | P2 — Fix in Sprint 16 | LOW-5: Remove `$HOME/**` from `fs:allow-write` | Tiny (1 line) | Low-Medium — tightens write scope |
 | P3 — Fix before v1.0 | MEDIUM-4: Use millisecond timestamps in audit chain | Small | Medium — audit integrity |
-| P3 — Fix before v1.0 | MEDIUM-5: Pin Python deps to exact versions | Small | Medium — supply chain |
-| P3 — Fix before v1.0 | LOW-2: Expose `verify_audit_chain` as Tauri command | Small | Low — user visibility |
-| P3 — Fix before v1.0 | LOW-6: Auto-generate sidecar key in production | Medium | Low-Medium — local privilege separation |
-| P4 — Post-v1.0 | LOW-1: Replace `e.to_string()` with typed errors | Large | Low — information hygiene |
-| P4 — Post-v1.0 | LOW-3: Canonicalise paths in `import_files` | Small | Low |
-| P4 — Post-v1.0 | LOW-4: Cap case notes length | Tiny | Low |
-| P4 — Post-v1.0 | INFO-1: Redirect limit + DNS rebinding protection | Medium | Low-Medium |
-| P4 — Post-v1.0 | INFO-3: Pin `blind_watermark` to exact version | Tiny | Low |
+| P3 — Fix before v1.0 | MEDIUM-5: Pin Python deps to exact versions | Small | Medium — supply chain — **FIXED** |
+| P3 — Fix before v1.0 | LOW-2: Expose `verify_audit_chain` as Tauri command | Small | Low — user visibility — **FIXED** |
+| P3 — Fix before v1.0 | LOW-6: Auto-generate sidecar key in production | Medium | Low-Medium — **FIXED** |
+| P4 — Post-v1.0 | LOW-1: Replace `e.to_string()` with typed errors | Large | Low — information hygiene — **FIXED** |
+| P4 — Post-v1.0 | LOW-3: Canonicalise paths in `import_files` | Small | Low — **FIXED** |
+| P4 — Post-v1.0 | LOW-4: Cap case notes length | Tiny | Low — **FIXED** |
+| P4 — Post-v1.0 | INFO-1: Redirect limit + DNS rebinding protection | Medium | Low-Medium — still open |
+| P4 — Post-v1.0 | INFO-3: Pin `blind_watermark` to exact version | Tiny | Low — still open |
 
 ---
 

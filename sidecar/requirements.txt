@@ -8,16 +8,16 @@
 # against it to detect known CVEs before deployment.
 
 # API framework
-fastapi==0.115.*
-uvicorn[standard]==0.34.*
+fastapi==0.115.12
+uvicorn[standard]==0.34.0
 httpx==0.28.1
 pydantic-settings==2.13.1
 
 # Image forensics
-Pillow==11.*
-imagehash==4.*
-numpy==2.*
-opencv-python-headless==4.*
+Pillow==11.2.1
+imagehash==4.3.2
+numpy==2.2.4
+opencv-python-headless==4.11.0.86
 
 # Copy-move detection clustering
 scikit-learn==1.8.0
@@ -40,8 +40,8 @@ sentence-transformers==3.4.1
 # faster-whisper>=1.0.0
 
 # Utilities
-python-dotenv==1.*
-pydantic==2.*
+python-dotenv==1.1.0
+pydantic==2.11.3
 
 # Testing
 pytest>=8.0

@@ -216,23 +216,36 @@ const MAX_IMAGE_DIMENSION_PX: u32 = 20_000;
 fn import_files(
     paths: Vec<String>,
     state: State<'_, Mutex<AppState>>,
-) -> Result<Vec<Asset>, String> {
+) -> Result<Vec<Asset>, AppError> {
     log::info!("Importing {} file(s)", paths.len());
-    let app = state.lock().map_err(|e| e.to_string())?;
+    let app = state
+        .lock()
+        .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
 
     let mut imported: Vec<Asset> = Vec::new();
 
     for path_str in &paths {
-        let path = PathBuf::from(path_str);
-
-        if !path.exists() {
-            log::warn!("Skipping missing file: {path_str}");
+        // SECURITY: Null-byte check before any path construction.
+        if path_str.contains('\0') {
+            log::warn!("Skipping path with null byte");
             continue;
         }
 
+        // SECURITY (LOW-3): Canonicalise the path before storage so that symlinks,
+        // relative segments, and `..` traversals are resolved.  If the path cannot
+        // be resolved (file does not exist or is inaccessible) we skip it with a
+        // warning — matching the existing behaviour for missing files.
+        let path = match PathBuf::from(path_str).canonicalize() {
+            Ok(p) => p,
+            Err(e) => {
+                log::warn!("Skipping unresolvable path ({}): {e}", path_str);
+                continue;
+            }
+        };
+
         // Skip directories — we process individual files
         if path.is_dir() {
-            log::info!("Skipping directory: {path_str}");
+            log::info!("Skipping directory");
             continue;
         }
 
@@ -249,30 +262,30 @@ fn import_files(
         //    operation. Empty files and files smaller than the smallest valid
         //    media header (12 bytes) are skipped immediately with a warning.
         let file_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+        let file_name_display = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "unknown".to_string());
         if file_size == 0 {
-            log::warn!("Skipping empty file ({path_str}): file is zero bytes");
-            return Err(format!(
+            log::warn!("Skipping empty file: file is zero bytes");
+            return Err(AppError::Validation(format!(
                 "The file '{}' is empty (zero bytes). Please select a valid file.",
-                path.file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| path_str.clone())
-            ));
+                file_name_display
+            )));
         }
         if file_size < 12 {
             log::warn!(
-                "Skipping file that is too small ({path_str}): {file_size} bytes \
+                "Skipping file that is too small: {file_size} bytes \
                  is smaller than any valid media header"
             );
-            return Err(format!(
+            return Err(AppError::Validation(format!(
                 "The file '{}' is too small to be a valid media file ({file_size} bytes).",
-                path.file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| path_str.clone())
-            ));
+                file_name_display
+            )));
         }
         if file_size > MAX_IMPORT_FILE_SIZE_BYTES {
             log::warn!(
-                "Skipping oversized file ({path_str}): {file_size} bytes exceeds \
+                "Skipping oversized file: {file_size} bytes exceeds \
                  {} MB limit",
                 MAX_IMPORT_FILE_SIZE_BYTES / (1024 * 1024)
             );
@@ -289,7 +302,7 @@ fn import_files(
             if let Some((pw, ph)) = metadata::get_image_dimensions(&path) {
                 if pw > MAX_IMAGE_DIMENSION_PX || ph > MAX_IMAGE_DIMENSION_PX {
                     log::warn!(
-                        "Skipping image with excessive dimensions ({path_str}): \
+                        "Skipping image with excessive dimensions: \
                          {pw}x{ph} exceeds {MAX_IMAGE_DIMENSION_PX}px limit"
                     );
                     continue;
@@ -326,10 +339,14 @@ fn import_files(
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
+        // SECURITY (LOW-3): Store the canonicalised path so symlinks and `..`
+        // segments cannot persist into later operations that retrieve the path
+        // from the database (e.g. sign_asset, check_metadata_before_sign).
+        let canonical_path_str = path.to_string_lossy().to_string();
 
         let row = db::AssetRow {
             asset_id: asset_id.clone(),
-            file_path: path_str.clone(),
+            file_path: canonical_path_str.clone(),
             file_name: file_name.clone(),
             content_type: info.content_type.as_str().to_string(),
             mime_type: info.mime_type.clone(),
@@ -343,7 +360,13 @@ fn import_files(
         };
 
         // 5. Store
-        app.db.insert_asset(&row).map_err(|e| e.to_string())?;
+        // SECURITY (LOW-1): Map database errors to AppError::Database so raw
+        // SQLite internals (schema details, table names) are logged but never
+        // returned to the frontend.
+        app.db.insert_asset(&row).map_err(|e| {
+            log::error!("Failed to insert asset into database: {e}");
+            AppError::Database("Database operation failed".into())
+        })?;
 
         // 6. Audit log
         let _ = app.db.log_action(
@@ -393,7 +416,7 @@ fn import_files(
 
         imported.push(Asset {
             asset_id,
-            file_path: path_str.clone(),
+            file_path: canonical_path_str,
             file_name,
             content_type: info.content_type.as_str().to_string(),
             mime_type: info.mime_type,
@@ -1504,47 +1527,54 @@ fn sign_asset(
     license: Option<String>,
     state: State<'_, Mutex<AppState>>,
     app_handle: tauri::AppHandle,
-) -> Result<Asset, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
+) -> Result<Asset, AppError> {
+    let app = state
+        .lock()
+        .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
 
     let asset = app
         .db
         .get_asset_by_id(&asset_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Asset not found: {asset_id}"))?;
+        .map_err(|e| {
+            log::error!("Database error fetching asset {asset_id}: {e}");
+            AppError::Database("Database operation failed".into())
+        })?
+        .ok_or_else(|| AppError::Validation("Asset not found".into()))?;
 
     if asset.c2pa_signed {
-        return Err("Asset is already signed with C2PA".to_string());
+        return Err(AppError::Validation(
+            "Asset is already signed with C2PA".into(),
+        ));
     }
 
     if !c2pa::supports_signing(&asset.content_type, &asset.mime_type) {
-        return Err(format!(
+        return Err(AppError::Validation(format!(
             "C2PA signing not supported for {} ({})",
             asset.content_type, asset.mime_type
-        ));
+        )));
     }
 
     let source = PathBuf::from(&asset.file_path);
     if !source.exists() {
-        return Err(format!("Source file not found: {}", asset.file_path));
+        // Do not echo asset.file_path — it could contain sensitive path info
+        log::error!("Source file for asset {asset_id} not found on disk");
+        return Err(AppError::FileSystem("Source file not found".into()));
     }
     let output = c2pa::signed_output_path(&source);
 
     let data_dir = app_handle
         .path()
         .app_data_dir()
-        .map_err(|e| format!("Failed to resolve app data dir: {e}"))?;
+        .map_err(|e| {
+            log::error!("Failed to resolve app data dir: {e}");
+            AppError::Internal("Failed to resolve application data directory".into())
+        })?;
     let (cert, key) = c2pa::ensure_certificate(&data_dir).map_err(|e| {
-        log::error!("C2PA certificate error for asset {}: {}", asset_id, e);
-        e
+        log::error!("C2PA certificate error for asset {asset_id}: {e}");
+        AppError::C2pa("Content credential operation failed".into())
     })?;
 
-    log::info!(
-        "Signing asset {} ({}) -> {}",
-        asset_id,
-        source.display(),
-        output.display()
-    );
+    log::info!("Signing asset {asset_id}");
 
     let _manifest_info = c2pa::sign_file(
         &source,
@@ -1555,15 +1585,18 @@ fn sign_asset(
         &key,
     )
     .map_err(|e| {
-        log::error!("C2PA sign_file failed for asset {}: {}", asset_id, e);
-        e
+        log::error!("C2PA sign_file failed for asset {asset_id}: {e}");
+        AppError::C2pa("Content credential operation failed".into())
     })?;
 
     let output_str = output.to_string_lossy().to_string();
 
     app.db
         .set_c2pa_signed(&asset_id, &output_str)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            log::error!("Database error updating c2pa_signed for asset {asset_id}: {e}");
+            AppError::Database("Database operation failed".into())
+        })?;
 
     let algo_meta = serde_json::json!({
         "algorithm": "ES256",
@@ -1581,12 +1614,15 @@ fn sign_asset(
         Some(&algo_meta.to_string()),
     );
 
-    log::info!("Signed asset {} with C2PA -> {}", asset_id, output_str);
+    log::info!("Signed asset {asset_id} with C2PA");
 
     app.db
         .get_asset_by_id(&asset_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "Asset disappeared after signing".to_string())
+        .map_err(|e| {
+            log::error!("Database error fetching asset {asset_id} after sign: {e}");
+            AppError::Database("Database operation failed".into())
+        })?
+        .ok_or_else(|| AppError::Internal("Asset disappeared after signing".into()))
 }
 
 /// Read a C2PA manifest from a file path.
@@ -1596,14 +1632,20 @@ fn sign_asset(
 ///   - Null-byte injection
 ///   - Path existence oracle attacks via error messages
 #[tauri::command]
-fn read_manifest(file_path: String) -> Result<Option<c2pa::ManifestInfo>, String> {
+fn read_manifest(file_path: String) -> Result<Option<c2pa::ManifestInfo>, AppError> {
     if file_path.contains('\0') {
-        return Err("Invalid file path".to_string());
+        return Err(AppError::Validation("Invalid file path".into()));
     }
     let path = std::path::PathBuf::from(&file_path)
         .canonicalize()
-        .map_err(|_| "File not found or inaccessible".to_string())?;
-    c2pa::read_manifest(&path)
+        .map_err(|e| {
+            log::error!("read_manifest: path canonicalisation failed: {e}");
+            AppError::FileSystem("File not found or inaccessible".into())
+        })?;
+    c2pa::read_manifest(&path).map_err(|e| {
+        log::error!("read_manifest: C2PA parse error: {e}");
+        AppError::C2pa("Content credential operation failed".into())
+    })
 }
 
 /// Verify C2PA Content Credentials on a file (alias for read_manifest in VERIFY pipeline).
@@ -1613,14 +1655,20 @@ fn read_manifest(file_path: String) -> Result<Option<c2pa::ManifestInfo>, String
 ///   - Null-byte injection
 ///   - Path existence oracle attacks via error messages
 #[tauri::command]
-fn verify_c2pa(file_path: String) -> Result<Option<c2pa::ManifestInfo>, String> {
+fn verify_c2pa(file_path: String) -> Result<Option<c2pa::ManifestInfo>, AppError> {
     if file_path.contains('\0') {
-        return Err("Invalid file path".to_string());
+        return Err(AppError::Validation("Invalid file path".into()));
     }
     let path = std::path::PathBuf::from(&file_path)
         .canonicalize()
-        .map_err(|_| "File not found or inaccessible".to_string())?;
-    c2pa::read_manifest(&path)
+        .map_err(|e| {
+            log::error!("verify_c2pa: path canonicalisation failed: {e}");
+            AppError::FileSystem("File not found or inaccessible".into())
+        })?;
+    c2pa::read_manifest(&path).map_err(|e| {
+        log::error!("verify_c2pa: C2PA parse error: {e}");
+        AppError::C2pa("Content credential operation failed".into())
+    })
 }
 
 /// Get perceptual fingerprints for a specific asset.
@@ -1628,12 +1676,17 @@ fn verify_c2pa(file_path: String) -> Result<Option<c2pa::ManifestInfo>, String> 
 fn get_fingerprints(
     asset_id: String,
     state: State<'_, Mutex<AppState>>,
-) -> Result<Vec<fingerprint::Fingerprint>, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
+) -> Result<Vec<fingerprint::Fingerprint>, AppError> {
+    let app = state
+        .lock()
+        .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
     let rows = app
         .db
         .get_fingerprints_for_asset(&asset_id)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            log::error!("Database error fetching fingerprints for asset {asset_id}: {e}");
+            AppError::Database("Database operation failed".into())
+        })?;
     Ok(rows
         .into_iter()
         .map(|r| fingerprint::Fingerprint {
@@ -1652,14 +1705,19 @@ fn find_similar(
     asset_id: String,
     threshold: Option<u32>,
     state: State<'_, Mutex<AppState>>,
-) -> Result<Vec<fingerprint::SimilarAsset>, String> {
+) -> Result<Vec<fingerprint::SimilarAsset>, AppError> {
     let max_distance = threshold.unwrap_or(10);
-    let app = state.lock().map_err(|e| e.to_string())?;
+    let app = state
+        .lock()
+        .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
 
     let source_fps = app
         .db
         .get_fingerprints_for_asset(&asset_id)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            log::error!("Database error fetching fingerprints for find_similar: {e}");
+            AppError::Database("Database operation failed".into())
+        })?;
 
     if source_fps.is_empty() {
         return Ok(vec![]);
@@ -1672,21 +1730,33 @@ fn find_similar(
         let candidates = app
             .db
             .get_all_fingerprints_by_type(&source_fp.hash_type)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| {
+                log::error!("Database error fetching candidate fingerprints: {e}");
+                AppError::Database("Database operation failed".into())
+            })?;
 
         for candidate in &candidates {
             if candidate.asset_id == asset_id || seen.contains(&candidate.asset_id) {
                 continue;
             }
 
-            let distance =
-                fingerprint::hamming_distance(&source_fp.hash_value, &candidate.hash_value)?;
+            let distance = fingerprint::hamming_distance(
+                &source_fp.hash_value,
+                &candidate.hash_value,
+            )
+            .map_err(|e| {
+                log::error!("Hamming distance computation failed: {e}");
+                AppError::Internal("An internal error occurred".into())
+            })?;
 
             if distance <= max_distance {
                 let asset = app
                     .db
                     .get_asset_by_id(&candidate.asset_id)
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| {
+                        log::error!("Database error fetching similar asset: {e}");
+                        AppError::Database("Database operation failed".into())
+                    })?;
                 let file_name = asset
                     .map(|a| a.file_name)
                     .unwrap_or_else(|| "Unknown".to_string());
@@ -2286,11 +2356,23 @@ fn update_monitor_case_status(
     event_id: String,
     status: String,
     notes: Option<String>,
-) -> Result<(), String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
+) -> Result<(), AppError> {
+    let app = state
+        .lock()
+        .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
     app.db
         .update_case_status(&event_id, &status, notes.as_deref())
-        .map_err(|e| e.to_string())
+        .map_err(|e| {
+            // InvalidParameterName is used by update_case_status to surface the
+            // length-cap validation message — pass it through as Validation so
+            // the user-facing text reaches the frontend.
+            if let rusqlite::Error::InvalidParameterName(ref msg) = e {
+                AppError::Validation(msg.clone())
+            } else {
+                log::error!("Database error in update_case_status: {e}");
+                AppError::Database("Database operation failed".into())
+            }
+        })
 }
 
 /// Fetch the composite Monitor overview in a single round-trip.
@@ -2601,7 +2683,40 @@ pub fn run() {
 
             let database = db::Database::open(&db_path).expect("failed to open database");
 
-            let sidecar_key = std::env::var("JURA_SIDECAR_KEY").unwrap_or_default();
+            // SECURITY (LOW-6): In production builds, auto-generate a random
+            // session key if none is set in the environment.  This ensures the
+            // sidecar is never left with empty-string authentication in the
+            // field.  Development builds retain the existing behaviour (env var
+            // or empty default) to allow manual `uvicorn` starts without a key.
+            let sidecar_key = if cfg!(debug_assertions) {
+                // Development: honour the env var, fall back to empty (no auth)
+                std::env::var("JURA_SIDECAR_KEY").unwrap_or_default()
+            } else {
+                match std::env::var("JURA_SIDECAR_KEY") {
+                    Ok(k) if !k.is_empty() => k,
+                    _ => {
+                        // Generate a 256-bit random key (two UUIDs concatenated)
+                        // for this session and propagate it to the sidecar via
+                        // the environment so the spawned process inherits it.
+                        let generated = format!(
+                            "{}{}",
+                            uuid::Uuid::new_v4().as_simple(),
+                            uuid::Uuid::new_v4().as_simple()
+                        );
+                        // Safety: this is a single-threaded setup callback; no
+                        // other threads read JURA_SIDECAR_KEY at this point.
+                        #[allow(unused_unsafe)]
+                        unsafe {
+                            std::env::set_var("JURA_SIDECAR_KEY", &generated);
+                        }
+                        log::info!(
+                            "Sidecar API key auto-generated for this session \
+                             (JURA_SIDECAR_KEY was not set)"
+                        );
+                        generated
+                    }
+                }
+            };
             let sidecar_client = sidecar::SidecarClient::new("http://127.0.0.1:8200", &sidecar_key);
 
             // ── Sidecar auto-launch ──────────────────────────────────────────

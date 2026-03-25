@@ -1109,15 +1109,34 @@ impl Database {
         rows.collect()
     }
 
+    /// Maximum permitted length of a `case_notes` string (in bytes).
+    ///
+    /// This cap prevents a single unbounded free-text field from consuming
+    /// unreasonable amounts of local storage.  10 000 UTF-8 bytes is ample
+    /// for any realistic case annotation while keeping the database lean.
+    pub const MAX_CASE_NOTES_BYTES: usize = 10_000;
+
     /// Update the case management status and optional notes on a monitor event.
     ///
     /// Also stamps `case_updated_at` with the current UTC time.
+    ///
+    /// Returns `Err` if `notes` exceeds [`MAX_CASE_NOTES_BYTES`].
     pub fn update_case_status(
         &self,
         event_id: &str,
         status: &str,
         notes: Option<&str>,
     ) -> SqliteResult<()> {
+        // SECURITY (LOW-4): Enforce a length cap on case notes to prevent
+        // unbounded database growth from a single free-text field.
+        if let Some(n) = notes {
+            if n.len() > Self::MAX_CASE_NOTES_BYTES {
+                return Err(rusqlite::Error::InvalidParameterName(format!(
+                    "Case notes must not exceed {} characters",
+                    Self::MAX_CASE_NOTES_BYTES
+                )));
+            }
+        }
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "UPDATE monitor_events
