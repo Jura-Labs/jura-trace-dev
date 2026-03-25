@@ -605,7 +605,7 @@
 
             <!-- Core verification — always available -->
             <li class="flex items-center gap-3">
-              <svg class="flex-shrink-0 w-4.5 h-4.5 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+              <svg class="flex-shrink-0 w-4 h-4 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l3 3 7-7" />
               </svg>
               <span class="text-sm text-quartz">Core verification — always available</span>
@@ -614,11 +614,11 @@
             <!-- Forensic analysis -->
             <li class="flex items-center gap-3">
               {#if sidecarOnline}
-                <svg class="flex-shrink-0 w-4.5 h-4.5 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+                <svg class="flex-shrink-0 w-4 h-4 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
                   <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l3 3 7-7" />
                 </svg>
               {:else}
-                <svg class="flex-shrink-0 w-4.5 h-4.5 text-flint-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+                <svg class="flex-shrink-0 w-4 h-4 text-flint-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
                   <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4l8 8M12 4l-8 8" />
                 </svg>
               {/if}
@@ -630,11 +630,11 @@
             <!-- Video and audio -->
             <li class="flex items-center gap-3">
               {#if ffmpegAvailable}
-                <svg class="flex-shrink-0 w-4.5 h-4.5 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+                <svg class="flex-shrink-0 w-4 h-4 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
                   <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l3 3 7-7" />
                 </svg>
               {:else}
-                <svg class="flex-shrink-0 w-4.5 h-4.5 text-flint-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+                <svg class="flex-shrink-0 w-4 h-4 text-flint-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
                   <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4l8 8M12 4l-8 8" />
                 </svg>
               {/if}
@@ -646,11 +646,11 @@
             <!-- Transcription -->
             <li class="flex items-center gap-3">
               {#if transcriptionAvailable}
-                <svg class="flex-shrink-0 w-4.5 h-4.5 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+                <svg class="flex-shrink-0 w-4 h-4 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
                   <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l3 3 7-7" />
                 </svg>
               {:else}
-                <svg class="flex-shrink-0 w-4.5 h-4.5 text-flint-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+                <svg class="flex-shrink-0 w-4 h-4 text-flint-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
                   <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4l8 8M12 4l-8 8" />
                 </svg>
               {/if}
@@ -662,11 +662,11 @@
             <!-- AI descriptions -->
             <li class="flex items-center gap-3">
               {#if ollamaAvailable}
-                <svg class="flex-shrink-0 w-4.5 h-4.5 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+                <svg class="flex-shrink-0 w-4 h-4 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
                   <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l3 3 7-7" />
                 </svg>
               {:else}
-                <svg class="flex-shrink-0 w-4.5 h-4.5 text-flint-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+                <svg class="flex-shrink-0 w-4 h-4 text-flint-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
                   <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4l8 8M12 4l-8 8" />
                 </svg>
               {/if}
