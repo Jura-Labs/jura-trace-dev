@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## Sprint 19 — Release Candidate (in progress, 25 Mar 2026)
+## Sprint 19 — Release Candidate (25 Mar 2026, v0.9.0)
 
 ### Accessibility
 
@@ -91,11 +91,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Deployment experience design: FFmpeg bundling, Ollama button, model downloads, setup wizard
 - Phase A plan: FP reduction + API wrapper + reports + versioning (4 sprints, July-August 2026)
 
+### MONITOR URL Watchlist
+
+**Added**
+- 5 Tauri IPC commands: `add_monitor_url`, `remove_monitor_url`, `list_monitor_urls`, `get_monitor_events`, `update_monitor_case_status`
+- `MonitorUrl` and `MonitorEvent` TypeScript interfaces + API wrappers
+- Monitor tab URL watchlist UI: add URL form (URL + label + frequency selector), URL list with status badges (ok/changed/missing/error), expandable event rows, case management (investigate/resolve/dismiss)
+
+### Auto-Updater
+
+**Added**
+- `tauri-plugin-updater` v2 wired into builder chain
+- `latest.json` update manifest generation in release workflow
+- "Check for Updates" button in Settings About section
+- `updater:default` capability permission
+
+### RC Preparation
+
+**Changed**
+- Version bumped to 0.9.0 across `tauri.conf.json`, `Cargo.toml`, `package.json`
+- `cargo fmt` applied (28 diffs in c2pa.rs, db.rs, lib.rs)
+
+**Fixed**
+- Video deepfake Playwright tests: replaced 500ms fixed wait with `waitForFunction` for test hook availability
+- Audit log hash chain: ordering changed from `created_at + log_id` to `rowid` — fixes chain verification when rapid inserts share the same millisecond timestamp
+
 ### Test Counts
-- Rust: 230 tests (was 215), clippy clean
-- Python: 308 tests
-- Playwright: 164 tests
-- SvelteKit: 203 files, 0 svelte-check errors
+- Rust: 230 tests, clippy + fmt clean
+- Python: 308+ tests
+- Playwright: 160+ tests
+- SvelteKit: 204 files, 0 svelte-check errors
 
 ---
 
