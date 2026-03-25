@@ -36,6 +36,11 @@
       title: 'Usage Guides',
       description: 'Practical workflows tailored for museum curators, investigative journalists, fact-checkers, and IT administrators.',
     },
+    {
+      href: '/help/compliance',
+      title: 'IT and Compliance',
+      description: 'Information security, data protection, and regulatory compliance for institutional deployment.',
+    },
   ] as const;
 </script>
 

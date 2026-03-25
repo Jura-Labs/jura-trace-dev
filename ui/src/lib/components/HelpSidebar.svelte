@@ -27,6 +27,14 @@
         { href: '/help/personas',    label: 'Usage Guides',       title: 'Workflows for different use cases' },
       ],
     },
+    {
+      groupLabel: 'Compliance',
+      items: [
+        { href: '/help/berkeley-protocol', label: 'Berkeley Protocol',    title: 'International evidence standards alignment' },
+        { href: '/help/compliance',        label: 'IT Security Summary',  title: 'Information security and data protection overview' },
+        { href: '/help/compliance#dpia',   label: 'DPIA Template',        title: 'Data Protection Impact Assessment guidance' },
+      ],
+    },
   ];
 
   function isActive(href: string): boolean {

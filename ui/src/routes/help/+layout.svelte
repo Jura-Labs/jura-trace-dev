@@ -41,9 +41,11 @@
         { href: '/help/verify',      label: 'Verify' },
         { href: '/help/monitor',     label: 'Monitor' },
         { href: '/help/settings',    label: 'Settings' },
-        { href: '/help/methodology', label: 'How Analysis Works' },
-        { href: '/help/glossary',    label: 'Glossary' },
-        { href: '/help/personas',    label: 'Usage Guides' },
+        { href: '/help/methodology',        label: 'How Analysis Works' },
+        { href: '/help/glossary',            label: 'Glossary' },
+        { href: '/help/personas',            label: 'Usage Guides' },
+        { href: '/help/berkeley-protocol',   label: 'Berkeley Protocol' },
+        { href: '/help/compliance',          label: 'IT Security' },
       ] as item}
         <li>
           <a
