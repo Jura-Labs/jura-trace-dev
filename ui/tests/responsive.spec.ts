@@ -8,7 +8,7 @@ test.describe('Responsive behaviour — desktop (1280px)', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-onboarded', 'true'); localStorage.setItem('jura-setup-complete', 'true');
     });
     await page.goto('/');
   });
@@ -30,7 +30,7 @@ test.describe('Responsive behaviour — mobile (375px)', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-onboarded', 'true'); localStorage.setItem('jura-setup-complete', 'true');
     });
     await page.goto('/');
   });

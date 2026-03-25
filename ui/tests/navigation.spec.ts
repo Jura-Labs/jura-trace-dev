@@ -4,7 +4,7 @@ test.describe('Navigation and layout', () => {
   test.beforeEach(async ({ page }) => {
     // Suppress onboarding overlay so it does not interfere with layout tests
     await page.addInitScript(() => {
-      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-onboarded', 'true'); localStorage.setItem('jura-setup-complete', 'true');
     });
     await page.goto('/');
   });
@@ -63,7 +63,7 @@ test.describe('Navigation and layout — desktop only', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-onboarded', 'true'); localStorage.setItem('jura-setup-complete', 'true');
     });
     await page.goto('/');
   });

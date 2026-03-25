@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Verify error states', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-onboarded', 'true'); localStorage.setItem('jura-setup-complete', 'true');
     });
     await page.goto('/verify');
     await page.waitForSelector('h1');
@@ -51,7 +51,7 @@ test.describe('Verify error states', () => {
 test.describe('Verify batch tab', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-onboarded', 'true'); localStorage.setItem('jura-setup-complete', 'true');
     });
     await page.goto('/verify');
     await page.waitForSelector('h1');
@@ -97,7 +97,7 @@ test.describe('Verify batch tab', () => {
 test.describe('Protect page structure', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-onboarded', 'true'); localStorage.setItem('jura-setup-complete', 'true');
     });
     await page.goto('/protect');
     await page.waitForSelector('h1');

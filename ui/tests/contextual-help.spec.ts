@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('ContextualHelpLink component', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-onboarded', 'true'); localStorage.setItem('jura-setup-complete', 'true');
     });
   });
 

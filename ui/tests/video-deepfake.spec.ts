@@ -116,7 +116,7 @@ test.describe('Video deepfake timeline', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-onboarded', 'true'); localStorage.setItem('jura-setup-complete', 'true');
     });
     await page.goto('/verify');
   });

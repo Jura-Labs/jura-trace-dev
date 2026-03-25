@@ -5,7 +5,7 @@ const allRoutes = ['/', '/protect', '/verify', '/settings'];
 test.describe('WCAG basics', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-onboarded', 'true'); localStorage.setItem('jura-setup-complete', 'true');
     });
   });
 
@@ -109,7 +109,7 @@ test.describe('WCAG basics', () => {
 
     await page.addInitScript(() => {
       localStorage.setItem('jura-dark-mode', 'true');
-      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-onboarded', 'true'); localStorage.setItem('jura-setup-complete', 'true');
     });
     await page.goto('/');
 
@@ -123,7 +123,7 @@ test.describe('WCAG basics', () => {
 
     await page.addInitScript(() => {
       localStorage.setItem('jura-dark-mode', 'false');
-      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-onboarded', 'true'); localStorage.setItem('jura-setup-complete', 'true');
     });
     await page.goto('/');
 
@@ -138,7 +138,7 @@ test.describe('WCAG basics — desktop focus-visible', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-onboarded', 'true'); localStorage.setItem('jura-setup-complete', 'true');
     });
   });
 

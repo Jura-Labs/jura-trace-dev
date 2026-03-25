@@ -2,12 +2,14 @@
   import '../app.css';
   import { onMount } from 'svelte';
   import OnboardingOverlay from '$lib/components/OnboardingOverlay.svelte';
+  import SetupWizard from '$lib/components/SetupWizard.svelte';
   import LogoMark from '$lib/components/LogoMark.svelte';
 
   let { children } = $props();
 
   let darkMode = $state(true);
   let showOnboarding = $state(false);
+  let showSetupWizard = $state(false);
   let mobileMenuOpen = $state(false);
   let currentPath = $state('/');
 
@@ -22,12 +24,24 @@
     // Show onboarding on first launch (no prior completion recorded)
     if (!localStorage.getItem('jura-onboarded')) {
       showOnboarding = true;
+    } else if (!localStorage.getItem('jura-setup-complete')) {
+      // Already onboarded but setup not completed (e.g. app relaunched mid-setup)
+      showSetupWizard = true;
     }
   });
 
   function completeOnboarding() {
     localStorage.setItem('jura-onboarded', 'true');
     showOnboarding = false;
+    // Show the setup wizard unless the user has already completed it
+    if (!localStorage.getItem('jura-setup-complete')) {
+      showSetupWizard = true;
+    }
+  }
+
+  function completeSetup() {
+    localStorage.setItem('jura-setup-complete', 'true');
+    showSetupWizard = false;
   }
 
   function applyTheme(dark: boolean) {
@@ -253,4 +267,8 @@
 
 {#if showOnboarding}
   <OnboardingOverlay onComplete={completeOnboarding} />
+{/if}
+
+{#if showSetupWizard}
+  <SetupWizard onComplete={completeSetup} />
 {/if}
