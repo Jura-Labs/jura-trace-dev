@@ -102,8 +102,8 @@ def main():
     parser.add_argument(
         "--ai",
         type=str,
-        default="/Users/paulgriffiths/Desktop/Fake Images AI",
-        help="Path to AI-generated image corpus",
+        default=os.path.join(os.path.dirname(__file__), "..", "corpus", "ai_generated"),
+        help="Path to AI-generated image corpus (default: corpus/ai_generated)",
     )
     parser.add_argument(
         "--output",
