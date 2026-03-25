@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## Sprint 19 — Release Candidate (25 Mar 2026, v0.9.0)
+## Sprint 19 — Release Candidate (25 Mar 2026, v0.9.0-rc.1)
 
 ### Accessibility
 
@@ -115,6 +115,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 **Fixed**
 - Video deepfake Playwright tests: replaced 500ms fixed wait with `waitForFunction` for test hook availability
 - Audit log hash chain: ordering changed from `created_at + log_id` to `rowid` — fixes chain verification when rapid inserts share the same millisecond timestamp
+
+### Deepfake Classifier Retrained
+
+**Fixed**
+- FP rate reduced from 14% to 0% by eliminating format confound — classifier had learned JPEG=authentic, PNG=AI because all authentic training images were JPEGs
+- Corpus expanded 548 → 709 images (390 authentic including PNGs + 319 AI-generated including PNGs)
+- AUC-ROC: 1.0000 (was 0.9978)
+- Held-out 20% test set: 0% FP, 0% FN at threshold 0.50
+- Phase A PV-A1 target (<5% FP) achieved ahead of July 2026 schedule
+
+### Security Remediation (Final)
+
+**Fixed**
+- LOW-1: 7 commands migrated from `map_err(e.to_string())` to `AppError` — no raw OS errors cross IPC boundary
+- LOW-3: `import_files` now canonicalises paths before database storage
+- LOW-4: `case_notes` capped at 10,000 bytes
+- LOW-6: Production builds auto-generate 256-bit sidecar API key if `JURA_SIDECAR_KEY` not set
+- MEDIUM-5: 8 Python packages pinned to exact versions
+- **All pen test items now FIXED — 0 open**
 
 ### Test Counts
 - Rust: 230 tests, clippy + fmt clean
