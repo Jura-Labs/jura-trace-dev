@@ -139,14 +139,9 @@
     }
   }
 
-  // ── Lifecycle ──────────────────────────────────────────────────────
-  let previouslyFocused: HTMLElement | null = null;
-
-  onMount(async () => {
-    previouslyFocused = document.activeElement as HTMLElement | null;
-    focusPrimaryAction();
-
-    // Fetch sidecar health with a timeout so the wizard is never blocked
+  // ── Health check ───────────────────────────────────────────────────
+  async function refreshHealth() {
+    healthChecking = true;
     try {
       const result = await Promise.race([
         checkSidecarHealth(),
@@ -158,6 +153,15 @@
     } finally {
       healthChecking = false;
     }
+  }
+
+  // ── Lifecycle ──────────────────────────────────────────────────────
+  let previouslyFocused: HTMLElement | null = null;
+
+  onMount(async () => {
+    previouslyFocused = document.activeElement as HTMLElement | null;
+    focusPrimaryAction();
+    await refreshHealth();
   });
 
   // Auto-advance step 0 two seconds after the health check resolves and the
@@ -408,6 +412,15 @@
                       sudo apt install ffmpeg
                     {/if}
                   </code>
+                  <button
+                    onclick={refreshHealth}
+                    disabled={healthChecking}
+                    class="text-xs px-2.5 py-1 rounded border border-lapis/40 text-lapis-light hover:bg-lapis/10 transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
+                           disabled:opacity-50"
+                  >
+                    {healthChecking ? 'Checking…' : 'Re-check'}
+                  </button>
                 </div>
               </div>
             </div>
