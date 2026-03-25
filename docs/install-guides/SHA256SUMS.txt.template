@@ -1,0 +1,12 @@
+# Jura Trace vX.X.X — SHA-256 Checksums
+# Verify with: shasum -a 256 -c SHA256SUMS.txt
+#
+# These checksums are published alongside each release at:
+# https://github.com/juralabs/jura-archive/releases
+#
+<hash>  Jura-Trace_X.X.X_aarch64.dmg
+<hash>  Jura-Trace_X.X.X_x64.dmg
+<hash>  Jura-Trace_X.X.X_x64-setup.exe
+<hash>  Jura-Trace_X.X.X_x64_en-US.msi
+<hash>  Jura-Trace_X.X.X_amd64.AppImage
+<hash>  Jura-Trace_X.X.X_amd64.deb

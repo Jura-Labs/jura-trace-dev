@@ -291,6 +291,101 @@ jobs:
     #   Settings > Environments > production > Required reviewers
     environment: production
     steps:
+      # tauri-action uploads installer artefacts directly to the draft GitHub
+      # Release (not as workflow artefacts). We therefore download them here
+      # via the GitHub Releases API, hash each one with sha256sum, assemble
+      # SHA256SUMS.txt, and upload it as an additional release asset — all
+      # while the release is still a draft, before we flip it to published.
+      - name: Generate and upload SHA-256 checksums
+        uses: actions/github-script@v7
+        env:
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        with:
+          script: |
+            const fs   = require('fs');
+            const path = require('path');
+            const { execSync } = require('child_process');
+
+            const releaseId = parseInt(process.env.RELEASE_ID, 10);
+
+            // Fetch the list of assets already attached to the draft release.
+            // tauri-action will have uploaded DMG / MSI / NSIS / AppImage / .deb
+            // files before this job ran (all build jobs are in `needs`).
+            const { data: assets } = await github.rest.repos.listReleaseAssets({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              per_page: 100,
+            });
+
+            // Only hash installer artefacts — skip any existing SHA256SUMS.txt
+            // (idempotent re-runs) and update manifests (*.json).
+            const installerExts = ['.dmg', '.msi', '.exe', '.AppImage', '.deb', '.tar.gz'];
+            const toHash = assets.filter(a =>
+              installerExts.some(ext => a.name.endsWith(ext))
+            );
+
+            if (toHash.length === 0) {
+              core.warning('No installer artefacts found on the release — SHA256SUMS.txt will be empty.');
+            }
+
+            // Download each artefact into a temporary directory and hash it.
+            // The GitHub asset download URL requires the Accept header to redirect
+            // to the actual binary; we use the authenticated octokit method so the
+            // GITHUB_TOKEN is forwarded automatically.
+            const tmpDir = '/tmp/release-assets';
+            fs.mkdirSync(tmpDir, { recursive: true });
+
+            const lines = [];
+            for (const asset of toHash) {
+              console.log(`Downloading ${asset.name} (${asset.size} bytes)...`);
+
+              // getReleaseAsset with Accept: application/octet-stream returns the
+              // raw binary. The octokit response data is a Buffer in Node.js.
+              const response = await github.rest.repos.getReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                asset_id: asset.id,
+                headers: { Accept: 'application/octet-stream' },
+              });
+
+              const filePath = path.join(tmpDir, asset.name);
+              // response.data is an ArrayBuffer; convert to Buffer for writeFileSync.
+              fs.writeFileSync(filePath, Buffer.from(response.data));
+
+              // sha256sum produces "<hash>  <filename>" (two spaces — standard format).
+              // Run from tmpDir so the output contains only the bare filename, not
+              // the full path, matching what users will see in the release.
+              const hash = execSync(`sha256sum "${asset.name}"`, { cwd: tmpDir })
+                .toString()
+                .trim();
+              lines.push(hash);
+              console.log(hash);
+            }
+
+            // Write the combined checksum file and upload it to the release.
+            const sumsPath = path.join(tmpDir, 'SHA256SUMS.txt');
+            fs.writeFileSync(sumsPath, lines.join('\n') + '\n');
+
+            // Remove any pre-existing SHA256SUMS.txt asset (idempotent re-runs).
+            const existing = assets.find(a => a.name === 'SHA256SUMS.txt');
+            if (existing) {
+              await github.rest.repos.deleteReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                asset_id: existing.id,
+              });
+            }
+
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              name: 'SHA256SUMS.txt',
+              data: fs.readFileSync(sumsPath),
+            });
+            console.log('Uploaded SHA256SUMS.txt');
+
       - name: Publish release
         uses: actions/github-script@v7
         env:
