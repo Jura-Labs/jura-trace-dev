@@ -48,11 +48,54 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - 2 new domain files: `video_forensics.txt`, `digital_rights_and_cultural_heritage.txt`
 - Total: 314 lines across 6 documents, ~150 passages (was 158 lines, 4 docs, ~79 passages)
 
+### Security
+
+**Fixed**
+- OWASP self-audit: 4 HIGH (path canonicalisation in c2pa/watermark/video commands, shell permissions removed), 4 MEDIUM (CSP hardened, set_db_path extension allowlist, transcription size limit, audit timestamp precision), 2 LOW (audit chain command exposed, fs write scope narrowed)
+- Report: `docs/security-pen-test-s19.md`
+
+### File Handling
+
+**Added**
+- Corrupt/truncated file guards: zero-length and <12 byte checks in verify and import pipelines with `AppError::Validation` messages
+- 3 new Rust tests for empty/tiny file rejection
+
+### Video UX
+
+**Added**
+- Video analysis progress: phase labels ("Extracting frames..." → "Running deepfake detection..."), estimated time by mode, soft cancel button with Escape key support — video-only enhancement
+
+### First-Launch Setup Wizard
+
+**Added**
+- 5-step `SetupWizard.svelte` component: sidecar health check (3s timeout, auto-advance), FFmpeg status with platform-specific install hints, Whisper model info (auto-downloads on first use), Ollama download button (opens ollama.com), ready summary with service availability checklist
+- Runs after onboarding intro, persisted via `localStorage('jura-setup-complete')`
+- Wired into `+layout.svelte` with chain: onboarding → setup wizard → app
+
+### External Documentation
+
+**Added**
+- User guides: `docs/user-guide/getting-started.md`, `protect-guide.md`, `verify-guide.md`
+- Quick Start cards: 1-page per platform (macOS, Windows, Linux)
+- SHA-256 download verification guide + `SHA256SUMS.txt.template`
+- Windows IT deployment appendix: MSIEXEC silent install, Intune, GPO firewall, PowerShell FFmpeg
+- Automated SHA-256 checksum generation in GitHub Actions release workflow
+
+### Strategic & Business
+
+**Added**
+- Strategic pivot assessment: verification-first positioning, post-v1.0 Phase A/B roadmap
+- Tier structure decision: Community (free) / Professional (£199/yr) / Team (£79/seat/mo) / Enterprise (£6K+/yr) with geological internal codenames
+- Tier comparison wiki for Plane
+- Enterprise AI API analysis: BYOK model (Mistral/Claude/OpenAI) defensible for Enterprise tier
+- Deployment experience design: FFmpeg bundling, Ollama button, model downloads, setup wizard
+- Phase A plan: FP reduction + API wrapper + reports + versioning (4 sprints, July-August 2026)
+
 ### Test Counts
-- Rust: 227 tests (was 215), clippy clean
+- Rust: 230 tests (was 215), clippy clean
 - Python: 308 tests
 - Playwright: 164 tests
-- SvelteKit: 201 files, 0 svelte-check errors
+- SvelteKit: 203 files, 0 svelte-check errors
 
 ---
 
