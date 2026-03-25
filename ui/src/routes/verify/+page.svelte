@@ -82,7 +82,9 @@
       error = `Unsupported file format. Jura Trace supports JPEG, PNG, TIFF, WebP, PDF, MP4, MOV, WAV, and MP3.`;
       errorType = 'format';
     } else if (lower.includes('sidecar') || lower.includes('connection refused') || lower.includes('127.0.0.1:8200')) {
-      error = `Analysis services are not running. Start the sidecar with: uvicorn main:app --host 127.0.0.1 --port 8200`;
+      error = import.meta.env.DEV
+        ? `Analysis services are not running. Start the sidecar with: uvicorn main:app --host 127.0.0.1 --port 8200`
+        : `Forensic analysis is temporarily unavailable. If the problem persists, restart Jura Trace.`;
       errorType = 'sidecar';
     } else if (lower.includes('fetch') || lower.includes('network') || lower.includes('ssrf') || lower.includes('url')) {
       error = `Could not fetch the URL. Check the address is correct and publicly accessible.`;
