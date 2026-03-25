@@ -92,7 +92,8 @@ const MOCK_VIDEO_RESULT = {
  */
 async function injectMockResult(page: import('@playwright/test').Page) {
   await page.waitForSelector('h1');
-  await page.waitForTimeout(500);
+  // Wait for the test hook to be registered (DEV mode only)
+  await page.waitForFunction(() => !!(window as any).__juraSetVerifyResult, { timeout: 5000 });
 
   await page.evaluate((mockResult) => {
     const fn = (window as any).__juraSetVerifyResult;

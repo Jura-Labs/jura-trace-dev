@@ -196,6 +196,70 @@
     if (saveTimer !== null) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => { saved = false; }, 2500);
   }
+
+  // ── Auto-updater ──────────────────────────────────────────────────────
+  // Uses @tauri-apps/plugin-updater which is only available inside a Tauri
+  // build.  In browser preview / Playwright tests we show a graceful notice
+  // instead of throwing.
+
+  type UpdateStatus =
+    | { state: 'idle' }
+    | { state: 'checking' }
+    | { state: 'available'; version: string }
+    | { state: 'up-to-date' }
+    | { state: 'downloading' }
+    | { state: 'installing' }
+    | { state: 'error'; message: string };
+
+  let updateStatus = $state<UpdateStatus>({ state: 'idle' });
+
+  async function checkForUpdate() {
+    if (!isTauri()) {
+      updateStatus = { state: 'error', message: 'Update checks are only available in the desktop application.' };
+      return;
+    }
+
+    updateStatus = { state: 'checking' };
+    try {
+      // Dynamic import keeps the plugin out of the browser bundle entirely.
+      const { check } = await import('@tauri-apps/plugin-updater');
+      const update = await check();
+
+      if (!update) {
+        updateStatus = { state: 'up-to-date' };
+        return;
+      }
+
+      updateStatus = { state: 'available', version: update.version };
+
+      // Download and install immediately — the plugin shows a restart prompt.
+      updateStatus = { state: 'downloading' };
+      await update.downloadAndInstall((event) => {
+        if (event.event === 'Started') {
+          updateStatus = { state: 'downloading' };
+        } else if (event.event === 'Progress') {
+          // Progress events carry { chunkLength, contentLength } — we use
+          // them only to stay in the "downloading" state and could render a
+          // progress bar here in a future iteration.
+          updateStatus = { state: 'downloading' };
+        } else if (event.event === 'Finished') {
+          updateStatus = { state: 'installing' };
+        }
+      });
+      // After downloadAndInstall resolves the app will restart automatically.
+      updateStatus = { state: 'installing' };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      // "No updates available" surfaces as an error from the plugin when the
+      // pubkey is empty and the endpoint returns a 404 or no newer version.
+      // Surface a user-friendly message rather than a raw error string.
+      if (message.includes('No updates available') || message.includes('404')) {
+        updateStatus = { state: 'up-to-date' };
+      } else {
+        updateStatus = { state: 'error', message };
+      }
+    }
+  }
 </script>
 
 <div class="space-y-6">
@@ -684,5 +748,80 @@
         >Juralabs CIC<span class="sr-only"> (opens in new tab)</span></a>
       </dd>
     </dl>
+
+    <!-- Software updates -->
+    <div class="mt-6 pt-5 border-t border-border-light dark:border-border-dark">
+      <div class="flex items-center gap-4 flex-wrap">
+        <button
+          onclick={checkForUpdate}
+          disabled={updateStatus.state === 'checking' || updateStatus.state === 'downloading' || updateStatus.state === 'installing'}
+          class="px-5 py-2.5 min-h-[44px] rounded border text-sm font-medium transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                 {updateStatus.state === 'checking' || updateStatus.state === 'downloading' || updateStatus.state === 'installing'
+                   ? 'border-graphite-light text-flint cursor-not-allowed opacity-50'
+                   : 'border-lapis/60 text-lapis dark:text-lapis-light hover:bg-lapis/10 hover:border-lapis'}"
+          aria-busy={updateStatus.state === 'checking' || updateStatus.state === 'downloading'}
+        >
+          {#if updateStatus.state === 'checking'}
+            <span class="flex items-center gap-1.5">
+              <span
+                class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
+                aria-hidden="true"
+              ></span>
+              Checking for updates...
+            </span>
+          {:else if updateStatus.state === 'downloading'}
+            <span class="flex items-center gap-1.5">
+              <span
+                class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
+                aria-hidden="true"
+              ></span>
+              Downloading update...
+            </span>
+          {:else if updateStatus.state === 'installing'}
+            <span class="flex items-center gap-1.5">
+              <span
+                class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
+                aria-hidden="true"
+              ></span>
+              Installing — restarting shortly...
+            </span>
+          {:else}
+            Check for Updates
+          {/if}
+        </button>
+
+        <!-- Inline status feedback -->
+        {#if updateStatus.state === 'up-to-date'}
+          <p
+            class="text-sm text-malachite dark:text-malachite-light"
+            role="status"
+            aria-live="polite"
+          >
+            Jura Trace is up to date.
+          </p>
+        {:else if updateStatus.state === 'available'}
+          <p
+            class="text-sm text-lapis dark:text-lapis-light"
+            role="status"
+            aria-live="polite"
+          >
+            Version {updateStatus.version} is available — downloading...
+          </p>
+        {:else if updateStatus.state === 'error'}
+          <p
+            class="text-sm text-cinnabar dark:text-cinnabar-light"
+            role="alert"
+            aria-live="assertive"
+          >
+            {updateStatus.message}
+          </p>
+        {/if}
+      </div>
+
+      <p class="text-xs text-flint dark:text-flint-light mt-2">
+        Updates are downloaded and applied locally. No telemetry is sent.
+      </p>
+    </div>
   </section>
 </div>

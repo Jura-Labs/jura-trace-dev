@@ -879,7 +879,10 @@ impl Database {
     ) -> SqliteResult<()> {
         let conn = self.conn.lock().unwrap();
         let log_id = uuid::Uuid::new_v4().to_string();
-        let now = chrono::Utc::now().to_rfc3339();
+        // Use millisecond precision to reduce the probability of two entries
+        // sharing the same `created_at` value (which would make the chain
+        // ordering non-deterministic when tiebreaking by UUID).
+        let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
         let op = operator_id.unwrap_or("local_user");
 
         // Retrieve the entry_hash of the most recent log entry to form the
@@ -1074,11 +1077,7 @@ impl Database {
     }
 
     /// Return the most recent events for a given URL, newest first.
-    pub fn get_monitor_events(
-        &self,
-        url_id: &str,
-        limit: u32,
-    ) -> SqliteResult<Vec<MonitorEvent>> {
+    pub fn get_monitor_events(&self, url_id: &str, limit: u32) -> SqliteResult<Vec<MonitorEvent>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT event_id, url_id, event_type, checked_at,
@@ -2090,8 +2089,13 @@ mod tests {
     fn test_add_and_list_monitor_urls() {
         let db = open_temp_db();
 
-        db.add_monitor_url("https://example.com/image1.jpg", Some("Test Image 1"), None, "daily")
-            .unwrap();
+        db.add_monitor_url(
+            "https://example.com/image1.jpg",
+            Some("Test Image 1"),
+            None,
+            "daily",
+        )
+        .unwrap();
         db.add_monitor_url("https://example.com/image2.jpg", None, None, "weekly")
             .unwrap();
 
@@ -2102,11 +2106,17 @@ mod tests {
         assert!(urls.iter().all(|u| u.enabled));
 
         // check_frequency should be preserved
-        let u1 = urls.iter().find(|u| u.label.as_deref() == Some("Test Image 1")).unwrap();
+        let u1 = urls
+            .iter()
+            .find(|u| u.label.as_deref() == Some("Test Image 1"))
+            .unwrap();
         assert_eq!(u1.check_frequency, "daily");
         assert_eq!(u1.url, "https://example.com/image1.jpg");
 
-        let u2 = urls.iter().find(|u| u.url == "https://example.com/image2.jpg").unwrap();
+        let u2 = urls
+            .iter()
+            .find(|u| u.url == "https://example.com/image2.jpg")
+            .unwrap();
         assert_eq!(u2.check_frequency, "weekly");
         assert!(u2.label.is_none());
     }
@@ -2177,8 +2187,12 @@ mod tests {
         assert!(events[0].case_notes.is_none());
 
         // Update the status
-        db.update_case_status(&event_id, "investigating", Some("Checking with rights holder"))
-            .unwrap();
+        db.update_case_status(
+            &event_id,
+            "investigating",
+            Some("Checking with rights holder"),
+        )
+        .unwrap();
 
         let events = db.get_monitor_events(&url_id, 10).unwrap();
         assert_eq!(events[0].case_status, "investigating");
@@ -2194,12 +2208,22 @@ mod tests {
         let db = open_temp_db();
 
         let enabled = db
-            .add_monitor_url("https://example.com/active.jpg", Some("Active"), None, "daily")
+            .add_monitor_url(
+                "https://example.com/active.jpg",
+                Some("Active"),
+                None,
+                "daily",
+            )
             .unwrap();
 
         // Add a second URL then disable it via raw SQL
         let disabled = db
-            .add_monitor_url("https://example.com/paused.jpg", Some("Paused"), None, "weekly")
+            .add_monitor_url(
+                "https://example.com/paused.jpg",
+                Some("Paused"),
+                None,
+                "weekly",
+            )
             .unwrap();
         {
             let conn = db.conn.lock().unwrap();

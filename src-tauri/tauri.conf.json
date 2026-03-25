@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
   "productName": "Jura Trace",
-  "version": "0.4.0",
+  "version": "0.9.0",
   "identifier": "org.juralabs.trace",
   "build": {
     "beforeDevCommand": "cd ui && npm run dev",
@@ -13,7 +13,7 @@
     "withGlobalTauri": false,
     "windows": [
       {
-        "title": "Jura Trace — Know What's Real",
+        "title": "Jura Trace \u2014 Know What's Real",
         "width": 1200,
         "height": 800,
         "minWidth": 900,
@@ -26,10 +26,21 @@
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; connect-src ipc: http://ipc.localhost http://127.0.0.1:8200 http://127.0.0.1:11434; object-src 'none'; base-uri 'self'; frame-ancestors 'none';"
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/juralabs/jura-archive/releases/latest/download/latest.json"
+      ],
+      "dialog": true,
+      "pubkey": ""
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
-    "externalBin": ["binaries/jura-sidecar"],
+    "externalBin": [
+      "binaries/jura-sidecar"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -44,7 +55,11 @@
     },
     "linux": {
       "deb": {
-        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0", "libayatana-appindicator3-1"]
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0",
+          "libayatana-appindicator3-1"
+        ]
       }
     },
     "category": "Utility"

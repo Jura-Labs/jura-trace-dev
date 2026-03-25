@@ -667,9 +667,7 @@ fn verify_content_inner(
     // the minimum header size of 12 bytes (e.g. a PNG header is 8 bytes
     // plus the IHDR chunk length and type = 16 bytes total). Passing these
     // files to image decoders or the sidecar may cause panics or hangs.
-    let file_size = std::fs::metadata(&path)
-        .map(|m| m.len())
-        .unwrap_or(0);
+    let file_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
     if file_size == 0 {
         return Err(AppError::Validation(
             "The file is empty (zero bytes). Please select a valid file.".to_string(),
@@ -2217,6 +2215,84 @@ fn verify_audit_integrity(state: State<'_, Mutex<AppState>>) -> Result<bool, Str
 
 // ===== Monitor Commands =====
 
+/// Register a URL for periodic monitoring.
+///
+/// Generates a new UUID, inserts the row, and returns the fully-populated
+/// `MonitorUrl` struct. `frequency` defaults to `"daily"` when omitted.
+#[tauri::command]
+fn add_monitor_url(
+    state: State<'_, Mutex<AppState>>,
+    url: String,
+    label: Option<String>,
+    asset_id: Option<String>,
+    frequency: Option<String>,
+) -> Result<db::MonitorUrl, String> {
+    let app = state.lock().map_err(|e| e.to_string())?;
+    app.db
+        .add_monitor_url(
+            &url,
+            label.as_deref(),
+            asset_id.as_deref(),
+            frequency.as_deref().unwrap_or("daily"),
+        )
+        .map_err(|e| e.to_string())
+}
+
+/// Remove a monitored URL and all its events (CASCADE).
+#[tauri::command]
+fn remove_monitor_url(state: State<'_, Mutex<AppState>>, url_id: String) -> Result<(), String> {
+    let app = state.lock().map_err(|e| e.to_string())?;
+    app.db
+        .remove_monitor_url(&url_id)
+        .map_err(|e| e.to_string())
+}
+
+/// List all monitored URLs, optionally restricted to enabled entries only.
+///
+/// Results are ordered by `created_at` descending. Defaults to returning
+/// all URLs (enabled and disabled) when `enabled_only` is omitted.
+#[tauri::command]
+fn list_monitor_urls(
+    state: State<'_, Mutex<AppState>>,
+    enabled_only: Option<bool>,
+) -> Result<Vec<db::MonitorUrl>, String> {
+    let app = state.lock().map_err(|e| e.to_string())?;
+    app.db
+        .list_monitor_urls(enabled_only.unwrap_or(false))
+        .map_err(|e| e.to_string())
+}
+
+/// Return the most recent events for a given monitored URL, newest first.
+///
+/// `limit` defaults to 50 when omitted.
+#[tauri::command]
+fn get_monitor_events(
+    state: State<'_, Mutex<AppState>>,
+    url_id: String,
+    limit: Option<u32>,
+) -> Result<Vec<db::MonitorEvent>, String> {
+    let app = state.lock().map_err(|e| e.to_string())?;
+    app.db
+        .get_monitor_events(&url_id, limit.unwrap_or(50))
+        .map_err(|e| e.to_string())
+}
+
+/// Update the case management status and optional notes on a monitor event.
+///
+/// Also stamps `case_updated_at` with the current UTC time.
+#[tauri::command]
+fn update_monitor_case_status(
+    state: State<'_, Mutex<AppState>>,
+    event_id: String,
+    status: String,
+    notes: Option<String>,
+) -> Result<(), String> {
+    let app = state.lock().map_err(|e| e.to_string())?;
+    app.db
+        .update_case_status(&event_id, &status, notes.as_deref())
+        .map_err(|e| e.to_string())
+}
+
 /// Fetch the composite Monitor overview in a single round-trip.
 ///
 /// Assembles protection statistics, trust distribution, the 20 most recent
@@ -2412,9 +2488,7 @@ async fn set_db_path(
         .and_then(|e| e.to_str())
         .unwrap_or("");
     if !matches!(ext.to_lowercase().as_str(), "db" | "sqlite" | "sqlite3") {
-        return Err(
-            "Database path must use a .db, .sqlite, or .sqlite3 extension".to_string(),
-        );
+        return Err("Database path must use a .db, .sqlite, or .sqlite3 extension".to_string());
     }
 
     // SECURITY: Reject symlinks in the target path to prevent symlink-based
@@ -2456,13 +2530,8 @@ async fn set_db_path(
     ));
 
     // Copy current DB to temp location
-    std::fs::copy(&current_path, &tmp_path).map_err(|e| {
-        format!(
-            "Failed to copy database to '{}': {}",
-            tmp_path.display(),
-            e
-        )
-    })?;
+    std::fs::copy(&current_path, &tmp_path)
+        .map_err(|e| format!("Failed to copy database to '{}': {}", tmp_path.display(), e))?;
 
     // Verify the copy opens cleanly with SQLite
     {
@@ -2525,6 +2594,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let db_path = resolve_db_path(app);
             log::info!("Database: {}", db_path.display());
@@ -2672,6 +2742,11 @@ pub fn run() {
             get_monitor_overview,
             get_audit_log,
             get_verification_history,
+            add_monitor_url,
+            remove_monitor_url,
+            list_monitor_urls,
+            get_monitor_events,
+            update_monitor_case_status,
             embed_watermark_asset,
             extract_watermark_from_path,
             analyse_video_deepfake,
@@ -3158,7 +3233,7 @@ mod tests {
             None,
             None,
             None,
-            None,  // no regional detectors
+            None, // no regional detectors
             false,
         );
         assert!(
@@ -3399,7 +3474,10 @@ mod tests {
     fn read_app_config_missing_file_returns_default() {
         let dir = tempfile::tempdir().expect("tempdir");
         let cfg = read_app_config(dir.path());
-        assert!(cfg.db_path.is_none(), "Missing config.json should yield default");
+        assert!(
+            cfg.db_path.is_none(),
+            "Missing config.json should yield default"
+        );
     }
 
     #[test]
@@ -3444,7 +3522,10 @@ mod tests {
     #[test]
     fn dir_is_writable_nonexistent_returns_false() {
         let path = PathBuf::from("/nonexistent/path/that/does/not/exist");
-        assert!(!dir_is_writable(&path), "Non-existent dir should not be writable");
+        assert!(
+            !dir_is_writable(&path),
+            "Non-existent dir should not be writable"
+        );
     }
 
     #[test]
@@ -3464,7 +3545,9 @@ mod tests {
             env_path.clone()
         } else {
             let cfg = read_app_config(dir.path());
-            cfg.db_path.map(PathBuf::from).unwrap_or_else(|| dir.path().join("default.db"))
+            cfg.db_path
+                .map(PathBuf::from)
+                .unwrap_or_else(|| dir.path().join("default.db"))
         };
         assert_eq!(chosen, env_path, "Env var path should take priority");
     }
@@ -3553,7 +3636,19 @@ mod tests {
         // AI-declared content must score lower than content with NO C2PA at all.
         // A manifest that confirms AI generation is worse than no manifest.
         let trust_ai = compute_trust(
-            None, None, None, None, None, None, 0.8, Some(true), None, None, None, None, true,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            Some(true),
+            None,
+            None,
+            None,
+            None,
+            true,
         );
         let trust_none = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false,
@@ -3569,10 +3664,34 @@ mod tests {
         // Verify the penalty is -0.25 relative to valid non-AI C2PA (+0.10 bonus).
         // With exif_trust 1.0 and no forensics: valid C2PA → 1.0, AI C2PA → 0.75.
         let trust_valid = compute_trust(
-            None, None, None, None, None, None, 1.0, Some(true), None, None, None, None, false,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            1.0,
+            Some(true),
+            None,
+            None,
+            None,
+            None,
+            false,
         );
         let trust_ai = compute_trust(
-            None, None, None, None, None, None, 1.0, Some(true), None, None, None, None, true,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            1.0,
+            Some(true),
+            None,
+            None,
+            None,
+            None,
+            true,
         );
         // valid: 1.0 + 0.10 capped at 1.0 = 1.0
         assert!(
@@ -3667,9 +3786,7 @@ mod tests {
         // verify_content_inner. The function itself requires a Tauri State<>
         // which cannot be constructed in a unit test without a full app
         // context, so we mirror the guard logic directly.
-        let file_size = std::fs::metadata(&empty_path)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let file_size = std::fs::metadata(&empty_path).map(|m| m.len()).unwrap_or(0);
 
         assert_eq!(file_size, 0, "File must be empty for this test");
 
@@ -3678,8 +3795,7 @@ mod tests {
                 "The file is empty (zero bytes). Please select a valid file.".to_string(),
             );
             assert!(
-                err.to_string()
-                    .contains("empty (zero bytes)"),
+                err.to_string().contains("empty (zero bytes)"),
                 "Error should mention 'empty (zero bytes)', got: {}",
                 err
             );
@@ -3697,9 +3813,7 @@ mod tests {
         // 5 bytes — far smaller than any valid PNG (minimum ~67 bytes)
         std::fs::write(&tiny_path, b"\x89PNG\x0d").expect("write tiny file");
 
-        let file_size = std::fs::metadata(&tiny_path)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let file_size = std::fs::metadata(&tiny_path).map(|m| m.len()).unwrap_or(0);
 
         assert_eq!(file_size, 5, "File must be 5 bytes for this test");
 
@@ -3710,9 +3824,8 @@ mod tests {
             "File must be below the 12-byte minimum header threshold"
         );
 
-        let err = AppError::Validation(
-            "The file is too small to be a valid media file.".to_string(),
-        );
+        let err =
+            AppError::Validation("The file is too small to be a valid media file.".to_string());
         assert_eq!(
             err.to_string(),
             "The file is too small to be a valid media file.",
@@ -3731,9 +3844,7 @@ mod tests {
         let path_str = empty_path.to_string_lossy().to_string();
 
         // Mirror the guard logic from import_files.
-        let file_size = std::fs::metadata(&empty_path)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let file_size = std::fs::metadata(&empty_path).map(|m| m.len()).unwrap_or(0);
 
         assert_eq!(file_size, 0, "File must be empty for this test");
 

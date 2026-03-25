@@ -386,6 +386,144 @@ jobs:
             });
             console.log('Uploaded SHA256SUMS.txt');
 
+      # Generate latest.json for the Tauri auto-updater plugin.
+      #
+      # Tauri's updater expects a JSON manifest at the URL configured in
+      # tauri.conf.json plugins.updater.endpoints.  The format requires a
+      # "version", "pub_date", "notes", and a "platforms" map where each
+      # key is a Rust target triple (e.g. "darwin-aarch64") and the value
+      # carries a "url" pointing to the .tar.gz update archive and an
+      # optional "signature" (minisign) for signed builds.
+      #
+      # tauri-action does not auto-generate this manifest unless
+      # updaterJsonPreferNsis/updaterJsonKeepUniversal are set AND the
+      # action is given the release tag directly.  Because this workflow
+      # uses a custom draft-release flow, we build latest.json here from
+      # the assets that tauri-action already uploaded to the draft release.
+      #
+      # Platform keys must match what Tauri's updater expects:
+      #   darwin-aarch64  — macOS Apple Silicon
+      #   darwin-x86_64   — macOS Intel
+      #   linux-x86_64    — Linux
+      #   windows-x86_64  — Windows
+      #
+      # For unsigned RC builds, "signature" is an empty string.  When code
+      # signing is introduced (Sprint 19), each .tar.gz/.zip will have a
+      # companion .sig file uploaded by tauri-action and the signatures
+      # should be read from those assets here.
+      - name: Generate and upload latest.json update manifest
+        uses: actions/github-script@v7
+        env:
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const releaseId = parseInt(process.env.RELEASE_ID, 10);
+
+            // Fetch the release metadata (tag name, body, created_at).
+            const { data: release } = await github.rest.repos.getRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+            });
+
+            // Fetch all assets attached to the draft release.
+            const { data: assets } = await github.rest.repos.listReleaseAssets({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              per_page: 100,
+            });
+
+            const tag     = release.tag_name;               // e.g. "v0.9.0"
+            const version = tag.replace(/^v/, '');           // e.g. "0.9.0"
+            const baseUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${tag}`;
+
+            // Map each Tauri updater platform key to the expected asset suffix.
+            // tauri-action produces:
+            //   macOS    → <AppName>_<version>_aarch64.dmg  AND  <AppName>_<version>_aarch64.app.tar.gz
+            //   macOS    → <AppName>_<version>_x64.dmg      AND  <AppName>_<version>_x64.app.tar.gz
+            //   Linux    → <AppName>_<version>_amd64.AppImage  AND  <AppName>_<version>_amd64.AppImage.tar.gz
+            //   Windows  → <AppName>_<version>_x64-setup.exe  (NSIS; no tar.gz)
+            //              <AppName>_<version>_x64_en-US.msi
+            //
+            // The updater downloads the .tar.gz / .zip archive, not the installer.
+            // Windows uses a .zip archive (tauri-action produces <AppName>_<version>_x64-setup.nsis.zip).
+            const platformMap = {
+              'darwin-aarch64': { suffix: '_aarch64.app.tar.gz' },
+              'darwin-x86_64':  { suffix: '_x64.app.tar.gz' },
+              'linux-x86_64':   { suffix: '_amd64.AppImage.tar.gz' },
+              'windows-x86_64': { suffix: '_x64-setup.nsis.zip' },
+            };
+
+            const platforms = {};
+
+            for (const [platform, cfg] of Object.entries(platformMap)) {
+              // Find the matching asset by suffix (case-insensitive for safety).
+              const asset = assets.find(a =>
+                a.name.toLowerCase().endsWith(cfg.suffix.toLowerCase())
+              );
+
+              if (!asset) {
+                core.warning(`No asset found for platform ${platform} (expected suffix: ${cfg.suffix})`);
+                continue;
+              }
+
+              // Look for a companion .sig file (minisign signature for signed builds).
+              // For unsigned RC builds this will be absent and signature stays "".
+              const sigAsset = assets.find(a => a.name === asset.name + '.sig');
+              const signature = sigAsset ? (await (async () => {
+                const sigResp = await github.rest.repos.getReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  asset_id: sigAsset.id,
+                  headers: { Accept: 'application/octet-stream' },
+                });
+                return Buffer.from(sigResp.data).toString('utf-8').trim();
+              })()) : '';
+
+              platforms[platform] = {
+                url: `${baseUrl}/${asset.name}`,
+                signature,
+              };
+            }
+
+            // Produce the manifest.  "notes" is populated from the release body
+            // (which the create-release job already set from CHANGELOG.md).
+            const manifest = {
+              version: `v${version}`,
+              notes:   release.body || `Jura Trace ${tag}`,
+              pub_date: release.created_at,
+              platforms,
+            };
+
+            const manifestJson = JSON.stringify(manifest, null, 2);
+            console.log('latest.json:\n', manifestJson);
+
+            const tmpPath = '/tmp/latest.json';
+            fs.writeFileSync(tmpPath, manifestJson);
+
+            // Remove any pre-existing latest.json asset (idempotent re-runs).
+            const existingManifest = assets.find(a => a.name === 'latest.json');
+            if (existingManifest) {
+              await github.rest.repos.deleteReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                asset_id: existingManifest.id,
+              });
+            }
+
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              name: 'latest.json',
+              data: fs.readFileSync(tmpPath),
+            });
+            console.log('Uploaded latest.json');
+
       - name: Publish release
         uses: actions/github-script@v7
         env:

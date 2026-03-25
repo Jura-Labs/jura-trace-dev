@@ -586,7 +586,10 @@ mod tests {
             value: r#"{"actions":[{"action":"c2pa.created","digitalSourceType":"http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"}]}"#.to_string(),
         }];
         let result = detect_ai_from_assertions(&assertions);
-        assert!(result.is_some(), "trainedAlgorithmicMedia should be detected");
+        assert!(
+            result.is_some(),
+            "trainedAlgorithmicMedia should be detected"
+        );
         assert!(
             result.unwrap().contains("digitalSourceType"),
             "message should mention digitalSourceType"
@@ -601,7 +604,10 @@ mod tests {
             value: r#"{"digitalSourceType":"trainedAlgorithmicMedia"}"#.to_string(),
         }];
         let result = detect_ai_from_assertions(&assertions);
-        assert!(result.is_some(), "trainedAlgorithmicMedia outside c2pa.actions should be detected");
+        assert!(
+            result.is_some(),
+            "trainedAlgorithmicMedia outside c2pa.actions should be detected"
+        );
     }
 
     #[test]
@@ -611,7 +617,10 @@ mod tests {
             value: r#"{"actions":[{"action":"c2pa.created","description":"Created by Google Generative AI."}]}"#.to_string(),
         }];
         let result = detect_ai_from_assertions(&assertions);
-        assert!(result.is_some(), "'Generative AI' keyword should be detected");
+        assert!(
+            result.is_some(),
+            "'Generative AI' keyword should be detected"
+        );
         assert!(
             result.unwrap().to_lowercase().contains("generative ai"),
             "message should name the matched keyword"
@@ -622,10 +631,14 @@ mod tests {
     fn detect_ai_from_assertions_generator_name_gemini() {
         let assertions = vec![AssertionInfo {
             label: "c2pa.actions".to_string(),
-            value: r#"{"actions":[{"action":"c2pa.created","softwareAgent":"Google Gemini 2.0"}]}"#.to_string(),
+            value: r#"{"actions":[{"action":"c2pa.created","softwareAgent":"Google Gemini 2.0"}]}"#
+                .to_string(),
         }];
         let result = detect_ai_from_assertions(&assertions);
-        assert!(result.is_some(), "Known generator name 'gemini' should be detected");
+        assert!(
+            result.is_some(),
+            "Known generator name 'gemini' should be detected"
+        );
     }
 
     #[test]
@@ -635,7 +648,10 @@ mod tests {
             value: r#"{"softwareAgent":"DALL-E 3 by OpenAI"}"#.to_string(),
         }];
         let result = detect_ai_from_assertions(&assertions);
-        assert!(result.is_some(), "Known generator name 'dall-e' should be detected");
+        assert!(
+            result.is_some(),
+            "Known generator name 'dall-e' should be detected"
+        );
     }
 
     #[test]
