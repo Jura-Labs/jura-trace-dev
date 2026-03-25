@@ -6,6 +6,70 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Sprint 20 — Persona Conversion & Tier Management (25 Mar 2026)
+
+### Licence Tier Management
+
+**Added**
+- `LicenceTier` enum in Rust (Community/Professional/Team/Enterprise) persisted in `config.json`
+- `get_licence_tier` / `set_licence_tier` Tauri commands
+- Settings page "Your Plan" section with coloured tier badge and pilot-mode dropdown
+- Non-blocking tier hints on Verify page PDF export and Investigate Further panel
+- 5 new Rust tests for tier persistence and round-trip
+
+### Analyst Declaration in PDF Export
+
+**Added**
+- 4-field modal before PDF export: analyst name, organisation, case reference, date of analysis
+- Analyst name and organisation persisted in localStorage across sessions
+- `ReportContext` interface in `pdf.ts` — header block rendered in PDF with declaration fields
+- Tier hint for Community users: "Professional plan includes branded reports" (non-blocking)
+
+### Raw Signal Scores in PDF Report
+
+**Added**
+- "Forensic Signal Scores" section: 7 core detectors + 4 regional with actual float values, thresholds, Clean/Flagged/Not Run status
+- "Methodology" metadata block: analysis mode, pipeline version, trust formula, C2PA adjustment, detectors run, analysis date
+- Extended methodology disclosure: 7 additional detector descriptions (NPR, CA, JPEG Ghost, segmented ELA, shadow consistency, colour temperature, splice boundary)
+- Colour-coded status (red=Flagged, green=Clean) with text labels (WCAG 1.4.1 compliant)
+
+### Metadata Preservation Statement
+
+**Added**
+- Malachite confirmation panel on Protect page after C2PA signing: "Existing file metadata (EXIF, IPTC, XMP) has been preserved"
+- Only shows for the just-signed asset, clears on row change
+
+### Institutional Procurement Documents
+
+**Added**
+- Information Security Summary (`docs/information-security-summary.md`): 13-section procurement document covering architecture, data flows, security measures, compliance, incident response
+- DPIA template (`docs/compliance/dpia-template.md`): 80% pre-filled Data Protection Impact Assessment following ICO guidance, 9 pre-assessed risks, data inventory
+- Berkeley Protocol alignment page (`ui/src/routes/help/berkeley-protocol/`): maps Jura Trace to UN/Berkeley Protocol on Digital Open Source Investigations
+
+### Agent Architecture Overhaul
+
+**Added**
+- 6 new professional personas: Niamh (solicitor), Elena (insurance), James (BBC Verify), Amara (human rights), Richard (corporate comms), David (Jura Check consumer)
+- 3 new agents: ml-data-scientist, api-engineer, grant-writer
+- Stale context fixed in 6 existing agents
+- Agent memory consolidated (7 agents with duplicate locations)
+
+### Production Error Fix
+
+**Fixed**
+- uvicorn command string removed from production sidecar error path — now uses `import.meta.env.DEV` tiering
+- Setup wizard: invalid `w-4.5` Tailwind class → `w-4` (fixed giant X rendering)
+- Setup wizard: Re-check button for FFmpeg detection
+- Capabilities struct: added 13 missing fields (video_metadata, transcription, etc.) — fixes false "FFmpeg not installed"
+
+### Test Counts
+- Rust: 235 tests, clippy + fmt clean
+- Python: 308+ tests
+- Playwright: 160+ tests
+- SvelteKit: 206 files, 0 svelte-check errors
+
+---
+
 ## Sprint 19 — Release Candidate (25 Mar 2026, v0.9.0-rc.1)
 
 ### Accessibility

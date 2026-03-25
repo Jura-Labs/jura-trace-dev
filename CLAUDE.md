@@ -17,7 +17,7 @@ Jura Trace is one of two products built by **Jura Labs** (UK Social Enterprise �
 
 **Developed by**: Juralabs Community Interest Company (UK) — https://juralabs.org
 **Licence**: PolyForm Noncommercial 1.0.0
-**Current Version**: 0.9.0-rc.1 (Phase 3 — Sprint 19 complete, Release Candidate tagged)
+**Current Version**: 0.9.0-rc.2 (Phase 3 — Sprint 20 in progress, persona conversion features shipped)
 
 ## Core Architecture
 
@@ -283,7 +283,9 @@ MONITOR URL watchlist: 5 Tauri IPC commands (`add_monitor_url`, `remove_monitor_
 
 Deepfake classifier retrained: AUC-ROC 1.0000 (was 0.945), FP rate 0% (was 14%). Format confound eliminated — classifier learned JPEG vs PNG, fixed by adding authentic PNGs to training corpus. Corpus expanded 548 → 709 images. Security pen test: all items remediated (0 open). Python dependencies pinned to exact versions.
 
-**Test counts**: 230 Rust tests, 308+ Python tests, 160+ Playwright e2e tests, 204 SvelteKit files with 0 svelte-check errors, clippy + fmt clean.
+**Sprint 20 (Phase 3)**: In progress — persona conversion features. Licence tier management: `LicenceTier` enum (Community/Professional/Team/Enterprise) persisted in config.json, Settings page "Your Plan" section with tier badge + pilot dropdown, non-blocking tier hints on Verify page. Analyst declaration modal: 4-field export modal (name, org, case ref, date) with localStorage persistence, header block in PDF reports. Raw signal scores in PDF: 7 core + 4 regional detector scores with float values, thresholds, Clean/Flagged status; methodology metadata block (mode, version, formula, detectors run). Metadata preservation statement: malachite confirmation panel on Protect page after C2PA signing. 10-persona comprehensive review conducted. Agent architecture overhaul: 10 personas (6 new professional), 3 new agents (ml-data-scientist, api-engineer, grant-writer), 6 agents updated. IS summary document, DPIA template, Berkeley Protocol help page for institutional procurement.
+
+**Test counts**: 235 Rust tests, 308+ Python tests, 160+ Playwright e2e tests, 206 SvelteKit files with 0 svelte-check errors, clippy + fmt clean.
 
 ## British Spelling
 
