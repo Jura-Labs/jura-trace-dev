@@ -19,13 +19,44 @@ use std::time::Duration;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Capabilities {
+    #[serde(default)]
     pub ela: bool,
     #[serde(default)]
     pub noise: bool,
     #[serde(default, alias = "copy_move")]
     pub copy_move: bool,
+    #[serde(default)]
     pub deepfake: bool,
+    #[serde(default)]
     pub rag: bool,
+    #[serde(default, alias = "jpeg_ghost")]
+    pub jpeg_ghost: bool,
+    #[serde(default)]
+    pub npr: bool,
+    #[serde(default, alias = "chromatic_aberration")]
+    pub chromatic_aberration: bool,
+    #[serde(default, alias = "segmented_ela")]
+    pub segmented_ela: bool,
+    #[serde(default, alias = "shadow_consistency")]
+    pub shadow_consistency: bool,
+    #[serde(default, alias = "colour_temperature")]
+    pub colour_temperature: bool,
+    #[serde(default, alias = "splice_boundary")]
+    pub splice_boundary: bool,
+    #[serde(default)]
+    pub watermark: bool,
+    #[serde(default, alias = "clip_detect")]
+    pub clip_detect: bool,
+    #[serde(default, alias = "video_metadata")]
+    pub video_metadata: bool,
+    #[serde(default, alias = "audio_metadata")]
+    pub audio_metadata: bool,
+    #[serde(default, alias = "video_frames")]
+    pub video_frames: bool,
+    #[serde(default, alias = "video_deepfake")]
+    pub video_deepfake: bool,
+    #[serde(default)]
+    pub transcription: bool,
 }
 
 /// Health check response from the sidecar.
