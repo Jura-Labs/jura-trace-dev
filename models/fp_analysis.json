@@ -1,31 +1,31 @@
 {
-  "generated_at": "2026-03-25T13:50:12.631205",
+  "generated_at": "2026-03-25T14:19:03.752685",
   "model_path": "/Users/paulgriffiths/Downloads/ecoadvisor/juralabs/models/deepfake_classifier.joblib",
-  "n_authentic": 326,
-  "n_ai": 219,
-  "auc_roc": 0.9978,
+  "n_authentic": 75,
+  "n_ai": 67,
+  "auc_roc": 1.0,
   "current_threshold": 0.5,
   "fp_rate_at_current": 0.0,
   "optimal_thresholds": {
     "best_under_5pct_fp": {
       "threshold": 0.05,
-      "fp_rate": 0.0,
-      "detection_rate": 0.9817
+      "fp_rate": 0.0133,
+      "detection_rate": 1.0
     },
     "best_under_10pct_fp": {
       "threshold": 0.05,
-      "fp_rate": 0.0,
-      "detection_rate": 0.9817
+      "fp_rate": 0.0133,
+      "detection_rate": 1.0
     },
     "best_f1": {
-      "threshold": 0.05,
+      "threshold": 0.1,
       "fp_rate": 0.0,
-      "detection_rate": 0.9817
+      "detection_rate": 1.0
     },
     "equal_error_rate": {
-      "threshold": 0.05,
+      "threshold": 0.1,
       "fp_rate": 0.0,
-      "detection_rate": 0.9817
+      "detection_rate": 1.0
     }
   },
   "fp_breakdown": {

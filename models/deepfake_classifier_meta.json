@@ -1,8 +1,8 @@
 {
-  "trained_at": "2026-03-20T23:12:14.110821",
-  "n_samples": 345,
-  "n_authentic": 326,
-  "n_ai_generated": 19,
+  "trained_at": "2026-03-25T14:18:27.762478",
+  "n_samples": 707,
+  "n_authentic": 388,
+  "n_ai_generated": 319,
   "n_features": 80,
   "feature_names": [
     "spectral_decay_beta",
@@ -87,7 +87,7 @@
     "demosaic_peak_strength"
   ],
   "cv_folds": 5,
-  "cv_auc_roc": 0.945,
+  "cv_auc_roc": 0.9829,
   "model_params": {
     "n_estimators": 200,
     "max_depth": 4,
@@ -97,64 +97,64 @@
   },
   "top_features": [
     {
-      "name": "lsb_randomness",
-      "importance": 0.2839
+      "name": "lsb_entropy_mean",
+      "importance": 0.661
     },
     {
-      "name": "lsb_entropy_mean",
-      "importance": 0.2458
+      "name": "demosaic_peak_strength",
+      "importance": 0.0376
     },
     {
       "name": "lbp_block_var_cv",
-      "importance": 0.2136
-    },
-    {
-      "name": "az_var_band_0",
-      "importance": 0.0774
-    },
-    {
-      "name": "noise_autocorr_d1",
-      "importance": 0.0346
-    },
-    {
-      "name": "noise_kurtosis",
-      "importance": 0.0339
+      "importance": 0.0286
     },
     {
       "name": "sharpness_cv",
-      "importance": 0.0307
+      "importance": 0.0236
     },
     {
-      "name": "az_var_band_3",
-      "importance": 0.0201
+      "name": "lsb_randomness",
+      "importance": 0.0207
+    },
+    {
+      "name": "hf_to_mf_ratio",
+      "importance": 0.0178
+    },
+    {
+      "name": "az_var_band_0",
+      "importance": 0.0173
     },
     {
       "name": "vae_grid_energy_ratio",
-      "importance": 0.0068
-    },
-    {
-      "name": "ca_radial_trend",
-      "importance": 0.0065
-    },
-    {
-      "name": "blocking_strength",
-      "importance": 0.0054
-    },
-    {
-      "name": "edge_dir_entropy",
-      "importance": 0.005
-    },
-    {
-      "name": "cross_channel_noise_corr_mean",
-      "importance": 0.0045
-    },
-    {
-      "name": "edge_dir_uniformity",
-      "importance": 0.0036
+      "importance": 0.0131
     },
     {
       "name": "lbp_entropy",
-      "importance": 0.0031
+      "importance": 0.01
+    },
+    {
+      "name": "color_r_mean",
+      "importance": 0.0084
+    },
+    {
+      "name": "edge_dir_entropy",
+      "importance": 0.008
+    },
+    {
+      "name": "lbp_uniformity",
+      "importance": 0.0072
+    },
+    {
+      "name": "noise_skewness",
+      "importance": 0.0071
+    },
+    {
+      "name": "lbp_var",
+      "importance": 0.0061
+    },
+    {
+      "name": "lbp_block_var_std",
+      "importance": 0.0059
     }
   ]
 }
