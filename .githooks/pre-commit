@@ -1,0 +1,25 @@
+#!/bin/sh
+# Jura Trace pre-commit hook — quick checks (< 15 seconds)
+# Install: git config core.hooksPath .githooks
+
+set -e
+
+echo "Pre-commit: checking Rust formatting..."
+(cd src-tauri && cargo fmt --check) || {
+    echo "ERROR: cargo fmt check failed. Run 'cd src-tauri && cargo fmt' to fix."
+    exit 1
+}
+
+echo "Pre-commit: checking Rust compilation..."
+(cd src-tauri && cargo check 2>&1 | tail -1) || {
+    echo "ERROR: cargo check failed."
+    exit 1
+}
+
+echo "Pre-commit: checking SvelteKit types..."
+(cd ui && npx svelte-check --threshold error 2>&1 | tail -1) || {
+    echo "ERROR: svelte-check found errors."
+    exit 1
+}
+
+echo "Pre-commit: all checks passed."

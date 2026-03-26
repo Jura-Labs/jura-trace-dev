@@ -29,9 +29,51 @@ impl Database {
         Ok(db)
     }
 
-    /// Create tables if they do not already exist.
+    /// Schema version — increment when adding migrations.
+    const SCHEMA_VERSION: i32 = 1;
+
+    /// Create tables if they do not already exist, and run any pending migrations.
+    ///
+    /// Uses SQLite PRAGMA `user_version` to track which schema version is
+    /// installed. On first run, all tables are created and version is set to
+    /// `SCHEMA_VERSION`. On subsequent runs, migrations are applied incrementally.
     fn init_schema(&self) -> SqliteResult<()> {
         let conn = self.conn.lock().unwrap();
+
+        let current_version: i32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap_or(0);
+
+        log::info!(
+            "Database schema version: {} (target: {})",
+            current_version,
+            Self::SCHEMA_VERSION
+        );
+
+        // Version 0 → 1: initial schema (all tables)
+        if current_version < 1 {
+            self.create_initial_schema(&conn)?;
+            conn.pragma_update(None, "user_version", Self::SCHEMA_VERSION)?;
+            log::info!(
+                "Database schema initialised at version {}",
+                Self::SCHEMA_VERSION
+            );
+        }
+
+        // Future migrations go here:
+        // if current_version < 2 {
+        //     self.migrate_v1_to_v2(&conn)?;
+        //     conn.pragma_update(None, "user_version", 2)?;
+        // }
+
+        Ok(())
+    }
+
+    /// Create all tables for schema version 1.
+    fn create_initial_schema(
+        &self,
+        conn: &std::sync::MutexGuard<'_, rusqlite::Connection>,
+    ) -> SqliteResult<()> {
         conn.execute_batch(
             "
             CREATE TABLE IF NOT EXISTS assets (

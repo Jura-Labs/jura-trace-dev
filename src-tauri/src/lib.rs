@@ -1564,13 +1564,10 @@ fn sign_asset(
     }
     let output = c2pa::signed_output_path(&source);
 
-    let data_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| {
-            log::error!("Failed to resolve app data dir: {e}");
-            AppError::Internal("Failed to resolve application data directory".into())
-        })?;
+    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
+        log::error!("Failed to resolve app data dir: {e}");
+        AppError::Internal("Failed to resolve application data directory".into())
+    })?;
     let (cert, key) = c2pa::ensure_certificate(&data_dir).map_err(|e| {
         log::error!("C2PA certificate error for asset {asset_id}: {e}");
         AppError::C2pa("Content credential operation failed".into())
@@ -1682,13 +1679,10 @@ fn get_fingerprints(
     let app = state
         .lock()
         .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
-    let rows = app
-        .db
-        .get_fingerprints_for_asset(&asset_id)
-        .map_err(|e| {
-            log::error!("Database error fetching fingerprints for asset {asset_id}: {e}");
-            AppError::Database("Database operation failed".into())
-        })?;
+    let rows = app.db.get_fingerprints_for_asset(&asset_id).map_err(|e| {
+        log::error!("Database error fetching fingerprints for asset {asset_id}: {e}");
+        AppError::Database("Database operation failed".into())
+    })?;
     Ok(rows
         .into_iter()
         .map(|r| fingerprint::Fingerprint {
@@ -1713,13 +1707,10 @@ fn find_similar(
         .lock()
         .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
 
-    let source_fps = app
-        .db
-        .get_fingerprints_for_asset(&asset_id)
-        .map_err(|e| {
-            log::error!("Database error fetching fingerprints for find_similar: {e}");
-            AppError::Database("Database operation failed".into())
-        })?;
+    let source_fps = app.db.get_fingerprints_for_asset(&asset_id).map_err(|e| {
+        log::error!("Database error fetching fingerprints for find_similar: {e}");
+        AppError::Database("Database operation failed".into())
+    })?;
 
     if source_fps.is_empty() {
         return Ok(vec![]);
@@ -1742,23 +1733,18 @@ fn find_similar(
                 continue;
             }
 
-            let distance = fingerprint::hamming_distance(
-                &source_fp.hash_value,
-                &candidate.hash_value,
-            )
-            .map_err(|e| {
-                log::error!("Hamming distance computation failed: {e}");
-                AppError::Internal("An internal error occurred".into())
-            })?;
+            let distance =
+                fingerprint::hamming_distance(&source_fp.hash_value, &candidate.hash_value)
+                    .map_err(|e| {
+                        log::error!("Hamming distance computation failed: {e}");
+                        AppError::Internal("An internal error occurred".into())
+                    })?;
 
             if distance <= max_distance {
-                let asset = app
-                    .db
-                    .get_asset_by_id(&candidate.asset_id)
-                    .map_err(|e| {
-                        log::error!("Database error fetching similar asset: {e}");
-                        AppError::Database("Database operation failed".into())
-                    })?;
+                let asset = app.db.get_asset_by_id(&candidate.asset_id).map_err(|e| {
+                    log::error!("Database error fetching similar asset: {e}");
+                    AppError::Database("Database operation failed".into())
+                })?;
                 let file_name = asset
                     .map(|a| a.file_name)
                     .unwrap_or_else(|| "Unknown".to_string());
@@ -4042,10 +4028,16 @@ mod tests {
     fn licence_tier_serde_camel_case() {
         // Verify the serde encoding is camelCase as the frontend expects.
         let json = serde_json::to_string(&LicenceTier::Professional).expect("serialize");
-        assert_eq!(json, r#""professional""#, "LicenceTier::Professional must serialize as camelCase");
+        assert_eq!(
+            json, r#""professional""#,
+            "LicenceTier::Professional must serialize as camelCase"
+        );
 
         let json_team = serde_json::to_string(&LicenceTier::Team).expect("serialize");
-        assert_eq!(json_team, r#""team""#, "LicenceTier::Team must serialize as 'team'");
+        assert_eq!(
+            json_team, r#""team""#,
+            "LicenceTier::Team must serialize as 'team'"
+        );
 
         let json_enterprise = serde_json::to_string(&LicenceTier::Enterprise).expect("serialize");
         assert_eq!(json_enterprise, r#""enterprise""#);

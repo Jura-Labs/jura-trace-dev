@@ -1,0 +1,2 @@
+sidecar: cd sidecar && JURA_SIDECAR_KEY="" uvicorn main:app --host 127.0.0.1 --port 8200 --reload
+tauri: cargo tauri dev
