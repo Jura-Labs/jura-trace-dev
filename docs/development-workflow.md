@@ -384,22 +384,28 @@ Run `PRAGMA user_version = 1` on the current schema once, before Sprint 20 relea
 
 ## 6. Branching Strategy
 
-### Recommendation: protected main with lightweight feature branches
+### Current approach: main-first for small changes
 
-For a solo developer, the overhead of a full Gitflow is not worth it. The recommended strategy is:
+For a solo developer, committing directly to `main` is a valid and pragmatic choice for small, well-understood changes. It is the current approach and it is fine for:
 
-- `main` is always deployable. Releases are tagged from `main`.
-- Feature work and agent sessions use short-lived branches named `feat/description` or `fix/description`.
-- Branches are merged to `main` after CI passes. No PR review required for solo work — CI is the gate.
-- Branches are deleted after merge.
+- Documentation updates and configuration changes
+- Single-file bug fixes where the change is obvious
+- Dependency version bumps with green CI
 
-This is the simplest strategy that adds a safety net without adding ceremony.
+This is not a problem — it keeps the workflow simple and there is no bureaucratic overhead.
 
-### Why not single-branch?
+### When to use a feature branch
 
-The current single-branch approach works until an agent session produces a broken commit, or until two agent sessions overlap. The worktrees in `.claude/worktrees/` are local only — if the Tauri agent and the testing agent are both working, their changes coexist only in the local filesystem. A branch per session means CI validates each session independently.
+Use a short-lived branch (`feat/`, `fix/`, `chore/`) when:
 
-### Branch naming
+- The change spans multiple files or multiple commits (multi-day work)
+- The change is exploratory or risky (e.g., a new ML detector, a database migration)
+- A Claude Code agent session is handling the work (isolates agent output from `main` until CI passes)
+- You want to be able to abandon the work without reverting commits on `main`
+
+The overhead is minimal: one extra `git checkout -b` and `git push -u origin` at the start, one merge at the end.
+
+### Recommended branch naming
 
 ```
 feat/sprint-17-monitor-ui
@@ -408,18 +414,35 @@ fix/linux-build-torch-exclude
 chore/update-rust-1.89
 ```
 
+### Why not single-branch only?
+
+The single-branch approach works until an agent session produces a broken commit or two agent sessions overlap. The Claude Code worktrees in `.claude/worktrees/` are local only — they do not push to separate branches automatically. A branch per multi-day session means CI validates each session's output independently before it lands on `main`.
+
 ### Release branches
 
-For v1.0, create `release/v1.0` from `main` at code freeze. Patch releases (`v1.0.1`) are tagged from `release/v1.0` and cherry-picked back to `main`. This is only necessary once there is a public release to maintain; before v1.0 tagging from `main` is sufficient.
+For v1.0, create `release/v1.0` from `main` at code freeze. Patch releases (`v1.0.1`) are tagged from `release/v1.0` and cherry-picked back to `main`. This is only necessary once there is a public release to maintain; before v1.0, tagging from `main` is sufficient.
 
-### Recommended GitHub branch protection for `main`
+### GitHub branch protection
 
-At Settings > Branches > Add rule for `main`:
+Branch protection rules (Settings > Branches > Add rule for `main`) require **GitHub Pro or a public repository**. The current private repository on the free plan cannot enforce branch protection.
+
+**Current workaround (free plan, private repo):** Rely on the pre-commit hook (Section 7) and CI as the safety nets. Push to `main` directly for small changes; use feature branches for risky work.
+
+**When to enable branch protection:** Upgrade to GitHub Pro (~$4/month) or make the repository public. Once enabled, configure:
 - Require status checks to pass before merging: `Rust`, `Frontend`, `Python`
 - Do not require pull request reviews (too much overhead for solo work)
 - Do not allow force pushes
 
-This ensures CI must pass on any branch before it can merge to `main`, whether that branch is created by a human or a Claude Code agent.
+### When a co-founder joins
+
+When a second developer joins:
+
+1. **Upgrade to GitHub Pro or make the repo public** — this unlocks branch protection, which becomes essential with two developers working concurrently.
+2. **Require CI to pass on all branches before merge** — the three CI jobs (`Rust`, `Frontend`, `Python`) are the gate.
+3. **Use PRs for all changes** — enables code review, keeps `main` clean, and creates a navigable history.
+4. **Consider `CODEOWNERS`** — a `.github/CODEOWNERS` file ensures the right person reviews changes to sensitive areas (e.g., `src-tauri/src/c2pa.rs`, `sidecar/app/services/`).
+
+The current workflow is intentionally lightweight for solo development. The transition to a two-person workflow requires only a GitHub plan upgrade and enabling branch protection — the CI pipeline, test suite, and documentation are already in place.
 
 ---
 

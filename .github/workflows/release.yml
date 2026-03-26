@@ -91,11 +91,13 @@ jobs:
             # Rust target triple as a suffix.
             sidecar_name: jura-sidecar-aarch64-apple-darwin
 
-          # macOS Intel — macos-13 is the last Intel GHA runner
-          - label: macOS (Intel)
-            runner: macos-13
-            target: x86_64-apple-darwin
-            sidecar_name: jura-sidecar-x86_64-apple-darwin
+          # macOS Intel is intentionally removed from this matrix.
+          # GitHub is deprecating the macos-13 Intel runner (EOL Q3 2026) and
+          # it was causing intermittent cancellations. Intel Mac users can run
+          # the Apple Silicon build under Rosetta 2 without any user action.
+          # Universal binaries (x86_64 + aarch64 merged into one .app) are
+          # planned for Phase A (Sprint 19). Re-add this entry then by building
+          # with --target universal-apple-darwin via cargo-zigbuild or lipo.
 
           # Windows x64 — produces both MSI and NSIS installers
           - label: Windows (x64)
@@ -115,8 +117,11 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
     # The sidecar build (torch + open_clip) can take 10-20 minutes alone on
-    # a cold cache. Allow 90 minutes total to cover cold starts.
-    timeout-minutes: 90
+    # a cold cache. Linux Rust compilation is slower on standard GHA runners
+    # than macOS; 120 minutes avoids timeout failures on cold Linux builds.
+    # If builds are consistently hitting 90+ minutes, add sccache (see
+    # docs/development-workflow.md M2 for the sccache configuration pattern).
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4
@@ -396,7 +401,7 @@ jobs:
             });
             console.log('Uploaded SHA256SUMS.txt');
 
-      # Generate latest.json for the Tauri auto-updater plugin.
+      # Generate the Tauri auto-updater manifest and upload it to the release.
       #
       # Tauri's updater expects a JSON manifest at the URL configured in
       # tauri.conf.json plugins.updater.endpoints.  The format requires a
@@ -405,23 +410,29 @@ jobs:
       # carries a "url" pointing to the .tar.gz update archive and an
       # optional "signature" (minisign) for signed builds.
       #
-      # tauri-action does not auto-generate this manifest unless
-      # updaterJsonPreferNsis/updaterJsonKeepUniversal are set AND the
-      # action is given the release tag directly.  Because this workflow
-      # uses a custom draft-release flow, we build latest.json here from
-      # the assets that tauri-action already uploaded to the draft release.
+      # Beta channel logic:
+      #   Stable tags  (v1.0.0)           → latest.json    (auto-updates all stable users)
+      #   Beta tags    (v1.0.0-beta.1)    → latest-beta.json (auto-updates beta-channel users only)
+      #   RC tags      (v1.0.0-rc.1)      → no manifest written (manual download only)
+      #   Alpha tags   (v1.0.0-alpha.1)   → no manifest written (manual download only)
+      #
+      # In tauri.conf.json, stable builds use:
+      #   "endpoints": [".../releases/latest/download/latest.json"]
+      # Beta builds (tauri.beta.conf.json) use:
+      #   "endpoints": [".../releases/latest/download/latest-beta.json"]
       #
       # Platform keys must match what Tauri's updater expects:
       #   darwin-aarch64  — macOS Apple Silicon
-      #   darwin-x86_64   — macOS Intel
       #   linux-x86_64    — Linux
       #   windows-x86_64  — Windows
       #
-      # For unsigned RC builds, "signature" is an empty string.  When code
+      # darwin-x86_64 (Intel Mac) is omitted — Intel users run the ARM build
+      # under Rosetta 2. Re-add when universal binaries are built (Sprint 19).
+      #
+      # For unsigned builds, "signature" is an empty string.  When code
       # signing is introduced (Sprint 19), each .tar.gz/.zip will have a
-      # companion .sig file uploaded by tauri-action and the signatures
-      # should be read from those assets here.
-      - name: Generate and upload latest.json update manifest
+      # companion .sig file uploaded by tauri-action; read those here.
+      - name: Generate and upload update manifest
         uses: actions/github-script@v7
         env:
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
@@ -439,6 +450,24 @@ jobs:
               release_id: releaseId,
             });
 
+            const tag = release.tag_name; // e.g. "v0.9.0" or "v1.0.0-beta.1"
+
+            // Determine which manifest filename to write (or skip entirely).
+            //   Stable:  latest.json
+            //   Beta:    latest-beta.json
+            //   RC/Alpha: skip (manual download only — do not push updates to any client)
+            const isBeta  = /-(beta)\./.test(tag);
+            const isRcOrAlpha = /-(rc|alpha)\./.test(tag);
+
+            if (isRcOrAlpha) {
+              console.log(`Tag ${tag} is an RC or alpha pre-release — no update manifest will be written.`);
+              console.log('RC/alpha builds are available only via manual GitHub release download.');
+              return;
+            }
+
+            const manifestName = isBeta ? 'latest-beta.json' : 'latest.json';
+            console.log(`Tag ${tag} → writing ${manifestName}`);
+
             // Fetch all assets attached to the draft release.
             const { data: assets } = await github.rest.repos.listReleaseAssets({
               owner: context.repo.owner,
@@ -447,23 +476,19 @@ jobs:
               per_page: 100,
             });
 
-            const tag     = release.tag_name;               // e.g. "v0.9.0"
-            const version = tag.replace(/^v/, '');           // e.g. "0.9.0"
+            const version = tag.replace(/^v/, '');           // e.g. "0.9.0" or "1.0.0-beta.1"
             const baseUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${tag}`;
 
             // Map each Tauri updater platform key to the expected asset suffix.
             // tauri-action produces:
-            //   macOS    → <AppName>_<version>_aarch64.dmg  AND  <AppName>_<version>_aarch64.app.tar.gz
-            //   macOS    → <AppName>_<version>_x64.dmg      AND  <AppName>_<version>_x64.app.tar.gz
-            //   Linux    → <AppName>_<version>_amd64.AppImage  AND  <AppName>_<version>_amd64.AppImage.tar.gz
-            //   Windows  → <AppName>_<version>_x64-setup.exe  (NSIS; no tar.gz)
-            //              <AppName>_<version>_x64_en-US.msi
+            //   macOS    → <AppName>_<version>_aarch64.app.tar.gz
+            //   Linux    → <AppName>_<version>_amd64.AppImage.tar.gz
+            //   Windows  → <AppName>_<version>_x64-setup.nsis.zip
             //
             // The updater downloads the .tar.gz / .zip archive, not the installer.
-            // Windows uses a .zip archive (tauri-action produces <AppName>_<version>_x64-setup.nsis.zip).
+            // darwin-x86_64 omitted — Intel Mac users use Rosetta 2 (see Sprint 19).
             const platformMap = {
               'darwin-aarch64': { suffix: '_aarch64.app.tar.gz' },
-              'darwin-x86_64':  { suffix: '_x64.app.tar.gz' },
               'linux-x86_64':   { suffix: '_amd64.AppImage.tar.gz' },
               'windows-x86_64': { suffix: '_x64-setup.nsis.zip' },
             };
@@ -482,7 +507,7 @@ jobs:
               }
 
               // Look for a companion .sig file (minisign signature for signed builds).
-              // For unsigned RC builds this will be absent and signature stays "".
+              // For unsigned builds this will be absent and signature stays "".
               const sigAsset = assets.find(a => a.name === asset.name + '.sig');
               const signature = sigAsset ? (await (async () => {
                 const sigResp = await github.rest.repos.getReleaseAsset({
@@ -510,13 +535,13 @@ jobs:
             };
 
             const manifestJson = JSON.stringify(manifest, null, 2);
-            console.log('latest.json:\n', manifestJson);
+            console.log(`${manifestName}:\n`, manifestJson);
 
-            const tmpPath = '/tmp/latest.json';
+            const tmpPath = `/tmp/${manifestName}`;
             fs.writeFileSync(tmpPath, manifestJson);
 
-            // Remove any pre-existing latest.json asset (idempotent re-runs).
-            const existingManifest = assets.find(a => a.name === 'latest.json');
+            // Remove any pre-existing manifest asset with this name (idempotent re-runs).
+            const existingManifest = assets.find(a => a.name === manifestName);
             if (existingManifest) {
               await github.rest.repos.deleteReleaseAsset({
                 owner: context.repo.owner,
@@ -529,10 +554,10 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               release_id: releaseId,
-              name: 'latest.json',
+              name: manifestName,
               data: fs.readFileSync(tmpPath),
             });
-            console.log('Uploaded latest.json');
+            console.log(`Uploaded ${manifestName}`);
 
       - name: Publish release
         uses: actions/github-script@v7
