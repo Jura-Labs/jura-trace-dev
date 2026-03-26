@@ -1,3 +1,6 @@
+# CI-safe requirements — excludes heavy optional dependencies
+# open-clip-torch (~2 GB PyTorch), faster-whisper, chromadb, sentence-transformers
+# All excluded packages are lazy-loaded at runtime and degrade gracefully
 fastapi==0.115.12
 uvicorn[standard]==0.34.0
 httpx==0.28.1
@@ -10,9 +13,5 @@ scikit-learn==1.8.0
 scikit-image==0.26.0
 scipy==1.17.1
 invisible-watermark==0.2.0
-chromadb==0.5.23
-sentence-transformers==3.4.1
 python-dotenv==1.1.0
 pydantic==2.11.3
-pytest>=8.0
-pytest-asyncio>=0.24
