@@ -4,12 +4,14 @@
   import OnboardingOverlay from '$lib/components/OnboardingOverlay.svelte';
   import SetupWizard from '$lib/components/SetupWizard.svelte';
   import LogoMark from '$lib/components/LogoMark.svelte';
+  import FeedbackPanel from '$lib/components/FeedbackPanel.svelte';
 
   let { children } = $props();
 
   let darkMode = $state(true);
   let showOnboarding = $state(false);
   let showSetupWizard = $state(false);
+  let showFeedback = $state(false);
   let mobileMenuOpen = $state(false);
   let currentPath = $state('/');
 
@@ -241,6 +243,12 @@
           Keep people at the heart of every decision. Use technology to support and guide, not to take over.
         </p>
         <div class="flex items-center gap-4 text-xs">
+          <button
+            onclick={() => showFeedback = true}
+            class="text-xs text-flint dark:text-flint-light hover:text-lapis dark:hover:text-lapis-light transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
+          >
+            Feedback
+          </button>
           <a
             href="https://juralabs.org"
             target="_blank"
@@ -271,4 +279,8 @@
 
 {#if showSetupWizard}
   <SetupWizard onComplete={completeSetup} />
+{/if}
+
+{#if showFeedback}
+  <FeedbackPanel onClose={() => showFeedback = false} />
 {/if}
