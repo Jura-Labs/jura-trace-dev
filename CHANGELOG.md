@@ -6,6 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Architecture Decisions (27 Mar 2026)
+
+**Assessed** proposed architecture changes against existing codebase. Key decisions:
+- **REJECT** pure Rust analysis pipeline (110-160 pts risk, 308 Python tests at stake)
+- **REJECT** eliminating Tauri desktop shell (27 Svelte components, 110 Playwright tests)
+- **REJECT** removing Team tier (strands 3 personas in £4.7K→£18K gap)
+- **REJECT** expanding v1.0 scope (would delay 6-9 sprints)
+- **ADOPT** shared Rust library crate extraction in Phase A Sprint 23
+- **ADOPT** 4 new consumer personas (Ravi, Sarah M, Jordan, Priya — 14 total)
+- **ADOPT** `plain_english_summary` response field (Phase A, 2-3 pts)
+- **DEFER** JWT/Redis/CORS to Jura Check decision gate (June 2026)
+- **DEFER** async video jobs + SSE to Jura Check integration
+- **Architecture**: two products (Jura Trace desktop + Jura Check hosted API) sharing a common Rust library crate + Python sidecar
+
+Full analysis: `docs/api-architecture-assessment.md`
+
+---
+
 ## Sprint 20 — Persona Conversion & Tier Management (25 Mar 2026)
 
 ### Licence Tier Management

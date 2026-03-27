@@ -17,7 +17,7 @@ Jura Trace is one of two products built by **Jura Labs** (UK Social Enterprise �
 
 **Developed by**: Juralabs Community Interest Company (UK) — https://juralabs.org
 **Licence**: PolyForm Noncommercial 1.0.0
-**Current Version**: 0.9.0-rc.2 (Phase 3 — Sprint 20 in progress, persona conversion features shipped)
+**Current Version**: 0.9.0-rc.3 (Phase 3 — Sprint 20 in progress, v1.0 blocked on signing certs only)
 
 ## Core Architecture
 
@@ -302,6 +302,30 @@ Deepfake classifier retrained: AUC-ROC 1.0000 (was 0.945), FP rate 0% (was 14%).
 - **Philosophy**: "Keep people at the heart of every decision. Use technology to support and guide, not to take over."
 - **Theme**: Sanctuary — warm dark backgrounds, cream text, Georgia serif headings, editorial layout (900px width), earth-line gradient dividers, generous whitespace
 - **Design**: System fonts, no emojis, WCAG 2.2 AA, Lighthouse 97% accessibility
+
+## Product Architecture (Post-v1.0)
+
+Two products sharing a common detection engine:
+
+```
+                    SHARED CORE
+                    (Rust library crate — extracted Phase A Sprint 23)
+                   /                     \
+    Jura Trace Desktop              Jura Check API (post-June gate)
+    (Tauri v2 + SvelteKit)          (Axum, cloud-hosted)
+    - Local-first, offline           - JWT + Redis
+    - Python sidecar (local 8200)    - Python sidecar (container)
+    - B2B tiers (5-tier)             - Consumer tiers (4-tier)
+    - Port 8300 (local API)          - verify.juralabs.org
+```
+
+**Architecture decisions (27 March 2026):**
+- Python sidecar stays — rewriting 21 ML services in Rust rejected (110-160 pts risk)
+- Tauri desktop shell stays — the product ships in April/May 2026
+- Two separate APIs: local desktop (API key) + hosted consumer (JWT/Redis) — decided at June gate
+- Team tier retained — £79/seat/mo fills the £199→£6K gap
+- Consumer tiers (Free/Personal/Family/Creator) scoped under Jura Check, not Jura Trace
+- 14 personas total: 10 existing B2B + 4 new consumer (Ravi, Sarah M, Jordan, Priya)
 
 ## Relationship to ROOTED
 
