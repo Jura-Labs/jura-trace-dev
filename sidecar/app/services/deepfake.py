@@ -14,6 +14,7 @@ later once training data is assembled.
 
 import base64
 import io
+import logging
 import math
 import os
 import sys
@@ -22,10 +23,13 @@ import cv2
 import numpy as np
 from PIL import Image
 from scipy.fft import fft2, fftshift, dctn
+from scipy.ndimage import laplace
 from skimage.feature import local_binary_pattern, graycomatrix, graycoprops
 from skimage.restoration import denoise_wavelet
 
 from app.models.schemas import DeepfakeResponse, DeepfakeSignal, WatermarkDetection
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_models_dir() -> str:
@@ -300,6 +304,176 @@ def detect_sd_watermark(image_bytes: bytes) -> list[WatermarkDetection]:
     return detections
 
 
+# ── Screenshot Pre-Classifier ─────────────────────────────────────────────
+
+# Common display resolutions (width, height). Both orientations are checked.
+_SCREEN_RESOLUTIONS: set[tuple[int, int]] = {
+    # Desktop 16:9
+    (1920, 1080), (2560, 1440), (3840, 2160), (1366, 768), (1600, 900),
+    (1536, 864), (1280, 720), (1280, 800),
+    # macOS Retina / non-Retina
+    (1440, 900), (2880, 1800), (1680, 1050), (3360, 2100),
+    (2560, 1600), (3024, 1964), (2880, 1920),
+    # Ultrawide
+    (3440, 1440), (2560, 1080),
+    # Phone (portrait)
+    (750, 1334), (1170, 2532), (1284, 2778), (1080, 2400),
+    (1080, 1920), (1440, 2560), (1440, 3200), (1080, 2340),
+    (828, 1792), (1125, 2436), (1242, 2688),
+    # Tablets
+    (2048, 2732), (2360, 1640), (2388, 1668), (2732, 2048),
+}
+
+
+def is_likely_screenshot(image_bytes: bytes) -> tuple[bool, float, dict[str, float]]:
+    """Detect whether an image is likely a screenshot (UI render, not a photograph).
+
+    Screenshots share several features with AI-generated images — no EXIF, PNG
+    format, very low noise, high LBP uniformity — which cause the heuristic
+    ensemble to produce false positives. This lightweight pre-classifier
+    (~5-20 ms) gates obvious screenshots away from the full detection pipeline.
+
+    Returns:
+        (is_screenshot, confidence, signal_dict) where signal_dict contains
+        the individual signal values for diagnostic/testing purposes.
+    """
+    try:
+        pil_image = Image.open(io.BytesIO(image_bytes))
+    except Exception:
+        return False, 0.0, {}
+
+    signals: dict[str, float] = {}
+
+    # ── 1. Format: screenshots are almost always PNG ──────────────────
+    is_png = pil_image.format == "PNG"
+    signals["png_format"] = 1.0 if is_png else 0.0
+
+    # ── 2. EXIF: screenshots have no camera metadata ─────────────────
+    exif = pil_image.getexif()
+    has_exif = len(exif) > 0
+    signals["no_exif"] = 0.0 if has_exif else 1.0
+
+    # Convert to greyscale array for analysis
+    img_rgb = pil_image.convert("RGB")
+    arr = np.array(img_rgb)
+    if len(arr.shape) == 3:
+        grey = np.mean(arr, axis=2)
+    else:
+        grey = arr.astype(np.float64)
+
+    # ── 3. Noise variance via Laplacian (robust, edge-excluded) ─────
+    # Rendered pixels have near-zero noise; camera sensors always add noise.
+    # Global Laplacian variance is inflated by sharp UI edges, so we use
+    # the *median* absolute Laplacian — robust to the sparse edge pixels
+    # that dominate variance in screenshots.
+    # Screenshots typically: median_abs_lap < 0.5. Photos: > 2.0.
+    # AI-generated PNGs: 0.5-3.0 (model-dependent).
+    lap = laplace(grey)
+    abs_lap = np.abs(lap)
+    median_abs_lap = float(np.median(abs_lap))
+    if median_abs_lap < 0.5:
+        signals["low_noise"] = 1.0
+    elif median_abs_lap < 2.0:
+        signals["low_noise"] = 0.5
+    else:
+        signals["low_noise"] = 0.0
+
+    # ── 4. Solid-colour region ratio ─────────────────────────────────
+    # UI elements produce large uniform blocks (backgrounds, panels, bars).
+    # Photographs rarely have blocks with std < 3.0.
+    h, w = grey.shape
+    block_h, block_w = max(h // 16, 1), max(w // 16, 1)
+    n_rows, n_cols = h // block_h, w // block_w
+    if n_rows > 0 and n_cols > 0:
+        uniform_blocks = 0
+        total_blocks = 0
+        for by in range(n_rows):
+            for bx in range(n_cols):
+                block = grey[by * block_h:(by + 1) * block_h,
+                             bx * block_w:(bx + 1) * block_w]
+                if np.std(block) < 3.0:
+                    uniform_blocks += 1
+                total_blocks += 1
+        solid_ratio = uniform_blocks / total_blocks if total_blocks > 0 else 0.0
+    else:
+        solid_ratio = 0.0
+    # Screenshots typically have 15-60% solid blocks; photos < 5%
+    if solid_ratio > 0.25:
+        signals["solid_regions"] = 1.0
+    elif solid_ratio > 0.10:
+        signals["solid_regions"] = 0.5
+    else:
+        signals["solid_regions"] = 0.0
+
+    # ── 5. Screen resolution match ───────────────────────────────────
+    iw, ih = pil_image.size
+    is_screen_res = (iw, ih) in _SCREEN_RESOLUTIONS or (ih, iw) in _SCREEN_RESOLUTIONS
+    signals["screen_resolution"] = 1.0 if is_screen_res else 0.0
+
+    # ── 6. Sharp 1-pixel edges (UI borders, text) ────────────────────
+    # Rendered UI has perfectly crisp single-step transitions that never
+    # occur in camera photos (which always have gradual gradients due to
+    # lens blur and sensor interpolation). We detect both horizontal and
+    # vertical sharp transitions — isolated large gradient pixels where
+    # adjacent gradient values are near zero.
+    if w > 4 and h > 4:
+        # Horizontal gradients
+        h_grad = np.abs(np.diff(grey, axis=1))
+        left_calm = np.pad(h_grad[:, :-1], ((0, 0), (1, 0)), constant_values=0) < 5
+        right_calm = np.pad(h_grad[:, 1:], ((0, 0), (0, 1)), constant_values=0) < 5
+        h_sharp = (h_grad > 20) & left_calm & right_calm
+
+        # Vertical gradients
+        v_grad = np.abs(np.diff(grey, axis=0))
+        top_calm = np.pad(v_grad[:-1, :], ((1, 0), (0, 0)), constant_values=0) < 5
+        bot_calm = np.pad(v_grad[1:, :], ((0, 1), (0, 0)), constant_values=0) < 5
+        v_sharp = (v_grad > 20) & top_calm & bot_calm
+
+        total_pixels = max(h_grad.size + v_grad.size, 1)
+        sharp_count = float(np.sum(h_sharp) + np.sum(v_sharp))
+        sharp_edge_ratio = sharp_count / total_pixels
+        # Screenshots: 0.1-2% sharp single-step edges; photos: < 0.02%
+        if sharp_edge_ratio > 0.001:
+            signals["sharp_edges"] = 1.0
+        elif sharp_edge_ratio > 0.0005:
+            signals["sharp_edges"] = 0.5
+        else:
+            signals["sharp_edges"] = 0.0
+    else:
+        signals["sharp_edges"] = 0.0
+
+    # ── 7. Colour channel uniqueness ─────────────────────────────────
+    # Screenshots use limited colour palettes compared to photos.
+    # Subsample for speed.
+    sample = arr[::4, ::4].reshape(-1, 3) if arr.shape[0] > 8 and arr.shape[1] > 8 else arr.reshape(-1, 3)
+    unique_colours = len(np.unique(sample, axis=0))
+    total_pixels = len(sample)
+    colour_ratio = unique_colours / total_pixels if total_pixels > 0 else 1.0
+    # Screenshots: typically < 10% unique colours; photos: 60-95%
+    if colour_ratio < 0.05:
+        signals["limited_palette"] = 1.0
+    elif colour_ratio < 0.15:
+        signals["limited_palette"] = 0.5
+    else:
+        signals["limited_palette"] = 0.0
+
+    # ── Weighted composite score ─────────────────────────────────────
+    weights = {
+        "png_format": 0.10,
+        "no_exif": 0.15,
+        "low_noise": 0.20,
+        "solid_regions": 0.20,
+        "screen_resolution": 0.05,
+        "sharp_edges": 0.15,
+        "limited_palette": 0.15,
+    }
+
+    score = sum(weights[name] * signals[name] for name in weights)
+    is_screenshot_flag = score > 0.60
+
+    return is_screenshot_flag, round(score, 4), signals
+
+
 # ── Codec Classification ─────────────────────────────────────────────────
 
 # Per-codec threshold profiles. Calibrated against real mobile phone photos
@@ -421,6 +595,52 @@ def _perform_deepfake_detection_impl(
         img_array = np.array(pil_image)
     except Exception as exc:
         raise ValueError(f"Cannot decode image: {exc}") from exc
+
+    # ── Screenshot pre-classifier ─────────────────────────────────────
+    # Screenshots (UI renders) share features with AI images — no EXIF,
+    # PNG format, uniform noise, high LBP uniformity — causing false
+    # positives. Gate high-confidence screenshots away from the ensemble.
+    screenshot_flag, screenshot_conf, screenshot_signals = is_likely_screenshot(image_bytes)
+    if screenshot_flag and screenshot_conf > 0.70:
+        logger.info(
+            "Screenshot pre-classifier triggered (confidence=%.2f, signals=%s). "
+            "Bypassing deepfake ensemble.",
+            screenshot_conf, screenshot_signals,
+        )
+        # Generate a minimal heatmap from the decoded image for UI consistency
+        img_resized = _resize(img_array, analysis_size)
+        grey_for_heatmap = cv2.cvtColor(img_resized, cv2.COLOR_RGB2GRAY)
+        heatmap_base64 = _generate_spectrum_heatmap(grey_for_heatmap)
+
+        response = DeepfakeResponse(
+            score=0.05,
+            suspicious=False,
+            confidence="high",
+            verdict_level="authentic",
+            signals=[
+                DeepfakeSignal(
+                    name="screenshot_detected",
+                    description=(
+                        f"Image identified as a screenshot (confidence: {screenshot_conf:.0%}). "
+                        f"Screenshot characteristics (uniform noise, no camera metadata, "
+                        f"solid-colour regions) are expected and do not indicate AI generation."
+                    ),
+                    weight=0.0,
+                    triggered=False,
+                ),
+            ],
+            heatmap_base64=heatmap_base64,
+            summary=(
+                f"Image identified as a screenshot (confidence: {screenshot_conf:.0%}). "
+                f"Screenshot characteristics are expected and do not indicate AI generation."
+            ),
+            watermarks=[],
+            classifier_score=None,
+            classifier_available=False,
+            univfd_score=None,
+            univfd_available=False,
+        )
+        return response, {"screenshot_confidence": screenshot_conf}
 
     # Resize for consistent analysis
     img_array = _resize(img_array, analysis_size)
