@@ -126,6 +126,45 @@
   let elaOpacity = $state(60);
   let elaBlendMode = $state<'normal' | 'multiply' | 'difference'>('normal');
 
+  // ── Image zoom state ─────────────────────────────────────────────
+  let showZoomModal = $state(false);
+  let zoomLevel = $state(1);
+
+  function handleImageClick() {
+    showZoomModal = true;
+    zoomLevel = 1;
+  }
+
+  function handleZoomWheel(e: WheelEvent) {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.25 : 0.25;
+    zoomLevel = Math.min(Math.max(zoomLevel + delta, 0.5), 5);
+  }
+
+  // ── Image inspection filter state ────────────────────────────────
+  type InspectFilter = 'none' | 'grayscale' | 'invert' | 'contrast' | 'saturate' | 'edges';
+  let activeFilter = $state<InspectFilter>('none');
+  let brightness = $state(100);
+  let contrast = $state(100);
+
+  function getFilterStyle(filter: InspectFilter): string {
+    const base =
+      filter === 'grayscale' ? 'grayscale(100%)' :
+      filter === 'invert'    ? 'invert(100%)' :
+      filter === 'contrast'  ? 'contrast(300%) brightness(1.2)' :
+      filter === 'saturate'  ? 'saturate(500%)' :
+      filter === 'edges'     ? 'grayscale(100%) contrast(500%) brightness(0.8)' :
+      '';
+    const adjustments = `brightness(${brightness}%) contrast(${contrast}%)`;
+    return base ? `${base} ${adjustments}` : adjustments;
+  }
+
+  function resetInspection() {
+    activeFilter = 'none';
+    brightness = 100;
+    contrast = 100;
+  }
+
   // ── Scroll-to-top visibility ──────────────────────────────────────
   let showScrollTop = $state(false);
 
@@ -403,7 +442,9 @@
 
     function handleEsc(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        if (showFalsePositiveModal) {
+        if (showZoomModal) {
+          showZoomModal = false;
+        } else if (showFalsePositiveModal) {
           showFalsePositiveModal = false;
         } else if (showReportModal) {
           showReportModal = false;
@@ -679,6 +720,11 @@
     showElaOverlay = false;
     elaOpacity = 60;
     elaBlendMode = 'normal';
+    showZoomModal = false;
+    zoomLevel = 1;
+    activeFilter = 'none';
+    brightness = 100;
+    contrast = 100;
     activeSection = null;
   }
 
@@ -1603,14 +1649,34 @@
         <div class="flex gap-3 items-start">
           <!-- Main image container -->
           <div class="flex-1 rounded-lg overflow-hidden border border-border-light dark:border-border-dark bg-obsidian/30">
-            <!-- Image with optional ELA overlay -->
-            <div class="relative">
-              <img
-                src={previewUrl}
-                alt="Analysed file"
-                class="w-full max-h-[400px] object-contain block"
-                loading="lazy"
-              />
+            <!-- Image with optional ELA overlay — click to open zoom modal -->
+            <div class="relative group cursor-zoom-in" role="presentation">
+              <button
+                type="button"
+                class="w-full block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-inset"
+                onclick={handleImageClick}
+                aria-label="Open zoom viewer for {fileName ?? 'analysed file'}"
+              >
+                <img
+                  src={previewUrl}
+                  alt="Analysed file"
+                  class="w-full max-h-[400px] object-contain block"
+                  loading="lazy"
+                  style="filter: {getFilterStyle(activeFilter)};"
+                />
+              </button>
+              <!-- Zoom hint badge -->
+              <div
+                class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 motion-safe:transition-opacity duration-150 pointer-events-none
+                       bg-obsidian/70 rounded px-1.5 py-1 flex items-center gap-1"
+                aria-hidden="true"
+              >
+                <svg class="w-3.5 h-3.5 text-quartz" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0zm-2 0h-4m2-2v4" />
+                </svg>
+                <span class="text-xs text-quartz">Zoom</span>
+              </div>
               {#if showElaOverlay && elaHeatmapUrl}
                 <img
                   src={elaHeatmapUrl}
@@ -1622,13 +1688,98 @@
               {/if}
             </div>
 
-            <!-- Image caption + overlay controls -->
-            <div class="px-3 py-2 border-t border-border-light dark:border-border-dark bg-white/50 dark:bg-graphite/50">
-              <p class="text-xs text-flint dark:text-flint-light truncate mb-1.5" title={fileName ?? undefined}>
+            <!-- Image caption, inspection tools + overlay controls -->
+            <div class="px-3 py-2.5 border-t border-border-light dark:border-border-dark bg-white/50 dark:bg-graphite/50 space-y-2.5">
+              <p class="text-xs text-flint dark:text-flint-light truncate" title={fileName ?? undefined}>
                 {fileName}
               </p>
+
+              <!-- Inspection filter toolbar -->
+              <div>
+                <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Visual inspection filters">
+                  <span class="text-xs text-flint dark:text-flint-light mr-0.5 flex-shrink-0">Inspect:</span>
+
+                  {#each ([
+                    { key: 'grayscale', label: 'Greyscale', title: 'Remove colour to reveal tonal patterns and cloning artefacts' },
+                    { key: 'invert',    label: 'Invert',    title: 'Flip colours — can reveal hidden watermarks and subtle gradients' },
+                    { key: 'contrast',  label: 'High Contrast', title: 'Amplify regional differences to reveal compression artefacts' },
+                    { key: 'saturate',  label: 'Saturate',  title: 'Exaggerate colour differences between potentially spliced regions' },
+                    { key: 'edges',     label: 'Edge Detect', title: 'Reveal edge boundaries — useful for spotting composite seams' },
+                  ] as const) as item}
+                    <button
+                      type="button"
+                      title={item.title}
+                      onclick={() => { activeFilter = activeFilter === item.key ? 'none' : item.key as InspectFilter; }}
+                      class="text-xs px-2 py-1 min-h-[28px] rounded border transition-colors duration-150
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1
+                             focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                             {activeFilter === item.key
+                               ? 'border-lapis bg-lapis/10 text-lapis dark:text-lapis-light font-medium'
+                               : 'border-border-light dark:border-border-dark text-gray-600 dark:text-flint-light hover:border-lapis/50 dark:hover:border-lapis-light/50'}"
+                      aria-pressed={activeFilter === item.key}
+                    >
+                      {item.label}
+                    </button>
+                  {/each}
+
+                  {#if activeFilter !== 'none' || brightness !== 100 || contrast !== 100}
+                    <button
+                      type="button"
+                      onclick={resetInspection}
+                      class="text-xs px-2 py-1 min-h-[28px] text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                      aria-label="Reset all image inspection filters"
+                    >
+                      Reset
+                    </button>
+                  {/if}
+                </div>
+
+                <!-- Brightness / Contrast sliders -->
+                <div class="flex items-center gap-4 mt-2 flex-wrap">
+                  <div class="flex items-center gap-2">
+                    <label class="text-xs text-flint dark:text-flint-light flex-shrink-0" for="inspect-brightness">Brightness</label>
+                    <input
+                      id="inspect-brightness"
+                      type="range"
+                      min="50"
+                      max="200"
+                      bind:value={brightness}
+                      class="w-20 accent-lapis cursor-pointer"
+                      aria-label="Image brightness: {brightness}%"
+                    />
+                    <span class="text-xs tabular-nums text-flint dark:text-flint-light w-9 flex-shrink-0">{brightness}%</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <label class="text-xs text-flint dark:text-flint-light flex-shrink-0" for="inspect-contrast">Contrast</label>
+                    <input
+                      id="inspect-contrast"
+                      type="range"
+                      min="50"
+                      max="300"
+                      bind:value={contrast}
+                      class="w-20 accent-lapis cursor-pointer"
+                      aria-label="Image contrast: {contrast}%"
+                    />
+                    <span class="text-xs tabular-nums text-flint dark:text-flint-light w-9 flex-shrink-0">{contrast}%</span>
+                  </div>
+                </div>
+
+                <!-- Link to Visual Inspection Checklist -->
+                <p class="mt-1.5">
+                  <a
+                    href="#inspection-checklist"
+                    onclick={(e) => { e.preventDefault(); showInspectionChecklist = true; requestAnimationFrame(() => document.getElementById('inspection-checklist')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }}
+                    class="text-xs text-lapis dark:text-lapis-light hover:underline
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                  >
+                    Visual Inspection Checklist (8 items)
+                  </a>
+                </p>
+              </div>
+
               {#if elaHeatmapUrl}
-                <div class="flex flex-wrap items-center gap-3">
+                <div class="flex flex-wrap items-center gap-3 pt-1 border-t border-border-light/50 dark:border-border-dark/50">
                   <label class="flex items-center gap-1.5 cursor-pointer select-none min-h-[24px]">
                     <input
                       type="checkbox"
@@ -1893,9 +2044,12 @@
               {#if result.aiDescription}
                 <li class="flex items-start gap-2">
                   <span class="w-2 h-2 rounded-full bg-lapis dark:bg-lapis-light mt-1.5 flex-shrink-0" aria-hidden="true"></span>
-                  <span class="text-sm text-gray-800 dark:text-quartz leading-relaxed">
-                    AI description: <span class="italic text-gray-600 dark:text-flint-light">"{result.aiDescription.slice(0, 120)}{result.aiDescription.length > 120 ? '...' : ''}"</span>
-                  </span>
+                  <div>
+                    <span class="font-medium text-sm text-gray-800 dark:text-quartz">AI Description</span>
+                    <p class="text-sm text-gray-600 dark:text-flint-light italic leading-relaxed mt-0.5 break-words">
+                      "{result.aiDescription}"
+                    </p>
+                  </div>
                 </li>
               {/if}
             </ul>
@@ -2028,7 +2182,7 @@
       </div>
 
       <!-- ── Visual Inspection Checklist ──────────────────────────── -->
-      <div class="px-5 py-3 border-b border-border-dark">
+      <div id="inspection-checklist" class="px-5 py-3 border-b border-border-dark">
         <button
           class="flex items-center gap-2 text-sm text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
@@ -3840,7 +3994,7 @@
           >
             AI Image Description
           </h3>
-          <p class="text-sm text-obsidian dark:text-quartz leading-relaxed italic">
+          <p class="text-sm text-obsidian dark:text-quartz leading-relaxed italic break-words whitespace-pre-wrap">
             "{result.aiDescription}"
           </p>
           <p class="mt-2 text-xs text-flint dark:text-flint-light">
@@ -3924,6 +4078,106 @@
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
     </svg>
   </button>
+{/if}
+
+<!-- ── Image Zoom Modal ───────────────────────────────────────────── -->
+{#if showZoomModal && previewUrl}
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div
+    class="fixed inset-0 z-50 bg-obsidian/95 flex items-center justify-center"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Image zoom viewer"
+    onclick={() => { showZoomModal = false; }}
+    onkeydown={(e) => {
+      if (e.key === 'Escape') { showZoomModal = false; }
+      if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomLevel = Math.min(zoomLevel + 0.5, 5); }
+      if (e.key === '-') { e.preventDefault(); zoomLevel = Math.max(zoomLevel - 0.5, 0.5); }
+    }}
+    tabindex="-1"
+  >
+    <!-- Close button -->
+    <button
+      type="button"
+      class="absolute top-4 right-4 z-10 p-2 min-h-[44px] min-w-[44px] rounded-full
+             text-quartz hover:text-white bg-graphite/60 hover:bg-graphite
+             transition-colors duration-150
+             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian"
+      onclick={(e) => { e.stopPropagation(); showZoomModal = false; }}
+      aria-label="Close zoom viewer"
+    >
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+
+    <!-- Keyboard shortcut hint -->
+    <p class="absolute top-4 left-4 text-xs text-quartz/60 select-none pointer-events-none" aria-hidden="true">
+      + / − to zoom &nbsp;·&nbsp; Esc to close
+    </p>
+
+    <!-- Scrollable image area — wheel zoom applied here -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div
+      class="overflow-auto max-h-[90vh] max-w-[90vw] flex items-center justify-center"
+      onclick={(e) => { e.stopPropagation(); }}
+      onwheel={handleZoomWheel}
+    >
+      <img
+        src={previewUrl}
+        alt="Zoomed view of {fileName ?? 'analysed file'}"
+        class="max-w-none motion-safe:transition-transform duration-200"
+        style="transform: scale({zoomLevel}); transform-origin: center; filter: {getFilterStyle(activeFilter)};"
+      />
+    </div>
+
+    <!-- Zoom controls -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div
+      class="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2
+             bg-graphite/90 rounded-lg px-4 py-2 border border-graphite-light/30"
+      onclick={(e) => { e.stopPropagation(); }}
+      role="group"
+      aria-label="Zoom controls"
+    >
+      <button
+        type="button"
+        class="w-8 h-8 flex items-center justify-center text-quartz hover:text-white rounded transition-colors
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis text-lg font-light"
+        onclick={() => { zoomLevel = Math.max(zoomLevel - 0.5, 0.5); }}
+        aria-label="Zoom out"
+        disabled={zoomLevel <= 0.5}
+      >
+        −
+      </button>
+      <span class="text-sm text-quartz tabular-nums w-14 text-center select-none">
+        {Math.round(zoomLevel * 100)}%
+      </span>
+      <button
+        type="button"
+        class="w-8 h-8 flex items-center justify-center text-quartz hover:text-white rounded transition-colors
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis text-lg font-light"
+        onclick={() => { zoomLevel = Math.min(zoomLevel + 0.5, 5); }}
+        aria-label="Zoom in"
+        disabled={zoomLevel >= 5}
+      >
+        +
+      </button>
+      <span class="text-quartz/40 select-none px-1" aria-hidden="true">|</span>
+      <button
+        type="button"
+        class="text-xs text-flint-light hover:text-quartz transition-colors px-2 py-1 rounded
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+        onclick={() => { zoomLevel = 1; }}
+        aria-label="Reset zoom to 100%"
+        disabled={zoomLevel === 1}
+      >
+        Reset
+      </button>
+    </div>
+  </div>
 {/if}
 
 <!-- ── False Positive Modal ──────────────────────────────────────── -->
