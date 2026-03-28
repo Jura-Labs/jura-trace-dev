@@ -483,10 +483,11 @@
       }
       _batchTimes.push(performance.now() - t0);
 
-      // Compute ETA from rolling average of per-file times
+      // Compute ETA from windowed rolling average (last 8 files)
       const remaining = batchTotal - batchProgress;
       if (remaining > 0 && _batchTimes.length > 0) {
-        const avg = _batchTimes.reduce((a, b) => a + b, 0) / _batchTimes.length;
+        const window = _batchTimes.slice(-8);
+        const avg = window.reduce((a, b) => a + b, 0) / window.length;
         const etaMs = avg * remaining;
         if (etaMs < 60_000) {
           batchEta = `~${Math.max(1, Math.round(etaMs / 1000))}s remaining`;
@@ -592,7 +593,8 @@
 
       const remaining = batchSignTotal - batchSignProgress;
       if (remaining > 0 && _batchSignTimes.length > 0) {
-        const avg = _batchSignTimes.reduce((a, b) => a + b, 0) / _batchSignTimes.length;
+        const window = _batchSignTimes.slice(-8);
+        const avg = window.reduce((a, b) => a + b, 0) / window.length;
         const etaMs = avg * remaining;
         if (etaMs < 60_000) {
           batchSignEta = `~${Math.max(1, Math.round(etaMs / 1000))}s remaining`;

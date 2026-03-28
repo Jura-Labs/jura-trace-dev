@@ -6,6 +6,59 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Sprint 17 — Quality Floor & Deployment Readiness (28 Mar 2026)
+
+### IPC Error Architecture (S17-A1/A2/A3)
+
+**Changed**
+- `AppError::serialize` now returns structured JSON `{ "code": "Sidecar", "message": "..." }` instead of plain string — frontend can branch on error type without string-sniffing
+- Verify page `setError()` uses `parseAppError()` to match on structured `code` field first, with graceful fallback for legacy string errors
+- Tiered error banner copy: dev mode shows technical `uvicorn` command, production shows user-friendly restart message
+- Error-specific messaging: Sidecar, FileSystem, Database, C2pa, Validation, Internal each have tailored user-facing copy
+- Test hooks (`__juraSetVerifyResult`, `__juraSetVerifyError`) gated behind `import.meta.env.DEV` — removed from production builds
+- `data-testid="error-banner"` and `data-error-code` attributes for Playwright assertions decoupled from copy strings
+- 2 new Rust tests: `serialize_returns_structured_object`, `serialize_all_variants_have_correct_code`
+
+### Database & Deployment (S17-B1/B2)
+
+**Added**
+- `resolve_db_path()` supports 3-level priority: `JURA_DB_PATH` env var > `config.json` `db_path` key > default `app_data_dir`
+- Settings page shows active database path with "Change location..." button (atomic copy to new path)
+- `docs/DEPLOYMENT.md` — comprehensive deployment guide covering system requirements, database location, sidecar authentication, FFmpeg, Ollama, speech transcription, network configuration, institutional deployment notes
+
+### Video Deepfake Quality (S17-C1)
+
+**Changed**
+- `deduplicate_frames()` now uses rolling buffer (default size 5) instead of single-frame comparison — catches cyclical video duplicates
+- 12 rolling buffer tests including cyclical detection, buffer size limits, and performance assertions
+
+### Privacy & UX (S17-D1/D2)
+
+**Added**
+- Source protection privacy warning in Investigate Further panel — amber banner advising caution with reverse image search for sensitive/unpublished material
+- Batch watermark and batch sign ETA now uses windowed rolling average (last 8 files) for more accurate estimates with mixed file sizes
+
+### Platform Installer Prerequisite (S17-E1)
+
+**Added**
+- `sidecar/jura-sidecar.spec` — PyInstaller spec file for frozen sidecar binary
+- `docs/pyinstaller-spike-findings.md` — spike results documenting hidden imports, data files, optional dependency exclusions (torch, open_clip), estimated binary size
+
+### Advanced Investigation Vision
+
+**Added**
+- `docs/esper-machine-vision.md` — 556-line Blade Runner Esper Machine-inspired vision document for next-generation image investigation tools (geolocation, temporal analysis, enhanced inspection, metadata intelligence, context/provenance, AI-specific detection)
+- `docs/personas/investigation-workflows.md` — detailed investigation workflows for 4 personas (journalist, BBC Verify, OSINT fact-checker, human rights documenter)
+
+### Test Counts
+
+- **Rust**: 236 tests passing, clippy clean
+- **Python**: 308+ tests (24 video deepfake including rolling buffer)
+- **Frontend**: 0 svelte-check errors across 223 files
+- **Playwright**: 110+ e2e tests
+
+---
+
 ## Architecture Decisions (27 Mar 2026)
 
 **Assessed** proposed architecture changes against existing codebase. Key decisions:

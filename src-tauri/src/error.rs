@@ -65,15 +65,34 @@ impl AppError {
     }
 }
 
-/// Serialize `AppError` as a plain string so Tauri can return it across the
-/// IPC boundary.  The serialised value is the `Display` output, which is the
-/// **generic** user-facing message — raw details are never included.
+/// Serialize `AppError` as a structured JSON object so the frontend can
+/// branch on error type without string-sniffing:
+///
+/// ```json
+/// { "code": "Sidecar", "message": "Analysis service unavailable" }
+/// ```
+///
+/// The `code` field is the enum variant name (stable, machine-readable).
+/// The `message` field is the `Display` output (user-facing, can change freely).
+/// Raw details are never included — they travel only to the process log.
 impl serde::Serialize for AppError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.to_string())
+        use serde::ser::SerializeMap;
+        let code = match self {
+            AppError::Database(_) => "Database",
+            AppError::FileSystem(_) => "FileSystem",
+            AppError::Sidecar(_) => "Sidecar",
+            AppError::Validation(_) => "Validation",
+            AppError::C2pa(_) => "C2pa",
+            AppError::Internal(_) => "Internal",
+        };
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry("code", code)?;
+        map.serialize_entry("message", &self.to_string())?;
+        map.end()
     }
 }
 
@@ -141,10 +160,36 @@ mod tests {
     }
 
     #[test]
-    fn serialize_returns_display_string() {
+    fn serialize_returns_structured_object() {
         let err = AppError::Database("raw detail".to_string());
         let json = serde_json::to_string(&err).expect("should serialize");
-        assert_eq!(json, "\"Database operation failed\"");
+        let parsed: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        assert_eq!(parsed["code"], "Database");
+        assert_eq!(parsed["message"], "Database operation failed");
+        // Raw detail must not leak across the IPC boundary
+        assert!(!json.contains("raw detail"));
+    }
+
+    #[test]
+    fn serialize_all_variants_have_correct_code() {
+        let cases: Vec<(AppError, &str)> = vec![
+            (AppError::Database("d".into()), "Database"),
+            (AppError::FileSystem("f".into()), "FileSystem"),
+            (AppError::Sidecar("s".into()), "Sidecar"),
+            (AppError::Validation("v".into()), "Validation"),
+            (AppError::C2pa("c".into()), "C2pa"),
+            (AppError::Internal("i".into()), "Internal"),
+        ];
+        for (err, expected_code) in cases {
+            let json = serde_json::to_string(&err).expect("should serialize");
+            let parsed: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+            assert_eq!(
+                parsed["code"], expected_code,
+                "wrong code for {}",
+                expected_code
+            );
+            assert!(parsed["message"].is_string(), "message should be a string");
+        }
     }
 
     #[test]
