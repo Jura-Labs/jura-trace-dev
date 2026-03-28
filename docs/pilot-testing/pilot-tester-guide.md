@@ -266,7 +266,9 @@ When Jura Trace opens for the first time, you will see a brief setup check that 
 4. You will likely see the following statuses on first launch:
 
    - **Analysis engine** — should show green. If it shows amber, wait 10–15 seconds and check again.
-   - **Video and audio** — may show "FFmpeg not installed". This is optional. Without it, Jura Trace can still analyse images fully. (To add video support on macOS, see the note below. On Windows, a download link is available in Settings.)
+   - **Video and audio** — may show "FFmpeg not installed". This is optional. Without it, Jura Trace can still analyse images fully. To enable video analysis:
+     - **macOS:** open Terminal and run `brew install ffmpeg` (requires [Homebrew](https://brew.sh) — if you don't have Homebrew, paste `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` into Terminal first)
+     - **Windows:** download FFmpeg from [gyan.dev/ffmpeg](https://www.gyan.dev/ffmpeg/builds/) (essentials build), extract to a folder, and add the `bin` folder to your system PATH
    - **Speech transcription** — will download a small language model (approximately 150 MB) the first time you use it. This is normal and happens in the background.
    - **AI descriptions** — shows whether Ollama is installed. This is entirely optional. You do not need it for any of the testing tasks in this guide.
 
@@ -398,7 +400,84 @@ This section is optional for your pilot testing. Try it if you have a few minute
 
 ---
 
-## 9. Exploring the Help System
+## 9. Optional: Setting Up Ollama (AI Descriptions and Claim Verification)
+
+Ollama is a free tool that runs AI models locally on your computer. Jura Trace uses it for two optional features:
+
+- **Image descriptions** — automatically generates a description of what is in an image (useful for cataloguing)
+- **Claim verification** — checks factual claims in transcribed speech against a knowledge base
+
+**You do not need Ollama for core verification.** The 21 forensic detectors work without it. But if you would like to try the AI features, follow these steps.
+
+### Step 1: Install Ollama
+
+**macOS:**
+1. Go to [ollama.com](https://ollama.com)
+2. Click **"Download for macOS"**
+3. Open the downloaded file and drag Ollama to your Applications folder
+4. Open Ollama from Applications — it will appear as a small icon in your menu bar
+
+**Windows:**
+1. Go to [ollama.com](https://ollama.com)
+2. Click **"Download for Windows"**
+3. Run the installer
+4. Ollama will run in the background (you will see a small icon in the system tray)
+
+### Step 2: Download the Two Models
+
+Open **Terminal** (macOS) or **Command Prompt** (Windows) and run these two commands:
+
+```
+ollama pull llava:7b
+```
+
+Wait for it to finish downloading (~4.7 GB). Then run:
+
+```
+ollama pull qwen2.5:7b-instruct
+```
+
+Wait for it to finish downloading (~4.7 GB).
+
+**What these models do:**
+- `llava:7b` — looks at images and generates descriptions (e.g., "A photograph of a coastal landscape at sunset")
+- `qwen2.5:7b-instruct` — reads text and verifies factual claims against a knowledge base
+
+### Step 3: Verify Ollama is Running
+
+1. Open Jura Trace
+2. Go to **Settings**
+3. Look at **Service Status** — Ollama should now show **"Online"** with a green indicator
+4. If it still shows "Offline", check that Ollama is running (look for its icon in the menu bar or system tray)
+
+### Step 4: Test the AI Features
+
+1. Go to **VERIFY** and drop an image
+2. After analysis completes, look for the **AI Description** section in the results (if present, Ollama is working)
+3. For claim verification, try verifying a video that contains speech — the transcribed text will be checked against the knowledge base
+
+### Troubleshooting
+
+- **"Ollama is not running"** — open the Ollama application. On macOS, find it in Applications. On Windows, check the system tray.
+- **Model download is slow** — the models are ~4.7 GB each. On a slow connection, this can take 30-60 minutes. You can continue using Jura Trace while they download.
+- **Not enough disk space** — you need approximately 10 GB free for both models. If space is tight, you can install just `llava:7b` (image descriptions) and skip `qwen2.5:7b-instruct` (claim checking).
+- **Not enough RAM** — the models need approximately 8 GB of RAM. If your computer has only 4 GB, Ollama may run slowly or not at all. This is fine — skip Ollama and use Jura Trace's core features.
+
+### Settings Reference
+
+The default Ollama settings in Jura Trace are:
+
+| Setting | Default Value | What It Does |
+|---|---|---|
+| Ollama URL | `http://localhost:11434` | Where Ollama runs (do not change unless told to) |
+| Vision Model | `llava:7b` | Model for image descriptions |
+| Text Model | `qwen2.5:7b-instruct` | Model for claim verification |
+
+You can change these in **Settings** → **Ollama Configuration** if needed, but the defaults are correct for most people.
+
+---
+
+## 10. Exploring the Help System
 
 Jura Trace includes full in-app documentation. We want to know whether it is useful and whether anything is confusing or missing.
 
@@ -422,7 +501,7 @@ The Help section contains these pages:
 
 ---
 
-## 10. How to Give Feedback
+## 11. How to Give Feedback
 
 Your feedback is what makes this pilot worthwhile. There is no wrong answer and no bad observation. If something confused you, that confusion is useful data.
 
@@ -513,7 +592,7 @@ Reason:
 
 ---
 
-## 11. Known Limitations
+## 12. Known Limitations
 
 This is a pre-release build and some things are not yet complete. The list below sets honest expectations so that you can distinguish bugs from known limitations.
 
@@ -532,7 +611,7 @@ If you encounter behaviour that is not in this list and seems wrong, please repo
 
 ---
 
-## 12. Reporting Issues
+## 13. Reporting Issues
 
 If something is not working, we want to hear about it. Every report helps.
 
