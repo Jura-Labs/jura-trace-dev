@@ -135,7 +135,10 @@
   // Blob URL tracker — converts base64 data to CSP-safe blob: URLs and
   // revokes them on component destroy to prevent memory leaks.
   const blobs = createBlobTracker();
-  onDestroy(() => blobs.revokeAll());
+  onDestroy(() => {
+    blobs.revokeAll();
+    _unlistenDragDrop?.();
+  });
 
   // ── Tauri environment detection ───────────────────────────────────
   const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -345,6 +348,8 @@
       sidecarHealth = await checkSidecarHealth();
       appVersion = await getVersion();
       licenceTier = await getLicenceTier();
+      // Set up Tauri drag-drop listener for file path access
+      await setupTauriDragDrop();
     })();
 
     // Keyboard shortcuts
@@ -476,6 +481,11 @@
   });
 
   // ── Drag and drop ─────────────────────────────────────────────────
+  // Tauri v2 does not expose file paths via the browser File API.
+  // We use Tauri's onDragDropEvent for the desktop app (gives full paths)
+  // and fall back to browser drag-and-drop for dev/browser mode.
+  let _unlistenDragDrop: (() => void) | null = null;
+
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
     dragOver = true;
@@ -489,12 +499,43 @@
     e.preventDefault();
     dragOver = false;
 
+    // In Tauri, the onDragDropEvent handler fires instead.
+    // This browser fallback only works in dev/browser mode.
     const files = e.dataTransfer?.files;
     if (!files?.length) return;
 
     const file = files[0];
+    // Browser File objects don't have .path — use name as fallback (browser dev only)
     const path = (file as any).path || file.name;
+    if (path === file.name && typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      // In Tauri but no path — the Tauri drag-drop listener should handle this
+      return;
+    }
     await runFileVerification(path, file.name);
+  }
+
+  async function setupTauriDragDrop() {
+    try {
+      const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+      const webview = getCurrentWebviewWindow();
+      _unlistenDragDrop = await webview.onDragDropEvent((event) => {
+        if (event.payload.type === 'over') {
+          dragOver = true;
+        } else if (event.payload.type === 'leave') {
+          dragOver = false;
+        } else if (event.payload.type === 'drop') {
+          dragOver = false;
+          const paths = event.payload.paths;
+          if (paths && paths.length > 0) {
+            const filePath = paths[0];
+            const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || filePath;
+            runFileVerification(filePath, fileName);
+          }
+        }
+      });
+    } catch (e) {
+      // Not in Tauri — browser drag-and-drop will handle it
+    }
   }
 
   // ── File dialog ──────────────────────────────────────────────────

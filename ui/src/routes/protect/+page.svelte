@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, getFingerprints, findSimilar, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames } from '$lib/api';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import { createBlobTracker } from '$lib/blob';
@@ -21,7 +21,46 @@
   } from '$lib/types';
 
   const blobs = createBlobTracker();
-  onDestroy(() => blobs.revokeAll());
+  async function setupTauriProtectDragDrop() {
+    try {
+      const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+      const webview = getCurrentWebviewWindow();
+      _unlistenProtectDragDrop = await webview.onDragDropEvent((event) => {
+        if (event.payload.type === 'over') {
+          dragOver = true;
+        } else if (event.payload.type === 'leave') {
+          dragOver = false;
+        } else if (event.payload.type === 'drop') {
+          dragOver = false;
+          const paths = event.payload.paths;
+          if (paths && paths.length > 0) {
+            importingCount = paths.length;
+            error = null;
+            importFiles(paths).then((imported) => {
+              if (imported.length) {
+                assets = [...imported, ...assets];
+              }
+            }).catch((e) => {
+              error = e instanceof Error ? e.message : String(e);
+            }).finally(() => {
+              importingCount = 0;
+            });
+          }
+        }
+      });
+    } catch {
+      // Not in Tauri — browser drag-and-drop handles it
+    }
+  }
+
+  onMount(() => {
+    setupTauriProtectDragDrop();
+  });
+
+  onDestroy(() => {
+    blobs.revokeAll();
+    _unlistenProtectDragDrop?.();
+  });
 
   // ── View layout ──────────────────────────────────────────────────
   let viewLayout = $state<'list' | 'grid'>('list');
@@ -192,6 +231,9 @@
     }
   }
 
+  // ── Drag and drop ─────────────────────────────────────────────────
+  let _unlistenProtectDragDrop: (() => void) | null = null;
+
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
     dragOver = true;
@@ -208,7 +250,12 @@
     const files = e.dataTransfer?.files;
     if (!files?.length) return;
 
+    // Browser File objects don't have .path in Tauri v2 — Tauri drag-drop listener handles this
     const paths = Array.from(files).map((f) => (f as any).path || f.name);
+    if (paths.every(p => !p.includes('/') && !p.includes('\\')) && typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      // In Tauri but no full paths — the Tauri drag-drop listener should handle
+      return;
+    }
     importingCount = paths.length;
     error = null;
     try {
