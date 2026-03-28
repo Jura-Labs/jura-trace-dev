@@ -2511,16 +2511,16 @@
                                        ? 'bg-cinnabar/10 border-cinnabar/20'
                                        : boundary.confidence > 0.3
                                          ? 'bg-amber/10 border-amber/20'
-                                         : 'bg-graphite-light/50 border-border-dark'}"
+                                         : 'bg-gray-50 border-gray-200 dark:bg-graphite-light/50 dark:border-border-dark'}"
                               role="listitem"
                             >
                               <div class="flex items-center justify-between gap-2 mb-1">
-                                <span class="font-mono text-quartz">
+                                <span class="font-mono text-gray-800 dark:text-quartz">
                                   ({boundary.x}, {boundary.y}) &mdash; {boundary.width}&times;{boundary.height}px
                                 </span>
-                                <span class="tabular-nums text-flint dark:text-flint-light">{(boundary.confidence * 100).toFixed(0)}% confidence</span>
+                                <span class="tabular-nums text-gray-500 dark:text-flint-light">{(boundary.confidence * 100).toFixed(0)}% confidence</span>
                               </div>
-                              <div class="flex flex-wrap gap-x-3 gap-y-0.5 text-flint dark:text-flint-light">
+                              <div class="flex flex-wrap gap-x-3 gap-y-0.5 text-gray-600 dark:text-flint-light">
                                 {#if boundary.jpegGridAligned}
                                   <span>JPEG grid aligned</span>
                                 {/if}
@@ -2886,19 +2886,19 @@
                 {#each df.signals as signal (signal.name)}
                   <div
                     class="flex items-start gap-2 rounded-md px-3 py-2 text-xs
-                           {signal.triggered ? 'bg-amber/10 border border-amber/20' : 'bg-graphite-light/50 border border-border-dark'}"
+                           {signal.triggered ? 'bg-amber/10 border border-amber/20' : 'bg-gray-50 border border-gray-200 dark:bg-graphite-light/50 dark:border-border-dark'}"
                     role="listitem"
                   >
                     <span
-                      class="flex-shrink-0 w-1.5 h-1.5 mt-1 rounded-full {signal.triggered ? 'bg-amber' : 'bg-flint/30'}"
+                      class="flex-shrink-0 w-1.5 h-1.5 mt-1 rounded-full {signal.triggered ? 'bg-amber dark:bg-amber-light' : 'bg-gray-400 dark:bg-flint/50'}"
                       aria-hidden="true"
                     ></span>
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center justify-between gap-2">
-                        <span class="font-mono {signal.triggered ? 'text-amber dark:text-amber-light' : 'text-flint dark:text-flint-light'}">{signal.name}</span>
-                        <span class="text-flint/60 dark:text-flint-light/70 tabular-nums">weight: {signal.weight.toFixed(1)}</span>
+                        <span class="font-mono {signal.triggered ? 'text-amber-dark dark:text-amber-light' : 'text-gray-800 dark:text-flint-light'}">{signal.name}</span>
+                        <span class="text-gray-500 dark:text-flint-light/70 tabular-nums">weight: {signal.weight.toFixed(1)}</span>
                       </div>
-                      <p class="text-flint dark:text-flint-light mt-0.5">{signal.description}</p>
+                      <p class="text-gray-600 dark:text-flint-light mt-0.5">{signal.description}</p>
                     </div>
                   </div>
                 {/each}
@@ -3319,7 +3319,7 @@
                       <!-- Signals list -->
                       {#if fr.signals.length > 0}
                         <div class="space-y-1">
-                          <span class="text-xs font-medium text-flint dark:text-flint-light uppercase tracking-wider">Signals</span>
+                          <span class="text-xs font-medium text-gray-600 dark:text-flint-light uppercase tracking-wider">Signals</span>
                           {#each fr.signals as signal}
                             <div class="flex items-center gap-2 text-xs">
                               <span
@@ -3327,7 +3327,7 @@
                                        {signal.triggered ? 'bg-cinnabar dark:bg-cinnabar-light' : 'bg-malachite dark:bg-malachite-light'}"
                                 aria-hidden="true"
                               ></span>
-                              <span class="text-flint dark:text-flint-light flex-1">{signal.name}</span>
+                              <span class="text-gray-700 dark:text-flint-light flex-1">{signal.name}</span>
                               <span class="tabular-nums text-text-light dark:text-quartz">{(signal.weight * 100).toFixed(0)}%</span>
                             </div>
                           {/each}
