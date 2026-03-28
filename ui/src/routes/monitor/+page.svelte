@@ -321,6 +321,20 @@
 
     <div class="pl-24">
 
+      <!-- How URL monitoring works explanation -->
+      <div class="rounded-lg border border-lapis/20 bg-lapis/5 px-4 py-3 mb-6 max-w-2xl">
+        <p class="text-sm text-lapis dark:text-lapis-light font-medium mb-1">How URL Monitoring Works</p>
+        <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
+          Add URLs where your protected content is published (for example, your website, social media profiles,
+          or any page hosting your images). Jura Trace will periodically check each URL for changes
+          and verify that your content credentials remain intact.
+        </p>
+        <p class="text-xs text-flint dark:text-flint-light leading-relaxed mt-1">
+          <span class="font-medium">Note:</span> Domain-wide monitoring (scanning every page on a website)
+          is planned for a future release. Currently, each URL is monitored individually.
+        </p>
+      </div>
+
       <!-- Add URL button / inline form -->
       {#if !showAddForm}
         <button
@@ -344,11 +358,14 @@
               >
                 URL <span class="text-cinnabar" aria-hidden="true">*</span>
               </label>
+              <p class="text-xs text-flint dark:text-flint-light mb-1.5">
+                Enter the exact URL of a page or image you want to monitor
+              </p>
               <input
                 id="watchlist-url"
                 type="url"
                 bind:value={newUrl}
-                placeholder="https://example.com/your-content"
+                placeholder="https://example.com/gallery/my-photo.jpg"
                 class="w-full rounded-md border border-border-light dark:border-[rgba(122,119,112,0.3)] bg-transparent px-3 py-2 text-sm text-text-light dark:text-quartz placeholder:text-flint/50 dark:placeholder:text-flint-light/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                 aria-required="true"
                 autocomplete="url"

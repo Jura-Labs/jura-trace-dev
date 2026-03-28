@@ -1387,7 +1387,7 @@
                 <span class="self-center text-right">
                   {#if !batchRunning || item.status !== 'running'}
                     <button
-                      class="text-xs text-flint dark:text-flint-light hover:text-cinnabar transition-colors p-1 min-w-[24px] min-h-[24px]
+                      class="text-xs text-flint dark:text-flint-light hover:text-cinnabar dark:hover:text-cinnabar-light transition-colors p-1 min-w-[24px] min-h-[24px]
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                       onclick={(e) => { e.stopPropagation(); removeBatchItem(item.id); }}
                       aria-label="Remove {item.fileName}"
