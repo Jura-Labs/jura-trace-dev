@@ -946,10 +946,10 @@
                disabled:opacity-50 disabled:cursor-not-allowed"
         aria-describedby="tier-select-hint"
       >
-        <option value="community">Community — Free (non-commercial)</option>
-        <option value="professional">Professional — £199/year</option>
-        <option value="team">Team — £79/seat/month</option>
-        <option value="enterprise">Enterprise — From £6,000/year</option>
+        <option value="community">Community (non-commercial)</option>
+        <option value="professional">Professional (individual commercial)</option>
+        <option value="team">Team (3–20 seats)</option>
+        <option value="enterprise">Enterprise (unlimited seats)</option>
       </select>
       <p id="tier-select-hint" class="text-xs text-flint dark:text-flint-light">
         Pilot mode: tier changes are saved to your local config and persist across restarts.
