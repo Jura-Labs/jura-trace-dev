@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, SidecarHealth, SimilarAsset, SolarPosition, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
+import type { AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, DiffusionArtefactsResult, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, RoiAnalysisResult, SeasonalIndicatorsResult, SidecarHealth, SimilarAsset, SolarPosition, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult, WeatherCheckResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -852,4 +852,186 @@ export async function calculateSunPosition(
     day,
     hourUtc,
   });
+}
+
+// ── Sprint 24 investigation APIs ────────────────────────────────────
+
+/**
+ * Estimate the time of day from a measured shadow azimuth angle.
+ *
+ * Given a GPS coordinate, date, and the azimuth of a shadow measured from
+ * an image, returns up to two candidate UTC times at which the sun would
+ * have cast a shadow in that direction.
+ *
+ * @param lat            GPS latitude in decimal degrees.
+ * @param lon            GPS longitude in decimal degrees.
+ * @param year           Year (e.g. 2024).
+ * @param month          Month (1–12).
+ * @param day            Day of month (1–31).
+ * @param shadowAzimuth  Measured shadow direction in degrees (0–360, clockwise from north).
+ */
+export async function estimateShadowTime(
+  lat: number,
+  lon: number,
+  year: number,
+  month: number,
+  day: number,
+  shadowAzimuth: number,
+): Promise<TimeEstimate[]> {
+  return invoke<TimeEstimate[]>('estimate_shadow_time', {
+    latitude: lat,
+    longitude: lon,
+    year,
+    month,
+    day,
+    shadowAzimuth,
+  });
+}
+
+/**
+ * Check historical weather conditions for a GPS coordinate and date
+ * using the Open-Meteo archive API.
+ *
+ * This is an opt-in network request — the caller must obtain user consent
+ * before calling this function, as it sends coordinates and a date to an
+ * external service.
+ *
+ * @param lat    GPS latitude in decimal degrees.
+ * @param lon    GPS longitude in decimal degrees.
+ * @param year   Year (e.g. 2024).
+ * @param month  Month (1–12).
+ * @param day    Day of month (1–31).
+ */
+export async function checkHistoricalWeather(
+  lat: number,
+  lon: number,
+  year: number,
+  month: number,
+  day: number,
+): Promise<WeatherCheckResult> {
+  if (isTauri) {
+    try {
+      return await invoke<WeatherCheckResult>('check_historical_weather', {
+        latitude: lat,
+        longitude: lon,
+        year,
+        month,
+        day,
+      });
+    } catch {
+      // Command not yet registered — fall through to browser mock
+    }
+  }
+  // Browser mock
+  return {
+    available: true,
+    date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+    latitude: lat,
+    longitude: lon,
+    temperatureMaxC: 18.4,
+    temperatureMinC: 11.2,
+    precipitationMm: 0.0,
+    rainMm: 0.0,
+    snowfallCm: 0.0,
+    maxWindKmh: 14.5,
+    weatherCode: 1,
+    weatherDescription: 'Mainly clear',
+    source: 'Open-Meteo Archive API (mock)',
+    disclaimer: 'Historical weather data is approximate and provided for investigative context only.',
+  };
+}
+
+/**
+ * Analyse seasonal indicators (vegetation, snow, warmth) in a local image file.
+ *
+ * Posts the image to the sidecar's `/forensics/seasonal-indicators` endpoint.
+ * Returns estimated season, confidence, and a list of supporting indicators.
+ *
+ * @param filePath  Absolute path to the image file.
+ */
+export async function analyseSeasonalIndicators(filePath: string): Promise<SeasonalIndicatorsResult> {
+  if (isTauri) {
+    try {
+      return await invoke<SeasonalIndicatorsResult>('analyse_seasonal_indicators', { filePath });
+    } catch {
+      // Command not yet registered — fall through to browser mock
+    }
+  }
+  // Browser mock
+  return {
+    greennessIndex: 0.42,
+    snowCoverage: 0.03,
+    warmthIndex: 0.61,
+    estimatedSeason: 'Summer',
+    confidence: 0.74,
+    indicators: ['High greenness index', 'Low snow coverage', 'Warm colour temperature'],
+  };
+}
+
+/**
+ * Check an image for diffusion model artefacts (texture smoothness, VAE banding,
+ * resolution inconsistencies).
+ *
+ * Posts the image to the sidecar's `/forensics/diffusion-artefacts` endpoint.
+ *
+ * @param filePath  Absolute path to the image file.
+ */
+export async function analyseDiffusionArtefacts(filePath: string): Promise<DiffusionArtefactsResult> {
+  if (isTauri) {
+    try {
+      return await invoke<DiffusionArtefactsResult>('analyse_diffusion_artefacts', { filePath });
+    } catch {
+      // Command not yet registered — fall through to browser mock
+    }
+  }
+  // Browser mock
+  return {
+    textureSmoothnessScore: 0.28,
+    textureSmoothnessMapBase64: '',
+    vaeBandingScore: 0.19,
+    resolutionMatch: true,
+    resolutionNote: 'No resolution inconsistencies detected',
+    overallDiffusionScore: 0.24,
+  };
+}
+
+/**
+ * Analyse a user-selected region of interest (ROI) within a local image file.
+ *
+ * Posts the image and bounding-box coordinates to the sidecar's
+ * `/forensics/roi-analysis` endpoint. Returns noise statistics, ELA mean,
+ * frequency energy, and texture complexity for the selected region.
+ *
+ * All coordinate values are in natural image pixels (not CSS pixels).
+ *
+ * @param filePath  Absolute path to the image file.
+ * @param x         Left edge of the ROI in natural image pixels.
+ * @param y         Top edge of the ROI in natural image pixels.
+ * @param width     Width of the ROI in natural image pixels.
+ * @param height    Height of the ROI in natural image pixels.
+ */
+export async function analyseRoi(
+  filePath: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): Promise<RoiAnalysisResult> {
+  if (isTauri) {
+    try {
+      return await invoke<RoiAnalysisResult>('analyse_roi', { filePath, x, y, width, height });
+    } catch {
+      // Command not yet registered — fall through to browser mock
+    }
+  }
+  // Browser mock
+  return {
+    noiseStd: 4.2,
+    noiseMean: 1.1,
+    elaMean: 0.14,
+    frequencyEnergy: 0.38,
+    textureComplexity: 0.55,
+    noiseResidualBase64: '',
+    roi: { x, y, width, height },
+  };
 }

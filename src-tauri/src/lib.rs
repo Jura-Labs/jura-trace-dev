@@ -2727,6 +2727,38 @@ fn calculate_sun_position(
     ))
 }
 
+/// Estimate the UTC time(s) of day that would produce shadows at the given azimuth.
+///
+/// Inverts the solar position calculation: given a GPS location, date, and an
+/// observed shadow direction, returns up to two candidate times (sorted best-match
+/// first) when the sun's azimuth would cast a shadow in that direction.
+///
+/// Returns an error if the coordinates are out of range.
+#[tauri::command]
+fn estimate_shadow_time(
+    latitude: f64,
+    longitude: f64,
+    year: i32,
+    month: u32,
+    day: u32,
+    shadow_azimuth: f64,
+) -> Result<Vec<sun_position::TimeEstimate>, String> {
+    if !(-90.0..=90.0).contains(&latitude) {
+        return Err("Latitude must be between -90 and 90".to_string());
+    }
+    if !(-180.0..=180.0).contains(&longitude) {
+        return Err("Longitude must be between -180 and 180".to_string());
+    }
+    Ok(sun_position::estimate_time_from_shadow(
+        latitude,
+        longitude,
+        year,
+        month,
+        day,
+        shadow_azimuth,
+    ))
+}
+
 // ===== Database Path Configuration =====
 
 /// Configuration file schema stored in app_data_dir/config.json.
@@ -3347,6 +3379,7 @@ pub fn run() {
             set_licence_tier,
             get_skip_wizard,
             calculate_sun_position,
+            estimate_shadow_time,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Jura Trace")

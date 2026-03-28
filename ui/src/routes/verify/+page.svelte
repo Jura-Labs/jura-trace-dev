@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
-  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive, parseAppError, getLicenceTier, extractTextFromImage } from '$lib/api';
+  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive, parseAppError, getLicenceTier, extractTextFromImage, calculateSunPosition, estimateShadowTime, checkHistoricalWeather, analyseSeasonalIndicators, analyseDiffusionArtefacts, analyseRoi } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
-  import type { LicenceTier, VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult } from '$lib/types';
+  import type { LicenceTier, VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult, SolarPosition, TimeEstimate, WeatherCheckResult, SeasonalIndicatorsResult, DiffusionArtefactsResult, RoiAnalysisResult } from '$lib/types';
   import VerdictSummary from '$lib/components/VerdictSummary.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
   import InspectionChecklist from '$lib/components/InspectionChecklist.svelte';
@@ -898,6 +898,12 @@
     }
     activeSection = null;
     closeComparison();
+    clearRoi();
+    showGeoPanel = false;
+    seasonalResult = null;
+    seasonalError = null;
+    diffusionResult = null;
+    diffusionError = null;
   }
 
   // ── Export helpers ────────────────────────────────────────────────
@@ -1363,6 +1369,314 @@
     // Sort: most suspicious first, then clip to three
     signals.sort((a, b) => b.weight - a.weight);
     return signals.slice(0, 3).map(s => s.text);
+  }
+
+  // ── ROI Selection ────────────────────────────────────────────────
+  let roiMode = $state(false);
+  let roiRect = $state<{ x: number; y: number; width: number; height: number } | null>(null);
+  let roiResult = $state<RoiAnalysisResult | null>(null);
+  let roiLoading = $state(false);
+  let roiError = $state<string | null>(null);
+
+  // Drag state (not reactive — used only within pointer event handlers)
+  let _roiDragStart: { x: number; y: number } | null = null;
+  let _roiDragging = false;
+
+  /** Container element for the image preview — used to compute ROI coordinates. */
+  let roiContainerEl = $state<HTMLDivElement | null>(null);
+
+  function handleRoiPointerDown(e: PointerEvent) {
+    if (!roiMode || !roiContainerEl) return;
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const rect = roiContainerEl.getBoundingClientRect();
+    _roiDragStart = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    _roiDragging = true;
+    roiRect = null;
+    roiResult = null;
+    roiError = null;
+  }
+
+  function handleRoiPointerMove(e: PointerEvent) {
+    if (!_roiDragging || !_roiDragStart || !roiContainerEl) return;
+    e.preventDefault();
+    const containerRect = roiContainerEl.getBoundingClientRect();
+    const currentX = e.clientX - containerRect.left;
+    const currentY = e.clientY - containerRect.top;
+    const x = Math.min(_roiDragStart.x, currentX);
+    const y = Math.min(_roiDragStart.y, currentY);
+    const w = Math.abs(currentX - _roiDragStart.x);
+    const h = Math.abs(currentY - _roiDragStart.y);
+    roiRect = { x, y, width: w, height: h };
+  }
+
+  function handleRoiPointerUp(_e: PointerEvent) {
+    if (!_roiDragging) return;
+    _roiDragging = false;
+    _roiDragStart = null;
+    // Keep roiRect for the "Analyse Region" button
+  }
+
+  /**
+   * Converts CSS-pixel coordinates on the displayed <img> element to
+   * natural image pixel coordinates, then calls the ROI analysis API.
+   */
+  async function handleAnalyseRoi() {
+    if (!roiRect || !filePath || roiLoading) return;
+    const imgEl = roiContainerEl?.querySelector<HTMLImageElement>('img[data-preview="true"]');
+    if (!imgEl || !imgEl.complete || imgEl.naturalWidth === 0) return;
+
+    roiLoading = true;
+    roiError = null;
+    roiResult = null;
+
+    try {
+      // Scale CSS pixels to natural image pixels
+      const displayRect = imgEl.getBoundingClientRect();
+      const containerRect = roiContainerEl!.getBoundingClientRect();
+      // The image may be letter-boxed inside the container — compute offset
+      const imgOffsetX = displayRect.left - containerRect.left;
+      const imgOffsetY = displayRect.top - containerRect.top;
+      const scaleX = imgEl.naturalWidth / displayRect.width;
+      const scaleY = imgEl.naturalHeight / displayRect.height;
+
+      const naturalX = Math.max(0, Math.round((roiRect.x - imgOffsetX) * scaleX));
+      const naturalY = Math.max(0, Math.round((roiRect.y - imgOffsetY) * scaleY));
+      const naturalW = Math.min(imgEl.naturalWidth - naturalX, Math.round(roiRect.width * scaleX));
+      const naturalH = Math.min(imgEl.naturalHeight - naturalY, Math.round(roiRect.height * scaleY));
+
+      if (naturalW < 4 || naturalH < 4) {
+        roiError = 'Selection is too small. Draw a larger region and try again.';
+        roiLoading = false;
+        return;
+      }
+
+      roiResult = await analyseRoi(filePath, naturalX, naturalY, naturalW, naturalH);
+    } catch (e) {
+      roiError = e instanceof Error ? e.message : 'Region analysis failed. Check that the Analysis Engine is running.';
+    } finally {
+      roiLoading = false;
+    }
+  }
+
+  function clearRoi() {
+    roiMode = false;
+    roiRect = null;
+    roiResult = null;
+    roiError = null;
+    _roiDragStart = null;
+    _roiDragging = false;
+  }
+
+  // Reset ROI state when result changes
+  $effect(() => {
+    void result;
+    clearRoi();
+  });
+
+  // ── Geolocation & Temporal panel ─────────────────────────────────
+  let showGeoPanel = $state(false);
+
+  // Sun position sub-panel
+  let sunDateInput = $state('');
+  let sunHourInput = $state(12);
+  let sunPosition = $state<SolarPosition | null>(null);
+  let sunLoading = $state(false);
+  let sunError = $state<string | null>(null);
+
+  // Shadow time sub-panel
+  let shadowAzimuth = $state(180);
+  let shadowTimeResults = $state<TimeEstimate[]>([]);
+  let shadowLoading = $state(false);
+  let shadowError = $state<string | null>(null);
+
+  // Weather sub-panel
+  let weatherResult = $state<WeatherCheckResult | null>(null);
+  let weatherLoading = $state(false);
+  let weatherError = $state<string | null>(null);
+  let weatherConsentGiven = $state(false);
+
+  /** GPS coordinates from EXIF, if available in the current result. */
+  const gpsCoords = $derived(
+    result?.exifAnalysis?.gpsLatitude != null && result?.exifAnalysis?.gpsLongitude != null
+      ? { lat: result.exifAnalysis.gpsLatitude, lon: result.exifAnalysis.gpsLongitude }
+      : null
+  );
+
+  /** Parse the sunDateInput string (YYYY-MM-DD) into year/month/day parts. */
+  function parseSunDate(): { year: number; month: number; day: number } | null {
+    const parts = sunDateInput.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return null;
+    const [year, month, day] = parts;
+    if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return { year, month, day };
+  }
+
+  async function handleCalculateSunPosition() {
+    if (!gpsCoords || sunLoading) return;
+    const dateParts = parseSunDate();
+    if (!dateParts) {
+      sunError = 'Please enter a valid date in YYYY-MM-DD format.';
+      return;
+    }
+    sunLoading = true;
+    sunError = null;
+    sunPosition = null;
+    try {
+      sunPosition = await calculateSunPosition(
+        gpsCoords.lat,
+        gpsCoords.lon,
+        dateParts.year,
+        dateParts.month,
+        dateParts.day,
+        sunHourInput,
+      );
+    } catch (e) {
+      sunError = e instanceof Error ? e.message : 'Sun position calculation failed.';
+    } finally {
+      sunLoading = false;
+    }
+  }
+
+  async function handleEstimateShadowTime() {
+    if (!gpsCoords || shadowLoading) return;
+    const dateParts = parseSunDate();
+    if (!dateParts) {
+      shadowError = 'Please enter a valid date (YYYY-MM-DD) before estimating shadow time.';
+      return;
+    }
+    shadowLoading = true;
+    shadowError = null;
+    shadowTimeResults = [];
+    try {
+      shadowTimeResults = await estimateShadowTime(
+        gpsCoords.lat,
+        gpsCoords.lon,
+        dateParts.year,
+        dateParts.month,
+        dateParts.day,
+        shadowAzimuth,
+      );
+    } catch (e) {
+      shadowError = e instanceof Error ? e.message : 'Shadow time estimation failed.';
+    } finally {
+      shadowLoading = false;
+    }
+  }
+
+  async function handleCheckWeather() {
+    if (!gpsCoords || weatherLoading) return;
+    const dateParts = parseSunDate();
+    if (!dateParts) {
+      weatherError = 'Please enter a valid date (YYYY-MM-DD) before checking weather.';
+      return;
+    }
+    weatherLoading = true;
+    weatherError = null;
+    weatherResult = null;
+    try {
+      weatherResult = await checkHistoricalWeather(
+        gpsCoords.lat,
+        gpsCoords.lon,
+        dateParts.year,
+        dateParts.month,
+        dateParts.day,
+      );
+    } catch (e) {
+      weatherError = e instanceof Error ? e.message : 'Weather lookup failed.';
+    } finally {
+      weatherLoading = false;
+    }
+  }
+
+  // Reset geo panel state when result changes
+  $effect(() => {
+    void result;
+    showGeoPanel = false;
+    sunPosition = null;
+    sunError = null;
+    shadowTimeResults = [];
+    shadowError = null;
+    weatherResult = null;
+    weatherError = null;
+    weatherConsentGiven = false;
+    sunDateInput = '';
+    sunHourInput = 12;
+    shadowAzimuth = 180;
+  });
+
+  // Pre-populate date from EXIF DateTimeOriginal when result loads
+  $effect(() => {
+    const exif = result?.exifAnalysis;
+    if (!exif) return;
+    // Try to extract a date from datetimeOriginal (format: "YYYY:MM:DD HH:MM:SS")
+    const raw = (result?.exifAnalysis as any)?.datetimeOriginal as string | undefined;
+    if (raw && /^\d{4}:\d{2}:\d{2}/.test(raw)) {
+      sunDateInput = raw.slice(0, 10).replace(/:/g, '-');
+      const hour = parseInt(raw.slice(11, 13), 10);
+      if (!isNaN(hour)) sunHourInput = hour;
+    }
+  });
+
+  // ── Seasonal Analysis ─────────────────────────────────────────────
+  let seasonalResult = $state<SeasonalIndicatorsResult | null>(null);
+  let seasonalLoading = $state(false);
+  let seasonalError = $state<string | null>(null);
+
+  async function handleSeasonalAnalysis() {
+    if (!filePath || seasonalLoading) return;
+    seasonalLoading = true;
+    seasonalError = null;
+    seasonalResult = null;
+    try {
+      seasonalResult = await analyseSeasonalIndicators(filePath);
+    } catch (e) {
+      seasonalError = e instanceof Error ? e.message : 'Seasonal analysis failed. Check that the Analysis Engine is running.';
+    } finally {
+      seasonalLoading = false;
+    }
+  }
+
+  // ── Diffusion Artefacts ───────────────────────────────────────────
+  let diffusionResult = $state<DiffusionArtefactsResult | null>(null);
+  let diffusionLoading = $state(false);
+  let diffusionError = $state<string | null>(null);
+
+  async function handleDiffusionCheck() {
+    if (!filePath || diffusionLoading) return;
+    diffusionLoading = true;
+    diffusionError = null;
+    diffusionResult = null;
+    try {
+      diffusionResult = await analyseDiffusionArtefacts(filePath);
+    } catch (e) {
+      diffusionError = e instanceof Error ? e.message : 'Diffusion artefact analysis failed. Check that the Analysis Engine is running.';
+    } finally {
+      diffusionLoading = false;
+    }
+  }
+
+  // Reset on-demand panels when result changes
+  $effect(() => {
+    void result;
+    seasonalResult = null;
+    seasonalError = null;
+    diffusionResult = null;
+    diffusionError = null;
+  });
+
+  /** Format a sun azimuth as a compass direction label. */
+  function azimuthToCompass(deg: number): string {
+    const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    const index = Math.round(((deg % 360) + 360) % 360 / 22.5) % 16;
+    return dirs[index];
+  }
+
+  /** Format a UTC hour float as HH:MM UTC. */
+  function formatUtcHour(h: number): string {
+    const hh = Math.floor(h);
+    const mm = Math.round((h - hh) * 60);
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')} UTC`;
   }
 </script>
 
@@ -1880,35 +2194,71 @@
         <div class="flex gap-3 items-start">
           <!-- Main image container -->
           <div class="flex-1 rounded-lg overflow-hidden border border-border-light dark:border-border-dark bg-obsidian/30">
-            <!-- Image with optional ELA overlay — click to open zoom modal -->
-            <div class="relative group cursor-zoom-in" role="presentation">
-              <button
-                type="button"
-                class="w-full block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-inset"
-                onclick={handleImageClick}
-                aria-label="Open zoom viewer for {fileName ?? 'analysed file'}"
-              >
+            <!-- Image with optional ELA overlay — click to open zoom modal, or drag to select ROI -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+              class="relative group {roiMode ? 'cursor-crosshair' : 'cursor-zoom-in'}"
+              role="presentation"
+              bind:this={roiContainerEl}
+              onpointerdown={roiMode ? handleRoiPointerDown : undefined}
+              onpointermove={roiMode ? handleRoiPointerMove : undefined}
+              onpointerup={roiMode ? handleRoiPointerUp : undefined}
+            >
+              {#if roiMode}
+                <!-- In ROI mode the outer click-to-zoom button is replaced by a plain div
+                     so the pointer events above can handle the drag gesture. -->
                 <img
                   src={channelImageUrl ?? previewUrl}
-                  alt="Analysed file"
-                  class="w-full max-h-[400px] object-contain block"
+                  alt="Analysed file — drag to select a region"
+                  class="w-full max-h-[400px] object-contain block select-none"
                   loading="lazy"
                   data-preview="true"
+                  draggable="false"
                   style="{channelImageUrl ? '' : `filter: ${getFilterStyle(activeFilter)};`}"
                 />
-              </button>
-              <!-- Zoom hint badge -->
-              <div
-                class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 motion-safe:transition-opacity duration-150 pointer-events-none
-                       bg-obsidian/70 rounded px-1.5 py-1 flex items-center gap-1"
-                aria-hidden="true"
-              >
-                <svg class="w-3.5 h-3.5 text-quartz" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0zm-2 0h-4m2-2v4" />
-                </svg>
-                <span class="text-xs text-quartz">Zoom</span>
-              </div>
+              {:else}
+                <button
+                  type="button"
+                  class="w-full block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-inset"
+                  onclick={handleImageClick}
+                  aria-label="Open zoom viewer for {fileName ?? 'analysed file'}"
+                >
+                  <img
+                    src={channelImageUrl ?? previewUrl}
+                    alt="Analysed file"
+                    class="w-full max-h-[400px] object-contain block"
+                    loading="lazy"
+                    data-preview="true"
+                    style="{channelImageUrl ? '' : `filter: ${getFilterStyle(activeFilter)};`}"
+                  />
+                </button>
+              {/if}
+
+              <!-- Zoom hint badge — hidden in ROI mode -->
+              {#if !roiMode}
+                <div
+                  class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 motion-safe:transition-opacity duration-150 pointer-events-none
+                         bg-obsidian/70 rounded px-1.5 py-1 flex items-center gap-1"
+                  aria-hidden="true"
+                >
+                  <svg class="w-3.5 h-3.5 text-quartz" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0zm-2 0h-4m2-2v4" />
+                  </svg>
+                  <span class="text-xs text-quartz">Zoom</span>
+                </div>
+              {/if}
+
+              <!-- ROI mode hint badge -->
+              {#if roiMode}
+                <div
+                  class="absolute top-2 left-2 bg-lapis/80 rounded px-2 py-1 pointer-events-none"
+                  aria-hidden="true"
+                >
+                  <span class="text-xs text-white font-medium">Drag to select region</span>
+                </div>
+              {/if}
+
               {#if showElaOverlay && elaHeatmapUrl}
                 <img
                   src={elaHeatmapUrl}
@@ -1917,6 +2267,50 @@
                   class="absolute inset-0 w-full h-full object-contain pointer-events-none"
                   style="opacity: {elaOpacity / 100}; mix-blend-mode: {elaBlendMode};"
                 />
+              {/if}
+
+              <!-- ROI selection rectangle SVG overlay -->
+              {#if roiMode && roiRect && roiRect.width > 2 && roiRect.height > 2}
+                <svg
+                  class="absolute inset-0 w-full h-full pointer-events-none"
+                  aria-hidden="true"
+                  style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
+                >
+                  <!-- Darkened overlay outside the selection -->
+                  <defs>
+                    <mask id="roi-mask">
+                      <rect x="0" y="0" width="100%" height="100%" fill="white" />
+                      <rect
+                        x={roiRect.x}
+                        y={roiRect.y}
+                        width={roiRect.width}
+                        height={roiRect.height}
+                        fill="black"
+                      />
+                    </mask>
+                  </defs>
+                  <rect x="0" y="0" width="100%" height="100%" fill="rgba(0,0,0,0.35)" mask="url(#roi-mask)" />
+                  <!-- Dashed lapis border -->
+                  <rect
+                    x={roiRect.x}
+                    y={roiRect.y}
+                    width={roiRect.width}
+                    height={roiRect.height}
+                    fill="none"
+                    stroke="#5A85B5"
+                    stroke-width="2"
+                    stroke-dasharray="6 3"
+                  />
+                  <!-- Corner handles -->
+                  {#each [
+                    [roiRect.x, roiRect.y],
+                    [roiRect.x + roiRect.width, roiRect.y],
+                    [roiRect.x, roiRect.y + roiRect.height],
+                    [roiRect.x + roiRect.width, roiRect.y + roiRect.height],
+                  ] as [cx, cy]}
+                    <circle cx={cx} cy={cy} r="4" fill="#5A85B5" />
+                  {/each}
+                </svg>
               {/if}
             </div>
 
@@ -2062,8 +2456,8 @@
                   </div>
                 </div>
 
-                <!-- Link to Visual Inspection Checklist -->
-                <p class="mt-1.5">
+                <!-- Link to Visual Inspection Checklist + ROI mode toggle -->
+                <div class="mt-1.5 flex flex-wrap items-center gap-3">
                   <a
                     href="#inspection-checklist"
                     onclick={(e) => { e.preventDefault(); showInspectionChecklist = true; requestAnimationFrame(() => document.getElementById('inspection-checklist')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }}
@@ -2072,7 +2466,84 @@
                   >
                     Visual Inspection Checklist (8 items)
                   </a>
-                </p>
+
+                  <!-- ROI mode toggle -->
+                  <button
+                    type="button"
+                    onclick={() => { roiMode = !roiMode; if (!roiMode) { roiRect = null; roiResult = null; roiError = null; } }}
+                    class="text-xs px-2 py-1 min-h-[28px] rounded border transition-colors duration-150
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1
+                           focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                           {roiMode
+                             ? 'border-lapis bg-lapis/10 text-lapis dark:text-lapis-light font-medium'
+                             : 'border-border-light dark:border-border-dark text-gray-600 dark:text-flint-light hover:border-lapis/50 dark:hover:border-lapis-light/50'}"
+                    aria-pressed={roiMode}
+                    title={roiMode ? 'Exit region selection mode' : 'Select a region of interest to analyse locally'}
+                  >
+                    {roiMode ? 'Exit Selection' : 'Select Region'}
+                  </button>
+
+                  {#if roiMode && roiRect && roiRect.width > 4 && roiRect.height > 4 && !roiLoading}
+                    <button
+                      type="button"
+                      onclick={handleAnalyseRoi}
+                      class="text-xs px-2.5 py-1 min-h-[28px] rounded bg-lapis text-white hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors duration-150
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1
+                             focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                    >
+                      Analyse Region
+                    </button>
+                  {/if}
+
+                  {#if roiLoading}
+                    <span class="flex items-center gap-1.5 text-xs text-flint dark:text-flint-light">
+                      <span class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Analysing region"></span>
+                      Analysing...
+                    </span>
+                  {/if}
+                </div>
+
+                <!-- ROI results panel -->
+                {#if roiError}
+                  <div class="mt-2 rounded-md px-3 py-2 bg-cinnabar/10 border border-cinnabar/30 text-xs text-cinnabar dark:text-cinnabar-light" role="alert">
+                    {roiError}
+                  </div>
+                {/if}
+
+                {#if roiResult}
+                  <div
+                    class="mt-2 rounded-md border border-lapis/30 bg-lapis/5 dark:bg-lapis/8 px-3 py-2.5 space-y-1.5"
+                    role="region"
+                    aria-label="Region of interest analysis results"
+                  >
+                    <p class="text-xs font-medium text-text-light dark:text-quartz mb-2">Region Analysis</p>
+                    <dl class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                      <div class="flex justify-between gap-2">
+                        <dt class="text-flint dark:text-flint-light">Noise Std</dt>
+                        <dd class="tabular-nums font-medium {roiResult.noiseStd > 8 ? 'text-cinnabar dark:text-cinnabar-light' : roiResult.noiseStd > 4 ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}">{roiResult.noiseStd.toFixed(2)}</dd>
+                      </div>
+                      <div class="flex justify-between gap-2">
+                        <dt class="text-flint dark:text-flint-light">Noise Mean</dt>
+                        <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{roiResult.noiseMean.toFixed(2)}</dd>
+                      </div>
+                      <div class="flex justify-between gap-2">
+                        <dt class="text-flint dark:text-flint-light">ELA Mean</dt>
+                        <dd class="tabular-nums font-medium {roiResult.elaMean > 0.4 ? 'text-cinnabar dark:text-cinnabar-light' : roiResult.elaMean > 0.2 ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}">{(roiResult.elaMean * 100).toFixed(1)}%</dd>
+                      </div>
+                      <div class="flex justify-between gap-2">
+                        <dt class="text-flint dark:text-flint-light">Freq. Energy</dt>
+                        <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{(roiResult.frequencyEnergy * 100).toFixed(1)}%</dd>
+                      </div>
+                      <div class="flex justify-between gap-2 col-span-2">
+                        <dt class="text-flint dark:text-flint-light">Texture Complexity</dt>
+                        <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{(roiResult.textureComplexity * 100).toFixed(1)}%</dd>
+                      </div>
+                    </dl>
+                    <p class="text-xs text-flint/70 dark:text-flint-light/60 pt-1">
+                      Region: {roiResult.roi.width}&times;{roiResult.roi.height} px at ({roiResult.roi.x}, {roiResult.roi.y})
+                    </p>
+                  </div>
+                {/if}
               </div>
 
               {#if elaHeatmapUrl}
@@ -2790,6 +3261,466 @@
           </div>
         {/if}
       </div>
+
+      <!-- ── Geolocation & Temporal ────────────────────────────────── -->
+      {#if result.contentType === 'image' && result.exifAnalysis}
+        {@const exifForGeo = result.exifAnalysis}
+        <div class="px-5 py-3 border-b border-border-dark">
+          <button
+            class="flex items-center gap-2 text-sm text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            onclick={() => { showGeoPanel = !showGeoPanel; }}
+            aria-expanded={showGeoPanel}
+            aria-controls="geo-temporal-panel"
+          >
+            <svg
+              class="w-3.5 h-3.5 transition-transform duration-200 {showGeoPanel ? 'rotate-90' : ''}"
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+            Geolocation &amp; Temporal
+            {#if gpsCoords}
+              <span class="text-xs text-flint/60 dark:text-flint-light/70">sun angle, shadow time, weather</span>
+            {:else}
+              <span class="text-xs text-flint/50 dark:text-flint-light/60 italic">no GPS data in EXIF</span>
+            {/if}
+          </button>
+
+          {#if showGeoPanel}
+            <div id="geo-temporal-panel" class="mt-3 space-y-4">
+
+              {#if !gpsCoords}
+                <!-- No GPS coords available -->
+                <p class="text-xs text-flint dark:text-flint-light px-1">
+                  No GPS coordinates were found in the EXIF metadata. Sun position, shadow time estimation,
+                  and weather cross-referencing require location data embedded in the image.
+                </p>
+              {:else}
+                <!-- GPS coordinates summary -->
+                <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-obsidian/30 border border-border-light dark:border-border-dark text-xs">
+                  <svg class="w-3.5 h-3.5 flex-shrink-0 text-flint dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span class="tabular-nums text-flint dark:text-flint-light flex-1">
+                    {toDMS(gpsCoords.lat, true)}, {toDMS(gpsCoords.lon, false)}
+                  </span>
+                  <button
+                    type="button"
+                    class="text-xs text-lapis dark:text-lapis-light hover:underline flex-shrink-0
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                    onclick={() => openExternal(`https://www.openstreetmap.org/?mlat=${gpsCoords.lat}&mlon=${gpsCoords.lon}#map=15/${gpsCoords.lat}/${gpsCoords.lon}`)}
+                    aria-label="View GPS location on OpenStreetMap (opens in system browser)"
+                  >
+                    View on map
+                  </button>
+                </div>
+
+                <!-- Date/time picker shared by sun position, shadow time, and weather -->
+                <fieldset class="rounded-lg border border-border-light dark:border-border-dark bg-white dark:bg-graphite px-4 pt-3 pb-4">
+                  <legend class="text-xs font-medium text-text-light dark:text-quartz px-1">Date &amp; Time</legend>
+                  <div class="flex flex-wrap items-end gap-4 mt-2">
+                    <div>
+                      <label for="geo-date-input" class="block text-xs text-flint dark:text-flint-light mb-1">
+                        Date <span class="text-flint/50 dark:text-flint-light/60">(YYYY-MM-DD)</span>
+                      </label>
+                      <input
+                        id="geo-date-input"
+                        type="date"
+                        bind:value={sunDateInput}
+                        class="text-xs border border-border-light dark:border-border-dark rounded px-2 py-1.5 min-h-[36px]
+                               bg-white dark:bg-obsidian text-text-light dark:text-quartz
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+                      />
+                    </div>
+                    <div>
+                      <label for="geo-hour-input" class="block text-xs text-flint dark:text-flint-light mb-1">
+                        Hour UTC <span class="text-flint/50 dark:text-flint-light/60">(0–23)</span>
+                      </label>
+                      <input
+                        id="geo-hour-input"
+                        type="number"
+                        min="0"
+                        max="23"
+                        bind:value={sunHourInput}
+                        class="w-20 text-xs border border-border-light dark:border-border-dark rounded px-2 py-1.5 min-h-[36px]
+                               bg-white dark:bg-obsidian text-text-light dark:text-quartz
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+                        aria-label="Hour in UTC (0 to 23)"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onclick={handleCalculateSunPosition}
+                      disabled={sunLoading || !sunDateInput}
+                      class="text-xs px-3 py-1.5 min-h-[36px] rounded bg-lapis text-white hover:bg-lapis-dark dark:hover:bg-lapis-light
+                             transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                             focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                    >
+                      {#if sunLoading}
+                        <span class="flex items-center gap-1.5">
+                          <span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Calculating"></span>
+                          Calculating...
+                        </span>
+                      {:else}
+                        Calculate Sun Position
+                      {/if}
+                    </button>
+                  </div>
+
+                  {#if sunError}
+                    <p class="mt-2 text-xs text-cinnabar dark:text-cinnabar-light" role="alert">{sunError}</p>
+                  {/if}
+
+                  {#if sunPosition}
+                    <dl
+                      class="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs border-t border-border-light dark:border-border-dark pt-3"
+                      aria-label="Solar position results"
+                    >
+                      <div class="flex justify-between">
+                        <dt class="text-flint dark:text-flint-light">Azimuth</dt>
+                        <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{sunPosition.azimuth.toFixed(1)}&deg; ({azimuthToCompass(sunPosition.azimuth)})</dd>
+                      </div>
+                      <div class="flex justify-between">
+                        <dt class="text-flint dark:text-flint-light">Elevation</dt>
+                        <dd class="tabular-nums font-medium {sunPosition.elevation < 0 ? 'text-flint dark:text-flint-light' : 'text-text-light dark:text-quartz'}">{sunPosition.elevation.toFixed(1)}&deg;</dd>
+                      </div>
+                      <div class="flex justify-between">
+                        <dt class="text-flint dark:text-flint-light">Solar Noon UTC</dt>
+                        <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{formatUtcHour(sunPosition.solarNoonUtc)}</dd>
+                      </div>
+                      <div class="flex justify-between">
+                        <dt class="text-flint dark:text-flint-light">Day Length</dt>
+                        <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{sunPosition.dayLengthHours.toFixed(2)} hrs</dd>
+                      </div>
+                    </dl>
+                    {#if sunPosition.elevation < 0}
+                      <p class="mt-2 text-xs text-amber dark:text-amber-light">The sun is below the horizon at this time and location. No shadows would be cast.</p>
+                    {/if}
+                  {/if}
+                </fieldset>
+
+                <!-- Shadow Time sub-panel -->
+                <fieldset class="rounded-lg border border-border-light dark:border-border-dark bg-white dark:bg-graphite px-4 pt-3 pb-4">
+                  <legend class="text-xs font-medium text-text-light dark:text-quartz px-1">Shadow Time Estimate</legend>
+                  <p class="text-xs text-flint dark:text-flint-light mt-2 mb-3">
+                    Measure the direction of a shadow in the image (clockwise from north) and estimate
+                    when it was cast. Use the date and GPS coordinates above.
+                  </p>
+                  <div class="flex flex-wrap items-end gap-4">
+                    <div>
+                      <label for="shadow-azimuth-input" class="block text-xs text-flint dark:text-flint-light mb-1">
+                        Shadow Azimuth <span class="text-flint/50 dark:text-flint-light/60">(0–360&deg;, clockwise from north)</span>
+                      </label>
+                      <div class="flex items-center gap-2">
+                        <input
+                          id="shadow-azimuth-input"
+                          type="number"
+                          min="0"
+                          max="360"
+                          bind:value={shadowAzimuth}
+                          class="w-24 text-xs border border-border-light dark:border-border-dark rounded px-2 py-1.5 min-h-[36px]
+                                 bg-white dark:bg-obsidian text-text-light dark:text-quartz
+                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+                          aria-label="Shadow azimuth in degrees, 0 to 360, clockwise from north"
+                        />
+                        <span class="text-xs text-flint dark:text-flint-light">({azimuthToCompass(shadowAzimuth)})</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onclick={handleEstimateShadowTime}
+                      disabled={shadowLoading || !sunDateInput}
+                      class="text-xs px-3 py-1.5 min-h-[36px] rounded bg-lapis text-white hover:bg-lapis-dark dark:hover:bg-lapis-light
+                             transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                             focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                    >
+                      {#if shadowLoading}
+                        <span class="flex items-center gap-1.5">
+                          <span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Estimating"></span>
+                          Estimating...
+                        </span>
+                      {:else}
+                        Estimate Time
+                      {/if}
+                    </button>
+                  </div>
+
+                  {#if shadowError}
+                    <p class="mt-2 text-xs text-cinnabar dark:text-cinnabar-light" role="alert">{shadowError}</p>
+                  {/if}
+
+                  {#if shadowTimeResults.length > 0}
+                    <div
+                      class="mt-3 border-t border-border-light dark:border-border-dark pt-3"
+                      aria-label="Shadow time estimates"
+                    >
+                      <p class="text-xs font-medium text-text-light dark:text-quartz mb-2">
+                        Candidate times ({shadowTimeResults.length} found)
+                      </p>
+                      <ul class="space-y-2">
+                        {#each shadowTimeResults as est, i}
+                          <li class="flex items-center gap-4 text-xs bg-obsidian/20 dark:bg-obsidian/40 rounded px-3 py-2">
+                            <span class="text-flint dark:text-flint-light flex-shrink-0">Option {i + 1}</span>
+                            <span class="font-medium text-text-light dark:text-quartz tabular-nums flex-1">{est.timeFormatted}</span>
+                            <span class="text-flint dark:text-flint-light tabular-nums">Elev. {est.sunElevation.toFixed(1)}&deg;</span>
+                            <span class="text-flint/70 dark:text-flint-light/60 tabular-nums">&plusmn;{est.azimuthError.toFixed(1)}&deg; error</span>
+                          </li>
+                        {/each}
+                      </ul>
+                    </div>
+                  {:else if !shadowLoading && sunDateInput && shadowTimeResults.length === 0 && shadowError === null}
+                    <!-- hint: awaiting user action -->
+                  {/if}
+                </fieldset>
+
+                <!-- Weather cross-reference -->
+                <div class="rounded-lg border border-amber/30 bg-amber/5 dark:bg-amber/8 px-4 pt-3 pb-4">
+                  <p class="text-xs font-medium text-amber dark:text-amber-light mb-1">Historical Weather Cross-Reference</p>
+                  <p class="text-xs text-amber/80 dark:text-amber-light/70 mb-3 leading-relaxed">
+                    This will query the Open-Meteo archive API. Your GPS coordinates and date will be
+                    sent to an external service (open-meteo.com). Consider whether this is appropriate
+                    for sensitive investigations.
+                  </p>
+
+                  {#if !weatherConsentGiven}
+                    <button
+                      type="button"
+                      onclick={() => { weatherConsentGiven = true; handleCheckWeather(); }}
+                      disabled={!sunDateInput}
+                      class="text-xs px-3 py-1.5 min-h-[36px] rounded border border-amber/50 text-amber dark:text-amber-light
+                             hover:bg-amber/10 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber focus-visible:ring-offset-2
+                             focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                    >
+                      Check Historical Weather
+                    </button>
+                  {/if}
+
+                  {#if weatherLoading}
+                    <span class="flex items-center gap-1.5 text-xs text-amber dark:text-amber-light">
+                      <span class="w-3 h-3 border-2 border-amber border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Loading weather data"></span>
+                      Loading weather data...
+                    </span>
+                  {/if}
+
+                  {#if weatherError}
+                    <p class="mt-2 text-xs text-cinnabar dark:text-cinnabar-light" role="alert">{weatherError}</p>
+                  {/if}
+
+                  {#if weatherResult}
+                    {#if weatherResult.available && !weatherResult.error}
+                      <dl class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs mt-2" aria-label="Historical weather data">
+                        {#if weatherResult.weatherDescription}
+                          <div class="flex justify-between col-span-2">
+                            <dt class="text-flint dark:text-flint-light">Conditions</dt>
+                            <dd class="font-medium text-text-light dark:text-quartz">{weatherResult.weatherDescription}</dd>
+                          </div>
+                        {/if}
+                        {#if weatherResult.temperatureMaxC != null}
+                          <div class="flex justify-between">
+                            <dt class="text-flint dark:text-flint-light">Temp max</dt>
+                            <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{weatherResult.temperatureMaxC.toFixed(1)}&deg;C</dd>
+                          </div>
+                        {/if}
+                        {#if weatherResult.temperatureMinC != null}
+                          <div class="flex justify-between">
+                            <dt class="text-flint dark:text-flint-light">Temp min</dt>
+                            <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{weatherResult.temperatureMinC.toFixed(1)}&deg;C</dd>
+                          </div>
+                        {/if}
+                        {#if weatherResult.precipitationMm != null}
+                          <div class="flex justify-between">
+                            <dt class="text-flint dark:text-flint-light">Precipitation</dt>
+                            <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{weatherResult.precipitationMm.toFixed(1)} mm</dd>
+                          </div>
+                        {/if}
+                        {#if weatherResult.snowfallCm != null && weatherResult.snowfallCm > 0}
+                          <div class="flex justify-between">
+                            <dt class="text-flint dark:text-flint-light">Snowfall</dt>
+                            <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{weatherResult.snowfallCm.toFixed(1)} cm</dd>
+                          </div>
+                        {/if}
+                        {#if weatherResult.maxWindKmh != null}
+                          <div class="flex justify-between">
+                            <dt class="text-flint dark:text-flint-light">Max wind</dt>
+                            <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{weatherResult.maxWindKmh.toFixed(1)} km/h</dd>
+                          </div>
+                        {/if}
+                      </dl>
+                      {#if weatherResult.source || weatherResult.disclaimer}
+                        <p class="text-xs text-flint/60 dark:text-flint-light/50 mt-2 leading-relaxed">
+                          {#if weatherResult.source}{weatherResult.source}.{/if}
+                          {#if weatherResult.disclaimer}{weatherResult.disclaimer}{/if}
+                        </p>
+                      {/if}
+                    {:else}
+                      <p class="text-xs text-cinnabar dark:text-cinnabar-light mt-2" role="alert">
+                        {weatherResult.error ?? 'Weather data unavailable for this date and location.'}
+                      </p>
+                    {/if}
+                  {/if}
+                </div>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      {/if}
+
+      <!-- ── On-demand Investigation: Seasonal & Diffusion ──────────── -->
+      {#if result.contentType === 'image' && filePath}
+        <div class="px-5 py-3 border-b border-border-dark">
+          <p class="text-xs font-medium text-text-light dark:text-quartz mb-2">On-demand Analysis</p>
+          <div class="flex flex-wrap gap-2">
+
+            <!-- Seasonal Analysis button -->
+            <button
+              type="button"
+              onclick={handleSeasonalAnalysis}
+              disabled={seasonalLoading}
+              class="text-xs px-3 py-1.5 min-h-[36px] rounded border border-border-light dark:border-border-dark
+                     text-flint dark:text-flint-light hover:border-lapis/50 dark:hover:border-lapis-light/50
+                     hover:text-lapis dark:hover:text-lapis-light transition-colors duration-150
+                     disabled:opacity-50 disabled:cursor-not-allowed
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                     focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+              title="Estimate season from vegetation, snow, and colour temperature signals in the image"
+            >
+              {#if seasonalLoading}
+                <span class="flex items-center gap-1.5">
+                  <span class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Analysing"></span>
+                  Analysing...
+                </span>
+              {:else}
+                Seasonal Analysis
+              {/if}
+            </button>
+
+            <!-- Diffusion Artefacts button -->
+            <button
+              type="button"
+              onclick={handleDiffusionCheck}
+              disabled={diffusionLoading}
+              class="text-xs px-3 py-1.5 min-h-[36px] rounded border border-border-light dark:border-border-dark
+                     text-flint dark:text-flint-light hover:border-lapis/50 dark:hover:border-lapis-light/50
+                     hover:text-lapis dark:hover:text-lapis-light transition-colors duration-150
+                     disabled:opacity-50 disabled:cursor-not-allowed
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                     focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+              title="Check for diffusion model artefacts — texture smoothness, VAE banding, resolution inconsistencies"
+            >
+              {#if diffusionLoading}
+                <span class="flex items-center gap-1.5">
+                  <span class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Checking"></span>
+                  Checking...
+                </span>
+              {:else}
+                Check Diffusion Artefacts
+              {/if}
+            </button>
+          </div>
+
+          <!-- Seasonal result -->
+          {#if seasonalError}
+            <div class="mt-2 rounded-md px-3 py-2 bg-cinnabar/10 border border-cinnabar/30 text-xs text-cinnabar dark:text-cinnabar-light" role="alert">
+              {seasonalError}
+            </div>
+          {/if}
+
+          {#if seasonalResult}
+            <div
+              class="mt-3 rounded-lg border border-border-light dark:border-border-dark bg-white dark:bg-graphite px-4 pt-3 pb-4"
+              role="region"
+              aria-label="Seasonal analysis results"
+            >
+              <div class="flex items-center gap-3 mb-3">
+                <p class="text-xs font-medium text-text-light dark:text-quartz">Seasonal Analysis</p>
+                <span class="text-xs px-2 py-0.5 rounded font-medium bg-lapis/10 text-lapis dark:text-lapis-light border border-lapis/20">
+                  {seasonalResult.estimatedSeason}
+                </span>
+                <span class="text-xs text-flint dark:text-flint-light">
+                  {Math.round(seasonalResult.confidence * 100)}% confidence
+                </span>
+              </div>
+              <dl class="grid grid-cols-3 gap-x-4 gap-y-1 text-xs mb-3">
+                <div class="flex flex-col gap-0.5">
+                  <dt class="text-flint dark:text-flint-light">Greenness</dt>
+                  <dd class="tabular-nums font-medium {seasonalResult.greennessIndex > 0.5 ? 'text-malachite dark:text-malachite-light' : 'text-text-light dark:text-quartz'}">{(seasonalResult.greennessIndex * 100).toFixed(1)}%</dd>
+                </div>
+                <div class="flex flex-col gap-0.5">
+                  <dt class="text-flint dark:text-flint-light">Snow Coverage</dt>
+                  <dd class="tabular-nums font-medium {seasonalResult.snowCoverage > 0.3 ? 'text-lapis dark:text-lapis-light' : 'text-text-light dark:text-quartz'}">{(seasonalResult.snowCoverage * 100).toFixed(1)}%</dd>
+                </div>
+                <div class="flex flex-col gap-0.5">
+                  <dt class="text-flint dark:text-flint-light">Warmth Index</dt>
+                  <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{(seasonalResult.warmthIndex * 100).toFixed(1)}%</dd>
+                </div>
+              </dl>
+              {#if seasonalResult.indicators.length > 0}
+                <ul class="flex flex-wrap gap-1.5" aria-label="Supporting indicators">
+                  {#each seasonalResult.indicators as indicator}
+                    <li class="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light">{indicator}</li>
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+          {/if}
+
+          <!-- Diffusion artefacts result -->
+          {#if diffusionError}
+            <div class="mt-2 rounded-md px-3 py-2 bg-cinnabar/10 border border-cinnabar/30 text-xs text-cinnabar dark:text-cinnabar-light" role="alert">
+              {diffusionError}
+            </div>
+          {/if}
+
+          {#if diffusionResult}
+            {@const diffScore = diffusionResult.overallDiffusionScore}
+            <div
+              class="mt-3 rounded-lg border border-border-light dark:border-border-dark bg-white dark:bg-graphite px-4 pt-3 pb-4"
+              role="region"
+              aria-label="Diffusion artefact analysis results"
+            >
+              <div class="flex items-center gap-3 mb-3">
+                <p class="text-xs font-medium text-text-light dark:text-quartz">Diffusion Artefacts</p>
+                <span class="text-xs px-2 py-0.5 rounded font-medium
+                             {diffScore >= 0.5
+                               ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light border border-cinnabar/20'
+                               : diffScore >= 0.3
+                                 ? 'bg-amber/10 text-amber dark:text-amber-light border border-amber/20'
+                                 : 'bg-malachite/10 text-malachite dark:text-malachite-light border border-malachite/20'}">
+                  {diffScore >= 0.5 ? 'Likely Diffusion' : diffScore >= 0.3 ? 'Possible Diffusion' : 'Low Signal'}
+                </span>
+                <span class="text-xs text-flint dark:text-flint-light tabular-nums">{(diffScore * 100).toFixed(1)}%</span>
+              </div>
+              <dl class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs mb-3">
+                <div class="flex justify-between">
+                  <dt class="text-flint dark:text-flint-light">Texture Smoothness</dt>
+                  <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{(diffusionResult.textureSmoothnessScore * 100).toFixed(1)}%</dd>
+                </div>
+                <div class="flex justify-between">
+                  <dt class="text-flint dark:text-flint-light">VAE Banding</dt>
+                  <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{(diffusionResult.vaeBandingScore * 100).toFixed(1)}%</dd>
+                </div>
+                <div class="flex justify-between col-span-2">
+                  <dt class="text-flint dark:text-flint-light">Resolution</dt>
+                  <dd class="font-medium {diffusionResult.resolutionMatch ? 'text-malachite dark:text-malachite-light' : 'text-amber dark:text-amber-light'}">
+                    {diffusionResult.resolutionNote}
+                  </dd>
+                </div>
+              </dl>
+              <p class="text-xs text-flint/60 dark:text-flint-light/50 italic">
+                Diffusion artefact detection is an experimental signal. Treat results as one indicator among many.
+              </p>
+            </div>
+          {/if}
+        </div>
+      {/if}
 
       <!-- ── Export buttons ──────────────────────────────────────── -->
       <div class="px-5 py-3 border-b border-border-light dark:border-border-dark flex flex-wrap items-center gap-3">

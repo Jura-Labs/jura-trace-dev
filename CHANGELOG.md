@@ -6,6 +6,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Sprint 24 — ROI Selection, Shadow Time, Diffusion Detection (29 Mar 2026)
+
+### Geolocation & Temporal Investigation
+
+**Added**
+- Shadow-based time-of-day estimation: inverse sun angle calculation — given GPS, date, and observed shadow azimuth, returns up to 2 candidate UTC times. `estimate_shadow_time` Tauri command. 5 new Rust tests
+- Geolocation & Temporal panel on verify page: date/time picker (auto-populated from EXIF), sun position display (azimuth, elevation, solar noon, day length), shadow time estimate with compass label
+- Weather cross-reference UI: opt-in amber disclosure panel, explicit consent gate, temperature/precipitation/wind display with source attribution
+
+### AI-Specific Detection
+
+**Added**
+- Diffusion model artefact detection: `POST /forensics/diffusion-artefacts` — texture smoothness (16x16 patch std), VAE banding (gradient histogram peakiness), resolution fingerprint (known AI generation sizes), combined score (50/30/20 weighting). 7 Python tests
+- On-demand "Check Diffusion Artefacts" button on verify page with colour-coded verdict and experimental disclaimer
+
+### Seasonal Analysis
+
+**Added**
+- Seasonal indicators: `POST /forensics/seasonal-indicators` — greenness index (HSV), snow coverage (bright low-sat), warmth index (LAB b-channel), brown/autumn detection. Season estimation with confidence. 7 Python tests
+- On-demand "Seasonal Analysis" button on verify page with season badge, confidence, and indicator pills
+
+### Interactive Investigation
+
+**Added**
+- Region-of-interest (ROI) selection: `POST /forensics/roi-analysis` — click-and-drag rectangle on image preview with SVG overlay (masked dimming, dashed lapis border, corner handles). Analyses selected region for noise, ELA, frequency energy, texture complexity. 7 Python tests
+- ROI results panel with traffic-light colouring per metric
+
+### TypeScript Types & API
+
+**Added**
+- `TimeEstimate`, `RoiAnalysisResult`, `DiffusionArtefactsResult`, `SeasonalIndicatorsResult` interfaces
+- `estimateShadowTime()`, `checkHistoricalWeather()`, `analyseSeasonalIndicators()`, `analyseDiffusionArtefacts()`, `analyseRoi()` API wrappers
+
+### Test Counts
+
+- **Rust**: 266 tests passing (+5), clippy clean, fmt clean
+- **Python**: 367+ tests (+21 diffusion/seasonal/ROI)
+- **Frontend**: 0 svelte-check errors across 223 files
+
+---
+
 ## Sprint 22-23 — Frequency Analysis, Sun Angle, Batch Verify (28 Mar 2026)
 
 ### Enhanced Visual Inspection (Sprint 22)

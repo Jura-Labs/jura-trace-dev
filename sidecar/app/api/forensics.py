@@ -53,6 +53,9 @@ from app.services.transcription import perform_transcription
 from app.services.video_deepfake import perform_video_deepfake_analysis
 from app.services.video_frames import perform_frame_extraction
 from app.services.video_metadata import perform_video_metadata
+from app.services.diffusion_artefacts import detect_diffusion_artefacts
+from app.services.seasonal_indicators import analyse_seasonal_indicators
+from app.services.roi_analysis import analyse_roi
 from app.services.watermark import perform_watermark_embed, perform_watermark_extract
 
 router = APIRouter()
@@ -721,5 +724,73 @@ async def weather_check(
     """Query historical weather for location and date (opt-in network feature)."""
     try:
         return await _check_weather(latitude, longitude, date)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/diffusion-artefacts")
+async def diffusion_artefacts(
+    file: UploadFile = File(...),
+):
+    """Detect diffusion model generation artefacts.
+
+    Analyses texture smoothness, VAE decoder banding, and resolution
+    fingerprints to identify images produced by latent diffusion models
+    (Stable Diffusion, DALL-E, Midjourney, Flux).
+
+    Returns a combined diffusion score (0.0 = no artefacts, 1.0 = strong
+    diffusion signals) along with per-signal breakdowns and a smoothness
+    heatmap (base64 PNG).
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return detect_diffusion_artefacts(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/seasonal-indicators")
+async def seasonal_indicators(
+    file: UploadFile = File(...),
+):
+    """Analyse seasonal indicators in the image.
+
+    Estimates the likely season of capture by analysing vegetation
+    greenness, snow coverage, and colour temperature. Useful for
+    cross-referencing claimed capture dates against visual evidence.
+
+    Returns an estimated season, confidence score, and human-readable
+    indicator descriptions.
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return analyse_seasonal_indicators(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/roi-analysis")
+async def roi_analysis(
+    file: UploadFile = File(...),
+    x: int = Query(default=0, ge=0),
+    y: int = Query(default=0, ge=0),
+    width: int = Query(default=100, ge=1),
+    height: int = Query(default=100, ge=1),
+):
+    """Run forensic analysis on a rectangular region of interest.
+
+    Re-runs noise, ELA, and frequency analysis on the selected region,
+    enabling comparison between suspicious and reference areas within
+    the same image.
+
+    Returns noise statistics, ELA mean, frequency energy ratio, texture
+    complexity, and a noise residual visualisation (base64 PNG).
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return analyse_roi(image_bytes, x, y, width, height)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

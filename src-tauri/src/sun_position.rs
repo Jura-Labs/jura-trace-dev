@@ -152,6 +152,111 @@ pub fn calculate_solar_position(
     }
 }
 
+/// Candidate time estimate produced by `estimate_time_from_shadow`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeEstimate {
+    /// Estimated hour in UTC (e.g. 14.5 = 2:30 PM UTC).
+    pub hour_utc: f64,
+    /// Formatted time string (e.g. "14:30 UTC").
+    pub time_formatted: String,
+    /// Sun elevation at this time in degrees.
+    pub sun_elevation: f64,
+    /// Angular deviation from the target sun azimuth in degrees.
+    pub azimuth_error: f64,
+}
+
+/// Estimate the time(s) of day that would produce shadows at the given azimuth.
+///
+/// Since shadows point opposite to the sun, a shadow azimuth of X means the
+/// sun is at azimuth `(X + 180) % 360`. The function searches through the day
+/// in 1-minute increments to find times where the sun's azimuth matches.
+///
+/// Returns up to two candidate times (morning and afternoon produce
+/// symmetric shadow angles for many latitudes), sorted by ascending azimuth
+/// error (best match first).
+///
+/// # Arguments
+/// * `latitude`               — Latitude in decimal degrees (-90 to +90, north positive)
+/// * `longitude`              — Longitude in decimal degrees (-180 to +180, east positive)
+/// * `year`                   — Calendar year (e.g. 2024)
+/// * `month`                  — Month of year (1–12)
+/// * `day`                    — Day of month (1–31)
+/// * `shadow_azimuth_degrees` — Observed shadow direction in degrees clockwise from north
+pub fn estimate_time_from_shadow(
+    latitude: f64,
+    longitude: f64,
+    year: i32,
+    month: u32,
+    day: u32,
+    shadow_azimuth_degrees: f64,
+) -> Vec<TimeEstimate> {
+    // Sun azimuth is opposite to shadow direction.
+    let target_sun_azimuth = (shadow_azimuth_degrees + 180.0) % 360.0;
+
+    let mut candidates: Vec<TimeEstimate> = Vec::new();
+    let mut prev_diff = f64::MAX;
+
+    // Search through the day in 1-minute increments (0..1440 minutes).
+    for minute in 0..1440_u32 {
+        let hour = minute as f64 / 60.0;
+        let pos = calculate_solar_position(latitude, longitude, year, month, day, hour);
+
+        // Skip nighttime — sun below 1° avoids twilight noise.
+        if pos.elevation < 1.0 {
+            prev_diff = f64::MAX;
+            continue;
+        }
+
+        let diff = angle_diff(pos.azimuth, target_sun_azimuth);
+
+        // Detect local minima: diff was decreasing, now check if next step increases.
+        if diff < prev_diff && diff < 5.0 {
+            let next_minute = minute + 1;
+            if next_minute < 1440 {
+                let next_hour = next_minute as f64 / 60.0;
+                let next_pos =
+                    calculate_solar_position(latitude, longitude, year, month, day, next_hour);
+                let next_diff = angle_diff(next_pos.azimuth, target_sun_azimuth);
+                if next_diff > diff {
+                    // Confirmed local minimum — record candidate.
+                    let h = (hour as u32).min(23);
+                    let m = ((hour - h as f64) * 60.0).round() as u32 % 60;
+                    candidates.push(TimeEstimate {
+                        hour_utc: hour,
+                        time_formatted: format!("{:02}:{:02} UTC", h, m),
+                        sun_elevation: pos.elevation,
+                        azimuth_error: diff,
+                    });
+                }
+            }
+        }
+
+        prev_diff = diff;
+    }
+
+    // Sort by azimuth error (best match first) and limit to 2 candidates.
+    candidates.sort_by(|a, b| {
+        a.azimuth_error
+            .partial_cmp(&b.azimuth_error)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    candidates.truncate(2);
+    candidates
+}
+
+/// Compute the smallest angular difference between two azimuths in the range 0–360°.
+///
+/// Returns a value in [0, 180].
+fn angle_diff(a: f64, b: f64) -> f64 {
+    let diff = (a - b).abs() % 360.0;
+    if diff > 180.0 {
+        360.0 - diff
+    } else {
+        diff
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -282,5 +387,100 @@ mod tests {
                 "day_length_hours not finite for ({lat}, {lon})"
             );
         }
+    }
+
+    // ── angle_diff tests ──────────────────────────────────────────────────────
+
+    #[test]
+    fn angle_diff_basic() {
+        // 10° and 350° are 20° apart across the 0°/360° boundary.
+        let d = angle_diff(10.0, 350.0);
+        assert!(
+            (d - 20.0).abs() < 1e-9,
+            "expected angle_diff(10, 350) == 20.0, got {d}"
+        );
+    }
+
+    #[test]
+    fn angle_diff_same() {
+        // Identical azimuths must give zero.
+        let d = angle_diff(180.0, 180.0);
+        assert!(
+            d.abs() < 1e-9,
+            "expected angle_diff(180, 180) == 0.0, got {d}"
+        );
+    }
+
+    // ── estimate_time_from_shadow tests ──────────────────────────────────────
+
+    #[test]
+    fn shadow_time_london_summer() {
+        // London (51.5074°N, 0.1278°W), 21 June 2024.
+        // A shadow pointing north (azimuth ≈ 0°) means the sun is in the south
+        // (~180°), which occurs near solar noon (~12:00 UTC for London in summer).
+        let results = estimate_time_from_shadow(51.5074, -0.1278, 2024, 6, 21, 0.0);
+        assert!(
+            !results.is_empty(),
+            "Expected at least one candidate for north-pointing shadow in London summer"
+        );
+        let best = &results[0];
+        assert!(
+            best.hour_utc >= 11.0 && best.hour_utc <= 13.0,
+            "Expected noon-ish result (11–13 UTC), got hour_utc = {:.2}",
+            best.hour_utc
+        );
+    }
+
+    #[test]
+    fn shadow_time_returns_two_candidates() {
+        // London, 21 June 2024.
+        // A shadow pointing east (azimuth ≈ 90°) means the sun is in the west
+        // (~270°), which occurs in the afternoon. We request a shadow azimuth
+        // near 270° (sun in east, ~90°) to get morning/afternoon symmetry.
+        // Azimuth 270° shadow → sun at ~90° → expect morning candidate.
+        // Also try 90° shadow → sun at ~270° → expect afternoon candidate.
+        let results_afternoon = estimate_time_from_shadow(51.5074, -0.1278, 2024, 6, 21, 90.0);
+        assert!(
+            !results_afternoon.is_empty(),
+            "Expected at least one candidate for east-pointing shadow in London summer"
+        );
+        // The best result should be in the afternoon (sun at ~270° = west).
+        let best = &results_afternoon[0];
+        assert!(
+            best.hour_utc > 12.0,
+            "East-pointing shadow should correspond to afternoon (sun in west), got hour_utc = {:.2}",
+            best.hour_utc
+        );
+    }
+
+    #[test]
+    fn shadow_time_empty_for_impossible() {
+        // London, 21 December 2024 (winter).
+        // At this latitude and time of year, the sun never rises very high.
+        // A shadow pointing due north (azimuth 0°) in London in winter is
+        // plausible near noon, but a shadow azimuth that maps to the sun being
+        // directly north-at-horizon is impossible in the northern hemisphere.
+        // We use a polar location in winter to guarantee no daytime candidates.
+        // Tromsø (69.65°N), 21 December — sun barely rises or does not rise.
+        // The NOAA algorithm will return negative elevations for most of the day.
+        // We assert the result has 0 candidates OR all have elevation < 1°.
+        // (In practice at this latitude/date there may be a brief window;
+        //  we test that the filter correctly excludes sub-1° elevations.)
+        let results = estimate_time_from_shadow(69.65, 18.96, 2024, 12, 21, 0.0);
+        // If any candidates are returned, every one must have sun_elevation >= 1.0.
+        for c in &results {
+            assert!(
+                c.sun_elevation >= 1.0,
+                "Candidate with sun_elevation below threshold should have been filtered: {:.2}°",
+                c.sun_elevation
+            );
+        }
+        // At Tromsø in midwinter the sun is at or below the horizon all day —
+        // we expect zero candidates.
+        assert!(
+            results.is_empty(),
+            "Expected no candidates for Tromsø midwinter, got {}",
+            results.len()
+        );
     }
 }

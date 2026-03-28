@@ -857,6 +857,47 @@ export interface MonitorEvent {
   caseUpdatedAt: string | null;
 }
 
+// ── Sprint 24 investigation types ────────────────────────────────
+
+/** Result from a region-of-interest forensic analysis. */
+export interface RoiAnalysisResult {
+  noiseStd: number;
+  noiseMean: number;
+  elaMean: number;
+  frequencyEnergy: number;
+  textureComplexity: number;
+  noiseResidualBase64: string;
+  roi: { x: number; y: number; width: number; height: number };
+}
+
+/** A candidate time estimate from shadow azimuth inversion. */
+export interface TimeEstimate {
+  hourUtc: number;
+  timeFormatted: string;
+  sunElevation: number;
+  azimuthError: number;
+}
+
+/** Diffusion model artefact analysis result. */
+export interface DiffusionArtefactsResult {
+  textureSmoothnessScore: number;
+  textureSmoothnessMapBase64: string;
+  vaeBandingScore: number;
+  resolutionMatch: boolean;
+  resolutionNote: string;
+  overallDiffusionScore: number;
+}
+
+/** Seasonal vegetation and weather indicator analysis result. */
+export interface SeasonalIndicatorsResult {
+  greennessIndex: number;
+  snowCoverage: number;
+  warmthIndex: number;
+  estimatedSeason: string;
+  confidence: number;
+  indicators: string[];
+}
+
 /** Supported file extensions by content type */
 export const SUPPORTED_EXTENSIONS: Record<ContentType, string[]> = {
   image: ['.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.heic', '.heif', '.bmp', '.gif', '.svg', '.avif', '.ico'],
