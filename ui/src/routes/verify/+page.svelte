@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
-  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive, parseAppError, getLicenceTier } from '$lib/api';
+  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive, parseAppError, getLicenceTier, extractTextFromImage } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
   import type { LicenceTier, VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult } from '$lib/types';
@@ -126,6 +126,24 @@
   const blobs = createBlobTracker();
   onDestroy(() => blobs.revokeAll());
 
+  // ── Tauri environment detection ───────────────────────────────────
+  const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+  // ── Image preview for verified files ─────────────────────────────
+  // Uses Tauri's convertFileSrc to create a safe asset:// URL from the
+  // local file path. Falls back to null in browser mode.
+  let previewUrl = $state<string | null>(null);
+
+  $effect(() => {
+    const path = filePath;
+    const res = result;
+    previewUrl = null;
+    if (!path || !res || res.contentType !== 'image' || !inTauri) return;
+    import('@tauri-apps/api/core').then(({ convertFileSrc }) => {
+      previewUrl = convertFileSrc(path);
+    }).catch(() => { /* Tauri API unavailable */ });
+  });
+
   // ── Test hook: allow Playwright to inject a mock result ──────────
   // Writable store bridges external Playwright calls into Svelte 5
   // reactivity. The $-prefixed store reference in $effect creates
@@ -185,6 +203,30 @@
   let fpSubmitting = $state(false);
   let fpSubmitted = $state(false);
 
+  // ── Text extraction state ─────────────────────────────────────────
+  let extractingText = $state(false);
+  let extractedText = $state<string | null>(null);
+  let extractTextError = $state<string | null>(null);
+
+  async function handleExtractText() {
+    if (!filePath || extractingText) return;
+    extractingText = true;
+    extractedText = null;
+    extractTextError = null;
+    try {
+      const text = await extractTextFromImage(filePath);
+      if (text !== null) {
+        extractedText = text;
+      } else {
+        extractTextError = 'Text extraction is unavailable. Ensure Ollama is running and llava:7b is pulled.';
+      }
+    } catch {
+      extractTextError = 'Text extraction failed. Check that Ollama is running.';
+    } finally {
+      extractingText = false;
+    }
+  }
+
   // ── Platform detection ──────────────────────────────────────────
   const isMac = typeof navigator !== 'undefined' && navigator.platform.startsWith('Mac');
   const modKey = isMac ? 'Cmd' : 'Ctrl';
@@ -223,9 +265,9 @@
   const trustTextClass = $derived(() => {
     const level = trustLevel();
     if (!level) return 'text-flint dark:text-flint-light';
-    if (level === 'high') return 'text-malachite';
-    if (level === 'medium') return 'text-amber';
-    return 'text-cinnabar';
+    if (level === 'high') return 'text-malachite dark:text-malachite-light';
+    if (level === 'medium') return 'text-amber dark:text-amber-light';
+    return 'text-cinnabar dark:text-cinnabar-light';
   });
 
   const trustLabelText = $derived(() => {
@@ -711,6 +753,31 @@
     expandedBatchId = null;
   }
 
+  // ── Batch report download ─────────────────────────────────────────
+  function downloadBatchReport() {
+    const completed = batchItems.filter(i => i.status === 'done' && i.result);
+    if (completed.length === 0) return;
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const csvHeaders = 'Filename,Verdict,Trust Score,Mode,Date\n';
+    const csvRows = completed.map(item => {
+      const r = item.result!;
+      const verdictFromDeepfake = r.deepfakeResult?.verdictLevel;
+      const verdict = verdictFromDeepfake ?? (r.overallTrust >= 0.7 ? 'authentic' : r.overallTrust >= 0.4 ? 'inconclusive' : 'synthetic');
+      const trust = Math.round(r.overallTrust * 100);
+      const mode = r.mode ?? verifyMode;
+      const date = item.finishedAt ? new Date(item.finishedAt).toISOString().slice(0, 10) : dateStr;
+      const name = item.fileName.replace(/"/g, '""');
+      return `"${name}","${verdict}",${trust},"${mode}","${date}"`;
+    }).join('\n');
+    const blob = new Blob([csvHeaders + csvRows], { type: 'text/csv;charset=utf-8;' });
+    const dlUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = dlUrl;
+    anchor.download = `jura-batch-results-${dateStr}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(dlUrl);
+  }
+
   // ── Helpers ──────────────────────────────────────────────────────
   function formatSignedAt(raw: string): string {
     try {
@@ -773,9 +840,9 @@
   }
 
   function forensicScoreClass(score: number): string {
-    if (score < 0.3) return 'text-malachite';
-    if (score < 0.6) return 'text-amber';
-    return 'text-cinnabar';
+    if (score < 0.3) return 'text-malachite dark:text-malachite-light';
+    if (score < 0.6) return 'text-amber dark:text-amber-light';
+    return 'text-cinnabar dark:text-cinnabar-light';
   }
 
   function forensicScoreBgClass(score: number): string {
@@ -955,10 +1022,10 @@
               onclick={() => { verifyMode = opt.mode; localStorage.setItem('jura-verify-mode', opt.mode); }}
             >
               <span class="block font-medium">{opt.label}</span>
-              <span class="block text-[10px] leading-tight mt-0.5
+              <span class="block text-xs leading-tight mt-0.5
                            {verifyMode === opt.mode
                              ? 'text-lapis/70 dark:text-lapis-light/70'
-                             : 'text-flint/70 dark:text-flint-light/60'}">
+                             : 'text-flint/70 dark:text-flint-light/70'}">
                 {opt.description}
               </span>
             </button>
@@ -1219,6 +1286,20 @@
           >
             Clear all
           </button>
+          {#if batchCompleted > 0}
+            <button
+              class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-malachite/50 text-malachite dark:text-malachite-light hover:bg-malachite/10 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-malachite focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+              onclick={downloadBatchReport}
+              aria-label="Download batch verification results as a CSV spreadsheet"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M12 16v-8m0 8l-3-3m3 3l3-3M4 20h16" />
+              </svg>
+              Download Batch Report
+            </button>
+          {/if}
         </div>
 
         <!-- Results table -->
@@ -1266,18 +1347,18 @@
                         role="status"
                         aria-label="Verifying"
                       ></span>
-                      <span class="text-lapis">Running</span>
+                      <span class="text-lapis dark:text-lapis-light">Running</span>
                     </span>
                   {:else if item.status === 'done'}
                     {@const level = getTrustLevel(item.result?.overallTrust ?? 0)}
                     <span class="font-medium px-1.5 py-0.5 rounded
-                      {level === 'high' ? 'text-malachite bg-malachite/10' :
-                       level === 'medium' ? 'text-amber bg-amber/10' :
-                       'text-cinnabar bg-cinnabar/10'}">
+                      {level === 'high' ? 'text-malachite dark:text-malachite-light bg-malachite/10' :
+                       level === 'medium' ? 'text-amber dark:text-amber-light bg-amber/10' :
+                       'text-cinnabar dark:text-cinnabar-light bg-cinnabar/10'}">
                       Done
                     </span>
                   {:else}
-                    <span class="text-cinnabar">Error</span>
+                    <span class="text-cinnabar dark:text-cinnabar-light">Error</span>
                   {/if}
                 </span>
 
@@ -1285,7 +1366,7 @@
                 <span class="text-xs tabular-nums self-center">
                   {#if item.status === 'done' && item.result}
                     {@const level = getTrustLevel(item.result.overallTrust)}
-                    <span class="{level === 'high' ? 'text-malachite' : level === 'medium' ? 'text-amber' : 'text-cinnabar'}">
+                    <span class="{level === 'high' ? 'text-malachite dark:text-malachite-light' : level === 'medium' ? 'text-amber dark:text-amber-light' : 'text-cinnabar dark:text-cinnabar-light'}">
                       {Math.round(item.result.overallTrust * 100)}%
                     </span>
                   {:else}
@@ -1319,7 +1400,7 @@
 
               <!-- Error message -->
               {#if item.status === 'error' && item.error}
-                <div class="px-4 py-2 bg-cinnabar/5 text-xs text-cinnabar">
+                <div class="px-4 py-2 bg-cinnabar/5 text-xs text-cinnabar dark:text-cinnabar-light">
                   {item.error}
                 </div>
               {/if}
@@ -1407,6 +1488,14 @@
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark overflow-hidden">
       <div class="px-5 py-4 border-b border-border-light dark:border-border-dark flex items-center justify-between gap-4">
         <div class="flex items-center gap-4 min-w-0">
+          <!-- Image preview thumbnail (shown when a local image file was verified) -->
+          {#if previewUrl}
+            <div
+              class="flex-shrink-0 w-14 h-14 rounded overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-graphite-light"
+            >
+              <img src={previewUrl} alt="" class="w-full h-full object-cover" loading="lazy" />
+            </div>
+          {/if}
           <div>
             <div class="flex items-center gap-1.5 mb-0.5">
               <p class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Trust Score</p>
@@ -1443,7 +1532,7 @@
             <p class="text-xs text-flint dark:text-flint-light mt-0.5">
               {result.contentType}
               {#if result.sourceType === 'url'}
-                <span class="ml-1 text-lapis">(via URL)</span>
+                <span class="ml-1 text-lapis dark:text-lapis-light">(via URL)</span>
               {/if}
             </p>
           </div>
@@ -1909,7 +1998,7 @@
           </div>
 
           {#if ela.suspicious}
-            <div class="mt-3 text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+            <div class="mt-3 text-xs text-amber dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
               Elevated compression artefact variation detected. This may indicate pixel-level editing
               or compositing. Consider alongside other verification signals.
             </div>
@@ -1975,7 +2064,7 @@
           </div>
 
           {#if noise.suspicious}
-            <div class="mt-3 text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+            <div class="mt-3 text-xs text-amber dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
               Inconsistent noise patterns detected across image blocks. This may indicate region-level
               editing, splicing, or inpainting. Consider alongside other verification signals.
             </div>
@@ -2025,7 +2114,7 @@
           </div>
 
           {#if cm.suspicious}
-            <div class="mt-3 text-xs text-cinnabar bg-cinnabar/10 border border-cinnabar/20 rounded-md px-3 py-2">
+            <div class="mt-3 text-xs text-cinnabar dark:text-cinnabar-light bg-cinnabar/10 border border-cinnabar/20 rounded-md px-3 py-2">
               Duplicated regions detected within the image. This is a strong indicator of copy-move
               forgery — content appears to have been cloned from one area to another.
             </div>
@@ -2045,10 +2134,10 @@
               <span
                 class="text-xs font-medium px-2 py-0.5 rounded border
                        {regionSuspiciousCount === 0
-                         ? 'bg-malachite/15 border-malachite/20 text-malachite'
+                         ? 'bg-malachite/15 border-malachite/20 text-malachite dark:text-malachite-light'
                          : regionSuspiciousCount >= 2
-                           ? 'bg-cinnabar/15 border-cinnabar/20 text-cinnabar'
-                           : 'bg-amber/15 border-amber/20 text-amber'}"
+                           ? 'bg-cinnabar/15 border-cinnabar/20 text-cinnabar dark:text-cinnabar-light'
+                           : 'bg-amber/15 border-amber/20 text-amber dark:text-amber-light'}"
                 aria-label="{regionSuspiciousCount} of {regionRunCount} region detectors suspicious"
               >
                 {regionSuspiciousCount} of {regionRunCount} suspicious
@@ -2176,7 +2265,7 @@
                     </div>
 
                     {#if seg.suspicious}
-                      <div class="text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+                      <div class="text-xs text-amber dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
                         Elevated compression variance detected across image regions. Inconsistent ELA patterns
                         between blocks may indicate that regions were edited or inserted separately.
                       </div>
@@ -2243,7 +2332,7 @@
                     </div>
 
                     {#if sh.suspicious}
-                      <div class="text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+                      <div class="text-xs text-amber dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
                         Shadow directions in one or more regions deviate significantly from the global light
                         direction. This may indicate that elements were composited from differently-lit sources.
                       </div>
@@ -2314,7 +2403,7 @@
                     </div>
 
                     {#if ct.suspicious}
-                      <div class="text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+                      <div class="text-xs text-amber dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
                         Regions with significantly different colour temperatures were found. Inconsistent
                         white balance across an image may indicate elements were captured under different
                         lighting conditions and composited together.
@@ -2379,7 +2468,7 @@
 
                     {#if sb.boundaries.length > 0}
                       <details class="group/inner">
-                        <summary class="text-xs text-lapis cursor-pointer hover:text-lapis-light transition-colors">
+                        <summary class="text-xs text-lapis dark:text-lapis-light cursor-pointer hover:text-lapis-dark dark:hover:text-lapis-light transition-colors">
                           {sb.suspiciousBoundaries} candidate {sb.suspiciousBoundaries === 1 ? 'boundary' : 'boundaries'} — view details
                         </summary>
                         <div class="mt-2 space-y-1.5" role="list" aria-label="Splice boundary candidates">
@@ -2418,7 +2507,7 @@
                     {/if}
 
                     {#if sb.suspicious}
-                      <div class="text-xs text-cinnabar bg-cinnabar/10 border border-cinnabar/20 rounded-md px-3 py-2">
+                      <div class="text-xs text-cinnabar dark:text-cinnabar-light bg-cinnabar/10 border border-cinnabar/20 rounded-md px-3 py-2">
                         One or more cut edges with multiple corroborating signals were found. This pattern
                         is consistent with content being inserted or replaced at a region boundary.
                       </div>
@@ -2481,7 +2570,7 @@
           <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{npr.summary}</p>
 
           {#if npr.suspicious}
-            <div class="mt-3 text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+            <div class="mt-3 text-xs text-amber dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
               Anomalous pixel neighbourhood correlation detected. This pattern can result from local
               resampling, inpainting, or region insertion that disrupts the natural statistical
               relationship between adjacent pixels.
@@ -2542,7 +2631,7 @@
           <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{jg.summary}</p>
 
           {#if jg.suspicious}
-            <div class="mt-3 text-xs text-amber bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+            <div class="mt-3 text-xs text-amber dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
               Blocks with different JPEG compression histories detected. This is a marker of splice
               forgery — regions from a differently-compressed source image leave a ghost artefact
               pattern when re-compressed at the target quality level.
@@ -2733,7 +2822,7 @@
           <!-- Signal list -->
           {#if df.signals.length > 0}
             <details class="group">
-              <summary class="text-xs text-lapis cursor-pointer hover:text-lapis-light transition-colors">
+              <summary class="text-xs text-lapis dark:text-lapis-light cursor-pointer hover:text-lapis-dark dark:hover:text-lapis-light transition-colors">
                 {df.signals.filter(s => s.triggered).length} of {df.signals.length} signals triggered — view details
               </summary>
               <div class="mt-2 space-y-1.5" role="list" aria-label="Detection signals">
@@ -2761,7 +2850,7 @@
           {/if}
 
           {#if df.suspicious}
-            <div class="mt-3 text-xs text-cinnabar bg-cinnabar/10 border border-cinnabar/20 rounded-md px-3 py-2">
+            <div class="mt-3 text-xs text-cinnabar dark:text-cinnabar-light bg-cinnabar/10 border border-cinnabar/20 rounded-md px-3 py-2">
               Multiple statistical signals suggest this image may be AI-generated or synthetically produced.
               Consider alongside other verification signals and the specific context of use.
             </div>
@@ -2923,7 +3012,7 @@
               <div class="space-y-2" role="list" aria-label="C2PA assertions">
                 {#each manifest.assertions as assertion (assertion.label)}
                   <div class="bg-gray-100 dark:bg-obsidian/50 rounded-md p-3" role="listitem">
-                    <p class="text-xs font-mono text-lapis dark:text-lapis mb-1 break-all">{assertion.label}</p>
+                    <p class="text-xs font-mono text-lapis dark:text-lapis-light mb-1 break-all">{assertion.label}</p>
                     <pre class="text-xs text-flint dark:text-flint-light whitespace-pre-wrap break-words leading-relaxed">{assertion.value}</pre>
                   </div>
                 {/each}
@@ -3046,9 +3135,9 @@
             </h2>
             <span
               class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                {vd.aggregateVerdict === 'authentic' ? 'bg-malachite/10 text-malachite' :
-                 vd.aggregateVerdict === 'synthetic' ? 'bg-cinnabar/10 text-cinnabar' :
-                 'bg-amber/10 text-amber'}"
+                {vd.aggregateVerdict === 'authentic' ? 'bg-malachite/10 text-malachite dark:text-malachite-light' :
+                 vd.aggregateVerdict === 'synthetic' ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light' :
+                 'bg-amber/10 text-amber dark:text-amber-light'}"
             >
               {vd.aggregateVerdict === 'authentic' ? 'Authentic' :
                vd.aggregateVerdict === 'synthetic' ? 'Synthetic' : 'Inconclusive'}
@@ -3116,11 +3205,12 @@
 
                     <!-- Score badge -->
                     <span
-                      class="absolute bottom-1 right-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
-                      style="color: {fr.verdictLevel === 'authentic' ? 'rgb(76, 175, 80)' :
-                        fr.verdictLevel === 'synthetic' ? 'rgb(211, 47, 47)' : 'rgb(255, 160, 0)'};
-                        background: {fr.verdictLevel === 'authentic' ? 'rgba(76,175,80,0.15)' :
-                        fr.verdictLevel === 'synthetic' ? 'rgba(211,47,47,0.15)' : 'rgba(255,160,0,0.15)'};"
+                      class="absolute bottom-1 right-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium
+                             {fr.verdictLevel === 'authentic'
+                               ? 'text-malachite-light bg-malachite/20'
+                               : fr.verdictLevel === 'synthetic'
+                                 ? 'text-cinnabar-light bg-cinnabar/20'
+                                 : 'text-amber-light bg-amber/20'}"
                     >
                       {(fr.score * 100).toFixed(0)}%
                     </span>
@@ -3128,10 +3218,11 @@
                     <!-- Score bar -->
                     <div class="h-1.5 w-full bg-graphite/20">
                       <div
-                        class="h-full transition-all"
-                        style="width: {Math.max(2, fr.score * 100)}%;
-                          background-color: {fr.verdictLevel === 'authentic' ? 'rgb(76, 175, 80)' :
-                            fr.verdictLevel === 'synthetic' ? 'rgb(211, 47, 47)' : 'rgb(255, 160, 0)'};"
+                        class="h-full transition-all
+                               {fr.verdictLevel === 'authentic' ? 'bg-malachite dark:bg-malachite-light' :
+                                fr.verdictLevel === 'synthetic' ? 'bg-cinnabar dark:bg-cinnabar-light' :
+                                'bg-amber dark:bg-amber-light'}"
+                        style="width: {Math.max(2, fr.score * 100)}%;"
                       ></div>
                     </div>
                   </button>
@@ -3146,13 +3237,13 @@
                         <span class="text-xs font-medium text-text-light dark:text-quartz">
                           Frame {fr.frameIndex + 1} at {fr.timestamp.toFixed(1)}s
                         </span>
-                        <span class="text-xs tabular-nums {fr.verdictLevel === 'authentic' ? 'text-malachite' : fr.verdictLevel === 'synthetic' ? 'text-cinnabar' : 'text-amber'}">
+                        <span class="text-xs tabular-nums {fr.verdictLevel === 'authentic' ? 'text-malachite dark:text-malachite-light' : fr.verdictLevel === 'synthetic' ? 'text-cinnabar dark:text-cinnabar-light' : 'text-amber dark:text-amber-light'}">
                           {fr.verdictLevel.charAt(0).toUpperCase() + fr.verdictLevel.slice(1)} ({(fr.score * 100).toFixed(1)}%)
                         </span>
                       </div>
 
                       {#if fr.classifierAvailable && fr.classifierScore != null}
-                        <div class="text-[10px] text-flint dark:text-flint-light">
+                        <div class="text-xs text-flint dark:text-flint-light">
                           GBM classifier: {(fr.classifierScore * 100).toFixed(1)}%
                         </div>
                       {/if}
@@ -3171,12 +3262,13 @@
                       <!-- Signals list -->
                       {#if fr.signals.length > 0}
                         <div class="space-y-1">
-                          <span class="text-[10px] font-medium text-flint dark:text-flint-light uppercase tracking-wider">Signals</span>
+                          <span class="text-xs font-medium text-flint dark:text-flint-light uppercase tracking-wider">Signals</span>
                           {#each fr.signals as signal}
-                            <div class="flex items-center gap-2 text-[10px]">
+                            <div class="flex items-center gap-2 text-xs">
                               <span
-                                class="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                style="background: {signal.triggered ? 'rgb(211, 47, 47)' : 'rgb(76, 175, 80)'};"
+                                class="w-1.5 h-1.5 rounded-full flex-shrink-0
+                                       {signal.triggered ? 'bg-cinnabar dark:bg-cinnabar-light' : 'bg-malachite dark:bg-malachite-light'}"
+                                aria-hidden="true"
                               ></span>
                               <span class="text-flint dark:text-flint-light flex-1">{signal.name}</span>
                               <span class="tabular-nums text-text-light dark:text-quartz">{(signal.weight * 100).toFixed(0)}%</span>
@@ -3191,17 +3283,17 @@
             </div>
 
             <!-- Colour key -->
-            <div class="flex items-center gap-4 text-[10px] text-flint dark:text-flint-light mb-2">
-              <span class="flex items-center gap-1">
-                <span class="inline-block w-2 h-2 rounded-full" style="background: rgb(76, 175, 80);"></span>
+            <div class="flex flex-wrap items-center gap-4 text-xs text-flint dark:text-flint-light mb-2" role="img" aria-label="Score badge colour key: Authentic below 35%, Inconclusive 35 to 60%, Synthetic above 60%">
+              <span class="flex items-center gap-1" aria-hidden="true">
+                <span class="inline-block w-2 h-2 rounded-full bg-malachite dark:bg-malachite-light"></span>
                 Authentic (&lt;35%)
               </span>
-              <span class="flex items-center gap-1">
-                <span class="inline-block w-2 h-2 rounded-full" style="background: rgb(255, 160, 0);"></span>
+              <span class="flex items-center gap-1" aria-hidden="true">
+                <span class="inline-block w-2 h-2 rounded-full bg-amber dark:bg-amber-light"></span>
                 Inconclusive (35-60%)
               </span>
-              <span class="flex items-center gap-1">
-                <span class="inline-block w-2 h-2 rounded-full" style="background: rgb(211, 47, 47);"></span>
+              <span class="flex items-center gap-1" aria-hidden="true">
+                <span class="inline-block w-2 h-2 rounded-full bg-cinnabar dark:bg-cinnabar-light"></span>
                 Synthetic (&gt;60%)
               </span>
             </div>
@@ -3218,7 +3310,7 @@
           <h2 class="text-sm font-medium text-text-light dark:text-quartz mb-2">
             Video Analysis
           </h2>
-          <p class="text-xs text-cinnabar">
+          <p class="text-xs text-cinnabar dark:text-cinnabar-light">
             {result.videoDeepfakeResult.message}
           </p>
         </section>
@@ -3315,7 +3407,7 @@
           <!-- Timestamped segments -->
           {#if tr.segments && tr.segments.length > 0}
             <details class="group">
-              <summary class="cursor-pointer text-xs font-medium text-lapis hover:underline">
+              <summary class="cursor-pointer text-xs font-medium text-lapis dark:text-lapis-light hover:underline">
                 Show {tr.segments.length} timestamped segment{tr.segments.length !== 1 ? 's' : ''}
               </summary>
               <div class="mt-2 max-h-64 overflow-y-auto space-y-1">
@@ -3363,9 +3455,9 @@
               Claim Verification
             </h3>
             <span class="text-xs px-2 py-0.5 rounded font-medium
-              {cc.overallVerdict === 'supported' ? 'bg-malachite/10 text-malachite' :
-               cc.overallVerdict === 'disputed' ? 'bg-cinnabar/10 text-cinnabar' :
-               cc.overallVerdict === 'mixed' ? 'bg-amber/10 text-amber' :
+              {cc.overallVerdict === 'supported' ? 'bg-malachite/10 text-malachite dark:text-malachite-light' :
+               cc.overallVerdict === 'disputed' ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light' :
+               cc.overallVerdict === 'mixed' ? 'bg-amber/10 text-amber dark:text-amber-light' :
                'bg-graphite/20 text-flint dark:text-flint-light'}">
               {cc.overallVerdict.charAt(0).toUpperCase() + cc.overallVerdict.slice(1)}
             </span>
@@ -3380,8 +3472,8 @@
                   <div class="flex items-start justify-between gap-2 mb-1">
                     <p class="text-xs font-medium text-obsidian dark:text-white">{claim.claim}</p>
                     <span class="flex-shrink-0 text-xs px-1.5 py-0.5 rounded
-                      {claim.verdict === 'supported' ? 'bg-malachite/10 text-malachite' :
-                       claim.verdict === 'disputed' ? 'bg-cinnabar/10 text-cinnabar' :
+                      {claim.verdict === 'supported' ? 'bg-malachite/10 text-malachite dark:text-malachite-light' :
+                       claim.verdict === 'disputed' ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light' :
                        'bg-graphite/20 text-flint dark:text-flint-light'}">
                       {claim.verdict}
                     </span>
@@ -3395,7 +3487,7 @@
                           style="width: {claim.confidence * 100}%"
                         ></div>
                       </div>
-                      <span class="text-[10px] text-flint dark:text-flint-light">{(claim.confidence * 100).toFixed(0)}%</span>
+                      <span class="text-xs text-flint dark:text-flint-light">{(claim.confidence * 100).toFixed(0)}%</span>
                     </div>
                   {/if}
                 </div>
@@ -3403,7 +3495,7 @@
             </div>
           {/if}
 
-          <p class="mt-3 text-[10px] text-flint dark:text-flint-light">
+          <p class="mt-3 text-xs text-flint dark:text-flint-light">
             Model: {cc.modelUsed} · {cc.methodology}
           </p>
         </section>
@@ -3427,6 +3519,34 @@
           <p class="mt-2 text-xs text-flint dark:text-flint-light">
             Generated by LLaVA 7B via Ollama. This is an AI-generated description and is not a verified fact.
           </p>
+        </section>
+      {/if}
+
+      <!-- ── Read Text (Ollama LLaVA) ──────────────────────────────── -->
+      {#if result.contentType === 'image' && result.sourceType !== 'url' && filePath && sidecarHealth?.ollama !== null}
+        <section aria-labelledby="read-text-heading" class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+          <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+            <h3 id="read-text-heading" class="font-serif text-base font-semibold text-obsidian dark:text-white">Read Text</h3>
+            <button type="button" onclick={handleExtractText} disabled={extractingText} aria-busy={extractingText} class="inline-flex items-center gap-2 text-xs px-3 py-2 rounded border border-lapis/40 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors duration-150 min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite disabled:opacity-50 disabled:cursor-not-allowed">
+              {#if extractingText}
+                <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>
+                Reading text&hellip;
+              {:else}
+                Read Text (Ollama)
+              {/if}
+            </button>
+          </div>
+          <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-3">Transcribe all visible text in this image using LLaVA. Useful for screenshots, memes, social media posts, and document images. Text can then be fed into the claim checker.</p>
+          {#if extractTextError}
+            <div role="alert" aria-live="assertive" class="rounded-md border border-cinnabar/30 bg-cinnabar/10 px-4 py-3 text-xs text-cinnabar dark:text-cinnabar-light leading-relaxed">{extractTextError}</div>
+          {/if}
+          {#if extractedText}
+            <div role="status" aria-live="polite" class="rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/50 px-4 py-3">
+              <p class="text-xs font-medium text-text-light dark:text-quartz mb-2">Extracted Text</p>
+              <pre class="text-sm text-obsidian dark:text-quartz whitespace-pre-wrap font-mono leading-relaxed">{extractedText}</pre>
+              <p class="mt-3 text-xs text-flint dark:text-flint-light">Extracted by LLaVA 7B via Ollama. Review carefully — AI models can misread text, especially in low-resolution, stylised, or heavily compressed images.</p>
+            </div>
+          {/if}
         </section>
       {/if}
 

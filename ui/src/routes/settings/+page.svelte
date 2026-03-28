@@ -358,7 +358,10 @@
           spellcheck={false}
         />
         <p class="text-xs text-flint dark:text-flint-light mt-1">
-          Required for auto-cataloguing and claim checking
+          Ollama runs AI models locally on your computer for two optional features: (1) reading text
+          visible in images such as screenshots or memes, and (2) checking factual claims in
+          transcribed speech against a knowledge base. Neither feature is required — Jura Trace works
+          fully without Ollama.
         </p>
       </div>
 

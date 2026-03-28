@@ -64,6 +64,23 @@
   let watermarking = $state(false);
   let watermarkResult = $state<WatermarkEmbedResult | null>(null);
 
+  // ── Batch C2PA sign state ─────────────────────────────────────────
+  let showBatchSign = $state(false);
+  let batchSignCreatorName = $state('');
+  let batchSignLicense = $state('All Rights Reserved');
+  let batchSignRunning = $state(false);
+  let batchSignProgress = $state(0);
+  let batchSignTotal = $state(0);
+  let batchSignCurrentFile = $state('');
+  let batchSignSuccessCount = $state(0);
+  let batchSignFailCount = $state(0);
+  let batchSignCancelled = $state(false);
+  let batchSignDone = $state(false);
+  let batchSignEta = $state<string | null>(null);
+  let batchSignErrors = $state<{ fileName: string; error: string }[]>([]);
+  let showBatchSignErrors = $state(false);
+  let _batchSignTimes: number[] = [];
+
   // ── Batch watermark state ─────────────────────────────────────────
   let showBatchWatermark = $state(false);
   let batchPayload = $state('');
@@ -102,6 +119,7 @@
   // ── Re-fetch when filters change ─────────────────────────────────
   $effect(() => {
     const contentType = filterContentType || undefined;
+    // 'watermarked' filter is applied client-side; don't pass c2paSigned for it
     const c2paSigned  = filterStatus === 'signed'
       ? true
       : filterStatus === 'unsigned'
@@ -114,25 +132,35 @@
     });
   });
 
-  // ── Sorted derived list ──────────────────────────────────────────
+  // ── Sorted + client-side filtered derived list ───────────────────
   const displayedAssets = $derived(
-    [...assets].sort((a, b) => {
-      let cmp = 0;
-      if (sortKey === 'fileName') {
-        cmp = a.fileName.localeCompare(b.fileName);
-      } else if (sortKey === 'fileSize') {
-        cmp = a.fileSize - b.fileSize;
-      } else {
-        // createdAt — ISO strings sort lexicographically
-        cmp = a.createdAt.localeCompare(b.createdAt);
-      }
-      return sortDir === 'asc' ? cmp : -cmp;
-    })
+    [...assets]
+      .filter(a => {
+        if (filterStatus === 'watermarked') return a.watermarked;
+        return true;
+      })
+      .sort((a, b) => {
+        let cmp = 0;
+        if (sortKey === 'fileName') {
+          cmp = a.fileName.localeCompare(b.fileName);
+        } else if (sortKey === 'fileSize') {
+          cmp = a.fileSize - b.fileSize;
+        } else {
+          // createdAt — ISO strings sort lexicographically
+          cmp = a.createdAt.localeCompare(b.createdAt);
+        }
+        return sortDir === 'asc' ? cmp : -cmp;
+      })
   );
 
   // ── Images eligible for batch watermarking ───────────────────────
   const unwatermarkedImages = $derived(
     assets.filter(a => a.contentType === 'image' && !a.watermarked)
+  );
+
+  // ── Assets eligible for batch C2PA signing ────────────────────────
+  const unsignedAssets = $derived(
+    assets.filter(a => !a.c2paSigned && canSignC2pa(a))
   );
 
   // ── Sort handler ─────────────────────────────────────────────────
@@ -323,7 +351,18 @@
   // ── CSV export ────────────────────────────────────────────────────
   function exportCsv() {
     const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    const headers = ['File Name', 'Content Type', 'MIME Type', 'File Size', 'Width', 'Height', 'C2PA Signed', 'Created'];
+    const headers = [
+      'File Name',
+      'Content Type',
+      'MIME Type',
+      'File Size',
+      'Width',
+      'Height',
+      'C2PA Signed',
+      'Watermarked',
+      'File Path',
+      'Created',
+    ];
 
     function escapeCsv(value: string | number | boolean | undefined | null): string {
       if (value == null) return '';
@@ -342,6 +381,8 @@
       escapeCsv(a.width ?? ''),
       escapeCsv(a.height ?? ''),
       escapeCsv(a.c2paSigned ? 'Yes' : 'No'),
+      escapeCsv(a.watermarked ? 'Yes' : 'No'),
+      escapeCsv(a.filePath),
       escapeCsv(new Date(a.createdAt).toISOString()),
     ].join(','));
 
@@ -443,6 +484,97 @@
     showBatchWatermark = false;
   }
 
+  // ── Batch C2PA sign handlers ──────────────────────────────────────
+  function openBatchSign() {
+    showBatchSign = true;
+    batchSignDone = false;
+    batchSignProgress = 0;
+    batchSignSuccessCount = 0;
+    batchSignFailCount = 0;
+    batchSignCancelled = false;
+    batchSignCurrentFile = '';
+    batchSignEta = null;
+    batchSignErrors = [];
+    showBatchSignErrors = false;
+    _batchSignTimes = [];
+    batchSignCreatorName = creatorName || batchSignCreatorName;
+  }
+
+  function closeBatchSign() {
+    if (batchSignRunning) return;
+    showBatchSign = false;
+  }
+
+  async function handleBatchSign() {
+    if (!batchSignCreatorName.trim() || unsignedAssets.length === 0) return;
+    batchSignRunning = true;
+    batchSignDone = false;
+    batchSignProgress = 0;
+    batchSignTotal = unsignedAssets.length;
+    batchSignSuccessCount = 0;
+    batchSignFailCount = 0;
+    batchSignCancelled = false;
+    batchSignCurrentFile = '';
+    batchSignEta = null;
+    batchSignErrors = [];
+    showBatchSignErrors = false;
+    _batchSignTimes = [];
+
+    for (const asset of unsignedAssets) {
+      if (batchSignCancelled) break;
+      batchSignCurrentFile = asset.fileName;
+      batchSignProgress++;
+
+      const t0 = performance.now();
+      try {
+        const updated = await signAsset(asset.assetId, batchSignCreatorName.trim(), batchSignLicense);
+        assets = assets.map(a => a.assetId === updated.assetId ? updated : a);
+        if (selectedAsset?.assetId === updated.assetId) selectedAsset = updated;
+        batchSignSuccessCount++;
+      } catch (e) {
+        batchSignFailCount++;
+        batchSignErrors = [
+          ...batchSignErrors,
+          { fileName: asset.fileName, error: e instanceof Error ? e.message : 'Signing failed' },
+        ];
+      }
+      _batchSignTimes.push(performance.now() - t0);
+
+      const remaining = batchSignTotal - batchSignProgress;
+      if (remaining > 0 && _batchSignTimes.length > 0) {
+        const avg = _batchSignTimes.reduce((a, b) => a + b, 0) / _batchSignTimes.length;
+        const etaMs = avg * remaining;
+        if (etaMs < 60_000) {
+          batchSignEta = `~${Math.max(1, Math.round(etaMs / 1000))}s remaining`;
+        } else {
+          batchSignEta = `~${Math.ceil(etaMs / 60_000)} min remaining`;
+        }
+      } else {
+        batchSignEta = null;
+      }
+    }
+
+    batchSignRunning = false;
+    batchSignDone = true;
+    batchSignCurrentFile = '';
+    batchSignEta = null;
+  }
+
+  function exportBatchSignErrors() {
+    if (batchSignErrors.length === 0) return;
+    const csv = [
+      'File Name,Error',
+      ...batchSignErrors.map(e => `"${e.fileName.replace(/"/g, '""')}","${e.error.replace(/"/g, '""')}"`),
+    ].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `jura_sign_errors_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   // ── Format video/audio duration as mm:ss ──────────────────────────
   function formatDurationSecs(seconds: number): string {
     const m = Math.floor(seconds / 60);
@@ -475,6 +607,57 @@
     if (sortKey !== key) return '';
     return sortDir === 'asc' ? ' ↑' : ' ↓';
   }
+
+  // ── Tauri environment detection ───────────────────────────────────
+  const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+  // ── Path utilities ────────────────────────────────────────────────
+  let copyPathFeedback = $state<string | null>(null);
+  let copyPathTimer: ReturnType<typeof setTimeout> | null = null;
+
+  async function copyPath(path: string) {
+    try {
+      await navigator.clipboard.writeText(path);
+      copyPathFeedback = path;
+      if (copyPathTimer) clearTimeout(copyPathTimer);
+      copyPathTimer = setTimeout(() => { copyPathFeedback = null; }, 2000);
+    } catch {
+      // Clipboard API unavailable — silently fail
+    }
+  }
+
+  async function openInFinder(path: string) {
+    if (!inTauri) return;
+    try {
+      const { open } = await import('@tauri-apps/plugin-shell');
+      const dir = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : path;
+      await open(dir);
+    } catch {
+      // Shell plugin unavailable — silently fail
+    }
+  }
+
+  // ── Image thumbnail URLs ──────────────────────────────────────────
+  // Reactive map of assetId -> safe asset:// URL for CSP-compliant thumbnail display
+  let thumbnailUrls = $state<Record<string, string>>({});
+
+  /**
+   * Svelte action that resolves a thumbnail URL via Tauri's convertFileSrc
+   * when the row is first mounted. Safe no-op in browser mode.
+   */
+  function loadThumbnailEffect(node: HTMLElement, asset: Asset) {
+    function resolve(a: Asset) {
+      if (inTauri && a.contentType === 'image' && !thumbnailUrls[a.assetId]) {
+        import('@tauri-apps/api/core').then(({ convertFileSrc }) => {
+          thumbnailUrls = { ...thumbnailUrls, [a.assetId]: convertFileSrc(a.filePath) };
+        }).catch(() => { /* Tauri API unavailable */ });
+      }
+    }
+    resolve(asset);
+    return {
+      update(newAsset: Asset) { resolve(newAsset); },
+    };
+  }
 </script>
 
 <div class="space-y-6">
@@ -495,6 +678,20 @@
           <span class="sr-only">(filtered)</span>
         {/if}
       </span>
+      {#if unsignedAssets.length > 0}
+        <button
+          class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+          onclick={openBatchSign}
+          aria-label="Sign all unsigned images with C2PA ({unsignedAssets.length} eligible)"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Sign All with C2PA
+          <span class="ml-0.5 text-[10px] opacity-70">({unsignedAssets.length})</span>
+        </button>
+      {/if}
       {#if unwatermarkedImages.length > 0}
         <button
           class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
@@ -513,9 +710,10 @@
         <button
           class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center rounded border border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
           onclick={exportCsv}
-          aria-label="Export visible assets as CSV"
+          title="Download a spreadsheet of all assets in your collection, including protection status, file paths, and metadata."
+          aria-label="Export Asset Database — download all visible assets as a spreadsheet"
         >
-          Export CSV
+          Export Asset Database
         </button>
       {/if}
     </div>
@@ -612,6 +810,7 @@
         <option value="">All Status</option>
         <option value="signed">C2PA Signed</option>
         <option value="unsigned">Not Signed</option>
+        <option value="watermarked">Watermarked</option>
       </select>
     </div>
 
@@ -655,6 +854,206 @@
       </button>
     {/if}
   </div>
+
+  <!-- Batch C2PA sign panel -->
+  {#if showBatchSign}
+    <div
+      class="bg-white dark:bg-graphite rounded-lg border border-lapis/30 dark:border-lapis/20 shadow-sm overflow-hidden"
+      role="region"
+      aria-label="Batch C2PA signing panel"
+      aria-live="polite"
+    >
+      <!-- Panel header -->
+      <div class="px-5 py-4 border-b border-border-light dark:border-graphite-light/50 flex items-center justify-between gap-4">
+        <h2 class="text-base text-text-light dark:text-quartz">
+          Sign All with C2PA
+        </h2>
+        {#if !batchSignRunning}
+          <button
+            class="text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite rounded px-2 py-1 min-h-[44px] inline-flex items-center"
+            onclick={closeBatchSign}
+            aria-label="Close batch signing panel"
+          >
+            Close
+          </button>
+        {/if}
+      </div>
+
+      <div class="px-5 py-4">
+
+        <!-- Stage: configuration -->
+        {#if !batchSignRunning && !batchSignDone}
+          <div class="space-y-4">
+
+            <!-- Eligible asset count -->
+            <p class="text-sm text-flint dark:text-flint-light">
+              <span class="font-medium text-text-light dark:text-quartz">{unsignedAssets.length}</span>
+              {unsignedAssets.length === 1 ? 'image' : 'images'} eligible &mdash; not yet signed with C2PA.
+            </p>
+
+            <!-- Creator name input -->
+            <div>
+              <label
+                class="text-xs text-flint dark:text-flint-light uppercase tracking-wide"
+                for="batch-sign-creator"
+              >
+                Creator / Rights Holder Name
+              </label>
+              <input
+                id="batch-sign-creator"
+                type="text"
+                bind:value={batchSignCreatorName}
+                placeholder="e.g. Jane Smith / National Archive UK"
+                maxlength={128}
+                class="w-full mt-1.5 px-3 py-2.5 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm
+                       placeholder:text-flint/50
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                aria-describedby="batch-sign-creator-hint"
+              />
+              <p id="batch-sign-creator-hint" class="mt-1 text-xs text-flint dark:text-flint-light">
+                Embedded in the C2PA content credential for each signed file.
+              </p>
+            </div>
+
+            <!-- Licence selector -->
+            <div>
+              <label
+                class="text-xs text-flint dark:text-flint-light uppercase tracking-wide"
+                for="batch-sign-licence"
+              >
+                Licence
+              </label>
+              <select
+                id="batch-sign-licence"
+                bind:value={batchSignLicense}
+                class="mt-1.5 w-full rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm px-3 py-2.5
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+              >
+                <option value="All Rights Reserved">All Rights Reserved</option>
+                <option value="CC BY 4.0">CC BY 4.0 — Attribution</option>
+                <option value="CC BY-SA 4.0">CC BY-SA 4.0 — Attribution-ShareAlike</option>
+                <option value="CC BY-NC 4.0">CC BY-NC 4.0 — Attribution-NonCommercial</option>
+                <option value="CC BY-ND 4.0">CC BY-ND 4.0 — Attribution-NoDerivatives</option>
+                <option value="CC0 1.0">CC0 1.0 — Public Domain</option>
+              </select>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex gap-3 pt-1">
+              <button
+                class="px-5 py-2.5 min-h-[44px] inline-flex items-center gap-2 bg-lapis text-white text-sm rounded hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
+                       disabled:opacity-50 disabled:cursor-not-allowed
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                onclick={handleBatchSign}
+                disabled={!batchSignCreatorName.trim() || unsignedAssets.length === 0}
+                aria-label="Begin signing {unsignedAssets.length} {unsignedAssets.length === 1 ? 'image' : 'images'} with C2PA"
+              >
+                Begin Signing
+              </button>
+              <button
+                class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint dark:text-flint-light text-sm rounded hover:text-text-light dark:hover:text-quartz transition-colors
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                onclick={closeBatchSign}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+
+        <!-- Stage: in progress -->
+        {:else if batchSignRunning}
+          <div class="space-y-4" aria-live="polite" aria-atomic="false">
+            <p class="text-sm text-text-light dark:text-quartz font-medium">
+              Signing {batchSignProgress} of {batchSignTotal} {batchSignTotal === 1 ? 'image' : 'images'}...
+            </p>
+
+            <!-- Progress bar -->
+            <div class="h-2 bg-gray-200 dark:bg-graphite-light rounded-full overflow-hidden" role="progressbar"
+                 aria-valuenow={batchSignProgress} aria-valuemin={0} aria-valuemax={batchSignTotal}
+                 aria-label="Signing progress">
+              <div
+                class="h-full bg-lapis rounded-full motion-safe:transition-all motion-safe:duration-300"
+                style="width: {batchSignTotal > 0 ? Math.round((batchSignProgress / batchSignTotal) * 100) : 0}%"
+              ></div>
+            </div>
+
+            {#if batchSignCurrentFile}
+              <p class="text-xs text-flint dark:text-flint-light truncate">
+                Signing: <span class="text-text-light dark:text-quartz">{batchSignCurrentFile}</span>
+              </p>
+            {/if}
+            {#if batchSignEta}
+              <p class="text-xs text-flint dark:text-flint-light">{batchSignEta}</p>
+            {/if}
+
+            <button
+              class="px-4 py-2 min-h-[44px] text-sm text-cinnabar dark:text-cinnabar-light border border-cinnabar/30 rounded hover:bg-cinnabar/10 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+              onclick={() => { batchSignCancelled = true; }}
+            >
+              Cancel
+            </button>
+          </div>
+
+        <!-- Stage: complete -->
+        {:else if batchSignDone}
+          <div class="space-y-4" role="status" aria-live="polite">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full bg-malachite/15 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+                <svg class="w-4 h-4 text-malachite" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm font-medium text-text-light dark:text-quartz">
+                  {batchSignCancelled ? 'Signing cancelled' : 'Signing complete'}
+                </p>
+                <p class="text-xs text-flint dark:text-flint-light mt-0.5">
+                  {batchSignSuccessCount} signed successfully{batchSignFailCount > 0 ? `, ${batchSignFailCount} failed` : ''}
+                </p>
+              </div>
+            </div>
+
+            {#if batchSignErrors.length > 0}
+              <div>
+                <button
+                  class="text-xs text-amber dark:text-amber-light hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-lapis rounded"
+                  onclick={() => { showBatchSignErrors = !showBatchSignErrors; }}
+                  aria-expanded={showBatchSignErrors}
+                >
+                  {showBatchSignErrors ? 'Hide' : 'Show'} {batchSignErrors.length} {batchSignErrors.length === 1 ? 'error' : 'errors'}
+                </button>
+                {#if showBatchSignErrors}
+                  <ul class="mt-2 space-y-1" aria-label="Signing errors">
+                    {#each batchSignErrors as err}
+                      <li class="text-xs text-cinnabar dark:text-cinnabar-light">
+                        <span class="font-medium">{err.fileName}</span>: {err.error}
+                      </li>
+                    {/each}
+                  </ul>
+                  <button
+                    class="mt-2 text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-lapis rounded"
+                    onclick={exportBatchSignErrors}
+                  >
+                    Download error log
+                  </button>
+                {/if}
+              </div>
+            {/if}
+
+            <button
+              class="px-4 py-2.5 min-h-[44px] text-sm text-lapis dark:text-lapis-light border border-lapis/40 rounded hover:bg-lapis/10 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+              onclick={closeBatchSign}
+            >
+              Close
+            </button>
+          </div>
+        {/if}
+      </div>
+    </div>
+  {/if}
 
   <!-- Batch watermark panel -->
   {#if showBatchWatermark}
@@ -1037,13 +1436,25 @@
           aria-expanded={selectedAsset?.assetId === asset.assetId}
           aria-label="View details for {asset.fileName}"
         >
-          <div class="flex items-center gap-3 min-w-0">
-            <span
-              class="text-xs font-mono px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-text-light dark:text-flint flex-shrink-0"
+          <div class="flex items-center gap-3 min-w-0" use:loadThumbnailEffect={asset}>
+            <!-- Thumbnail or type badge -->
+            <div
+              class="w-10 h-10 rounded overflow-hidden flex-shrink-0 bg-gray-100 dark:bg-graphite-light flex items-center justify-center"
               aria-hidden="true"
             >
-              {contentTypeIcon(asset.contentType)}
-            </span>
+              {#if asset.contentType === 'image' && thumbnailUrls[asset.assetId]}
+                <img
+                  src={thumbnailUrls[asset.assetId]}
+                  alt=""
+                  class="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              {:else}
+                <span class="text-xs font-mono text-text-light dark:text-flint">
+                  {contentTypeIcon(asset.contentType)}
+                </span>
+              {/if}
+            </div>
             <div class="min-w-0">
               <p class="text-sm text-text-light dark:text-quartz truncate">{asset.fileName}</p>
               <p class="text-xs text-flint dark:text-flint-light truncate">{asset.mimeType}</p>
@@ -1077,9 +1488,55 @@
             <div class="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-3 text-sm">
 
               <!-- File path -->
-              <div>
+              <div class="col-span-2 md:col-span-3">
                 <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Path</span>
-                <p class="text-text-light dark:text-quartz text-xs mt-0.5 truncate" title={asset.filePath}>{asset.filePath}</p>
+                <div class="flex items-center gap-2 mt-0.5">
+                  <p
+                    class="text-text-light dark:text-quartz text-xs truncate max-w-[300px] select-all"
+                    title={asset.filePath}
+                  >
+                    {asset.filePath}
+                  </p>
+                  <!-- Copy path button -->
+                  <button
+                    type="button"
+                    onclick={() => copyPath(asset.filePath)}
+                    class="flex-shrink-0 p-1 rounded text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:bg-gray-100 dark:hover:bg-graphite-light transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                    aria-label="Copy file path to clipboard"
+                    title="Copy path"
+                  >
+                    {#if copyPathFeedback === asset.filePath}
+                      <!-- Tick — confirmed -->
+                      <svg class="w-3.5 h-3.5 text-malachite dark:text-malachite-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span class="sr-only">Path copied</span>
+                    {:else}
+                      <!-- Clipboard icon -->
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3" />
+                      </svg>
+                    {/if}
+                  </button>
+                  <!-- Open in Finder / Explorer button (Tauri only) -->
+                  {#if inTauri}
+                    <button
+                      type="button"
+                      onclick={() => openInFinder(asset.filePath)}
+                      class="flex-shrink-0 p-1 rounded text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:bg-gray-100 dark:hover:bg-graphite-light transition-colors
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                      aria-label="Reveal file in Finder"
+                      title="Reveal in Finder"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                    </button>
+                  {/if}
+                </div>
               </div>
 
               {#if asset.width && asset.height}
