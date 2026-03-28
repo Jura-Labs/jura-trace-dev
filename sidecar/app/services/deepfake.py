@@ -602,45 +602,121 @@ def _perform_deepfake_detection_impl(
     # positives. Gate high-confidence screenshots away from the ensemble.
     screenshot_flag, screenshot_conf, screenshot_signals = is_likely_screenshot(image_bytes)
     if screenshot_flag and screenshot_conf > 0.70:
-        logger.info(
-            "Screenshot pre-classifier triggered (confidence=%.2f, signals=%s). "
-            "Bypassing deepfake ensemble.",
-            screenshot_conf, screenshot_signals,
-        )
-        # Generate a minimal heatmap from the decoded image for UI consistency
-        img_resized = _resize(img_array, analysis_size)
-        grey_for_heatmap = cv2.cvtColor(img_resized, cv2.COLOR_RGB2GRAY)
-        heatmap_base64 = _generate_spectrum_heatmap(grey_for_heatmap)
+        # Before bypassing, check for AI-specific signals that override
+        # the screenshot classification. AI-generated PNGs can look like
+        # screenshots (no EXIF, uniform noise) but have subtle texture
+        # variation that real screenshots lack.
+        override_screenshot = False
 
-        response = DeepfakeResponse(
-            score=0.05,
-            suspicious=False,
-            confidence="high",
-            verdict_level="authentic",
-            signals=[
-                DeepfakeSignal(
-                    name="screenshot_detected",
-                    description=(
-                        f"Image identified as a screenshot (confidence: {screenshot_conf:.0%}). "
-                        f"Screenshot characteristics (uniform noise, no camera metadata, "
-                        f"solid-colour regions) are expected and do not indicate AI generation."
+        # Check 1: Texture complexity via local standard deviation
+        # Real screenshots have very low texture complexity (< 5.0) because
+        # pixels are rendered. AI images have subtle noise/texture (> 8.0)
+        # even when they appear smooth.
+        if len(img_array.shape) == 3:
+            _grey = np.mean(img_array, axis=2)
+        else:
+            _grey = img_array.astype(np.float64)
+
+        # Compute local std in 8x8 patches, take the mean of non-zero patches
+        _h, _w = _grey.shape
+        _bh, _bw = max(_h // 16, 1), max(_w // 16, 1)
+        _local_stds = []
+        for _by in range(min(16, _h // _bh)):
+            for _bx in range(min(16, _w // _bw)):
+                _block = _grey[_by * _bh:(_by + 1) * _bh, _bx * _bw:(_bx + 1) * _bw]
+                _local_stds.append(float(np.std(_block)))
+        _nonzero_stds = [s for s in _local_stds if s > 1.0]
+        _texture_complexity = float(np.mean(_nonzero_stds)) if _nonzero_stds else 0.0
+
+        # Check 2: Colour gradient smoothness
+        # AI images have smooth colour gradients across the entire image.
+        # Screenshots have sharp colour boundaries (UI elements).
+        _h_grad = np.abs(np.diff(_grey, axis=1))
+        _v_grad = np.abs(np.diff(_grey, axis=0))
+        _mean_grad = float(np.mean(_h_grad) + np.mean(_v_grad)) / 2.0
+        _grad_std = float(np.std(_h_grad) + np.std(_v_grad)) / 2.0
+        # AI images: moderate mean gradient, low std (smooth transitions)
+        # Screenshots: low mean gradient but HIGH std (sharp UI edges)
+        _smooth_gradients = _mean_grad > 3.0 and _grad_std < _mean_grad * 3.0
+
+        # Check 3: Colour diversity in non-uniform regions
+        # AI images have rich colour variation even in "uniform" areas.
+        # Screenshots have exact repeated colours (flat UI fills).
+        _sample = img_array[::4, ::4].reshape(-1, 3) if img_array.shape[0] > 8 and img_array.shape[1] > 8 else img_array.reshape(-1, 3)
+        _unique_ratio = len(np.unique(_sample, axis=0)) / max(len(_sample), 1)
+
+        # Override conditions: AI-like texture in a "screenshot"
+        # Real screenshots have texture_complexity < 8 (rendered pixels).
+        # AI images that look like screenshots have complexity 15-60+.
+        if _texture_complexity > 15.0:
+            # High texture alone is sufficient — real screenshots never
+            # have this much local variation in non-edge regions.
+            override_screenshot = True
+            logger.info(
+                "Screenshot override: texture_complexity=%.1f (>15). "
+                "Real screenshots never have this much texture variation.",
+                _texture_complexity,
+            )
+        elif _texture_complexity > 10.0 and _smooth_gradients:
+            override_screenshot = True
+            logger.info(
+                "Screenshot override: texture_complexity=%.1f (>10), smooth_gradients=True. "
+                "Image has AI-like texture despite screenshot-like features.",
+                _texture_complexity,
+            )
+        elif _texture_complexity > 8.0 and _unique_ratio > 0.15:
+            override_screenshot = True
+            logger.info(
+                "Screenshot override: texture_complexity=%.1f (>8), colour_diversity=%.2f (>0.15). "
+                "Image has AI-like colour richness despite screenshot-like features.",
+                _texture_complexity, _unique_ratio,
+            )
+
+        if not override_screenshot:
+            logger.info(
+                "Screenshot pre-classifier triggered (confidence=%.2f, "
+                "texture=%.1f, signals=%s). Bypassing deepfake ensemble.",
+                screenshot_conf, _texture_complexity, screenshot_signals,
+            )
+            # Generate a minimal heatmap from the decoded image for UI consistency
+            img_resized = _resize(img_array, analysis_size)
+            grey_for_heatmap = cv2.cvtColor(img_resized, cv2.COLOR_RGB2GRAY)
+            heatmap_base64 = _generate_spectrum_heatmap(grey_for_heatmap)
+
+            response = DeepfakeResponse(
+                score=0.05,
+                suspicious=False,
+                confidence="high",
+                verdict_level="authentic",
+                signals=[
+                    DeepfakeSignal(
+                        name="screenshot_detected",
+                        description=(
+                            f"Image identified as a screenshot (confidence: {screenshot_conf:.0%}). "
+                            f"Screenshot characteristics (uniform noise, no camera metadata, "
+                            f"solid-colour regions) are expected and do not indicate AI generation."
+                        ),
+                        weight=0.0,
+                        triggered=False,
                     ),
-                    weight=0.0,
-                    triggered=False,
+                ],
+                heatmap_base64=heatmap_base64,
+                summary=(
+                    f"Image identified as a screenshot (confidence: {screenshot_conf:.0%}). "
+                    f"Screenshot characteristics are expected and do not indicate AI generation."
                 ),
-            ],
-            heatmap_base64=heatmap_base64,
-            summary=(
-                f"Image identified as a screenshot (confidence: {screenshot_conf:.0%}). "
-                f"Screenshot characteristics are expected and do not indicate AI generation."
-            ),
-            watermarks=[],
-            classifier_score=None,
-            classifier_available=False,
-            univfd_score=None,
-            univfd_available=False,
-        )
-        return response, {"screenshot_confidence": screenshot_conf}
+                watermarks=[],
+                classifier_score=None,
+                classifier_available=False,
+                univfd_score=None,
+                univfd_available=False,
+            )
+            return response, {"screenshot_confidence": screenshot_conf}
+        else:
+            logger.info(
+                "Screenshot pre-classifier overridden — AI-like texture detected. "
+                "Running full deepfake ensemble."
+            )
 
     # Resize for consistent analysis
     img_array = _resize(img_array, analysis_size)
