@@ -30,7 +30,7 @@ impl Database {
     }
 
     /// Schema version — increment when adding migrations.
-    const SCHEMA_VERSION: i32 = 1;
+    const SCHEMA_VERSION: i32 = 2;
 
     /// Create tables if they do not already exist, and run any pending migrations.
     ///
@@ -60,11 +60,15 @@ impl Database {
             );
         }
 
-        // Future migrations go here:
-        // if current_version < 2 {
-        //     self.migrate_v1_to_v2(&conn)?;
-        //     conn.pragma_update(None, "user_version", 2)?;
-        // }
+        // Version 1 → 2: add sha256_hash column to assets
+        if current_version < 2 {
+            // ALTER TABLE ADD COLUMN is idempotent-safe: if the column already
+            // exists (e.g. a fresh v2 database), SQLite returns an error that
+            // we ignore.
+            let _ = conn.execute("ALTER TABLE assets ADD COLUMN sha256_hash TEXT", []);
+            conn.pragma_update(None, "user_version", 2)?;
+            log::info!("Database migrated to schema version 2 (sha256_hash column)");
+        }
 
         Ok(())
     }
