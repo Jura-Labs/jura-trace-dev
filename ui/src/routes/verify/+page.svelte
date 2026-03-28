@@ -147,6 +147,97 @@
   let brightness = $state(100);
   let contrast = $state(100);
 
+  // ── Colour channel separation state ──────────────────────────────
+  let activeChannel = $state<'none' | 'r' | 'g' | 'b' | 'rg' | 'rb' | 'gb'>('none');
+  /** Blob URL of the channel-separated image, or null when no channel is active. */
+  let channelImageUrl = $state<string | null>(null);
+
+  /**
+   * Applies colour channel separation to the preview image using an off-screen
+   * canvas. Returns a data URL of the resulting greyscale channel image.
+   * The caller is responsible for revoking any previous blob URL.
+   */
+  function applyChannelSeparation(imgElement: HTMLImageElement, channel: string): string {
+    const canvas = document.createElement('canvas');
+    canvas.width = imgElement.naturalWidth;
+    canvas.height = imgElement.naturalHeight;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(imgElement, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      let val: number;
+      switch (channel) {
+        case 'r':  val = r; break;
+        case 'g':  val = g; break;
+        case 'b':  val = b; break;
+        case 'rg': val = Math.abs(r - g); break;
+        case 'rb': val = Math.abs(r - b); break;
+        case 'gb': val = Math.abs(g - b); break;
+        default:   val = 0;
+      }
+      // Display as greyscale
+      data[i] = data[i + 1] = data[i + 2] = val;
+    }
+    ctx.putImageData(imageData, 0, 0);
+    return canvas.toDataURL('image/png');
+  }
+
+  /**
+   * Toggles the active channel: if the same channel is clicked again, resets
+   * to 'none'. Otherwise loads the preview image element and computes the
+   * channel image, storing it as a blob URL via the existing blob tracker.
+   */
+  function toggleChannel(channel: typeof activeChannel) {
+    if (activeChannel === channel) {
+      // Reset
+      activeChannel = 'none';
+      if (channelImageUrl) {
+        URL.revokeObjectURL(channelImageUrl);
+        channelImageUrl = null;
+      }
+      return;
+    }
+    activeChannel = channel;
+
+    // Re-compute from the currently displayed preview <img>
+    const imgEl = document.querySelector<HTMLImageElement>('img[data-preview="true"]');
+    if (!imgEl || !imgEl.complete || imgEl.naturalWidth === 0) {
+      // Image not ready — silently ignore
+      return;
+    }
+
+    if (channelImageUrl) {
+      URL.revokeObjectURL(channelImageUrl);
+    }
+
+    const dataUrl = applyChannelSeparation(imgEl, channel);
+    // Convert data URL to blob URL for CSP compliance
+    fetch(dataUrl)
+      .then(res => res.blob())
+      .then(blob => {
+        channelImageUrl = URL.createObjectURL(blob);
+      })
+      .catch(() => {
+        // Fallback: store the data URL directly (CSP may block; handled gracefully)
+        channelImageUrl = dataUrl;
+      });
+  }
+
+  // Reset channel state whenever a new result loads (or is cleared).
+  // Reading `result` here registers it as a reactive dependency so
+  // this effect re-runs every time result changes.
+  $effect(() => {
+    void result; // dependency registration
+    if (channelImageUrl) {
+      URL.revokeObjectURL(channelImageUrl);
+      channelImageUrl = null;
+    }
+    activeChannel = 'none';
+  });
+
   function getFilterStyle(filter: InspectFilter): string {
     const base =
       filter === 'grayscale' ? 'grayscale(100%)' :
@@ -163,6 +254,11 @@
     activeFilter = 'none';
     brightness = 100;
     contrast = 100;
+    activeChannel = 'none';
+    if (channelImageUrl) {
+      URL.revokeObjectURL(channelImageUrl);
+      channelImageUrl = null;
+    }
   }
 
   // ── Scroll-to-top visibility ──────────────────────────────────────
@@ -361,6 +457,11 @@
     localStorage.setItem('jura-verify-view-mode', viewMode);
   });
 
+  // Persist analyst note across sessions
+  $effect(() => {
+    localStorage.setItem('jura-analyst-note', analystNote);
+  });
+
   onMount(() => {
     // Restore persisted view mode (summary/detail)
     const savedViewMode = localStorage.getItem('jura-verify-view-mode');
@@ -375,6 +476,7 @@
     // Restore persisted analyst declaration fields
     analystName = localStorage.getItem('jura-analyst-name') ?? '';
     analystOrg = localStorage.getItem('jura-analyst-org') ?? '';
+    analystNote = localStorage.getItem('jura-analyst-note') ?? '';
     // Populate analysis date with today — user may edit
     analystDate = new Date().toLocaleDateString('en-GB', {
       day: 'numeric',
@@ -725,6 +827,11 @@
     activeFilter = 'none';
     brightness = 100;
     contrast = 100;
+    activeChannel = 'none';
+    if (channelImageUrl) {
+      URL.revokeObjectURL(channelImageUrl);
+      channelImageUrl = null;
+    }
     activeSection = null;
   }
 
@@ -778,7 +885,6 @@
     } finally {
       exportingReport = false;
       showReportModal = false;
-      analystNote = '';
       analystCaseRef = '';
     }
   }
@@ -990,8 +1096,49 @@
           ? 'Search via Yandex — this will share the image URL with Yandex'
           : 'Open Yandex Images — upload the file manually',
       },
+      {
+        label: 'Bing Visual Search',
+        href: sourceUrl
+          ? `https://www.bing.com/images/search?view=detailv2&iss=sbi&q=imgurl:${encodeURIComponent(sourceUrl)}`
+          : 'https://www.bing.com/visualsearch',
+        title: sourceUrl
+          ? 'Search via Bing Visual Search — this will share the image URL with Microsoft'
+          : 'Open Bing Visual Search — upload the file manually',
+      },
     ];
   });
+
+  /**
+   * Opens a URL in the system default browser.
+   * In Tauri, uses the shell plugin to avoid opening inside the webview.
+   * In browser mode, falls back to window.open.
+   */
+  async function openExternal(url: string) {
+    if (inTauri) {
+      try {
+        const { open } = await import('@tauri-apps/plugin-shell');
+        await open(url);
+        return;
+      } catch {
+        // Shell plugin unavailable — fall through to window.open
+      }
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  /**
+   * Converts a decimal degree coordinate to DMS (Degrees, Minutes, Seconds) notation.
+   * @param decimal - The decimal degree value.
+   * @param isLat - True for latitude (N/S), false for longitude (E/W).
+   */
+  function toDMS(decimal: number, isLat: boolean): string {
+    const abs = Math.abs(decimal);
+    const d = Math.floor(abs);
+    const m = Math.floor((abs - d) * 60);
+    const s = ((abs - d - m / 60) * 3600).toFixed(1);
+    const dir = isLat ? (decimal >= 0 ? 'N' : 'S') : (decimal >= 0 ? 'E' : 'W');
+    return `${d}\u00B0${m}\u2032${s}\u2033\u00A0${dir}`;
+  }
 
   function highestSeverityFindings(findings: AnomalyFinding[]): AnomalyFinding[] {
     const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
@@ -1658,11 +1805,12 @@
                 aria-label="Open zoom viewer for {fileName ?? 'analysed file'}"
               >
                 <img
-                  src={previewUrl}
+                  src={channelImageUrl ?? previewUrl}
                   alt="Analysed file"
                   class="w-full max-h-[400px] object-contain block"
                   loading="lazy"
-                  style="filter: {getFilterStyle(activeFilter)};"
+                  data-preview="true"
+                  style="{channelImageUrl ? '' : `filter: ${getFilterStyle(activeFilter)};`}"
                 />
               </button>
               <!-- Zoom hint badge -->
@@ -1722,7 +1870,7 @@
                     </button>
                   {/each}
 
-                  {#if activeFilter !== 'none' || brightness !== 100 || contrast !== 100}
+                  {#if activeFilter !== 'none' || brightness !== 100 || contrast !== 100 || activeChannel !== 'none'}
                     <button
                       type="button"
                       onclick={resetInspection}
@@ -1762,6 +1910,41 @@
                       aria-label="Image contrast: {contrast}%"
                     />
                     <span class="text-xs tabular-nums text-flint dark:text-flint-light w-9 flex-shrink-0">{contrast}%</span>
+                  </div>
+                </div>
+
+                <!-- Colour channel separation toolbar -->
+                <div class="mt-2 pt-2 border-t border-border-light/60 dark:border-border-dark/60">
+                  <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Colour channel separation">
+                    <span class="text-xs text-flint dark:text-flint-light mr-0.5 flex-shrink-0">Channels:</span>
+                    {#each ([
+                      { key: 'r',  label: 'R',   title: 'Red channel only — highlights red-tinted regions and colour inconsistencies' },
+                      { key: 'g',  label: 'G',   title: 'Green channel only — often most detail-rich; useful for detecting green screen artefacts' },
+                      { key: 'b',  label: 'B',   title: 'Blue channel only — reveals blue cast anomalies and compression artefacts in shadows' },
+                      { key: 'rg', label: 'R-G', title: 'Red minus Green difference — amplifies warm/cool colour seams between spliced regions' },
+                      { key: 'rb', label: 'R-B', title: 'Red minus Blue difference — highlights magenta/cyan boundaries indicating compositing' },
+                      { key: 'gb', label: 'G-B', title: 'Green minus Blue difference — exposes yellow/blue transitions typical in AI-generated skies' },
+                    ] as const) as ch}
+                      <button
+                        type="button"
+                        title={ch.title}
+                        onclick={() => toggleChannel(ch.key as typeof activeChannel)}
+                        class="text-xs px-2 py-1 min-h-[28px] rounded border transition-colors duration-150
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1
+                               focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                               {activeChannel === ch.key
+                                 ? 'border-lapis bg-lapis/10 text-lapis dark:text-lapis-light font-medium'
+                                 : 'border-border-light dark:border-border-dark text-gray-600 dark:text-flint-light hover:border-lapis/50 dark:hover:border-lapis-light/50'}"
+                        aria-pressed={activeChannel === ch.key}
+                      >
+                        {ch.label}
+                      </button>
+                    {/each}
+                    {#if activeChannel !== 'none'}
+                      <span class="text-xs text-lapis dark:text-lapis-light ml-1 flex-shrink-0" aria-live="polite" aria-atomic="true">
+                        {activeChannel.length <= 2 ? activeChannel.toUpperCase() + ' channel' : activeChannel.toUpperCase() + ' difference'} active
+                      </span>
+                    {/if}
                   </div>
                 </div>
 
@@ -2155,6 +2338,87 @@
         </p>
       </div>
 
+      <!-- ── AI Origin Detection ─────────────────────────────────── -->
+      {#if result.aiGenerator !== undefined || result.deepfakeResult !== undefined || result.watermarkExtractResult !== undefined}
+        <section
+          class="px-5 py-4 border-b border-border-light dark:border-border-dark"
+          aria-labelledby="ai-origin-heading"
+        >
+          <h2 id="ai-origin-heading" class="text-sm font-medium text-text-light dark:text-quartz mb-3">
+            AI Origin Detection
+          </h2>
+          <div class="space-y-2">
+
+            <!-- C2PA AI Declaration signal -->
+            <div class="flex items-center justify-between rounded-lg border border-border-light dark:border-border-dark bg-obsidian/30 px-3 py-2.5">
+              <span class="text-xs text-flint dark:text-flint-light">C2PA Declaration</span>
+              {#if result.aiGenerator}
+                <span
+                  class="text-xs font-medium px-2 py-0.5 rounded border bg-amber/15 text-amber dark:text-amber-light border-amber/30"
+                  title="Generator: {result.aiGenerator}"
+                >
+                  AI generation declared
+                </span>
+              {:else if result.c2paManifest}
+                <span class="text-xs font-medium px-2 py-0.5 rounded border bg-malachite/15 text-malachite dark:text-malachite-light border-malachite/30">
+                  No AI declaration
+                </span>
+              {:else}
+                <span class="text-xs font-medium px-2 py-0.5 rounded border bg-gray-100 dark:bg-graphite-light text-gray-600 dark:text-flint-light border-gray-200 dark:border-border-dark">
+                  No C2PA data
+                </span>
+              {/if}
+            </div>
+
+            <!-- Deepfake Ensemble signal -->
+            {#if result.deepfakeResult}
+              {@const df = result.deepfakeResult}
+              <div class="flex items-center justify-between rounded-lg border border-border-light dark:border-border-dark bg-obsidian/30 px-3 py-2.5">
+                <div>
+                  <span class="text-xs text-flint dark:text-flint-light">Deepfake Ensemble</span>
+                  {#if df.score !== null && df.score !== undefined}
+                    <span class="text-xs tabular-nums ml-2 {forensicScoreClass(df.score)}">
+                      {Math.round(df.score * 100)}%
+                    </span>
+                  {/if}
+                </div>
+                <span
+                  class="text-xs font-medium px-2 py-0.5 rounded border
+                         {df.verdictLevel === 'synthetic'
+                           ? 'bg-cinnabar/15 text-cinnabar dark:text-cinnabar-light border-cinnabar/30'
+                           : df.verdictLevel === 'inconclusive'
+                             ? 'bg-amber/15 text-amber dark:text-amber-light border-amber/30'
+                             : 'bg-malachite/15 text-malachite dark:text-malachite-light border-malachite/30'}"
+                >
+                  {df.verdictLevel === 'synthetic' ? 'Synthetic' : df.verdictLevel === 'inconclusive' ? 'Inconclusive' : 'Authentic'}
+                </span>
+              </div>
+            {/if}
+
+            <!-- Watermark signal -->
+            {#if result.watermarkExtractResult}
+              {@const wm = result.watermarkExtractResult}
+              <div class="flex items-center justify-between rounded-lg border border-border-light dark:border-border-dark bg-obsidian/30 px-3 py-2.5">
+                <span class="text-xs text-flint dark:text-flint-light">Jura Trace Watermark</span>
+                {#if wm.hasWatermark}
+                  <span
+                    class="text-xs font-medium px-2 py-0.5 rounded border bg-malachite/15 text-malachite dark:text-malachite-light border-malachite/30"
+                    title={wm.extractedPayload ? `Institution: ${wm.extractedPayload}` : undefined}
+                  >
+                    {wm.extractedPayload ? wm.extractedPayload : 'Watermark detected'}
+                  </span>
+                {:else}
+                  <span class="text-xs font-medium px-2 py-0.5 rounded border bg-gray-100 dark:bg-graphite-light text-gray-600 dark:text-flint-light border-gray-200 dark:border-border-dark">
+                    No watermark detected
+                  </span>
+                {/if}
+              </div>
+            {/if}
+
+          </div>
+        </section>
+      {/if}
+
       <!-- ── Signal Agreement ─────────────────────────────────────── -->
       <div id="section-signals" class="px-5 py-3 border-b border-border-dark">
         <button
@@ -2277,16 +2541,16 @@
               </p>
               <div class="flex flex-wrap gap-2" role="group" aria-label="Search engine links">
                 {#each reverseSearchLinks() as link}
-                  <a
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
                     title={link.title}
+                    onclick={() => openExternal(link.href)}
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md min-h-[44px]
                            border border-lapis/40 text-lapis dark:text-lapis-light hover:bg-lapis/10 hover:border-lapis/70
                            transition-colors duration-150
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
                            focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                    aria-label="{link.label} (opens in system browser)"
                   >
                     {link.label}
                     <!-- External link indicator -->
@@ -2294,8 +2558,7 @@
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
-                    <span class="sr-only">(opens in new tab)</span>
-                  </a>
+                  </button>
                 {/each}
               </div>
             </div>
@@ -3410,6 +3673,30 @@
           {:else}
             <p class="text-xs text-flint dark:text-flint-light">No anomalies detected in EXIF metadata.</p>
           {/if}
+
+          <!-- GPS coordinates panel -->
+          {#if exif.gpsLatitude != null && exif.gpsLongitude != null}
+            <div class="flex items-center gap-2 mt-3 px-3 py-2 rounded-md bg-obsidian/30 border border-border-light dark:border-border-dark">
+              <svg class="w-3.5 h-3.5 flex-shrink-0 text-flint dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span class="text-xs text-flint dark:text-flint-light tabular-nums flex-1">
+                {toDMS(exif.gpsLatitude, true)}, {toDMS(exif.gpsLongitude, false)}
+              </span>
+              <button
+                type="button"
+                class="text-xs text-lapis dark:text-lapis-light hover:underline flex-shrink-0
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                onclick={() => openExternal(`https://www.openstreetmap.org/?mlat=${exif.gpsLatitude}&mlon=${exif.gpsLongitude}#map=15/${exif.gpsLatitude}/${exif.gpsLongitude}`)}
+                aria-label="View GPS location on OpenStreetMap (opens in system browser)"
+              >
+                View on map
+              </button>
+            </div>
+          {/if}
         </section>
       {/if}
 
@@ -4392,7 +4679,7 @@
         <div>
           <label for="analyst-note" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
             Analyst Note
-            <span class="text-flint/50 dark:text-flint-light/60 font-normal ml-1">(optional, max 500 chars)</span>
+            <span class="text-flint/50 dark:text-flint-light/60 font-normal ml-1">(optional, max 2000 chars — saved automatically)</span>
           </label>
           <textarea
             id="analyst-note"
@@ -4400,11 +4687,11 @@
                    text-text-light dark:text-quartz placeholder:text-flint/40 resize-none
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
             placeholder="e.g. Initial assessment suggests authentic capture with minor metadata gaps..."
-            maxlength={500}
+            maxlength={2000}
             bind:value={analystNote}
           ></textarea>
           <p class="text-xs text-flint/50 dark:text-flint-light/60 mt-1 text-right" aria-live="polite" aria-atomic="true">
-            <span class="sr-only">Characters used: </span>{analystNote.length} / 500
+            <span class="sr-only">Characters used: </span>{analystNote.length} / 2000
           </p>
         </div>
 

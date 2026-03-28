@@ -98,6 +98,27 @@ pub fn compute_hashes(path: &Path) -> Vec<HashResult> {
         .collect()
 }
 
+/// Compute a pHash from raw image bytes (e.g. an in-memory JPEG thumbnail).
+///
+/// Decodes the bytes using the `image` crate and computes a pHash
+/// (`DoubleGradient`, 8×8) identical in configuration to `compute_hashes`.
+///
+/// Returns the hash as a 16-character zero-padded hex string, or `None` if the
+/// bytes cannot be decoded as a supported image format.
+pub fn compute_phash_from_bytes(image_bytes: &[u8]) -> Option<String> {
+    let img = image::load_from_memory(image_bytes)
+        .map_err(|e| log::warn!("compute_phash_from_bytes: failed to decode image: {e}"))
+        .ok()?;
+
+    let hasher = HasherConfig::new()
+        .hash_alg(HashAlg::DoubleGradient)
+        .hash_size(8, 8)
+        .to_hasher();
+    let hash = hasher.hash_image(&img);
+    let raw_hex: String = hash.as_bytes().iter().map(|b| format!("{b:02x}")).collect();
+    Some(format!("{raw_hex:0>16}"))
+}
+
 // ===== Comparison =====
 
 /// Compute the Hamming distance between two hex-encoded 64-bit hashes.
@@ -239,5 +260,73 @@ mod tests {
         for (a, b) in h1.iter().zip(h2.iter()) {
             assert_eq!(a.hash_hex, b.hash_hex);
         }
+    }
+
+    // ── compute_phash_from_bytes ─────────────────────────────────────
+
+    #[test]
+    fn phash_from_bytes_valid_png() {
+        // Build a small PNG in-memory and encode it to bytes.
+        let img = image::RgbImage::from_fn(32, 32, |x, y| {
+            image::Rgb([(x * 8) as u8, (y * 8) as u8, 64])
+        });
+        let mut buf = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+            .unwrap();
+
+        let hash = compute_phash_from_bytes(&buf);
+        assert!(hash.is_some());
+        let h = hash.unwrap();
+        assert_eq!(h.len(), 16, "Expected 16 hex chars, got {}", h.len());
+        assert!(
+            u64::from_str_radix(&h, 16).is_ok(),
+            "Hash is not valid hex: {h}"
+        );
+    }
+
+    #[test]
+    fn phash_from_bytes_deterministic() {
+        let img = image::RgbImage::from_fn(32, 32, |x, y| {
+            image::Rgb([(x * 8) as u8, (y * 8) as u8, 64])
+        });
+        let mut buf = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+            .unwrap();
+
+        let h1 = compute_phash_from_bytes(&buf);
+        let h2 = compute_phash_from_bytes(&buf);
+        assert_eq!(h1, h2, "Same bytes must produce the same hash");
+    }
+
+    #[test]
+    fn phash_from_bytes_invalid_returns_none() {
+        let bad_bytes = b"this is not an image";
+        assert!(compute_phash_from_bytes(bad_bytes).is_none());
+    }
+
+    #[test]
+    fn phash_from_bytes_matches_file_phash() {
+        // Hash from file path and from in-memory bytes must agree.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("thumb.png");
+        let img = image::RgbImage::from_fn(64, 64, |x, y| {
+            image::Rgb([(x * 4) as u8, (y * 4) as u8, 200])
+        });
+        img.save(&path).unwrap();
+
+        let file_hashes = compute_hashes(&path);
+        let phash_from_file = file_hashes
+            .iter()
+            .find(|h| h.algorithm == HashAlgorithm::PHash)
+            .map(|h| h.hash_hex.clone())
+            .unwrap();
+
+        let bytes = std::fs::read(&path).unwrap();
+        let phash_from_bytes = compute_phash_from_bytes(&bytes).unwrap();
+
+        assert_eq!(
+            phash_from_file, phash_from_bytes,
+            "pHash from file and from bytes must match"
+        );
     }
 }

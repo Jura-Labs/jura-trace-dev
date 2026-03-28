@@ -56,7 +56,7 @@ const DETECTOR_THRESHOLDS: Record<string, number | null> = {
 /** Generate a trust report PDF and return as a Blob. */
 export function generateTrustReport(result: VerificationResult, meta: ReportMeta, ctx?: ReportContext): Blob {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const version = meta.appVersion ?? '0.2.0';
+  const version = meta.appVersion ?? '0.9.0';
   let y = MARGIN;
 
   function addFooter() {
@@ -320,13 +320,29 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
     row('AI Generator', result.aiGenerator);
   }
 
-  if (meta.analystNote) {
-    y += 2;
-    label('Analyst Note');
-    y += LINE_HEIGHT;
-    paragraph(meta.analystNote);
-  }
   y += SECTION_GAP;
+
+  // ── Analyst Notes (dedicated section — only when note is non-empty) ──
+  if (meta.analystNote?.trim()) {
+    heading('Analyst Notes');
+    // Split on explicit newlines first, then word-wrap each paragraph
+    const noteParas = meta.analystNote.trim().split(/\r?\n/);
+    for (const para of noteParas) {
+      const trimmed = para.trim();
+      if (trimmed.length === 0) {
+        // Blank line between paragraphs — add a small gap
+        y += 3;
+        continue;
+      }
+      checkPage(10);
+      doc.setFontSize(8);
+      doc.setTextColor(50);
+      const wrappedLines = doc.splitTextToSize(trimmed, CONTENT_WIDTH);
+      doc.text(wrappedLines, MARGIN, y);
+      y += wrappedLines.length * (8 * 0.4) + 2;
+    }
+    y += SECTION_GAP;
+  }
 
   // ── C2PA Credentials ────────────────────────────────────────
   heading('C2PA Content Credentials');
@@ -625,11 +641,21 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
 
   const detectorsRunText = detectorsRun.length > 0 ? detectorsRun.join(', ') : 'None recorded';
 
+  // Model version labels
+  const classifierModel = result.deepfakeResult?.classifierAvailable
+    ? 'GBM v2 (AUC 1.0000)'
+    : 'Heuristic only';
+  const clipModel = result.clipResult
+    ? 'ViT-B/32 (open_clip)'
+    : 'Not available';
+
   const metaRows: [string, string][] = [
+    ['Jura Trace version', `v${version}`],
     ['Analysis mode', modeLabel],
-    ['Pipeline version', `Jura Trace v${version}`],
     ['Trust formula', '40% EXIF metadata + 60% forensic analysis'],
     ['C2PA adjustment', '+0.10 (valid, no AI declared) / \u22120.25 (AI declared)'],
+    ['Classifier model', classifierModel],
+    ['CLIP model', clipModel],
     ['Detectors run', detectorsRunText],
     ['Analysis date', new Date(meta.analysedAt).toISOString()],
   ];

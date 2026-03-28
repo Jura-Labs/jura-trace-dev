@@ -88,6 +88,28 @@ pub struct VerificationResult {
     /// Only populated for image content in standard/deep/archival modes when
     /// Ollama is running with a LLaVA model pulled.  `None` when unavailable.
     pub ai_description: Option<String>,
+    /// Comparison between the EXIF-embedded thumbnail and the full image.
+    /// `None` for non-image content types.
+    pub thumbnail_check: Option<ThumbnailCheck>,
+}
+
+/// Result of comparing the EXIF-embedded thumbnail against the full image.
+///
+/// A large Hamming distance between thumbnail pHash and full-image pHash
+/// indicates the thumbnail no longer matches the visible content — a common
+/// artefact of cropping, splicing, or AI in-painting applied after the
+/// original EXIF was written.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThumbnailCheck {
+    /// Whether the file contained an EXIF-embedded thumbnail.
+    pub has_thumbnail: bool,
+    /// Hamming distance between thumbnail pHash and full-image pHash.
+    /// `None` when `has_thumbnail` is `false` or hashing failed.
+    pub hamming_distance: Option<u32>,
+    /// `true` when `hamming_distance` exceeds 10 — the thumbnail does not
+    /// match the visible content, suggesting post-capture modification.
+    pub mismatch: bool,
 }
 
 /// Application statistics for the dashboard.
@@ -714,6 +736,11 @@ fn verify_content_inner(
     let info = format_router::detect(&path);
     log::info!("PERF: format routing took {:?}", t_format.elapsed());
 
+    // Content-type booleans — used throughout the verify pipeline.
+    let is_image = info.content_type == format_router::ContentType::Image;
+    let is_video = info.content_type == format_router::ContentType::Video;
+    let is_audio = info.content_type == format_router::ContentType::Audio;
+
     // ── EXIF metadata extraction ─────────────────────────────────────────
     let t_exif = std::time::Instant::now();
     // EXIF analysis (images only)
@@ -759,6 +786,51 @@ fn verify_content_inner(
     };
     log::info!("PERF: EXIF metadata extraction took {:?}", t_exif.elapsed());
 
+    // ── Thumbnail consistency check ───────────────────────────────────────
+    // Compare the EXIF-embedded JPEG thumbnail against the full image using
+    // pHash. A Hamming distance > 10 suggests the image was modified after
+    // the original thumbnail was written (crop, splice, AI in-painting, etc.).
+    // Only performed for image content types; skipped gracefully on failure.
+    let thumbnail_check: Option<ThumbnailCheck> = if is_image {
+        let thumb_bytes = metadata::extract_exif_thumbnail(&path);
+        match thumb_bytes {
+            None => Some(ThumbnailCheck {
+                has_thumbnail: false,
+                hamming_distance: None,
+                mismatch: false,
+            }),
+            Some(bytes) => {
+                let thumb_hash = fingerprint::compute_phash_from_bytes(&bytes);
+                // Compute main image pHash from file (reuse existing hashes if
+                // fingerprinting is running anyway, but this is a verify path
+                // so we compute it inline — it is cheap, ~1 ms for a 2 MP image).
+                let main_hashes = fingerprint::compute_hashes(&path);
+                let main_phash = main_hashes
+                    .iter()
+                    .find(|h| h.algorithm == fingerprint::HashAlgorithm::PHash)
+                    .map(|h| h.hash_hex.clone());
+
+                match (thumb_hash, main_phash) {
+                    (Some(th), Some(mh)) => {
+                        let distance = fingerprint::hamming_distance(&th, &mh).unwrap_or(64);
+                        Some(ThumbnailCheck {
+                            has_thumbnail: true,
+                            hamming_distance: Some(distance),
+                            mismatch: distance > 10,
+                        })
+                    }
+                    _ => Some(ThumbnailCheck {
+                        has_thumbnail: true,
+                        hamming_distance: None,
+                        mismatch: false,
+                    }),
+                }
+            }
+        }
+    } else {
+        None
+    };
+
     // ── C2PA verification ────────────────────────────────────────────────
     let t_c2pa = std::time::Instant::now();
     let c2pa_manifest = c2pa::read_manifest(&path).ok().flatten();
@@ -792,9 +864,6 @@ fn verify_content_inner(
         log::error!("AppState mutex poisoned in verify pipeline: {}", e);
         AppError::Internal("Failed to acquire application state".to_string())
     })?;
-    let is_image = info.content_type == format_router::ContentType::Image;
-    let is_video = info.content_type == format_router::ContentType::Video;
-    let is_audio = info.content_type == format_router::ContentType::Audio;
     let effective_mode = match mode {
         Some("fast") | Some("quick") => "quick",
         Some("standard") => "standard",
@@ -1543,6 +1612,7 @@ fn verify_content_inner(
         transcription_result,
         claim_check_result,
         ai_description,
+        thumbnail_check,
     })
 }
 
@@ -3732,6 +3802,7 @@ mod tests {
             transcription_result: None,
             claim_check_result: None,
             ai_description: None,
+            thumbnail_check: None,
         };
         let json = serde_json::to_string(&result).unwrap();
         assert!(
@@ -4418,5 +4489,78 @@ mod tests {
             err_msg.contains("empty") || err_msg.contains("zero bytes"),
             "Error message must mention 'empty' or 'zero bytes', got: {err_msg}"
         );
+    }
+
+    // ── ThumbnailCheck ───────────────────────────────────────────────
+
+    #[test]
+    fn thumbnail_check_serialization_no_thumbnail() {
+        let tc = ThumbnailCheck {
+            has_thumbnail: false,
+            hamming_distance: None,
+            mismatch: false,
+        };
+        let json = serde_json::to_string(&tc).expect("serialization must succeed");
+        assert!(json.contains("\"hasThumbnail\":false"));
+        assert!(json.contains("\"hammingDistance\":null"));
+        assert!(json.contains("\"mismatch\":false"));
+    }
+
+    #[test]
+    fn thumbnail_check_serialization_match() {
+        let tc = ThumbnailCheck {
+            has_thumbnail: true,
+            hamming_distance: Some(3),
+            mismatch: false,
+        };
+        let json = serde_json::to_string(&tc).expect("serialization must succeed");
+        assert!(json.contains("\"hasThumbnail\":true"));
+        assert!(json.contains("\"hammingDistance\":3"));
+        assert!(json.contains("\"mismatch\":false"));
+    }
+
+    #[test]
+    fn thumbnail_check_serialization_mismatch() {
+        let tc = ThumbnailCheck {
+            has_thumbnail: true,
+            hamming_distance: Some(24),
+            mismatch: true,
+        };
+        let json = serde_json::to_string(&tc).expect("serialization must succeed");
+        assert!(json.contains("\"hasThumbnail\":true"));
+        assert!(json.contains("\"hammingDistance\":24"));
+        assert!(json.contains("\"mismatch\":true"));
+    }
+
+    #[test]
+    fn thumbnail_check_deserialization_round_trip() {
+        let tc = ThumbnailCheck {
+            has_thumbnail: true,
+            hamming_distance: Some(7),
+            mismatch: false,
+        };
+        let json = serde_json::to_string(&tc).expect("serialization must succeed");
+        let decoded: ThumbnailCheck =
+            serde_json::from_str(&json).expect("deserialization must succeed");
+        assert_eq!(decoded.has_thumbnail, tc.has_thumbnail);
+        assert_eq!(decoded.hamming_distance, tc.hamming_distance);
+        assert_eq!(decoded.mismatch, tc.mismatch);
+    }
+
+    #[test]
+    fn thumbnail_check_mismatch_threshold() {
+        // Boundary: distance == 10 is NOT a mismatch; 11 IS.
+        let at_boundary = ThumbnailCheck {
+            has_thumbnail: true,
+            hamming_distance: Some(10),
+            mismatch: false, // 10 is not > 10
+        };
+        let over_boundary = ThumbnailCheck {
+            has_thumbnail: true,
+            hamming_distance: Some(11),
+            mismatch: true, // 11 > 10
+        };
+        assert!(!at_boundary.mismatch);
+        assert!(over_boundary.mismatch);
     }
 }

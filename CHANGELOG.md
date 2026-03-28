@@ -6,6 +6,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Sprint 21 — "See More" Foundation Investigation Tools (28 Mar 2026)
+
+### Enhanced Visual Inspection
+
+**Added**
+- Colour channel separation: R, G, B individual channels + R-G, R-B, G-B difference channels via Canvas pixel manipulation. Toggle buttons in inspection toolbar with `aria-pressed` and screen reader announcements
+- Noise pattern visualisation: `POST /forensics/noise-visualisation` endpoint exposing noise residual (greyscale) and block-wise variance heatmap (JET colourmap) as base64 PNG. 8 Python tests
+- Per-channel CLAHE (Contrast-Limited Adaptive Histogram Equalisation): `POST /forensics/clahe` endpoint with configurable clip limit (0.5-10.0). LAB colour space L-channel enhancement. 9 Python tests
+
+### Metadata Intelligence
+
+**Added**
+- EXIF thumbnail consistency check: extracts embedded JPEG thumbnail via `Tag::JPEGInterchangeFormat`, compares against main image via pHash. `ThumbnailCheck` struct with `hasThumbnail`, `hammingDistance`, `mismatch` (threshold >10). 9 new Rust tests
+- GPS coordinate → OpenStreetMap link: `gpsLatitude`/`gpsLongitude` fields on `ExifAnalysis`, DMS formatting, "View on map" button opening system browser. 5 new Rust tests
+
+### AI Origin Detection
+
+**Added**
+- Unified AI Origin Detection panel consolidating C2PA AI declaration, deepfake ensemble score, and watermark extraction into single section with status badges
+
+### Investigation Workflow
+
+**Added**
+- Reverse image search: Bing Visual Search added (4th engine). All links now use `openExternal()` via `tauri-plugin-shell` to open system browser instead of Tauri webview
+- Analyst notes persistence: textarea increased to 2000 chars, saved to localStorage automatically, no longer cleared after PDF export
+- Methodology + model versions in PDF: GBM classifier version, CLIP model status, Jura Trace version (v0.9.0) in methodology metadata block
+
+### Test Counts
+
+- **Rust**: 250 tests passing (+14), clippy clean, fmt clean
+- **Python**: 325+ tests (+17 noise viz + CLAHE)
+- **Frontend**: 0 svelte-check errors across 223 files
+
+---
+
 ## Sprint 17 — Quality Floor & Deployment Readiness (28 Mar 2026)
 
 ### IPC Error Architecture (S17-A1/A2/A3)

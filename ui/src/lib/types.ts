@@ -370,6 +370,15 @@ export interface VerificationResult {
   /** AI-generated natural-language description via Ollama LLaVA. Only present
    * for image content when Ollama is running with llava:7b pulled. */
   aiDescription?: string | null;
+  /** EXIF thumbnail vs main image consistency check (images only). */
+  thumbnailCheck?: ThumbnailCheck | null;
+}
+
+/** EXIF thumbnail vs main image consistency check. */
+export interface ThumbnailCheck {
+  hasThumbnail: boolean;
+  hammingDistance?: number;
+  mismatch: boolean;
 }
 
 /** Severity level for an EXIF anomaly finding */
@@ -391,6 +400,10 @@ export interface ExifAnalysis {
   fieldsPopulated: number;
   fieldsTotal: number;
   hasExif: boolean;
+  /** GPS latitude in decimal degrees (added by Rust backend; optional pending backend update). */
+  gpsLatitude?: number;
+  /** GPS longitude in decimal degrees (added by Rust backend; optional pending backend update). */
+  gpsLongitude?: number;
 }
 
 /** Severity display configuration */

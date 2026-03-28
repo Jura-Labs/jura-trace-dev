@@ -43,6 +43,8 @@ from app.services.npr import perform_npr_analysis
 from app.services.segmented_ela import perform_segmented_ela
 from app.services.shadow_consistency import perform_shadow_consistency
 from app.services.splice_boundary import perform_splice_boundary
+from app.services.noise_visualisation import perform_noise_visualisation
+from app.services.clahe import perform_clahe
 from app.services.audio_metadata import perform_audio_metadata
 from app.services.transcription import perform_transcription
 from app.services.video_deepfake import perform_video_deepfake_analysis
@@ -652,3 +654,30 @@ async def transcribe(
         contents, language=language, model_size=model_size,
     )
     return TranscriptionResponse(**result)
+
+
+@router.post("/noise-visualisation")
+async def noise_visualisation(
+    file: UploadFile = File(...),
+):
+    """Return noise residual and variance heatmap visualisations."""
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return perform_noise_visualisation(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/clahe")
+async def clahe_enhance(
+    file: UploadFile = File(...),
+    clip_limit: float = Query(default=2.0, ge=0.5, le=10.0),
+):
+    """Return CLAHE-enhanced image with configurable clip limit."""
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return perform_clahe(image_bytes, clip_limit=clip_limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

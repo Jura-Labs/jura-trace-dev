@@ -53,6 +53,10 @@ pub struct ExifAnalysis {
     pub fields_populated: u32,
     pub fields_total: u32,
     pub has_exif: bool,
+    /// GPS latitude in decimal degrees (north positive), if present in EXIF.
+    pub gps_latitude: Option<f64>,
+    /// GPS longitude in decimal degrees (east positive), if present in EXIF.
+    pub gps_longitude: Option<f64>,
 }
 
 // ===== Analysis =====
@@ -68,14 +72,15 @@ pub fn analyse(
 ) -> ExifAnalysis {
     let mut findings = Vec::new();
 
-    let (fields_populated, fields_total) = match metadata {
+    let (fields_populated, fields_total, gps_latitude, gps_longitude) = match metadata {
         Some(meta) => {
             check_software(meta, &mut findings);
             check_missing_exif(meta, &mut findings);
             check_timestamps(meta, &mut findings);
             check_dimensions(meta, actual_width, actual_height, &mut findings);
             check_gps(meta, &mut findings);
-            compute_completeness(meta)
+            let (fp, ft) = compute_completeness(meta);
+            (fp, ft, meta.gps_latitude, meta.gps_longitude)
         }
         None => {
             findings.push(AnomalyFinding {
@@ -88,7 +93,7 @@ pub fn analyse(
                 severity: Severity::High,
                 category: "completeness".into(),
             });
-            (0, 16)
+            (0, 16, None, None)
         }
     };
 
@@ -108,6 +113,8 @@ pub fn analyse(
         fields_populated,
         fields_total,
         has_exif: metadata.is_some(),
+        gps_latitude,
+        gps_longitude,
     }
 }
 
@@ -724,5 +731,51 @@ mod tests {
         let full_meta = camera_meta();
         let result2 = analyse(Some(&full_meta), Some(8192), Some(5464));
         assert_eq!(result2.fields_populated, 16);
+    }
+
+    // ── GPS fields on ExifAnalysis ──────────────────────────────────
+
+    #[test]
+    fn gps_fields_propagated_from_metadata() {
+        let meta = camera_meta(); // has lat=51.5074, lon=-0.1278
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        assert_eq!(result.gps_latitude, Some(51.5074));
+        assert_eq!(result.gps_longitude, Some(-0.1278));
+    }
+
+    #[test]
+    fn gps_fields_none_when_absent() {
+        let meta = empty_meta(); // no GPS
+        let result = analyse(Some(&meta), None, None);
+        assert!(result.gps_latitude.is_none());
+        assert!(result.gps_longitude.is_none());
+    }
+
+    #[test]
+    fn gps_fields_none_when_no_exif() {
+        let result = analyse(None, None, None);
+        assert!(result.gps_latitude.is_none());
+        assert!(result.gps_longitude.is_none());
+    }
+
+    #[test]
+    fn exif_analysis_gps_serializes_correctly() {
+        let meta = camera_meta();
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        let json = serde_json::to_string(&result).expect("serialization must succeed");
+        assert!(json.contains("\"gpsLatitude\""));
+        assert!(json.contains("\"gpsLongitude\""));
+        assert!(json.contains("51.5074"));
+        assert!(json.contains("-0.1278"));
+    }
+
+    #[test]
+    fn exif_analysis_gps_null_when_absent() {
+        let meta = empty_meta();
+        let result = analyse(Some(&meta), None, None);
+        let json = serde_json::to_string(&result).expect("serialization must succeed");
+        // camelCase keys must appear even when null
+        assert!(json.contains("\"gpsLatitude\":null"));
+        assert!(json.contains("\"gpsLongitude\":null"));
     }
 }

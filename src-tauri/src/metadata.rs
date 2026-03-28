@@ -1,7 +1,7 @@
 use exif::{In, Reader as ExifReader, Tag, Value};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
 /// Extracted metadata from an image file.
@@ -133,4 +133,49 @@ fn extract_gps_coord(exif: &exif::Exif, coord_tag: Tag, ref_tag: Tag) -> Option<
 /// This is a fallback when EXIF does not contain dimension tags.
 pub fn get_image_dimensions(path: &Path) -> Option<(u32, u32)> {
     image::image_dimensions(path).ok()
+}
+
+/// Extract the embedded EXIF thumbnail from an image file.
+///
+/// Reads `JPEGInterchangeFormat` (byte offset into the file) and
+/// `JPEGInterchangeFormatLength` (byte count) from the THUMBNAIL IFD,
+/// then seeks to that position in the file and returns the raw JPEG bytes.
+///
+/// Returns `None` if:
+/// - The file has no EXIF data
+/// - The THUMBNAIL IFD does not contain both required tags
+/// - The offset/length values are zero or would read past end-of-file
+/// - Any I/O error occurs
+pub fn extract_exif_thumbnail(path: &Path) -> Option<Vec<u8>> {
+    let mut file = File::open(path).ok()?;
+    let exif = {
+        let mut buf_reader = BufReader::new(&file);
+        ExifReader::new()
+            .read_from_container(&mut buf_reader)
+            .ok()?
+    };
+
+    // Both tags must be present in the THUMBNAIL IFD (In::THUMBNAIL = IFD1).
+    let offset_field = exif.get_field(Tag::JPEGInterchangeFormat, In::THUMBNAIL)?;
+    let length_field = exif.get_field(Tag::JPEGInterchangeFormatLength, In::THUMBNAIL)?;
+
+    let offset = match &offset_field.value {
+        Value::Long(v) => *v.first()? as u64,
+        _ => return None,
+    };
+    let length = match &length_field.value {
+        Value::Long(v) => *v.first()? as usize,
+        _ => return None,
+    };
+
+    if offset == 0 || length == 0 {
+        return None;
+    }
+
+    // Seek to the thumbnail data and read exactly `length` bytes.
+    file.seek(SeekFrom::Start(offset)).ok()?;
+    let mut thumb_bytes = vec![0u8; length];
+    file.read_exact(&mut thumb_bytes).ok()?;
+
+    Some(thumb_bytes)
 }
