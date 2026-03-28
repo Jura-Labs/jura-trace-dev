@@ -14,6 +14,7 @@
 
   const sidecarAvailable = $derived(sidecarHealth?.status === 'ok');
   const hasAssets = $derived(stats.totalAssets > 0);
+  const isFirstRun = $derived(stats.totalAssets === 0 && stats.totalVerifications === 0);
 
   onMount(async () => {
     [stats, sidecarHealth] = await Promise.all([
@@ -98,6 +99,50 @@
   <!-- Earth line -->
   <div class="earth-line" aria-hidden="true"></div>
 
+  <!-- First-run welcome state -->
+  {#if isFirstRun}
+    <section
+      class="py-14 flex justify-center"
+      aria-label="Getting started"
+    >
+      <div
+        class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-10 text-center max-w-md w-full"
+      >
+        <h2
+          class="font-heading text-2xl font-normal text-text-light dark:text-quartz mb-3"
+          style="letter-spacing: -0.01em;"
+        >
+          Welcome to Jura Trace
+        </h2>
+        <div class="earth-line mb-6" aria-hidden="true"></div>
+        <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed mb-2">
+          Start by verifying an image or protecting your content.
+        </p>
+        <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed mb-8">
+          Your activity will appear here as you use the tool.
+        </p>
+        <div class="flex flex-col sm:flex-row gap-3 justify-center">
+          <a
+            href="/verify"
+            class="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] rounded border border-lapis text-lapis dark:text-lapis-light dark:border-lapis-light text-sm font-medium
+                   hover:bg-lapis hover:text-white dark:hover:bg-lapis-light dark:hover:text-obsidian transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+          >
+            Verify Content
+          </a>
+          <a
+            href="/protect"
+            class="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] rounded border border-lapis text-lapis dark:text-lapis-light dark:border-lapis-light text-sm font-medium
+                   hover:bg-lapis hover:text-white dark:hover:bg-lapis-light dark:hover:text-obsidian transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+          >
+            Protect Content
+          </a>
+        </div>
+      </div>
+    </section>
+  {/if}
+
   <!-- Analysis services status -->
   <div class="py-8 text-center" aria-live="polite" aria-atomic="true">
     {#if sidecarAvailable}
@@ -154,7 +199,7 @@
             class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >view all</a>
         {:else}
-          Import files on the Protect page to get started.
+          No content catalogued yet.
         {/if}
       </p>
     </div>

@@ -417,9 +417,25 @@
 
       <!-- Watchlist table -->
       {#if watchlistUrls.length === 0}
-        <p class="text-sm text-flint dark:text-[#9B9890] py-4">
-          No URLs monitored yet. Add a URL to start tracking your published content.
-        </p>
+        <div
+          class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-10 text-center max-w-md"
+        >
+          <h3
+            class="font-heading text-lg font-normal text-text-light dark:text-quartz mb-3"
+            style="letter-spacing: -0.01em;"
+          >
+            No URLs being monitored
+          </h3>
+          <div class="earth-line mb-5" aria-hidden="true"></div>
+          <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed mb-2">
+            Register URLs where your protected content is published.
+            Jura Trace will track changes and verify that your content
+            credentials remain intact.
+          </p>
+          <p class="text-sm text-flint/70 dark:text-flint leading-relaxed mt-4">
+            Add your first URL using the form above.
+          </p>
+        </div>
       {:else}
         <ul class="list-none p-0 m-0 max-w-4xl" aria-label="Monitored URLs">
           {#each watchlistUrls as entry (entry.urlId)}

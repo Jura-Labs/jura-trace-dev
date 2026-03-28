@@ -915,7 +915,22 @@
           Clear filters
         </button>
       {:else}
-        <p class="text-flint dark:text-flint-light">No assets imported yet. Drop files above to get started.</p>
+        <div class="max-w-md mx-auto">
+          <h2
+            class="font-heading text-xl font-normal text-text-light dark:text-quartz mb-3"
+            style="letter-spacing: -0.01em;"
+          >
+            Your collection is empty
+          </h2>
+          <div class="earth-line mb-5" aria-hidden="true"></div>
+          <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed mb-2">
+            Import images, documents, or media files to begin protecting
+            your content with C2PA credentials and invisible watermarks.
+          </p>
+          <p class="text-sm text-flint/70 dark:text-flint leading-relaxed">
+            Drop files above or click to browse.
+          </p>
+        </div>
       {/if}
     </div>
 

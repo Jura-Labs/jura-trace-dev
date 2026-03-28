@@ -656,10 +656,10 @@
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <!-- ML Sidecar card -->
+      <!-- Analysis Engine card -->
       <div class="rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 p-4">
         <div class="flex items-center justify-between mb-3">
-          <span class="text-sm font-medium text-text-light dark:text-quartz">Analysis services</span>
+          <span class="text-sm font-medium text-text-light dark:text-quartz">Analysis Engine</span>
           <span
             class="text-xs px-2 py-0.5 rounded-full
                    {sidecarOnline
@@ -686,8 +686,17 @@
             {/each}
           </div>
         {:else}
-          <div class="mt-2 text-xs text-flint dark:text-flint-light">
-            <p class="mb-1">Start the analysis services with:</p>
+          <div class="mt-2 space-y-2">
+            <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
+              The analysis engine provides forensic detection including ELA,
+              noise analysis, deepfake detection, and 18 other signals.
+            </p>
+            <p class="text-xs text-flint/80 dark:text-flint leading-relaxed">
+              Core features (C2PA verification, EXIF analysis) work without it.
+              To enable full analysis, the engine starts automatically with
+              the application.
+            </p>
+            <p class="text-xs text-flint dark:text-flint-light mt-3 mb-1">Start manually with:</p>
             <code class="block font-mono text-xs bg-gray-100 dark:bg-obsidian px-2 py-1 rounded text-text-light dark:text-quartz">
               cd sidecar && uvicorn main:app --host 127.0.0.1 --port 8200
             </code>
