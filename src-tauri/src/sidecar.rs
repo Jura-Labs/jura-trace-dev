@@ -1170,6 +1170,36 @@ impl SidecarClient {
             .map_err(|e| format!("Failed to parse describe response: {e}"))
     }
 
+    /// Extract and transcribe all visible text from an image via Ollama LLaVA.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/extract-text`.
+    /// Uses the same 90-second timeout as `describe_image` — LLaVA inference
+    /// on CPU with a text-extraction prompt can be similarly slow.
+    ///
+    /// Returns an [`ImageDescribeResult`] whose `description` field contains
+    /// the transcribed text.  `success=false` indicates Ollama is unavailable
+    /// or the model is not pulled — callers should degrade gracefully.
+    pub fn extract_text(&self, image_path: &Path) -> Result<ImageDescribeResult, String> {
+        let form = self.build_image_form(image_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/extract-text", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(90))
+            .send()
+            .map_err(|e| format!("Sidecar extract-text request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!("Sidecar extract-text returned {status}: {body}"));
+        }
+
+        resp.json::<ImageDescribeResult>()
+            .map_err(|e| format!("Failed to parse extract-text response: {e}"))
+    }
+
     /// Build a multipart form with an image file.
     fn build_image_form(
         &self,

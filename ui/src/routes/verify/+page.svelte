@@ -1140,7 +1140,7 @@
         </button>
       </div>
       <div class="flex-1"></div>
-      <p class="px-4 pb-2.5 text-xs text-flint/50" aria-label="Claim checking is planned for a future phase">
+      <p class="px-4 pb-2.5 text-xs text-flint/50 dark:text-flint-light/60" aria-label="Claim checking is planned for a future phase">
         Claim checking — Phase 2
       </p>
     </div>
@@ -1176,7 +1176,7 @@
               <p class="text-sm text-flint dark:text-flint-light">Analysing file — this may take a moment...</p>
             {/if}
             {#if fileName}
-              <p class="text-xs text-flint/70">{fileName}</p>
+              <p class="text-xs text-flint/70 dark:text-flint-light/70">{fileName}</p>
             {/if}
           </div>
         {:else}
@@ -1214,7 +1214,7 @@
             onclick={cancelAnalysis}
             class="text-xs px-3 py-1.5 min-h-[32px] rounded border border-border-light dark:border-border-dark
                    text-flint dark:text-flint-light
-                   hover:text-cinnabar hover:border-cinnabar/50 dark:hover:text-cinnabar dark:hover:border-cinnabar/50
+                   hover:text-cinnabar hover:border-cinnabar/50 dark:hover:text-cinnabar-light dark:hover:border-cinnabar-light/50
                    transition-colors duration-150
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
                    focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
@@ -1222,7 +1222,7 @@
           >
             Cancel analysis
           </button>
-          <p class="text-xs text-flint/50 dark:text-flint-light/50">
+          <p class="text-xs text-flint/50 dark:text-flint-light/60">
             Press Escape to cancel
           </p>
         </div>
@@ -1370,7 +1370,7 @@
                       {Math.round(item.result.overallTrust * 100)}%
                     </span>
                   {:else}
-                    <span class="text-flint/50">—</span>
+                    <span class="text-flint/50 dark:text-flint-light/60">—</span>
                   {/if}
                 </span>
 
@@ -1582,7 +1582,7 @@
       {#if result.metadataFlags.length > 0}
         <div class="px-5 py-3 border-b border-border-light dark:border-border-dark flex flex-wrap gap-2" aria-label="Metadata flags">
           {#each result.metadataFlags as flag}
-            <span class="text-xs px-2 py-0.5 rounded bg-amber/10 text-amber border border-amber/20">
+            <span class="text-xs px-2 py-0.5 rounded bg-amber/10 text-amber dark:text-amber-light border border-amber/20">
               {flag}
             </span>
           {/each}
@@ -1671,11 +1671,11 @@
             <span
               class="text-xs font-medium px-2 py-0.5 rounded border
                      {verdict === 'supported'
-                       ? 'bg-malachite/15 text-malachite border-malachite/30'
+                       ? 'bg-malachite/15 text-malachite dark:text-malachite-light border-malachite/30'
                        : verdict === 'disputed'
-                         ? 'bg-cinnabar/15 text-cinnabar border-cinnabar/30'
+                         ? 'bg-cinnabar/15 text-cinnabar dark:text-cinnabar-light border-cinnabar/30'
                          : verdict === 'mixed'
-                           ? 'bg-amber/15 text-amber border-amber/30'
+                           ? 'bg-amber/15 text-amber dark:text-amber-light border-amber/30'
                            : 'bg-graphite text-flint dark:text-flint-light border-border-dark'}"
             >
               {verdict === 'supported' ? 'Supported'
@@ -1709,7 +1709,7 @@
                   <div class="rounded-md px-3 py-2 bg-gray-50 dark:bg-obsidian/50 border border-border-light dark:border-border-dark text-xs" role="listitem">
                     <p class="font-medium text-text-light dark:text-quartz">{source.title}</p>
                     <p class="text-flint dark:text-flint-light mt-0.5 leading-relaxed">{source.excerpt}</p>
-                    <p class="text-flint/50 tabular-nums mt-0.5">Relevance: {Math.round(source.relevance * 100)}%</p>
+                    <p class="text-flint/50 dark:text-flint-light/60 tabular-nums mt-0.5">Relevance: {Math.round(source.relevance * 100)}%</p>
                   </div>
                 {/each}
               </div>
@@ -1751,7 +1751,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
           Signal Agreement
-          <span class="text-xs text-flint/60">detector cross-check</span>
+          <span class="text-xs text-flint/60 dark:text-flint-light/70">detector cross-check</span>
         </button>
         {#if showSignalAgreement}
           <div id="signal-agreement-panel" class="mt-3">
@@ -1777,7 +1777,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
           Visual Inspection Checklist
-          <span class="text-xs text-flint/60">manual assessment</span>
+          <span class="text-xs text-flint/60 dark:text-flint-light/70">manual assessment</span>
         </button>
         {#if showInspectionChecklist}
           <div id="inspection-checklist-panel" class="mt-3">
@@ -1803,9 +1803,9 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
           Investigate Further
-          <span class="text-xs text-flint/60">reverse image search</span>
+          <span class="text-xs text-flint/60 dark:text-flint-light/70">reverse image search</span>
           {#if licenceTier === 'community'}
-            <span class="text-xs text-flint/50 italic">Professional plan includes API-integrated search</span>
+            <span class="text-xs text-flint/50 dark:text-flint-light/60 italic">Professional plan includes API-integrated search</span>
           {/if}
         </button>
         {#if showInvestigatePanel}
@@ -1903,7 +1903,7 @@
         >
           {exportingCase ? 'Packaging...' : 'Export Case'}
         </button>
-        <span class="text-xs text-flint/50">
+        <span class="text-xs text-flint/50 dark:text-flint-light/60">
           {modKey}+E report &middot; {modKey}+Shift+E case
         </span>
 
@@ -1949,7 +1949,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
           Technical Details
-          <span class="text-xs text-flint/60">
+          <span class="text-xs text-flint/60 dark:text-flint-light/70">
             ({verifyMode === 'standard' ? 'EXIF + C2PA + ELA + deepfake' : verifyMode === 'deep' ? 'full pipeline' : 'archival pipeline'})
           </span>
         </button>
@@ -2650,8 +2650,8 @@
               <span
                 class="text-xs font-medium px-2 py-0.5 rounded border
                        {ca.isConsistent
-                         ? 'bg-malachite/15 border-malachite/20 text-malachite'
-                         : 'bg-amber/15 border-amber/20 text-amber'}"
+                         ? 'bg-malachite/15 border-malachite/20 text-malachite dark:text-malachite-light'
+                         : 'bg-amber/15 border-amber/20 text-amber dark:text-amber-light'}"
               >
                 {ca.isConsistent ? 'Consistent' : 'Inconsistent'}
               </span>
@@ -2686,7 +2686,7 @@
 
           <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-2">{ca.summary}</p>
 
-          <p class="text-xs text-flint/60 italic leading-relaxed">
+          <p class="text-xs text-flint/60 dark:text-flint-light/70 italic leading-relaxed">
             Note: this detector is informational only. Results are unreliable for mobile phone
             photos processed with computational lens correction (iPhone, Pixel, Samsung), HDR
             composites, or images that have been resized or cropped.
@@ -2708,7 +2708,7 @@
               </span>
               <!-- Experimental badge -->
               <span
-                class="text-xs font-medium px-2 py-0.5 rounded border bg-amber/10 text-amber border-amber/30"
+                class="text-xs font-medium px-2 py-0.5 rounded border bg-amber/10 text-amber dark:text-amber-light border-amber/30"
                 title="CLIP-based AI classification is experimental. Do not use as sole evidence."
               >
                 Experimental
@@ -2838,8 +2838,8 @@
                     ></span>
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center justify-between gap-2">
-                        <span class="font-mono {signal.triggered ? 'text-amber' : 'text-flint dark:text-flint-light'}">{signal.name}</span>
-                        <span class="text-flint/60 tabular-nums">weight: {signal.weight.toFixed(1)}</span>
+                        <span class="font-mono {signal.triggered ? 'text-amber dark:text-amber-light' : 'text-flint dark:text-flint-light'}">{signal.name}</span>
+                        <span class="text-flint/60 dark:text-flint-light/70 tabular-nums">weight: {signal.weight.toFixed(1)}</span>
                       </div>
                       <p class="text-flint dark:text-flint-light mt-0.5">{signal.description}</p>
                     </div>
@@ -2892,7 +2892,7 @@
             <p class="text-xs text-flint dark:text-flint-light mt-1">
               {exif.fieldsPopulated} of {exif.fieldsTotal} EXIF fields populated
               {#if !exif.hasExif}
-                <span class="text-amber ml-1">— no EXIF data present</span>
+                <span class="text-amber dark:text-amber-light ml-1">— no EXIF data present</span>
               {/if}
             </p>
           </div>
@@ -3007,7 +3007,7 @@
             <div>
               <h3 class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-2">
                 Assertions
-                <span class="normal-case ml-1 text-flint/70">({manifest.assertions.length})</span>
+                <span class="normal-case ml-1 text-flint/70 dark:text-flint-light/70">({manifest.assertions.length})</span>
               </h3>
               <div class="space-y-2" role="list" aria-label="C2PA assertions">
                 {#each manifest.assertions as assertion (assertion.label)}
@@ -3599,7 +3599,7 @@
         <!-- Success state -->
         <div class="flex flex-col items-center gap-3 py-4 text-center">
           <div class="w-10 h-10 rounded-full bg-malachite/15 border border-malachite/30 flex items-center justify-center" aria-hidden="true">
-            <svg class="w-5 h-5 text-malachite" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-malachite dark:text-malachite-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
           </div>
@@ -3619,7 +3619,7 @@
         <!-- Reason code -->
         <fieldset class="mb-4">
           <legend class="block text-xs font-medium text-flint dark:text-flint-light mb-2">
-            Reason <span class="text-cinnabar" aria-hidden="true">*</span>
+            Reason <span class="text-cinnabar dark:text-cinnabar-light" aria-hidden="true">*</span>
             <span class="sr-only">(required)</span>
           </legend>
           <div class="space-y-2">
@@ -3655,7 +3655,7 @@
         <!-- Optional note -->
         <div class="mb-5">
           <label for="fp-note" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
-            Additional notes <span class="text-flint/50">(optional)</span>
+            Additional notes <span class="text-flint/50 dark:text-flint-light/60">(optional)</span>
           </label>
           <textarea
             id="fp-note"
@@ -3666,7 +3666,7 @@
             maxlength={500}
             bind:value={fpReasonNote}
           ></textarea>
-          <p class="text-xs text-flint/50 mt-1 text-right">{fpReasonNote.length} / 500</p>
+          <p class="text-xs text-flint/50 dark:text-flint-light/60 mt-1 text-right">{fpReasonNote.length} / 500</p>
         </div>
 
         <!-- Actions -->
@@ -3725,7 +3725,7 @@
           <div>
             <label for="decl-analyst-name" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
               Analyst Name
-              <span class="text-flint/50 font-normal ml-1">(optional)</span>
+              <span class="text-flint/50 dark:text-flint-light/60 font-normal ml-1">(optional)</span>
             </label>
             <input
               id="decl-analyst-name"
@@ -3757,7 +3757,7 @@
         <div>
           <label for="decl-organisation" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
             Organisation
-            <span class="text-flint/50 font-normal ml-1">(optional)</span>
+            <span class="text-flint/50 dark:text-flint-light/60 font-normal ml-1">(optional)</span>
           </label>
           <input
             id="decl-organisation"
@@ -3769,14 +3769,14 @@
             autocomplete="organization"
             bind:value={analystOrg}
           />
-          <p class="text-xs text-flint/50 mt-1">Name and organisation are remembered for your next export.</p>
+          <p class="text-xs text-flint/50 dark:text-flint-light/60 mt-1">Name and organisation are remembered for your next export.</p>
         </div>
 
         <!-- Row 3: Case reference -->
         <div>
           <label for="decl-case-ref" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
             Case Reference
-            <span class="text-flint/50 font-normal ml-1">(optional, not saved)</span>
+            <span class="text-flint/50 dark:text-flint-light/60 font-normal ml-1">(optional, not saved)</span>
           </label>
           <input
             id="decl-case-ref"
@@ -3793,7 +3793,7 @@
         <div>
           <label for="analyst-note" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
             Analyst Note
-            <span class="text-flint/50 font-normal ml-1">(optional, max 500 chars)</span>
+            <span class="text-flint/50 dark:text-flint-light/60 font-normal ml-1">(optional, max 500 chars)</span>
           </label>
           <textarea
             id="analyst-note"
@@ -3804,7 +3804,7 @@
             maxlength={500}
             bind:value={analystNote}
           ></textarea>
-          <p class="text-xs text-flint/50 mt-1 text-right" aria-live="polite" aria-atomic="true">
+          <p class="text-xs text-flint/50 dark:text-flint-light/60 mt-1 text-right" aria-live="polite" aria-atomic="true">
             <span class="sr-only">Characters used: </span>{analystNote.length} / 500
           </p>
         </div>

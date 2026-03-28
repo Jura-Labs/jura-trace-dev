@@ -2038,6 +2038,49 @@ fn analyse_video_deepfake(
     app.sidecar.analyse_video_deepfake(&path, &mode)
 }
 
+/// Extract and transcribe all visible text from an image using Ollama LLaVA.
+///
+/// Sends the image at `file_path` to the sidecar's `/forensics/extract-text`
+/// endpoint, which calls LLaVA with a text-extraction-specific prompt.
+/// Returns the transcribed text as a plain string on success.
+///
+/// Returns `Err` when:
+///   - `file_path` contains a null byte or cannot be canonicalised
+///   - The ML sidecar is not available
+///   - Ollama is not running or LLaVA is not pulled (the sidecar reports this
+///     as `success=false`; the Tauri command surfaces it as `Err`)
+///
+/// Security: the same null-byte and canonicalisation checks applied to other
+/// path-based commands are applied here to prevent path traversal attacks and
+/// path existence oracle attacks via error messages.
+#[tauri::command]
+fn extract_text_from_image(
+    file_path: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<String, String> {
+    if file_path.contains('\0') {
+        return Err("Invalid file path".to_string());
+    }
+    let path = std::path::PathBuf::from(&file_path)
+        .canonicalize()
+        .map_err(|_| "File not found or inaccessible".to_string())?;
+
+    let app = state.lock().map_err(|e| e.to_string())?;
+    if !app.sidecar.is_available() {
+        return Err("ML sidecar is not available".to_string());
+    }
+
+    let result = app.sidecar.extract_text(&path)?;
+
+    if result.success {
+        result
+            .description
+            .ok_or_else(|| "Text extraction returned no content".to_string())
+    } else {
+        Err(result.message)
+    }
+}
+
 /// Warning about existing metadata before C2PA signing.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -3154,6 +3197,7 @@ pub fn run() {
             embed_watermark_asset,
             extract_watermark_from_path,
             analyse_video_deepfake,
+            extract_text_from_image,
             get_db_path,
             set_db_path,
             get_licence_tier,

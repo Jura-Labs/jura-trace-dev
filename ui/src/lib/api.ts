@@ -755,6 +755,27 @@ export async function setLicenceTier(tier: LicenceTier): Promise<void> {
   return invoke<void>('set_licence_tier', { tier });
 }
 
+// ── Text Extraction ─────────────────────────────────────────────────
+
+/**
+ * Extract and transcribe all visible text from an image using LLaVA via Ollama.
+ *
+ * Suitable for screenshots, memes, social media posts, and scanned documents.
+ * Only available when Ollama is running and llava:7b is pulled.
+ *
+ * Returns the transcribed text string, or null if Ollama is unavailable or
+ * no text could be extracted.
+ *
+ * @param filePath  Absolute path to the image file to read text from.
+ */
+export async function extractTextFromImage(filePath: string): Promise<string | null> {
+  try {
+    return await invoke<string>('extract_text_from_image', { filePath });
+  } catch {
+    return null;
+  }
+}
+
 // ── Video Deepfake Analysis ─────────────────────────────────────────
 
 /**

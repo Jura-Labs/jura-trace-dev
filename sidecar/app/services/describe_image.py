@@ -36,6 +36,13 @@ _DESCRIBE_PROMPT = (
     "features. Be concise but thorough (2-4 sentences)."
 )
 
+_EXTRACT_TEXT_PROMPT = (
+    "Read and transcribe ALL visible text in this image exactly as written. "
+    "Include: headlines, body text, captions, watermarks, usernames, dates, "
+    "URLs, and any other text. Preserve the original formatting and line breaks. "
+    "If no text is visible, respond with 'No visible text detected.'"
+)
+
 _LLAVA_MODEL = "llava:7b"
 
 # Ollama's /api/generate endpoint with stream=False returns the full response
@@ -158,6 +165,126 @@ async def describe_image(
             model_used=model,
             success=False,
             message=f"Image description failed: {exc}",
+        )
+
+
+async def extract_text_from_image(
+    image_bytes: bytes,
+    ollama_base_url: str = "http://127.0.0.1:11434",
+    model: str = _LLAVA_MODEL,
+    timeout: float = _TIMEOUT_SECONDS,
+) -> ImageDescribeResponse:
+    """
+    Extract and transcribe all visible text from ``image_bytes`` using LLaVA.
+
+    Suitable for screenshots, memes, social media posts, and document images
+    where the primary goal is reading the text content rather than describing
+    the image visually.
+
+    Args:
+        image_bytes:     Raw bytes of the image to read text from.
+        ollama_base_url: Base URL of the local Ollama instance (no trailing
+                         slash).  Defaults to ``http://127.0.0.1:11434``.
+        model:           Ollama model name.  Must be a multimodal (vision)
+                         model.  Defaults to ``"llava:7b"``.
+        timeout:         HTTP timeout in seconds.
+
+    Returns:
+        An :class:`ImageDescribeResponse`.  The ``description`` field contains
+        the transcribed text.  ``success`` is ``False`` when Ollama is
+        unreachable or the model is unavailable.
+    """
+    # ── Availability check ─────────────────────────────────────────────────────
+    if not await _check_ollama_available(ollama_base_url):
+        logger.debug("Ollama unavailable at %s — skipping text extraction", ollama_base_url)
+        return ImageDescribeResponse(
+            description=None,
+            model_used=model,
+            success=False,
+            message="Ollama is not running. Start Ollama to enable text extraction.",
+        )
+
+    if not await _check_model_available(ollama_base_url, model):
+        logger.info(
+            "LLaVA model '%s' not found in Ollama — skipping text extraction", model
+        )
+        return ImageDescribeResponse(
+            description=None,
+            model_used=model,
+            success=False,
+            message=(
+                f"Model '{model}' is not available in Ollama. "
+                f"Pull it with: ollama pull {model}"
+            ),
+        )
+
+    # ── Inference ──────────────────────────────────────────────────────────────
+    image_b64 = base64.b64encode(image_bytes).decode("ascii")
+
+    payload = {
+        "model": model,
+        "prompt": _EXTRACT_TEXT_PROMPT,
+        "images": [image_b64],
+        "stream": False,
+        "options": {
+            # Lower temperature for more faithful transcription
+            "temperature": 0.1,
+            # Allow more tokens for longer text passages
+            "num_predict": 512,
+        },
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(
+                f"{ollama_base_url}/api/generate",
+                json=payload,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            extracted = data.get("response", "").strip()
+
+        if not extracted:
+            return ImageDescribeResponse(
+                description=None,
+                model_used=model,
+                success=False,
+                message="Ollama returned an empty response.",
+            )
+
+        logger.info(
+            "Text extraction completed (%d chars) via %s", len(extracted), model
+        )
+        return ImageDescribeResponse(
+            description=extracted,
+            model_used=model,
+            success=True,
+            message="OK",
+        )
+
+    except httpx.TimeoutException:
+        logger.warning("Ollama timed out during text extraction (model=%s)", model)
+        return ImageDescribeResponse(
+            description=None,
+            model_used=model,
+            success=False,
+            message=f"Ollama timed out after {timeout:.0f} s. Try a smaller model or increase timeout.",
+        )
+    except httpx.HTTPStatusError as exc:
+        logger.warning("Ollama HTTP error during text extraction: %s", exc)
+        return ImageDescribeResponse(
+            description=None,
+            model_used=model,
+            success=False,
+            message=f"Ollama returned HTTP {exc.response.status_code}.",
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Unexpected error during text extraction: %s", exc)
+        return ImageDescribeResponse(
+            description=None,
+            model_used=model,
+            success=False,
+            message=f"Text extraction failed: {exc}",
         )
 
 
