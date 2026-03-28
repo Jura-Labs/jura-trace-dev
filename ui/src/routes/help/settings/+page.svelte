@@ -293,8 +293,8 @@
         Analysis Services
       </h3>
       <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-3">
-        This indicator shows the status of the Python ML sidecar, which runs locally on
-        port 8200. The sidecar provides forensic image analysis (ELA, noise, copy-move,
+        This indicator shows the status of the Analysis Engine, which runs locally on
+        port 8200. The Analysis Engine provides forensic image analysis (ELA, noise, copy-move,
         deepfake detection, NPR, chromatic aberration, JPEG ghost, regional analysis),
         watermark embed and extract, video and audio processing, and transcription.
       </p>
@@ -309,11 +309,11 @@
           <tbody class="text-flint dark:text-flint-light">
             <tr class="border-b border-border-light/50 dark:border-border-dark/50">
               <td class="py-2 pr-4 font-semibold text-malachite dark:text-malachite-light">Online</td>
-              <td class="py-2">The sidecar is running and responding. Forensic analysis and watermarking are available.</td>
+              <td class="py-2">The Analysis Engine is running and responding. Forensic analysis and watermarking are available.</td>
             </tr>
             <tr>
               <td class="py-2 pr-4 font-semibold text-cinnabar dark:text-cinnabar-light">Offline</td>
-              <td class="py-2">The sidecar is not running or is not reachable on port 8200. Forensic analysis will be skipped during verification. C2PA checking and EXIF analysis still work.</td>
+              <td class="py-2">The Analysis Engine is not running or is not reachable on port 8200. Forensic analysis will be skipped during verification. C2PA checking and EXIF analysis still work.</td>
             </tr>
           </tbody>
         </table>
@@ -363,7 +363,7 @@
         Analysis Services offline
       </p>
       <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
-        Start the Python ML sidecar manually. In a terminal, from the
+        Start the Analysis Engine manually. In a terminal, from the
         <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">sidecar/</span>
         directory:
         <br />

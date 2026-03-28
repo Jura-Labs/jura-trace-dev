@@ -5,6 +5,7 @@
   import SetupWizard from '$lib/components/SetupWizard.svelte';
   import LogoMark from '$lib/components/LogoMark.svelte';
   import FeedbackPanel from '$lib/components/FeedbackPanel.svelte';
+  import { getSkipWizard } from '$lib/api';
 
   let { children } = $props();
 
@@ -15,7 +16,7 @@
   let mobileMenuOpen = $state(false);
   let currentPath = $state('/');
 
-  onMount(() => {
+  onMount(async () => {
     const stored = localStorage.getItem('jura-dark-mode');
     // Treat absence or 'true' as dark (dark-first default)
     darkMode = stored === null ? true : stored === 'true';
@@ -23,10 +24,21 @@
 
     currentPath = window.location.pathname;
 
+    // Managed deployments can set skip_setup_wizard=true in config.json to
+    // suppress the wizard for all users on that machine. When the flag is set
+    // we also write the localStorage key so subsequent mounts are fast and do
+    // not re-call the backend on every navigation.
+    const skipWizard = await getSkipWizard();
+    if (skipWizard) {
+      // Mark as complete in localStorage so future loads skip the IPC call
+      // and the wizard is never shown, even after the flag is read.
+      localStorage.setItem('jura-setup-complete', 'managed');
+    }
+
     // Show onboarding on first launch (no prior completion recorded)
     if (!localStorage.getItem('jura-onboarded')) {
       showOnboarding = true;
-    } else if (!localStorage.getItem('jura-setup-complete')) {
+    } else if (!skipWizard && !localStorage.getItem('jura-setup-complete')) {
       // Already onboarded but setup not completed (e.g. app relaunched mid-setup)
       showSetupWizard = true;
     }

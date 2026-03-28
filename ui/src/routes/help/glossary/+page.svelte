@@ -672,14 +672,14 @@
         <dt
           id="term-sidecar"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >Sidecar</dt>
+        >Analysis Engine</dt>
         <dd class="mt-1 text-sm text-flint dark:text-flint-light leading-relaxed max-w-prose">
-          The Python ML analysis service that runs alongside the Jura Trace desktop
+          The forensic analysis service that runs alongside the Jura Trace desktop
           application on port 8200. Handles computationally intensive forensic analysis —
           ELA, noise, copy-move, deepfake detection, CLIP classification, NPR, chromatic
           aberration, JPEG ghost, segmented ELA, shadow consistency, colour temperature,
           splice boundary, watermarking, and video/audio analysis. Jura Trace operates
-          normally when the sidecar is not running; forensic analysis results are simply
+          normally when the Analysis Engine is not running; forensic analysis results are simply
           omitted from the report.
         </dd>
       </div>

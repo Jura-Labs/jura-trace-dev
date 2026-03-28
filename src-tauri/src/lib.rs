@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Manager, State};
@@ -2477,6 +2478,27 @@ fn set_licence_tier(
     Ok(())
 }
 
+// ===== Setup Wizard Flag =====
+
+/// Return whether the first-run setup wizard should be suppressed.
+///
+/// IT administrators can set `"skip_setup_wizard": true` in `config.json`
+/// (located in the application data directory) to prevent the wizard from
+/// appearing in managed deployments.
+///
+/// The flag is read fresh from disk on each call so that a re-read after
+/// a config change is immediately reflected without restarting the app.
+/// Defaults to `false` when the field is absent (backward-compatible).
+#[tauri::command]
+fn get_skip_wizard(app_handle: tauri::AppHandle) -> Result<bool, String> {
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    let config = read_app_config(&data_dir);
+    Ok(config.skip_setup_wizard)
+}
+
 // ===== Database Path Configuration =====
 
 /// Configuration file schema stored in app_data_dir/config.json.
@@ -2487,6 +2509,13 @@ struct AppConfig {
     /// Pilot-phase tier indicator. Defaults to Community.
     #[serde(default)]
     licence_tier: LicenceTier,
+    /// When `true`, the first-run setup wizard is suppressed on startup.
+    ///
+    /// Intended for IT-managed deployments where an administrator pre-configures
+    /// `config.json` and wants to skip the wizard for all users on that machine.
+    /// Defaults to `false` so existing installs are unaffected.
+    #[serde(default)]
+    skip_setup_wizard: bool,
 }
 
 /// Read the persisted config.json from app_data_dir.
@@ -2721,9 +2750,157 @@ async fn set_db_path(
 
 // ===== Application Entry =====
 
+/// Best-effort early resolution of the application data directory.
+///
+/// Tauri's authoritative path resolver is only available after `.setup()` runs,
+/// which is too late to capture early startup log messages.  This function
+/// derives the same path using only standard library calls and the platform
+/// environment so that [`init_logging`] can open the log file before the Tauri
+/// builder is invoked.
+///
+/// Returns `None` if the home directory cannot be determined.
+fn dirs_next_data_dir() -> Option<PathBuf> {
+    let bundle_id = "com.juralabs.jura-trace";
+    #[cfg(target_os = "macos")]
+    {
+        // ~/Library/Application Support/<bundle-id>
+        std::env::var_os("HOME").map(|h| {
+            PathBuf::from(h)
+                .join("Library")
+                .join("Application Support")
+                .join(bundle_id)
+        })
+    }
+    #[cfg(target_os = "linux")]
+    {
+        // $XDG_DATA_HOME/<bundle-id>  or  ~/.local/share/<bundle-id>
+        if let Some(xdg) = std::env::var_os("XDG_DATA_HOME") {
+            Some(PathBuf::from(xdg).join(bundle_id))
+        } else {
+            std::env::var_os("HOME").map(|h| {
+                PathBuf::from(h)
+                    .join(".local")
+                    .join("share")
+                    .join(bundle_id)
+            })
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // %APPDATA%\<bundle-id>\data
+        std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join(bundle_id).join("data"))
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        None
+    }
+}
+
+/// Maximum log file size before it is truncated (10 MiB).
+/// When the file exceeds this size at startup the old content is discarded
+/// so that the log file never grows unboundedly on long-running deployments.
+const MAX_LOG_FILE_BYTES: u64 = 10 * 1024 * 1024;
+
+/// Initialise the logging subsystem.
+///
+/// Writes to:
+/// - stdout (always), so `RUST_LOG` / terminal still works in development
+/// - `app_data_dir/jura-trace.log` (production builds), so IT managers can
+///   inspect logs without attaching a terminal
+///
+/// The log file is truncated when it exceeds [`MAX_LOG_FILE_BYTES`] so that
+/// long-running managed deployments do not accumulate unbounded disk usage.
+/// The path is resolved from the Tauri app data directory; if that cannot be
+/// determined before the Tauri app is built (we call this from `run()` before
+/// `.setup()`), we fall back to stdout-only.
+///
+/// Returns the path that was opened, or `None` when file logging was skipped.
+fn init_logging(app_data_dir: Option<&std::path::Path>) -> Option<PathBuf> {
+    // Attempt to open a log file when a data directory is available.
+    let log_path = app_data_dir.map(|dir| dir.join("jura-trace.log"));
+
+    let file_target: Option<std::fs::File> = log_path.as_ref().and_then(|p| {
+        // Ensure the parent directory exists.
+        if let Some(parent) = p.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        // Rotate (truncate) if the file already exceeds the size cap.
+        if let Ok(meta) = std::fs::metadata(p) {
+            if meta.len() > MAX_LOG_FILE_BYTES {
+                // Truncate by re-opening with create(true) + truncate(true).
+                let _ = std::fs::OpenOptions::new()
+                    .write(true)
+                    .truncate(true)
+                    .open(p);
+            }
+        }
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(p)
+            .ok()
+    });
+
+    match file_target {
+        Some(file) => {
+            // Fan-out writer: send every log line to both stdout and the file.
+            struct DualWriter {
+                file: std::sync::Mutex<std::fs::File>,
+            }
+            impl Write for DualWriter {
+                fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                    // Best-effort write to file; ignore failures so a full disk
+                    // never causes the app to crash.
+                    let _ = self.file.lock().map(|mut f| f.write_all(buf));
+                    // Always write to stdout.
+                    std::io::stdout().write(buf)
+                }
+                fn flush(&mut self) -> std::io::Result<()> {
+                    let _ = self.file.lock().map(|mut f| f.flush());
+                    std::io::stdout().flush()
+                }
+            }
+
+            env_logger::Builder::from_default_env()
+                .target(env_logger::Target::Pipe(Box::new(DualWriter {
+                    file: std::sync::Mutex::new(file),
+                })))
+                .init();
+
+            log_path
+        }
+        None => {
+            // No log file — fall back to stdout only.
+            env_logger::init();
+            None
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    env_logger::init();
+    // Initialise logging before anything else.  We do a best-effort resolve of
+    // the app data directory here; Tauri's proper path resolver is available
+    // only inside the `.setup()` callback, but by then it is too late to
+    // capture early startup messages.  The platform-specific default paths are:
+    //   macOS: ~/Library/Application Support/com.juralabs.jura-trace
+    //   Linux: ~/.local/share/com.juralabs.jura-trace
+    //   Windows: %APPDATA%\com.juralabs.jura-trace\data
+    //
+    // We derive this early approximation using the same crate that Tauri uses
+    // internally (dirs_next / home_dir), then let `.setup()` confirm the real
+    // path.  If the early path is wrong we still log; we just lose the ability
+    // to write early startup lines to the correct file.
+    let early_data_dir: Option<PathBuf> = dirs_next_data_dir();
+    let log_file_path = init_logging(early_data_dir.as_deref());
+    if let Some(ref p) = log_file_path {
+        log::info!("Log file: {}", p.display());
+    }
+    log::info!(
+        "Starting Jura Trace v{} ({})",
+        env!("CARGO_PKG_VERSION"),
+        std::env::consts::OS
+    );
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -2888,6 +3065,13 @@ pub fn run() {
                 }
             }
 
+            log::info!(
+                "Startup complete: db={}, tier={:?}, sidecar_auto_launched={}",
+                db_path.display(),
+                licence_tier,
+                sidecar_child.is_some()
+            );
+
             app.manage(Mutex::new(AppState {
                 db: database,
                 sidecar: sidecar_client,
@@ -2932,6 +3116,7 @@ pub fn run() {
             set_db_path,
             get_licence_tier,
             set_licence_tier,
+            get_skip_wizard,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Jura Trace")
@@ -4003,6 +4188,7 @@ mod tests {
         let initial = AppConfig {
             db_path: Some("/old/path.db".to_string()),
             licence_tier: LicenceTier::Team,
+            ..Default::default()
         };
         write_app_config(dir.path(), &initial).expect("write initial config");
 

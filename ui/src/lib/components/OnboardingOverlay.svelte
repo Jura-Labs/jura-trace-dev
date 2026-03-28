@@ -8,6 +8,37 @@
 
   const { onComplete }: Props = $props();
 
+  // ── Role selection ────────────────────────────────────────────────────
+  const roles = [
+    { id: 'museum',     label: 'Museum or Archive' },
+    { id: 'journalism', label: 'Journalism or Media' },
+    { id: 'research',   label: 'Research or Fact-Checking' },
+    { id: 'legal',      label: 'Legal or Compliance' },
+    { id: 'insurance',  label: 'Insurance or Claims' },
+    { id: 'corporate',  label: 'Corporate Communications' },
+    { id: 'other',      label: 'Other' },
+  ] as const;
+
+  type RoleId = (typeof roles)[number]['id'];
+
+  const roleBodyText: Partial<Record<RoleId, string>> = {
+    museum:     'Protect your digitised collections with tamper-evident provenance credentials. Verify content authenticity before publication.',
+    journalism: 'Verify images and videos before publication. All analysis runs locally — no risk to your sources.',
+    research:   'Analyse media at scale with full methodology transparency. Reproducible, citable results.',
+    legal:      'Authenticate digital evidence for litigation. Methodology-disclosed reports for professional use.',
+    insurance:  'Detect manipulated claims photographs. Batch processing for case volumes.',
+    corporate:  'Verify whether content showing your executives is authentic. Rapid deepfake detection.',
+  };
+
+  let selectedRole = $state<RoleId | null>(null);
+
+  function getSlide2BodyText(): string {
+    if (!selectedRole || selectedRole === 'other' || !(selectedRole in roleBodyText)) {
+      return 'Drop an image on the Verify page to run your first analysis, or import files on the Protect page to begin cataloguing.';
+    }
+    return roleBodyText[selectedRole]!;
+  }
+
   // ── State ─────────────────────────────────────────────────────────────
   let currentSlide = $state(0);
   const totalSlides = 3;
@@ -21,10 +52,20 @@
   const isFirstSlide = $derived(currentSlide === 0);
   const isLastSlide = $derived(currentSlide === totalSlides - 1);
 
+  // ── Complete helper — persists role then dismisses ────────────────────
+  function completeOnboarding() {
+    if (selectedRole) {
+      localStorage.setItem('jura-user-role', selectedRole);
+    } else {
+      localStorage.removeItem('jura-user-role');
+    }
+    onComplete();
+  }
+
   // ── Navigation ────────────────────────────────────────────────────────
   async function goNext() {
     if (isLastSlide) {
-      onComplete();
+      completeOnboarding();
       return;
     }
     currentSlide = Math.min(currentSlide + 1, totalSlides - 1);
@@ -65,7 +106,7 @@
         break;
       case 'Escape':
         event.preventDefault();
-        onComplete();
+        completeOnboarding();
         break;
     }
   }
@@ -103,6 +144,11 @@
 
   onMount(() => {
     previouslyFocused = document.activeElement as HTMLElement | null;
+    // Restore persisted role from a previous session
+    const storedRole = localStorage.getItem('jura-user-role') as RoleId | null;
+    if (storedRole && roles.some(r => r.id === storedRole)) {
+      selectedRole = storedRole;
+    }
     // Focus the primary action button on mount
     focusPrimaryAction();
   });
@@ -141,7 +187,7 @@
   <div class="relative w-full max-w-lg mx-4 rounded-xl overflow-hidden" style="background: #272B34; border: 1px solid rgba(122,119,112,0.2);"  >
 
     <!-- ── Slides container ───────────────────────────────────────────── -->
-    <div class="min-h-[360px] flex flex-col">
+    <div class="min-h-[420px] flex flex-col">
 
       <!-- ── Slide 0: Welcome ──────────────────────────────────────────── -->
       {#if currentSlide === 0}
@@ -161,14 +207,38 @@
           </h2>
 
           <!-- Body -->
-          <p class="text-sm text-quartz leading-relaxed mb-3">
+          <p class="text-sm text-quartz leading-relaxed mb-5">
             Jura Trace is a local-first tool for protecting your digital assets and
             verifying content authenticity. Everything runs on your device — no cloud,
             no accounts, no tracking.
           </p>
 
+          <!-- Role selector -->
+          <fieldset class="mb-auto">
+            <legend class="text-xs text-flint-light mb-2.5">
+              What best describes your work? <span class="opacity-60">(optional)</span>
+            </legend>
+            <div class="grid grid-cols-2 gap-2">
+              {#each roles as role}
+                <button
+                  type="button"
+                  onclick={() => selectedRole = selectedRole === role.id ? null : role.id}
+                  aria-pressed={selectedRole === role.id}
+                  class="text-left text-xs px-3 py-2.5 rounded border transition-colors min-h-[44px]
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                         focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
+                         {selectedRole === role.id
+                           ? 'border-lapis bg-lapis/10 text-lapis-light'
+                           : 'border-[rgba(122,119,112,0.3)] text-flint-light hover:border-lapis/50'}"
+                >
+                  {role.label}
+                </button>
+              {/each}
+            </div>
+          </fieldset>
+
           <!-- Subtext -->
-          <p class="text-xs text-flint dark:text-flint-light leading-relaxed mt-auto">
+          <p class="text-xs text-flint dark:text-flint-light leading-relaxed mt-4">
             Built by Juralabs CIC — free for non-commercial use.
           </p>
         </div>
@@ -212,11 +282,11 @@
 
           </div>
 
-          <!-- ML Sidecar note -->
+          <!-- Analysis Engine note -->
           <div class="flex items-start gap-2.5 bg-amber/10 border border-amber/20 rounded-md px-3 py-2.5 mt-auto">
             <span class="flex-shrink-0 mt-px w-1.5 h-1.5 rounded-full bg-amber mt-1" aria-hidden="true"></span>
             <p class="text-xs text-flint-light leading-relaxed">
-              The <span class="text-quartz font-medium">ML Sidecar</span> (optional) unlocks
+              The <span class="text-quartz font-medium">Analysis Engine</span> (optional) unlocks
               deep forensic analysis. Start it from the Settings page.
             </p>
           </div>
@@ -239,16 +309,15 @@
             Start with Verify or Protect
           </h2>
 
-          <!-- Body -->
+          <!-- Body — adapts to selected role -->
           <p class="text-sm text-quartz leading-relaxed mb-8">
-            Drop an image on the Verify page to run your first analysis, or import
-            files on the Protect page to begin cataloguing.
+            {getSlide2BodyText()}
           </p>
 
           <!-- Get Started CTA -->
           <button
             bind:this={primaryActionEl}
-            onclick={onComplete}
+            onclick={completeOnboarding}
             class="w-full py-3 px-6 bg-lapis hover:bg-lapis-dark text-quartz text-sm font-medium rounded-lg
                    transition-colors duration-150 mt-auto
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
@@ -296,7 +365,7 @@
         <!-- Skip link — visible on slides 0 and 1 only -->
         {#if !isLastSlide}
           <button
-            onclick={onComplete}
+            onclick={completeOnboarding}
             class="text-xs text-flint dark:text-flint-light hover:text-flint-light transition-colors duration-150
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                    focus-visible:ring-offset-2 focus-visible:ring-offset-graphite rounded"

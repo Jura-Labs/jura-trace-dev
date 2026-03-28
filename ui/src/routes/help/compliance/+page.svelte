@@ -93,18 +93,18 @@
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-3">
       Jura Trace is a native desktop application built on the Tauri v2 framework (Rust backend,
       SvelteKit frontend). It runs on macOS 13+, Windows 10+, and Ubuntu 22.04+. All processing
-      occurs on-device. The Python ML sidecar binds to <code class="font-mono text-xs bg-gray-100 dark:bg-graphite-light px-1 py-0.5 rounded">127.0.0.1:8200</code> — the loopback
+      occurs on-device. The Analysis Engine binds to <code class="font-mono text-xs bg-gray-100 dark:bg-graphite-light px-1 py-0.5 rounded">127.0.0.1:8200</code> — the loopback
       interface only — and is not accessible from other machines on the network.
     </p>
     <div
       class="rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 p-4 mb-4 font-mono text-xs text-flint dark:text-flint-light leading-relaxed"
       role="img"
-      aria-label="Architecture diagram: User Device contains the Tauri application, local SQLite database, Python ML sidecar on localhost port 8200, and optional Ollama on localhost port 11434. No external network traffic for core functionality."
+      aria-label="Architecture diagram: User Device contains the Tauri application, local SQLite database, Analysis Engine on localhost port 8200, and optional Ollama on localhost port 11434. No external network traffic for core functionality."
     >
       <p>[User Device]</p>
       <p class="ml-4">├── Tauri App (Rust + SvelteKit)</p>
       <p class="ml-8">├── Local SQLite Database</p>
-      <p class="ml-8">└── Python ML Sidecar (localhost:8200)</p>
+      <p class="ml-8">└── Analysis Engine (localhost:8200)</p>
       <p class="ml-12">└── Ollama LLM Runtime (localhost:11434) — optional</p>
       <p class="ml-4">└── [No external network traffic for core functionality]</p>
     </div>
@@ -116,7 +116,7 @@
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-3">
       When a file is submitted for analysis, it is read from disk by the Tauri Rust process.
       Forensic analysis is performed locally; the file is passed over the loopback interface
-      to the Python sidecar. A perceptual fingerprint is computed and stored in the local
+      to the Analysis Engine. A perceptual fingerprint is computed and stored in the local
       database alongside analysis results. The original file is never copied, moved, or
       transmitted. <strong class="font-semibold text-text-light dark:text-text-dark">Original file contents are not stored in the database</strong> — only metadata,
       hashes, and analysis results are persisted.
@@ -170,7 +170,7 @@
       Data in transit
     </h3>
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-3">
-      All communication between the desktop application and the Python sidecar occurs over
+      All communication between the desktop application and the Analysis Engine occurs over
       the loopback interface and never leaves the device. There is no telemetry, no usage
       analytics, and no crash reporting. Two optional features involve external network
       communication — both require explicit user action:
@@ -195,9 +195,9 @@
       Authentication and access control
     </h3>
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-3">
-      The Python ML sidecar requires an API key on every request via the
+      The Analysis Engine requires an API key on every request via the
       <code class="font-mono text-xs bg-gray-100 dark:bg-graphite-light px-1 py-0.5 rounded">X-Jura-API-Key</code> header,
-      preventing other processes on the same machine from calling the sidecar without
+      preventing other processes on the same machine from calling the Analysis Engine without
       authorisation. In standard single-user installations, the key is generated automatically
       at startup and requires no configuration.
     </p>
@@ -411,7 +411,7 @@
     </h2>
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
       A full OWASP-aligned security penetration test was conducted on 25 March 2026 (Sprint 19),
-      covering the Tauri IPC boundary, sidecar API, Content Security Policy, capability
+      covering the Tauri IPC boundary, Analysis Engine API, Content Security Policy, capability
       configuration, data at rest, and dependency surfaces.
     </p>
 

@@ -151,7 +151,7 @@
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">All analysis is local.</strong>
       No file data, no metadata, and no analysis results are sent to any external server.
-      The forensic pipeline runs on your device using the Python ML sidecar and the Rust
+      The forensic pipeline runs on your device using the Analysis Engine and the Rust
       core engine.
     </p>
   </div>

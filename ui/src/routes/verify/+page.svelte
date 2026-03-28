@@ -45,7 +45,7 @@
           errorType = 'sidecar';
           error = import.meta.env.DEV
             ? message
-            : 'Forensic analysis is temporarily unavailable. If the problem persists, restart Jura Trace.';
+            : 'The Analysis Engine is not currently running. Core features (C2PA verification, EXIF analysis) are still available.\n\nFor full forensic analysis including AI detection, noise analysis, and copy-move detection, restart Jura Trace or check Settings \u2192 Service Status.';
           break;
         case 'Validation':
           errorType = 'format';
@@ -85,7 +85,7 @@
     } else if (lower.includes('sidecar') || lower.includes('connection refused') || lower.includes('127.0.0.1:8200')) {
       error = import.meta.env.DEV
         ? `Analysis services are not running. Start the sidecar with: uvicorn main:app --host 127.0.0.1 --port 8200`
-        : `Forensic analysis is temporarily unavailable. If the problem persists, restart Jura Trace.`;
+        : `The Analysis Engine is not currently running. Core features (C2PA verification, EXIF analysis) are still available.\n\nFor full forensic analysis including AI detection, noise analysis, and copy-move detection, restart Jura Trace or check Settings \u2192 Service Status.`;
       errorType = 'sidecar';
     } else if (lower.includes('fetch') || lower.includes('network') || lower.includes('ssrf') || lower.includes('url')) {
       error = `Could not fetch the URL. Check the address is correct and publicly accessible.`;
@@ -117,6 +117,9 @@
   let showInspectionChecklist = $state(false);
   let showRegionAnalysis = $state(false);
   let expandedFrameIndex = $state<number | null>(null);
+
+  // ── Summary / Detail view mode ────────────────────────────────────
+  let viewMode = $state<'summary' | 'detail'>('summary');
 
   // Blob URL tracker — converts base64 data to CSP-safe blob: URLs and
   // revokes them on component destroy to prevent memory leaks.
@@ -258,7 +261,16 @@
   });
 
   // ── Lifecycle ─────────────────────────────────────────────────────
+  // Persist view mode preference
+  $effect(() => {
+    localStorage.setItem('jura-verify-view-mode', viewMode);
+  });
+
   onMount(() => {
+    // Restore persisted view mode (summary/detail)
+    const savedViewMode = localStorage.getItem('jura-verify-view-mode');
+    if (savedViewMode === 'detail') viewMode = 'detail';
+
     // Restore persisted investigation mode
     const savedMode = localStorage.getItem('jura-verify-mode');
     if (savedMode === 'standard' || savedMode === 'deep' || savedMode === 'archival') {
@@ -811,6 +823,90 @@
       result.spliceBoundaryResult,
     ].filter(v => v != null).length
   );
+
+  // ── Summary view: plain-English top signals ───────────────────────
+  /**
+   * Derives up to three plain-English signal summaries from a VerificationResult.
+   * Signals are ordered by severity (suspicious first) so the most important
+   * findings appear regardless of which three are selected.
+   */
+  function getTopSignals(r: VerificationResult): string[] {
+    type SignalEntry = { text: string; weight: number };
+    const signals: SignalEntry[] = [];
+
+    // ELA
+    if (r.elaScore !== null && r.elaScore !== undefined) {
+      if (r.elaScore >= 0.6)
+        signals.push({ text: 'Error level analysis detected significant compression inconsistencies', weight: 3 });
+      else if (r.elaScore >= 0.3)
+        signals.push({ text: 'Error level analysis detected minor compression inconsistencies', weight: 2 });
+      else
+        signals.push({ text: 'Error level analysis is consistent with authentic content', weight: 0 });
+    }
+
+    // Noise
+    if (r.noiseScore !== null && r.noiseScore !== undefined) {
+      if (r.noiseScore >= 0.6)
+        signals.push({ text: 'Noise pattern anomalies detected — may indicate compositing or AI generation', weight: 3 });
+      else if (r.noiseScore >= 0.3)
+        signals.push({ text: 'Minor noise pattern irregularities detected', weight: 2 });
+      else
+        signals.push({ text: 'Noise pattern is consistent with authentic photography', weight: 0 });
+    }
+
+    // Copy-move
+    if (r.copyMoveScore !== null && r.copyMoveScore !== undefined) {
+      if (r.copyMoveScore >= 0.6)
+        signals.push({ text: 'Copy-move forgery detection found evidence of duplicated regions', weight: 3 });
+      else if (r.copyMoveScore >= 0.3)
+        signals.push({ text: 'Copy-move detection found possible repeated regions', weight: 2 });
+      else
+        signals.push({ text: 'No copy-move forgery regions detected', weight: 0 });
+    }
+
+    // Deepfake / AI generation
+    if (r.deepfakeResult) {
+      const vl = r.deepfakeResult.verdictLevel;
+      if (vl === 'synthetic')
+        signals.push({ text: 'AI generation signals strongly indicate synthetic content', weight: 4 });
+      else if (vl === 'inconclusive')
+        signals.push({ text: 'AI generation analysis returned an inconclusive result', weight: 2 });
+      else
+        signals.push({ text: 'AI generation signals are consistent with authentic content', weight: 0 });
+    }
+
+    // C2PA
+    if (r.c2paValid === true)
+      signals.push({ text: 'C2PA Content Credentials are present and valid', weight: 0 });
+    else if (r.c2paValid === false)
+      signals.push({ text: 'C2PA Content Credentials are present but failed validation', weight: 3 });
+
+    // EXIF anomalies
+    if (r.exifAnalysis) {
+      const high = r.exifAnalysis.findings.filter(f => f.severity === 'high' || f.severity === 'critical');
+      const medium = r.exifAnalysis.findings.filter(f => f.severity === 'medium');
+      if (high.length > 0)
+        signals.push({ text: `EXIF metadata contains ${high.length} high-severity anomal${high.length === 1 ? 'y' : 'ies'}`, weight: 3 });
+      else if (medium.length > 0)
+        signals.push({ text: `EXIF metadata contains ${medium.length} moderate anomal${medium.length === 1 ? 'y' : 'ies'}`, weight: 2 });
+      else if (r.exifAnalysis.hasExif)
+        signals.push({ text: 'No EXIF anomalies detected', weight: 0 });
+      else
+        signals.push({ text: 'No EXIF metadata present', weight: 1 });
+    }
+
+    // Metadata flags
+    if (r.metadataFlags.length > 0)
+      signals.push({ text: `${r.metadataFlags.length} metadata flag${r.metadataFlags.length === 1 ? '' : 's'} raised`, weight: 2 });
+
+    // Watermark (Jura Trace)
+    if (r.watermarkExtractResult?.hasWatermark)
+      signals.push({ text: 'Jura Trace watermark detected — provenance credential embedded', weight: 0 });
+
+    // Sort: most suspicious first, then clip to three
+    signals.sort((a, b) => b.weight - a.weight);
+    return signals.slice(0, 3).map(s => s.text);
+  }
 </script>
 
 <div class="space-y-6">
@@ -827,17 +923,29 @@
       <!-- Mode toggle -->
       <div class="flex items-center gap-1.5">
         <div
-          class="flex items-center text-xs rounded-full border border-border-light dark:border-border-dark overflow-hidden"
+          class="flex items-stretch text-xs rounded-lg border border-border-light dark:border-border-dark overflow-hidden"
           role="radiogroup"
           aria-label="Verification mode"
         >
           {#each [
-            { mode: 'standard' as VerifyMode, label: 'Standard', title: 'Standard: EXIF + C2PA + ELA + AI detection (under 15 seconds)' },
-            { mode: 'deep' as VerifyMode, label: 'Deep', title: 'Deep: full forensic pipeline with all detectors (30-60 seconds)' },
-            { mode: 'archival' as VerifyMode, label: 'Archival', title: 'Archival: deep analysis with scanner-calibrated tolerances' },
+            {
+              mode: 'standard' as VerifyMode,
+              label: 'Standard',
+              description: '~15 seconds — EXIF, C2PA, ELA, AI detection',
+            },
+            {
+              mode: 'deep' as VerifyMode,
+              label: 'Deep',
+              description: '~60 seconds — all Standard detectors plus regional analysis, NPR, chromatic aberration, JPEG ghost',
+            },
+            {
+              mode: 'archival' as VerifyMode,
+              label: 'Archival',
+              description: '~90 seconds — full Deep analysis with scanner-calibrated tolerances for digitised collections',
+            },
           ] as opt}
             <button
-              class="px-3 py-2.5 min-h-[44px] transition-colors duration-150
+              class="px-3 py-2 min-h-[44px] text-left transition-colors duration-150
                      {verifyMode === opt.mode
                        ? 'bg-lapis/20 text-lapis dark:text-lapis-light'
                        : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}
@@ -845,9 +953,14 @@
               role="radio"
               aria-checked={verifyMode === opt.mode}
               onclick={() => { verifyMode = opt.mode; localStorage.setItem('jura-verify-mode', opt.mode); }}
-              title={opt.title}
             >
-              {opt.label}
+              <span class="block font-medium">{opt.label}</span>
+              <span class="block text-[10px] leading-tight mt-0.5
+                           {verifyMode === opt.mode
+                             ? 'text-lapis/70 dark:text-lapis-light/70'
+                             : 'text-flint/70 dark:text-flint-light/60'}">
+                {opt.description}
+              </span>
             </button>
           {/each}
         </div>
@@ -899,7 +1012,7 @@
     >
       <div class="flex items-start gap-2">
         <span class="font-medium flex-shrink-0">
-          {errorType === 'sidecar' ? 'Sidecar offline' :
+          {errorType === 'sidecar' ? 'Analysis Engine offline' :
            errorType === 'format' ? 'Unsupported format' :
            errorType === 'network' ? 'Network error' : 'Error'}:
         </span>
@@ -1007,7 +1120,10 @@
             </svg>
             <p class="text-text-light dark:text-quartz font-medium">Drop a file to verify</p>
             <p class="text-xs text-flint dark:text-flint-light">
-              or click to browse — JPEG, PNG, TIFF, WebP, PDF, MP4, and more
+              or click to browse
+            </p>
+            <p class="text-xs text-flint dark:text-flint-light mt-1">
+              Supported: JPEG, PNG, TIFF, WebP, PDF, MP4, MOV, WAV, MP3
             </p>
           </div>
         {/if}
@@ -1332,14 +1448,45 @@
             </p>
           </div>
         </div>
-        <button
-          class="flex-shrink-0 text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors duration-150
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-2 py-1 min-h-[44px] min-w-[44px] flex items-center"
-          onclick={reset}
-          aria-label="Clear result and verify another file"
-        >
-          Clear
-        </button>
+        <!-- View mode toggle + Clear -->
+        <div class="flex-shrink-0 flex items-center gap-3">
+          <div
+            class="flex items-center rounded-full border border-border-light dark:border-border-dark overflow-hidden text-xs"
+            role="group"
+            aria-label="Result view mode"
+          >
+            <button
+              onclick={() => viewMode = 'summary'}
+              class="px-3 py-1.5 min-h-[36px] transition-colors duration-150
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
+                     {viewMode === 'summary'
+                       ? 'bg-lapis text-white dark:bg-lapis text-white'
+                       : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
+              aria-pressed={viewMode === 'summary'}
+            >
+              Summary
+            </button>
+            <button
+              onclick={() => viewMode = 'detail'}
+              class="px-3 py-1.5 min-h-[36px] transition-colors duration-150 border-l border-border-light dark:border-border-dark
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
+                     {viewMode === 'detail'
+                       ? 'bg-lapis text-white dark:bg-lapis text-white'
+                       : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
+              aria-pressed={viewMode === 'detail'}
+            >
+              Full Analysis
+            </button>
+          </div>
+          <button
+            class="flex-shrink-0 text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors duration-150
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-2 py-1 min-h-[44px] min-w-[44px] flex items-center"
+            onclick={reset}
+            aria-label="Clear result and verify another file"
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
       <!-- Metadata flags (if any) -->
@@ -1352,6 +1499,70 @@
           {/each}
         </div>
       {/if}
+
+      <!-- ── Summary view ──────────────────────────────────────────── -->
+      {#if viewMode === 'summary'}
+
+        <!-- Verdict Summary -->
+        <div class="px-5 py-4 border-b border-border-light dark:border-border-dark">
+          <VerdictSummary {result} fileName={fileName ?? 'Unknown file'} />
+
+          <!-- Contextual caveat — one-line plain-English note keyed to the broad verdict category -->
+          <p class="text-xs text-flint dark:text-flint-light leading-relaxed mt-2">
+            {#if result.deepfakeResult?.verdictLevel === 'synthetic' || (result.deepfakeResult?.suspicious && result.deepfakeResult?.verdictLevel !== 'authentic')}
+              Multiple detectors flagged signs of AI generation or manipulation. Review the signal breakdown below for details.
+            {:else if result.deepfakeResult?.verdictLevel === 'inconclusive' || trustLevel() === 'medium'}
+              Automated analysis could not make a confident determination. Apply professional judgement alongside these findings.
+            {:else}
+              No signs of manipulation or AI generation were detected by automated analysis. This does not guarantee the content is unmodified.
+            {/if}
+          </p>
+        </div>
+
+        <!-- Top signals in plain English -->
+        {@const topSignals = getTopSignals(result)}
+        {#if topSignals.length > 0}
+          <div
+            class="px-5 py-4 border-b border-border-light dark:border-border-dark"
+            aria-label="Key findings"
+          >
+            <p class="text-xs font-medium text-flint dark:text-flint-light uppercase tracking-wide mb-3">
+              Key Findings
+            </p>
+            <ul class="space-y-2" role="list">
+              {#each topSignals as signal}
+                <li class="flex items-start gap-2.5 text-sm text-text-light dark:text-quartz leading-relaxed">
+                  <span
+                    class="flex-shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full
+                           {signal.toLowerCase().includes('detected') || signal.toLowerCase().includes('anomal') || signal.toLowerCase().includes('failed') || signal.toLowerCase().includes('inconsistenc') || signal.toLowerCase().includes('synthetic') || signal.toLowerCase().includes('inconclusive')
+                             ? 'bg-amber'
+                             : 'bg-malachite'}"
+                    aria-hidden="true"
+                  ></span>
+                  {signal}
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+
+        <!-- View full analysis CTA -->
+        <div class="px-5 py-3 flex items-center justify-between gap-4">
+          <p class="text-xs text-flint dark:text-flint-light">
+            All analysis runs locally on your device.
+          </p>
+          <button
+            onclick={() => viewMode = 'detail'}
+            class="flex-shrink-0 text-xs px-3 py-2 min-h-[36px] rounded border border-lapis/50 text-lapis dark:text-lapis-light
+                   hover:bg-lapis/10 transition-colors duration-150
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                   focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+          >
+            View full analysis
+          </button>
+        </div>
+
+      {:else}
 
       <!-- ── RAG Claim Verdict ─────────────────────────────────────── -->
       {#if result.claimVerdict || result.ragClaimResult}
@@ -1421,6 +1632,17 @@
       <!-- ── Verdict Summary ──────────────────────────────────────── -->
       <div class="px-5 py-4 border-b border-border-light dark:border-border-dark">
         <VerdictSummary {result} fileName={fileName ?? 'Unknown file'} />
+
+        <!-- Contextual caveat -->
+        <p class="text-xs text-flint dark:text-flint-light leading-relaxed mt-2">
+          {#if result.deepfakeResult?.verdictLevel === 'synthetic' || (result.deepfakeResult?.suspicious && result.deepfakeResult?.verdictLevel !== 'authentic')}
+            Multiple detectors flagged signs of AI generation or manipulation. Review the signal breakdown below for details.
+          {:else if result.deepfakeResult?.verdictLevel === 'inconclusive' || trustLevel() === 'medium'}
+            Automated analysis could not make a confident determination. Apply professional judgement alongside these findings.
+          {:else}
+            No signs of manipulation or AI generation were detected by automated analysis. This does not guarantee the content is unmodified.
+          {/if}
+        </p>
       </div>
 
       <!-- ── Signal Agreement ─────────────────────────────────────── -->
@@ -1702,7 +1924,7 @@
             </span>
           </div>
           <p class="text-xs text-flint dark:text-flint-light mt-1.5">
-            ML Sidecar is offline. Start the sidecar to enable forensic analysis.
+            Analysis Engine is offline. Start the Analysis Engine to enable forensic analysis.
           </p>
         </section>
       {/if}
@@ -3121,7 +3343,7 @@
             Transcription
           </h3>
           <p class="text-xs text-flint dark:text-flint-light">
-            Speech transcription model not available. Install <code class="bg-gray-100 dark:bg-obsidian px-1 rounded">faster-whisper</code> in the sidecar to enable audio transcription.
+            Speech transcription model not available. Install <code class="bg-gray-100 dark:bg-obsidian px-1 rounded">faster-whisper</code> in the Analysis Engine to enable audio transcription.
           </p>
         </section>
       {/if}
@@ -3190,6 +3412,9 @@
       </div>
       {/if}
       <!-- End Technical Details -->
+
+      {/if}
+      <!-- End Detail view -->
 
     </div>
 

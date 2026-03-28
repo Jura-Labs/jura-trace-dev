@@ -565,9 +565,9 @@
     <li class="flex gap-3 text-sm text-flint dark:text-flint-light leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">Sidecar API authentication.</strong>
-        The internal Python ML sidecar communicates exclusively on localhost (port 8200)
-        and requires an API key for all requests. Network traffic from the sidecar is
+        <strong class="text-text-light dark:text-text-dark">Analysis Engine authentication.</strong>
+        The Analysis Engine communicates exclusively on localhost (port 8200)
+        and requires an API key for all requests. Network traffic from the Analysis Engine is
         blocked by the application's Content Security Policy from reaching any external
         address.
       </span>

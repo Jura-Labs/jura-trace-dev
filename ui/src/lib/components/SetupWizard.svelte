@@ -326,7 +326,7 @@
                 <p class="text-sm font-medium text-amber-light">Analysis engine not available</p>
                 <p class="text-xs text-flint-light mt-1 leading-relaxed">
                   Core features (C2PA signing, EXIF metadata) work without it. Forensic
-                  analysis requires the ML sidecar — start it from Settings.
+                  analysis requires the Analysis Engine — start it from Settings.
                 </p>
               </div>
             </div>
@@ -623,7 +623,7 @@
                 </svg>
               {/if}
               <span class="text-sm {sidecarOnline ? 'text-quartz' : 'text-flint-light'}">
-                Forensic analysis {sidecarOnline ? '— available' : '— not available (start the sidecar)'}
+                Forensic analysis {sidecarOnline ? '— available' : '— not available (start the Analysis Engine)'}
               </span>
             </li>
 

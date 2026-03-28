@@ -211,12 +211,12 @@
         </div>
         {#if sidecarVersion}
           <div class="flex items-center justify-between gap-4">
-            <span class="text-flint dark:text-flint-light">ML Sidecar</span>
+            <span class="text-flint dark:text-flint-light">Analysis Engine</span>
             <span class="text-quartz font-mono tabular-nums">v{sidecarVersion}</span>
           </div>
         {:else}
           <div class="flex items-center justify-between gap-4">
-            <span class="text-flint dark:text-flint-light">ML Sidecar</span>
+            <span class="text-flint dark:text-flint-light">Analysis Engine</span>
             <span class="text-flint/50 font-mono">offline</span>
           </div>
         {/if}

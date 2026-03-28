@@ -687,16 +687,15 @@
           </div>
         {:else}
           <div class="mt-2 space-y-2">
+            <p class="text-xs font-medium text-cinnabar dark:text-cinnabar-light leading-relaxed">
+              Analysis Engine — Offline
+            </p>
             <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
-              The analysis engine provides forensic detection including ELA,
-              noise analysis, deepfake detection, and 18 other signals.
+              Core features work without the engine. For full 21-signal forensic
+              analysis, the engine starts automatically with the application.
+              If it remains offline, restart Jura Trace.
             </p>
-            <p class="text-xs text-flint/80 dark:text-flint leading-relaxed">
-              Core features (C2PA verification, EXIF analysis) work without it.
-              To enable full analysis, the engine starts automatically with
-              the application.
-            </p>
-            <p class="text-xs text-flint dark:text-flint-light mt-3 mb-1">Start manually with:</p>
+            <p class="text-xs text-flint dark:text-flint-light mt-3 mb-1">Start manually in development with:</p>
             <code class="block font-mono text-xs bg-gray-100 dark:bg-obsidian px-2 py-1 rounded text-text-light dark:text-quartz">
               cd sidecar && uvicorn main:app --host 127.0.0.1 --port 8200
             </code>

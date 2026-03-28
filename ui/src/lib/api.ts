@@ -706,6 +706,27 @@ export async function setDbPath(newPath: string): Promise<string> {
   return invoke<string>('set_db_path', { newPath });
 }
 
+// ── Setup Wizard Flag ───────────────────────────────────────────────
+
+/**
+ * Return whether the first-run setup wizard should be suppressed.
+ *
+ * When an IT administrator sets `"skip_setup_wizard": true` in the
+ * application's `config.json`, this returns `true` and the wizard is not
+ * shown, regardless of localStorage state.
+ *
+ * Defaults to `false` when the field is absent (backward-compatible with
+ * existing installations that have no such key in config.json).
+ */
+export async function getSkipWizard(): Promise<boolean> {
+  try {
+    return await invoke<boolean>('get_skip_wizard');
+  } catch {
+    // In browser mode or if the command is unavailable, never suppress the wizard.
+    return false;
+  }
+}
+
 // ── Licence Tier ────────────────────────────────────────────────────
 
 /**
