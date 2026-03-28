@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, SidecarHealth, SimilarAsset, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
+import type { AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, SidecarHealth, SimilarAsset, SolarPosition, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -818,4 +818,38 @@ export async function analyseVideoDeepfake(
     success: true,
     message: 'Analysed 6 frames in standard mode. 1 frame flagged as suspicious.',
   };
+}
+
+// ── Solar Position ──────────────────────────────────────────────────
+
+/**
+ * Calculate the solar position (azimuth and elevation) at a given GPS
+ * coordinate and UTC datetime using the NOAA solar position algorithm.
+ *
+ * Useful for cross-referencing image shadow direction with the expected
+ * sun position at the reported capture location and time.
+ *
+ * @param lat      GPS latitude in decimal degrees.
+ * @param lon      GPS longitude in decimal degrees.
+ * @param year     Year (e.g. 2024).
+ * @param month    Month (1–12).
+ * @param day      Day of month (1–31).
+ * @param hourUtc  Hour of day in UTC (0–23).
+ */
+export async function calculateSunPosition(
+  lat: number,
+  lon: number,
+  year: number,
+  month: number,
+  day: number,
+  hourUtc: number,
+): Promise<SolarPosition> {
+  return invoke<SolarPosition>('calculate_sun_position', {
+    latitude: lat,
+    longitude: lon,
+    year,
+    month,
+    day,
+    hourUtc,
+  });
 }

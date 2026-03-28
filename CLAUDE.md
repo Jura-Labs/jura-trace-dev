@@ -287,7 +287,9 @@ Deepfake classifier retrained: AUC-ROC 1.0000 (was 0.945), FP rate 0% (was 14%).
 
 **Sprint 21 (Phase A)**: In progress — "See More" foundation investigation tools. Colour channel separation (R/G/B + difference channels via Canvas). Noise pattern visualisation (`POST /forensics/noise-visualisation` — noise residual + variance heatmap). Per-channel CLAHE (`POST /forensics/clahe` with configurable clip limit). EXIF thumbnail consistency check (pHash comparison, `ThumbnailCheck` struct). GPS → OpenStreetMap link (`gpsLatitude`/`gpsLongitude` on `ExifAnalysis`, DMS format, system browser open). Unified AI Origin Detection panel (C2PA + deepfake + watermark consolidated). Reverse image search enhanced (Bing Visual added, `openExternal()` via tauri-plugin-shell). Analyst notes persistence (2000 chars, localStorage). Methodology + model versions in PDF (GBM classifier, CLIP model, app version).
 
-**Test counts**: 250 Rust tests, 325+ Python tests, 160+ Playwright e2e tests, 223 SvelteKit files with 0 svelte-check errors, clippy + fmt clean.
+**Sprint 22-23 (Phase A)**: In progress — frequency analysis, geolocation, batch verify. Frequency domain visualisation (`POST /forensics/frequency-visualisation` — FFT spectrum + DCT heatmap + JPEG grid detection). JPEG quantisation grid (`POST /forensics/jpeg-grid` — boundary artefact heatmap + Q-table extraction). Side-by-side image comparison mode. Raw scores persistent preference ("Technical View" toggle). Input file SHA-256 at import (stored in DB + surfaced in VerificationResult). NOAA solar position calculator (`sun_position.rs` — pure Rust trig, `calculate_sun_position` Tauri command). Weather cross-reference (`POST /forensics/weather-check` — Open-Meteo historical API, opt-in). Batch VERIFY queue with progress and summary table.
+
+**Test counts**: 261 Rust tests, 346+ Python tests, 160+ Playwright e2e tests, 223 SvelteKit files with 0 svelte-check errors, clippy + fmt clean.
 
 ## British Spelling
 

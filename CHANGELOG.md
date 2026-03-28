@@ -6,6 +6,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Sprint 22-23 — Frequency Analysis, Sun Angle, Batch Verify (28 Mar 2026)
+
+### Enhanced Visual Inspection (Sprint 22)
+
+**Added**
+- Frequency domain visualisation: `POST /forensics/frequency-visualisation` — 2D FFT magnitude spectrum (INFERNO colourmap), 8x8 block-averaged DCT heatmap (VIRIDIS), JPEG grid peak detection, dominant frequency. 8 Python tests
+- JPEG quantisation grid visualisation: `POST /forensics/jpeg-grid` — block boundary artefact heatmap (HOT colourmap), Q-table extraction from JPEG headers, grid consistency score. 7 Python tests
+- Side-by-side image comparison mode: load a second image alongside verification result for visual diff. Tauri dialog or browser file picker. "Original" / "Comparison" overlay labels
+- Raw scores as default view preference: persistent "Technical View" toggle (localStorage). When active, signal strip shows inline percentages with thresholds
+
+### Chain of Custody (Sprint 22)
+
+**Added**
+- Input file SHA-256 hash at import: computed via `sha2::Sha256` on file import and verification. Stored in `assets.sha256_hash` column (with migration). Returned as `inputSha256` on `VerificationResult`. 4 new Rust tests
+
+### Geolocation & Temporal (Sprint 23)
+
+**Added**
+- NOAA solar position calculator: pure Rust trigonometry (`sun_position.rs`). `calculate_sun_position` Tauri command — azimuth, elevation, solar noon, day length from lat/lon/date/time. Validated against London summer noon, Sydney winter, equator equinox, Arctic midnight sun. 7 new Rust tests
+- Weather cross-reference: `POST /forensics/weather-check` — queries Open-Meteo historical weather API (free, no key). Temperature, precipitation, wind, WMO weather codes. Opt-in network feature with clear disclosure. 6 Python tests (all HTTP mocked)
+- Batch VERIFY queue: multi-file verification with progress bar, mode selector, cancel, summary table with sortable results
+
+### TypeScript Types & API
+
+**Added**
+- `SolarPosition`, `NoiseVisualisationResult`, `ClaheResult`, `FrequencyVisualisationResult`, `JpegGridResult`, `WeatherCheckResult` interfaces
+- `inputSha256` field on `VerificationResult`
+- `calculateSunPosition()` API wrapper
+
+### Test Counts
+
+- **Rust**: 261 tests passing (+11), clippy clean, fmt clean
+- **Python**: 346+ tests (+21 frequency/JPEG/weather)
+- **Frontend**: 0 svelte-check errors across 223 files
+
+---
+
 ## Sprint 21 — "See More" Foundation Investigation Tools (28 Mar 2026)
 
 ### Enhanced Visual Inspection

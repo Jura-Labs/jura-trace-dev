@@ -121,6 +121,67 @@
   // ── Summary / Detail view mode ────────────────────────────────────
   let viewMode = $state<'summary' | 'detail'>('summary');
 
+  // ── Side-by-side comparison mode state ───────────────────────────
+  /** Whether comparison mode is active (second image loaded alongside the primary). */
+  let comparisonMode = $state(false);
+  /** Blob URL of the comparison image, or null when comparison mode is inactive. */
+  let comparisonImageUrl = $state<string | null>(null);
+  /** File name of the comparison image, for the overlay label. */
+  let comparisonFileName = $state<string | null>(null);
+
+  /** Open a file picker and load a comparison image. */
+  async function handleLoadComparison() {
+    if (inTauri) {
+      try {
+        const { open } = await import('@tauri-apps/plugin-dialog');
+        const selected = await open({
+          multiple: false,
+          title: 'Select Comparison Image',
+          filters: [
+            { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'tiff', 'tif', 'webp', 'avif', 'bmp'] },
+          ],
+        });
+        if (selected && typeof selected === 'string') {
+          const { convertFileSrc } = await import('@tauri-apps/api/core');
+          comparisonImageUrl = convertFileSrc(selected);
+          comparisonFileName = selected.split('/').pop() ?? selected.split('\\').pop() ?? selected;
+          comparisonMode = true;
+        }
+      } catch {
+        // Tauri unavailable — fall through to browser fallback
+      }
+      return;
+    }
+    // Browser fallback
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      if (comparisonImageUrl) URL.revokeObjectURL(comparisonImageUrl);
+      comparisonImageUrl = URL.createObjectURL(file);
+      comparisonFileName = file.name;
+      comparisonMode = true;
+    };
+    input.click();
+  }
+
+  /** Exit comparison mode and revoke the comparison blob URL. */
+  function closeComparison() {
+    comparisonMode = false;
+    if (comparisonImageUrl) {
+      // Only revoke blob: URLs — Tauri asset:// URLs are managed by Tauri
+      if (comparisonImageUrl.startsWith('blob:')) URL.revokeObjectURL(comparisonImageUrl);
+      comparisonImageUrl = null;
+    }
+    comparisonFileName = null;
+  }
+
+  // ── Raw scores preference state ───────────────────────────────────
+  /** When true, show raw numerical detector scores alongside traffic-light badges. */
+  let showRawScores = $state(false);
+
   // ── ELA overlay state ────────────────────────────────────────────
   let showElaOverlay = $state(false);
   let elaOpacity = $state(60);
@@ -466,6 +527,9 @@
     // Restore persisted view mode (summary/detail)
     const savedViewMode = localStorage.getItem('jura-verify-view-mode');
     if (savedViewMode === 'detail') viewMode = 'detail';
+
+    // Restore persisted raw scores preference
+    showRawScores = localStorage.getItem('jura-raw-scores-default') === 'true';
 
     // Restore persisted investigation mode
     const savedMode = localStorage.getItem('jura-verify-mode');
@@ -833,6 +897,7 @@
       channelImageUrl = null;
     }
     activeSection = null;
+    closeComparison();
   }
 
   // ── Export helpers ────────────────────────────────────────────────
@@ -1196,6 +1261,25 @@
       result.spliceBoundaryResult,
     ].filter(v => v != null).length
   );
+
+  // ── Raw detector scores for Technical View ───────────────────────
+  /**
+   * Maps forensic detector IDs to their raw score (0.0–1.0) and a threshold,
+   * used when showRawScores is true to render numerical values in the signal
+   * strip rather than traffic-light colours only.
+   */
+  const detectorScores = $derived((): Record<string, { score: number; threshold: number } | undefined> => {
+    if (!result) return {};
+    return {
+      'section-ela':       result.elaResult       ? { score: result.elaResult.score,       threshold: 0.40 } : undefined,
+      'section-noise':     result.noiseResult      ? { score: result.noiseResult.score,      threshold: 0.40 } : undefined,
+      'section-copymove':  result.copyMoveResult   ? { score: result.copyMoveResult.score,   threshold: 0.40 } : undefined,
+      'section-deepfake':  result.deepfakeResult   ? { score: result.deepfakeResult.score,   threshold: 0.50 } : undefined,
+      'section-npr':       result.nprResult        ? { score: result.nprResult.score,        threshold: 0.40 } : undefined,
+      'section-jpegGhost': result.jpegGhostResult  ? { score: result.jpegGhostResult.score,  threshold: 0.40 } : undefined,
+      'section-ca':        result.caResult         ? { score: result.caResult.score,         threshold: 0.50 } : undefined,
+    };
+  });
 
   // ── Summary view: plain-English top signals ───────────────────────
   /**
@@ -1838,9 +1922,39 @@
 
             <!-- Image caption, inspection tools + overlay controls -->
             <div class="px-3 py-2.5 border-t border-border-light dark:border-border-dark bg-white/50 dark:bg-graphite/50 space-y-2.5">
-              <p class="text-xs text-flint dark:text-flint-light truncate" title={fileName ?? undefined}>
-                {fileName}
-              </p>
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs text-flint dark:text-flint-light truncate flex-1 min-w-0" title={fileName ?? undefined}>
+                  {fileName}
+                </p>
+                <!-- Compare button — loads a second image for side-by-side inspection -->
+                {#if !comparisonMode}
+                  <button
+                    type="button"
+                    onclick={handleLoadComparison}
+                    class="flex-shrink-0 text-xs px-2.5 py-1 min-h-[28px] rounded border border-border-light dark:border-border-dark
+                           text-flint dark:text-flint-light hover:border-lapis/50 dark:hover:border-lapis-light/50
+                           hover:text-lapis dark:hover:text-lapis-light transition-colors duration-150
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1
+                           focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                    aria-label="Load a second image for side-by-side comparison"
+                    title="Compare with another image side by side"
+                  >
+                    Compare
+                  </button>
+                {:else}
+                  <button
+                    type="button"
+                    onclick={closeComparison}
+                    class="flex-shrink-0 text-xs px-2.5 py-1 min-h-[28px] rounded border border-cinnabar/40
+                           text-cinnabar dark:text-cinnabar-light hover:bg-cinnabar/10 transition-colors duration-150
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-1
+                           focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                    aria-label="Close comparison view"
+                  >
+                    Close comparison
+                  </button>
+                {/if}
+              </div>
 
               <!-- Inspection filter toolbar -->
               <div>
@@ -2018,6 +2132,7 @@
               aria-label="Forensic signal summary — click to jump to section"
             >
               {#each signalIndicators() as signal}
+                {@const scoreData = detectorScores()[signal.id]}
                 <button
                   onclick={() => {
                     if (viewMode === 'summary') viewMode = 'detail';
@@ -2028,8 +2143,8 @@
                   class="flex items-center gap-1.5 text-xs min-h-[24px] px-1.5 py-0.5 rounded transition-colors duration-150
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
                          hover:bg-gray-100 dark:hover:bg-graphite-light/40"
-                  title="{signal.name}: {signal.flagged ? 'Flagged' : 'Clean'}"
-                  aria-label="{signal.name}: {signal.flagged ? 'Flagged — click to view' : 'Clean — click to view'}"
+                  title="{signal.name}: {signal.flagged ? 'Flagged' : 'Clean'}{scoreData ? ` — score ${(scoreData.score * 100).toFixed(1)}%` : ''}"
+                  aria-label="{signal.name}: {signal.flagged ? 'Flagged' : 'Clean'}{scoreData ? `, score ${(scoreData.score * 100).toFixed(1)} per cent` : ''} — click to view"
                 >
                   <span
                     class="w-2.5 h-2.5 rounded-full flex-shrink-0
@@ -2039,12 +2154,104 @@
                     aria-hidden="true"
                   ></span>
                   <span class="text-gray-600 dark:text-flint-light whitespace-nowrap">{signal.shortName}</span>
+                  {#if showRawScores && scoreData}
+                    <span
+                      class="tabular-nums text-flint/70 dark:text-flint-light/70 ml-0.5"
+                      aria-hidden="true"
+                    >
+                      {(scoreData.score * 100).toFixed(1)}%
+                    </span>
+                  {/if}
                 </button>
               {/each}
             </div>
           {/if}
         </div>
       </div>
+
+      <!-- ── Side-by-side comparison panel ──────────────────────── -->
+      {#if comparisonMode && comparisonImageUrl}
+        <div
+          class="mt-3 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark overflow-hidden"
+          role="region"
+          aria-label="Side-by-side image comparison"
+        >
+          <!-- Comparison header -->
+          <div class="flex items-center justify-between px-4 py-2.5 border-b border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40">
+            <p class="text-xs font-medium text-flint dark:text-flint-light uppercase tracking-wide">
+              Side-by-side Comparison
+            </p>
+            <button
+              type="button"
+              onclick={closeComparison}
+              class="text-xs text-flint dark:text-flint-light hover:text-cinnabar dark:hover:text-cinnabar-light transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-1.5 py-1 min-h-[28px]"
+              aria-label="Close comparison view"
+            >
+              Close
+            </button>
+          </div>
+
+          <!-- Two-up image grid -->
+          <div class="grid grid-cols-2 gap-0 divide-x divide-border-light dark:divide-border-dark">
+            <!-- Left: original under examination -->
+            <div class="relative bg-gray-100 dark:bg-obsidian/60">
+              <img
+                src={channelImageUrl ?? previewUrl}
+                alt="Original file under examination"
+                class="w-full max-h-[380px] object-contain block"
+                loading="lazy"
+                style="{channelImageUrl ? '' : `filter: ${getFilterStyle(activeFilter)};`}"
+              />
+              <!-- Overlay label -->
+              <div
+                class="absolute top-2 left-2 bg-obsidian/75 rounded px-2 py-0.5 pointer-events-none"
+                aria-hidden="true"
+              >
+                <span class="text-xs text-flint-light font-medium">Original</span>
+              </div>
+            </div>
+
+            <!-- Right: comparison image (plain, no filters) -->
+            <div class="relative bg-gray-100 dark:bg-obsidian/60">
+              <img
+                src={comparisonImageUrl}
+                alt="Comparison file"
+                class="w-full max-h-[380px] object-contain block"
+                loading="lazy"
+              />
+              <!-- Overlay label -->
+              <div
+                class="absolute top-2 left-2 bg-obsidian/75 rounded px-2 py-0.5 pointer-events-none"
+                aria-hidden="true"
+              >
+                <span class="text-xs text-flint-light font-medium">Comparison</span>
+              </div>
+              <!-- Replace comparison button -->
+              <button
+                type="button"
+                onclick={handleLoadComparison}
+                class="absolute bottom-2 right-2 text-xs px-2 py-1 min-h-[28px] bg-obsidian/70 rounded
+                       text-flint-light hover:bg-lapis/80 hover:text-white transition-colors duration-150
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1
+                       focus-visible:ring-offset-obsidian"
+                aria-label="Replace comparison image"
+              >
+                Replace
+              </button>
+            </div>
+          </div>
+
+          <!-- Comparison caption -->
+          {#if comparisonFileName}
+            <div class="px-4 py-2 border-t border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/30">
+              <p class="text-xs text-flint dark:text-flint-light truncate">
+                <span class="font-medium">Comparison:</span> {comparisonFileName}
+              </p>
+            </div>
+          {/if}
+        </div>
+      {/if}
     {/if}
 
     <!-- Trust Score header -->
@@ -2092,8 +2299,26 @@
             </p>
           </div>
         </div>
-        <!-- View mode toggle + Clear -->
-        <div class="flex-shrink-0 flex items-center gap-3">
+        <!-- View mode toggle + Raw Scores toggle + Clear -->
+        <div class="flex-shrink-0 flex items-center gap-3 flex-wrap justify-end">
+          <!-- Raw scores preference toggle -->
+          <button
+            type="button"
+            class="text-xs px-2.5 py-1.5 min-h-[36px] rounded border transition-colors duration-150
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                   focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                   {showRawScores
+                     ? 'border-lapis bg-lapis/10 text-lapis dark:text-lapis-light'
+                     : 'border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
+            onclick={() => {
+              showRawScores = !showRawScores;
+              localStorage.setItem('jura-raw-scores-default', String(showRawScores));
+            }}
+            aria-pressed={showRawScores}
+            title={showRawScores ? 'Showing raw numerical scores — click to switch to summary view' : 'Showing traffic-light summary — click to show raw scores'}
+          >
+            {showRawScores ? 'Technical View' : 'Summary View'}
+          </button>
           <div
             class="flex items-center rounded-full border border-border-light dark:border-border-dark overflow-hidden text-xs"
             role="group"
@@ -2655,9 +2880,14 @@
                 {ela.suspicious ? 'Suspicious' : 'Normal'}
               </span>
             </div>
-            <span class="text-xs tabular-nums {forensicScoreClass(ela.score)}">
-              Score: {(ela.score * 100).toFixed(1)}%
-            </span>
+            <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(ela.score)}">
+              <span>{(ela.score * 100).toFixed(1)}%</span>
+              {#if showRawScores}
+                <span class="text-flint dark:text-flint-light font-normal" aria-label="threshold 40 per cent">
+                  / threshold 40%
+                </span>
+              {/if}
+            </div>
           </div>
 
           <!-- ELA heatmap — side-by-side with original when preview is available -->
@@ -2740,9 +2970,14 @@
                 {noise.suspicious ? 'Suspicious' : 'Normal'}
               </span>
             </div>
-            <span class="text-xs tabular-nums {forensicScoreClass(noise.score)}">
-              Score: {(noise.score * 100).toFixed(1)}%
-            </span>
+            <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(noise.score)}">
+              <span>{(noise.score * 100).toFixed(1)}%</span>
+              {#if showRawScores}
+                <span class="text-flint dark:text-flint-light font-normal" aria-label="threshold 40 per cent">
+                  / threshold 40%
+                </span>
+              {/if}
+            </div>
           </div>
 
           <!-- Noise heatmap -->
@@ -2794,9 +3029,14 @@
                 {cm.suspicious ? 'Suspicious' : 'Clean'}
               </span>
             </div>
-            <span class="text-xs tabular-nums {forensicScoreClass(cm.score)}">
-              Score: {(cm.score * 100).toFixed(1)}%
-            </span>
+            <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(cm.score)}">
+              <span>{(cm.score * 100).toFixed(1)}%</span>
+              {#if showRawScores}
+                <span class="text-flint dark:text-flint-light font-normal" aria-label="threshold 40 per cent">
+                  / threshold 40%
+                </span>
+              {/if}
+            </div>
           </div>
 
           <!-- Visualisation -->
@@ -3244,9 +3484,14 @@
                 {npr.suspicious ? 'Suspicious' : 'Clean'}
               </span>
             </div>
-            <span class="text-xs tabular-nums {forensicScoreClass(npr.score)}">
-              Score: {(npr.score * 100).toFixed(1)}%
-            </span>
+            <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(npr.score)}">
+              <span>{(npr.score * 100).toFixed(1)}%</span>
+              {#if showRawScores}
+                <span class="text-flint dark:text-flint-light font-normal" aria-label="threshold 40 per cent">
+                  / threshold 40%
+                </span>
+              {/if}
+            </div>
           </div>
 
           <!-- NPR heatmap -->
@@ -3301,9 +3546,14 @@
                 {jg.suspicious ? 'Suspicious' : 'Clean'}
               </span>
             </div>
-            <span class="text-xs tabular-nums {forensicScoreClass(jg.score)}">
-              Score: {(jg.score * 100).toFixed(1)}%
-            </span>
+            <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(jg.score)}">
+              <span>{(jg.score * 100).toFixed(1)}%</span>
+              {#if showRawScores}
+                <span class="text-flint dark:text-flint-light font-normal" aria-label="threshold 40 per cent">
+                  / threshold 40%
+                </span>
+              {/if}
+            </div>
           </div>
 
           <!-- JPEG Ghost heatmap -->
@@ -3372,9 +3622,14 @@
                 Informational
               </span>
             </div>
-            <span class="text-xs tabular-nums {forensicScoreClass(ca.score)}">
-              Score: {(ca.score * 100).toFixed(1)}%
-            </span>
+            <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(ca.score)}">
+              <span>{(ca.score * 100).toFixed(1)}%</span>
+              {#if showRawScores}
+                <span class="text-flint dark:text-flint-light font-normal" aria-label="threshold 50 per cent">
+                  / threshold 50%
+                </span>
+              {/if}
+            </div>
           </div>
 
           <!-- Stats -->
@@ -3509,9 +3764,14 @@
                 {df.confidence} confidence
               </span>
             </div>
-            <span class="text-xs tabular-nums {forensicScoreClass(df.score)}">
-              Score: {(df.score * 100).toFixed(1)}%
-            </span>
+            <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(df.score)}">
+              <span>{(df.score * 100).toFixed(1)}%</span>
+              {#if showRawScores}
+                <span class="text-flint dark:text-flint-light font-normal" aria-label="threshold 50 per cent">
+                  / threshold 50%
+                </span>
+              {/if}
+            </div>
           </div>
 
           <!-- Frequency spectrum heatmap — side-by-side with original when preview is available -->

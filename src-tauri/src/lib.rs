@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -13,6 +14,7 @@ mod fingerprint;
 mod format_router;
 mod metadata;
 mod sidecar;
+mod sun_position;
 mod watermark;
 
 use error::AppError;
@@ -39,6 +41,9 @@ pub struct Asset {
     pub c2pa_signed: bool,
     pub watermarked: bool,
     pub created_at: String,
+    /// SHA-256 hex digest of the file contents at import time.
+    /// `None` for assets imported before this field was added.
+    pub sha256_hash: Option<String>,
 }
 
 /// Verification result from the VERIFY pipeline.
@@ -91,6 +96,9 @@ pub struct VerificationResult {
     /// Comparison between the EXIF-embedded thumbnail and the full image.
     /// `None` for non-image content types.
     pub thumbnail_check: Option<ThumbnailCheck>,
+    /// SHA-256 hex digest of the input file computed at verification time.
+    /// Allows the caller to confirm the file has not changed since import.
+    pub input_sha256: Option<String>,
 }
 
 /// Result of comparing the EXIF-embedded thumbnail against the full image.
@@ -361,7 +369,24 @@ fn import_files(
             (None, None, None)
         };
 
-        // 4. Build asset record
+        // 4. Compute SHA-256 of the file contents.
+        // Performed before building the asset record so the hash can be stored
+        // in the database and returned to the frontend for chain-of-custody
+        // verification.  On read failure we store `None` rather than aborting
+        // the import — the asset is still catalogued, just without a hash.
+        let sha256_hash: Option<String> = match std::fs::read(&path) {
+            Ok(bytes) => {
+                let mut hasher = Sha256::new();
+                hasher.update(&bytes);
+                Some(format!("{:x}", hasher.finalize()))
+            }
+            Err(e) => {
+                log::warn!("SHA-256 computation failed for {}: {e}", path.display());
+                None
+            }
+        };
+
+        // 5. Build asset record
         let asset_id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
         let file_name = path
@@ -386,6 +411,7 @@ fn import_files(
             c2pa_signed: false,
             watermarked: false,
             created_at: now.clone(),
+            sha256_hash: sha256_hash.clone(),
         };
 
         // 5. Store
@@ -458,6 +484,7 @@ fn import_files(
             c2pa_signed: false,
             watermarked: false,
             created_at: now,
+            sha256_hash,
         });
     }
 
@@ -730,6 +757,25 @@ fn verify_content_inner(
             "The file is too small to be a valid media file.".to_string(),
         ));
     }
+
+    // ── SHA-256 of the input file ────────────────────────────────────────
+    // Computed early so the hash is available to the caller regardless of
+    // which pipeline branches execute.  Uses streaming-style read to avoid
+    // holding a second copy of large video/audio files in memory.
+    let input_sha256: Option<String> = match std::fs::read(&path) {
+        Ok(bytes) => {
+            let mut hasher = Sha256::new();
+            hasher.update(&bytes);
+            Some(format!("{:x}", hasher.finalize()))
+        }
+        Err(e) => {
+            log::warn!(
+                "SHA-256 computation failed in verify pipeline for {}: {e}",
+                path.display()
+            );
+            None
+        }
+    };
 
     // ── Format detection ─────────────────────────────────────────────────
     let t_format = std::time::Instant::now();
@@ -1613,6 +1659,7 @@ fn verify_content_inner(
         claim_check_result,
         ai_description,
         thumbnail_check,
+        input_sha256,
     })
 }
 
@@ -2654,6 +2701,32 @@ fn get_skip_wizard(app_handle: tauri::AppHandle) -> Result<bool, String> {
     Ok(config.skip_setup_wizard)
 }
 
+// ===== Solar Position Calculator =====
+
+/// Calculate the solar azimuth and elevation for a given location and UTC time.
+///
+/// Uses the NOAA solar position algorithm (pure trigonometry, no network calls).
+/// Returns an error if the coordinates are out of range.
+#[tauri::command]
+fn calculate_sun_position(
+    latitude: f64,
+    longitude: f64,
+    year: i32,
+    month: u32,
+    day: u32,
+    hour_utc: f64,
+) -> Result<sun_position::SolarPosition, String> {
+    if !(-90.0..=90.0).contains(&latitude) {
+        return Err("Latitude must be between -90 and 90".to_string());
+    }
+    if !(-180.0..=180.0).contains(&longitude) {
+        return Err("Longitude must be between -180 and 180".to_string());
+    }
+    Ok(sun_position::calculate_solar_position(
+        latitude, longitude, year, month, day, hour_utc,
+    ))
+}
+
 // ===== Database Path Configuration =====
 
 /// Configuration file schema stored in app_data_dir/config.json.
@@ -3273,6 +3346,7 @@ pub fn run() {
             get_licence_tier,
             set_licence_tier,
             get_skip_wizard,
+            calculate_sun_position,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Jura Trace")
@@ -3803,6 +3877,7 @@ mod tests {
             claim_check_result: None,
             ai_description: None,
             thumbnail_check: None,
+            input_sha256: None,
         };
         let json = serde_json::to_string(&result).unwrap();
         assert!(

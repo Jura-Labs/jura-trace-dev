@@ -91,6 +91,7 @@ impl Database {
                 c2pa_signed  INTEGER NOT NULL DEFAULT 0,
                 watermarked  INTEGER NOT NULL DEFAULT 0,
                 collection_id TEXT,
+                sha256_hash  TEXT,
                 created_at   TEXT NOT NULL
             );
 
@@ -210,6 +211,10 @@ impl Database {
              ALTER TABLE audit_log ADD COLUMN entry_hash TEXT;",
         );
 
+        // Schema migration: add sha256_hash to assets table for databases
+        // created before this column was introduced.
+        let _ = conn.execute_batch("ALTER TABLE assets ADD COLUMN sha256_hash TEXT;");
+
         Ok(())
     }
 
@@ -221,8 +226,8 @@ impl Database {
         conn.execute(
             "INSERT INTO assets (asset_id, file_path, file_name, content_type, mime_type,
                                  file_size, width, height, metadata_json, c2pa_signed,
-                                 watermarked, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                                 watermarked, sha256_hash, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 asset.asset_id,
                 asset.file_path,
@@ -235,6 +240,7 @@ impl Database {
                 asset.metadata_json,
                 asset.c2pa_signed as i32,
                 asset.watermarked as i32,
+                asset.sha256_hash,
                 asset.created_at,
             ],
         )?;
@@ -247,7 +253,7 @@ impl Database {
         let mut stmt = conn.prepare(
             "SELECT asset_id, file_path, file_name, content_type, mime_type, file_size,
                     width, height, ai_description, ai_tags, metadata_json,
-                    c2pa_signed, watermarked, created_at
+                    c2pa_signed, watermarked, sha256_hash, created_at
              FROM assets ORDER BY created_at DESC",
         )?;
 
@@ -271,7 +277,8 @@ impl Database {
                 metadata_json: row.get(10)?,
                 c2pa_signed: row.get::<_, i32>(11)? != 0,
                 watermarked: row.get::<_, i32>(12)? != 0,
-                created_at: row.get(13)?,
+                sha256_hash: row.get(13)?,
+                created_at: row.get(14)?,
             })
         })?;
 
@@ -373,7 +380,7 @@ impl Database {
         let mut stmt = conn.prepare(
             "SELECT asset_id, file_path, file_name, content_type, mime_type, file_size,
                     width, height, ai_description, ai_tags, metadata_json,
-                    c2pa_signed, watermarked, created_at
+                    c2pa_signed, watermarked, sha256_hash, created_at
              FROM assets WHERE asset_id = ?1",
         )?;
 
@@ -397,7 +404,8 @@ impl Database {
                 metadata_json: row.get(10)?,
                 c2pa_signed: row.get::<_, i32>(11)? != 0,
                 watermarked: row.get::<_, i32>(12)? != 0,
-                created_at: row.get(13)?,
+                sha256_hash: row.get(13)?,
+                created_at: row.get(14)?,
             })
         });
 
@@ -529,7 +537,7 @@ impl Database {
         let sql = format!(
             "SELECT asset_id, file_path, file_name, content_type, mime_type, file_size,
                     width, height, ai_description, ai_tags, metadata_json,
-                    c2pa_signed, watermarked, created_at
+                    c2pa_signed, watermarked, sha256_hash, created_at
              FROM assets{where_clause} ORDER BY created_at DESC"
         );
 
@@ -557,7 +565,8 @@ impl Database {
                 metadata_json: row.get(10)?,
                 c2pa_signed: row.get::<_, i32>(11)? != 0,
                 watermarked: row.get::<_, i32>(12)? != 0,
-                created_at: row.get(13)?,
+                sha256_hash: row.get(13)?,
+                created_at: row.get(14)?,
             })
         })?;
 
@@ -570,7 +579,7 @@ impl Database {
         let mut stmt = conn.prepare(
             "SELECT asset_id, file_path, file_name, content_type, mime_type, file_size,
                     width, height, ai_description, ai_tags, metadata_json,
-                    c2pa_signed, watermarked, created_at
+                    c2pa_signed, watermarked, sha256_hash, created_at
              FROM assets ORDER BY created_at DESC LIMIT ?1",
         )?;
 
@@ -594,7 +603,8 @@ impl Database {
                 metadata_json: row.get(10)?,
                 c2pa_signed: row.get::<_, i32>(11)? != 0,
                 watermarked: row.get::<_, i32>(12)? != 0,
-                created_at: row.get(13)?,
+                sha256_hash: row.get(13)?,
+                created_at: row.get(14)?,
             })
         })?;
 
@@ -1299,6 +1309,8 @@ pub struct AssetRow {
     pub c2pa_signed: bool,
     pub watermarked: bool,
     pub created_at: String,
+    /// SHA-256 hex digest of the file contents at import time.
+    pub sha256_hash: Option<String>,
 }
 
 #[cfg(test)]
@@ -1328,6 +1340,7 @@ mod tests {
             c2pa_signed: false,
             watermarked: false,
             created_at: created_at.to_string(),
+            sha256_hash: None,
         }
     }
 
@@ -2304,5 +2317,75 @@ mod tests {
         assert_eq!(active.len(), 1);
         assert_eq!(active[0].url_id, enabled.url_id);
         assert!(active[0].enabled);
+    }
+
+    // ── SHA-256 hash storage ────────────────────────────────────────
+
+    #[test]
+    fn asset_stores_and_retrieves_sha256_hash() {
+        use sha2::{Digest, Sha256};
+        let db = open_temp_db();
+        // Compute a real SHA-256 hash to store (content doesn't matter for this
+        // storage round-trip test; we just need a valid 64-char hex string).
+        let mut hasher = Sha256::new();
+        hasher.update(b"test file content");
+        let expected = format!("{:x}", hasher.finalize());
+        assert_eq!(expected.len(), 64);
+
+        let mut row = make_asset("a1", "photo.jpg", "2026-01-01T00:00:00Z");
+        row.sha256_hash = Some(expected.clone());
+        db.insert_asset(&row).unwrap();
+
+        let assets = db.get_all_assets().unwrap();
+        assert_eq!(assets.len(), 1);
+        assert_eq!(assets[0].sha256_hash, Some(expected));
+    }
+
+    #[test]
+    fn asset_sha256_null_roundtrip() {
+        let db = open_temp_db();
+        // sha256_hash is `None` by default in make_asset — ensure it round-trips.
+        db.insert_asset(&make_asset("a2", "doc.pdf", "2026-01-01T00:00:00Z"))
+            .unwrap();
+
+        let assets = db.get_all_assets().unwrap();
+        assert_eq!(assets.len(), 1);
+        assert_eq!(assets[0].sha256_hash, None);
+    }
+
+    #[test]
+    fn asset_sha256_via_get_by_id() {
+        use sha2::{Digest, Sha256};
+        let db = open_temp_db();
+        let mut hasher = Sha256::new();
+        hasher.update(b"another test payload");
+        let hash = format!("{:x}", hasher.finalize());
+
+        let mut row = make_asset("a3", "asset.bin", "2026-01-01T00:00:00Z");
+        row.sha256_hash = Some(hash.clone());
+        db.insert_asset(&row).unwrap();
+
+        let asset = db.get_asset_by_id("a3").unwrap().unwrap();
+        assert_eq!(asset.sha256_hash, Some(hash));
+    }
+
+    #[test]
+    fn sha256_produces_64_char_hex() {
+        use sha2::{Digest, Sha256};
+        // Verify our SHA-256 helper always produces a 64-character lowercase hex string.
+        for input in [b"".as_slice(), b"a", b"hello world", b"\x00\xff\xab"] {
+            let mut hasher = Sha256::new();
+            hasher.update(input);
+            let result = format!("{:x}", hasher.finalize());
+            assert_eq!(
+                result.len(),
+                64,
+                "SHA-256 hex digest must be 64 characters for input {input:?}"
+            );
+            assert!(
+                result.chars().all(|c| c.is_ascii_hexdigit()),
+                "SHA-256 hex digest must contain only hex characters"
+            );
+        }
     }
 }

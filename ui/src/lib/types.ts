@@ -332,10 +332,68 @@ export interface RagClaimResult {
   sources: ClaimSource[];
 }
 
+/** Solar position calculation result from the NOAA algorithm. */
+export interface SolarPosition {
+  azimuth: number;
+  elevation: number;
+  solarNoonUtc: number;
+  dayLengthHours: number;
+}
+
+/** Noise pattern visualisation result. */
+export interface NoiseVisualisationResult {
+  noiseResidualBase64: string;
+  varianceHeatmapBase64: string;
+  noiseStd: number;
+  noiseMean: number;
+}
+
+/** CLAHE enhancement result. */
+export interface ClaheResult {
+  enhancedImageBase64: string;
+  clipLimit: number;
+}
+
+/** Frequency domain visualisation result. */
+export interface FrequencyVisualisationResult {
+  fftMagnitudeBase64: string;
+  dctHeatmapBase64: string;
+  hasJpegGrid: boolean;
+  dominantFrequency: number;
+}
+
+/** JPEG quantisation grid visualisation result. */
+export interface JpegGridResult {
+  gridArtefactBase64: string;
+  qTable: number[][] | null;
+  gridConsistency: number;
+}
+
+/** Historical weather check result. */
+export interface WeatherCheckResult {
+  available: boolean;
+  date?: string;
+  latitude?: number;
+  longitude?: number;
+  temperatureMaxC?: number | null;
+  temperatureMinC?: number | null;
+  precipitationMm?: number | null;
+  rainMm?: number | null;
+  snowfallCm?: number | null;
+  maxWindKmh?: number | null;
+  weatherCode?: number | null;
+  weatherDescription?: string;
+  source?: string;
+  disclaimer?: string;
+  error?: string;
+}
+
 /** Verification result from the VERIFY pipeline */
 export interface VerificationResult {
   /** Investigation mode used: 'standard' | 'deep' | 'archival' */
   mode?: string;
+  /** SHA-256 hash of the input file, if computed by the backend. */
+  inputSha256?: string;
   sourceType: string;
   contentType: string;
   elaScore?: number;

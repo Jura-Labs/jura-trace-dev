@@ -45,6 +45,9 @@ from app.services.shadow_consistency import perform_shadow_consistency
 from app.services.splice_boundary import perform_splice_boundary
 from app.services.noise_visualisation import perform_noise_visualisation
 from app.services.clahe import perform_clahe
+from app.services.frequency_visualisation import perform_frequency_visualisation
+from app.services.jpeg_grid import perform_jpeg_grid_visualisation
+from app.services.weather_check import check_weather as _check_weather
 from app.services.audio_metadata import perform_audio_metadata
 from app.services.transcription import perform_transcription
 from app.services.video_deepfake import perform_video_deepfake_analysis
@@ -679,5 +682,44 @@ async def clahe_enhance(
 
     try:
         return perform_clahe(image_bytes, clip_limit=clip_limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/frequency-visualisation")
+async def frequency_visualisation(
+    file: UploadFile = File(...),
+):
+    """Return 2D FFT magnitude spectrum and DCT block heatmap."""
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return perform_frequency_visualisation(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/jpeg-grid")
+async def jpeg_grid_visualisation(
+    file: UploadFile = File(...),
+):
+    """Return JPEG 8x8 block boundary artefact heatmap and Q-table."""
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return perform_jpeg_grid_visualisation(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/weather-check")
+async def weather_check(
+    latitude: float = Query(...),
+    longitude: float = Query(...),
+    date: str = Query(..., description="ISO date YYYY-MM-DD"),
+):
+    """Query historical weather for location and date (opt-in network feature)."""
+    try:
+        return await _check_weather(latitude, longitude, date)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
