@@ -124,6 +124,7 @@
   // ── ELA overlay state ────────────────────────────────────────────
   let showElaOverlay = $state(false);
   let elaOpacity = $state(60);
+  let elaBlendMode = $state<'normal' | 'multiply' | 'difference'>('normal');
 
   // ── Scroll-to-top visibility ──────────────────────────────────────
   let showScrollTop = $state(false);
@@ -442,34 +443,34 @@
   /** Compact pass/fail indicators for each forensic detector — drives the signal strip. */
   const signalIndicators = $derived(() => {
     if (!result) return [];
-    const indicators: { id: string; name: string; flagged: boolean; available: boolean }[] = [];
+    const indicators: { id: string; name: string; shortName: string; flagged: boolean; available: boolean }[] = [];
     if (result.elaResult) {
-      indicators.push({ id: 'section-ela', name: 'Error Level Analysis', flagged: result.elaResult.suspicious, available: true });
+      indicators.push({ id: 'section-ela', name: 'Error Level Analysis', shortName: 'ELA', flagged: result.elaResult.suspicious, available: true });
     }
     if (result.noiseResult) {
-      indicators.push({ id: 'section-noise', name: 'Noise Analysis', flagged: result.noiseResult.suspicious, available: true });
+      indicators.push({ id: 'section-noise', name: 'Noise Analysis', shortName: 'Noise', flagged: result.noiseResult.suspicious, available: true });
     }
     if (result.copyMoveResult) {
-      indicators.push({ id: 'section-copymove', name: 'Copy-Move Detection', flagged: result.copyMoveResult.suspicious, available: true });
+      indicators.push({ id: 'section-copymove', name: 'Copy-Move Detection', shortName: 'Copy-Move', flagged: result.copyMoveResult.suspicious, available: true });
     }
     if (result.deepfakeResult) {
-      indicators.push({ id: 'section-deepfake', name: 'AI Generation Detection', flagged: result.deepfakeResult.suspicious, available: true });
+      indicators.push({ id: 'section-deepfake', name: 'AI Generation Detection', shortName: 'AI', flagged: result.deepfakeResult.suspicious, available: true });
     }
     if (result.c2paValid !== null && result.c2paValid !== undefined) {
-      indicators.push({ id: 'section-c2pa', name: 'C2PA Credentials', flagged: result.c2paValid === false, available: true });
+      indicators.push({ id: 'section-c2pa', name: 'C2PA Credentials', shortName: 'C2PA', flagged: result.c2paValid === false, available: true });
     }
     if (result.exifAnalysis) {
       const highFindings = result.exifAnalysis.findings.filter(f => f.severity === 'high' || f.severity === 'critical');
-      indicators.push({ id: 'section-exif', name: 'EXIF Metadata', flagged: highFindings.length > 0, available: true });
+      indicators.push({ id: 'section-exif', name: 'EXIF Metadata', shortName: 'EXIF', flagged: highFindings.length > 0, available: true });
     }
     if (result.nprResult) {
-      indicators.push({ id: 'section-npr', name: 'Neighbouring Pixel Relationship', flagged: result.nprResult.suspicious, available: true });
+      indicators.push({ id: 'section-npr', name: 'Neighbouring Pixel Relationship', shortName: 'NPR', flagged: result.nprResult.suspicious, available: true });
     }
     if (result.jpegGhostResult) {
-      indicators.push({ id: 'section-jpegGhost', name: 'JPEG Ghost', flagged: result.jpegGhostResult.suspicious, available: true });
+      indicators.push({ id: 'section-jpegGhost', name: 'JPEG Ghost', shortName: 'JPEG Ghost', flagged: result.jpegGhostResult.suspicious, available: true });
     }
     if (result.caResult) {
-      indicators.push({ id: 'section-ca', name: 'Chromatic Aberration', flagged: !result.caResult.isConsistent, available: true });
+      indicators.push({ id: 'section-ca', name: 'Chromatic Aberration', shortName: 'CA', flagged: !result.caResult.isConsistent, available: true });
     }
     return indicators;
   });
@@ -636,6 +637,7 @@
     showRegionAnalysis = false;
     showElaOverlay = false;
     elaOpacity = 60;
+    elaBlendMode = 'normal';
     activeSection = null;
   }
 
@@ -1574,7 +1576,7 @@
                   alt=""
                   aria-hidden="true"
                   class="absolute inset-0 w-full h-full object-contain pointer-events-none"
-                  style="opacity: {elaOpacity / 100}; mix-blend-mode: screen;"
+                  style="opacity: {elaOpacity / 100}; mix-blend-mode: {elaBlendMode};"
                 />
               {/if}
             </div>
@@ -1596,19 +1598,36 @@
                     <span class="text-xs text-flint dark:text-flint-light">Show ELA overlay</span>
                   </label>
                   {#if showElaOverlay}
-                    <div class="flex items-center gap-2" id="ela-overlay-hint">
-                      <label class="sr-only" for="ela-opacity-slider">ELA overlay opacity</label>
-                      <input
-                        id="ela-opacity-slider"
-                        type="range"
-                        min="10"
-                        max="100"
-                        step="5"
-                        bind:value={elaOpacity}
-                        class="w-24 h-1.5 rounded-full accent-lapis cursor-pointer"
-                        aria-label="ELA overlay opacity: {elaOpacity}%"
-                      />
-                      <span class="text-xs tabular-nums text-flint dark:text-flint-light w-8 flex-shrink-0">{elaOpacity}%</span>
+                    <div class="flex items-center gap-3 flex-wrap" id="ela-overlay-hint">
+                      <div class="flex items-center gap-2">
+                        <label class="sr-only" for="ela-opacity-slider">ELA overlay opacity</label>
+                        <input
+                          id="ela-opacity-slider"
+                          type="range"
+                          min="10"
+                          max="100"
+                          step="5"
+                          bind:value={elaOpacity}
+                          class="w-24 h-1.5 rounded-full accent-lapis cursor-pointer"
+                          aria-label="ELA overlay opacity: {elaOpacity}%"
+                        />
+                        <span class="text-xs tabular-nums text-flint dark:text-flint-light w-8 flex-shrink-0">{elaOpacity}%</span>
+                      </div>
+                      <div class="flex items-center gap-1.5">
+                        <label class="text-xs text-flint dark:text-flint-light" for="ela-blend-mode">Blend:</label>
+                        <select
+                          id="ela-blend-mode"
+                          bind:value={elaBlendMode}
+                          class="text-xs border border-border-light dark:border-border-dark rounded px-1.5 py-0.5
+                                 bg-white dark:bg-graphite text-gray-700 dark:text-flint-light
+                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+                          aria-label="ELA overlay blend mode"
+                        >
+                          <option value="normal">Normal</option>
+                          <option value="multiply">Darken</option>
+                          <option value="difference">Difference</option>
+                        </select>
+                      </div>
                     </div>
                   {/if}
                 </div>
@@ -1616,40 +1635,37 @@
             </div>
           </div>
 
-          <!-- Signal strip — vertical column of pass/fail dots -->
-          {#if signalIndicators().length > 0 && viewMode === 'detail'}
+          <!-- Signal strip — labelled pass/fail indicators, shown in both Summary and Full Analysis views -->
+          {#if signalIndicators().length > 0}
             <div
-              class="flex flex-col gap-1.5 py-2 flex-shrink-0"
+              class="flex flex-col gap-0.5 py-2 flex-shrink-0"
               role="group"
               aria-label="Forensic signal summary — click to jump to section"
             >
               {#each signalIndicators() as signal}
                 <button
                   onclick={() => {
+                    if (viewMode === 'summary') viewMode = 'detail';
                     showTechnicalDetails = true;
                     // Allow DOM update before scrolling
                     requestAnimationFrame(() => scrollToSection(signal.id));
                   }}
-                  class="w-4 h-4 rounded-full flex-shrink-0 transition-all duration-150
+                  class="flex items-center gap-1.5 text-xs min-h-[24px] px-1.5 py-0.5 rounded transition-colors duration-150
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
-                         {signal.flagged
-                           ? 'bg-cinnabar hover:bg-cinnabar/70 shadow-[0_0_4px_rgba(var(--color-cinnabar-rgb,220,50,50),0.5)]'
-                           : 'bg-malachite hover:bg-malachite/70'}"
+                         hover:bg-gray-100 dark:hover:bg-graphite-light/40"
                   title="{signal.name}: {signal.flagged ? 'Flagged' : 'Clean'}"
                   aria-label="{signal.name}: {signal.flagged ? 'Flagged — click to view' : 'Clean — click to view'}"
-                ></button>
+                >
+                  <span
+                    class="w-2.5 h-2.5 rounded-full flex-shrink-0
+                           {signal.flagged
+                             ? 'bg-cinnabar dark:bg-cinnabar-light'
+                             : 'bg-malachite dark:bg-malachite-light'}"
+                    aria-hidden="true"
+                  ></span>
+                  <span class="text-gray-600 dark:text-flint-light whitespace-nowrap">{signal.shortName}</span>
+                </button>
               {/each}
-              <!-- Legend -->
-              <div class="mt-1 flex flex-col gap-1" aria-hidden="true">
-                <div class="flex items-center gap-1">
-                  <span class="w-2 h-2 rounded-full bg-malachite flex-shrink-0"></span>
-                  <span class="text-[10px] text-flint dark:text-flint-light leading-none">Pass</span>
-                </div>
-                <div class="flex items-center gap-1">
-                  <span class="w-2 h-2 rounded-full bg-cinnabar flex-shrink-0"></span>
-                  <span class="text-[10px] text-flint dark:text-flint-light leading-none">Flag</span>
-                </div>
-              </div>
             </div>
           {/if}
         </div>
@@ -1833,6 +1849,14 @@
                   {signal}
                 </li>
               {/each}
+              {#if result.aiDescription}
+                <li class="flex items-start gap-2">
+                  <span class="w-2 h-2 rounded-full bg-lapis dark:bg-lapis-light mt-1.5 flex-shrink-0" aria-hidden="true"></span>
+                  <span class="text-sm text-gray-800 dark:text-quartz leading-relaxed">
+                    AI description: <span class="italic text-gray-600 dark:text-flint-light">"{result.aiDescription.slice(0, 120)}{result.aiDescription.length > 120 ? '...' : ''}"</span>
+                  </span>
+                </li>
+              {/if}
             </ul>
           </div>
         {/if}
@@ -2235,7 +2259,7 @@
         <section class="px-5 py-3 border-b border-border-dark" aria-labelledby="ela-heading">
           <div class="flex items-center gap-3">
             <h2 id="ela-heading" class="text-sm font-medium text-text-light dark:text-quartz">Error Level Analysis</h2>
-            <span class="text-xs text-flint dark:text-flint-light bg-gray-100 dark:bg-graphite-light px-2 py-0.5 rounded border border-border-light dark:border-border-dark">
+            <span class="text-xs text-gray-700 dark:text-flint-light bg-gray-100 dark:bg-graphite-light px-2 py-0.5 rounded border border-gray-300 dark:border-border-dark">
               Unavailable
             </span>
           </div>
@@ -2884,7 +2908,7 @@
               </span>
               <!-- Informational tag — always shown -->
               <span
-                class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border border-border-light dark:border-border-dark"
+                class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-gray-700 dark:text-flint-light border border-gray-300 dark:border-border-dark"
                 title="Chromatic aberration analysis is informational only — results may be unreliable for mobile phone photos processed with computational lens correction"
               >
                 Informational
@@ -3021,7 +3045,7 @@
                 {df.suspicious ? 'Suspicious' : 'Normal'}
               </span>
               <span
-                class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border border-border-light dark:border-border-dark"
+                class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-gray-700 dark:text-flint-light border border-gray-300 dark:border-border-dark"
                 title="Confidence level of the detection"
               >
                 {df.confidence} confidence
@@ -3081,17 +3105,27 @@
                 {#each df.signals as signal (signal.name)}
                   <div
                     class="flex items-start gap-2 rounded-md px-3 py-2 text-xs
-                           {signal.triggered ? 'bg-amber/10 border border-amber/20' : 'bg-gray-50 border border-gray-200 dark:bg-graphite-light/50 dark:border-border-dark'}"
+                           {signal.triggered
+                             ? 'bg-amber/10 border border-amber/20'
+                             : 'bg-gray-50 border border-gray-200 dark:bg-graphite-light/50 dark:border-border-dark'}"
                     role="listitem"
                   >
                     <span
-                      class="flex-shrink-0 w-1.5 h-1.5 mt-1 rounded-full {signal.triggered ? 'bg-amber dark:bg-amber-light' : 'bg-gray-400 dark:bg-flint/50'}"
+                      class="flex-shrink-0 w-1.5 h-1.5 mt-1 rounded-full
+                             {signal.triggered ? 'bg-amber dark:bg-amber-light' : 'bg-gray-400 dark:bg-flint/50'}"
                       aria-hidden="true"
                     ></span>
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center justify-between gap-2">
                         <span class="font-mono {signal.triggered ? 'text-amber-dark dark:text-amber-light' : 'text-gray-800 dark:text-flint-light'}">{signal.name}</span>
-                        <span class="text-gray-500 dark:text-flint-light/70 tabular-nums">weight: {signal.weight.toFixed(1)}</span>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                          {#if !signal.triggered}
+                            <span class="px-1.5 py-0.5 rounded border border-gray-300 dark:border-border-dark bg-white dark:bg-graphite text-gray-700 dark:text-flint-light">
+                              Clear
+                            </span>
+                          {/if}
+                          <span class="text-gray-500 dark:text-flint-light/70 tabular-nums">weight: {signal.weight.toFixed(1)}</span>
+                        </div>
                       </div>
                       <p class="text-gray-600 dark:text-flint-light mt-0.5">{signal.description}</p>
                     </div>
@@ -3277,7 +3311,7 @@
         <section class="px-5 py-4" aria-labelledby="c2pa-heading">
           <div class="flex items-center gap-3 mb-3">
             <h2 id="c2pa-heading" class="text-sm font-medium text-text-light dark:text-quartz">C2PA Credentials</h2>
-            <span class="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border border-border-light dark:border-border-dark">
+            <span class="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-gray-700 dark:text-flint-light border border-gray-300 dark:border-border-dark">
               Not Found
             </span>
           </div>
@@ -3307,7 +3341,7 @@
               class="text-xs font-medium px-2 py-0.5 rounded border
                      {wm.hasWatermark
                        ? 'bg-malachite/15 text-malachite dark:text-malachite-light border-malachite/30'
-                       : 'bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border-border-light dark:border-border-dark'}"
+                       : 'bg-gray-100 dark:bg-graphite-light text-gray-700 dark:text-flint-light border-gray-300 dark:border-border-dark'}"
             >
               {wm.hasWatermark ? 'Detected' : 'Not Found'}
             </span>
