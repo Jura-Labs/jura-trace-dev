@@ -79,14 +79,14 @@ brew install azure-cli   # macOS
 az login
 
 # Create resource group
-az group create --name jura-signing --location uksouth
+az group create --name jura-signing --location westeurope
 
 # Create Trusted Signing account
 az resource create \
   --resource-group jura-signing \
   --resource-type Microsoft.CodeSigning/codeSigningAccounts \
   --name juralabs-signing \
-  --location uksouth \
+  --location westeurope \
   --properties '{}'
 ```
 
@@ -138,7 +138,7 @@ This outputs:
 | `AZURE_SUBSCRIPTION_ID` | Your Azure subscription ID | Azure Portal → Subscriptions |
 | `AZURE_SIGNING_ACCOUNT` | `juralabs-signing` | The name you chose in step 2 |
 | `AZURE_CERT_PROFILE` | `juralabs-release` | The name you chose in step 4 |
-| `AZURE_ENDPOINT` | `https://uksouth.codesigning.azure.net` | Based on your region |
+| `AZURE_ENDPOINT` | `https://weu.codesigning.azure.net` | Based on your region |
 
 #### 7. Update release workflow
 
