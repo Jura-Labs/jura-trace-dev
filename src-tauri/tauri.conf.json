@@ -23,7 +23,14 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: asset: https://asset.localhost; connect-src ipc: http://ipc.localhost http://127.0.0.1:8200 http://127.0.0.1:11434; object-src 'none'; base-uri 'self'; frame-ancestors 'none';"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: asset: https://asset.localhost http://asset.localhost; connect-src ipc: http://ipc.localhost http://127.0.0.1:8200 http://127.0.0.1:11434; object-src 'none'; base-uri 'self'; frame-ancestors 'none';",
+      "assetProtocol": {
+        "enable": true,
+        "scope": {
+          "allow": ["$HOME/**", "$DESKTOP/**", "$DOWNLOAD/**", "$DOCUMENT/**", "$PICTURE/**", "$VIDEO/**", "$AUDIO/**"],
+          "deny": ["$HOME/.ssh/**", "$HOME/.gnupg/**"]
+        }
+      }
     }
   },
   "plugins": {
