@@ -1140,9 +1140,7 @@
         </button>
       </div>
       <div class="flex-1"></div>
-      <p class="px-4 pb-2.5 text-xs text-flint/50 dark:text-flint-light/60" aria-label="Claim checking is planned for a future phase">
-        Claim checking — Phase 2
-      </p>
+      <!-- Claim checking is available when Ollama is running and audio/video transcription produces text -->
     </div>
 
     <!-- File tab -->
@@ -1894,7 +1892,7 @@
           {exportingReport ? 'Generating...' : 'Export Report'}
         </button>
         <button
-          class="px-4 py-2.5 min-h-[44px] text-sm border border-lapis/50 text-lapis rounded
+          class="px-4 py-2.5 min-h-[44px] text-sm border border-lapis/50 text-lapis dark:text-lapis-light rounded
                  hover:bg-lapis/10 transition-colors
                  disabled:opacity-50 disabled:cursor-not-allowed
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
