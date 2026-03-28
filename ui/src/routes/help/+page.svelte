@@ -22,6 +22,11 @@
       description: 'Configure Ollama, choose a deployment profile, manage data storage, and review the service status panel.',
     },
     {
+      href: '/help/settings#ollama',
+      title: 'Ollama AI Features',
+      description: 'How to use text reading and claim verification powered by local AI models.',
+    },
+    {
       href: '/help/methodology',
       title: 'How Analysis Works',
       description: 'Transparency on every detector, how scores are weighted, composite signal amplification, and known limitations.',

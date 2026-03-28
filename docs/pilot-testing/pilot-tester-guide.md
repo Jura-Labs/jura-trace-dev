@@ -477,6 +477,22 @@ You can change these in **Settings** → **Ollama Configuration** if needed, but
 
 ---
 
+### Testing Ollama Features — Quick Reference
+
+Once Ollama is installed and showing Online in Settings, use this table to test each feature.
+
+| Feature | How to test | What to look for |
+|---|---|---|
+| **Text reading** | Verify a screenshot → click "Read Text (Ollama)" in the results | Extracted text appears in a monospace box below the button |
+| **Claim checking** | Verify a video with speech using Deep mode | Transcript section in results, with each claim labelled Supported, Disputed, or Unverifiable |
+| **Image description** | Verify any image with Ollama running | "AI Description" section appears in the results panel |
+
+**Quick test — try this right now:** take a screenshot of this guide page, save it as a PNG, then drop it on the Verify page and click "Read Text (Ollama)." You should see the text from this guide extracted by the AI.
+
+**If the button does not appear:** check that Ollama shows Online in Settings → Service Status, and that you have downloaded the `llava:7b` model (see Step 2 above).
+
+---
+
 ## 10. Exploring the Help System
 
 Jura Trace includes full in-app documentation. We want to know whether it is useful and whether anything is confusing or missing.
