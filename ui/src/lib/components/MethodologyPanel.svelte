@@ -114,7 +114,7 @@
             >
               {#if stage.ran}
                 <!-- Tick mark -->
-                <svg class="w-3 h-3 text-malachite" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <svg class="w-3 h-3 text-malachite dark:text-malachite-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
                 </svg>
               {:else}
@@ -173,7 +173,7 @@
                     class="flex-shrink-0 w-1.5 h-1.5 rounded-full {signal.triggered ? 'bg-amber' : 'bg-flint/30'}"
                     aria-label="{signal.triggered ? 'Triggered' : 'Not triggered'}"
                   ></span>
-                  <span class="font-mono {signal.triggered ? 'text-amber' : 'text-flint dark:text-flint-light'} truncate">
+                  <span class="font-mono {signal.triggered ? 'text-amber dark:text-amber-light' : 'text-flint dark:text-flint-light'} truncate">
                     {signal.name}
                   </span>
                 </div>

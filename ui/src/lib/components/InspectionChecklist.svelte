@@ -131,14 +131,14 @@
     aria-controls="inspection-checklist-body"
   >
     <div class="flex items-center gap-2.5 min-w-0">
-      <span class="text-sm font-medium text-flint">Visual Inspection Checklist</span>
+      <span class="text-sm font-medium text-flint dark:text-flint-light">Visual Inspection Checklist</span>
 
       <!-- Progress summary badges — shown when any items are checked -->
       {#if checkedCount > 0}
         <span class="flex items-center gap-1.5" aria-label="{passCount} passed, {failCount} flagged">
           {#if passCount > 0}
             <span
-              class="text-xs px-1.5 py-px rounded bg-malachite/15 text-malachite border border-malachite/20"
+              class="text-xs px-1.5 py-px rounded bg-malachite/15 text-malachite dark:text-malachite-light border border-malachite/20"
               aria-hidden="true"
             >
               {passCount} pass
@@ -146,7 +146,7 @@
           {/if}
           {#if failCount > 0}
             <span
-              class="text-xs px-1.5 py-px rounded bg-cinnabar/15 text-cinnabar border border-cinnabar/20"
+              class="text-xs px-1.5 py-px rounded bg-cinnabar/15 text-cinnabar dark:text-cinnabar-light border border-cinnabar/20"
               aria-hidden="true"
             >
               {failCount} flag
@@ -160,7 +160,7 @@
 
     <!-- Chevron -->
     <svg
-      class="w-4 h-4 text-flint flex-shrink-0 transition-transform duration-200 motion-safe:{panelOpen ? 'rotate-180' : ''}"
+      class="w-4 h-4 text-flint dark:text-flint-light flex-shrink-0 transition-transform duration-200 motion-safe:{panelOpen ? 'rotate-180' : ''}"
       class:rotate-180={panelOpen}
       fill="none"
       stroke="currentColor"
@@ -180,14 +180,14 @@
 
       <!-- Instruction row -->
       <div class="px-4 py-2.5 bg-lapis/5 border-b border-graphite/60 flex items-center justify-between gap-4">
-        <p class="text-xs text-flint leading-relaxed">
+        <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
           Examine each element visually. Click a row to cycle through
-          <span class="text-malachite">pass</span> /
-          <span class="text-cinnabar">flag</span> / unchecked.
+          <span class="text-malachite dark:text-malachite-light">pass</span> /
+          <span class="text-cinnabar dark:text-cinnabar-light">flag</span> / unchecked.
           Use the
           <span
-            class="inline-flex items-center justify-center w-4 h-4 text-[10px] rounded-full
-                   border border-lapis/40 text-lapis font-medium align-middle"
+            class="inline-flex items-center justify-center w-4 h-4 text-xs rounded-full
+                   border border-lapis/40 text-lapis dark:text-lapis-light font-medium align-middle"
             aria-hidden="true"
           >?</span>
           button to show guidance for each check.
@@ -196,7 +196,7 @@
         <!-- Reset link — only visible when something is checked -->
         {#if checkedCount > 0}
           <button
-            class="flex-shrink-0 text-xs text-flint hover:text-quartz transition-colors
+            class="flex-shrink-0 text-xs text-flint dark:text-flint-light hover:text-quartz transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-1"
             onclick={resetAll}
             aria-label="Reset all checklist items to unchecked"
@@ -235,12 +235,12 @@
               >
                 {#if state === 'pass'}
                   <!-- Tick mark -->
-                  <svg class="w-3.5 h-3.5 text-malachite" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <svg class="w-3.5 h-3.5 text-malachite dark:text-malachite-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
                   </svg>
                 {:else if state === 'fail'}
                   <!-- Flag / X mark -->
-                  <svg class="w-3.5 h-3.5 text-cinnabar" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <svg class="w-3.5 h-3.5 text-cinnabar dark:text-cinnabar-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 {:else}
@@ -261,13 +261,13 @@
 
               <!-- Hint toggle button -->
               <button
-                class="flex-shrink-0 w-5 h-5 rounded-full text-[11px] font-medium
+                class="flex-shrink-0 w-5 h-5 rounded-full text-xs font-medium
                        flex items-center justify-center transition-colors duration-150
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                        focus-visible:ring-offset-1 focus-visible:ring-offset-obsidian
                        {expandedHint === item.id
-                         ? 'bg-lapis/20 border border-lapis/40 text-lapis'
-                         : 'border border-lapis/30 text-lapis/60 hover:border-lapis/60 hover:text-lapis'}"
+                         ? 'bg-lapis/20 border border-lapis/40 text-lapis dark:text-lapis-light'
+                         : 'border border-lapis/30 text-lapis/60 dark:text-lapis-light/60 hover:border-lapis/60 hover:text-lapis dark:hover:text-lapis-light'}"
                 onclick={() => toggleHint(item.id)}
                 aria-label="{expandedHint === item.id ? 'Hide' : 'Show'} guidance for {item.label}"
                 aria-expanded={expandedHint === item.id}
@@ -303,17 +303,17 @@
           aria-label="Checklist complete: {passCount} items passed, {failCount} items flagged"
         >
           <div class="flex items-center gap-3 text-xs">
-            <span class="text-flint">Checklist complete —</span>
+            <span class="text-flint dark:text-flint-light">Checklist complete —</span>
             {#if failCount === 0}
-              <span class="text-malachite font-medium">All {passCount} items passed</span>
+              <span class="text-malachite dark:text-malachite-light font-medium">All {passCount} items passed</span>
             {:else if failCount <= 2}
-              <span class="text-amber font-medium">{failCount} concern{failCount === 1 ? '' : 's'} flagged</span>
+              <span class="text-amber dark:text-amber-light font-medium">{failCount} concern{failCount === 1 ? '' : 's'} flagged</span>
             {:else}
-              <span class="text-cinnabar font-medium">{failCount} concerns flagged</span>
+              <span class="text-cinnabar dark:text-cinnabar-light font-medium">{failCount} concerns flagged</span>
             {/if}
           </div>
           <button
-            class="text-xs text-flint hover:text-quartz transition-colors
+            class="text-xs text-flint dark:text-flint-light hover:text-quartz transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-1"
             onclick={resetAll}
             aria-label="Reset checklist"

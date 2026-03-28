@@ -689,7 +689,7 @@
               d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           Sign All with C2PA
-          <span class="ml-0.5 text-[10px] opacity-70">({unsignedAssets.length})</span>
+          <span class="ml-0.5 text-xs opacity-70">({unsignedAssets.length})</span>
         </button>
       {/if}
       {#if unwatermarkedImages.length > 0}
@@ -703,7 +703,7 @@
               d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.955 11.955 0 010 12c0 6.627 5.373 12 12 12s12-5.373 12-12c0-2.416-.714-4.668-1.952-6.56m-8.048.56A4 4 0 0112 8v4m0 0v4m0-4h4m-4 0H8" />
           </svg>
           Watermark All Images
-          <span class="ml-0.5 text-[10px] opacity-70">({unwatermarkedImages.length})</span>
+          <span class="ml-0.5 text-xs opacity-70">({unwatermarkedImages.length})</span>
         </button>
       {/if}
       {#if displayedAssets.length > 0}
@@ -1001,7 +1001,7 @@
           <div class="space-y-4" role="status" aria-live="polite">
             <div class="flex items-center gap-3">
               <div class="w-8 h-8 rounded-full bg-malachite/15 flex items-center justify-center flex-shrink-0" aria-hidden="true">
-                <svg class="w-4 h-4 text-malachite" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 text-malachite dark:text-malachite-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
@@ -1277,7 +1277,7 @@
                   </ul>
 
                   <button
-                    class="text-xs text-lapis hover:text-lapis-dark dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded min-h-[24px]"
+                    class="text-xs text-lapis dark:text-lapis-light hover:text-lapis-dark dark:hover:text-lapis transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded min-h-[24px]"
                     onclick={exportBatchErrors}
                     aria-label="Export failed watermark files as CSV"
                   >
@@ -1307,7 +1307,7 @@
       {#if filterContentType || filterStatus || searchRaw}
         <p class="text-flint dark:text-flint-light">No assets match the current filters.</p>
         <button
-          class="mt-3 text-sm text-lapis hover:text-lapis-dark dark:hover:text-lapis-light transition-colors underline underline-offset-2
+          class="mt-3 text-sm text-lapis dark:text-lapis-light hover:text-lapis-dark dark:hover:text-lapis transition-colors underline underline-offset-2
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
           onclick={() => { filterContentType = ''; filterStatus = ''; searchRaw = ''; }}
         >
@@ -1448,10 +1448,13 @@
                   alt=""
                   class="w-full h-full object-cover"
                   loading="lazy"
+                  onerror={() => {
+                    thumbnailUrls = { ...thumbnailUrls, [asset.assetId]: '' };
+                  }}
                 />
               {:else}
-                <span class="text-xs font-mono text-text-light dark:text-flint">
-                  {contentTypeIcon(asset.contentType)}
+                <span class="text-xs font-mono text-text-light dark:text-flint uppercase">
+                  {asset.fileName.split('.').pop()?.slice(0, 4) ?? contentTypeIcon(asset.contentType)}
                 </span>
               {/if}
             </div>
@@ -1779,7 +1782,7 @@
 
                     {#if metadataWarning?.warningMessage}
                       <div
-                        class="mb-3 px-3 py-2 rounded-md bg-amber/10 border border-amber/30 text-xs text-amber dark:text-amber"
+                        class="mb-3 px-3 py-2 rounded-md bg-amber/10 border border-amber/30 text-xs text-amber dark:text-amber-light"
                         role="alert"
                       >
                         <span class="font-medium">Note:</span>
@@ -1850,7 +1853,7 @@
                   </div>
                 {:else}
                   <button
-                    class="col-span-full mt-2 px-4 py-2.5 min-h-[44px] inline-flex items-center text-sm border border-lapis/50 text-lapis rounded
+                    class="col-span-full mt-2 px-4 py-2.5 min-h-[44px] inline-flex items-center text-sm border border-lapis/50 text-lapis dark:text-lapis-light rounded
                            hover:bg-lapis/10 transition-colors
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
                     onclick={() => openSigningPanel(asset.assetId, meta?.artist ?? null)}
@@ -2017,7 +2020,7 @@
                 {:else if !asset.watermarked}
                   <!-- Watermark trigger button (only when not yet watermarked) -->
                   <button
-                    class="col-span-full mt-2 px-4 py-2.5 min-h-[44px] inline-flex items-center text-sm border border-lapis/50 text-lapis rounded
+                    class="col-span-full mt-2 px-4 py-2.5 min-h-[44px] inline-flex items-center text-sm border border-lapis/50 text-lapis dark:text-lapis-light rounded
                            hover:bg-lapis/10 transition-colors
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
                     onclick={() => {
@@ -2094,7 +2097,7 @@
                   </div>
                 {:else}
                   <button
-                    class="col-span-full mt-2 px-4 py-2.5 min-h-[44px] inline-flex items-center text-sm border border-lapis/50 text-lapis rounded
+                    class="col-span-full mt-2 px-4 py-2.5 min-h-[44px] inline-flex items-center text-sm border border-lapis/50 text-lapis dark:text-lapis-light rounded
                            hover:bg-lapis/10 transition-colors
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
                     onclick={async () => {

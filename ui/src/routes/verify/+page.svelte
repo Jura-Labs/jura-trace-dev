@@ -1482,18 +1482,27 @@
       </div>
     {/if}
 
+    <!-- Large image preview — shown above analysis results for visual reference -->
+    {#if previewUrl && result.contentType === 'image'}
+      <div class="mb-4 rounded-lg overflow-hidden border border-border-light dark:border-border-dark bg-obsidian/30 max-w-xl mx-auto">
+        <img
+          src={previewUrl}
+          alt="Analysed file"
+          class="w-full max-h-[400px] object-contain"
+          loading="lazy"
+        />
+        <div class="px-3 py-2 border-t border-border-light dark:border-border-dark">
+          <p class="text-xs text-flint dark:text-flint-light truncate" title={fileName ?? undefined}>
+            {fileName}
+          </p>
+        </div>
+      </div>
+    {/if}
+
     <!-- Trust Score header -->
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark overflow-hidden">
       <div class="px-5 py-4 border-b border-border-light dark:border-border-dark flex items-center justify-between gap-4">
         <div class="flex items-center gap-4 min-w-0">
-          <!-- Image preview thumbnail (shown when a local image file was verified) -->
-          {#if previewUrl}
-            <div
-              class="flex-shrink-0 w-14 h-14 rounded overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-graphite-light"
-            >
-              <img src={previewUrl} alt="" class="w-full h-full object-cover" loading="lazy" />
-            </div>
-          {/if}
           <div>
             <div class="flex items-center gap-1.5 mb-0.5">
               <p class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Trust Score</p>
@@ -1974,14 +1983,39 @@
             </span>
           </div>
 
-          <!-- ELA heatmap -->
-          <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
-            <img
-              src={blobs.url(ela.elaImageBase64, 'image/png')}
-              alt="Error Level Analysis heatmap showing compression artefact differences"
-              class="w-full max-h-64 object-contain"
-            />
-          </div>
+          <!-- ELA heatmap — side-by-side with original when preview is available -->
+          {#if previewUrl}
+            <div class="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <p class="text-xs text-flint dark:text-flint-light mb-1">Original</p>
+                <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
+                  <img
+                    src={previewUrl}
+                    alt="Original analysed file"
+                    class="w-full max-h-64 object-contain"
+                  />
+                </div>
+              </div>
+              <div>
+                <p class="text-xs text-flint dark:text-flint-light mb-1">Error Level Analysis</p>
+                <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
+                  <img
+                    src={blobs.url(ela.elaImageBase64, 'image/png')}
+                    alt="Error Level Analysis heatmap — bright areas indicate higher compression artefact differences"
+                    class="w-full max-h-64 object-contain"
+                  />
+                </div>
+              </div>
+            </div>
+          {:else}
+            <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
+              <img
+                src={blobs.url(ela.elaImageBase64, 'image/png')}
+                alt="Error Level Analysis heatmap — bright areas indicate higher compression artefact differences"
+                class="w-full max-h-64 object-contain"
+              />
+            </div>
+          {/if}
 
           <!-- Stats -->
           <div class="grid grid-cols-2 gap-4 text-xs">
@@ -2803,15 +2837,40 @@
             </span>
           </div>
 
-          <!-- Frequency spectrum heatmap -->
+          <!-- Frequency spectrum heatmap — side-by-side with original when preview is available -->
           {#if df.heatmapBase64}
-            <div class="mb-3 rounded-md overflow-hidden border border-border-dark bg-obsidian">
-              <img
-                src={blobs.url(df.heatmapBase64, 'image/png')}
-                alt="Frequency spectrum heatmap for AI generation detection"
-                class="w-full max-h-64 object-contain"
-              />
-            </div>
+            {#if previewUrl}
+              <div class="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <p class="text-xs text-flint dark:text-flint-light mb-1">Original</p>
+                  <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
+                    <img
+                      src={previewUrl}
+                      alt="Original analysed file"
+                      class="w-full max-h-64 object-contain"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p class="text-xs text-flint dark:text-flint-light mb-1">Frequency Spectrum</p>
+                  <div class="rounded-md overflow-hidden border border-border-dark bg-obsidian">
+                    <img
+                      src={blobs.url(df.heatmapBase64, 'image/png')}
+                      alt="Frequency spectrum heatmap — anomalous patterns may indicate AI generation"
+                      class="w-full max-h-64 object-contain"
+                    />
+                  </div>
+                </div>
+              </div>
+            {:else}
+              <div class="mb-3 rounded-md overflow-hidden border border-border-dark bg-obsidian">
+                <img
+                  src={blobs.url(df.heatmapBase64, 'image/png')}
+                  alt="Frequency spectrum heatmap — anomalous patterns may indicate AI generation"
+                  class="w-full max-h-64 object-contain"
+                />
+              </div>
+            {/if}
           {/if}
 
           <!-- Summary -->

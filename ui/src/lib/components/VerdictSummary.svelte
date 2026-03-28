@@ -380,7 +380,7 @@
       <!-- Confidence badge (shown when deepfake analysis ran) -->
       {#if result.deepfakeResult && confidenceLabel()}
         <span
-          class="flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded border
+          class="flex-shrink-0 text-xs font-medium px-1.5 py-0.5 rounded border
                  {confidenceBadgeClass()}"
           aria-label="Detection confidence: {confidenceLabel()}"
         >

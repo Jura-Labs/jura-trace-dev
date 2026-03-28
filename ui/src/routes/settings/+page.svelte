@@ -298,7 +298,7 @@
       codename: 'Bedrock',
       description: 'Unlimited commercial licence. Adds silent installer with MDM templates, central TOML configuration, custom RAG knowledge base, bulk watched-folder signing, white-label rights, and SLA-backed support.',
       badgeClass: 'bg-amber/15 border border-amber/30',
-      badgeTextClass: 'text-amber',
+      badgeTextClass: 'text-amber dark:text-amber-light',
     },
   };
 
@@ -460,7 +460,7 @@
     {#if atProfileLimit}
       <p
         id="profile-limit-notice"
-        class="text-xs text-amber mb-4 px-3 py-2 rounded border border-amber/20 bg-amber/5"
+        class="text-xs text-amber dark:text-amber-light mb-4 px-3 py-2 rounded border border-amber/20 bg-amber/5"
         role="note"
       >
         Maximum of {MAX_PROFILES} profiles reached. Delete an existing profile to save a new one.
