@@ -121,6 +121,16 @@
   // ── Summary / Detail view mode ────────────────────────────────────
   let viewMode = $state<'summary' | 'detail'>('summary');
 
+  // ── ELA overlay state ────────────────────────────────────────────
+  let showElaOverlay = $state(false);
+  let elaOpacity = $state(60);
+
+  // ── Scroll-to-top visibility ──────────────────────────────────────
+  let showScrollTop = $state(false);
+
+  // ── Active section for sticky nav highlight ───────────────────────
+  let activeSection = $state<string | null>(null);
+
   // Blob URL tracker — converts base64 data to CSP-safe blob: URLs and
   // revokes them on component destroy to prevent memory leaks.
   const blobs = createBlobTracker();
@@ -401,10 +411,67 @@
 
     window.addEventListener('keydown', handleKey);
     window.addEventListener('keydown', handleEsc);
+
+    // ── Scroll-to-top visibility ──────────────────────────────────
+    function handleScroll() {
+      showScrollTop = window.scrollY > 300;
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true });
+
     return () => {
       window.removeEventListener('keydown', handleKey);
       window.removeEventListener('keydown', handleEsc);
+      window.removeEventListener('scroll', handleScroll);
     };
+  });
+
+  // ── Section scroll helpers ────────────────────────────────────────
+  function scrollToSection(id: string) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      activeSection = id;
+    }
+  }
+
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ── Signal strip derivation ───────────────────────────────────────
+  /** Compact pass/fail indicators for each forensic detector — drives the signal strip. */
+  const signalIndicators = $derived(() => {
+    if (!result) return [];
+    const indicators: { id: string; name: string; flagged: boolean; available: boolean }[] = [];
+    if (result.elaResult) {
+      indicators.push({ id: 'section-ela', name: 'Error Level Analysis', flagged: result.elaResult.suspicious, available: true });
+    }
+    if (result.noiseResult) {
+      indicators.push({ id: 'section-noise', name: 'Noise Analysis', flagged: result.noiseResult.suspicious, available: true });
+    }
+    if (result.copyMoveResult) {
+      indicators.push({ id: 'section-copymove', name: 'Copy-Move Detection', flagged: result.copyMoveResult.suspicious, available: true });
+    }
+    if (result.deepfakeResult) {
+      indicators.push({ id: 'section-deepfake', name: 'AI Generation Detection', flagged: result.deepfakeResult.suspicious, available: true });
+    }
+    if (result.c2paValid !== null && result.c2paValid !== undefined) {
+      indicators.push({ id: 'section-c2pa', name: 'C2PA Credentials', flagged: result.c2paValid === false, available: true });
+    }
+    if (result.exifAnalysis) {
+      const highFindings = result.exifAnalysis.findings.filter(f => f.severity === 'high' || f.severity === 'critical');
+      indicators.push({ id: 'section-exif', name: 'EXIF Metadata', flagged: highFindings.length > 0, available: true });
+    }
+    if (result.nprResult) {
+      indicators.push({ id: 'section-npr', name: 'Neighbouring Pixel Relationship', flagged: result.nprResult.suspicious, available: true });
+    }
+    if (result.jpegGhostResult) {
+      indicators.push({ id: 'section-jpegGhost', name: 'JPEG Ghost', flagged: result.jpegGhostResult.suspicious, available: true });
+    }
+    if (result.caResult) {
+      indicators.push({ id: 'section-ca', name: 'Chromatic Aberration', flagged: !result.caResult.isConsistent, available: true });
+    }
+    return indicators;
   });
 
   // ── Drag and drop ─────────────────────────────────────────────────
@@ -567,6 +634,9 @@
     showSignalAgreement = false;
     showInspectionChecklist = false;
     showRegionAnalysis = false;
+    showElaOverlay = false;
+    elaOpacity = 60;
+    activeSection = null;
   }
 
   // ── Export helpers ────────────────────────────────────────────────
@@ -1484,17 +1554,104 @@
 
     <!-- Large image preview — shown above analysis results for visual reference -->
     {#if previewUrl && result.contentType === 'image'}
-      <div class="mb-4 rounded-lg overflow-hidden border border-border-light dark:border-border-dark bg-obsidian/30 max-w-xl mx-auto">
-        <img
-          src={previewUrl}
-          alt="Analysed file"
-          class="w-full max-h-[400px] object-contain"
-          loading="lazy"
-        />
-        <div class="px-3 py-2 border-t border-border-light dark:border-border-dark">
-          <p class="text-xs text-flint dark:text-flint-light truncate" title={fileName ?? undefined}>
-            {fileName}
-          </p>
+      {@const elaHeatmapUrl = result.elaResult?.elaImageBase64 ? blobs.url(result.elaResult.elaImageBase64, 'image/png') : null}
+      <div class="mb-4 max-w-2xl mx-auto">
+        <!-- Image + signal strip side-by-side -->
+        <div class="flex gap-3 items-start">
+          <!-- Main image container -->
+          <div class="flex-1 rounded-lg overflow-hidden border border-border-light dark:border-border-dark bg-obsidian/30">
+            <!-- Image with optional ELA overlay -->
+            <div class="relative">
+              <img
+                src={previewUrl}
+                alt="Analysed file"
+                class="w-full max-h-[400px] object-contain block"
+                loading="lazy"
+              />
+              {#if showElaOverlay && elaHeatmapUrl}
+                <img
+                  src={elaHeatmapUrl}
+                  alt=""
+                  aria-hidden="true"
+                  class="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                  style="opacity: {elaOpacity / 100}; mix-blend-mode: screen;"
+                />
+              {/if}
+            </div>
+
+            <!-- Image caption + overlay controls -->
+            <div class="px-3 py-2 border-t border-border-light dark:border-border-dark bg-white/50 dark:bg-graphite/50">
+              <p class="text-xs text-flint dark:text-flint-light truncate mb-1.5" title={fileName ?? undefined}>
+                {fileName}
+              </p>
+              {#if elaHeatmapUrl}
+                <div class="flex flex-wrap items-center gap-3">
+                  <label class="flex items-center gap-1.5 cursor-pointer select-none min-h-[24px]">
+                    <input
+                      type="checkbox"
+                      bind:checked={showElaOverlay}
+                      class="w-3.5 h-3.5 rounded accent-lapis cursor-pointer"
+                      aria-describedby="ela-overlay-hint"
+                    />
+                    <span class="text-xs text-flint dark:text-flint-light">Show ELA overlay</span>
+                  </label>
+                  {#if showElaOverlay}
+                    <div class="flex items-center gap-2" id="ela-overlay-hint">
+                      <label class="sr-only" for="ela-opacity-slider">ELA overlay opacity</label>
+                      <input
+                        id="ela-opacity-slider"
+                        type="range"
+                        min="10"
+                        max="100"
+                        step="5"
+                        bind:value={elaOpacity}
+                        class="w-24 h-1.5 rounded-full accent-lapis cursor-pointer"
+                        aria-label="ELA overlay opacity: {elaOpacity}%"
+                      />
+                      <span class="text-xs tabular-nums text-flint dark:text-flint-light w-8 flex-shrink-0">{elaOpacity}%</span>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+            </div>
+          </div>
+
+          <!-- Signal strip — vertical column of pass/fail dots -->
+          {#if signalIndicators().length > 0 && viewMode === 'detail'}
+            <div
+              class="flex flex-col gap-1.5 py-2 flex-shrink-0"
+              role="group"
+              aria-label="Forensic signal summary — click to jump to section"
+            >
+              {#each signalIndicators() as signal}
+                <button
+                  onclick={() => {
+                    showTechnicalDetails = true;
+                    // Allow DOM update before scrolling
+                    requestAnimationFrame(() => scrollToSection(signal.id));
+                  }}
+                  class="w-4 h-4 rounded-full flex-shrink-0 transition-all duration-150
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                         {signal.flagged
+                           ? 'bg-cinnabar hover:bg-cinnabar/70 shadow-[0_0_4px_rgba(var(--color-cinnabar-rgb,220,50,50),0.5)]'
+                           : 'bg-malachite hover:bg-malachite/70'}"
+                  title="{signal.name}: {signal.flagged ? 'Flagged' : 'Clean'}"
+                  aria-label="{signal.name}: {signal.flagged ? 'Flagged — click to view' : 'Clean — click to view'}"
+                ></button>
+              {/each}
+              <!-- Legend -->
+              <div class="mt-1 flex flex-col gap-1" aria-hidden="true">
+                <div class="flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-malachite flex-shrink-0"></span>
+                  <span class="text-[10px] text-flint dark:text-flint-light leading-none">Pass</span>
+                </div>
+                <div class="flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-cinnabar flex-shrink-0"></span>
+                  <span class="text-[10px] text-flint dark:text-flint-light leading-none">Flag</span>
+                </div>
+              </div>
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
@@ -1594,6 +1751,44 @@
             </span>
           {/each}
         </div>
+      {/if}
+
+      <!-- ── Sticky section navigation (detail view only) ─────────── -->
+      {#if viewMode === 'detail'}
+        <nav
+          class="sticky top-14 z-20 bg-white/95 dark:bg-graphite/95 backdrop-blur-sm border-b border-border-light dark:border-border-dark py-1.5 px-4 flex gap-1 overflow-x-auto"
+          aria-label="Jump to analysis section"
+        >
+          {#each [
+            { id: 'section-verdict', label: 'Verdict', always: true },
+            { id: 'section-signals', label: 'Signals', always: true },
+            { id: 'section-ela', label: 'ELA', show: !!result.elaResult },
+            { id: 'section-noise', label: 'Noise', show: !!result.noiseResult },
+            { id: 'section-copymove', label: 'Copy-Move', show: !!result.copyMoveResult },
+            { id: 'section-deepfake', label: 'AI Detection', show: !!result.deepfakeResult },
+            { id: 'section-c2pa', label: 'C2PA', show: result.c2paValid !== null && result.c2paValid !== undefined },
+            { id: 'section-exif', label: 'EXIF', show: !!result.exifAnalysis },
+            { id: 'section-npr', label: 'NPR', show: !!result.nprResult },
+            { id: 'section-jpegGhost', label: 'JPEG Ghost', show: !!result.jpegGhostResult },
+            { id: 'section-ca', label: 'Chromatic', show: !!result.caResult },
+            { id: 'section-region', label: 'Regional', show: hasRegionResults },
+          ].filter(s => s.always || s.show) as navItem}
+            <button
+              onclick={() => {
+                showTechnicalDetails = true;
+                requestAnimationFrame(() => scrollToSection(navItem.id));
+              }}
+              class="flex-shrink-0 px-2.5 py-1 min-h-[28px] text-xs rounded transition-colors duration-150
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite
+                     {activeSection === navItem.id
+                       ? 'bg-lapis/15 text-lapis dark:text-lapis-light font-medium'
+                       : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:bg-gray-100 dark:hover:bg-graphite-light/40'}"
+              aria-label="Jump to {navItem.label} section"
+            >
+              {navItem.label}
+            </button>
+          {/each}
+        </nav>
       {/if}
 
       <!-- ── Summary view ──────────────────────────────────────────── -->
@@ -1726,7 +1921,7 @@
       {/if}
 
       <!-- ── Verdict Summary ──────────────────────────────────────── -->
-      <div class="px-5 py-4 border-b border-border-light dark:border-border-dark">
+      <div id="section-verdict" class="px-5 py-4 border-b border-border-light dark:border-border-dark">
         <VerdictSummary {result} fileName={fileName ?? 'Unknown file'} />
 
         <!-- Contextual caveat -->
@@ -1742,7 +1937,7 @@
       </div>
 
       <!-- ── Signal Agreement ─────────────────────────────────────── -->
-      <div class="px-5 py-3 border-b border-border-dark">
+      <div id="section-signals" class="px-5 py-3 border-b border-border-dark">
         <button
           class="flex items-center gap-2 text-sm text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
@@ -1968,7 +2163,7 @@
       <!-- ── ELA Analysis ──────────────────────────────────────────── -->
       {#if result.elaResult}
         {@const ela = result.elaResult}
-        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="ela-heading">
+        <section id="section-ela" class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="ela-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <h2 id="ela-heading" class="text-sm font-medium text-text-light dark:text-quartz">Error Level Analysis</h2>
@@ -2053,7 +2248,7 @@
       <!-- ── Noise Analysis ────────────────────────────────────────── -->
       {#if result.noiseResult}
         {@const noise = result.noiseResult}
-        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="noise-heading">
+        <section id="section-noise" class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="noise-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <h2 id="noise-heading" class="text-sm font-medium text-text-light dark:text-quartz">Noise Analysis</h2>
@@ -2107,7 +2302,7 @@
       <!-- ── Copy-Move Detection ───────────────────────────────────── -->
       {#if result.copyMoveResult}
         {@const cm = result.copyMoveResult}
-        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="copymove-heading">
+        <section id="section-copymove" class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="copymove-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <h2 id="copymove-heading" class="text-sm font-medium text-text-light dark:text-quartz">Copy-Move Detection</h2>
@@ -2156,7 +2351,7 @@
 
       <!-- ── Region Analysis ───────────────────────────────────────── -->
       {#if hasRegionResults && result}
-        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="region-analysis-heading">
+        <section id="section-region" class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="region-analysis-heading">
 
           <!-- Section header with expand/collapse toggle -->
           <div class="flex items-center justify-between mb-3">
@@ -2557,7 +2752,7 @@
       <!-- ── NPR Analysis ──────────────────────────────────────────── -->
       {#if result.nprResult}
         {@const npr = result.nprResult}
-        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="npr-heading">
+        <section id="section-npr" class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="npr-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <h2 id="npr-heading" class="text-sm font-medium text-text-light dark:text-quartz">Neighbouring Pixel Relationships</h2>
@@ -2614,7 +2809,7 @@
       <!-- ── JPEG Ghost Detection ───────────────────────────────────── -->
       {#if result.jpegGhostResult}
         {@const jg = result.jpegGhostResult}
-        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="jpegGhost-heading">
+        <section id="section-jpegGhost" class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="jpegGhost-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <h2 id="jpegGhost-heading" class="text-sm font-medium text-text-light dark:text-quartz">JPEG Ghost Detection</h2>
@@ -2675,7 +2870,7 @@
       <!-- ── Chromatic Aberration Analysis ─────────────────────────── -->
       {#if result.caResult}
         {@const ca = result.caResult}
-        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="ca-heading">
+        <section id="section-ca" class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="ca-heading">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <h2 id="ca-heading" class="text-sm font-medium text-text-light dark:text-quartz">Chromatic Aberration</h2>
@@ -2796,7 +2991,7 @@
       <!-- ── AI Generation Detection ─────────────────────────────── -->
       {#if result.deepfakeResult}
         {@const df = result.deepfakeResult}
-        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="deepfake-heading">
+        <section id="section-deepfake" class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="deepfake-heading">
           <!-- AI Watermark Detections -->
           {#if df.watermarks?.some(w => w.detected)}
             <div class="mb-3 rounded-md border border-cinnabar/30 bg-cinnabar/10 px-4 py-3">
@@ -2918,7 +3113,7 @@
       <!-- ── EXIF Analysis ─────────────────────────────────────────── -->
       {#if result.exifAnalysis}
         {@const exif = result.exifAnalysis}
-        <section class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="exif-heading">
+        <section id="section-exif" class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="exif-heading">
           <div class="flex items-center justify-between mb-3">
             <h2 id="exif-heading" class="text-sm font-medium text-text-light dark:text-quartz">EXIF Analysis</h2>
             <span class="text-xs text-flint dark:text-flint-light">
@@ -2992,7 +3187,7 @@
       <!-- ── C2PA Credentials ──────────────────────────────────────── -->
       {#if result.c2paManifest}
         {@const manifest = result.c2paManifest}
-        <section class="px-5 py-4" aria-labelledby="c2pa-heading">
+        <section id="section-c2pa" class="px-5 py-4" aria-labelledby="c2pa-heading">
           <div class="flex items-center gap-3 mb-4">
             <h2 id="c2pa-heading" class="text-sm font-medium text-text-light dark:text-quartz">C2PA Credentials</h2>
             <span
@@ -3637,6 +3832,24 @@
   {/if}
 
 </div>
+
+<!-- ── Scroll-to-top button — fixed position, outside main layout flow ─── -->
+{#if showScrollTop}
+  <button
+    onclick={scrollToTop}
+    class="fixed bottom-6 right-6 z-30 w-11 h-11 rounded-full shadow-lg flex items-center justify-center
+           bg-white dark:bg-graphite border border-border-light dark:border-border-dark
+           text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50
+           transition-all duration-150
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+    aria-label="Scroll to top of page"
+    title="Scroll to top"
+  >
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+    </svg>
+  </button>
+{/if}
 
 <!-- ── False Positive Modal ──────────────────────────────────────── -->
 {#if showFalsePositiveModal}

@@ -23,6 +23,9 @@
   const blobs = createBlobTracker();
   onDestroy(() => blobs.revokeAll());
 
+  // ── View layout ──────────────────────────────────────────────────
+  let viewLayout = $state<'list' | 'grid'>('list');
+
   // ── Filter state ───────────────────────────────────────────────────
   let filterContentType = $state<string>('');   // '' = All Types
   let filterStatus     = $state<string>('');   // '' | 'signed' | 'unsigned'
@@ -853,6 +856,50 @@
         Clear filters
       </button>
     {/if}
+
+    <!-- View toggle: List / Grid -->
+    <div
+      class="ml-auto flex-shrink-0 flex items-center rounded border border-border-light dark:border-border-dark overflow-hidden text-xs"
+      role="group"
+      aria-label="Asset view layout"
+    >
+      <button
+        onclick={() => viewLayout = 'list'}
+        class="px-2.5 py-1.5 min-h-[36px] flex items-center gap-1.5 transition-colors duration-150
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
+               {viewLayout === 'list'
+                 ? 'bg-lapis/15 text-lapis dark:text-lapis-light'
+                 : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
+        aria-pressed={viewLayout === 'list'}
+        title="List view"
+        aria-label="Switch to list view"
+      >
+        <!-- List icon -->
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+        </svg>
+        <span class="hidden sm:inline">List</span>
+      </button>
+      <button
+        onclick={() => viewLayout = 'grid'}
+        class="px-2.5 py-1.5 min-h-[36px] flex items-center gap-1.5 border-l border-border-light dark:border-border-dark transition-colors duration-150
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
+               {viewLayout === 'grid'
+                 ? 'bg-lapis/15 text-lapis dark:text-lapis-light'
+                 : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
+        aria-pressed={viewLayout === 'grid'}
+        title="Grid view"
+        aria-label="Switch to grid view"
+      >
+        <!-- Grid icon -->
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" />
+        </svg>
+        <span class="hidden sm:inline">Grid</span>
+      </button>
+    </div>
   </div>
 
   <!-- Batch C2PA sign panel -->
@@ -1334,6 +1381,119 @@
     </div>
 
   {:else if displayedAssets.length > 0}
+
+    <!-- ── Grid view ──────────────────────────────────────────────── -->
+    {#if viewLayout === 'grid'}
+      <div
+        class="grid gap-3"
+        style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));"
+        role="list"
+        aria-label="Asset grid"
+      >
+        {#each displayedAssets as asset (asset.assetId)}
+          <div role="listitem" use:loadThumbnailEffect={asset}>
+            <button
+              class="w-full flex flex-col rounded-lg border overflow-hidden text-left transition-all duration-150 group
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                     {selectedAsset?.assetId === asset.assetId
+                       ? 'border-lapis bg-lapis/5 dark:bg-lapis/10'
+                       : 'border-border-light dark:border-border-dark bg-white dark:bg-graphite hover:border-lapis/50 hover:shadow-sm'}"
+              onclick={() => selectAsset(asset)}
+              aria-expanded={selectedAsset?.assetId === asset.assetId}
+              aria-label="View details for {asset.fileName}"
+            >
+              <!-- Thumbnail -->
+              <div class="w-full aspect-square bg-gray-100 dark:bg-graphite-light flex items-center justify-center overflow-hidden relative">
+                {#if asset.contentType === 'image' && thumbnailUrls[asset.assetId]}
+                  <img
+                    src={thumbnailUrls[asset.assetId]}
+                    alt=""
+                    class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                    loading="lazy"
+                    onerror={() => { thumbnailUrls = { ...thumbnailUrls, [asset.assetId]: '' }; }}
+                  />
+                {:else}
+                  <span class="text-xl font-mono text-flint dark:text-flint-light uppercase">
+                    {asset.fileName.split('.').pop()?.slice(0, 4) ?? contentTypeIcon(asset.contentType)}
+                  </span>
+                {/if}
+                <!-- Status badge overlay -->
+                {#if asset.c2paSigned}
+                  <span
+                    class="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-malachite/90 flex items-center justify-center"
+                    title="C2PA Signed"
+                    aria-label="C2PA Signed"
+                  >
+                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </span>
+                {/if}
+              </div>
+              <!-- Filename -->
+              <div class="px-2 py-2 w-full min-w-0">
+                <p class="text-xs text-text-light dark:text-quartz truncate leading-tight" title={asset.fileName}>
+                  {asset.fileName}
+                </p>
+                <p class="text-[10px] text-flint dark:text-flint-light mt-0.5 truncate">{formatFileSize(asset.fileSize)}</p>
+              </div>
+            </button>
+
+            <!-- Expanded detail panel for grid selected asset -->
+            {#if selectedAsset?.assetId === asset.assetId}
+              {@const meta = getMetadata(asset)}
+              <div
+                class="mt-1 rounded-lg border border-lapis/30 bg-gray-50 dark:bg-obsidian-dark/50 p-3 text-xs space-y-1.5"
+                role="region"
+                aria-label="Asset details for {asset.fileName}"
+              >
+                <p class="text-flint dark:text-flint-light truncate" title={asset.filePath}>{asset.filePath}</p>
+                {#if asset.width && asset.height}
+                  <p class="text-text-light dark:text-quartz">{asset.width} &times; {asset.height} px</p>
+                {/if}
+                {#if meta?.cameraMake || meta?.cameraModel}
+                  <p class="text-flint dark:text-flint-light">{[meta.cameraMake, meta.cameraModel].filter(Boolean).join(' ')}</p>
+                {/if}
+                <!-- Quick action buttons -->
+                <div class="flex flex-wrap gap-1.5 pt-1">
+                  {#if !asset.c2paSigned && canSignC2pa(asset)}
+                    <button
+                      class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
+                      onclick={() => openSigningPanel(asset.assetId, getMetadata(asset)?.artist ?? null)}
+                      aria-label="Sign {asset.fileName} with C2PA"
+                    >
+                      Sign
+                    </button>
+                  {/if}
+                  {#if !asset.watermarked && canSignC2pa(asset)}
+                    <button
+                      class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:border-lapis/50 hover:text-lapis dark:hover:text-lapis-light transition-colors
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
+                      onclick={() => { watermarkAssetId = asset.assetId; }}
+                      aria-label="Watermark {asset.fileName}"
+                    >
+                      Watermark
+                    </button>
+                  {/if}
+                  <button
+                    class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-cinnabar/30 text-cinnabar dark:text-cinnabar-light hover:bg-cinnabar/10 transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-1"
+                    onclick={() => handleDelete(asset.assetId)}
+                    aria-label="Delete {asset.fileName}"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
+
+    {:else}
+
+    <!-- ── List view (default) ─────────────────────────────────────── -->
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark overflow-hidden">
 
       <!-- Column headers (sortable) — desktop only -->
@@ -2130,5 +2290,11 @@
         {/if}
       {/each}
     </div>
+    <!-- End list view -->
+    {/if}
+    <!-- End viewLayout conditional -->
+
   {/if}
+  <!-- End displayedAssets conditional -->
+
 </div>
