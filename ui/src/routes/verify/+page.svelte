@@ -1503,6 +1503,20 @@
       : null
   );
 
+  /** Tracks whether the GPS copy feedback tick is showing. */
+  let gpsCopied = $state(false);
+  let gpsCopyTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Copy GPS decimal coordinates to the clipboard and show brief feedback. */
+  function copyGpsCoords(lat: number, lon: number) {
+    navigator.clipboard.writeText(`${lat.toFixed(6)}, ${lon.toFixed(6)}`).catch(() => {
+      // Clipboard unavailable — silently ignore
+    });
+    if (gpsCopyTimer) clearTimeout(gpsCopyTimer);
+    gpsCopied = true;
+    gpsCopyTimer = setTimeout(() => { gpsCopied = false; }, 2000);
+  }
+
   /** Parse the sunDateInput string (YYYY-MM-DD) into year/month/day parts. */
   function parseSunDate(): { year: number; month: number; day: number } | null {
     const parts = sunDateInput.split('-').map(Number);
@@ -4865,27 +4879,111 @@
             <p class="text-xs text-flint dark:text-flint-light">No anomalies detected in EXIF metadata.</p>
           {/if}
 
-          <!-- GPS coordinates panel -->
+          <!-- GPS coordinates panel — enhanced -->
           {#if exif.gpsLatitude != null && exif.gpsLongitude != null}
-            <div class="flex items-center gap-2 mt-3 px-3 py-2 rounded-md bg-obsidian/30 border border-border-light dark:border-border-dark">
-              <svg class="w-3.5 h-3.5 flex-shrink-0 text-flint dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span class="text-xs text-flint dark:text-flint-light tabular-nums flex-1">
-                {toDMS(exif.gpsLatitude, true)}, {toDMS(exif.gpsLongitude, false)}
-              </span>
-              <button
-                type="button"
-                class="text-xs text-lapis dark:text-lapis-light hover:underline flex-shrink-0
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-                onclick={() => openExternal(`https://www.openstreetmap.org/?mlat=${exif.gpsLatitude}&mlon=${exif.gpsLongitude}#map=15/${exif.gpsLatitude}/${exif.gpsLongitude}`)}
-                aria-label="View GPS location on OpenStreetMap (opens in system browser)"
-              >
-                View on map
-              </button>
+            {@const lat = exif.gpsLatitude}
+            {@const lon = exif.gpsLongitude}
+            <div class="mt-3 rounded-lg border border-border-light dark:border-border-dark bg-white dark:bg-graphite overflow-hidden">
+              <!-- Header row -->
+              <div class="flex items-center gap-2 px-3 py-2 border-b border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40">
+                <svg class="w-3.5 h-3.5 flex-shrink-0 text-lapis dark:text-lapis-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span class="text-xs font-semibold text-text-light dark:text-quartz">GPS Location</span>
+              </div>
+
+              <!-- Coordinate grid -->
+              <div class="px-3 py-2.5 grid grid-cols-2 gap-x-6 gap-y-2">
+                <div>
+                  <p class="text-[10px] uppercase tracking-wide text-flint/60 dark:text-flint-light/60 mb-0.5">DMS</p>
+                  <p class="text-xs tabular-nums text-flint dark:text-flint-light leading-snug">
+                    {toDMS(lat, true)}<br />{toDMS(lon, false)}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-[10px] uppercase tracking-wide text-flint/60 dark:text-flint-light/60 mb-0.5">Decimal degrees</p>
+                  <p class="text-xs tabular-nums text-flint dark:text-flint-light leading-snug">
+                    {lat.toFixed(6)}<br />{lon.toFixed(6)}
+                  </p>
+                </div>
+              </div>
+
+              <!-- Action buttons -->
+              <div class="flex flex-wrap gap-2 px-3 pb-3">
+                <!-- Copy coordinates -->
+                <button
+                  type="button"
+                  onclick={() => copyGpsCoords(lat, lon)}
+                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 min-h-[32px] rounded border
+                         border-border-light dark:border-border-dark
+                         text-flint dark:text-flint-light
+                         hover:border-lapis/40 hover:text-lapis dark:hover:text-lapis-light
+                         transition-colors duration-150
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                         focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                  aria-label={gpsCopied ? 'Coordinates copied' : 'Copy decimal coordinates to clipboard'}
+                >
+                  {#if gpsCopied}
+                    <!-- Tick icon -->
+                    <svg class="w-3 h-3 text-malachite dark:text-malachite-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span class="text-malachite dark:text-malachite-light">Copied</span>
+                  {:else}
+                    <!-- Clipboard icon -->
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    Copy coordinates
+                  {/if}
+                </button>
+
+                <!-- View on OpenStreetMap -->
+                <button
+                  type="button"
+                  onclick={() => openExternal(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=15/${lat}/${lon}`)}
+                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 min-h-[32px] rounded border
+                         border-lapis/30 bg-lapis/10 text-lapis dark:text-lapis-light
+                         hover:bg-lapis/20 hover:border-lapis/50
+                         transition-colors duration-150
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                         focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                  aria-label="View GPS location on OpenStreetMap (opens in system browser)"
+                >
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  OpenStreetMap
+                  <span class="sr-only">(opens in system browser)</span>
+                </button>
+
+                <!-- View on Google Earth -->
+                <button
+                  type="button"
+                  onclick={() => openExternal(`https://earth.google.com/web/@${lat},${lon},0a,1000d,35y,0h,0t,0r`)}
+                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 min-h-[32px] rounded border
+                         border-border-light dark:border-border-dark
+                         text-flint dark:text-flint-light
+                         hover:border-lapis/40 hover:text-lapis dark:hover:text-lapis-light
+                         transition-colors duration-150
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                         focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                  aria-label="View GPS location on Google Earth (opens in system browser)"
+                >
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" stroke-width="2" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10A15.3 15.3 0 018 12a15.3 15.3 0 014-10z" />
+                  </svg>
+                  Google Earth
+                  <span class="sr-only">(opens in system browser)</span>
+                </button>
+              </div>
             </div>
           {/if}
         </section>
@@ -4978,6 +5076,66 @@
               </div>
             </div>
           {/if}
+
+          <!-- ── Provenance Chain Timeline ─────────────────────────── -->
+          <div class="mt-4">
+            <h3 class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-3">Provenance Chain</h3>
+
+            <!--
+              The C2PA manifest exposed by Jura Trace contains a single claim record.
+              Multi-claim ingredient history requires a coalitioned C2PA SDK that traverses
+              nested ingredient manifests — this is planned for a future release.
+              For now, render the single claim as a one-step timeline and note the absence of history.
+            -->
+            <ol class="relative" aria-label="Provenance timeline">
+              <!-- Single claim node -->
+              <li class="relative pl-6 pb-2">
+                <!-- Vertical connector line — hidden for single-item list -->
+                <span
+                  class="absolute left-[7px] top-[18px] bottom-0 w-px bg-border-light dark:bg-border-dark"
+                  aria-hidden="true"
+                ></span>
+                <!-- Dot -->
+                <span
+                  class="absolute left-0 top-1 w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center
+                         {manifest.isValid
+                           ? 'border-malachite bg-malachite/15'
+                           : 'border-cinnabar bg-cinnabar/15'}"
+                  aria-hidden="true"
+                ></span>
+
+                <div class="bg-gray-50 dark:bg-obsidian/30 rounded-md border border-border-light dark:border-border-dark px-3 py-2">
+                  <p class="text-xs font-semibold text-text-light dark:text-quartz mb-0.5">
+                    Signed
+                    {#if manifest.isValid}
+                      <span class="text-malachite dark:text-malachite-light font-medium">(valid)</span>
+                    {:else}
+                      <span class="text-cinnabar dark:text-cinnabar-light font-medium">(invalid)</span>
+                    {/if}
+                  </p>
+                  {#if manifest.claimGenerator}
+                    <p class="text-xs text-flint dark:text-flint-light">
+                      <span class="text-flint/60 dark:text-flint-light/60">Generator:</span>
+                      {manifest.claimGenerator}
+                    </p>
+                  {/if}
+                  {#if manifest.signedAt}
+                    <p class="text-xs text-flint dark:text-flint-light">
+                      <span class="text-flint/60 dark:text-flint-light/60">Date:</span>
+                      {formatSignedAt(manifest.signedAt)}
+                    </p>
+                  {/if}
+                </div>
+              </li>
+            </ol>
+
+            <!-- Ingredient history note -->
+            <p class="mt-2 text-xs text-flint/70 dark:text-flint-light/60 italic leading-relaxed">
+              Single claim — no prior provenance history embedded. Full ingredient chain traversal
+              requires multi-manifest C2PA records created by compatible tools (e.g. Adobe Firefly,
+              Leica cameras, or Content Credentials enabled at capture).
+            </p>
+          </div>
         </section>
 
       {:else if checked}

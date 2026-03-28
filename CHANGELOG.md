@@ -6,6 +6,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Sprint 25 — Pilot Polish (29 Mar 2026)
+
+### Geolocation Intelligence
+
+**Added**
+- Enhanced GPS location panel: DMS + decimal degrees display, "Copy coordinates" with clipboard feedback, OpenStreetMap + Google Earth buttons opening system browser
+- C2PA provenance chain timeline in verify page with single-claim display and multi-claim explanation
+
+### Asset Management
+
+**Added**
+- Sort dropdown on Protect page filter bar (date, name, size — ascending/descending)
+- Wired to existing sortKey/sortDir state for consistency with column header sorting
+
+### Trust Report Enhancements
+
+**Added**
+- Video frame thumbnails in PDF: up to 6 frames in 3x2 grid with timestamps, graceful fallback on decode failure
+- Schema migration v1→v2 for sha256_hash column on existing databases
+
+### Test Counts
+
+- **Rust**: 266 tests, clippy clean
+- **Python**: 367+ tests
+- **Frontend**: 0 svelte-check errors across 223 files
+
+---
+
 ## Sprint 24 — ROI Selection, Shadow Time, Diffusion Detection (29 Mar 2026)
 
 ### Geolocation & Temporal Investigation

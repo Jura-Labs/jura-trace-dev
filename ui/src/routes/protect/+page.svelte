@@ -866,6 +866,33 @@
       </select>
     </div>
 
+    <!-- Sort dropdown -->
+    <div class="flex items-center gap-2">
+      <label for="filter-sort" class="text-xs text-flint dark:text-flint-light uppercase tracking-wide flex-shrink-0">Sort</label>
+      <select
+        id="filter-sort"
+        onchange={(e) => {
+          const val = (e.currentTarget as HTMLSelectElement).value;
+          if (val === 'name-asc')   { sortKey = 'fileName';  sortDir = 'asc';  }
+          else if (val === 'size-desc') { sortKey = 'fileSize';  sortDir = 'desc'; }
+          else if (val === 'size-asc')  { sortKey = 'fileSize';  sortDir = 'asc';  }
+          else if (val === 'date-asc')  { sortKey = 'createdAt'; sortDir = 'asc';  }
+          else                          { sortKey = 'createdAt'; sortDir = 'desc'; }
+        }}
+        value={sortKey === 'fileName' ? 'name-asc' : sortKey === 'fileSize' ? (sortDir === 'desc' ? 'size-desc' : 'size-asc') : (sortDir === 'asc' ? 'date-asc' : 'date-desc')}
+        class="px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite text-text-light dark:text-quartz text-sm
+               hover:border-lapis/50 transition-colors
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+        aria-label="Sort assets by"
+      >
+        <option value="date-desc">Date (newest first)</option>
+        <option value="date-asc">Date (oldest first)</option>
+        <option value="name-asc">Name (A–Z)</option>
+        <option value="size-desc">Size (largest first)</option>
+        <option value="size-asc">Size (smallest first)</option>
+      </select>
+    </div>
+
     <!-- Search input -->
     <div class="flex items-center gap-2 flex-1 min-w-48">
       <label for="filter-search" class="text-xs text-flint dark:text-flint-light uppercase tracking-wide flex-shrink-0 sr-only">Search</label>
