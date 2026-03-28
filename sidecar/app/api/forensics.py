@@ -14,6 +14,7 @@ from app.models.schemas import (
     CopyMoveResponse,
     DeepfakeResponse,
     ElaResponse,
+    ImageDescribeResponse,
     JpegGhostResponse,
     NoiseAnalysisResponse,
     NprResponse,
@@ -28,6 +29,7 @@ from app.models.schemas import (
     WatermarkExtractResponse,
 )
 from app.services.chromatic_aberration import perform_ca_analysis
+from app.services.describe_image import describe_image as _describe_image
 from app.services.claim_checker import check_claims as _check_claims
 from app.services.clip_detector import perform_clip_detection
 from app.services.colour_temperature import perform_colour_temperature
@@ -439,6 +441,33 @@ async def claim_check(
         context=context,
         ollama_base_url=settings.ollama_base_url,
         model=settings.llm_model,
+    )
+
+
+@router.post("/describe", response_model=ImageDescribeResponse)
+async def describe_image(
+    file: UploadFile = File(...),
+) -> ImageDescribeResponse:
+    """
+    Generate a natural-language description of an uploaded image using LLaVA.
+
+    Sends the image to a local Ollama instance running the ``llava:7b``
+    multimodal model.  The description is a 2-4 sentence summary of the
+    image content, composition, and notable features.
+
+    This endpoint always returns HTTP 200.  When Ollama is unavailable or
+    the LLaVA model is not pulled, ``success`` is ``False`` and
+    ``description`` is ``null`` — the caller should degrade gracefully.
+
+    Requires Ollama to be running locally with ``llava:7b`` pulled:
+        ollama pull llava:7b
+    """
+    image_bytes = await _read_and_validate(file)
+
+    return await _describe_image(
+        image_bytes=image_bytes,
+        ollama_base_url=settings.ollama_base_url,
+        model="llava:7b",
     )
 
 

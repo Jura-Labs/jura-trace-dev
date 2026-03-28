@@ -376,6 +376,15 @@ class TranscriptionResponse(BaseModel):
     message: str
 
 
+class ImageDescribeResponse(BaseModel):
+    """AI-generated natural-language description of an image via Ollama LLaVA."""
+
+    description: str | None = None
+    model_used: str
+    success: bool
+    message: str
+
+
 class CapabilitiesResponse(BaseModel):
     """Sidecar capability flags."""
 

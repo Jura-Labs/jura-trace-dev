@@ -569,6 +569,20 @@ pub struct ClaimCheckResult {
     pub summary: String,
 }
 
+/// AI-generated natural-language description of an image via Ollama LLaVA.
+///
+/// `success` is false when Ollama is unavailable or the model is not pulled —
+/// callers should treat `description = None` as a graceful no-op.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageDescribeResult {
+    pub description: Option<String>,
+    #[serde(alias = "model_used")]
+    pub model_used: String,
+    pub success: bool,
+    pub message: String,
+}
+
 /// HTTP client for the Python ML sidecar.
 ///
 /// Cheaply cloneable — the inner `reqwest::blocking::Client` uses an `Arc`
@@ -1125,6 +1139,35 @@ impl SidecarClient {
 
         resp.json::<ClaimCheckResult>()
             .map_err(|e| format!("Failed to parse claim check response: {e}"))
+    }
+
+    /// Request an AI-generated description of an image from Ollama LLaVA.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/describe`.
+    /// Uses a 90-second timeout because LLaVA inference on CPU can be slow.
+    ///
+    /// Returns an [`ImageDescribeResult`] — `success=false` when Ollama is
+    /// unavailable or the model is not pulled, so callers can degrade
+    /// gracefully without treating this as an error.
+    pub fn describe_image(&self, image_path: &Path) -> Result<ImageDescribeResult, String> {
+        let form = self.build_image_form(image_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/describe", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(90))
+            .send()
+            .map_err(|e| format!("Sidecar describe request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!("Sidecar describe returned {status}: {body}"));
+        }
+
+        resp.json::<ImageDescribeResult>()
+            .map_err(|e| format!("Failed to parse describe response: {e}"))
     }
 
     /// Build a multipart form with an image file.

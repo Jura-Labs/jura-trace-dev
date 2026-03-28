@@ -84,6 +84,10 @@ pub struct VerificationResult {
     pub transcription_result: Option<sidecar::TranscriptionResult>,
     /// RAG claim check result (fed by transcription text or other claims).
     pub claim_check_result: Option<sidecar::ClaimCheckResult>,
+    /// AI-generated natural-language description via Ollama LLaVA.
+    /// Only populated for image content in standard/deep/archival modes when
+    /// Ollama is running with a LLaVA model pulled.  `None` when unavailable.
+    pub ai_description: Option<String>,
 }
 
 /// Application statistics for the dashboard.
@@ -1373,6 +1377,43 @@ fn verify_content_inner(
         None
     };
 
+    // ── Tier 3: AI image description via Ollama LLaVA (optional) ─────────
+    // Only for image content in non-quick modes. Runs in the background after
+    // all forensic analysis is complete — if Ollama is unavailable the result
+    // is simply None and the pipeline continues unaffected.
+    let ai_description: Option<String> = if is_image && sidecar_available {
+        let t_describe = std::time::Instant::now();
+        let desc_path = path.to_path_buf();
+        let desc_client = app.sidecar.clone();
+        let describe_out =
+            std::thread::spawn(move || desc_client.describe_image(&desc_path)).join();
+        log::info!("PERF: AI image description took {:?}", t_describe.elapsed());
+        match describe_out {
+            Ok(Ok(r)) if r.success => {
+                log::info!(
+                    "AI description: {} chars via {}",
+                    r.description.as_deref().map(|s| s.len()).unwrap_or(0),
+                    r.model_used
+                );
+                r.description
+            }
+            Ok(Ok(r)) => {
+                log::debug!("AI description unavailable: {}", r.message);
+                None
+            }
+            Ok(Err(e)) => {
+                log::debug!("Sidecar describe failed: {e}");
+                None
+            }
+            Err(_) => {
+                log::warn!("AI description thread panicked");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     // Build metadata flags from findings
     let metadata_flags: Vec<String> = exif_analysis
         .as_ref()
@@ -1501,6 +1542,7 @@ fn verify_content_inner(
         video_deepfake_result,
         transcription_result,
         claim_check_result,
+        ai_description,
     })
 }
 
@@ -3645,6 +3687,7 @@ mod tests {
             video_deepfake_result: None,
             transcription_result: None,
             claim_check_result: None,
+            ai_description: None,
         };
         let json = serde_json::to_string(&result).unwrap();
         assert!(

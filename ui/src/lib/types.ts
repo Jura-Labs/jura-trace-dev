@@ -367,6 +367,9 @@ export interface VerificationResult {
   videoDeepfakeResult?: VideoDeepfakeResult | null;
   transcriptionResult?: TranscriptionResult | null;
   claimCheckResult?: ClaimCheckResult | null;
+  /** AI-generated natural-language description via Ollama LLaVA. Only present
+   * for image content when Ollama is running with llava:7b pulled. */
+  aiDescription?: string | null;
 }
 
 /** Severity level for an EXIF anomaly finding */
