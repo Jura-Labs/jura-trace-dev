@@ -2468,6 +2468,7 @@
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               class="relative group {roiMode ? 'cursor-crosshair' : annotationMode ? 'cursor-crosshair' : 'cursor-zoom-in'}"
+              style="{roiMode || annotationMode ? 'touch-action: none; user-select: none;' : ''}"
               role="presentation"
               bind:this={roiContainerEl}
               onpointerdown={roiMode ? handleRoiPointerDown : annotationMode ? handleAnnotationPointerDown : undefined}
@@ -2476,11 +2477,13 @@
             >
               {#if roiMode || annotationMode}
                 <!-- In ROI / annotation mode the outer click-to-zoom button is replaced
-                     by a plain image so pointer events on the div can drive the gesture. -->
+                     by a plain image so pointer events on the div can drive the gesture.
+                     The image itself is pointer-events-none so all gestures reach the
+                     container div's onpointerdown/move/up handlers. -->
                 <img
                   src={channelImageUrl ?? previewUrl}
                   alt={roiMode ? 'Analysed file — drag to select a region' : 'Analysed file — drag to draw an annotation'}
-                  class="w-full max-h-[400px] object-contain block select-none"
+                  class="w-full max-h-[400px] object-contain block select-none pointer-events-none"
                   loading="lazy"
                   data-preview="true"
                   draggable="false"
