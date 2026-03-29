@@ -37,10 +37,9 @@ _DESCRIBE_PROMPT = (
 )
 
 _EXTRACT_TEXT_PROMPT = (
-    "Read and transcribe ALL visible text in this image exactly as written. "
-    "Include: headlines, body text, captions, watermarks, usernames, dates, "
-    "URLs, and any other text. Preserve the original formatting and line breaks. "
-    "If no text is visible, respond with 'No visible text detected.'"
+    "What text do you see in this image? Read every word on any sign, "
+    "label, screen, document, watermark, caption, chalkboard, poster, "
+    "clothing, or other surface. Transcribe exactly as written."
 )
 
 _LLAVA_MODEL = "llava:7b"
