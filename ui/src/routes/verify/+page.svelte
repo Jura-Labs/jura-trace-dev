@@ -1720,6 +1720,10 @@
   let currentDrawEnd = $state<{ x: number; y: number } | null>(null);
   /** Annotation ID of whichever annotation the pointer is hovering over (for delete button). */
   let hoveredAnnotationId = $state<string | null>(null);
+  /** Pending text annotation placement — CSS coordinates where the user clicked. */
+  let pendingTextPos = $state<{ cssX: number; cssY: number } | null>(null);
+  /** The text being typed for a pending text annotation. */
+  let pendingTextValue = $state('');
 
   /**
    * The annotation container is the same DOM element as roiContainerEl — both
@@ -1812,26 +1816,18 @@
     const endCss = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     currentDrawEnd = null;
 
-    // For text: open a prompt instead of using drag geometry
+    // For text: show an inline input at the click position instead of
+    // window.prompt() which is blocked in Tauri webviews.
     if (annotationTool === 'text') {
-      const text = window.prompt('Enter annotation text:');
-      if (!text?.trim()) {
-        drawStart = null;
-        return;
-      }
-      const origin = cssToNaturalPx(annotationContainerEl, drawStart.x, drawStart.y);
-      if (!origin) { drawStart = null; return; }
-
-      const data: AnnotationData = {
-        x: origin.x,
-        y: origin.y,
-        text: text.trim(),
-        colour: annotationColour,
-        strokeWidth: 2,
-      };
-      const ann = await saveAnnotation('text', JSON.stringify(data));
-      annotations = [...annotations, ann];
+      pendingTextPos = { cssX: drawStart.x, cssY: drawStart.y };
+      pendingTextValue = '';
       drawStart = null;
+      isDrawingAnnotation = false;
+      // Focus the input after it renders
+      requestAnimationFrame(() => {
+        const inp = annotationContainerEl?.querySelector<HTMLInputElement>('[data-annotation-text-input]');
+        inp?.focus();
+      });
       return;
     }
 
@@ -1897,6 +1893,35 @@
     annotations = [];
     hoveredAnnotationId = null;
     await Promise.all(ids.map(id => deleteAnnotationApi(id).catch(() => {})));
+  }
+
+  /** Commit the pending inline text annotation. */
+  async function commitPendingText() {
+    if (!pendingTextPos || !pendingTextValue.trim() || !annotationContainerEl) {
+      pendingTextPos = null;
+      pendingTextValue = '';
+      return;
+    }
+    const origin = cssToNaturalPx(annotationContainerEl, pendingTextPos.cssX, pendingTextPos.cssY);
+    if (!origin) { pendingTextPos = null; return; }
+
+    const data: AnnotationData = {
+      x: origin.x,
+      y: origin.y,
+      text: pendingTextValue.trim(),
+      colour: annotationColour,
+      strokeWidth: 2,
+    };
+    const ann = await saveAnnotation('text', JSON.stringify(data));
+    annotations = [...annotations, ann];
+    pendingTextPos = null;
+    pendingTextValue = '';
+  }
+
+  /** Cancel the pending text annotation. */
+  function cancelPendingText() {
+    pendingTextPos = null;
+    pendingTextValue = '';
   }
 
   /**
@@ -2788,6 +2813,38 @@
                   <span class="text-xs text-white font-medium">
                     {annotationTool === 'text' ? 'Click to place text' : 'Drag to draw'}
                   </span>
+                </div>
+              {/if}
+
+              <!-- Inline text annotation input — positioned at click point -->
+              {#if pendingTextPos}
+                <div
+                  class="absolute z-20 flex items-center gap-1"
+                  style="left: {pendingTextPos.cssX}px; top: {pendingTextPos.cssY}px; transform: translateY(-50%);"
+                >
+                  <input
+                    type="text"
+                    data-annotation-text-input
+                    bind:value={pendingTextValue}
+                    placeholder="Type annotation..."
+                    class="text-xs px-2 py-1 rounded border border-lapis bg-obsidian text-quartz
+                           focus:outline-none focus:ring-2 focus:ring-lapis w-48"
+                    onkeydown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); commitPendingText(); }
+                      if (e.key === 'Escape') { e.preventDefault(); cancelPendingText(); }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    class="text-xs px-2 py-1 rounded bg-lapis text-white hover:bg-lapis-light"
+                    onclick={commitPendingText}
+                  >Add</button>
+                  <button
+                    type="button"
+                    class="text-xs px-1 py-1 text-flint hover:text-cinnabar"
+                    onclick={cancelPendingText}
+                    aria-label="Cancel text annotation"
+                  >&times;</button>
                 </div>
               {/if}
             </div>
