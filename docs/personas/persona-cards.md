@@ -1,20 +1,20 @@
 ---
 title: "Jura Trace — Persona Cards"
-description: "Full persona set for Jura Trace and Jura Check. Covers all four existing personas (updated against the post-v1.0 roadmap) plus six new personas for the expanded professional markets."
-date: 25 March 2026
+description: "Full persona set for Jura Trace and Jura Check. 10 B2B personas (Jura Trace desktop) plus 5 consumer personas (Jura Check concept). 15 total."
+date: 29 March 2026
 status: Living document — update after each major product milestone
-version: 2.0
+version: 3.0
 supersedes: Persona references in FINANCIAL_ROADMAP.md and commercial-expansion-findings.md
 ---
 
 # Jura Trace — Persona Cards
 
-**Version:** 2.0
-**Date:** 25 March 2026
+**Version:** 3.0
+**Date:** 29 March 2026
 **Prepared by:** Juralabs — persona-testing agent
 **Audience:** Co-founders, investors, grant applications, UX research
 
-This document contains ten persona cards covering the full user population for Jura Trace and the Jura Check consumer concept. Personas are grouped by tier.
+This document contains fifteen persona cards covering the full user population for Jura Trace and the Jura Check consumer concept. Personas are grouped by tier.
 
 ---
 
@@ -577,6 +577,219 @@ One consumer persona for the Jura Check product concept (decision gate: June 202
 
 ---
 
+## Part 4: Jura Check Consumer Personas
+
+Four consumer personas for the Jura Check product concept (decision gate: June 2026). These personas are exploratory — they inform Phase 0 research and consumer product design, not Jura Trace desktop product decisions. Together with David Okonkwo (Part 3), they represent the five consumer archetypes that Jura Check must serve.
+
+---
+
+### Persona 11 — Ravi Patel
+
+**eCommerce Buyer**
+
+| Field | Detail |
+|---|---|
+| Age | 29 |
+| Location | Leicester, England |
+| Organisation | N/A — consumer |
+| Product | Jura Check (not Jura Trace — separate product, decision gate June 2026) |
+| Tier | Consumer Personal (£2.99/month — Jura Check pricing, separate from Jura Trace tiers) |
+| Technical comfort | 4 / 5 |
+
+**Background.** Ravi is a junior software developer who buys and sells on eBay, Vinted, and Facebook Marketplace. He was scammed twice in the past year: once by a seller using stock photos instead of actual product images, and once by a listing showing an AI-generated photograph of a trainer that did not match the item delivered. He is technically literate and suspicious of listings that look "too clean." He wants a quick way to check whether a product photograph is genuine before committing money.
+
+**Workflow.**
+- Browses marketplace listings on his phone during commute and evenings
+- When a listing looks suspicious, screenshots the images and does a reverse image search (Google Lens)
+- If Google Lens returns nothing useful, he either takes the risk or walks away
+- Has no systematic way to check if an image is AI-generated or a stock photograph used across multiple listings
+- After being scammed, now defaults to refusing any listing without multiple photos from different angles — but this rules out many legitimate sellers
+
+**Primary use case.** Verify whether product listing photographs are genuine (taken by the seller of the actual item) or synthetic/stock imagery. Quick confidence check before committing to a purchase, especially for items over £50.
+
+**Pain points.**
+- Reverse image search only catches exact duplicates, not AI-generated or edited images
+- No tool exists at consumer price points for checking if a product photo is AI-generated
+- Marketplace platforms' own fraud detection catches only the most obvious cases
+- He wastes time messaging sellers for additional photos when a quick verification check would suffice
+- After two scams, he has lost trust in online marketplaces generally — this affects his willingness to buy
+
+**Key features (Jura Check — not Jura Trace).**
+1. Image upload or paste from clipboard: "Is this photo genuine or AI-generated?"
+2. Stock image detection: "This image appears on 47 other listings"
+3. Metadata check: "This image was taken 3 years ago" (vs. listed as new condition)
+4. Quick result: sub-5-second analysis for a single image
+5. Mobile-first: must work from his phone while browsing listings
+
+**Adoption blockers.**
+- If it takes more than 10 seconds per image — he will not interrupt his browsing workflow
+- If the free tier is too limited to be useful (fewer than 5 checks per day would feel like a tease)
+- If it requires creating an account before the first check — he wants to try before committing
+- If it flags obviously genuine photos as suspicious (calibration trust failure on first use)
+
+**Discovery path.** Reddit r/Scams or r/EbaySellers thread. Tech blog review. App store search for "fake listing checker." Word of mouth from online reseller community.
+
+**Budget and procurement.** Consumer: no procurement process. Free tier for 3–5 checks per day. Would pay £2.99/month if free tier proves useful. Annual plan at £29/year if he uses it weekly.
+
+**Abandonment triggers.** If the first three checks all return "Inconclusive" — he will assume it does not work. If a check says "Authentic" on an image he already knows is fake (from personal experience). If the app drains battery or is slow on mobile.
+
+---
+
+### Persona 12 — Sarah Mitchell
+
+**Parent of Younger Children**
+
+| Field | Detail |
+|---|---|
+| Age | 38 |
+| Location | Norwich, England |
+| Organisation | N/A — consumer |
+| Product | Jura Check (not Jura Trace — separate product, decision gate June 2026) |
+| Tier | Consumer Family (£3.99/month — Jura Check pricing, separate from Jura Trace tiers) |
+| Technical comfort | 2 / 5 |
+
+**Background.** Sarah is a teaching assistant and single mother of two children (son 9, daughter 7). She is not technically confident — she uses her phone for social media, messaging, and shopping, but does not understand how image manipulation works. Her concern is different from David Okonkwo's (Persona 10): her children are younger and consume content passively through YouTube Kids, Roblox, and shared tablets. She became worried after her son showed her a YouTube video of a "real dinosaur discovered in Brazil" that turned out to be entirely AI-generated. He believed it completely. She wants to teach her children to question what they see, but does not have the knowledge to explain how to spot fakes.
+
+**Workflow.**
+- Children use a shared family tablet with YouTube Kids and limited browser access
+- Sarah occasionally reviews what they have been watching but cannot assess content authenticity
+- When her son asks "Is this real?", she Google-searches and sometimes finds a Snopes or Full Fact debunk — but often finds nothing
+- She has no proactive process — she reacts to what the children show her
+
+**Primary use case.** Check specific pieces of content her children show her: "Mum, is this real?" She wants a simple, definitive answer she can relay in age-appropriate language. She also wants to build her own media literacy so she can teach her children.
+
+**Pain points.**
+- She cannot explain how deepfakes work — she barely understands them herself
+- Existing fact-checking sites cover news, not the random viral content her children encounter
+- YouTube Kids' content moderation does not catch AI-generated educational-looking content
+- She feels guilty that she cannot keep up with the technology her children are exposed to
+- Parental control apps block content but do not help her explain why something is fake
+
+**Key features (Jura Check — not Jura Trace).**
+1. Paste a link or upload a screenshot: "Is this real?"
+2. Plain-language explanation: "This image was likely created by AI because..." (not technical jargon)
+3. Age-appropriate summary: a version she can read aloud to a 7-year-old
+4. Media literacy tips: "Here are three things to look for next time"
+5. No account required for basic checks — she will not create an account for something she is unsure about
+
+**Adoption blockers.**
+- If the result uses technical language (ELA, noise analysis, C2PA) — she will not understand it and will not trust it
+- If it requires installing a desktop application — she only uses her phone
+- If the free tier requires a credit card — she will not enter payment details for something she has not tried
+- If the first result is wrong or confusing — she has no technical context to interpret a nuanced answer
+
+**Discovery path.** Mumsnet thread about AI content and children. School newsletter about online safety. BBC News article about deepfakes aimed at children. Recommendation from another parent at school pickup.
+
+**Budget and procurement.** Consumer: extremely price-sensitive. Free tier essential for adoption. Would pay £3.99/month only after several weeks of free use proving valuable. Annual plan at £39/year is the ceiling. Would cancel immediately if she forgets to use it for a month.
+
+**Abandonment triggers.** If the app feels like it is designed for professionals, not parents. If the result says "Inconclusive" when she needs a yes/no for her children. If the interface is cluttered with options she does not understand. If she cannot get a useful result within 30 seconds of opening the app.
+
+---
+
+### Persona 13 — Jordan Hayes
+
+**Content Creator**
+
+| Field | Detail |
+|---|---|
+| Age | 24 |
+| Location | Brighton, England |
+| Organisation | Self-employed content creator (Instagram, TikTok, YouTube) |
+| Product | Jura Check (not Jura Trace — separate product, decision gate June 2026) |
+| Tier | Consumer Creator (£4.99/month — Jura Check pricing, separate from Jura Trace tiers) |
+| Technical comfort | 3 / 5 |
+
+**Background.** Jordan is a full-time content creator with 180,000 Instagram followers and 95,000 TikTok followers, focused on sustainable fashion and lifestyle. They earn approximately £2,800/month through brand partnerships, affiliate links, and a small Patreon. In January 2026, an AI-generated image of them endorsing a weight-loss supplement circulated on Instagram — they had never used or endorsed the product. The brand that created it used their likeness without consent. It took two weeks and a solicitor's letter to get the posts removed. They want to protect their image and prove the authenticity of their own content.
+
+**Workflow.**
+- Creates and publishes 3–5 Instagram posts, 2–3 TikTok videos, and 1 YouTube video per week
+- Uses Canva, Lightroom, and CapCut for editing — these are legitimate edits, not manipulation
+- Occasionally receives messages from followers asking "Is this really you?" when fake endorsements circulate
+- Has no way to prove their legitimate content is authentic or to quickly debunk fakes using their likeness
+- Spends 2–3 hours per month dealing with impersonation and fake endorsement reports
+
+**Primary use case.** Two-sided: (1) Prove that their own published content is genuinely theirs (authenticity certification). (2) Check whether content purporting to show them is genuine or AI-generated (defensive verification). Secondary: verify whether competing creators' content is AI-generated (competitive intelligence).
+
+**Pain points.**
+- No affordable way to prove their content is authentic — C2PA is enterprise-priced
+- Platform reporting for fake endorsements is slow (2–14 days) and often unsuccessful
+- Their editing workflow (colour grading, cropping, filters) triggers false positives on existing AI detection tools
+- Followers' trust is eroding because they cannot distinguish Jordan's real posts from AI fakes
+- Brand partners are starting to ask for authenticity guarantees that Jordan cannot currently provide
+
+**Key features (Jura Check — not Jura Trace).**
+1. Authenticity badge or certificate for their own published content: "This content is verified as created by Jordan Hayes"
+2. Quick check: "Is this image of me real or AI-generated?" for defensive debunking
+3. Sharing-friendly result: a visual card they can post to Stories showing "Verified Authentic" or "This is a fake"
+4. Batch check: verify 5–10 posts at once when a wave of fakes appears
+5. Integration with their existing workflow: does not add more than 2 minutes per post
+
+**Adoption blockers.**
+- If authenticity certification makes their legitimately edited content look suspicious (false positives on Lightroom edits)
+- If the verification badge is not visually appealing enough to share on Instagram/TikTok
+- If it requires desktop software — their entire workflow is mobile
+- If Creator tier pricing exceeds £5/month — they track every expense against revenue
+
+**Discovery path.** Creator economy newsletter (The Publish Press, Creator Spotlight). Instagram creator community. TikTok creator fund resources. Recommendation from a brand partner or talent agency. Searched "prove my content is real" after a fake endorsement incident.
+
+**Budget and procurement.** Consumer: treats it as a business expense. Would pay £4.99/month if it demonstrably prevents fake endorsement damage. Annual plan at £49/year. Would expense it against brand partnership income. Cancels if not used in the last 30 days — creator tools are ruthlessly evaluated on ongoing utility.
+
+**Abandonment triggers.** If the authenticity badge looks generic or "corporate" — their aesthetic is everything. If legitimate edits (colour grading, cropping, text overlays) cause their own content to be flagged as manipulated. If the sharing card format does not fit Instagram Stories dimensions. If a well-known creator publicly dismisses the tool.
+
+---
+
+### Persona 14 — Priya Chakraborty
+
+**News Consumer**
+
+| Field | Detail |
+|---|---|
+| Age | 45 |
+| Location | Reading, England |
+| Organisation | N/A — consumer |
+| Product | Jura Check (not Jura Trace — separate product, decision gate June 2026) |
+| Tier | Consumer Free / Personal (Free with limits, or £1.99/month — Jura Check pricing, separate from Jura Trace tiers) |
+| Technical comfort | 3 / 5 |
+
+**Background.** Priya is a GP (general practitioner) who reads news extensively — The Guardian, BBC, and various health-related sources — and is active on X (formerly Twitter) and LinkedIn. She became concerned about misinformation after sharing an article on WhatsApp family group chat that turned out to contain an AI-generated photograph. Her brother-in-law fact-checked it and she was embarrassed. As a doctor, she is acutely aware that medical misinformation (AI-generated images of fake conditions, fabricated drug trial results, synthetic doctor endorsements) is a growing public health risk. She wants a personal tool to verify images before sharing.
+
+**Workflow.**
+- Reads 15–20 articles per day across multiple sources
+- Shares 2–3 articles per day to WhatsApp groups, LinkedIn, and X
+- When something looks suspicious, she checks BBC Verify, Full Fact, or Snopes — but coverage is patchy
+- For health-related claims, she cross-references with NHS, NICE, or PubMed — but this does not cover image authenticity
+- Has no process for checking whether a photograph in an article is genuine
+
+**Primary use case.** Before sharing an article or image: "Is this photograph real?" She wants to avoid the embarrassment of sharing misinformation and, more importantly, wants to avoid amplifying health misinformation in her professional and family networks.
+
+**Pain points.**
+- Fact-checking sites are reactive — they debunk after viral spread, not before she shares
+- She cannot assess image authenticity visually — AI-generated medical imagery is highly convincing
+- WhatsApp family groups are a major vector for misinformation in her community, and she is often the "trusted source" who is expected to verify
+- No existing tool lets her check an image in under 10 seconds between patients
+- She feels a professional responsibility not to spread health misinformation but has no practical way to verify visual content
+
+**Key features (Jura Check — not Jura Trace).**
+1. URL or image check: paste a link or screenshot, get a quick authenticity assessment
+2. Source credibility context: "This image first appeared on [source] on [date]"
+3. Health misinformation flag: specific alerts for medical imagery and health claims
+4. Share-safe indicator: "This appears safe to share" or "Check before sharing"
+5. WhatsApp-friendly sharing: result format that works when forwarded in a message
+
+**Adoption blockers.**
+- If it takes more than 15 seconds — she checks between patient appointments
+- If it requires technical understanding to interpret results — she is medically literate, not technically literate
+- If the free tier allows fewer than 3 checks per day — her minimum useful threshold
+- If it does not work on mobile — she reads and shares from her phone
+
+**Discovery path.** NHS digital literacy resources. British Medical Association newsletter. Full Fact or BBC Verify social media post. The Guardian article about AI-generated medical misinformation. Recommendation from a colleague at her GP surgery.
+
+**Budget and procurement.** Consumer: would use free tier indefinitely if sufficient. Would pay £1.99/month if the free tier feels limiting and she is using it daily. Annual plan at £19/year maximum. As a NHS-salaried GP, she is comfortable with small digital subscriptions but does not consider tools like this essential spending.
+
+**Abandonment triggers.** If it flags a genuine BBC photograph as suspicious — immediate trust failure. If it cannot handle URLs (she shares links, not screenshots). If the result is ambiguous on a piece of content she already knows is fake (from a fact-checker). If the app sends marketing emails or push notifications.
+
+---
+
 ## Appendix A: Tier Assignment Summary
 
 | Persona | Name | Role | Tier | Price |
@@ -591,6 +804,10 @@ One consumer persona for the Jura Check product concept (decision gate: June 202
 | 8 | Amara Diallo | Human Rights Coordinator | Grant-Subsidised | Free (application) |
 | 9 | Richard Ashworth | Corporate Comms Director | Enterprise | From £6,000/year |
 | 10 | David Okonkwo | Concerned Parent (Jura Check) | Consumer freemium | £3.99/month |
+| 11 | Ravi Patel | eCommerce Buyer (Jura Check) | Consumer Personal | £2.99/month |
+| 12 | Sarah Mitchell | Parent of Younger Children (Jura Check) | Consumer Family | £3.99/month |
+| 13 | Jordan Hayes | Content Creator (Jura Check) | Consumer Creator | £4.99/month |
+| 14 | Priya Chakraborty | News Consumer (Jura Check) | Consumer Free / Personal | Free / £1.99/month |
 
 ---
 
@@ -624,8 +841,11 @@ This table maps the post-v1.0 backlog items (from `docs/strategic-pivot-assessme
 | BBC Verify direct outreach / WITNESS network | James |
 | WITNESS / Berkeley Protocol working group / OSJI | Amara |
 | CISO peer network / security conferences | Richard |
-| Parental safety organisations / UK government media literacy campaign | David |
+| Parental safety organisations / UK government media literacy campaign | David, Sarah M |
+| Reddit r/Scams, online reseller communities, tech blogs | Ravi |
+| Creator economy newsletters, talent agencies, TikTok creator resources | Jordan |
+| NHS digital literacy, BMA newsletter, Full Fact, Guardian health coverage | Priya |
 
 ---
 
-*Version 2.0 — 25 March 2026. Next review: after v1.0 ships (June 2026) and after Phase 0 Jura Check parent interviews complete (May–June 2026).*
+*Version 3.0 — 29 March 2026. Next review: after v1.0 ships (June 2026) and after Phase 0 Jura Check parent interviews complete (May–June 2026).*

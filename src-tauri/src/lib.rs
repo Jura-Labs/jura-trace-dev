@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::{Manager, State};
 use tauri_plugin_shell::ShellExt;
 
@@ -16,6 +16,9 @@ mod metadata;
 mod sidecar;
 mod sun_position;
 mod watermark;
+
+#[cfg(feature = "api")]
+pub mod api;
 
 use error::AppError;
 
@@ -224,7 +227,7 @@ pub struct AppState {
 
 /// Get application statistics for the dashboard.
 #[tauri::command]
-fn get_stats(state: State<'_, Mutex<AppState>>) -> Result<AppStats, String> {
+fn get_stats(state: State<'_, Arc<Mutex<AppState>>>) -> Result<AppStats, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     app.db.get_stats().map_err(|e| e.to_string())
 }
@@ -252,7 +255,7 @@ const MAX_IMAGE_DIMENSION_PX: u32 = 20_000;
 #[tauri::command]
 fn import_files(
     paths: Vec<String>,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<Vec<Asset>, AppError> {
     log::info!("Importing {} file(s)", paths.len());
     let app = state
@@ -494,7 +497,7 @@ fn import_files(
 
 /// Get all assets from the local database.
 #[tauri::command]
-fn get_assets(state: State<'_, Mutex<AppState>>) -> Result<Vec<Asset>, String> {
+fn get_assets(state: State<'_, Arc<Mutex<AppState>>>) -> Result<Vec<Asset>, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     app.db.get_all_assets().map_err(|e| e.to_string())
 }
@@ -719,7 +722,7 @@ fn verify_content_inner(
     source: &str,
     source_type: &str,
     mode: Option<&str>,
-    state: &State<'_, Mutex<AppState>>,
+    state: &Mutex<AppState>,
 ) -> Result<VerificationResult, AppError> {
     // ── Overall pipeline timer ───────────────────────────────────────────
     let t_pipeline = std::time::Instant::now();
@@ -1672,13 +1675,77 @@ fn verify_content(
     source: String,
     source_type: String,
     mode: Option<String>,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<VerificationResult, AppError> {
     log::info!(
         "Verifying content: {source} ({source_type}) [mode={:?}]",
         mode
     );
-    verify_content_inner(&source, &source_type, mode.as_deref(), &state)
+    verify_content_inner(
+        &source,
+        &source_type,
+        mode.as_deref(),
+        state.inner().as_ref(),
+    )
+}
+
+/// Verify a URL — shared inner body used by both the Tauri command and the API.
+#[allow(dead_code)] // used by API module
+pub(crate) fn verify_url_inner(
+    url: &str,
+    mode: Option<&str>,
+    state: &Mutex<AppState>,
+) -> Result<VerificationResult, AppError> {
+    // URL validation — reuse the same logic as the Tauri command
+    let parsed =
+        url::Url::parse(url).map_err(|_| AppError::Validation("Invalid URL format".to_string()))?;
+    let scheme = parsed.scheme();
+    if scheme != "http" && scheme != "https" {
+        return Err(AppError::Validation(
+            "Only http and https URLs are supported".to_string(),
+        ));
+    }
+    // SECURITY: block loopback/private ranges except our own sidecar
+    if let Some(host) = parsed.host_str() {
+        let is_loopback = host == "localhost"
+            || host == "127.0.0.1"
+            || host == "::1"
+            || host.starts_with("192.168.")
+            || host.starts_with("10.")
+            || host.starts_with("172.");
+        if is_loopback {
+            return Err(AppError::Validation(
+                "URL targets a local or private address".to_string(),
+            ));
+        }
+    }
+
+    // Download to a temp file then verify
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| AppError::Internal(format!("Failed to build HTTP client: {e}")))?;
+    let resp = client
+        .get(url)
+        .send()
+        .map_err(|e| AppError::Sidecar(format!("Failed to fetch URL: {e}")))?;
+    if !resp.status().is_success() {
+        return Err(AppError::Validation(format!(
+            "URL returned status {}",
+            resp.status()
+        )));
+    }
+    let bytes = resp
+        .bytes()
+        .map_err(|e| AppError::Sidecar(format!("Failed to read response body: {e}")))?;
+
+    use std::io::Write;
+    let mut tmp =
+        tempfile::NamedTempFile::new().map_err(|e| AppError::FileSystem(e.to_string()))?;
+    tmp.write_all(&bytes)
+        .map_err(|e| AppError::FileSystem(e.to_string()))?;
+    let tmp_path = tmp.path().to_string_lossy().to_string();
+    verify_content_inner(&tmp_path, "url", mode, state)
 }
 
 /// Sign an asset with C2PA Content Credentials.
@@ -1687,7 +1754,7 @@ fn sign_asset(
     asset_id: String,
     creator_name: String,
     license: Option<String>,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
     app_handle: tauri::AppHandle,
 ) -> Result<Asset, AppError> {
     let app = state
@@ -1834,7 +1901,7 @@ fn verify_c2pa(file_path: String) -> Result<Option<c2pa::ManifestInfo>, AppError
 #[tauri::command]
 fn get_fingerprints(
     asset_id: String,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<Vec<fingerprint::Fingerprint>, AppError> {
     let app = state
         .lock()
@@ -1860,7 +1927,7 @@ fn get_fingerprints(
 fn find_similar(
     asset_id: String,
     threshold: Option<u32>,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<Vec<fingerprint::SimilarAsset>, AppError> {
     let max_distance = threshold.unwrap_or(10);
     let app = state
@@ -1931,7 +1998,7 @@ fn get_filtered_assets(
     content_type: Option<String>,
     c2pa_signed: Option<bool>,
     search_query: Option<String>,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<Vec<Asset>, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     app.db
@@ -1945,7 +2012,7 @@ fn get_filtered_assets(
 
 /// Delete an asset by ID.
 #[tauri::command]
-fn delete_asset(asset_id: String, state: State<'_, Mutex<AppState>>) -> Result<(), String> {
+fn delete_asset(asset_id: String, state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     app.db.delete_asset(&asset_id).map_err(|e| e.to_string())?;
     let _ = app
@@ -1959,7 +2026,7 @@ fn delete_asset(asset_id: String, state: State<'_, Mutex<AppState>>) -> Result<(
 #[tauri::command]
 fn get_recent_assets(
     limit: Option<u32>,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<Vec<Asset>, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     app.db
@@ -1975,7 +2042,7 @@ fn get_recent_assets(
 fn verify_url(
     url: String,
     mode: Option<String>,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<VerificationResult, AppError> {
     // Redact query string and fragment before logging — URLs may contain
     // credentials or tokens in the query string (e.g. ?token=abc123).
@@ -2102,7 +2169,8 @@ fn verify_url(
     let temp_str = temp_path.to_string_lossy().to_string();
 
     // Run through verify pipeline
-    let mut result = verify_content_inner(&temp_str, "url", mode.as_deref(), &state)?;
+    let mut result =
+        verify_content_inner(&temp_str, "url", mode.as_deref(), state.inner().as_ref())?;
     result.source_type = "url".to_string();
 
     Ok(result)
@@ -2111,7 +2179,7 @@ fn verify_url(
 /// Check the ML sidecar health status.
 #[tauri::command]
 fn check_sidecar_health(
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<sidecar::SidecarHealth, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     app.sidecar.check_health()
@@ -2130,7 +2198,7 @@ fn check_sidecar_health(
 fn analyse_video_deepfake(
     file_path: String,
     mode: String,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<sidecar::VideoDeepfakeResult, String> {
     if file_path.contains('\0') {
         return Err("Invalid file path".to_string());
@@ -2173,7 +2241,7 @@ fn analyse_video_deepfake(
 #[tauri::command]
 fn extract_text_from_image(
     file_path: String,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<String, String> {
     if file_path.contains('\0') {
         return Err("Invalid file path".to_string());
@@ -2219,7 +2287,7 @@ pub struct MetadataSigningWarning {
 #[tauri::command]
 fn check_metadata_before_sign(
     asset_id: String,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<MetadataSigningWarning, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     let asset = app
@@ -2294,7 +2362,7 @@ fn embed_watermark_asset(
     asset_id: String,
     payload_hex: String,
     strength: Option<u32>,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<watermark::WatermarkResult, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
 
@@ -2409,7 +2477,7 @@ fn mark_false_positive(
     deepfake_score: Option<f64>,
     deepfake_verdict: Option<String>,
     signal_scores_json: Option<String>,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<String, String> {
     let report_id = uuid::Uuid::new_v4().to_string();
     let created_at = chrono::Utc::now().to_rfc3339();
@@ -2453,7 +2521,7 @@ fn mark_false_positive(
 ///
 /// Intended for the Settings page to surface calibration data to the user.
 #[tauri::command]
-fn get_false_positive_stats(state: State<'_, Mutex<AppState>>) -> Result<u64, String> {
+fn get_false_positive_stats(state: State<'_, Arc<Mutex<AppState>>>) -> Result<u64, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     app.db.get_false_positive_count().map_err(|e| e.to_string())
 }
@@ -2469,7 +2537,7 @@ fn get_false_positive_stats(state: State<'_, Mutex<AppState>>) -> Result<u64, St
 /// `prev_hash`/`entry_hash` columns) are skipped; only entries with hash
 /// columns are verified.
 #[tauri::command]
-fn verify_audit_integrity(state: State<'_, Mutex<AppState>>) -> Result<bool, String> {
+fn verify_audit_integrity(state: State<'_, Arc<Mutex<AppState>>>) -> Result<bool, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     app.db.verify_audit_chain().map_err(|e| e.to_string())
 }
@@ -2482,7 +2550,7 @@ fn verify_audit_integrity(state: State<'_, Mutex<AppState>>) -> Result<bool, Str
 /// `MonitorUrl` struct. `frequency` defaults to `"daily"` when omitted.
 #[tauri::command]
 fn add_monitor_url(
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
     url: String,
     label: Option<String>,
     asset_id: Option<String>,
@@ -2501,7 +2569,10 @@ fn add_monitor_url(
 
 /// Remove a monitored URL and all its events (CASCADE).
 #[tauri::command]
-fn remove_monitor_url(state: State<'_, Mutex<AppState>>, url_id: String) -> Result<(), String> {
+fn remove_monitor_url(
+    state: State<'_, Arc<Mutex<AppState>>>,
+    url_id: String,
+) -> Result<(), String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     app.db
         .remove_monitor_url(&url_id)
@@ -2514,7 +2585,7 @@ fn remove_monitor_url(state: State<'_, Mutex<AppState>>, url_id: String) -> Resu
 /// all URLs (enabled and disabled) when `enabled_only` is omitted.
 #[tauri::command]
 fn list_monitor_urls(
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
     enabled_only: Option<bool>,
 ) -> Result<Vec<db::MonitorUrl>, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
@@ -2528,7 +2599,7 @@ fn list_monitor_urls(
 /// `limit` defaults to 50 when omitted.
 #[tauri::command]
 fn get_monitor_events(
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
     url_id: String,
     limit: Option<u32>,
 ) -> Result<Vec<db::MonitorEvent>, String> {
@@ -2543,7 +2614,7 @@ fn get_monitor_events(
 /// Also stamps `case_updated_at` with the current UTC time.
 #[tauri::command]
 fn update_monitor_case_status(
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
     event_id: String,
     status: String,
     notes: Option<String>,
@@ -2571,7 +2642,7 @@ fn update_monitor_case_status(
 /// Assembles protection statistics, trust distribution, the 20 most recent
 /// audit log entries, and a 30-day activity timeline.
 #[tauri::command]
-fn get_monitor_overview(state: State<'_, Mutex<AppState>>) -> Result<MonitorOverview, String> {
+fn get_monitor_overview(state: State<'_, Arc<Mutex<AppState>>>) -> Result<MonitorOverview, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     let protection = app.db.get_protection_summary().map_err(|e| e.to_string())?;
     let trust = app.db.get_trust_distribution().map_err(|e| e.to_string())?;
@@ -2594,7 +2665,7 @@ fn get_monitor_overview(state: State<'_, Mutex<AppState>>) -> Result<MonitorOver
 /// filter on the `action` column (e.g. `"import"`, `"verify"`, `"sign"`).
 #[tauri::command]
 fn get_audit_log(
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
     limit: Option<u32>,
     action_filter: Option<String>,
 ) -> Result<Vec<AuditLogEntry>, String> {
@@ -2609,7 +2680,7 @@ fn get_audit_log(
 /// `limit` defaults to 20 and `offset` defaults to 0 when omitted.
 #[tauri::command]
 fn get_verification_history(
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
     limit: Option<u32>,
     offset: Option<u32>,
 ) -> Result<Vec<VerificationSummary>, String> {
@@ -2646,7 +2717,7 @@ pub enum LicenceTier {
 /// `Community`. This command is intended for the Settings page and for
 /// pilot demonstrations; it does not enforce feature gates.
 #[tauri::command]
-fn get_licence_tier(state: State<'_, Mutex<AppState>>) -> Result<LicenceTier, String> {
+fn get_licence_tier(state: State<'_, Arc<Mutex<AppState>>>) -> Result<LicenceTier, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     Ok(app.licence_tier)
 }
@@ -2659,7 +2730,7 @@ fn get_licence_tier(state: State<'_, Mutex<AppState>>) -> Result<LicenceTier, St
 #[tauri::command]
 fn set_licence_tier(
     app_handle: tauri::AppHandle,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
     tier: LicenceTier,
 ) -> Result<(), String> {
     let data_dir = app_handle
@@ -2879,7 +2950,7 @@ fn resolve_db_path(app: &tauri::App) -> PathBuf {
 
 /// Return the current database file path as a string.
 #[tauri::command]
-async fn get_db_path(state: State<'_, Mutex<AppState>>) -> Result<String, String> {
+async fn get_db_path(state: State<'_, Arc<Mutex<AppState>>>) -> Result<String, String> {
     let app = state.lock().map_err(|e| e.to_string())?;
     Ok(app.db_path.clone())
 }
@@ -2893,7 +2964,7 @@ async fn get_db_path(state: State<'_, Mutex<AppState>>) -> Result<String, String
 #[tauri::command]
 async fn set_db_path(
     app_handle: tauri::AppHandle,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
     new_path: String,
 ) -> Result<String, String> {
     // SECURITY: Guard against null-byte injection in the path.
@@ -3021,7 +3092,7 @@ fn save_annotation(
     data_json: String,
     asset_id: Option<String>,
     verification_id: Option<String>,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<db::Annotation, AppError> {
     let ann = db::Annotation {
         annotation_id: uuid::Uuid::new_v4().to_string(),
@@ -3049,7 +3120,7 @@ fn save_annotation(
 fn get_annotations(
     asset_id: Option<String>,
     verification_id: Option<String>,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<Vec<db::Annotation>, AppError> {
     let guard = state
         .lock()
@@ -3076,7 +3147,7 @@ fn get_annotations(
 #[tauri::command]
 fn delete_annotation(
     annotation_id: String,
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<(), AppError> {
     let guard = state
         .lock()
@@ -3411,13 +3482,46 @@ pub fn run() {
                 sidecar_child.is_some()
             );
 
-            app.manage(Mutex::new(AppState {
+            let shared_state = Arc::new(Mutex::new(AppState {
                 db: database,
                 sidecar: sidecar_client,
                 db_path: db_path.to_string_lossy().into_owned(),
                 licence_tier,
                 sidecar_process: sidecar_child,
             }));
+
+            // ── Local REST API server (port 8300) ────────────────────────────
+            // Spawned in the Tauri async runtime so it shares the tokio executor
+            // without blocking the setup thread. Binds to 127.0.0.1 only.
+            // Skipped if the `api` feature is not compiled in.
+            #[cfg(feature = "api")]
+            {
+                let api_state = shared_state.clone();
+                tauri::async_runtime::spawn(async move {
+                    // Bootstrap a first API key if the database has none yet.
+                    if let Ok(mut guard) = api_state.lock() {
+                        match guard.db.ensure_bootstrap_api_key() {
+                            Ok(Some(key)) => {
+                                log::info!("API server bootstrap key (store securely): jt_{}", key);
+                            }
+                            Ok(None) => {
+                                log::info!(
+                                    "API server: existing API key(s) found, no bootstrap needed"
+                                );
+                            }
+                            Err(e) => {
+                                log::warn!("API server: bootstrap key creation failed: {e}");
+                            }
+                        }
+                    }
+
+                    if let Err(e) = api::start_server(api_state, 8300).await {
+                        log::error!("API server error: {e}");
+                    }
+                });
+            }
+
+            app.manage(shared_state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

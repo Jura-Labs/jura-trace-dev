@@ -60,8 +60,18 @@ tempfile = "3"
 blind_watermark = "0.1"
 bitvec = "1"
 
+# HTTP server for local REST API wrapper (port 8300)
+axum = { version = "0.8", features = ["multipart"], optional = true }
+tower = { version = "0.5", optional = true }
+tower-http = { version = "0.6", features = ["cors", "trace", "limit"], optional = true }
+utoipa = { version = "5", features = ["axum_extras"], optional = true }
+utoipa-swagger-ui = { version = "8", features = ["axum"], optional = true }
+dashmap = { version = "6", optional = true }
+tokio = { version = "1", features = ["net", "rt", "macros", "sync"], optional = true }
+
 [dev-dependencies]
 
 [features]
-default = ["custom-protocol"]
+default = ["custom-protocol", "api"]
 custom-protocol = ["tauri/custom-protocol"]
+api = ["axum", "tower", "tower-http", "utoipa", "utoipa-swagger-ui", "dashmap", "tokio"]

@@ -30,7 +30,7 @@ impl Database {
     }
 
     /// Schema version — increment when adding migrations.
-    const SCHEMA_VERSION: i32 = 3;
+    const SCHEMA_VERSION: i32 = 4;
 
     /// Create tables if they do not already exist, and run any pending migrations.
     ///
@@ -89,6 +89,25 @@ impl Database {
             )?;
             conn.pragma_update(None, "user_version", 3)?;
             log::info!("Database migrated to schema version 3 (annotations table)");
+        }
+
+        // Version 3 → 4: add api_keys table for the local REST API wrapper
+        if current_version < 4 {
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS api_keys (
+                    key_id       TEXT PRIMARY KEY,
+                    name         TEXT NOT NULL,
+                    key_hash     TEXT NOT NULL UNIQUE,
+                    rate_limit   INTEGER NOT NULL DEFAULT 100,
+                    revoked      INTEGER NOT NULL DEFAULT 0,
+                    created_at   TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_api_keys_hash
+                    ON api_keys(key_hash)
+                    WHERE revoked = 0;",
+            )?;
+            conn.pragma_update(None, "user_version", 4)?;
+            log::info!("Database migrated to schema version 4 (api_keys table)");
         }
 
         Ok(())
@@ -238,6 +257,19 @@ impl Database {
                 ON annotations(asset_id);
             CREATE INDEX IF NOT EXISTS idx_annotations_verification
                 ON annotations(verification_id);
+
+            CREATE TABLE IF NOT EXISTS api_keys (
+                key_id       TEXT PRIMARY KEY,
+                name         TEXT NOT NULL,
+                key_hash     TEXT NOT NULL UNIQUE,
+                rate_limit   INTEGER NOT NULL DEFAULT 100,
+                revoked      INTEGER NOT NULL DEFAULT 0,
+                created_at   TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_api_keys_hash
+                ON api_keys(key_hash)
+                WHERE revoked = 0;
             ",
         )?;
 
@@ -1464,6 +1496,136 @@ pub struct AssetRow {
     pub created_at: String,
     /// SHA-256 hex digest of the file contents at import time.
     pub sha256_hash: Option<String>,
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// API key types
+// ───────────────────────────────────────────────────────────────────────────
+
+/// A row from the `api_keys` table.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiKeyRecord {
+    pub key_id: String,
+    pub name: String,
+    /// SHA-256 hex hash of the raw key — never the raw key itself.
+    pub key_hash: String,
+    /// Maximum requests per minute allowed for this key.
+    pub rate_limit: i64,
+    pub revoked: bool,
+    pub created_at: String,
+}
+
+// ── API key database operations ──────────────────────────────────────────
+
+impl Database {
+    /// Create a new API key entry.
+    ///
+    /// The caller must supply the SHA-256 hash of the raw key; the raw key is
+    /// never stored. Returns the newly inserted `key_id`.
+    pub fn create_api_key(
+        &self,
+        key_id: &str,
+        name: &str,
+        key_hash: &str,
+        rate_limit: i64,
+    ) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO api_keys (key_id, name, key_hash, rate_limit, revoked, created_at)
+             VALUES (?1, ?2, ?3, ?4, 0, ?5)",
+            params![key_id, name, key_hash, rate_limit, now],
+        )?;
+        Ok(())
+    }
+
+    /// Look up a non-revoked API key by its SHA-256 hash.
+    ///
+    /// Returns `None` when the hash is not found or the key has been revoked.
+    pub fn verify_api_key(&self, key_hash: &str) -> SqliteResult<Option<ApiKeyRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT key_id, name, key_hash, rate_limit, revoked, created_at
+             FROM api_keys
+             WHERE key_hash = ?1 AND revoked = 0
+             LIMIT 1",
+        )?;
+        let mut rows = stmt.query_map(params![key_hash], |row| {
+            Ok(ApiKeyRecord {
+                key_id: row.get(0)?,
+                name: row.get(1)?,
+                key_hash: row.get(2)?,
+                rate_limit: row.get(3)?,
+                revoked: row.get::<_, i64>(4)? != 0,
+                created_at: row.get(5)?,
+            })
+        })?;
+        rows.next().transpose()
+    }
+
+    /// Return all API keys (including revoked), ordered by creation time descending.
+    pub fn list_api_keys(&self) -> SqliteResult<Vec<ApiKeyRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT key_id, name, key_hash, rate_limit, revoked, created_at
+             FROM api_keys
+             ORDER BY created_at DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(ApiKeyRecord {
+                key_id: row.get(0)?,
+                name: row.get(1)?,
+                key_hash: row.get(2)?,
+                rate_limit: row.get(3)?,
+                revoked: row.get::<_, i64>(4)? != 0,
+                created_at: row.get(5)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Revoke an API key by setting its `revoked` flag to 1.
+    ///
+    /// Revoking a non-existent key is a no-op and returns `Ok(())`.
+    pub fn revoke_api_key(&self, key_id: &str) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE api_keys SET revoked = 1 WHERE key_id = ?1",
+            params![key_id],
+        )?;
+        Ok(())
+    }
+
+    /// Return `true` if there is at least one non-revoked API key in the database.
+    pub fn has_active_api_keys(&self) -> SqliteResult<bool> {
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM api_keys WHERE revoked = 0",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
+    }
+
+    /// Create a bootstrap API key if none exist yet.
+    ///
+    /// Returns `Some(raw_key)` when a new key was created, or `None` when
+    /// active keys already existed.  The raw key is returned exactly once —
+    /// it is the caller's responsibility to log it securely.
+    pub fn ensure_bootstrap_api_key(&mut self) -> SqliteResult<Option<String>> {
+        if self.has_active_api_keys()? {
+            return Ok(None);
+        }
+        use sha2::{Digest, Sha256};
+        let raw_key = uuid::Uuid::new_v4().to_string().replace('-', "");
+        let key_id = uuid::Uuid::new_v4().to_string();
+        let mut hasher = Sha256::new();
+        hasher.update(raw_key.as_bytes());
+        let key_hash = format!("{:x}", hasher.finalize());
+        self.create_api_key(&key_id, "bootstrap", &key_hash, 100)?;
+        Ok(Some(raw_key))
+    }
 }
 
 #[cfg(test)]
