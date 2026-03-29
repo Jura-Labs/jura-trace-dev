@@ -2589,7 +2589,7 @@
                 {@const imgEl = _annContainer?.querySelector<HTMLImageElement>('img[data-preview="true"]') ?? null}
                 {#if imgEl && imgEl.complete && imgEl.naturalWidth > 0 && _annContainer}
                   <svg
-                    class="absolute inset-0 w-full h-full"
+                    class="absolute inset-0 w-full h-full pointer-events-none"
                     style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
                     aria-label="Image annotations"
                     role="img"
@@ -2633,6 +2633,7 @@
                         <!-- svelte-ignore a11y_no_static_element_interactions -->
                         <g
                           class="cursor-pointer"
+                          style="pointer-events: {isDrawingAnnotation ? 'none' : 'auto'};"
                           role="graphics-symbol"
                           aria-label="{ann.annotationType} annotation"
                           onmouseenter={() => { hoveredAnnotationId = ann.annotationId; }}
