@@ -291,7 +291,9 @@ Deepfake classifier retrained: AUC-ROC 1.0000 (was 0.945), FP rate 0% (was 14%).
 
 **Sprint 24 (Phase A)**: In progress — ROI selection, shadow time, diffusion detection. Shadow-based time estimation (inverse sun angle, `estimate_shadow_time` Tauri command). Geolocation & Temporal investigation panel (sun position, shadow time, weather cross-reference). Diffusion model artefact detection (`POST /forensics/diffusion-artefacts` — texture smoothness, VAE banding, resolution fingerprint). Seasonal indicators (`POST /forensics/seasonal-indicators` — greenness, snow, warmth, season estimation). ROI selection tool (`POST /forensics/roi-analysis` — click-and-drag region analysis with SVG overlay). On-demand investigation buttons for seasonal and diffusion analysis.
 
-**Test counts**: 266 Rust tests, 367+ Python tests, 160+ Playwright e2e tests, 223 SvelteKit files with 0 svelte-check errors, clippy + fmt clean.
+**Sprint 26 (Phase A)**: Complete — Berkeley Protocol, GAN fingerprint, annotations. Berkeley Protocol PDF report template (7 legal evidence sections, format selector). GAN fingerprint visualisation (`POST /forensics/gan-fingerprint` — FFT + 1/f model subtraction + peak detection + model attribution). Annotation layer: SQLite `annotations` table (schema v3), 3 Tauri CRUD commands, interactive SVG canvas overlay with arrow/circle/rectangle/text tools + 5 colour palette + delete on hover.
+
+**Test counts**: 272 Rust tests, 375+ Python tests, 160+ Playwright e2e tests, 223 SvelteKit files with 0 svelte-check errors, clippy + fmt clean.
 
 ## British Spelling
 

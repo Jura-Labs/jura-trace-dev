@@ -898,6 +898,40 @@ export interface SeasonalIndicatorsResult {
   indicators: string[];
 }
 
+// ── Annotation types ─────────────────────────────────────────────
+
+/**
+ * A persisted annotation drawn on a verification result image.
+ * The geometry is serialised as JSON in `dataJson` so that the
+ * Rust backend can store it without knowing the annotation shape.
+ */
+export interface Annotation {
+  annotationId: string;
+  verificationId?: string;
+  assetId?: string;
+  annotationType: 'arrow' | 'circle' | 'rectangle' | 'text' | 'freehand';
+  dataJson: string;
+  createdAt: string;
+}
+
+/**
+ * The geometry payload serialised into `Annotation.dataJson`.
+ * All coordinate values are in natural image pixels so that
+ * annotations remain accurate regardless of display size.
+ */
+export interface AnnotationData {
+  x: number;
+  y: number;
+  x2?: number;
+  y2?: number;
+  width?: number;
+  height?: number;
+  radius?: number;
+  text?: string;
+  colour: string;
+  strokeWidth: number;
+}
+
 /** Supported file extensions by content type */
 export const SUPPORTED_EXTENSIONS: Record<ContentType, string[]> = {
   image: ['.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.heic', '.heif', '.bmp', '.gif', '.svg', '.avif', '.ico'],

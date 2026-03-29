@@ -56,6 +56,7 @@ from app.services.video_metadata import perform_video_metadata
 from app.services.diffusion_artefacts import detect_diffusion_artefacts
 from app.services.seasonal_indicators import analyse_seasonal_indicators
 from app.services.roi_analysis import analyse_roi
+from app.services.gan_fingerprint import visualise_gan_fingerprint
 from app.services.watermark import perform_watermark_embed, perform_watermark_extract
 
 router = APIRouter()
@@ -792,5 +793,25 @@ async def roi_analysis(
 
     try:
         return analyse_roi(image_bytes, x, y, width, height)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/forensics/gan-fingerprint")
+async def gan_fingerprint(file: UploadFile = File(...)):
+    """Visualise GAN spectral fingerprint with model attribution.
+
+    Computes the 2D FFT magnitude spectrum, fits and subtracts a 1/f
+    natural-image model, detects anomalous periodic peaks characteristic
+    of GAN upsampling, and attempts model attribution (StyleGAN2, ProGAN,
+    StyleGAN3).
+
+    Returns annotated spectrum and residual images (base64 PNG), detected
+    peaks, and a confidence score.
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        return visualise_gan_fingerprint(image_bytes)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

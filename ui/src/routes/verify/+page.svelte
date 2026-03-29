@@ -1,17 +1,17 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
-  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive, parseAppError, getLicenceTier, extractTextFromImage, calculateSunPosition, estimateShadowTime, checkHistoricalWeather, analyseSeasonalIndicators, analyseDiffusionArtefacts, analyseRoi } from '$lib/api';
+  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive, parseAppError, getLicenceTier, extractTextFromImage, calculateSunPosition, estimateShadowTime, checkHistoricalWeather, analyseSeasonalIndicators, analyseDiffusionArtefacts, analyseRoi, saveAnnotation, getAnnotations, deleteAnnotationApi } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
-  import type { LicenceTier, VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult, SolarPosition, TimeEstimate, WeatherCheckResult, SeasonalIndicatorsResult, DiffusionArtefactsResult, RoiAnalysisResult } from '$lib/types';
+  import type { Annotation, AnnotationData, LicenceTier, VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult, SolarPosition, TimeEstimate, WeatherCheckResult, SeasonalIndicatorsResult, DiffusionArtefactsResult, RoiAnalysisResult } from '$lib/types';
   import VerdictSummary from '$lib/components/VerdictSummary.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
   import InspectionChecklist from '$lib/components/InspectionChecklist.svelte';
   import SignalAgreement from '$lib/components/SignalAgreement.svelte';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import { generateTrustReport } from '$lib/pdf';
-  import type { ReportContext } from '$lib/pdf';
+  import type { ReportContext, ReportFormat } from '$lib/pdf';
   import { exportCaseZip } from '$lib/zip';
   import { getVersion } from '$lib/api';
 
@@ -390,6 +390,7 @@
   let analystOrg = $state('');
   let analystCaseRef = $state('');
   let analystDate = $state('');
+  let reportFormat = $state<ReportFormat>('standard');
   let exportingReport = $state(false);
   let exportingCase = $state(false);
   let appVersion = $state('0.2.0-dev');
@@ -904,6 +905,13 @@
     seasonalError = null;
     diffusionResult = null;
     diffusionError = null;
+    // Clear annotation state
+    annotations = [];
+    annotationMode = false;
+    isDrawingAnnotation = false;
+    drawStart = null;
+    currentDrawEnd = null;
+    hoveredAnnotationId = null;
   }
 
   // ── Export helpers ────────────────────────────────────────────────
@@ -949,6 +957,7 @@
           appVersion,
         },
         ctx,
+        reportFormat,
       );
       const ts = Math.floor(Date.now() / 1000);
       const safeName = (fileName ?? 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -1692,6 +1701,253 @@
     const mm = Math.round((h - hh) * 60);
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')} UTC`;
   }
+
+  // ── Annotation canvas state ────────────────────────────────────────
+
+  /** Whether the annotation toolbar is shown over the image preview. */
+  let annotationMode = $state(false);
+  /** Which drawing tool is active within the annotation toolbar. */
+  let annotationTool = $state<'arrow' | 'circle' | 'rectangle' | 'text'>('arrow');
+  /** Stroke colour for new annotations (hex). */
+  let annotationColour = $state('#5A85B5');
+  /** Persisted annotations loaded from the backend (or built up in-session in browser mode). */
+  let annotations = $state<Annotation[]>([]);
+  /** Whether a pointer-drag draw gesture is in progress. */
+  let isDrawingAnnotation = $state(false);
+  /** CSS-pixel start point of the current draw gesture (relative to the image container). */
+  let drawStart = $state<{ x: number; y: number } | null>(null);
+  /** CSS-pixel current end point, used for the live preview ghost shape during dragging. */
+  let currentDrawEnd = $state<{ x: number; y: number } | null>(null);
+  /** Annotation ID of whichever annotation the pointer is hovering over (for delete button). */
+  let hoveredAnnotationId = $state<string | null>(null);
+
+  /**
+   * The annotation container is the same DOM element as roiContainerEl — both
+   * refer to the `<div class="relative group ...">` that wraps the preview image.
+   * We derive this alias so annotation functions can reference it clearly.
+   */
+  const annotationContainerEl = $derived(roiContainerEl);
+
+  /**
+   * Colour swatches available in the annotation sub-toolbar.
+   * Uses brand palette values so annotations harmonise with the Sanctuary theme.
+   */
+  const annotationColours = [
+    { hex: '#5A85B5', label: 'Lapis (blue)' },
+    { hex: '#C45B4B', label: 'Cinnabar (red)' },
+    { hex: '#5B8A5F', label: 'Malachite (green)' },
+    { hex: '#D4A843', label: 'Amber (gold)' },
+    { hex: '#EDEAE4', label: 'Quartz (cream)' },
+  ] as const;
+
+  /** Load annotations for the current result whenever a new result appears. */
+  $effect(() => {
+    if (result) {
+      getAnnotations(undefined, undefined)
+        .then(anns => { annotations = anns; })
+        .catch(() => { /* silently tolerate IPC errors in browser mode */ });
+    }
+  });
+
+  /** Clear all annotation state whenever a new file is loaded. */
+  $effect(() => {
+    void filePath; // dependency registration — fires on every new file load
+    annotations = [];
+    annotationMode = false;
+    isDrawingAnnotation = false;
+    drawStart = null;
+    currentDrawEnd = null;
+    hoveredAnnotationId = null;
+  });
+
+  /**
+   * Convert a CSS-pixel point relative to the image container into the
+   * equivalent natural-image pixel coordinate.
+   *
+   * Returns null when the image element is not yet ready.
+   */
+  function cssToNaturalPx(
+    container: HTMLElement,
+    cssX: number,
+    cssY: number,
+  ): { x: number; y: number } | null {
+    const imgEl = container.querySelector<HTMLImageElement>('img[data-preview="true"]');
+    if (!imgEl || !imgEl.complete || imgEl.naturalWidth === 0) return null;
+
+    const displayRect = imgEl.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const imgOffsetX = displayRect.left - containerRect.left;
+    const imgOffsetY = displayRect.top - containerRect.top;
+    const scaleX = imgEl.naturalWidth / displayRect.width;
+    const scaleY = imgEl.naturalHeight / displayRect.height;
+
+    return {
+      x: Math.round((cssX - imgOffsetX) * scaleX),
+      y: Math.round((cssY - imgOffsetY) * scaleY),
+    };
+  }
+
+  function handleAnnotationPointerDown(e: PointerEvent) {
+    if (!annotationMode || !annotationContainerEl) return;
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const rect = annotationContainerEl.getBoundingClientRect();
+    drawStart = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    currentDrawEnd = { ...drawStart };
+    isDrawingAnnotation = true;
+  }
+
+  function handleAnnotationPointerMove(e: PointerEvent) {
+    if (!isDrawingAnnotation || !annotationContainerEl) return;
+    e.preventDefault();
+    const rect = annotationContainerEl.getBoundingClientRect();
+    currentDrawEnd = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  async function handleAnnotationPointerUp(e: PointerEvent) {
+    if (!isDrawingAnnotation || !drawStart || !annotationContainerEl) return;
+    isDrawingAnnotation = false;
+
+    const rect = annotationContainerEl.getBoundingClientRect();
+    const endCss = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    currentDrawEnd = null;
+
+    // For text: open a prompt instead of using drag geometry
+    if (annotationTool === 'text') {
+      const text = window.prompt('Enter annotation text:');
+      if (!text?.trim()) {
+        drawStart = null;
+        return;
+      }
+      const origin = cssToNaturalPx(annotationContainerEl, drawStart.x, drawStart.y);
+      if (!origin) { drawStart = null; return; }
+
+      const data: AnnotationData = {
+        x: origin.x,
+        y: origin.y,
+        text: text.trim(),
+        colour: annotationColour,
+        strokeWidth: 2,
+      };
+      const ann = await saveAnnotation('text', JSON.stringify(data));
+      annotations = [...annotations, ann];
+      drawStart = null;
+      return;
+    }
+
+    // Guard: require a minimum drag distance of 8 CSS pixels to avoid
+    // accidental micro-annotations on accidental clicks.
+    const dx = endCss.x - drawStart.x;
+    const dy = endCss.y - drawStart.y;
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) { drawStart = null; return; }
+
+    const origin = cssToNaturalPx(annotationContainerEl, drawStart.x, drawStart.y);
+    const end = cssToNaturalPx(annotationContainerEl, endCss.x, endCss.y);
+    if (!origin || !end) { drawStart = null; return; }
+
+    let data: AnnotationData;
+
+    if (annotationTool === 'arrow') {
+      data = {
+        x: origin.x,
+        y: origin.y,
+        x2: end.x,
+        y2: end.y,
+        colour: annotationColour,
+        strokeWidth: 2,
+      };
+    } else if (annotationTool === 'circle') {
+      const cx = (origin.x + end.x) / 2;
+      const cy = (origin.y + end.y) / 2;
+      const radius = Math.sqrt(
+        Math.pow(end.x - origin.x, 2) + Math.pow(end.y - origin.y, 2),
+      ) / 2;
+      data = {
+        x: cx,
+        y: cy,
+        radius,
+        colour: annotationColour,
+        strokeWidth: 2,
+      };
+    } else {
+      // rectangle
+      data = {
+        x: Math.min(origin.x, end.x),
+        y: Math.min(origin.y, end.y),
+        width: Math.abs(end.x - origin.x),
+        height: Math.abs(end.y - origin.y),
+        colour: annotationColour,
+        strokeWidth: 2,
+      };
+    }
+
+    const ann = await saveAnnotation(annotationTool, JSON.stringify(data));
+    annotations = [...annotations, ann];
+    drawStart = null;
+  }
+
+  async function handleDeleteAnnotation(annotationId: string) {
+    annotations = annotations.filter(a => a.annotationId !== annotationId);
+    await deleteAnnotationApi(annotationId).catch(() => { /* tolerate IPC errors */ });
+    if (hoveredAnnotationId === annotationId) hoveredAnnotationId = null;
+  }
+
+  async function clearAllAnnotations() {
+    const ids = annotations.map(a => a.annotationId);
+    annotations = [];
+    hoveredAnnotationId = null;
+    await Promise.all(ids.map(id => deleteAnnotationApi(id).catch(() => {})));
+  }
+
+  /**
+   * Render a single annotation shape as SVG markup.
+   * Returns the coordinates scaled from natural-image pixels back to the
+   * CSS-pixel display space so the SVG aligns with the visible image.
+   *
+   * The function returns a plain object describing the shape; the template
+   * renders the actual SVG elements.
+   */
+  function annotationToSvgProps(
+    ann: Annotation,
+    imgEl: HTMLImageElement,
+    containerEl: HTMLElement,
+  ): {
+    type: 'arrow' | 'circle' | 'rectangle' | 'text';
+    data: AnnotationData;
+    // scaled CSS coords
+    x: number; y: number; x2: number; y2: number;
+    width: number; height: number; radius: number;
+  } | null {
+    let data: AnnotationData;
+    try {
+      data = JSON.parse(ann.dataJson) as AnnotationData;
+    } catch {
+      return null;
+    }
+
+    const displayRect = imgEl.getBoundingClientRect();
+    const containerRect = containerEl.getBoundingClientRect();
+    const imgOffsetX = displayRect.left - containerRect.left;
+    const imgOffsetY = displayRect.top - containerRect.top;
+    const scaleX = displayRect.width / imgEl.naturalWidth;
+    const scaleY = displayRect.height / imgEl.naturalHeight;
+
+    // Scale natural-px coords back to CSS display-px coords
+    const sx = (v: number) => v * scaleX + imgOffsetX;
+    const sy = (v: number) => v * scaleY + imgOffsetY;
+
+    return {
+      type: ann.annotationType as 'arrow' | 'circle' | 'rectangle' | 'text',
+      data,
+      x: sx(data.x),
+      y: sy(data.y),
+      x2: data.x2 != null ? sx(data.x2) : sx(data.x),
+      y2: data.y2 != null ? sy(data.y2) : sy(data.y),
+      width: data.width != null ? data.width * scaleX : 0,
+      height: data.height != null ? data.height * scaleY : 0,
+      radius: data.radius != null ? data.radius * Math.min(scaleX, scaleY) : 0,
+    };
+  }
 </script>
 
 <div class="space-y-6">
@@ -2208,22 +2464,22 @@
         <div class="flex gap-3 items-start">
           <!-- Main image container -->
           <div class="flex-1 rounded-lg overflow-hidden border border-border-light dark:border-border-dark bg-obsidian/30">
-            <!-- Image with optional ELA overlay — click to open zoom modal, or drag to select ROI -->
+            <!-- Image with optional ELA overlay — click to open zoom modal, drag to select ROI, or draw annotation -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
-              class="relative group {roiMode ? 'cursor-crosshair' : 'cursor-zoom-in'}"
+              class="relative group {roiMode ? 'cursor-crosshair' : annotationMode ? 'cursor-crosshair' : 'cursor-zoom-in'}"
               role="presentation"
               bind:this={roiContainerEl}
-              onpointerdown={roiMode ? handleRoiPointerDown : undefined}
-              onpointermove={roiMode ? handleRoiPointerMove : undefined}
-              onpointerup={roiMode ? handleRoiPointerUp : undefined}
+              onpointerdown={roiMode ? handleRoiPointerDown : annotationMode ? handleAnnotationPointerDown : undefined}
+              onpointermove={roiMode ? handleRoiPointerMove : annotationMode ? handleAnnotationPointerMove : undefined}
+              onpointerup={roiMode ? handleRoiPointerUp : annotationMode ? handleAnnotationPointerUp : undefined}
             >
-              {#if roiMode}
-                <!-- In ROI mode the outer click-to-zoom button is replaced by a plain div
-                     so the pointer events above can handle the drag gesture. -->
+              {#if roiMode || annotationMode}
+                <!-- In ROI / annotation mode the outer click-to-zoom button is replaced
+                     by a plain image so pointer events on the div can drive the gesture. -->
                 <img
                   src={channelImageUrl ?? previewUrl}
-                  alt="Analysed file — drag to select a region"
+                  alt={roiMode ? 'Analysed file — drag to select a region' : 'Analysed file — drag to draw an annotation'}
                   class="w-full max-h-[400px] object-contain block select-none"
                   loading="lazy"
                   data-preview="true"
@@ -2325,6 +2581,210 @@
                     <circle cx={cx} cy={cy} r="4" fill="#5A85B5" />
                   {/each}
                 </svg>
+              {/if}
+
+              <!-- Annotation SVG overlay — persisted annotations + live ghost preview -->
+              {#if annotationMode || annotations.length > 0}
+                {@const _annContainer = annotationContainerEl}
+                {@const imgEl = _annContainer?.querySelector<HTMLImageElement>('img[data-preview="true"]') ?? null}
+                {#if imgEl && imgEl.complete && imgEl.naturalWidth > 0 && _annContainer}
+                  <svg
+                    class="absolute inset-0 w-full h-full"
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
+                    aria-label="Image annotations"
+                    role="img"
+                  >
+                    <defs>
+                      <!-- Arrowhead marker for arrow annotations -->
+                      <marker
+                        id="ann-arrowhead"
+                        markerWidth="8"
+                        markerHeight="8"
+                        refX="6"
+                        refY="3"
+                        orient="auto"
+                      >
+                        <path d="M0,0 L0,6 L8,3 z" fill={annotationColour} />
+                      </marker>
+                      <!-- Per-annotation arrowhead markers with the annotation's own colour -->
+                      {#each annotations as ann (ann.annotationId)}
+                        {#if ann.annotationType === 'arrow'}
+                          {@const parsed = (() => { try { return JSON.parse(ann.dataJson) as AnnotationData; } catch { return null; } })()}
+                          {#if parsed}
+                            <marker
+                              id="ann-arrowhead-{ann.annotationId}"
+                              markerWidth="8"
+                              markerHeight="8"
+                              refX="6"
+                              refY="3"
+                              orient="auto"
+                            >
+                              <path d="M0,0 L0,6 L8,3 z" fill={parsed.colour} />
+                            </marker>
+                          {/if}
+                        {/if}
+                      {/each}
+                    </defs>
+
+                    <!-- Render persisted annotations -->
+                    {#each annotations as ann (ann.annotationId)}
+                      {@const props = annotationToSvgProps(ann, imgEl, _annContainer)}
+                      {#if props}
+                        <!-- svelte-ignore a11y_no_static_element_interactions -->
+                        <g
+                          class="cursor-pointer"
+                          role="graphics-symbol"
+                          aria-label="{ann.annotationType} annotation"
+                          onmouseenter={() => { hoveredAnnotationId = ann.annotationId; }}
+                          onmouseleave={() => { hoveredAnnotationId = null; }}
+                          onfocus={() => { hoveredAnnotationId = ann.annotationId; }}
+                          onblur={() => { hoveredAnnotationId = null; }}
+                        >
+                          {#if props.type === 'arrow'}
+                            <line
+                              x1={props.x}
+                              y1={props.y}
+                              x2={props.x2}
+                              y2={props.y2}
+                              stroke={props.data.colour}
+                              stroke-width={props.data.strokeWidth}
+                              marker-end="url(#ann-arrowhead-{ann.annotationId})"
+                              stroke-linecap="round"
+                            />
+                            <!-- Wider invisible hit target for hover -->
+                            <line
+                              x1={props.x}
+                              y1={props.y}
+                              x2={props.x2}
+                              y2={props.y2}
+                              stroke="transparent"
+                              stroke-width="12"
+                            />
+                          {:else if props.type === 'circle'}
+                            <circle
+                              cx={props.x}
+                              cy={props.y}
+                              r={props.radius}
+                              fill="none"
+                              stroke={props.data.colour}
+                              stroke-width={props.data.strokeWidth}
+                            />
+                          {:else if props.type === 'rectangle'}
+                            <rect
+                              x={props.x}
+                              y={props.y}
+                              width={props.width}
+                              height={props.height}
+                              fill="none"
+                              stroke={props.data.colour}
+                              stroke-width={props.data.strokeWidth}
+                            />
+                          {:else if props.type === 'text'}
+                            <text
+                              x={props.x}
+                              y={props.y}
+                              fill={props.data.colour}
+                              font-size="14"
+                              font-family="system-ui, sans-serif"
+                              font-weight="600"
+                              paint-order="stroke"
+                              stroke="rgba(0,0,0,0.6)"
+                              stroke-width="3"
+                              stroke-linejoin="round"
+                            >{props.data.text}</text>
+                          {/if}
+
+                          <!-- Delete button — visible on hover -->
+                          {#if hoveredAnnotationId === ann.annotationId}
+                            <!-- svelte-ignore a11y_interactive_supports_focus -->
+                            <g
+                              role="button"
+                              aria-label="Delete annotation"
+                              class="cursor-pointer"
+                              onclick={(e) => { e.stopPropagation(); handleDeleteAnnotation(ann.annotationId); }}
+                              onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleDeleteAnnotation(ann.annotationId); } }}
+                              tabindex="0"
+                            >
+                              <circle
+                                cx={props.type === 'arrow' ? (props.x + props.x2) / 2 : props.type === 'circle' ? props.x + props.radius : props.x + props.width}
+                                cy={props.type === 'arrow' ? (props.y + props.y2) / 2 : props.y}
+                                r="10"
+                                fill="#C45B4B"
+                                stroke="white"
+                                stroke-width="1.5"
+                              />
+                              <text
+                                x={props.type === 'arrow' ? (props.x + props.x2) / 2 : props.type === 'circle' ? props.x + props.radius : props.x + props.width}
+                                y={props.type === 'arrow' ? (props.y + props.y2) / 2 : props.y}
+                                text-anchor="middle"
+                                dominant-baseline="central"
+                                fill="white"
+                                font-size="11"
+                                font-weight="700"
+                                font-family="system-ui, sans-serif"
+                                pointer-events="none"
+                              >&#x2715;</text>
+                            </g>
+                          {/if}
+                        </g>
+                      {/if}
+                    {/each}
+
+                    <!-- Ghost preview of the shape currently being drawn -->
+                    {#if isDrawingAnnotation && drawStart && currentDrawEnd}
+                      {#if annotationTool === 'arrow'}
+                        <line
+                          x1={drawStart.x}
+                          y1={drawStart.y}
+                          x2={currentDrawEnd.x}
+                          y2={currentDrawEnd.y}
+                          stroke={annotationColour}
+                          stroke-width="2"
+                          stroke-opacity="0.7"
+                          marker-end="url(#ann-arrowhead)"
+                          stroke-linecap="round"
+                          stroke-dasharray="4 2"
+                        />
+                      {:else if annotationTool === 'circle'}
+                        <ellipse
+                          cx={(drawStart.x + currentDrawEnd.x) / 2}
+                          cy={(drawStart.y + currentDrawEnd.y) / 2}
+                          rx={Math.abs(currentDrawEnd.x - drawStart.x) / 2}
+                          ry={Math.abs(currentDrawEnd.y - drawStart.y) / 2}
+                          fill="none"
+                          stroke={annotationColour}
+                          stroke-width="2"
+                          stroke-opacity="0.7"
+                          stroke-dasharray="4 2"
+                        />
+                      {:else if annotationTool === 'rectangle'}
+                        <rect
+                          x={Math.min(drawStart.x, currentDrawEnd.x)}
+                          y={Math.min(drawStart.y, currentDrawEnd.y)}
+                          width={Math.abs(currentDrawEnd.x - drawStart.x)}
+                          height={Math.abs(currentDrawEnd.y - drawStart.y)}
+                          fill="none"
+                          stroke={annotationColour}
+                          stroke-width="2"
+                          stroke-opacity="0.7"
+                          stroke-dasharray="4 2"
+                        />
+                      {/if}
+                    {/if}
+                  </svg>
+                {/if}
+              {/if}
+
+              <!-- Annotation mode hint badge -->
+              {#if annotationMode}
+                <div
+                  class="absolute top-2 left-2 bg-lapis/80 rounded px-2 py-1 pointer-events-none"
+                  aria-hidden="true"
+                >
+                  <span class="text-xs text-white font-medium">
+                    {annotationTool === 'text' ? 'Click to place text' : 'Drag to draw'}
+                  </span>
+                </div>
               {/if}
             </div>
 
@@ -2515,7 +2975,109 @@
                       Analysing...
                     </span>
                   {/if}
+
+                  <!-- Annotate toggle — mutually exclusive with ROI mode -->
+                  <button
+                    type="button"
+                    onclick={() => {
+                      if (roiMode) { roiMode = false; roiRect = null; roiResult = null; roiError = null; }
+                      annotationMode = !annotationMode;
+                    }}
+                    class="text-xs px-2 py-1 min-h-[28px] rounded border transition-colors duration-150
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1
+                           focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                           {annotationMode
+                             ? 'border-lapis bg-lapis/10 text-lapis dark:text-lapis-light font-medium'
+                             : 'border-border-light dark:border-border-dark text-gray-600 dark:text-flint-light hover:border-lapis/50 dark:hover:border-lapis-light/50'}"
+                    aria-pressed={annotationMode}
+                    title={annotationMode ? 'Exit annotation mode' : 'Draw annotations on the image to mark areas of interest'}
+                  >
+                    {annotationMode ? 'Exit Annotate' : 'Annotate'}
+                  </button>
                 </div>
+
+                <!-- Annotation sub-toolbar — shown when annotation mode is active -->
+                {#if annotationMode}
+                  <div
+                    class="mt-2 pt-2 border-t border-border-light/60 dark:border-border-dark/60"
+                    role="group"
+                    aria-label="Annotation tools"
+                  >
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <!-- Tool selector -->
+                      <div class="flex items-center gap-1" role="group" aria-label="Drawing tool">
+                        {#each ([
+                          { key: 'arrow',     label: 'Arrow',     title: 'Draw an arrow pointing to an area of interest' },
+                          { key: 'circle',    label: 'Circle',    title: 'Draw a circle to highlight a region' },
+                          { key: 'rectangle', label: 'Rectangle', title: 'Draw a rectangle to frame a region' },
+                          { key: 'text',      label: 'Text',      title: 'Place a text label — click to set position' },
+                        ] as const) as tool}
+                          <button
+                            type="button"
+                            title={tool.title}
+                            onclick={() => { annotationTool = tool.key; }}
+                            class="text-xs px-2 py-1 min-h-[28px] rounded border transition-colors duration-150
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1
+                                   focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                                   {annotationTool === tool.key
+                                     ? 'border-lapis bg-lapis/10 text-lapis dark:text-lapis-light font-medium'
+                                     : 'border-border-light dark:border-border-dark text-gray-600 dark:text-flint-light hover:border-lapis/50 dark:hover:border-lapis-light/50'}"
+                            aria-pressed={annotationTool === tool.key}
+                          >
+                            {tool.label}
+                          </button>
+                        {/each}
+                      </div>
+
+                      <!-- Colour swatches -->
+                      <div
+                        class="flex items-center gap-1 ml-1"
+                        role="group"
+                        aria-label="Annotation colour"
+                      >
+                        <span class="text-xs text-flint dark:text-flint-light flex-shrink-0 mr-0.5">Colour:</span>
+                        {#each annotationColours as swatch}
+                          <button
+                            type="button"
+                            title={swatch.label}
+                            aria-label="Set annotation colour to {swatch.label}"
+                            aria-pressed={annotationColour === swatch.hex}
+                            onclick={() => { annotationColour = swatch.hex; }}
+                            class="w-5 h-5 min-h-[20px] rounded-full border-2 transition-all duration-150
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1
+                                   focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                                   {annotationColour === swatch.hex
+                                     ? 'border-text-light dark:border-quartz scale-110'
+                                     : 'border-transparent hover:border-flint/40 dark:hover:border-flint-light/40'}"
+                            style="background-color: {swatch.hex};"
+                          ></button>
+                        {/each}
+                      </div>
+
+                      <!-- Clear all annotations -->
+                      {#if annotations.length > 0}
+                        <button
+                          type="button"
+                          onclick={clearAllAnnotations}
+                          class="text-xs ml-auto px-2 py-1 min-h-[28px] text-flint dark:text-flint-light
+                                 hover:text-cinnabar dark:hover:text-cinnabar-light transition-colors duration-150
+                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                          aria-label="Clear all annotations from this image"
+                        >
+                          Clear all
+                        </button>
+                      {/if}
+                    </div>
+
+                    <p class="mt-1.5 text-xs text-flint/70 dark:text-flint-light/60" aria-live="polite">
+                      {annotations.length === 0
+                        ? annotationTool === 'text'
+                          ? 'Click on the image to place a text label.'
+                          : 'Drag on the image to draw a shape.'
+                        : `${annotations.length} annotation${annotations.length === 1 ? '' : 's'} on this image. Hover to delete.`}
+                    </p>
+                  </div>
+                {/if}
 
                 <!-- ROI results panel -->
                 {#if roiError}
@@ -6024,7 +6586,29 @@
           />
         </div>
 
-        <!-- Row 4: Analyst note (existing) -->
+        <!-- Row 4: Report format -->
+        <div>
+          <label for="decl-report-format" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
+            Report Format
+          </label>
+          <select
+            id="decl-report-format"
+            class="w-full px-3 py-2.5 min-h-[44px] text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded
+                   text-text-light dark:text-quartz
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
+            bind:value={reportFormat}
+          >
+            <option value="standard">Standard Trust Report</option>
+            <option value="berkeley">Berkeley Protocol (Legal Evidence)</option>
+          </select>
+          {#if reportFormat === 'berkeley'}
+            <p class="text-xs text-amber dark:text-amber mt-1">
+              Berkeley Protocol format adds formal evidence documentation sections suitable for legal proceedings and international investigations.
+            </p>
+          {/if}
+        </div>
+
+        <!-- Row 5: Analyst note (existing) -->
         <div>
           <label for="analyst-note" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
             Analyst Note

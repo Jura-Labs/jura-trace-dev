@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, DiffusionArtefactsResult, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, RoiAnalysisResult, SeasonalIndicatorsResult, SidecarHealth, SimilarAsset, SolarPosition, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult, WeatherCheckResult } from './types';
+import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, DiffusionArtefactsResult, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, RoiAnalysisResult, SeasonalIndicatorsResult, SidecarHealth, SimilarAsset, SolarPosition, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult, WeatherCheckResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -1034,4 +1034,82 @@ export async function analyseRoi(
     noiseResidualBase64: '',
     roi: { x, y, width, height },
   };
+}
+
+// ── Annotations ─────────────────────────────────────────────────────
+
+/**
+ * Persist an annotation associated with a verification result or asset.
+ *
+ * The geometry is stored as a JSON string (`dataJson`) so the Rust backend
+ * can record it without parsing the shape. All coordinates should be in
+ * natural image pixels so annotations scale correctly on different displays.
+ *
+ * @param annotationType  Shape type: 'arrow' | 'circle' | 'rectangle' | 'text'.
+ * @param dataJson        Serialised `AnnotationData` geometry.
+ * @param assetId         Optional asset the annotation belongs to.
+ * @param verificationId  Optional verification the annotation belongs to.
+ */
+export async function saveAnnotation(
+  annotationType: string,
+  dataJson: string,
+  assetId?: string,
+  verificationId?: string,
+): Promise<Annotation> {
+  if (isTauri) {
+    return invoke<Annotation>('save_annotation', {
+      annotationType,
+      dataJson,
+      assetId: assetId ?? null,
+      verificationId: verificationId ?? null,
+    });
+  }
+  // Browser mock — return a stub with a generated ID so the UI can render immediately
+  return {
+    annotationId: crypto.randomUUID(),
+    annotationType: annotationType as Annotation['annotationType'],
+    dataJson,
+    assetId,
+    verificationId,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Retrieve all annotations for a given asset or verification result.
+ *
+ * Returns an empty array if neither `assetId` nor `verificationId` is
+ * provided, or when running in browser mode.
+ *
+ * @param assetId         Filter by asset ID.
+ * @param verificationId  Filter by verification ID.
+ */
+export async function getAnnotations(
+  assetId?: string,
+  verificationId?: string,
+): Promise<Annotation[]> {
+  try {
+    if (isTauri) {
+      return await invoke<Annotation[]>('get_annotations', {
+        assetId: assetId ?? null,
+        verificationId: verificationId ?? null,
+      });
+    }
+    // Browser mock — no persisted annotations available
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Delete a single annotation by its ID.
+ *
+ * @param annotationId  The ID of the annotation to remove.
+ */
+export async function deleteAnnotationApi(annotationId: string): Promise<void> {
+  if (isTauri) {
+    return invoke<void>('delete_annotation', { annotationId });
+  }
+  // Browser mock — no-op
 }

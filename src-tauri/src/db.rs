@@ -30,7 +30,7 @@ impl Database {
     }
 
     /// Schema version — increment when adding migrations.
-    const SCHEMA_VERSION: i32 = 2;
+    const SCHEMA_VERSION: i32 = 3;
 
     /// Create tables if they do not already exist, and run any pending migrations.
     ///
@@ -68,6 +68,27 @@ impl Database {
             let _ = conn.execute("ALTER TABLE assets ADD COLUMN sha256_hash TEXT", []);
             conn.pragma_update(None, "user_version", 2)?;
             log::info!("Database migrated to schema version 2 (sha256_hash column)");
+        }
+
+        // Version 2 → 3: add annotations table
+        if current_version < 3 {
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS annotations (
+                    annotation_id   TEXT PRIMARY KEY,
+                    verification_id TEXT,
+                    asset_id        TEXT,
+                    annotation_type TEXT NOT NULL,
+                    data_json       TEXT NOT NULL,
+                    created_at      TEXT NOT NULL,
+                    FOREIGN KEY (asset_id) REFERENCES assets(asset_id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_annotations_asset
+                    ON annotations(asset_id);
+                CREATE INDEX IF NOT EXISTS idx_annotations_verification
+                    ON annotations(verification_id);",
+            )?;
+            conn.pragma_update(None, "user_version", 3)?;
+            log::info!("Database migrated to schema version 3 (annotations table)");
         }
 
         Ok(())
@@ -202,6 +223,21 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_monitor_events_case_active
                 ON monitor_events(case_status, checked_at)
                 WHERE case_status NOT IN ('dismissed', 'check_ok');
+
+            CREATE TABLE IF NOT EXISTS annotations (
+                annotation_id   TEXT PRIMARY KEY,
+                verification_id TEXT,
+                asset_id        TEXT,
+                annotation_type TEXT NOT NULL,
+                data_json       TEXT NOT NULL,
+                created_at      TEXT NOT NULL,
+                FOREIGN KEY (asset_id) REFERENCES assets(asset_id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_annotations_asset
+                ON annotations(asset_id);
+            CREATE INDEX IF NOT EXISTS idx_annotations_verification
+                ON annotations(verification_id);
             ",
         )?;
 
@@ -1165,6 +1201,96 @@ impl Database {
         rows.collect()
     }
 
+    // ── Annotation operations ──────────────────────────────────────────
+
+    /// Insert a new annotation record.
+    pub fn insert_annotation(&self, ann: &Annotation) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO annotations
+             (annotation_id, verification_id, asset_id, annotation_type, data_json, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                ann.annotation_id,
+                ann.verification_id,
+                ann.asset_id,
+                ann.annotation_type,
+                ann.data_json,
+                ann.created_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Retrieve all annotations associated with a given asset, newest first.
+    pub fn get_annotations_for_asset(&self, asset_id: &str) -> SqliteResult<Vec<Annotation>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT annotation_id, verification_id, asset_id, annotation_type,
+                    data_json, created_at
+             FROM annotations
+             WHERE asset_id = ?1
+             ORDER BY created_at DESC",
+        )?;
+        let rows = stmt.query_map(params![asset_id], |row| {
+            Ok(Annotation {
+                annotation_id: row.get(0)?,
+                verification_id: row.get(1)?,
+                asset_id: row.get(2)?,
+                annotation_type: row.get(3)?,
+                data_json: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Retrieve all annotations associated with a given verification run, newest first.
+    pub fn get_annotations_for_verification(
+        &self,
+        verification_id: &str,
+    ) -> SqliteResult<Vec<Annotation>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT annotation_id, verification_id, asset_id, annotation_type,
+                    data_json, created_at
+             FROM annotations
+             WHERE verification_id = ?1
+             ORDER BY created_at DESC",
+        )?;
+        let rows = stmt.query_map(params![verification_id], |row| {
+            Ok(Annotation {
+                annotation_id: row.get(0)?,
+                verification_id: row.get(1)?,
+                asset_id: row.get(2)?,
+                annotation_type: row.get(3)?,
+                data_json: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Delete a single annotation by its ID.
+    pub fn delete_annotation(&self, annotation_id: &str) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "DELETE FROM annotations WHERE annotation_id = ?1",
+            params![annotation_id],
+        )?;
+        Ok(())
+    }
+
+    /// Delete all annotations for a given asset.
+    pub fn delete_annotations_for_asset(&self, asset_id: &str) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "DELETE FROM annotations WHERE asset_id = ?1",
+            params![asset_id],
+        )?;
+        Ok(())
+    }
+
     /// Maximum permitted length of a `case_notes` string (in bytes).
     ///
     /// This cap prevents a single unbounded free-text field from consuming
@@ -1297,6 +1423,29 @@ pub struct MonitorEvent {
     pub case_notes: Option<String>,
     /// ISO 8601 timestamp of the most recent `case_status` change.
     pub case_updated_at: Option<String>,
+}
+
+/// An analyst annotation attached to a verification run or an asset.
+///
+/// Annotations store arbitrary analyst notes, tags, or structured data as
+/// a JSON blob alongside a typed label (`annotation_type`).  They are linked
+/// to either an `asset_id`, a `verification_id`, or both — allowing notes to
+/// be searched and displayed in either context.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Annotation {
+    /// UUID (v4) primary key.
+    pub annotation_id: String,
+    /// Optional link to a verification run.
+    pub verification_id: Option<String>,
+    /// Optional link to an asset in the catalogue.
+    pub asset_id: Option<String>,
+    /// Structured type label (e.g. `"note"`, `"flag"`, `"tag"`, `"review"`).
+    pub annotation_type: String,
+    /// Arbitrary JSON payload (validated by the caller).
+    pub data_json: String,
+    /// ISO 8601 UTC timestamp when this annotation was created.
+    pub created_at: String,
 }
 
 /// Row data for inserting a new asset (internal use).
@@ -2391,5 +2540,192 @@ mod tests {
                 "SHA-256 hex digest must contain only hex characters"
             );
         }
+    }
+
+    // ── Annotations ─────────────────────────────────────────────────
+
+    fn make_annotation(
+        id: &str,
+        asset_id: Option<&str>,
+        verification_id: Option<&str>,
+    ) -> Annotation {
+        Annotation {
+            annotation_id: id.to_string(),
+            verification_id: verification_id.map(str::to_string),
+            asset_id: asset_id.map(str::to_string),
+            annotation_type: "note".to_string(),
+            data_json: r#"{"text":"Test annotation"}"#.to_string(),
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+        }
+    }
+
+    #[test]
+    fn insert_and_retrieve_annotation() {
+        let db = open_temp_db();
+        db.insert_asset(&make_asset("a1", "photo.jpg", "2026-01-01T00:00:00Z"))
+            .unwrap();
+
+        let ann = make_annotation("ann1", Some("a1"), None);
+        db.insert_annotation(&ann).unwrap();
+
+        let results = db.get_annotations_for_asset("a1").unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].annotation_id, "ann1");
+        assert_eq!(results[0].annotation_type, "note");
+        assert_eq!(results[0].data_json, r#"{"text":"Test annotation"}"#);
+        assert_eq!(results[0].asset_id.as_deref(), Some("a1"));
+        assert!(results[0].verification_id.is_none());
+    }
+
+    #[test]
+    fn get_annotations_for_asset() {
+        let db = open_temp_db();
+        db.insert_asset(&make_asset("a1", "photo.jpg", "2026-01-01T00:00:00Z"))
+            .unwrap();
+        db.insert_asset(&make_asset("a2", "other.jpg", "2026-01-02T00:00:00Z"))
+            .unwrap();
+
+        db.insert_annotation(&make_annotation("ann1", Some("a1"), None))
+            .unwrap();
+        db.insert_annotation(&make_annotation("ann2", Some("a1"), None))
+            .unwrap();
+        db.insert_annotation(&make_annotation("ann3", Some("a2"), None))
+            .unwrap();
+
+        let a1_anns = db.get_annotations_for_asset("a1").unwrap();
+        assert_eq!(a1_anns.len(), 2);
+        assert!(a1_anns.iter().all(|a| a.asset_id.as_deref() == Some("a1")));
+
+        let a2_anns = db.get_annotations_for_asset("a2").unwrap();
+        assert_eq!(a2_anns.len(), 1);
+        assert_eq!(a2_anns[0].annotation_id, "ann3");
+
+        let none_anns = db.get_annotations_for_asset("nonexistent").unwrap();
+        assert!(none_anns.is_empty());
+    }
+
+    #[test]
+    fn get_annotations_for_verification() {
+        let db = open_temp_db();
+
+        db.insert_annotation(&make_annotation("ann1", None, Some("ver-001")))
+            .unwrap();
+        db.insert_annotation(&make_annotation("ann2", None, Some("ver-001")))
+            .unwrap();
+        db.insert_annotation(&make_annotation("ann3", None, Some("ver-002")))
+            .unwrap();
+
+        let v1_anns = db.get_annotations_for_verification("ver-001").unwrap();
+        assert_eq!(v1_anns.len(), 2);
+        assert!(v1_anns
+            .iter()
+            .all(|a| a.verification_id.as_deref() == Some("ver-001")));
+
+        let v2_anns = db.get_annotations_for_verification("ver-002").unwrap();
+        assert_eq!(v2_anns.len(), 1);
+        assert_eq!(v2_anns[0].annotation_id, "ann3");
+
+        let none_anns = db.get_annotations_for_verification("nonexistent").unwrap();
+        assert!(none_anns.is_empty());
+    }
+
+    #[test]
+    fn delete_annotation() {
+        let db = open_temp_db();
+        db.insert_asset(&make_asset("a1", "photo.jpg", "2026-01-01T00:00:00Z"))
+            .unwrap();
+
+        db.insert_annotation(&make_annotation("ann1", Some("a1"), None))
+            .unwrap();
+        db.insert_annotation(&make_annotation("ann2", Some("a1"), None))
+            .unwrap();
+
+        // Two annotations exist
+        assert_eq!(db.get_annotations_for_asset("a1").unwrap().len(), 2);
+
+        // Delete one
+        db.delete_annotation("ann1").unwrap();
+
+        let remaining = db.get_annotations_for_asset("a1").unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].annotation_id, "ann2");
+
+        // Deleting a non-existent ID is a no-op (not an error)
+        db.delete_annotation("nonexistent").unwrap();
+        assert_eq!(db.get_annotations_for_asset("a1").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn delete_annotations_for_asset() {
+        let db = open_temp_db();
+        db.insert_asset(&make_asset("a1", "photo.jpg", "2026-01-01T00:00:00Z"))
+            .unwrap();
+        db.insert_asset(&make_asset("a2", "other.jpg", "2026-01-02T00:00:00Z"))
+            .unwrap();
+
+        db.insert_annotation(&make_annotation("ann1", Some("a1"), None))
+            .unwrap();
+        db.insert_annotation(&make_annotation("ann2", Some("a1"), None))
+            .unwrap();
+        db.insert_annotation(&make_annotation("ann3", Some("a2"), None))
+            .unwrap();
+
+        // Delete all annotations for a1
+        db.delete_annotations_for_asset("a1").unwrap();
+
+        assert!(db.get_annotations_for_asset("a1").unwrap().is_empty());
+        // a2 annotations are unaffected
+        assert_eq!(db.get_annotations_for_asset("a2").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn annotation_serialization_round_trip() {
+        let original = Annotation {
+            annotation_id: "test-uuid-1".to_string(),
+            verification_id: Some("ver-abc".to_string()),
+            asset_id: Some("asset-xyz".to_string()),
+            annotation_type: "flag".to_string(),
+            data_json: r#"{"reason":"suspicious_region","confidence":0.87}"#.to_string(),
+            created_at: "2026-03-29T12:00:00Z".to_string(),
+        };
+
+        let json = serde_json::to_string(&original).expect("serialization should succeed");
+        let parsed: Annotation =
+            serde_json::from_str(&json).expect("deserialization should succeed");
+
+        assert_eq!(parsed.annotation_id, original.annotation_id);
+        assert_eq!(parsed.verification_id, original.verification_id);
+        assert_eq!(parsed.asset_id, original.asset_id);
+        assert_eq!(parsed.annotation_type, original.annotation_type);
+        assert_eq!(parsed.data_json, original.data_json);
+        assert_eq!(parsed.created_at, original.created_at);
+
+        // Verify camelCase serialization (rename_all = "camelCase")
+        let value: serde_json::Value =
+            serde_json::from_str(&json).expect("value parse should succeed");
+        assert!(
+            value.get("annotationId").is_some(),
+            "annotationId should be camelCase"
+        );
+        assert!(
+            value.get("verificationId").is_some(),
+            "verificationId should be camelCase"
+        );
+        assert!(
+            value.get("assetId").is_some(),
+            "assetId should be camelCase"
+        );
+        assert!(
+            value.get("annotationType").is_some(),
+            "annotationType should be camelCase"
+        );
+        assert!(
+            value.get("dataJson").is_some(),
+            "dataJson should be camelCase"
+        );
+        assert!(
+            value.get("createdAt").is_some(),
+            "createdAt should be camelCase"
+        );
     }
 }

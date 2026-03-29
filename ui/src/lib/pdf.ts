@@ -53,8 +53,11 @@ const DETECTOR_THRESHOLDS: Record<string, number | null> = {
   jpegGhost: null,
 };
 
+/** Report format: 'standard' for the default report, 'berkeley' for Berkeley Protocol legal evidence format. */
+export type ReportFormat = 'standard' | 'berkeley';
+
 /** Generate a trust report PDF and return as a Blob. */
-export function generateTrustReport(result: VerificationResult, meta: ReportMeta, ctx?: ReportContext): Blob {
+export function generateTrustReport(result: VerificationResult, meta: ReportMeta, ctx?: ReportContext, reportFormat: ReportFormat = 'standard'): Blob {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const version = meta.appVersion ?? '0.9.0';
   let y = MARGIN;
@@ -207,19 +210,85 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
   }
 
   // ── Header ──────────────────────────────────────────────────
-  doc.setFontSize(16);
-  doc.setTextColor(30);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Jura Trace', MARGIN, y);
-  y += 6;
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(80);
-  doc.text('Content Verification Report', MARGIN, y);
-  y += 4;
-  doc.setFontSize(8);
-  doc.text(`Juralabs CIC — ${new Date(meta.analysedAt).toLocaleString('en-GB')}`, MARGIN, y);
-  y += SECTION_GAP;
+  if (reportFormat === 'berkeley') {
+    // Berkeley Protocol evidence documentation header
+    doc.setDrawColor(40);
+    doc.setLineWidth(0.6);
+    doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
+    y += 6;
+
+    doc.setFontSize(12);
+    doc.setTextColor(30);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DIGITAL EVIDENCE AUTHENTICATION REPORT', MARGIN, y);
+    y += 6;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(60);
+    doc.text('Berkeley Protocol on Digital Open Source Investigations (2020)', MARGIN, y);
+    y += 5;
+
+    doc.setDrawColor(40);
+    doc.setLineWidth(0.6);
+    doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
+    y += 5;
+
+    // Case metadata block
+    doc.setFontSize(8);
+    if (ctx?.caseReference?.trim()) {
+      doc.setTextColor(100);
+      doc.text('Case Reference:', MARGIN, y);
+      doc.setTextColor(40);
+      doc.text(ctx.caseReference.trim(), MARGIN + 30, y);
+      y += LINE_HEIGHT;
+    }
+    if (ctx?.analysisDate?.trim()) {
+      doc.setTextColor(100);
+      doc.text('Date of Analysis:', MARGIN, y);
+      doc.setTextColor(40);
+      doc.text(ctx.analysisDate.trim(), MARGIN + 30, y);
+      y += LINE_HEIGHT;
+    }
+    if (ctx?.analystName?.trim()) {
+      doc.setTextColor(100);
+      doc.text('Analyst:', MARGIN, y);
+      doc.setTextColor(40);
+      doc.text(ctx.analystName.trim(), MARGIN + 30, y);
+      y += LINE_HEIGHT;
+    }
+    if (ctx?.organisation?.trim()) {
+      doc.setTextColor(100);
+      doc.text('Organisation:', MARGIN, y);
+      doc.setTextColor(40);
+      doc.text(ctx.organisation.trim(), MARGIN + 30, y);
+      y += LINE_HEIGHT;
+    }
+    doc.setTextColor(100);
+    doc.text('Report Generated:', MARGIN, y);
+    doc.setTextColor(40);
+    doc.text(new Date().toISOString(), MARGIN + 30, y);
+    y += LINE_HEIGHT;
+
+    doc.setDrawColor(40);
+    doc.setLineWidth(0.3);
+    doc.line(MARGIN, y + 1, PAGE_WIDTH - MARGIN, y + 1);
+    y += SECTION_GAP;
+  } else {
+    doc.setFontSize(16);
+    doc.setTextColor(30);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Jura Trace', MARGIN, y);
+    y += 6;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80);
+    doc.text('Content Verification Report', MARGIN, y);
+    y += 4;
+    doc.setFontSize(8);
+    doc.text(`Juralabs CIC — ${new Date(meta.analysedAt).toLocaleString('en-GB')}`, MARGIN, y);
+    y += SECTION_GAP;
+  }
 
   // ── Analyst Declaration (only when at least one field is populated) ──
   const hasDeclaration = ctx && (
@@ -307,6 +376,44 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
     y += SECTION_GAP;
   }
 
+  // ── Berkeley: Capture Environment ───────────────────────────
+  if (reportFormat === 'berkeley') {
+    heading('Capture Environment');
+
+    const berkeleyAnalysisMode =
+      (result.mode ?? 'standard') === 'archival' ? 'Archival' :
+      (result.mode ?? 'standard') === 'deep' ? 'Deep' :
+      'Standard';
+
+    const berkeleyDetectors: string[] = [];
+    if (result.elaResult) berkeleyDetectors.push('ELA');
+    if (result.noiseResult) berkeleyDetectors.push('Noise Analysis');
+    if (result.copyMoveResult) berkeleyDetectors.push('Copy-Move Detection');
+    if (result.deepfakeResult) berkeleyDetectors.push('AI Generation Detection');
+    if (result.nprResult) berkeleyDetectors.push('NPR');
+    if (result.caResult) berkeleyDetectors.push('Chromatic Aberration');
+    if (result.jpegGhostResult) berkeleyDetectors.push('JPEG Ghost');
+    if (result.segmentedElaResult) berkeleyDetectors.push('Segmented ELA');
+    if (result.shadowConsistencyResult) berkeleyDetectors.push('Shadow Consistency');
+    if (result.colourTemperatureResult) berkeleyDetectors.push('Colour Temperature');
+    if (result.spliceBoundaryResult) berkeleyDetectors.push('Splice Boundary');
+    if (result.clipResult) berkeleyDetectors.push('CLIP Detection');
+    if (result.exifAnalysis) berkeleyDetectors.push('EXIF Anomaly Analysis');
+    if (result.c2paManifest !== undefined) berkeleyDetectors.push('C2PA Credential Verification');
+
+    row('Platform', `Jura Trace v${version}`);
+    row('Analysis Mode', berkeleyAnalysisMode);
+    row('Detectors Executed', berkeleyDetectors.length > 0 ? String(berkeleyDetectors.length) : '0');
+    checkPage(10);
+    doc.setFontSize(7);
+    doc.setTextColor(60);
+    const detList = doc.splitTextToSize(berkeleyDetectors.join(', ') || 'None', CONTENT_WIDTH - 2);
+    doc.text(detList, MARGIN + 2, y);
+    y += detList.length * 3 + 2;
+    row('Offline Analysis', 'Confirmed — all processing performed locally on-device');
+    y += SECTION_GAP;
+  }
+
   // ── Summary ─────────────────────────────────────────────────
   heading('Summary');
   const trustPercent = Math.round(result.overallTrust * 100);
@@ -341,6 +448,27 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
       doc.text(wrappedLines, MARGIN, y);
       y += wrappedLines.length * (8 * 0.4) + 2;
     }
+    y += SECTION_GAP;
+  }
+
+  // ── Berkeley: Evidence Integrity ────────────────────────────
+  if (reportFormat === 'berkeley') {
+    heading('Evidence Integrity');
+    if (result.inputSha256) {
+      row('Input SHA-256', result.inputSha256);
+    } else {
+      row('Input SHA-256', 'Not computed');
+    }
+    row('File Name', meta.fileName);
+    row('File Size', formatBytes(meta.fileSize));
+    row('MIME Type', result.contentType || 'Unknown');
+    y += 2;
+    paragraph(
+      'Chain of custody: This file was analysed locally on the analyst\u2019s device using Jura Trace. ' +
+      'No copy of the file was transmitted to any external server during analysis. ' +
+      'The SHA-256 hash above can be used to verify that any subsequent copy matches the file as analysed.',
+      7
+    );
     y += SECTION_GAP;
   }
 
@@ -798,6 +926,95 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
   const disclaimer = 'This report is generated by automated analysis tools and should be interpreted by qualified professionals. Results are indicative, not conclusive. Jura Trace and Juralabs CIC accept no liability for decisions made based on this report.';
   const disclaimerLines = doc.splitTextToSize(disclaimer, CONTENT_WIDTH);
   doc.text(disclaimerLines, MARGIN, y);
+  y += disclaimerLines.length * 3 + 2;
+
+  // ── Berkeley: Known Limitations ───────────────────────────
+  if (reportFormat === 'berkeley') {
+    y += SECTION_GAP;
+    heading('Known Limitations');
+    const limitations = [
+      '\u2022 JPEG recompression: Repeated JPEG saving at different quality levels can introduce artefacts that mimic manipulation. ELA and JPEG Ghost detectors are particularly sensitive to this.',
+      '\u2022 Screenshots and re-encoded media: Screen captures, social media re-uploads, and messaging app compression destroy forensic signals, reducing detector reliability.',
+      '\u2022 Absence of C2PA credentials: Many legitimate images lack C2PA provenance data. The absence of credentials does not indicate inauthenticity.',
+      '\u2022 Probabilistic scores: All detector outputs are statistical estimates, not binary determinations. Scores near thresholds should be interpreted with caution and corroborated by other evidence.',
+      '\u2022 Regional detector false flags: Segmented ELA, shadow consistency, colour temperature, and splice boundary detectors can produce false positives on images with natural lighting variation, complex scenes, or intentional artistic editing.',
+    ];
+    for (const text of limitations) {
+      paragraph(text, 7);
+      y += 1;
+    }
+
+    // ── Berkeley: Formal Analyst Declaration ──────────────────
+    y += SECTION_GAP;
+    heading('Analyst Declaration');
+
+    doc.setDrawColor(60);
+    doc.setLineWidth(0.3);
+    doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
+    y += 5;
+
+    const declarantName = ctx?.analystName?.trim() || '[Name not provided]';
+    const declarantOrg = ctx?.organisation?.trim() || '[Organisation not provided]';
+
+    paragraph(
+      `I, ${declarantName}, of ${declarantOrg}, declare that:`,
+      8
+    );
+    y += 2;
+
+    const declarations = [
+      '1. The analysis documented in this report was conducted using the methodology described herein, following the principles of the Berkeley Protocol on Digital Open Source Investigations (2020).',
+      '2. All processing was performed locally on my device using Jura Trace. No copy of the evidential material was transmitted to any external server, cloud service, or third party during the analysis process.',
+      '3. The scores and verdicts presented are generated by automated detection algorithms. They represent probabilistic assessments and should not be treated as conclusive determinations of authenticity or manipulation.',
+      '4. I am aware of the known limitations of these tools as documented in this report, and I have taken these limitations into account in forming any opinions expressed in the analyst notes.',
+    ];
+
+    for (const decl of declarations) {
+      paragraph(decl, 7);
+      y += 2;
+    }
+
+    y += 4;
+    // Signature lines
+    doc.setFontSize(8);
+    doc.setTextColor(80);
+    doc.text('Signed: ___________________________________', MARGIN, y);
+    y += LINE_HEIGHT + 2;
+    doc.text('Date: ___________________________________', MARGIN, y);
+    y += LINE_HEIGHT;
+
+    doc.setDrawColor(60);
+    doc.setLineWidth(0.3);
+    doc.line(MARGIN, y + 2, PAGE_WIDTH - MARGIN, y + 2);
+
+    // ── Berkeley: Appendix — Tool Versions ────────────────────
+    y += SECTION_GAP + 4;
+    heading('Appendix: Tool Versions');
+
+    const berkeleyClassifier = result.deepfakeResult?.classifierAvailable
+      ? 'GBM v2 (AUC 1.0000)'
+      : 'Heuristic only';
+    const berkeleyClip = result.clipResult
+      ? 'ViT-B/32 (open_clip)'
+      : 'Not available';
+
+    const toolVersions: [string, string][] = [
+      ['Jura Trace', `v${version}`],
+      ['Report format', 'Berkeley Protocol (2020)'],
+      ['Deepfake classifier', berkeleyClassifier],
+      ['CLIP model', berkeleyClip],
+      ['C2PA library', 'c2pa-rs (Rust)'],
+      ['Perceptual hashing', 'image_hasher (aHash, dHash, pHash)'],
+      ['ML sidecar', 'Python 3.13 + FastAPI'],
+      ['Report generator', 'jsPDF (client-side)'],
+    ];
+
+    for (const [k, v] of toolVersions) {
+      checkPage(LINE_HEIGHT);
+      label(k);
+      value(v);
+    }
+  }
 
   addFooter();
 

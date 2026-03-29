@@ -3008,6 +3008,85 @@ async fn set_db_path(
     Ok(new_path)
 }
 
+// ===== Annotation Commands =====
+
+/// Save an analyst annotation linked to an asset, a verification run, or both.
+///
+/// Generates a new UUID for the annotation and stores it in the local database.
+/// Returns the fully-populated `Annotation` record so the frontend can display
+/// it immediately without a separate fetch.
+#[tauri::command]
+fn save_annotation(
+    annotation_type: String,
+    data_json: String,
+    asset_id: Option<String>,
+    verification_id: Option<String>,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<db::Annotation, AppError> {
+    let ann = db::Annotation {
+        annotation_id: uuid::Uuid::new_v4().to_string(),
+        verification_id,
+        asset_id,
+        annotation_type,
+        data_json,
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+    let guard = state
+        .lock()
+        .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
+    guard
+        .db
+        .insert_annotation(&ann)
+        .map_err(|e| AppError::Database(e.to_string()).log())?;
+    Ok(ann)
+}
+
+/// Retrieve annotations for an asset or verification run.
+///
+/// Exactly one of `asset_id` or `verification_id` must be supplied. If both
+/// are `None` the command returns an empty list rather than an error.
+#[tauri::command]
+fn get_annotations(
+    asset_id: Option<String>,
+    verification_id: Option<String>,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<Vec<db::Annotation>, AppError> {
+    let guard = state
+        .lock()
+        .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
+
+    if let Some(aid) = asset_id {
+        guard
+            .db
+            .get_annotations_for_asset(&aid)
+            .map_err(|e| AppError::Database(e.to_string()).log())
+    } else if let Some(vid) = verification_id {
+        guard
+            .db
+            .get_annotations_for_verification(&vid)
+            .map_err(|e| AppError::Database(e.to_string()).log())
+    } else {
+        Ok(vec![])
+    }
+}
+
+/// Delete a single annotation by its UUID.
+///
+/// Deleting a non-existent annotation is a no-op and returns `Ok(())`.
+#[tauri::command]
+fn delete_annotation(
+    annotation_id: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<(), AppError> {
+    let guard = state
+        .lock()
+        .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
+    guard
+        .db
+        .delete_annotation(&annotation_id)
+        .map_err(|e| AppError::Database(e.to_string()).log())
+}
+
 // ===== Application Entry =====
 
 /// Best-effort early resolution of the application data directory.
@@ -3380,6 +3459,9 @@ pub fn run() {
             get_skip_wizard,
             calculate_sun_position,
             estimate_shadow_time,
+            save_annotation,
+            get_annotations,
+            delete_annotation,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Jura Trace")

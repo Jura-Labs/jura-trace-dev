@@ -6,6 +6,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Sprint 26 — Berkeley Protocol, GAN Fingerprint, Annotations (29 Mar 2026)
+
+### Legal Evidence Reporting
+
+**Added**
+- Berkeley Protocol PDF report template: 7 structured sections (evidence documentation header, capture environment, evidence integrity with SHA-256, methodology disclosure with 5 known limitations, formal analyst declaration with 4 legal statements, tool version appendix)
+- Report format selector in analyst declaration modal: "Standard Trust Report" / "Berkeley Protocol (Legal Evidence)"
+- `ReportFormat` type exported from pdf.ts
+
+### AI-Specific Detection
+
+**Added**
+- GAN fingerprint visualisation: `POST /forensics/gan-fingerprint` — multi-channel FFT with 1/f model subtraction, peak detection, ring/checkerboard pattern analysis. Model attribution (StyleGAN2, ProGAN, StyleGAN3) with confidence scoring. Annotated spectrum (INFERNO) and residual spectrum (HOT) as base64 PNG. 8 Python tests
+
+### Annotation Layer
+
+**Added**
+- SQLite `annotations` table (schema v3 migration) with `annotation_id`, `verification_id`, `asset_id`, `annotation_type`, `data_json`, `created_at`. Two indexes
+- 5 CRUD functions: `insert_annotation`, `get_annotations_for_asset`, `get_annotations_for_verification`, `delete_annotation`, `delete_annotations_for_asset`. 6 Rust tests
+- 3 Tauri commands: `save_annotation`, `get_annotations`, `delete_annotation`
+- Interactive canvas overlay: arrow, circle, rectangle, text tools with 5 brand-palette colour swatches (lapis, cinnabar, malachite, amber, quartz)
+- SVG overlay with per-annotation arrowhead markers, ghost preview during drag, delete on hover
+- Pointer capture gesture handlers with 8px minimum drag guard
+- Natural-pixel coordinate system (annotations survive window resize)
+- Full WCAG 2.2 AA: `aria-pressed` toggles, `focus-visible` rings, `aria-live` hints, keyboard-operable delete
+
+### Test Counts
+
+- **Rust**: 272 tests passing (+6 annotations), clippy clean
+- **Python**: 375+ tests (+8 GAN fingerprint)
+- **Frontend**: 0 svelte-check errors across 223 files
+
+---
+
 ## Sprint 25 — Pilot Polish (29 Mar 2026)
 
 ### Geolocation Intelligence
