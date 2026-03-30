@@ -9,15 +9,20 @@
 //! supplied via `Authorization: Bearer jt_<key>`.  Keys are created via
 //! `POST /api/v1/auth/keys` or auto-generated on first launch.
 //!
+//! # Rate Limiting
+//! Each key is limited to `rate_limit` requests per minute (default 100).
+//! Exceeded requests receive HTTP 429 with `X-RateLimit-*` headers.
+//!
 //! # CORS
 //! Only `localhost` origins are permitted.
 //!
 //! # OpenAPI
-//! Swagger UI is served at `GET /swagger-ui` (enabled by `utoipa-swagger-ui`).
-//! The raw spec is at `GET /openapi.json`.
+//! The spec is served at `GET /openapi.json` (utoipa-generated).
+//! Swagger UI is served at `GET /swagger-ui/`.
 
 pub mod auth;
 pub mod error;
+pub mod rate_limit;
 pub mod routes;
 pub mod types;
 
@@ -33,8 +38,96 @@ use tower_http::{
     limit::RequestBodyLimitLayer,
     trace::TraceLayer,
 };
+use utoipa::OpenApi;
 
 use crate::AppState;
+use rate_limit::RateLimiter;
+
+// ── OpenAPI document ─────────────────────────────────────────────────────────
+
+/// Root OpenAPI document assembled from utoipa derive macros.
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "Jura Trace Local API",
+        description = "Local REST API for the Jura Trace verification engine. \
+                       Binds to 127.0.0.1:8300. All endpoints except /api/v1/health \
+                       require Bearer authentication.",
+        version = env!("CARGO_PKG_VERSION"),
+        contact(name = "Juralabs CIC", url = "https://juralabs.org"),
+        license(
+            name = "PolyForm Noncommercial 1.0.0",
+            url = "https://polyformproject.org/licenses/noncommercial/1.0.0/"
+        )
+    ),
+    servers(
+        (url = "http://127.0.0.1:8300", description = "Local API server")
+    ),
+    security(
+        ("bearerAuth" = [])
+    ),
+    components(
+        schemas(
+            types::HealthResponse,
+            types::VerifyUrlRequest,
+            types::ClaimCheckRequest,
+            types::CreateKeyRequest,
+            types::CreateKeyResponse,
+            types::StatsResponse,
+            types::FingerprintEntry,
+            types::FingerprintResponse,
+        )
+    ),
+    modifiers(&BearerSecurityAddon),
+    paths(
+        routes::health,
+        routes::verify_file,
+        routes::verify_url,
+        routes::protect_sign,
+        routes::protect_fingerprint,
+        routes::protect_watermark_embed,
+        routes::protect_watermark_extract,
+        routes::claims_check,
+        routes::get_stats,
+        routes::create_api_key,
+        routes::list_api_keys_handler,
+        routes::revoke_api_key,
+    ),
+    tags(
+        (name = "System", description = "Server health and statistics"),
+        (name = "Verify", description = "Content verification endpoints"),
+        (name = "Protect", description = "Content protection and signing"),
+        (name = "Claims", description = "Factual claim verification"),
+        (name = "Auth", description = "API key management"),
+    )
+)]
+pub struct ApiDoc;
+
+/// Modifier that injects the `bearerAuth` security scheme into the OpenAPI
+/// `components/securitySchemes` map. Using a modifier avoids the deprecated
+/// `security_schemes` attribute syntax in utoipa v5.
+struct BearerSecurityAddon;
+
+impl utoipa::Modify for BearerSecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme};
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearerAuth",
+            SecurityScheme::Http(
+                HttpBuilder::new()
+                    .scheme(HttpAuthScheme::Bearer)
+                    .bearer_format("jt_<key>")
+                    .description(Some(
+                        "API key with jt_ prefix. Obtain via POST /api/v1/auth/keys.",
+                    ))
+                    .build(),
+            ),
+        );
+    }
+}
+
+// ── Server entry point ───────────────────────────────────────────────────────
 
 /// Start the Axum HTTP server on `127.0.0.1:{port}`.
 ///
@@ -72,7 +165,7 @@ pub async fn start_server(
 }
 
 /// Assemble the full Axum router with middleware.
-fn build_router(state: Arc<Mutex<AppState>>) -> Router {
+pub fn build_router(state: Arc<Mutex<AppState>>) -> Router {
     // CORS: allow only localhost origins.
     let cors = CorsLayer::new()
         .allow_origin([
@@ -92,7 +185,11 @@ fn build_router(state: Arc<Mutex<AppState>>) -> Router {
     // Request body size limit: 200 MB (matches the import pipeline).
     let body_limit = RequestBodyLimitLayer::new(200 * 1024 * 1024);
 
+    // Shared rate limiter — one instance per server lifetime.
+    let limiter = RateLimiter::new();
+
     // Auth middleware applied to the API sub-router.
+    // Rate limiter runs after auth (needs AuthenticatedKey extension).
     let api_routes = Router::new()
         .route("/v1/health", get(routes::health))
         .route("/v1/verify", post(routes::verify_file))
@@ -111,7 +208,11 @@ fn build_router(state: Arc<Mutex<AppState>>) -> Router {
         .route("/v1/stats", get(routes::get_stats))
         .route("/v1/auth/keys", post(routes::create_api_key))
         .route("/v1/auth/keys", get(routes::list_api_keys_handler))
-        .route("/v1/auth/keys/:key_id", delete(routes::revoke_api_key))
+        .route("/v1/auth/keys/{key_id}", delete(routes::revoke_api_key))
+        .layer(middleware::from_fn_with_state(
+            (state.clone(), limiter),
+            rate_limit::rate_limit_middleware,
+        ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::require_api_key,
@@ -133,227 +234,18 @@ fn build_router(state: Arc<Mutex<AppState>>) -> Router {
         .with_state(state)
 }
 
-/// Serve a minimal OpenAPI 3.1 specification.
+// ── OpenAPI spec endpoint ────────────────────────────────────────────────────
+
+/// `GET /openapi.json` — return the utoipa-generated OpenAPI 3.1 specification.
 async fn openapi_spec() -> impl axum::response::IntoResponse {
-    let spec = serde_json::json!({
-        "openapi": "3.1.0",
-        "info": {
-            "title": "Jura Trace Local API",
-            "description": "Local REST API for the Jura Trace verification engine. Binds to 127.0.0.1:8300.",
-            "version": env!("CARGO_PKG_VERSION"),
-            "contact": {
-                "name": "Juralabs CIC",
-                "url": "https://juralabs.org"
-            },
-            "license": {
-                "name": "PolyForm Noncommercial 1.0.0",
-                "url": "https://polyformproject.org/licenses/noncommercial/1.0.0/"
-            }
-        },
-        "servers": [{ "url": "http://127.0.0.1:8300" }],
-        "security": [{ "bearerAuth": [] }],
-        "components": {
-            "securitySchemes": {
-                "bearerAuth": {
-                    "type": "http",
-                    "scheme": "bearer",
-                    "bearerFormat": "jt_<key>",
-                    "description": "API key with jt_ prefix. Obtain via POST /api/v1/auth/keys."
-                }
-            }
-        },
-        "paths": {
-            "/api/v1/health": {
-                "get": {
-                    "summary": "Health check",
-                    "description": "Returns server status and sidecar availability. No auth required.",
-                    "security": [],
-                    "operationId": "health",
-                    "tags": ["System"],
-                    "responses": {
-                        "200": { "description": "Server is running" }
-                    }
-                }
-            },
-            "/api/v1/verify": {
-                "post": {
-                    "summary": "Verify a file",
-                    "description": "Upload a file (image, video, audio, PDF) for full verification.",
-                    "operationId": "verifyFile",
-                    "tags": ["Verify"],
-                    "requestBody": {
-                        "required": true,
-                        "content": {
-                            "multipart/form-data": {
-                                "schema": {
-                                    "type": "object",
-                                    "required": ["file"],
-                                    "properties": {
-                                        "file": { "type": "string", "format": "binary" },
-                                        "mode": {
-                                            "type": "string",
-                                            "enum": ["quick", "standard", "deep", "archival"],
-                                            "default": "standard"
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "responses": {
-                        "200": { "description": "Verification result" },
-                        "400": { "description": "Invalid request" },
-                        "401": { "description": "Unauthorized" }
-                    }
-                }
-            },
-            "/api/v1/verify/url": {
-                "post": {
-                    "summary": "Verify a URL",
-                    "description": "Download and verify the content at a public URL.",
-                    "operationId": "verifyUrl",
-                    "tags": ["Verify"],
-                    "requestBody": {
-                        "required": true,
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "required": ["url"],
-                                    "properties": {
-                                        "url": { "type": "string", "format": "uri" },
-                                        "mode": { "type": "string", "enum": ["quick", "standard", "deep", "archival"] }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "responses": {
-                        "200": { "description": "Verification result" },
-                        "400": { "description": "Invalid or unsafe URL" }
-                    }
-                }
-            },
-            "/api/v1/protect/sign": {
-                "post": {
-                    "summary": "Sign a file with C2PA credentials",
-                    "operationId": "protectSign",
-                    "tags": ["Protect"],
-                    "requestBody": {
-                        "required": true,
-                        "content": {
-                            "multipart/form-data": {
-                                "schema": {
-                                    "type": "object",
-                                    "required": ["file", "creator_name"],
-                                    "properties": {
-                                        "file": { "type": "string", "format": "binary" },
-                                        "creator_name": { "type": "string" },
-                                        "license": { "type": "string" }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "responses": {
-                        "200": {
-                            "description": "Signed file",
-                            "content": { "application/octet-stream": {} }
-                        }
-                    }
-                }
-            },
-            "/api/v1/protect/fingerprint": {
-                "post": {
-                    "summary": "Compute perceptual hashes",
-                    "operationId": "protectFingerprint",
-                    "tags": ["Protect"],
-                    "requestBody": {
-                        "required": true,
-                        "content": {
-                            "multipart/form-data": {
-                                "schema": {
-                                    "type": "object",
-                                    "required": ["file"],
-                                    "properties": {
-                                        "file": { "type": "string", "format": "binary" }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "responses": {
-                        "200": { "description": "Hash values (aHash, dHash, pHash)" }
-                    }
-                }
-            },
-            "/api/v1/protect/watermark/embed": {
-                "post": {
-                    "summary": "Embed an invisible watermark",
-                    "operationId": "protectWatermarkEmbed",
-                    "tags": ["Protect"],
-                    "responses": { "200": { "description": "Watermarked PNG image" } }
-                }
-            },
-            "/api/v1/protect/watermark/extract": {
-                "post": {
-                    "summary": "Extract a watermark",
-                    "operationId": "protectWatermarkExtract",
-                    "tags": ["Protect"],
-                    "responses": { "200": { "description": "Extracted watermark payload" } }
-                }
-            },
-            "/api/v1/claims/check": {
-                "post": {
-                    "summary": "Verify a factual claim",
-                    "operationId": "claimsCheck",
-                    "tags": ["Claims"],
-                    "responses": { "200": { "description": "Claim verification result" } }
-                }
-            },
-            "/api/v1/stats": {
-                "get": {
-                    "summary": "Database statistics",
-                    "operationId": "getStats",
-                    "tags": ["System"],
-                    "responses": { "200": { "description": "Stats summary" } }
-                }
-            },
-            "/api/v1/auth/keys": {
-                "post": {
-                    "summary": "Create API key",
-                    "operationId": "createApiKey",
-                    "tags": ["Auth"],
-                    "responses": { "200": { "description": "New key (shown once only)" } }
-                },
-                "get": {
-                    "summary": "List API keys",
-                    "operationId": "listApiKeys",
-                    "tags": ["Auth"],
-                    "responses": { "200": { "description": "Key list (no raw values)" } }
-                }
-            },
-            "/api/v1/auth/keys/{key_id}": {
-                "delete": {
-                    "summary": "Revoke API key",
-                    "operationId": "revokeApiKey",
-                    "tags": ["Auth"],
-                    "parameters": [{
-                        "name": "key_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "type": "string" }
-                    }],
-                    "responses": { "200": { "description": "Key revoked" } }
-                }
-            }
-        }
-    });
+    let spec = ApiDoc::openapi()
+        .to_json()
+        .unwrap_or_else(|_| "{}".to_string());
 
     (
         axum::http::StatusCode::OK,
         [(axum::http::header::CONTENT_TYPE, "application/json")],
-        spec.to_string(),
+        spec,
     )
 }
 

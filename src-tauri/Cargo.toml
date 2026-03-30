@@ -70,6 +70,9 @@ dashmap = { version = "6", optional = true }
 tokio = { version = "1", features = ["net", "rt", "macros", "sync"], optional = true }
 
 [dev-dependencies]
+# Integration test helpers (API wrapper tests)
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["json", "multipart"] }
 
 [features]
 default = ["custom-protocol", "api"]

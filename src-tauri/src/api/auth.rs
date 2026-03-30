@@ -18,21 +18,32 @@ use std::sync::{Arc, Mutex};
 use crate::AppState;
 
 use super::error::ApiError;
+use super::rate_limit::AuthenticatedKey;
 
 /// Tauri v2 state extractor alias used inside middleware.
 type SharedState = Arc<Mutex<AppState>>;
 
 /// Middleware: validate `Authorization: Bearer jt_<key>` on every request
 /// except health and OpenAPI endpoints.
+///
+/// On success the validated [`AuthenticatedKey`] is inserted into request
+/// extensions so the downstream rate-limit middleware can read it without
+/// re-querying the database.
 pub async fn require_api_key(
     State(state): State<SharedState>,
-    request: Request,
+    mut request: Request,
     next: Next,
 ) -> Result<Response, ApiError> {
     let path = request.uri().path().to_string();
 
     // Routes that do not require authentication.
-    if path == "/api/v1/health" || path == "/openapi.json" || path.starts_with("/swagger-ui") {
+    // The middleware is on the inner (nested) router, so the path is stripped
+    // of the `/api` prefix by axum — use `/v1/health` not `/api/v1/health`.
+    if path == "/v1/health"
+        || path == "/api/v1/health"
+        || path == "/openapi.json"
+        || path.starts_with("/swagger-ui")
+    {
         return Ok(next.run(request).await);
     }
 
@@ -42,21 +53,28 @@ pub async fn require_api_key(
     // Hash the raw key for lookup.
     let key_hash = hash_key(&raw_key);
 
-    // Validate against the database.
-    let valid = tokio::task::spawn_blocking(move || {
-        let guard = state
-            .lock()
-            .map_err(|_| ApiError::internal("State lock poisoned"))?;
-        guard
-            .db
-            .verify_api_key(&key_hash)
-            .map_err(|_| ApiError::internal("Database error during key verification"))
-            .map(|opt| opt.is_some())
+    // Validate against the database and retrieve the key record.
+    let key_record = tokio::task::spawn_blocking({
+        let key_hash = key_hash.clone();
+        move || {
+            let guard = state
+                .lock()
+                .map_err(|_| ApiError::internal("State lock poisoned"))?;
+            guard
+                .db
+                .verify_api_key(&key_hash)
+                .map_err(|_| ApiError::internal("Database error during key verification"))
+        }
     })
     .await
     .map_err(|_| ApiError::internal("Auth task join error"))??;
 
-    if valid {
+    if let Some(record) = key_record {
+        // Inject the key identity into extensions for the rate limiter.
+        request.extensions_mut().insert(AuthenticatedKey {
+            key_id: record.key_id,
+            key_hash,
+        });
         Ok(next.run(request).await)
     } else {
         Err(ApiError::unauthorized())

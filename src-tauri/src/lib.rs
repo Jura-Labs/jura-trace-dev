@@ -7,13 +7,13 @@ use tauri::{Manager, State};
 use tauri_plugin_shell::ShellExt;
 
 mod c2pa;
-mod db;
+pub mod db;
 mod error;
 mod exif_anomaly;
 mod fingerprint;
 mod format_router;
 mod metadata;
-mod sidecar;
+pub mod sidecar;
 mod sun_position;
 mod watermark;
 
@@ -4001,9 +4001,10 @@ mod tests {
 
     #[test]
     fn metadata_warning_message_builder() {
-        let mut warnings: Vec<String> = Vec::new();
-        warnings.push("Artist field: \"Alice\"".to_string());
-        warnings.push("Copyright field: \"2026 Alice\"".to_string());
+        let warnings: Vec<String> = vec![
+            "Artist field: \"Alice\"".to_string(),
+            "Copyright field: \"2026 Alice\"".to_string(),
+        ];
         let msg = format!(
             "This file contains existing metadata that will be preserved in the signed copy: {}.",
             warnings.join("; ")

@@ -27,11 +27,15 @@ use super::{
     },
 };
 
+// Re-export to allow utoipa path resolution from mod.rs
+#[allow(unused_imports)]
+use super::types;
+
 /// Application start time — used for uptime calculation.
 static START_TIME: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
 
 /// Initialise the start-time clock. Called once from `start_server`.
-pub(super) fn init_start_time() {
+pub fn init_start_time() {
     START_TIME.get_or_init(Instant::now);
 }
 
@@ -42,6 +46,18 @@ type SharedState = Arc<Mutex<AppState>>;
 /// `GET /api/v1/health` — server liveness and capability probe.
 ///
 /// No authentication required.
+#[utoipa::path(
+    get,
+    path = "/api/v1/health",
+    tag = "System",
+    operation_id = "health",
+    summary = "Health check",
+    description = "Returns server status and sidecar availability. No auth required.",
+    security(()),
+    responses(
+        (status = 200, description = "Server is running", body = HealthResponse)
+    )
+)]
 pub async fn health(State(state): State<SharedState>) -> Json<HealthResponse> {
     let sidecar_available = tokio::task::spawn_blocking(move || {
         state
@@ -69,6 +85,24 @@ pub async fn health(State(state): State<SharedState>) -> Json<HealthResponse> {
 /// The multipart form must contain a field named `file` with the binary
 /// content of the media file.  An optional `mode` text field controls the
 /// investigation depth: `quick`, `standard` (default), `deep`, `archival`.
+#[utoipa::path(
+    post,
+    path = "/api/v1/verify",
+    tag = "Verify",
+    operation_id = "verifyFile",
+    summary = "Verify a file",
+    description = "Upload a file (image, video, audio, PDF) for full verification.",
+    request_body(
+        content_type = "multipart/form-data",
+        description = "Multipart form with 'file' (binary) and optional 'mode' (string) fields"
+    ),
+    responses(
+        (status = 200, description = "Verification result"),
+        (status = 400, description = "Invalid request"),
+        (status = 401, description = "Unauthorized"),
+        (status = 429, description = "Rate limit exceeded"),
+    )
+)]
 pub async fn verify_file(
     State(state): State<SharedState>,
     mut multipart: Multipart,
@@ -148,6 +182,21 @@ pub async fn verify_file(
 }
 
 /// `POST /api/v1/verify/url` — download a URL and verify its content.
+#[utoipa::path(
+    post,
+    path = "/api/v1/verify/url",
+    tag = "Verify",
+    operation_id = "verifyUrl",
+    summary = "Verify a URL",
+    description = "Download and verify the content at a public URL.",
+    request_body(content = VerifyUrlRequest, content_type = "application/json"),
+    responses(
+        (status = 200, description = "Verification result"),
+        (status = 400, description = "Invalid or unsafe URL"),
+        (status = 401, description = "Unauthorized"),
+        (status = 429, description = "Rate limit exceeded"),
+    )
+)]
 pub async fn verify_url(
     State(state): State<SharedState>,
     Json(body): Json<VerifyUrlRequest>,
@@ -181,6 +230,27 @@ pub async fn verify_url(
 /// - `license` (optional) — SPDX licence identifier
 ///
 /// Returns the signed file as an `application/octet-stream` binary response.
+#[utoipa::path(
+    post,
+    path = "/api/v1/protect/sign",
+    tag = "Protect",
+    operation_id = "protectSign",
+    summary = "Sign a file with C2PA credentials",
+    description = "Embed a C2PA content credential into the uploaded file. \
+                   Returns the signed file as application/octet-stream.",
+    request_body(
+        content_type = "multipart/form-data",
+        description = "Multipart form with 'file' (binary), 'creator_name' (string), \
+                       and optional 'license' (SPDX identifier string) fields"
+    ),
+    responses(
+        (status = 200, description = "Signed file (application/octet-stream)"),
+        (status = 400, description = "Missing required fields"),
+        (status = 401, description = "Unauthorized"),
+        (status = 422, description = "Signing failed — unsupported format or certificate error"),
+        (status = 429, description = "Rate limit exceeded"),
+    )
+)]
 pub async fn protect_sign(
     State(state): State<SharedState>,
     mut multipart: Multipart,
@@ -307,6 +377,26 @@ pub async fn protect_sign(
 ///
 /// Returns aHash, dHash, and pHash values. Only images are supported;
 /// non-image uploads return a 422.
+#[utoipa::path(
+    post,
+    path = "/api/v1/protect/fingerprint",
+    tag = "Protect",
+    operation_id = "protectFingerprint",
+    summary = "Compute perceptual hashes",
+    description = "Compute aHash, dHash, and pHash perceptual fingerprints for an image. \
+                   Non-image files return 422.",
+    request_body(
+        content_type = "multipart/form-data",
+        description = "Multipart form with 'file' (binary image) field"
+    ),
+    responses(
+        (status = 200, description = "Hash values", body = FingerprintResponse),
+        (status = 400, description = "Missing file field"),
+        (status = 401, description = "Unauthorized"),
+        (status = 422, description = "Unsupported format or hashing failed"),
+        (status = 429, description = "Rate limit exceeded"),
+    )
+)]
 pub async fn protect_fingerprint(
     State(_state): State<SharedState>,
     mut multipart: Multipart,
@@ -332,19 +422,37 @@ pub async fn protect_fingerprint(
     }
 
     let hashes = tokio::task::spawn_blocking(move || -> Result<Vec<FingerprintEntry>, ApiError> {
-        let mut tmp = tempfile::NamedTempFile::new()
-            .map_err(|e| ApiError::internal(format!("Failed to create temp file: {e}")))?;
-        tmp.write_all(&bytes)
-            .map_err(|e| ApiError::internal(format!("Failed to write temp file: {e}")))?;
-        let path = tmp.path().to_path_buf();
-
-        if !fingerprint::supports_fingerprinting(&infer_extension_str(&bytes)) {
+        // supports_fingerprinting expects content-type like "image", not MIME.
+        // Map the MIME type to a content-type category for the check.
+        let mime = infer_extension_str(&bytes);
+        let content_type_str = if mime.starts_with("image/") {
+            "image"
+        } else if mime.starts_with("video/") {
+            "video"
+        } else if mime.starts_with("audio/") {
+            "audio"
+        } else {
+            "unknown"
+        };
+        if !fingerprint::supports_fingerprinting(content_type_str) {
             return Err(ApiError::new(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "UnsupportedFormat",
                 "Perceptual fingerprinting requires an image file (JPEG, PNG, WebP, etc.)",
             ));
         }
+
+        // Write to a temp file with the correct extension so the image crate
+        // can determine the format by extension (magic-byte fallback is
+        // not universally available across image crate versions).
+        let ext = infer_extension(&bytes);
+        let mut tmp = tempfile::Builder::new()
+            .suffix(&format!(".{ext}"))
+            .tempfile()
+            .map_err(|e| ApiError::internal(format!("Failed to create temp file: {e}")))?;
+        tmp.write_all(&bytes)
+            .map_err(|e| ApiError::internal(format!("Failed to write temp file: {e}")))?;
+        let path = tmp.path().to_path_buf();
 
         let results = fingerprint::compute_hashes(&path);
         if results.is_empty() {
@@ -379,6 +487,27 @@ pub async fn protect_fingerprint(
 /// - `strength` (optional) — `1` (low), `2` (medium, default), `3` (high)
 ///
 /// Returns the watermarked image as `image/png`.
+#[utoipa::path(
+    post,
+    path = "/api/v1/protect/watermark/embed",
+    tag = "Protect",
+    operation_id = "protectWatermarkEmbed",
+    summary = "Embed an invisible watermark",
+    description = "Embed a DWT-DCT-SVD invisible watermark into an image. \
+                   Returns the watermarked image as image/png.",
+    request_body(
+        content_type = "multipart/form-data",
+        description = "Multipart form: 'file' (binary image), 'payload_hex' \
+                       (32-char hex), optional 'strength' (1=low, 2=medium, 3=high)"
+    ),
+    responses(
+        (status = 200, description = "Watermarked PNG image (image/png)"),
+        (status = 400, description = "Missing required fields"),
+        (status = 401, description = "Unauthorized"),
+        (status = 422, description = "Watermarking failed"),
+        (status = 429, description = "Rate limit exceeded"),
+    )
+)]
 pub async fn protect_watermark_embed(
     State(_state): State<SharedState>,
     mut multipart: Multipart,
@@ -471,6 +600,26 @@ pub async fn protect_watermark_embed(
 /// - `file` — image to inspect
 /// - `payload_len_bytes` (optional) — expected payload length in bytes (default: 16)
 /// - `reference_hex` (optional) — expected payload hex for comparison
+#[utoipa::path(
+    post,
+    path = "/api/v1/protect/watermark/extract",
+    tag = "Protect",
+    operation_id = "protectWatermarkExtract",
+    summary = "Extract a watermark",
+    description = "Extract a DWT-DCT-SVD watermark payload from an image.",
+    request_body(
+        content_type = "multipart/form-data",
+        description = "Multipart form: 'file' (binary image), optional \
+                       'payload_len_bytes' (integer), optional 'reference_hex' (string)"
+    ),
+    responses(
+        (status = 200, description = "Extracted watermark payload"),
+        (status = 400, description = "Missing file field"),
+        (status = 401, description = "Unauthorized"),
+        (status = 422, description = "Extraction failed"),
+        (status = 429, description = "Rate limit exceeded"),
+    )
+)]
 pub async fn protect_watermark_extract(
     State(_state): State<SharedState>,
     mut multipart: Multipart,
@@ -534,6 +683,22 @@ pub async fn protect_watermark_extract(
 ///
 /// Requires Ollama to be running with the Qwen2.5 model pulled. Returns a
 /// degraded response if Ollama is unavailable.
+#[utoipa::path(
+    post,
+    path = "/api/v1/claims/check",
+    tag = "Claims",
+    operation_id = "claimsCheck",
+    summary = "Verify a factual claim",
+    description = "Check a claim against the RAG knowledge base using Ollama/Qwen2.5. \
+                   Returns 503 when Ollama is unavailable.",
+    request_body(content = ClaimCheckRequest, content_type = "application/json"),
+    responses(
+        (status = 200, description = "Claim verification result"),
+        (status = 401, description = "Unauthorized"),
+        (status = 429, description = "Rate limit exceeded"),
+        (status = 503, description = "Ollama/Qwen2.5 unavailable"),
+    )
+)]
 pub async fn claims_check(
     State(state): State<SharedState>,
     Json(body): Json<ClaimCheckRequest>,
@@ -562,6 +727,19 @@ pub async fn claims_check(
 // ── Stats ────────────────────────────────────────────────────────────────────
 
 /// `GET /api/v1/stats` — database statistics.
+#[utoipa::path(
+    get,
+    path = "/api/v1/stats",
+    tag = "System",
+    operation_id = "getStats",
+    summary = "Database statistics",
+    description = "Returns counts of assets, verifications, fingerprints, and C2PA-signed files.",
+    responses(
+        (status = 200, description = "Stats summary", body = StatsResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 429, description = "Rate limit exceeded"),
+    )
+)]
 pub async fn get_stats(
     State(state): State<SharedState>,
 ) -> Result<Json<ApiResponse<StatsResponse>>, ApiError> {
@@ -591,6 +769,21 @@ pub async fn get_stats(
 ///
 /// The raw key is returned once in the `key` field and cannot be retrieved
 /// again. Store it securely.
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/keys",
+    tag = "Auth",
+    operation_id = "createApiKey",
+    summary = "Create API key",
+    description = "Create a new API key. The raw key is returned once only — store it securely.",
+    request_body(content = CreateKeyRequest, content_type = "application/json"),
+    responses(
+        (status = 200, description = "New key (shown once only)", body = CreateKeyResponse),
+        (status = 400, description = "Invalid request"),
+        (status = 401, description = "Unauthorized"),
+        (status = 429, description = "Rate limit exceeded"),
+    )
+)]
 pub async fn create_api_key(
     State(state): State<SharedState>,
     Json(body): Json<CreateKeyRequest>,
@@ -636,6 +829,19 @@ pub async fn create_api_key(
 ///
 /// The `key_hash` field is stripped from each record before returning —
 /// the hash is only used for internal lookup and must never be exposed.
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/keys",
+    tag = "Auth",
+    operation_id = "listApiKeys",
+    summary = "List API keys",
+    description = "List all API keys. Raw key values and hashes are never returned.",
+    responses(
+        (status = 200, description = "Key list (no raw values)"),
+        (status = 401, description = "Unauthorized"),
+        (status = 429, description = "Rate limit exceeded"),
+    )
+)]
 pub async fn list_api_keys_handler(
     state: State<SharedState>,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, ApiError> {
@@ -671,6 +877,23 @@ pub async fn list_api_keys_handler(
 }
 
 /// `DELETE /api/v1/auth/keys/{key_id}` — revoke an API key.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/auth/keys/{key_id}",
+    tag = "Auth",
+    operation_id = "revokeApiKey",
+    summary = "Revoke API key",
+    description = "Permanently revoke an API key. Authentication using the revoked key \
+                   will immediately return 401.",
+    params(
+        ("key_id" = String, Path, description = "UUID of the key to revoke")
+    ),
+    responses(
+        (status = 200, description = "Key revoked"),
+        (status = 401, description = "Unauthorized"),
+        (status = 429, description = "Rate limit exceeded"),
+    )
+)]
 pub async fn revoke_api_key(
     State(state): State<SharedState>,
     AxumPath(key_id): AxumPath<String>,
