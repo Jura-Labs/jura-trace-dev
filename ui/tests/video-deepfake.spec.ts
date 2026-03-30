@@ -103,6 +103,12 @@ async function injectMockResult(page: import('@playwright/test').Page) {
   // Wait for the results to render (Trust Score section appears)
   await page.waitForSelector('text=Trust Score', { timeout: 8000 });
 
+  // Switch from Summary to Full Analysis view (default is summary since Sprint 20)
+  const viewToggle = page.locator('[role="group"][aria-label="Result view mode"]');
+  await viewToggle.waitFor({ state: 'visible', timeout: 5000 });
+  const fullAnalysisBtn = viewToggle.locator('button', { hasText: 'Full Analysis' });
+  await fullAnalysisBtn.click();
+
   // The video analysis is inside "Technical Details" which is collapsed.
   // Click the toggle to expand it.
   const detailsToggle = page.locator('button', { hasText: 'Technical Details' });
