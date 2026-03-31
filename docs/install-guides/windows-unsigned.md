@@ -1,15 +1,15 @@
 ---
-title: "Installing Jura Trace on Windows (Unsigned Build)"
-description: "Step-by-step installation guide for pilot testers running a pre-release build on Windows 10 or Windows 11."
-last-updated: 24 March 2026
+title: "Installing Jura Trace on Windows"
+description: "Step-by-step installation guide for pilot testers running Jura Trace on Windows 10 or Windows 11."
+last-updated: 31 March 2026
 status: internal
 ---
 
-# Installing Jura Trace on Windows (Unsigned Build)
+# Installing Jura Trace on Windows
 
-This guide is for pilot testers installing a pre-release build of Jura Trace. Pre-release builds are not yet signed with a code signing certificate, so Windows will display a security warning during installation. This is expected behaviour — the steps below show you how to proceed safely.
+This guide is for pilot testers installing Jura Trace. From RC4 onwards, Windows builds are signed with a Microsoft Azure Trusted Signing certificate. Most users will not see a SmartScreen warning.
 
-> **Note**: Signed builds are planned for the public release. This guide covers unsigned pilot builds only.
+> **Note**: SmartScreen reputation is built over time. During the first few signed releases, Windows may still display a brief warning until publisher reputation is fully established. See [SmartScreen](#windows-smartscreen) below if this occurs.
 
 ---
 
@@ -17,7 +17,7 @@ This guide is for pilot testers installing a pre-release build of Jura Trace. Pr
 
 1. [Requirements](#requirements)
 2. [Downloading the installer](#downloading-the-installer)
-3. [Bypassing Windows SmartScreen](#bypassing-windows-smartscreen)
+3. [Windows SmartScreen](#windows-smartscreen)
 4. [Windows Firewall prompt](#windows-firewall-prompt)
 5. [WebView2 Runtime](#webview2-runtime)
 6. [Optional: FFmpeg for video and audio analysis](#optional-ffmpeg-for-video-and-audio-analysis)
@@ -52,34 +52,29 @@ Download the file your Juralabs contact has shared with you and save it to a loc
 
 ---
 
-## Bypassing Windows SmartScreen
+## Windows SmartScreen
 
-Because this build is not code-signed, Windows SmartScreen will display a "Windows protected your PC" warning when you run the installer. This does not mean the file is harmful — it means Windows does not yet recognise the publisher.
+From v0.9.0-rc.4, Windows installers are signed with a Microsoft Azure Trusted Signing certificate. Most users will be able to install without any SmartScreen warning.
 
-**Steps:**
+**If SmartScreen still displays a warning**, this is because the publisher reputation has not yet been fully established with Microsoft. This is normal for newly signed applications and resolves after a small number of downloads.
+
+**Steps if a warning appears:**
 
 1. Double-click the installer file.
-2. When the SmartScreen dialog appears, click **More info**.
+2. If the SmartScreen dialog appears, click **More info**.
+3. Confirm the publisher is shown as **Juralabs Community Interest Company** (or your expected publisher name). This confirms the certificate is valid.
+4. Click **Run anyway**.
+5. If User Account Control (UAC) then prompts you to allow the installer to make changes to your device, click **Yes**.
+6. Follow the on-screen installation steps. The default install location (`C:\Program Files\Jura Trace\`) is correct for most users.
 
-   [Screenshot: SmartScreen "Windows protected your PC" dialog with "More info" link highlighted]
+### Managed devices
 
-3. Click **Run anyway**.
-
-   [Screenshot: SmartScreen dialog expanded showing "Run anyway" button]
-
-4. If User Account Control (UAC) then prompts you to allow the installer to make changes to your device, click **Yes**.
-5. Follow the on-screen installation steps. The default install location (`C:\Program Files\Jura Trace\`) is correct for most users.
-
-### If "Run anyway" is not available
-
-Some organisations enforce SmartScreen blocking via Group Policy. If the **Run anyway** button does not appear, you are on a managed device and cannot bypass this restriction yourself.
-
-Contact your IT department and request one of the following:
+Some organisations enforce SmartScreen blocking via Group Policy. If the **Run anyway** button does not appear, contact your IT department and request one of the following:
 
 - A temporary exception for `Jura-Trace_x.x.x_x64-setup.exe` (or the `.msi` equivalent).
 - Addition of `Jura Trace` to the organisation's approved applications list.
 
-Provide your IT contact with the file hash (SHA-256) of the installer, which Juralabs can supply on request.
+The installer is signed — provide your IT contact with the file hash (SHA-256) from the release page to verify integrity.
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 title: "Jura Trace — Pilot Test Script"
 description: "Structured first-use session guide for pilot testers. Covers installation, all four main workflows, and structured feedback collection. Estimated duration: 30 minutes."
-last-updated: 24 March 2026
+last-updated: 31 March 2026
 status: internal
 ---
 
@@ -58,13 +58,13 @@ Before the session begins, confirm the tester has the correct installer file. Re
 **macOS**
 Follow the guide at [`docs/install-guides/macos-unsigned.md`](../install-guides/macos-unsigned.md).
 Key points to communicate in advance:
-- The application is not yet signed with an Apple Developer ID. This is expected for a pilot build. Signed, notarised installers will be provided from v1.0 onwards.
+- The macOS build is not yet signed with an Apple Developer ID. This is expected for a pilot build. Signed, notarised macOS installers will be provided once an Apple Developer certificate is obtained.
 - Gatekeeper will show a warning on first open. The guide explains exactly how to proceed.
 
 **Windows**
 Follow the guide at [`docs/install-guides/windows-unsigned.md`](../install-guides/windows-unsigned.md).
 Key points to communicate in advance:
-- Windows SmartScreen will display a warning because the installer has not yet been code-signed. Select "More info", then "Run anyway".
+- From RC4 onwards, Windows builds are signed with a Microsoft Azure Trusted Signing certificate. Most testers should not see a SmartScreen warning. If one does appear (publisher reputation is still being established), click "More info" then "Run anyway" — the publisher name should confirm Juralabs.
 - WebView2 must be installed. Most Windows 10/11 machines already have it. The guide includes a link to the standalone installer if needed.
 
 **Linux**

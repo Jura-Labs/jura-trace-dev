@@ -266,14 +266,21 @@ jobs:
       # It finds tauri.conf.json in src-tauri/ automatically (standard layout).
       # tauriScript: "cargo tauri" uses the CLI installed above.
       #
-      # The action uploads all produced installer artefacts (DMG, MSI, NSIS,
-      # AppImage, .deb) to the draft release created by the create-release job.
-      - name: Build and upload release artefacts
+      # macOS and Linux: build and upload in one tauri-action call (releaseId set).
+      # Windows: build only here (no releaseId), then sign with Azure Trusted
+      # Signing, then upload signed artefacts manually — see the steps below.
+      #
+      # This split is necessary because Azure Trusted Signing operates as a
+      # post-build step: it calls the Azure attestation service to countersign
+      # the already-built PE binaries (.exe, .msi). The signed files must then
+      # be uploaded manually rather than by tauri-action.
+      - name: Build and upload release artefacts (macOS and Linux)
+        if: runner.os != 'Windows'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          # ── macOS code signing (Sprint 19) ────────────────────────────────
+          # ── macOS code signing ────────────────────────────────────────────
           # Uncomment when an Apple Developer ID Application certificate has been
           # exported as a base64 PEM and stored in GitHub Secrets. Notarisation
           # requires an app-specific password for the Apple ID.
@@ -285,16 +292,117 @@ jobs:
           # APPLE_PASSWORD:             ${{ secrets.APPLE_PASSWORD }}
           # APPLE_TEAM_ID:              ${{ secrets.APPLE_TEAM_ID }}
 
-          # ── Windows Authenticode signing (Sprint 19) ──────────────────────
-          # Uncomment when a code-signing certificate (EV or OV) is available.
-          # TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          # Use cargo tauri (CLI installed via cargo) rather than npx tauri.
           tauriScript: cargo tauri
           args: --target ${{ matrix.target }}
+
+      # Windows: build only — do not pass releaseId so tauri-action does not
+      # attempt to upload the unsigned artefacts to the GitHub Release.
+      # Signing and upload are handled by the two steps that follow.
+      - name: Build release artefacts (Windows, unsigned)
+        if: runner.os == 'Windows'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # ── Windows Authenticode signing ──────────────────────────────────
+          # Signing is performed by Azure Trusted Signing (step below).
+          # TAURI_SIGNING_PRIVATE_KEY is for the Tauri update-bundle minisign
+          # signature and is separate from the Authenticode code-signing cert.
+          # Wire it here once the updater private key is stored in Secrets.
+          # TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          # releaseId intentionally omitted — unsigned binaries must not be
+          # published to the GitHub Release; only the signed copies go up.
+          tauriScript: cargo tauri
+          args: --target ${{ matrix.target }}
+
+      # ── Windows: Azure Trusted Signing ───────────────────────────────────
+      # Signs all .exe and .msi files produced by tauri-action in the Tauri
+      # bundle output directory with the Azure Trusted Signing certificate:
+      #   Account ID: a7e35def-628b-4980-8785-2e535f709418
+      #
+      # azure/trusted-signing-action authenticates to Azure using the OIDC
+      # service principal credentials stored in GitHub Secrets. It calls the
+      # Azure Trusted Signing REST API (endpoint: AZURE_SIGNING_ENDPOINT) and
+      # countersigns each matched binary in place — the original files are
+      # overwritten with their signed versions.
+      #
+      # Required GitHub Secrets (add under Settings > Secrets > Actions):
+      #   AZURE_TENANT_ID        — Azure AD tenant GUID
+      #   AZURE_CLIENT_ID        — Service principal application GUID
+      #   AZURE_CLIENT_SECRET    — Service principal client secret
+      #   AZURE_SIGNING_ENDPOINT — e.g. https://eus.codesigning.azure.net
+      #   AZURE_SIGNING_ACCOUNT  — Trusted Signing account name
+      #   AZURE_CERT_PROFILE     — Certificate profile name
+      #
+      # file-digest / timestamp-digest: SHA256 is the current Windows standard.
+      # timestamp-rfc3161: Microsoft's public TSA — free, no throttling for
+      # normal release volumes.
+      #
+      # files-folder-depth 4 covers the nested Tauri bundle output:
+      #   release/bundle/msi/          (depth 3 from release/)
+      #   release/bundle/nsis/         (depth 3 from release/)
+      # Setting depth 4 provides a safe margin if sub-directories are added.
+      - name: Sign Windows binaries with Azure Trusted Signing
+        if: runner.os == 'Windows'
+        uses: azure/trusted-signing-action@v0.5.0
+        with:
+          azure-tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret:   ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint:              ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name:     ${{ secrets.AZURE_CERT_PROFILE }}
+          files-folder:          src-tauri/target/${{ matrix.target }}/release/bundle
+          files-folder-filter:   exe,msi
+          files-folder-depth:    4
+          file-digest:           SHA256
+          timestamp-rfc3161:     http://timestamp.acs.microsoft.com
+          timestamp-digest:      SHA256
+
+      # Upload the signed Windows artefacts to the draft GitHub Release.
+      #
+      # tauri-action produces the following files for a Windows x64 build
+      # (names are version-dependent; glob patterns handle that):
+      #   bundle/msi/Jura Trace_<ver>_x64_en-US.msi
+      #   bundle/nsis/Jura Trace_<ver>_x64-setup.exe
+      #   bundle/nsis/Jura Trace_<ver>_x64-setup.nsis.zip        (updater archive)
+      #   bundle/nsis/Jura Trace_<ver>_x64-setup.nsis.zip.sig    (minisign — empty until TAURI_SIGNING_PRIVATE_KEY is set)
+      #
+      # gh release upload with --clobber silently replaces an asset that
+      # already exists (idempotent re-runs after a partial failure).
+      # The tag is available as github.ref_name (e.g. "v0.9.0-rc.3").
+      - name: Upload signed Windows artefacts to GitHub Release
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag   = "${{ github.ref_name }}"
+          $bundle = "src-tauri\target\${{ matrix.target }}\release\bundle"
+
+          # Collect signed installers and updater artefacts.
+          # Separate globs keep the intent explicit and avoid accidentally
+          # picking up PyInstaller intermediate files.
+          $msi       = Get-ChildItem "$bundle\msi\*.msi"          -ErrorAction SilentlyContinue
+          $setupExe  = Get-ChildItem "$bundle\nsis\*-setup.exe"   -ErrorAction SilentlyContinue
+          $nsisZip   = Get-ChildItem "$bundle\nsis\*.nsis.zip"    -ErrorAction SilentlyContinue
+          $nsisZipSig = Get-ChildItem "$bundle\nsis\*.nsis.zip.sig" -ErrorAction SilentlyContinue
+
+          $files = @($msi) + @($setupExe) + @($nsisZip) + @($nsisZipSig) |
+                   Where-Object { $_ -ne $null }
+
+          if ($files.Count -eq 0) {
+            Write-Error "No Windows release artefacts found under $bundle"
+            exit 1
+          }
+
+          foreach ($f in $files) {
+            Write-Host "Uploading $($f.Name) ..."
+            gh release upload $tag "$($f.FullName)" --clobber
+          }
 
   # ── Phase 3: Publish the draft release once all platform builds succeed ──
   publish-release:

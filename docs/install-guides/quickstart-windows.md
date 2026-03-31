@@ -7,9 +7,8 @@
 ## Install (2 minutes)
 
 1. Download `Jura-Trace_X.X.X_x64-setup.exe` from the releases page.
-2. Run the installer.
-3. If Windows SmartScreen shows "Windows protected your PC": click **More info**, then **Run anyway**. This is expected behaviour for a pre-release build.
-4. If Windows Firewall prompts for network access: select **Allow on private networks** (the app only communicates with itself — no internet access required).
+2. Run the installer. The build is signed with a Microsoft Trusted Signing certificate.
+3. If Windows Firewall prompts for network access: select **Allow on private networks** (the app only communicates with itself — no internet access required).
 
 ---
 

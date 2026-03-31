@@ -69,6 +69,11 @@
         ]
       }
     },
+    "windows": {
+      "nsis": {
+        "displayLanguageSelector": false
+      }
+    },
     "category": "Utility"
   }
 }
