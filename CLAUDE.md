@@ -162,6 +162,28 @@ juralabs/
 └── CLAUDE.md            # This file
 ```
 
+## Two-Repo Release Architecture
+
+Jura Trace uses a split-repo model to keep source code private while distributing installers publicly:
+
+| Repo | Visibility | Purpose |
+|------|-----------|---------|
+| `juralabs/jura-archive` | Private | Source code, CI, development, all branches and tags |
+| `juralabs/jura-trace` | Public | Release installers only — no source code |
+
+**How it works:**
+1. Tags are pushed to `juralabs/jura-archive` (the source repo where the workflow lives).
+2. The release workflow runs in `jura-archive` using the default `GITHUB_TOKEN` only for checkout.
+3. All GitHub Releases API calls (create, upload assets, publish) target `juralabs/jura-trace` via the `RELEASE_PAT` secret (a PAT with `repo` scope on `jura-trace`).
+4. `tauri-action` is called without `releaseId` on all platforms — this prevents it from uploading to `jura-archive`. Assets are uploaded manually via `gh release upload --repo juralabs/jura-trace` instead.
+5. The Tauri auto-updater endpoint in `tauri.conf.json` also points to `juralabs/jura-trace` so end-user update checks resolve against the public repo.
+
+**Required secrets in `juralabs/jura-archive`:**
+- `RELEASE_PAT` — GitHub PAT with `repo` scope on `juralabs/jura-trace`
+- `GITHUB_TOKEN` — standard Actions token (used only for source checkout)
+
+**CI/CD workflows**: `.github/workflows/` — CI (Rust + Python + Frontend with pip-audit), Release (4-platform matrix), Dependabot
+
 ## Key Files
 
 - **Project spec**: `PROJECT_SPEC.md` — objectives, KPIs, phased delivery

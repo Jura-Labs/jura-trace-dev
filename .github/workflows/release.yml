@@ -5,7 +5,8 @@ on:
     tags:
       - "v*"
 
-# Write access is needed to create and publish the GitHub Release.
+# contents: write is still needed for checking out source from jura-archive.
+# All release creation/publishing targets juralabs/jura-trace via RELEASE_PAT.
 permissions:
   contents: write
 
@@ -54,15 +55,22 @@ jobs:
 
       - name: Create draft release
         id: create
+        # Uses RELEASE_PAT so the release is created on juralabs/jura-trace
+        # (the PUBLIC releases-only repo), not on juralabs/jura-archive
+        # (the PRIVATE source repo). Users who download installers must never
+        # need access to jura-archive.
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.RELEASE_PAT }}
           script: |
             const tag = context.ref.replace('refs/tags/', '');
+            // Fallback body points to jura-trace — jura-archive is private and
+            // users cannot browse it.
             const body = process.env.CHANGELOG_BODY
-              || `## Jura Trace ${tag}\n\nSee [CHANGELOG.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CHANGELOG.md) for details.`;
+              || `## Jura Trace ${tag}\n\nSee [CHANGELOG.md](https://github.com/juralabs/jura-trace/blob/main/CHANGELOG.md) for details.`;
             const { data } = await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner: 'juralabs',
+              repo: 'jura-trace',
               tag_name: tag,
               name: `Jura Trace ${tag}`,
               body,
@@ -125,6 +133,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # ── Linux: free disk space before anything else ──────────────────────
+      # ubuntu-22.04 runners start with ~25 GB free. The ML sidecar deps
+      # (torch, opencv, etc.) plus the Tauri Rust build together exceed that.
+      # Removing unused tool caches recovers 10-15 GB before any build work.
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+          sudo docker image prune --all --force || true
+          df -h /
 
       # ── Linux: Tauri v2 system dependencies ─────────────────────────────
       # Tauri v2 requires webkit2gtk 4.1 (not 4.0 from Tauri v1).
@@ -266,18 +285,19 @@ jobs:
       # It finds tauri.conf.json in src-tauri/ automatically (standard layout).
       # tauriScript: "cargo tauri" uses the CLI installed above.
       #
-      # macOS and Linux: build and upload in one tauri-action call (releaseId set).
-      # Windows: build only here (no releaseId), then sign with Azure Trusted
-      # Signing, then upload signed artefacts manually — see the steps below.
+      # ALL platforms: build only here (no releaseId passed to tauri-action).
+      # tauri-action's built-in upload targets the CURRENT repo (jura-archive),
+      # which is private. Instead, all platforms upload via gh/GitHub API to
+      # juralabs/jura-trace using RELEASE_PAT.
       #
-      # This split is necessary because Azure Trusted Signing operates as a
-      # post-build step: it calls the Azure attestation service to countersign
-      # the already-built PE binaries (.exe, .msi). The signed files must then
-      # be uploaded manually rather than by tauri-action.
-      - name: Build and upload release artefacts (macOS and Linux)
+      # macOS and Linux: build here, upload in the step that follows.
+      # Windows: build here, sign with Azure Trusted Signing, upload signed
+      # artefacts manually — see the steps below.
+      - name: Build release artefacts (macOS and Linux)
         if: runner.os != 'Windows'
         uses: tauri-apps/tauri-action@v0
         env:
+          # GITHUB_TOKEN for checkout/build context only — no upload to jura-archive.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
           # ── macOS code signing ────────────────────────────────────────────
@@ -293,9 +313,62 @@ jobs:
           # APPLE_TEAM_ID:              ${{ secrets.APPLE_TEAM_ID }}
 
         with:
-          releaseId: ${{ needs.create-release.outputs.release_id }}
+          # releaseId intentionally omitted — tauri-action must not upload to
+          # jura-archive. Manual upload to jura-trace follows in the next step.
           tauriScript: cargo tauri
           args: --target ${{ matrix.target }}
+
+      # Upload macOS and Linux artefacts to juralabs/jura-trace via RELEASE_PAT.
+      #
+      # Bundle output directories:
+      #   macOS: src-tauri/target/aarch64-apple-darwin/release/bundle/
+      #     dmg/*.dmg
+      #     macos/*.app.tar.gz  and  *.app.tar.gz.sig
+      #   Linux: src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/
+      #     appimage/*.AppImage  and  *.AppImage.tar.gz  and  *.AppImage.tar.gz.sig
+      #     deb/*.deb
+      #     rpm/*.rpm  (if built)
+      #
+      # gh release upload --clobber is idempotent — safe on re-runs.
+      - name: Upload release artefacts to jura-trace (macOS and Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
+        run: |
+          tag="${{ github.ref_name }}"
+          bundle_dir="src-tauri/target/${{ matrix.target }}/release/bundle"
+
+          echo "Scanning bundle directory: $bundle_dir"
+          ls -lR "$bundle_dir" || echo "(bundle directory not found — build may have failed)"
+
+          # Collect all installer and updater artefact types produced by Tauri.
+          # -maxdepth 3 covers the standard bundle sub-directory structure.
+          mapfile -t files < <(find "$bundle_dir" \
+            \( \
+              -name "*.dmg" \
+              -o -name "*.app.tar.gz" \
+              -o -name "*.app.tar.gz.sig" \
+              -o -name "*.AppImage" \
+              -o -name "*.AppImage.tar.gz" \
+              -o -name "*.AppImage.tar.gz.sig" \
+              -o -name "*.deb" \
+              -o -name "*.rpm" \
+            \) \
+            -maxdepth 4 2>/dev/null | sort)
+
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "ERROR: No release artefacts found under $bundle_dir"
+            exit 1
+          fi
+
+          for f in "${files[@]}"; do
+            echo "Uploading $(basename "$f") ..."
+            gh release upload "$tag" "$f" \
+              --repo juralabs/jura-trace \
+              --clobber
+          done
+          echo "Upload complete."
 
       # Windows: build only — do not pass releaseId so tauri-action does not
       # attempt to upload the unsigned artefacts to the GitHub Release.
@@ -362,7 +435,8 @@ jobs:
           timestamp-rfc3161:     http://timestamp.acs.microsoft.com
           timestamp-digest:      SHA256
 
-      # Upload the signed Windows artefacts to the draft GitHub Release.
+      # Upload the signed Windows artefacts to the draft release on
+      # juralabs/jura-trace (the PUBLIC releases repo) via RELEASE_PAT.
       #
       # tauri-action produces the following files for a Windows x64 build
       # (names are version-dependent; glob patterns handle that):
@@ -374,11 +448,12 @@ jobs:
       # gh release upload with --clobber silently replaces an asset that
       # already exists (idempotent re-runs after a partial failure).
       # The tag is available as github.ref_name (e.g. "v0.9.0-rc.3").
-      - name: Upload signed Windows artefacts to GitHub Release
+      - name: Upload signed Windows artefacts to jura-trace
         if: runner.os == 'Windows'
         shell: pwsh
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # RELEASE_PAT has repo scope on juralabs/jura-trace — gh uses this env var.
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
         run: |
           $tag   = "${{ github.ref_name }}"
           $bundle = "src-tauri\target\${{ matrix.target }}\release\bundle"
@@ -401,7 +476,9 @@ jobs:
 
           foreach ($f in $files) {
             Write-Host "Uploading $($f.Name) ..."
-            gh release upload $tag "$($f.FullName)" --clobber
+            gh release upload $tag "$($f.FullName)" `
+              --repo juralabs/jura-trace `
+              --clobber
           }
 
   # ── Phase 3: Publish the draft release once all platform builds succeed ──
@@ -420,10 +497,12 @@ jobs:
       # SHA256SUMS.txt, and upload it as an additional release asset — all
       # while the release is still a draft, before we flip it to published.
       - name: Generate and upload SHA-256 checksums
+        # Uses RELEASE_PAT to read and write assets on juralabs/jura-trace.
         uses: actions/github-script@v7
         env:
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
         with:
+          github-token: ${{ secrets.RELEASE_PAT }}
           script: |
             const fs   = require('fs');
             const path = require('path');
@@ -431,12 +510,11 @@ jobs:
 
             const releaseId = parseInt(process.env.RELEASE_ID, 10);
 
-            // Fetch the list of assets already attached to the draft release.
-            // tauri-action will have uploaded DMG / MSI / NSIS / AppImage / .deb
-            // files before this job ran (all build jobs are in `needs`).
+            // Fetch the list of assets already attached to the draft release
+            // on juralabs/jura-trace (the public releases repo).
             const { data: assets } = await github.rest.repos.listReleaseAssets({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner: 'juralabs',
+              repo: 'jura-trace',
               release_id: releaseId,
               per_page: 100,
             });
@@ -455,7 +533,7 @@ jobs:
             // Download each artefact into a temporary directory and hash it.
             // The GitHub asset download URL requires the Accept header to redirect
             // to the actual binary; we use the authenticated octokit method so the
-            // GITHUB_TOKEN is forwarded automatically.
+            // RELEASE_PAT is forwarded automatically.
             const tmpDir = '/tmp/release-assets';
             fs.mkdirSync(tmpDir, { recursive: true });
 
@@ -466,8 +544,8 @@ jobs:
               // getReleaseAsset with Accept: application/octet-stream returns the
               // raw binary. The octokit response data is a Buffer in Node.js.
               const response = await github.rest.repos.getReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner: 'juralabs',
+                repo: 'jura-trace',
                 asset_id: asset.id,
                 headers: { Accept: 'application/octet-stream' },
               });
@@ -494,15 +572,15 @@ jobs:
             const existing = assets.find(a => a.name === 'SHA256SUMS.txt');
             if (existing) {
               await github.rest.repos.deleteReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner: 'juralabs',
+                repo: 'jura-trace',
                 asset_id: existing.id,
               });
             }
 
             await github.rest.repos.uploadReleaseAsset({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner: 'juralabs',
+              repo: 'jura-trace',
               release_id: releaseId,
               name: 'SHA256SUMS.txt',
               data: fs.readFileSync(sumsPath),
@@ -541,20 +619,23 @@ jobs:
       # signing is introduced (Sprint 19), each .tar.gz/.zip will have a
       # companion .sig file uploaded by tauri-action; read those here.
       - name: Generate and upload update manifest
+        # Uses RELEASE_PAT to read and write assets on juralabs/jura-trace.
         uses: actions/github-script@v7
         env:
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
         with:
+          github-token: ${{ secrets.RELEASE_PAT }}
           script: |
             const fs = require('fs');
             const path = require('path');
 
             const releaseId = parseInt(process.env.RELEASE_ID, 10);
 
-            // Fetch the release metadata (tag name, body, created_at).
+            // Fetch the release metadata (tag name, body, created_at)
+            // from juralabs/jura-trace (the public releases repo).
             const { data: release } = await github.rest.repos.getRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner: 'juralabs',
+              repo: 'jura-trace',
               release_id: releaseId,
             });
 
@@ -576,16 +657,18 @@ jobs:
             const manifestName = isBeta ? 'latest-beta.json' : 'latest.json';
             console.log(`Tag ${tag} → writing ${manifestName}`);
 
-            // Fetch all assets attached to the draft release.
+            // Fetch all assets attached to the draft release on jura-trace.
             const { data: assets } = await github.rest.repos.listReleaseAssets({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner: 'juralabs',
+              repo: 'jura-trace',
               release_id: releaseId,
               per_page: 100,
             });
 
             const version = tag.replace(/^v/, '');           // e.g. "0.9.0" or "1.0.0-beta.1"
-            const baseUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${tag}`;
+            // baseUrl points to juralabs/jura-trace so auto-update download URLs
+            // resolve to the public repo that users can access.
+            const baseUrl = `https://github.com/juralabs/jura-trace/releases/download/${tag}`;
 
             // Map each Tauri updater platform key to the expected asset suffix.
             // tauri-action produces:
@@ -619,8 +702,8 @@ jobs:
               const sigAsset = assets.find(a => a.name === asset.name + '.sig');
               const signature = sigAsset ? (await (async () => {
                 const sigResp = await github.rest.repos.getReleaseAsset({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
+                  owner: 'juralabs',
+                  repo: 'jura-trace',
                   asset_id: sigAsset.id,
                   headers: { Accept: 'application/octet-stream' },
                 });
@@ -652,15 +735,15 @@ jobs:
             const existingManifest = assets.find(a => a.name === manifestName);
             if (existingManifest) {
               await github.rest.repos.deleteReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner: 'juralabs',
+                repo: 'jura-trace',
                 asset_id: existingManifest.id,
               });
             }
 
             await github.rest.repos.uploadReleaseAsset({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner: 'juralabs',
+              repo: 'jura-trace',
               release_id: releaseId,
               name: manifestName,
               data: fs.readFileSync(tmpPath),
@@ -668,15 +751,18 @@ jobs:
             console.log(`Uploaded ${manifestName}`);
 
       - name: Publish release
+        # Uses RELEASE_PAT to flip the draft release to published on
+        # juralabs/jura-trace (the public releases repo).
         uses: actions/github-script@v7
         env:
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
         with:
+          github-token: ${{ secrets.RELEASE_PAT }}
           script: |
             await github.rest.repos.updateRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner: 'juralabs',
+              repo: 'jura-trace',
               release_id: process.env.RELEASE_ID,
               draft: false,
             });
-            console.log(`Published release ${process.env.RELEASE_ID}`);
+            console.log(`Published release ${process.env.RELEASE_ID} on juralabs/jura-trace`);
