@@ -343,8 +343,10 @@ jobs:
           ls -lR "$bundle_dir" || echo "(bundle directory not found — build may have failed)"
 
           # Collect all installer and updater artefact types produced by Tauri.
-          # -maxdepth 3 covers the standard bundle sub-directory structure.
-          mapfile -t files < <(find "$bundle_dir" \
+          # Uses a while-read loop instead of mapfile for macOS compatibility
+          # (macOS ships bash 3.2 which lacks mapfile).
+          count=0
+          find "$bundle_dir" \
             \( \
               -name "*.dmg" \
               -o -name "*.app.tar.gz" \
@@ -355,19 +357,21 @@ jobs:
               -o -name "*.deb" \
               -o -name "*.rpm" \
             \) \
-            -maxdepth 4 2>/dev/null | sort)
-
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "ERROR: No release artefacts found under $bundle_dir"
-            exit 1
-          fi
-
-          for f in "${files[@]}"; do
+            -maxdepth 4 2>/dev/null | sort | while IFS= read -r f; do
             echo "Uploading $(basename "$f") ..."
             gh release upload "$tag" "$f" \
               --repo juralabs/jura-trace \
               --clobber
+            count=$((count + 1))
           done
+
+          # Verify at least one file was found (re-run find for the check since
+          # the while loop runs in a subshell).
+          found=$(find "$bundle_dir" \( -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" \) -maxdepth 4 2>/dev/null | head -1)
+          if [ -z "$found" ]; then
+            echo "ERROR: No release artefacts found under $bundle_dir"
+            exit 1
+          fi
           echo "Upload complete."
 
       # Windows: build only — do not pass releaseId so tauri-action does not
