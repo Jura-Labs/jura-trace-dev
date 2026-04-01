@@ -257,6 +257,27 @@ jobs:
           New-Item -ItemType Directory -Force -Path src-tauri\binaries | Out-Null
           Copy-Item sidecar\dist\jura-sidecar.exe src-tauri\binaries\${{ matrix.sidecar_name }}
 
+      # ── Windows: sign sidecar binary BEFORE Tauri bundles it ────────────
+      # Windows Defender frequently quarantines unsigned PyInstaller binaries.
+      # Signing the sidecar .exe before Tauri packages it into the installer
+      # means the binary inside the installed app is trusted by Defender.
+      - name: Sign sidecar binary with Azure Trusted Signing
+        if: runner.os == 'Windows'
+        uses: azure/trusted-signing-action@v0.5.0
+        with:
+          azure-tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret:   ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint:              ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name:     ${{ secrets.AZURE_CERT_PROFILE }}
+          files-folder:          src-tauri/binaries
+          files-folder-filter:   exe
+          files-folder-depth:    1
+          file-digest:           SHA256
+          timestamp-rfc3161:     http://timestamp.acs.microsoft.com
+          timestamp-digest:      SHA256
+
       # ── Node.js: build the SvelteKit frontend ───────────────────────────
       # tauri-action calls `npm install` in the project root by default, but
       # our frontend lives in ui/. Install deps there explicitly before handing
