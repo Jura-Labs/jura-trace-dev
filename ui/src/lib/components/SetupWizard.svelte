@@ -99,12 +99,24 @@
     }
   }
 
+  // ── Ollama URL resolution ──────────────────────────────────────────
+  // Read the user-configured Ollama URL from Settings (localStorage),
+  // falling back to the default localhost address.
+  function getOllamaUrl(): string {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('jura-ollama-url');
+      if (saved) return saved.replace(/\/+$/, '');
+    }
+    return 'http://127.0.0.1:11434';
+  }
+
   // ── Ollama model pull ──────────────────────────────────────────────
   async function pullOllamaModel(modelName: string) {
     pullingModel = modelName;
     pullError = null;
     try {
-      const resp = await fetch('http://127.0.0.1:11434/api/pull', {
+      const ollamaUrl = getOllamaUrl();
+      const resp = await fetch(`${ollamaUrl}/api/pull`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: modelName, stream: false }),

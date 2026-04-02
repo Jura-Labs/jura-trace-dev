@@ -114,14 +114,14 @@ jobs:
             # Windows: Tauri looks for the .exe-suffixed name.
             sidecar_name: jura-sidecar-x86_64-pc-windows-msvc.exe
 
-          # Linux x64 — produces AppImage and .deb
+          # Linux x64 — paused (not under active testing, re-enable post-v1.0)
           # ubuntu-22.04 is pinned (not ubuntu-latest) because Tauri's AppImage
           # must link against the oldest available glibc to run on downstream
           # distros; ubuntu-latest may bump glibc sooner than expected.
-          - label: Linux (x64)
-            runner: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            sidecar_name: jura-sidecar-x86_64-unknown-linux-gnu
+          # - label: Linux (x64)
+          #   runner: ubuntu-22.04
+          #   target: x86_64-unknown-linux-gnu
+          #   sidecar_name: jura-sidecar-x86_64-unknown-linux-gnu
 
     runs-on: ${{ matrix.runner }}
     # The sidecar build (torch + open_clip) can take 10-20 minutes alone on
