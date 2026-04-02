@@ -24,11 +24,21 @@
   // Primary action button on each step — receives focus on step change
   let primaryActionEl: HTMLElement | null = $state(null);
 
+  // ── Model pull state ──────────────────────────────────────────────
+  let pullingModel = $state<string | null>(null);
+  let pullError = $state<string | null>(null);
+
   // ── Derived capability flags ───────────────────────────────────────
   const sidecarOnline = $derived(health !== null);
   const ffmpegAvailable = $derived(health?.capabilities.videoMetadata === true);
   const transcriptionAvailable = $derived(health?.capabilities.transcription === true);
   const ollamaAvailable = $derived(health?.ollama !== null && health?.ollama !== undefined);
+
+  // ── Derived Ollama model flags ─────────────────────────────────────
+  const ollamaModels = $derived(health?.ollamaModels ?? []);
+  const llavaInstalled = $derived(ollamaModels.some((m) => m.startsWith('llava')));
+  const qwenInstalled = $derived(ollamaModels.some((m) => m.startsWith('qwen2.5')));
+  const allModelsReady = $derived(llavaInstalled && qwenInstalled);
 
   const isFirstStep = $derived(currentStep === 0);
   const isLastStep = $derived(currentStep === TOTAL_STEPS - 1);
@@ -86,6 +96,25 @@
     } catch {
       // Fallback: open in the current webview as a last resort
       window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  }
+
+  // ── Ollama model pull ──────────────────────────────────────────────
+  async function pullOllamaModel(modelName: string) {
+    pullingModel = modelName;
+    pullError = null;
+    try {
+      const resp = await fetch('http://127.0.0.1:11434/api/pull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: modelName, stream: false }),
+      });
+      if (!resp.ok) throw new Error(`Pull failed: ${resp.status}`);
+      await refreshHealth();
+    } catch (e) {
+      pullError = `Failed to download ${modelName}. Please check Ollama is running and try again.`;
+    } finally {
+      pullingModel = null;
     }
   }
 
@@ -508,7 +537,7 @@
           {/if}
         </div>
 
-      <!-- ── Step 3: AI Descriptions (Ollama) ───────────────────────── -->
+      <!-- ── Step 3: Local AI (Ollama + models) ────────────────────── -->
       {:else if currentStep === 3}
         <div
           class="flex-1 flex flex-col px-8 pt-6 pb-6 motion-safe:animate-[fadeIn_200ms_ease-out]"
@@ -520,28 +549,11 @@
           </p>
 
           <h2 id="step3-heading" class="font-heading text-xl font-semibold text-quartz leading-tight mb-5" style="letter-spacing: -0.01em;">
-            Local AI Descriptions
+            Local AI
           </h2>
 
-          {#if ollamaAvailable}
-            <!-- Ollama online -->
-            <div
-              class="flex items-center gap-3 rounded-lg px-4 py-3.5"
-              style="background: rgba(91,138,95,0.1); border: 1px solid rgba(91,138,95,0.25);"
-              role="status"
-              aria-live="polite"
-            >
-              <svg class="flex-shrink-0 w-5 h-5 text-malachite-light" fill="none" viewBox="0 0 20 20" aria-hidden="true">
-                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 10l4 4 8-8" />
-              </svg>
-              <div>
-                <p class="text-sm font-medium text-malachite-light">AI descriptions and claim verification ready</p>
-                <p class="text-xs text-flint-light mt-0.5">Ollama is running with model: {health?.ollama}</p>
-              </div>
-            </div>
-
-          {:else}
-            <!-- Ollama not running -->
+          {#if !ollamaAvailable}
+            <!-- ── Ollama not running ─────────────────────────────── -->
             <div
               class="flex items-start gap-3 rounded-lg px-4 py-3.5 mb-4"
               style="background: rgba(30,33,40,0.6); border: 1px solid rgba(122,119,112,0.15);"
@@ -557,13 +569,12 @@
                 <p class="text-sm font-medium text-quartz">Ollama is not running</p>
                 <p class="text-xs text-flint-light mt-1 leading-relaxed">
                   Ollama runs AI models locally on your machine — no data leaves your device.
-                  It powers optional image descriptions and claim verification.
+                  It powers image descriptions and claim verification.
                   Jura Trace works fully without it.
                 </p>
               </div>
             </div>
 
-            <!-- Download Ollama CTA -->
             <div class="flex items-center gap-3 flex-wrap">
               <button
                 onclick={openOllamaDownload}
@@ -573,7 +584,6 @@
                        focus-visible:ring-offset-2 focus-visible:ring-offset-graphite"
                 aria-label="Download Ollama — opens ollama.com in your browser"
               >
-                <!-- External link icon -->
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 16 16" aria-hidden="true">
                   <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 3H3a1 1 0 00-1 1v9a1 1 0 001 1h9a1 1 0 001-1v-3" />
                   <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3h4v4" />
@@ -591,7 +601,7 @@
                        focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
                        disabled:opacity-50"
               >
-                {healthChecking ? 'Checking…' : 'I\'ve installed it — re-check'}
+                {healthChecking ? 'Checking…' : "I've installed it — re-check"}
               </button>
 
               <button
@@ -605,6 +615,196 @@
                 Skip — I don't need this
               </button>
             </div>
+
+          {:else}
+            <!-- ── Ollama running — show model checklist ───────────── -->
+
+            <!-- Privacy notice -->
+            <div
+              class="flex items-start gap-2 rounded-md px-3 py-2.5 mb-4"
+              style="background: rgba(55,99,153,0.1); border: 1px solid rgba(55,99,153,0.25);"
+            >
+              <svg class="flex-shrink-0 w-4 h-4 text-lapis-light mt-0.5" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+                <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" />
+                <path stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M8 6v4" />
+                <circle cx="8" cy="5" r="0.5" fill="currentColor" stroke="none" />
+              </svg>
+              <p class="text-xs text-lapis-light leading-relaxed">
+                These models run entirely on your machine. No data is sent to external servers.
+              </p>
+            </div>
+
+            <!-- Model checklist -->
+            <ul class="space-y-3 mb-4" aria-label="Required AI models">
+
+              <!-- llava:7b -->
+              <li
+                class="flex items-center gap-3 rounded-lg px-4 py-3"
+                style="{llavaInstalled
+                  ? 'background: rgba(91,138,95,0.08); border: 1px solid rgba(91,138,95,0.2);'
+                  : 'background: rgba(30,33,40,0.6); border: 1px solid rgba(122,119,112,0.18);'}"
+              >
+                <!-- Status icon -->
+                {#if llavaInstalled}
+                  <svg class="flex-shrink-0 w-5 h-5 text-malachite-light" fill="none" viewBox="0 0 20 20" aria-hidden="true">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 10l4 4 8-8" />
+                  </svg>
+                {:else if pullingModel === 'llava:7b'}
+                  <!-- Spinner while downloading -->
+                  <svg
+                    class="flex-shrink-0 w-5 h-5 text-lapis-light motion-safe:animate-spin"
+                    fill="none" viewBox="0 0 20 20" aria-hidden="true"
+                  >
+                    <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="2" stroke-dasharray="22 22" />
+                  </svg>
+                {:else}
+                  <svg class="flex-shrink-0 w-5 h-5 text-amber-light" fill="none" viewBox="0 0 20 20" aria-hidden="true">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M10 3L2 16h16L10 3z" />
+                    <path stroke="currentColor" stroke-linecap="round" stroke-width="1.75" d="M10 9v4" />
+                    <circle cx="10" cy="15" r="0.5" fill="currentColor" stroke="none" />
+                  </svg>
+                {/if}
+
+                <!-- Model info -->
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium {llavaInstalled ? 'text-malachite-light' : 'text-quartz'}">
+                    <code class="font-mono">llava:7b</code>
+                    <span class="ml-1.5 text-xs font-normal text-flint-light">~4.7 GB</span>
+                  </p>
+                  <p class="text-xs text-flint-light mt-0.5">
+                    {#if llavaInstalled}
+                      Installed — image descriptions enabled
+                    {:else if pullingModel === 'llava:7b'}
+                      Downloading… this may take 5–10 minutes
+                    {:else}
+                      Not installed — required for image descriptions
+                    {/if}
+                  </p>
+                </div>
+
+                <!-- Download button (only when not installed and not already pulling this model) -->
+                {#if !llavaInstalled && pullingModel !== 'llava:7b'}
+                  <button
+                    onclick={() => pullOllamaModel('llava:7b')}
+                    disabled={pullingModel !== null}
+                    class="flex-shrink-0 min-h-[44px] px-3 py-2 rounded-md text-xs font-medium
+                           bg-lapis hover:bg-lapis-dark text-white transition-colors duration-150
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                           focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
+                           disabled:opacity-40 disabled:cursor-not-allowed"
+                    aria-label="Download llava:7b (approximately 4.7 gigabytes)"
+                  >
+                    Download
+                  </button>
+                {/if}
+              </li>
+
+              <!-- qwen2.5:7b-instruct -->
+              <li
+                class="flex items-center gap-3 rounded-lg px-4 py-3"
+                style="{qwenInstalled
+                  ? 'background: rgba(91,138,95,0.08); border: 1px solid rgba(91,138,95,0.2);'
+                  : 'background: rgba(30,33,40,0.6); border: 1px solid rgba(122,119,112,0.18);'}"
+              >
+                <!-- Status icon -->
+                {#if qwenInstalled}
+                  <svg class="flex-shrink-0 w-5 h-5 text-malachite-light" fill="none" viewBox="0 0 20 20" aria-hidden="true">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 10l4 4 8-8" />
+                  </svg>
+                {:else if pullingModel === 'qwen2.5:7b-instruct'}
+                  <svg
+                    class="flex-shrink-0 w-5 h-5 text-lapis-light motion-safe:animate-spin"
+                    fill="none" viewBox="0 0 20 20" aria-hidden="true"
+                  >
+                    <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="2" stroke-dasharray="22 22" />
+                  </svg>
+                {:else}
+                  <svg class="flex-shrink-0 w-5 h-5 text-amber-light" fill="none" viewBox="0 0 20 20" aria-hidden="true">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M10 3L2 16h16L10 3z" />
+                    <path stroke="currentColor" stroke-linecap="round" stroke-width="1.75" d="M10 9v4" />
+                    <circle cx="10" cy="15" r="0.5" fill="currentColor" stroke="none" />
+                  </svg>
+                {/if}
+
+                <!-- Model info -->
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium {qwenInstalled ? 'text-malachite-light' : 'text-quartz'}">
+                    <code class="font-mono">qwen2.5:7b-instruct</code>
+                    <span class="ml-1.5 text-xs font-normal text-flint-light">~4.7 GB</span>
+                  </p>
+                  <p class="text-xs text-flint-light mt-0.5">
+                    {#if qwenInstalled}
+                      Installed — claim verification enabled
+                    {:else if pullingModel === 'qwen2.5:7b-instruct'}
+                      Downloading… this may take 5–10 minutes
+                    {:else}
+                      Not installed — required for claim verification
+                    {/if}
+                  </p>
+                </div>
+
+                {#if !qwenInstalled && pullingModel !== 'qwen2.5:7b-instruct'}
+                  <button
+                    onclick={() => pullOllamaModel('qwen2.5:7b-instruct')}
+                    disabled={pullingModel !== null}
+                    class="flex-shrink-0 min-h-[44px] px-3 py-2 rounded-md text-xs font-medium
+                           bg-lapis hover:bg-lapis-dark text-white transition-colors duration-150
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                           focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
+                           disabled:opacity-40 disabled:cursor-not-allowed"
+                    aria-label="Download qwen2.5:7b-instruct (approximately 4.7 gigabytes)"
+                  >
+                    Download
+                  </button>
+                {/if}
+              </li>
+            </ul>
+
+            <!-- Pull error (shown below the list, outside the list items) -->
+            {#if pullError}
+              <div
+                class="flex items-start gap-2 rounded-md px-3 py-2.5 mb-3"
+                style="background: rgba(180,60,60,0.08); border: 1px solid rgba(180,60,60,0.25);"
+                role="alert"
+                aria-live="assertive"
+              >
+                <svg class="flex-shrink-0 w-4 h-4 text-cinnabar-light mt-0.5" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 2L1 13h14L8 2z" />
+                  <path stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M8 7v3" />
+                  <circle cx="8" cy="12" r="0.5" fill="currentColor" stroke="none" />
+                </svg>
+                <p class="text-xs text-cinnabar-light leading-relaxed">{pullError}</p>
+              </div>
+            {/if}
+
+            <!-- All models ready banner -->
+            {#if allModelsReady}
+              <div
+                class="flex items-center gap-2 rounded-md px-3 py-2.5"
+                style="background: rgba(91,138,95,0.1); border: 1px solid rgba(91,138,95,0.25);"
+                role="status"
+                aria-live="polite"
+              >
+                <svg class="flex-shrink-0 w-4 h-4 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l3 3 7-7" />
+                </svg>
+                <p class="text-xs text-malachite-light font-medium">All models ready — AI features are fully enabled</p>
+              </div>
+            {/if}
+
+            <!-- Continue button (when Ollama is available, footer's Continue won't show; provide one here) -->
+            {#if allModelsReady}
+              <button
+                bind:this={primaryActionEl}
+                onclick={goNext}
+                class="w-full min-h-[44px] py-2.5 px-4 bg-lapis hover:bg-lapis-dark text-white text-sm font-medium
+                       rounded-lg transition-colors duration-150 mt-4
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                       focus-visible:ring-offset-2 focus-visible:ring-offset-graphite"
+              >
+                Continue
+              </button>
+            {/if}
           {/if}
         </div>
 
@@ -682,9 +882,9 @@
               </span>
             </li>
 
-            <!-- AI descriptions -->
+            <!-- AI descriptions and claim verification -->
             <li class="flex items-center gap-3">
-              {#if ollamaAvailable}
+              {#if allModelsReady}
                 <svg class="flex-shrink-0 w-4 h-4 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
                   <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l3 3 7-7" />
                 </svg>
@@ -693,8 +893,14 @@
                   <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4l8 8M12 4l-8 8" />
                 </svg>
               {/if}
-              <span class="text-sm {ollamaAvailable ? 'text-quartz' : 'text-flint-light'}">
-                AI descriptions {ollamaAvailable ? '— available' : '— not available (optional)'}
+              <span class="text-sm {allModelsReady ? 'text-quartz' : 'text-flint-light'}">
+                {#if allModelsReady}
+                  AI descriptions and claim verification — available
+                {:else if ollamaAvailable}
+                  AI descriptions and claim verification — models not yet downloaded (optional)
+                {:else}
+                  AI descriptions and claim verification — not available (optional)
+                {/if}
               </span>
             </li>
 
@@ -749,8 +955,8 @@
           <!-- Last step: primary CTA is inside the content area — no footer button needed -->
           <div></div>
 
-        {:else if currentStep === 3 && !ollamaAvailable}
-          <!-- Step 3 with Ollama unavailable: CTA is in the content area; footer shows nothing -->
+        {:else if currentStep === 3 && (!ollamaAvailable || allModelsReady)}
+          <!-- Step 3: CTAs are in the content area (Ollama install CTA or all-models-ready Continue) -->
           <div></div>
 
         {:else}

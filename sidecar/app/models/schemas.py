@@ -417,3 +417,4 @@ class HealthResponse(BaseModel):
     service: str
     capabilities: CapabilitiesResponse
     ollama: str | None = None
+    ollama_models: list[str] | None = None

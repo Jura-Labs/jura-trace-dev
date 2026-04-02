@@ -306,6 +306,7 @@ export interface SidecarHealth {
   service: string;
   capabilities: SidecarCapabilities;
   ollama: string | null;
+  ollamaModels?: string[] | null;
 }
 
 /** CLIP-based AI classification result from the ML sidecar */

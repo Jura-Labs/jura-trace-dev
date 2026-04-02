@@ -17,11 +17,22 @@ router = APIRouter()
 async def health() -> HealthResponse:
     """Health check with capability declaration and Ollama connectivity."""
     ollama_status: str | None = None
+    ollama_models: list[str] | None = None
 
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
             resp = await client.get(f"{settings.ollama_base_url}/api/tags")
-            ollama_status = "available" if resp.status_code == 200 else "unavailable"
+            if resp.status_code == 200:
+                ollama_status = "available"
+                try:
+                    data = resp.json()
+                    ollama_models = [
+                        m["name"] for m in data.get("models", []) if "name" in m
+                    ]
+                except Exception:
+                    ollama_models = []
+            else:
+                ollama_status = "unavailable"
     except Exception:
         ollama_status = "unavailable"
 
@@ -61,4 +72,5 @@ async def health() -> HealthResponse:
             transcription=whisper_available,
         ),
         ollama=ollama_status,
+        ollama_models=ollama_models,
     )
