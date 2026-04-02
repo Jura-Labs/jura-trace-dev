@@ -186,7 +186,7 @@
     'Analysis Engine',
     'Video and Audio',
     'Speech Transcription',
-    'AI Descriptions',
+    'Local AI',
     'Ready',
   ];
 </script>
@@ -323,11 +323,21 @@
                 <circle cx="10" cy="15" r="0.5" fill="currentColor" stroke="none" />
               </svg>
               <div>
-                <p class="text-sm font-medium text-amber-light">Analysis engine not available</p>
+                <p class="text-sm font-medium text-amber-light">Analysis engine starting</p>
                 <p class="text-xs text-flint-light mt-1 leading-relaxed">
-                  Core features (C2PA signing, EXIF metadata) work without it. Forensic
-                  analysis requires the Analysis Engine — start it from Settings.
+                  The analysis engine may take a moment to start on first launch. Core features
+                  (C2PA signing, EXIF metadata) work without it. If it remains offline, check
+                  Settings for details.
                 </p>
+                <button
+                  onclick={refreshHealth}
+                  disabled={healthChecking}
+                  class="mt-2 text-xs px-2.5 py-1 rounded border border-lapis/40 text-lapis-light hover:bg-lapis/10 transition-colors
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
+                         disabled:opacity-50"
+                >
+                  {healthChecking ? 'Checking…' : 'Re-check'}
+                </button>
               </div>
             </div>
           {/if}
@@ -510,7 +520,7 @@
           </p>
 
           <h2 id="step3-heading" class="font-heading text-xl font-semibold text-quartz leading-tight mb-5" style="letter-spacing: -0.01em;">
-            AI Descriptions
+            Local AI Descriptions
           </h2>
 
           {#if ollamaAvailable}
@@ -546,14 +556,15 @@
               <div>
                 <p class="text-sm font-medium text-quartz">Ollama is not running</p>
                 <p class="text-xs text-flint-light mt-1 leading-relaxed">
-                  AI-powered image descriptions and claim verification are optional enhancements.
-                  Jura Trace works fully without Ollama.
+                  Ollama runs AI models locally on your machine — no data leaves your device.
+                  It powers optional image descriptions and claim verification.
+                  Jura Trace works fully without it.
                 </p>
               </div>
             </div>
 
             <!-- Download Ollama CTA -->
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 flex-wrap">
               <button
                 onclick={openOllamaDownload}
                 class="min-h-[44px] flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
@@ -569,6 +580,18 @@
                   <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 9L13 3" />
                 </svg>
                 Download Ollama
+              </button>
+
+              <button
+                onclick={refreshHealth}
+                disabled={healthChecking}
+                class="min-h-[44px] px-4 py-2.5 rounded-lg text-sm font-medium
+                       border border-lapis/40 text-lapis-light hover:bg-lapis/10 transition-colors duration-150
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                       focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
+                       disabled:opacity-50"
+              >
+                {healthChecking ? 'Checking…' : 'I\'ve installed it — re-check'}
               </button>
 
               <button
