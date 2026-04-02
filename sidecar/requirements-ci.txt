@@ -5,6 +5,7 @@ fastapi==0.115.12
 uvicorn[standard]==0.34.0
 httpx==0.28.1
 pydantic-settings==2.13.1
+python-multipart==0.0.20
 Pillow==11.2.1
 imagehash==4.3.2
 numpy==2.2.4
