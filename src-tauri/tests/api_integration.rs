@@ -36,6 +36,7 @@ fn build_test_state() -> (Arc<Mutex<AppState>>, tempfile::TempDir) {
         db_path: db_path.to_string_lossy().to_string(),
         licence_tier: LicenceTier::Community,
         sidecar_process: None,
+        classifier_model_hash: None,
     };
 
     (Arc::new(Mutex::new(state)), dir)
@@ -703,6 +704,82 @@ async fn test_rate_limit_headers_on_success() {
         headers.contains_key("x-ratelimit-reset"),
         "X-RateLimit-Reset should be on successful responses"
     );
+}
+
+/// Test 14: Batch verify — POST /api/v1/verify/batch with multiple files.
+#[tokio::test]
+async fn test_batch_verify() {
+    let state = build_test_state_async().await;
+    let bootstrap_raw = insert_bootstrap_key(state.clone()).await;
+    let auth = format!("jt_{bootstrap_raw}");
+
+    let (listener, _) = bind_random_port();
+    let base_url = start_test_server(state, listener).await;
+
+    let client = reqwest::Client::new();
+    let form = reqwest::multipart::Form::new()
+        .text("mode", "quick")
+        .part(
+            "files",
+            reqwest::multipart::Part::bytes(minimal_png())
+                .file_name("a.png")
+                .mime_str("image/png")
+                .unwrap(),
+        )
+        .part(
+            "files",
+            reqwest::multipart::Part::bytes(minimal_png())
+                .file_name("b.png")
+                .mime_str("image/png")
+                .unwrap(),
+        );
+
+    let resp = client
+        .post(format!("{base_url}/api/v1/verify/batch"))
+        .header("Authorization", format!("Bearer {auth}"))
+        .multipart(form)
+        .send()
+        .await
+        .expect("request");
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "batch verify should return 200"
+    );
+
+    let body: Value = resp.json().await.expect("json");
+    let data = &body["data"];
+    assert_eq!(data["total"], 2, "should process 2 files");
+    let items = data["items"].as_array().expect("items array");
+    assert_eq!(items.len(), 2, "should return 2 results");
+    for item in items {
+        assert!(item["filename"].is_string(), "filename should be present");
+    }
+}
+
+/// Test 15: Batch verify with no files returns 400.
+#[tokio::test]
+async fn test_batch_verify_no_files() {
+    let state = build_test_state_async().await;
+    let bootstrap_raw = insert_bootstrap_key(state.clone()).await;
+    let auth = format!("jt_{bootstrap_raw}");
+
+    let (listener, _) = bind_random_port();
+    let base_url = start_test_server(state, listener).await;
+
+    let client = reqwest::Client::new();
+    let form = reqwest::multipart::Form::new().text("mode", "quick");
+
+    let resp = client
+        .post(format!("{base_url}/api/v1/verify/batch"))
+        .header("Authorization", format!("Bearer {auth}"))
+        .multipart(form)
+        .send()
+        .await
+        .expect("request");
+
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
 
 // ── Test image helper ─────────────────────────────────────────────────────────

@@ -30,7 +30,7 @@ impl Database {
     }
 
     /// Schema version — increment when adding migrations.
-    const SCHEMA_VERSION: i32 = 4;
+    const SCHEMA_VERSION: i32 = 5;
 
     /// Create tables if they do not already exist, and run any pending migrations.
     ///
@@ -110,6 +110,28 @@ impl Database {
             log::info!("Database migrated to schema version 4 (api_keys table)");
         }
 
+        // Version 4 → 5: add methodology versioning columns to verifications
+        if current_version < 5 {
+            let _ = conn.execute(
+                "ALTER TABLE verifications ADD COLUMN pipeline_version TEXT",
+                [],
+            );
+            let _ = conn.execute(
+                "ALTER TABLE verifications ADD COLUMN sidecar_version TEXT",
+                [],
+            );
+            let _ = conn.execute(
+                "ALTER TABLE verifications ADD COLUMN classifier_model_hash TEXT",
+                [],
+            );
+            let _ = conn.execute(
+                "ALTER TABLE verifications ADD COLUMN analysis_mode TEXT",
+                [],
+            );
+            conn.pragma_update(None, "user_version", 5)?;
+            log::info!("Database migrated to schema version 5 (methodology versioning columns)");
+        }
+
         Ok(())
     }
 
@@ -148,16 +170,20 @@ impl Database {
             );
 
             CREATE TABLE IF NOT EXISTS verifications (
-                verification_id TEXT PRIMARY KEY,
-                source_type     TEXT NOT NULL,
-                content_type    TEXT NOT NULL,
-                ela_score       REAL,
-                deepfake_score  REAL,
-                c2pa_valid      INTEGER,
-                metadata_flags  TEXT,
-                claim_verdict   TEXT,
-                overall_trust   REAL NOT NULL DEFAULT 0.0,
-                created_at      TEXT NOT NULL
+                verification_id      TEXT PRIMARY KEY,
+                source_type          TEXT NOT NULL,
+                content_type         TEXT NOT NULL,
+                ela_score            REAL,
+                deepfake_score       REAL,
+                c2pa_valid           INTEGER,
+                metadata_flags       TEXT,
+                claim_verdict        TEXT,
+                overall_trust        REAL NOT NULL DEFAULT 0.0,
+                pipeline_version     TEXT,
+                sidecar_version      TEXT,
+                classifier_model_hash TEXT,
+                analysis_mode        TEXT,
+                created_at           TEXT NOT NULL
             );
 
             CREATE TABLE IF NOT EXISTS audit_log (
@@ -519,7 +545,7 @@ impl Database {
 
     // ── Verification operations ─────────────────────────────────────────
 
-    /// Insert a verification result record.
+    /// Insert a verification result record with optional methodology metadata.
     #[allow(clippy::too_many_arguments)]
     pub fn insert_verification(
         &self,
@@ -531,14 +557,20 @@ impl Database {
         c2pa_valid: Option<bool>,
         metadata_flags: &[String],
         overall_trust: f64,
+        pipeline_version: Option<&str>,
+        sidecar_version: Option<&str>,
+        classifier_model_hash: Option<&str>,
+        analysis_mode: Option<&str>,
     ) -> SqliteResult<()> {
         let conn = self.conn.lock().unwrap();
         let now = chrono::Utc::now().to_rfc3339();
         let flags_json = serde_json::to_string(metadata_flags).unwrap_or_default();
         conn.execute(
             "INSERT INTO verifications (verification_id, source_type, content_type,
-             ela_score, deepfake_score, c2pa_valid, metadata_flags, overall_trust, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+             ela_score, deepfake_score, c2pa_valid, metadata_flags, overall_trust,
+             pipeline_version, sidecar_version, classifier_model_hash, analysis_mode,
+             created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 verification_id,
                 source_type,
@@ -548,6 +580,10 @@ impl Database {
                 c2pa_valid.map(|b| b as i32),
                 flags_json,
                 overall_trust,
+                pipeline_version,
+                sidecar_version,
+                classifier_model_hash,
+                analysis_mode,
                 now
             ],
         )?;
@@ -1905,6 +1941,10 @@ mod tests {
             Some(true),
             &["No camera information".to_string()],
             0.8,
+            None,
+            None,
+            None,
+            None,
         )
         .unwrap();
     }
@@ -1912,10 +1952,36 @@ mod tests {
     #[test]
     fn verification_counted_in_stats() {
         let db = open_temp_db();
-        db.insert_verification("v1", "file", "image", None, None, None, &[], 0.5)
-            .unwrap();
-        db.insert_verification("v2", "url", "image", None, None, None, &[], 0.3)
-            .unwrap();
+        db.insert_verification(
+            "v1",
+            "file",
+            "image",
+            None,
+            None,
+            None,
+            &[],
+            0.5,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        db.insert_verification(
+            "v2",
+            "url",
+            "image",
+            None,
+            None,
+            None,
+            &[],
+            0.3,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
 
         let stats = db.get_stats().unwrap();
         assert_eq!(stats.total_verifications, 2);
@@ -2319,6 +2385,10 @@ mod tests {
             Some(true),
             &[],
             0.85,
+            None,
+            None,
+            None,
+            None,
         )
         .unwrap();
         db.insert_verification(
@@ -2330,6 +2400,10 @@ mod tests {
             None,
             &[],
             0.35,
+            None,
+            None,
+            None,
+            None,
         )
         .unwrap();
 
@@ -2363,6 +2437,10 @@ mod tests {
                 None,
                 &[],
                 0.5,
+                None,
+                None,
+                None,
+                None,
             )
             .unwrap();
         }
@@ -2396,16 +2474,68 @@ mod tests {
         let db = open_temp_db();
 
         // High: >= 0.7
-        db.insert_verification("v1", "file", "image", None, None, None, &[], 0.9)
-            .unwrap();
-        db.insert_verification("v2", "file", "image", None, None, None, &[], 0.7)
-            .unwrap();
+        db.insert_verification(
+            "v1",
+            "file",
+            "image",
+            None,
+            None,
+            None,
+            &[],
+            0.9,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        db.insert_verification(
+            "v2",
+            "file",
+            "image",
+            None,
+            None,
+            None,
+            &[],
+            0.7,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
         // Medium: >= 0.4 and < 0.7
-        db.insert_verification("v3", "file", "image", None, None, None, &[], 0.5)
-            .unwrap();
+        db.insert_verification(
+            "v3",
+            "file",
+            "image",
+            None,
+            None,
+            None,
+            &[],
+            0.5,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
         // Low: < 0.4
-        db.insert_verification("v4", "file", "image", None, None, None, &[], 0.2)
-            .unwrap();
+        db.insert_verification(
+            "v4",
+            "file",
+            "image",
+            None,
+            None,
+            None,
+            &[],
+            0.2,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
 
         let dist = db.get_trust_distribution().unwrap();
         assert_eq!(dist.total, 4);

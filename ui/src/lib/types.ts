@@ -434,6 +434,22 @@ export interface VerificationResult {
   aiDescription?: string | null;
   /** EXIF thumbnail vs main image consistency check (images only). */
   thumbnailCheck?: ThumbnailCheck | null;
+  /** Methodology metadata for reproducibility (pipeline version, sidecar version, classifier hash). */
+  methodology?: MethodologyRecord | null;
+}
+
+/** Methodology metadata captured at verification time for reproducibility. */
+export interface MethodologyRecord {
+  /** Jura Trace application version (e.g. "0.9.0"). */
+  pipelineVersion: string;
+  /** Python ML sidecar version (e.g. "0.2.0"), if available. */
+  sidecarVersion?: string | null;
+  /** SHA-256 hex digest of the GBM classifier model file, if present. */
+  classifierModelHash?: string | null;
+  /** Investigation mode used (quick, standard, deep, archival). */
+  analysisMode: string;
+  /** ISO 8601 timestamp when the analysis was performed. */
+  analysedAt: string;
 }
 
 /** EXIF thumbnail vs main image consistency check. */

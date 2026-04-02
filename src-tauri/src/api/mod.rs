@@ -76,6 +76,8 @@ use rate_limit::RateLimiter;
             types::StatsResponse,
             types::FingerprintEntry,
             types::FingerprintResponse,
+            types::BatchVerifyItem,
+            types::BatchVerifyResponse,
         )
     ),
     modifiers(&BearerSecurityAddon),
@@ -92,6 +94,7 @@ use rate_limit::RateLimiter;
         routes::create_api_key,
         routes::list_api_keys_handler,
         routes::revoke_api_key,
+        routes::verify_batch,
     ),
     tags(
         (name = "System", description = "Server health and statistics"),
@@ -194,6 +197,7 @@ pub fn build_router(state: Arc<Mutex<AppState>>) -> Router {
         .route("/v1/health", get(routes::health))
         .route("/v1/verify", post(routes::verify_file))
         .route("/v1/verify/url", post(routes::verify_url))
+        .route("/v1/verify/batch", post(routes::verify_batch))
         .route("/v1/protect/sign", post(routes::protect_sign))
         .route("/v1/protect/fingerprint", post(routes::protect_fingerprint))
         .route(

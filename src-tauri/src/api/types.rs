@@ -123,6 +123,43 @@ pub struct StatsResponse {
     pub c2pa_signed_count: u64,
 }
 
+/// Single result within a batch verification response.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchVerifyItem {
+    /// Original filename from the multipart upload.
+    #[schema(example = "photo.jpg")]
+    pub filename: String,
+    /// `true` if this file was analysed successfully.
+    pub success: bool,
+    /// The verification result (present when `success = true`).
+    /// Typed as Value in the OpenAPI spec; actual shape is VerificationResult.
+    #[schema(value_type = Object)]
+    pub result: Option<serde_json::Value>,
+    /// Error message (present when `success = false`).
+    pub error: Option<String>,
+    /// Whether the result is degraded (sidecar offline).
+    #[schema(example = false)]
+    pub degraded: bool,
+}
+
+/// Response for `POST /api/v1/verify/batch`.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchVerifyResponse {
+    /// Per-file results in the same order as the uploaded files.
+    pub items: Vec<BatchVerifyItem>,
+    /// Total files processed.
+    #[schema(example = 3)]
+    pub total: usize,
+    /// Number that succeeded.
+    #[schema(example = 2)]
+    pub succeeded: usize,
+    /// Number that failed.
+    #[schema(example = 1)]
+    pub failed: usize,
+}
+
 /// Fingerprint result for a single hash algorithm.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]

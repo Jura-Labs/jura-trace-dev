@@ -913,6 +913,175 @@ pub async fn revoke_api_key(
     Ok(Json(ApiResponse::ok(json!({ "revoked": true }))))
 }
 
+// ── Batch verify ─────────────────────────────────────────────────────────────
+
+/// `POST /api/v1/verify/batch` — verify multiple files in one request.
+///
+/// Accepts a multipart upload with one or more `files` fields and an optional
+/// `mode` field. Files are processed sequentially. Each file gets its own
+/// result entry in the response array, so partial failures don't fail the
+/// whole batch.
+#[utoipa::path(
+    post,
+    path = "/api/v1/verify/batch",
+    tag = "Verify",
+    operation_id = "verify_batch",
+    summary = "Batch verify multiple files",
+    description = "Upload multiple files for verification. Each file is processed \
+                   independently and returns its own result. Maximum 20 files per request.",
+    request_body(
+        content_type = "multipart/form-data",
+        description = "Multipart upload with `files` fields and optional `mode` field."
+    ),
+    responses(
+        (status = 200, description = "Batch verification results"),
+        (status = 400, description = "No files provided or bad request"),
+        (status = 401, description = "Missing or invalid API key")
+    )
+)]
+pub async fn verify_batch(
+    State(state): State<SharedState>,
+    mut multipart: Multipart,
+) -> Result<Json<ApiResponse<super::types::BatchVerifyResponse>>, ApiError> {
+    use super::types::{BatchVerifyItem, BatchVerifyResponse};
+
+    let mut files: Vec<(String, Bytes)> = Vec::new();
+    let mut mode: Option<String> = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| ApiError::bad_request(format!("Invalid multipart data: {e}")))?
+    {
+        let name = field.name().unwrap_or("").to_string();
+        match name.as_str() {
+            "files" | "file" => {
+                let filename = field.file_name().unwrap_or("unknown").to_string();
+                let bytes = field
+                    .bytes()
+                    .await
+                    .map_err(|e| ApiError::bad_request(format!("Failed to read file: {e}")))?;
+                if !bytes.is_empty() {
+                    files.push((filename, bytes));
+                }
+            }
+            "mode" => {
+                let text = field.text().await.map_err(|e| {
+                    ApiError::bad_request(format!("Failed to read mode field: {e}"))
+                })?;
+                mode = Some(text);
+            }
+            _ => {}
+        }
+    }
+
+    if files.is_empty() {
+        return Err(ApiError::bad_request("No files provided"));
+    }
+
+    if files.len() > 20 {
+        return Err(ApiError::bad_request("Maximum 20 files per batch request"));
+    }
+
+    let mut items: Vec<BatchVerifyItem> = Vec::with_capacity(files.len());
+
+    for (filename, bytes) in files {
+        let state_clone = state.clone();
+        let mode_clone = mode.clone();
+
+        let item = tokio::task::spawn_blocking(move || {
+            // Write to temp file
+            let tmp = match tempfile::NamedTempFile::new() {
+                Ok(mut f) => {
+                    if let Err(e) = f.write_all(&bytes) {
+                        return BatchVerifyItem {
+                            filename,
+                            success: false,
+                            result: None,
+                            error: Some(format!("Failed to write temp file: {e}")),
+                            degraded: false,
+                        };
+                    }
+                    f
+                }
+                Err(e) => {
+                    return BatchVerifyItem {
+                        filename,
+                        success: false,
+                        result: None,
+                        error: Some(format!("Failed to create temp file: {e}")),
+                        degraded: false,
+                    };
+                }
+            };
+
+            let tmp_path = match tmp.into_temp_path().keep() {
+                Ok(p) => p,
+                Err(e) => {
+                    return BatchVerifyItem {
+                        filename,
+                        success: false,
+                        result: None,
+                        error: Some(format!("Failed to persist temp file: {e}")),
+                        degraded: false,
+                    };
+                }
+            };
+
+            let result = crate::verify_content_inner(
+                &tmp_path.to_string_lossy(),
+                "upload",
+                mode_clone.as_deref(),
+                &state_clone,
+            );
+            let _ = std::fs::remove_file(&tmp_path);
+
+            match result {
+                Ok(r) => {
+                    let degraded =
+                        r.ela_result.is_none() && r.deepfake_result.is_none() && r.mode != "quick";
+                    let value = serde_json::to_value(&r).ok();
+                    BatchVerifyItem {
+                        filename,
+                        success: true,
+                        result: value,
+                        error: None,
+                        degraded,
+                    }
+                }
+                Err(e) => BatchVerifyItem {
+                    filename,
+                    success: false,
+                    result: None,
+                    error: Some(e.to_string()),
+                    degraded: false,
+                },
+            }
+        })
+        .await
+        .unwrap_or_else(|_| BatchVerifyItem {
+            filename: "unknown".to_string(),
+            success: false,
+            result: None,
+            error: Some("Verification task panicked".to_string()),
+            degraded: false,
+        });
+
+        items.push(item);
+    }
+
+    let total = items.len();
+    let succeeded = items.iter().filter(|i| i.success).count();
+    let failed = total - succeeded;
+
+    Ok(Json(ApiResponse::ok(BatchVerifyResponse {
+        items,
+        total,
+        succeeded,
+        failed,
+    })))
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /// Infer a file extension from the first bytes using the `infer` crate.

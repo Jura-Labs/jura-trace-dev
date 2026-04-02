@@ -839,15 +839,28 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
     ? 'ViT-B/32 (open_clip)'
     : 'Not available';
 
+  // Use MethodologyRecord from the backend when available, fall back to
+  // locally-computed values for results from older pipeline versions.
+  const meth = result.methodology;
+  const pipelineVer = meth?.pipelineVersion ?? version;
+  const sidecarVer = meth?.sidecarVersion ?? null;
+  const classifierHash = meth?.classifierModelHash
+    ? meth.classifierModelHash.substring(0, 12) + '…'
+    : null;
+  const analysedAtIso = meth?.analysedAt
+    ? new Date(meth.analysedAt).toISOString()
+    : new Date(meta.analysedAt).toISOString();
+
   const metaRows: [string, string][] = [
-    ['Jura Trace version', `v${version}`],
+    ['Jura Trace version', `v${pipelineVer}`],
+    ...(sidecarVer ? [['Analysis Engine version', sidecarVer] as [string, string]] : []),
     ['Analysis mode', modeLabel],
     ['Trust formula', '40% EXIF metadata + 60% forensic analysis'],
     ['C2PA adjustment', '+0.10 (valid, no AI declared) / \u22120.25 (AI declared)'],
-    ['Classifier model', classifierModel],
+    ['Classifier model', classifierModel + (classifierHash ? ` (${classifierHash})` : '')],
     ['CLIP model', clipModel],
     ['Detectors run', detectorsRunText],
-    ['Analysis date', new Date(meta.analysedAt).toISOString()],
+    ['Analysis date', analysedAtIso],
   ];
 
   // Estimate height needed: 6 rows × 5 mm plus 2 mm padding each side

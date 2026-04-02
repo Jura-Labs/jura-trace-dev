@@ -758,6 +758,42 @@ export async function setLicenceTier(tier: LicenceTier): Promise<void> {
   return invoke<void>('set_licence_tier', { tier });
 }
 
+// ── API Key Management ─────────────────────────────────────────────
+
+export interface ApiKeyInfo {
+  keyId: string;
+  name: string;
+  rateLimit: number;
+  revoked: boolean;
+  createdAt: string;
+}
+
+export interface CreateKeyResult {
+  keyId: string;
+  key: string;
+  name: string;
+  rateLimit: number;
+}
+
+/** Create a new API key for the local REST API (port 8300). */
+export async function createApiKey(name: string, rateLimit?: number): Promise<CreateKeyResult> {
+  return invoke<CreateKeyResult>('create_api_key', { name, rateLimit });
+}
+
+/** List all API keys (active and revoked). */
+export async function listApiKeys(): Promise<ApiKeyInfo[]> {
+  try {
+    return await invoke<ApiKeyInfo[]>('list_api_keys');
+  } catch {
+    return [];
+  }
+}
+
+/** Revoke an API key by ID. */
+export async function revokeApiKey(keyId: string): Promise<void> {
+  return invoke<void>('revoke_api_key', { keyId });
+}
+
 // ── Text Extraction ─────────────────────────────────────────────────
 
 /**

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getVersion, checkSidecarHealth, getDbPath, setDbPath, getLicenceTier, setLicenceTier } from '$lib/api';
+  import { getVersion, checkSidecarHealth, getDbPath, setDbPath, getLicenceTier, setLicenceTier, createApiKey, listApiKeys, revokeApiKey } from '$lib/api';
+  import type { ApiKeyInfo, CreateKeyResult } from '$lib/api';
   import type { LicenceTier, SidecarHealth, TierInfo } from '$lib/types';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import {
@@ -186,6 +187,7 @@
     reloadProfiles();
     currentDbPath = await getDbPath();
     currentTier = await getLicenceTier();
+    await loadApiKeys();
   });
 
   function handleRerunWizard() {
@@ -336,6 +338,84 @@
       if (tierFeedbackTimer !== null) clearTimeout(tierFeedbackTimer);
       tierFeedbackTimer = setTimeout(() => { tierFeedback = null; }, 5000);
     }
+  }
+
+  // ── API Key Management ──────────────────────────────────────────────────
+  // Available on Team and Enterprise tiers. Keys authenticate against the
+  // local REST API on port 8300.
+
+  let apiKeys = $state<ApiKeyInfo[]>([]);
+  let apiKeysLoading = $state(false);
+  let newKeyName = $state('');
+  let newKeyRateLimit = $state(100);
+  let creatingKey = $state(false);
+  let newlyCreatedKey = $state<CreateKeyResult | null>(null);
+  let apiKeyFeedback = $state<{ ok: boolean; message: string } | null>(null);
+  let apiKeyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingRevokeId = $state<string | null>(null);
+
+  const apiKeysAvailable = $derived(currentTier === 'team' || currentTier === 'enterprise');
+  const activeKeyCount = $derived(apiKeys.filter(k => !k.revoked).length);
+
+  async function loadApiKeys() {
+    apiKeysLoading = true;
+    apiKeys = await listApiKeys();
+    apiKeysLoading = false;
+  }
+
+  async function handleCreateKey() {
+    if (!newKeyName.trim()) return;
+    creatingKey = true;
+    apiKeyFeedback = null;
+    newlyCreatedKey = null;
+
+    try {
+      const result = await createApiKey(newKeyName.trim(), newKeyRateLimit);
+      newlyCreatedKey = result;
+      newKeyName = '';
+      newKeyRateLimit = 100;
+      await loadApiKeys();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      apiKeyFeedback = { ok: false, message: `Failed to create key: ${msg}` };
+      if (apiKeyFeedbackTimer !== null) clearTimeout(apiKeyFeedbackTimer);
+      apiKeyFeedbackTimer = setTimeout(() => { apiKeyFeedback = null; }, 8000);
+    } finally {
+      creatingKey = false;
+    }
+  }
+
+  function handleRequestRevoke(keyId: string) {
+    pendingRevokeId = keyId;
+  }
+
+  async function handleConfirmRevoke() {
+    if (!pendingRevokeId) return;
+    try {
+      await revokeApiKey(pendingRevokeId);
+      pendingRevokeId = null;
+      await loadApiKeys();
+      apiKeyFeedback = { ok: true, message: 'API key revoked.' };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      apiKeyFeedback = { ok: false, message: `Failed to revoke key: ${msg}` };
+    }
+    if (apiKeyFeedbackTimer !== null) clearTimeout(apiKeyFeedbackTimer);
+    apiKeyFeedbackTimer = setTimeout(() => { apiKeyFeedback = null; }, 5000);
+  }
+
+  function handleCancelRevoke() {
+    pendingRevokeId = null;
+  }
+
+  function handleCopyKey() {
+    if (newlyCreatedKey) {
+      navigator.clipboard.writeText(newlyCreatedKey.key);
+    }
+  }
+
+  function handleDismissNewKey() {
+    newlyCreatedKey = null;
   }
 </script>
 
@@ -1016,6 +1096,215 @@
       >
         {tierFeedback.message}
       </p>
+    {/if}
+  </section>
+
+  <!-- API Key Management -->
+  <section
+    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
+    aria-labelledby="api-keys-heading"
+  >
+    <div class="flex items-center gap-1.5 mb-1">
+      <h2 id="api-keys-heading" class="text-lg font-heading text-text-light dark:text-quartz">API Keys</h2>
+      <ContextualHelpLink href="/help/settings#api-keys" label="Learn about API key management" />
+    </div>
+    <p class="text-xs text-flint dark:text-flint-light mb-4">
+      Manage authentication keys for the local REST API on port 8300. Keys allow external tools (CI pipelines, n8n workflows, custom scripts) to call the Jura Trace verification engine programmatically.
+    </p>
+
+    {#if !apiKeysAvailable}
+      <div class="p-4 rounded-lg border border-lapis/20 bg-lapis/5">
+        <p class="text-sm text-flint dark:text-flint-light">
+          API access is available on <strong class="text-text-light dark:text-quartz">Team</strong> and <strong class="text-text-light dark:text-quartz">Enterprise</strong> plans. Upgrade your plan above to manage API keys.
+        </p>
+      </div>
+    {:else}
+      <!-- Newly created key banner (shown once, dismissed by user) -->
+      {#if newlyCreatedKey}
+        <div
+          class="mb-4 p-4 rounded-lg border border-malachite/30 bg-malachite/5"
+          role="alert"
+          aria-live="polite"
+        >
+          <p class="text-sm font-medium text-malachite dark:text-malachite-light mb-2">
+            API key created — copy it now. It will not be shown again.
+          </p>
+          <div class="flex items-center gap-2 mb-3">
+            <code class="flex-1 px-3 py-2 rounded bg-white dark:bg-obsidian border border-border-light dark:border-border-dark text-xs font-mono text-text-light dark:text-quartz break-all select-all">
+              {newlyCreatedKey.key}
+            </code>
+            <button
+              onclick={handleCopyKey}
+              class="shrink-0 px-3 py-2 text-xs font-medium rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+              aria-label="Copy API key to clipboard"
+            >
+              Copy
+            </button>
+          </div>
+          <div class="flex items-center justify-between text-xs text-flint dark:text-flint-light">
+            <span>Name: <strong>{newlyCreatedKey.name}</strong> &middot; Rate limit: {newlyCreatedKey.rateLimit}/min</span>
+            <button
+              onclick={handleDismissNewKey}
+              class="text-xs text-flint hover:text-text-light dark:hover:text-quartz transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      {/if}
+
+      <!-- Create new key form -->
+      <div class="mb-5 p-4 rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40">
+        <h3 class="text-sm font-medium text-text-light dark:text-quartz mb-3">Create new key</h3>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <div class="flex-1">
+            <label for="api-key-name" class="sr-only">Key name</label>
+            <input
+              id="api-key-name"
+              type="text"
+              bind:value={newKeyName}
+              placeholder="Key name (e.g. CI pipeline)"
+              maxlength="100"
+              class="w-full px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent transition-colors"
+            />
+          </div>
+          <div class="w-28">
+            <label for="api-key-rate" class="sr-only">Rate limit per minute</label>
+            <input
+              id="api-key-rate"
+              type="number"
+              bind:value={newKeyRateLimit}
+              min="1"
+              max="10000"
+              class="w-full px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent transition-colors"
+              aria-label="Rate limit per minute"
+              title="Requests per minute"
+            />
+          </div>
+          <button
+            onclick={handleCreateKey}
+            disabled={creatingKey || !newKeyName.trim()}
+            class="shrink-0 px-4 py-2 min-h-[44px] text-sm font-medium rounded bg-lapis text-white hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                   disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {#if creatingKey}
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full motion-safe:animate-spin" aria-hidden="true"></span>
+                Creating...
+              </span>
+            {:else}
+              Create Key
+            {/if}
+          </button>
+        </div>
+        <p class="mt-2 text-xs text-flint dark:text-flint-light">
+          Rate limit: {newKeyRateLimit} requests/min. Keys use <code class="text-xs">Authorization: Bearer jt_...</code> header format.
+        </p>
+      </div>
+
+      <!-- Feedback banner -->
+      {#if apiKeyFeedback}
+        <p
+          class="mb-4 text-sm px-3 py-2 rounded border
+                 {apiKeyFeedback.ok
+                   ? 'text-malachite dark:text-malachite-light border-malachite/20 bg-malachite/5'
+                   : 'text-cinnabar dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
+          role="status"
+          aria-live="polite"
+        >
+          {apiKeyFeedback.message}
+        </p>
+      {/if}
+
+      <!-- Key list -->
+      {#if apiKeysLoading}
+        <div class="flex items-center gap-2 text-sm text-flint dark:text-flint-light py-4">
+          <span class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin" aria-hidden="true"></span>
+          Loading keys...
+        </div>
+      {:else if apiKeys.length === 0}
+        <p class="text-sm text-flint dark:text-flint-light py-4">
+          No API keys created yet. Create one above to get started.
+        </p>
+      {:else}
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm" aria-label="API keys">
+            <thead>
+              <tr class="border-b border-border-light dark:border-border-dark text-left">
+                <th class="py-2 pr-4 font-medium text-flint dark:text-flint-light">Name</th>
+                <th class="py-2 pr-4 font-medium text-flint dark:text-flint-light">Key ID</th>
+                <th class="py-2 pr-4 font-medium text-flint dark:text-flint-light">Rate Limit</th>
+                <th class="py-2 pr-4 font-medium text-flint dark:text-flint-light">Status</th>
+                <th class="py-2 pr-4 font-medium text-flint dark:text-flint-light">Created</th>
+                <th class="py-2 font-medium text-flint dark:text-flint-light"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each apiKeys as key (key.keyId)}
+                <tr class="border-b border-border-light/50 dark:border-border-dark/50 {key.revoked ? 'opacity-50' : ''}">
+                  <td class="py-2.5 pr-4 text-text-light dark:text-quartz">{key.name}</td>
+                  <td class="py-2.5 pr-4">
+                    <code class="text-xs text-flint dark:text-flint-light">{key.keyId.slice(0, 8)}...</code>
+                  </td>
+                  <td class="py-2.5 pr-4 text-flint dark:text-flint-light">{key.rateLimit}/min</td>
+                  <td class="py-2.5 pr-4">
+                    {#if key.revoked}
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light border border-cinnabar/20">
+                        Revoked
+                      </span>
+                    {:else}
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-malachite/10 text-malachite dark:text-malachite-light border border-malachite/20">
+                        Active
+                      </span>
+                    {/if}
+                  </td>
+                  <td class="py-2.5 pr-4 text-xs text-flint dark:text-flint-light">
+                    {new Date(key.createdAt).toLocaleDateString()}
+                  </td>
+                  <td class="py-2.5 text-right">
+                    {#if !key.revoked}
+                      {#if pendingRevokeId === key.keyId}
+                        <span class="inline-flex items-center gap-2">
+                          <button
+                            onclick={handleConfirmRevoke}
+                            class="text-xs font-medium text-cinnabar hover:text-cinnabar-dark dark:text-cinnabar-light transition-colors
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar rounded"
+                          >
+                            Confirm revoke
+                          </button>
+                          <button
+                            onclick={handleCancelRevoke}
+                            class="text-xs text-flint hover:text-text-light dark:hover:text-quartz transition-colors
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                          >
+                            Cancel
+                          </button>
+                        </span>
+                      {:else}
+                        <button
+                          onclick={() => handleRequestRevoke(key.keyId)}
+                          class="text-xs font-medium text-cinnabar/70 hover:text-cinnabar dark:text-cinnabar-light/70 dark:hover:text-cinnabar-light transition-colors
+                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar rounded"
+                        >
+                          Revoke
+                        </button>
+                      {/if}
+                    {/if}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+        <p class="mt-3 text-xs text-flint dark:text-flint-light">
+          {activeKeyCount} active key{activeKeyCount === 1 ? '' : 's'} &middot; {apiKeys.length} total
+        </p>
+      {/if}
     {/if}
   </section>
 </div>

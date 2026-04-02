@@ -51,6 +51,27 @@ pub struct Asset {
     pub sha256_hash: Option<String>,
 }
 
+/// Methodology metadata captured at verification time for reproducibility.
+///
+/// Records exactly which versions of the pipeline, sidecar, and classifier
+/// model were used to produce a verification result. This enables courts,
+/// insurers, and analysts to confirm that results are comparable or to
+/// re-run analysis when a newer methodology version is available.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct MethodologyRecord {
+    /// Jura Trace application version (e.g. "0.9.0").
+    pub pipeline_version: String,
+    /// Python ML sidecar version (e.g. "0.2.0"), if available.
+    pub sidecar_version: Option<String>,
+    /// SHA-256 hex digest of the GBM classifier model file, if present.
+    pub classifier_model_hash: Option<String>,
+    /// Investigation mode used (`quick`, `standard`, `deep`, `archival`).
+    pub analysis_mode: String,
+    /// ISO 8601 timestamp when the analysis was performed.
+    pub analysed_at: String,
+}
+
 /// Verification result from the VERIFY pipeline.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -104,6 +125,9 @@ pub struct VerificationResult {
     /// SHA-256 hex digest of the input file computed at verification time.
     /// Allows the caller to confirm the file has not changed since import.
     pub input_sha256: Option<String>,
+    /// Methodology metadata (pipeline version, sidecar version, classifier hash).
+    /// Enables reproducibility and legal defensibility of results.
+    pub methodology: Option<MethodologyRecord>,
 }
 
 /// Result of comparing the EXIF-embedded thumbnail against the full image.
@@ -223,6 +247,17 @@ pub struct AppState {
     /// Present only in production builds where the binary was found and launched
     /// successfully. `None` in development (manual uvicorn) or if spawn failed.
     pub sidecar_process: Option<tauri_plugin_shell::process::CommandChild>,
+    /// SHA-256 hex digest of the GBM classifier model file, computed once at
+    /// startup. `None` if the model file is not present.
+    pub classifier_model_hash: Option<String>,
+}
+
+/// Compute the SHA-256 hash of a file, returning a lowercase hex string.
+/// Returns `None` if the file does not exist or cannot be read.
+fn compute_file_sha256(path: &std::path::Path) -> Option<String> {
+    let data = std::fs::read(path).ok()?;
+    let hash = Sha256::digest(&data);
+    Some(format!("{:x}", hash))
 }
 
 // ===== Tauri Commands =====
@@ -1579,6 +1614,21 @@ fn verify_content_inner(
     };
     log::info!("PERF: trust score computation took {:?}", t_trust.elapsed());
 
+    // ── Methodology record ────────────────────────────────────────────────
+    let sidecar_ver = if sidecar_available {
+        app.sidecar.check_health().ok().map(|h| h.version)
+    } else {
+        None
+    };
+
+    let methodology = Some(MethodologyRecord {
+        pipeline_version: env!("CARGO_PKG_VERSION").to_string(),
+        sidecar_version: sidecar_ver.clone(),
+        classifier_model_hash: app.classifier_model_hash.clone(),
+        analysis_mode: effective_mode.to_string(),
+        analysed_at: chrono::Utc::now().to_rfc3339(),
+    });
+
     // ── Database operations ───────────────────────────────────────────────
     let t_db = std::time::Instant::now();
     let verification_id = uuid::Uuid::new_v4().to_string();
@@ -1591,6 +1641,10 @@ fn verify_content_inner(
         c2pa_valid,
         &metadata_flags,
         overall_trust,
+        Some(env!("CARGO_PKG_VERSION")),
+        sidecar_ver.as_deref(),
+        app.classifier_model_hash.as_deref(),
+        Some(effective_mode),
     );
 
     let canonical_path_str = path.to_string_lossy().to_string();
@@ -1668,6 +1722,7 @@ fn verify_content_inner(
         ai_description,
         thumbnail_check,
         input_sha256,
+        methodology,
     })
 }
 
@@ -2779,6 +2834,74 @@ fn get_skip_wizard(app_handle: tauri::AppHandle) -> Result<bool, String> {
     Ok(config.skip_setup_wizard)
 }
 
+// ===== API Key Management (Tauri IPC) =====
+
+/// API key info returned to the frontend (no hash exposed).
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiKeyInfo {
+    pub key_id: String,
+    pub name: String,
+    pub rate_limit: i64,
+    pub revoked: bool,
+    pub created_at: String,
+}
+
+/// Create a new API key for the local REST API wrapper.
+/// Returns the raw key (shown once only) and the key metadata.
+#[tauri::command]
+fn create_api_key(
+    name: String,
+    rate_limit: Option<i64>,
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<serde_json::Value, String> {
+    let guard = state.lock().map_err(|e| e.to_string())?;
+    let key_id = uuid::Uuid::new_v4().to_string();
+    let raw_key = format!("jt_{}", uuid::Uuid::new_v4().simple());
+    let key_hash = crate::api::auth::hash_key(&raw_key);
+    let rl = rate_limit.unwrap_or(100);
+    guard
+        .db
+        .create_api_key(&key_id, &name, &key_hash, rl)
+        .map_err(|e| format!("Failed to create API key: {e}"))?;
+    Ok(serde_json::json!({
+        "keyId": key_id,
+        "key": raw_key,
+        "name": name,
+        "rateLimit": rl,
+    }))
+}
+
+/// List all API keys (active and revoked).
+#[tauri::command]
+fn list_api_keys(state: State<'_, Arc<Mutex<AppState>>>) -> Result<Vec<ApiKeyInfo>, String> {
+    let guard = state.lock().map_err(|e| e.to_string())?;
+    let records = guard
+        .db
+        .list_api_keys()
+        .map_err(|e| format!("Failed to list API keys: {e}"))?;
+    Ok(records
+        .into_iter()
+        .map(|r| ApiKeyInfo {
+            key_id: r.key_id,
+            name: r.name,
+            rate_limit: r.rate_limit,
+            revoked: r.revoked,
+            created_at: r.created_at,
+        })
+        .collect())
+}
+
+/// Revoke an API key by ID.
+#[tauri::command]
+fn revoke_api_key(key_id: String, state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), String> {
+    let guard = state.lock().map_err(|e| e.to_string())?;
+    guard
+        .db
+        .revoke_api_key(&key_id)
+        .map_err(|e| format!("Failed to revoke API key: {e}"))
+}
+
 // ===== Solar Position Calculator =====
 
 /// Calculate the solar azimuth and elevation for a given location and UTC time.
@@ -3489,12 +3612,32 @@ pub fn run() {
                 sidecar_child.is_some()
             );
 
+            // Compute classifier model hash once at startup for methodology
+            // versioning. Try the standard model path relative to the app
+            // resource directory, falling back to the development models/ dir.
+            let classifier_hash = {
+                let model_name = "deepfake_classifier.joblib";
+                let app_dir = app.path().resource_dir().ok();
+                let candidates: Vec<PathBuf> = [
+                    app_dir.as_ref().map(|d| d.join("models").join(model_name)),
+                    Some(PathBuf::from("models").join(model_name)),
+                ]
+                .into_iter()
+                .flatten()
+                .collect();
+                candidates.iter().find_map(|p| compute_file_sha256(p))
+            };
+            if let Some(ref h) = classifier_hash {
+                log::info!("Classifier model hash: {}", &h[..16]);
+            }
+
             let shared_state = Arc::new(Mutex::new(AppState {
                 db: database,
                 sidecar: sidecar_client,
                 db_path: db_path.to_string_lossy().into_owned(),
                 licence_tier,
                 sidecar_process: sidecar_child,
+                classifier_model_hash: classifier_hash,
             }));
 
             // ── Local REST API server (port 8300) ────────────────────────────
@@ -3573,6 +3716,9 @@ pub fn run() {
             save_annotation,
             get_annotations,
             delete_annotation,
+            create_api_key,
+            list_api_keys,
+            revoke_api_key,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Jura Trace")
@@ -4105,6 +4251,7 @@ mod tests {
             ai_description: None,
             thumbnail_check: None,
             input_sha256: None,
+            methodology: None,
         };
         let json = serde_json::to_string(&result).unwrap();
         assert!(
