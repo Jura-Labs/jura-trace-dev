@@ -64,7 +64,7 @@
     <li>
       <a href="#url-watchlist"
          class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        7. URL Watchlist (Coming Soon)
+        7. URL Watchlist
       </a>
     </li>
     <li>
@@ -530,7 +530,7 @@
       <tbody class="text-flint dark:text-flint-light">
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4">Republication of the original file on a website</td>
-          <td class="py-2 text-malachite dark:text-malachite-light">✓ Via URL watchlist (coming soon)</td>
+          <td class="py-2 text-malachite dark:text-malachite-light">✓ Via URL Watchlist — re-verify registered URLs on demand</td>
         </tr>
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4">Metadata stripping before redistribution</td>
@@ -570,40 +570,72 @@
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
-     7. URL Watchlist (Coming Soon)
+     7. URL Watchlist
      ══════════════════════════════════════════════════════════════════ -->
 <section id="url-watchlist" class="mb-12" aria-labelledby="heading-url-watchlist">
   <h2 id="heading-url-watchlist" class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
     7. URL Watchlist
-    <span class="ml-2 text-xs font-sans font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 align-middle">Coming soon</span>
   </h2>
 
   <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
-    The URL Watchlist is a planned feature that will allow you to register public URLs for
-    periodic re-verification. Once a URL is registered, Jura Trace will check it on a
-    schedule you define — re-running C2PA manifest verification and watermark extraction
-    each time.
+    The URL Watchlist lets you register public URLs for on-demand re-verification. Once a
+    URL is added, Jura Trace re-runs C2PA manifest verification and watermark extraction
+    against it each time you trigger a check, logging the result in the Activity Record.
+    All checking runs entirely on your device — no cloud infrastructure is involved.
   </p>
+
+  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
+    Adding a URL
+  </h3>
 
   <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
-    A change in C2PA status (for example, a manifest that was previously valid now
-    returning as missing) will be flagged in the Activity Record and highlighted in the
-    dashboard. Watermark extraction results will be compared against the original asset
-    record, and any discrepancy will be logged.
+    Navigate to the Monitor tab and enter a public URL in the
+    <strong class="text-text-light dark:text-text-dark">Add URL</strong> field, then click
+    <strong class="text-text-light dark:text-text-dark">Add</strong>. The URL appears in
+    your watchlist immediately with a status badge reflecting the last known check result.
   </p>
+
+  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
+    Status badges
+  </h3>
 
   <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
-    This feature is designed for organisations that publish assets publicly and wish to
-    monitor whether those assets are being redistributed with their provenance intact.
+    Each URL entry carries a status badge that updates after every check:
   </p>
 
-  <!-- Callout: coming soon -->
+  <ul class="space-y-2 mb-4 text-sm text-flint dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3">
+      <span class="flex-none font-semibold text-malachite dark:text-malachite-light">Active</span>
+      <span>The URL is reachable and its last verification result was recorded successfully.</span>
+    </li>
+    <li class="flex gap-3">
+      <span class="flex-none font-semibold text-amber dark:text-amber-light">Changed</span>
+      <span>The C2PA status or watermark result differs from a previous check — review the event history.</span>
+    </li>
+    <li class="flex gap-3">
+      <span class="flex-none font-semibold text-cinnabar dark:text-cinnabar-light">Error</span>
+      <span>The URL could not be reached or the verification pipeline encountered a problem.</span>
+    </li>
+  </ul>
+
+  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
+    Detection history and case management
+  </h3>
+
+  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
+    Click any watchlist entry to expand it and view the full detection history — each event
+    row shows the timestamp, C2PA manifest result, and watermark extraction outcome. You can
+    assign a case status to any entry (for example, marking it as
+    <strong class="text-text-light dark:text-text-dark">Under Review</strong> or
+    <strong class="text-text-light dark:text-text-dark">Resolved</strong>) to track your
+    investigative response over time.
+  </p>
+
   <div class="bg-graphite rounded-lg border border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
-      <strong class="text-text-light dark:text-text-dark">Note:</strong>
-      The URL Watchlist is planned for a future release. All checking will run from your
-      device on the schedule you set — no cloud infrastructure is involved. The feature
-      is described in the project roadmap as part of the Layer 1 monitoring suite.
+      <strong class="text-text-light dark:text-text-dark">Local-first design.</strong>
+      All watchlist data — registered URLs, event history, and case notes — is stored in the
+      application database on your device. Nothing is sent to any external server.
     </p>
   </div>
 </section>

@@ -952,35 +952,5 @@
     </div>
   </section>
 
-  <!-- ── Philosophy anchor ──────────────────────────────────────── -->
-  <section
-    class="py-20 text-center relative"
-    aria-label="Our philosophy"
-  >
-    <!-- Vertical rule above -->
-    <div
-      class="absolute top-0 left-1/2 -translate-x-1/2 w-px h-10 bg-flint/20"
-      aria-hidden="true"
-    ></div>
-
-    <div class="max-w-lg mx-auto">
-      <p class="text-xs text-flint dark:text-[#A09D95] uppercase tracking-widest mb-6">
-        The human centre
-      </p>
-      <blockquote
-        class="font-heading text-xl font-normal text-text-light dark:text-quartz leading-relaxed mb-5"
-        style="letter-spacing: -0.01em;"
-      >
-        Keep people at the heart of every decision.<br>
-        <em class="text-lapis-light dark:text-[#8AABBF] not-italic">
-          Use technology to support and guide, not to take over.
-        </em>
-      </blockquote>
-      <p class="text-xs text-flint/70 dark:text-flint tracking-wide">
-        Juralabs CIC — Reclaiming Technology for Society
-      </p>
-    </div>
-  </section>
-
 </div>
 {/if}

@@ -55,11 +55,36 @@
     Documentation and Guidance
   </h1>
   <p class="text-base text-flint dark:text-flint-light leading-relaxed max-w-2xl">
-    Jura Trace helps you protect and verify digital content. These guides explain how each
-    feature works, the methodology behind our analysis, and practical advice for different
-    use cases.
+    Jura Trace runs 16+ forensic detectors to verify content authenticity and embeds
+    tamper-evident credentials to protect your digital assets. These guides explain how
+    each feature works, the methodology behind our analysis, and practical workflows for
+    different use cases.
   </p>
 </header>
+
+<!-- Earth-line section divider -->
+<div class="earth-line mb-8" role="separator" aria-hidden="true"></div>
+
+<!-- Start here -->
+<section aria-label="Getting started steps" class="mb-8">
+  <p class="text-xs font-semibold uppercase tracking-widest text-flint dark:text-flint-light mb-4">
+    Start here
+  </p>
+  <ol class="space-y-3">
+    <li class="flex gap-3 text-sm text-flint dark:text-flint-light leading-relaxed">
+      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">1</span>
+      <span>Complete the <strong class="text-text-light dark:text-text-dark">Setup Wizard</strong> on first launch — it checks the Analysis Engine, FFmpeg, and Ollama so everything is ready before you start.</span>
+    </li>
+    <li class="flex gap-3 text-sm text-flint dark:text-flint-light leading-relaxed">
+      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
+      <span>Import your first asset on the <a href="/help/protect" class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"><strong class="text-text-light dark:text-text-dark">Protect</strong> page</a> to apply Content Credentials or an invisible watermark.</span>
+    </li>
+    <li class="flex gap-3 text-sm text-flint dark:text-flint-light leading-relaxed">
+      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">3</span>
+      <span>Run your first verification on the <a href="/help/verify" class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"><strong class="text-text-light dark:text-text-dark">Verify</strong> page</a> to see the forensic pipeline in action.</span>
+    </li>
+  </ol>
+</section>
 
 <!-- Earth-line section divider -->
 <div class="earth-line mb-8" role="separator" aria-hidden="true"></div>

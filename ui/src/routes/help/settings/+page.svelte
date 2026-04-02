@@ -11,7 +11,7 @@
   <p class="text-base text-flint dark:text-flint-light leading-relaxed max-w-2xl">
     The Settings page lets you configure Ollama for AI-assisted analysis, manage named
     deployment profiles, check service health, choose where your local database is stored,
-    and review licence and version information.
+    review your licence tier, and review licence and version information.
   </p>
 </header>
 
@@ -52,6 +52,24 @@
       <a href="#about"
          class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         5. About
+      </a>
+    </li>
+    <li>
+      <a href="#setup-wizard"
+         class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
+        6. Setup Wizard
+      </a>
+    </li>
+    <li>
+      <a href="#auto-updater"
+         class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
+        7. Updates
+      </a>
+    </li>
+    <li>
+      <a href="#your-plan"
+         class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
+        8. Your Plan
       </a>
     </li>
   </ol>
@@ -269,7 +287,7 @@
   </div>
 
   <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
-    Settings are saved to your browser's local storage when you click
+    Settings are saved locally on your device when you click
     <strong class="text-text-light dark:text-text-dark">Save settings</strong>.
     They persist across application restarts. Use
     <a href="#deployment-profiles" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis">Deployment Profiles</a>
@@ -334,7 +352,7 @@
   <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
     After loading a profile, click
     <strong class="text-text-light dark:text-text-dark">Save settings</strong>
-    to persist the loaded values to local storage. If you do not save, the values will
+    to persist the loaded values to the application's local settings. If you do not save, the values will
     revert to the previous configuration on the next application restart.
   </p>
 
@@ -344,7 +362,7 @@
 
   <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
     Click <strong class="text-text-light dark:text-text-dark">Delete</strong> next to a
-    profile, then confirm the deletion. This removes the profile from local storage.
+    profile, then confirm the deletion. This removes the profile from the application's local settings.
     The active settings are not affected — only the saved profile entry is removed.
   </p>
 
@@ -452,13 +470,12 @@
         Analysis Services offline
       </p>
       <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
-        Start the Analysis Engine manually. In a terminal, from the
-        <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">sidecar/</span>
-        directory:
-        <br />
-        <code class="block mt-2 font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-3 py-2 rounded">uvicorn main:app --host 127.0.0.1 --port 8200</code>
-        Then click <strong class="text-text-light dark:text-text-dark">Refresh</strong>
-        in the Service Status panel.
+        The Analysis Engine starts automatically when you launch Jura Trace. If it shows as
+        <strong class="text-text-light dark:text-text-dark">Offline</strong>, try restarting
+        the application. If the problem persists, check that no other process is using
+        port 8200 on your device, then restart again. Once the service is running, click
+        <strong class="text-text-light dark:text-text-dark">Refresh</strong> in the Service
+        Status panel to confirm the connection.
       </p>
     </div>
 
@@ -688,6 +705,244 @@
       Jura Trace does not collect usage data, send telemetry, or connect to any cloud
       service. Every operation — protect, verify, analyse, store — runs entirely on your
       device. Your content and your audit trail remain yours.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     6. Setup Wizard
+     ══════════════════════════════════════════════════════════════════ -->
+<section id="setup-wizard" class="mb-12" aria-labelledby="heading-setup-wizard">
+  <h2 id="heading-setup-wizard" class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
+    6. Setup Wizard
+  </h2>
+
+  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
+    The Setup Wizard runs automatically the first time you launch Jura Trace. It steps
+    through a series of service checks to confirm that everything required for analysis
+    is available on your device before you begin working.
+  </p>
+
+  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
+    What the wizard checks
+  </h3>
+
+  <div class="space-y-4 mb-6">
+
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+        Step 1 — Analysis Engine
+      </p>
+      <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+        Confirms the bundled Analysis Engine (Python sidecar) is running and responding on
+        port 8200. The Analysis Engine is started automatically at launch; this step
+        verifies the startup completed successfully.
+      </p>
+    </div>
+
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+        Step 2 — FFmpeg
+      </p>
+      <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+        Checks that FFmpeg is available on your system. FFmpeg is required for video and
+        audio analysis — metadata extraction, frame thumbnails, and transcription. If it
+        is not found, the wizard provides installation guidance for your platform.
+      </p>
+    </div>
+
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+        Step 3 — Speech Transcription
+      </p>
+      <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+        Checks whether a Whisper transcription model is available. Whisper enables audio
+        and video transcription, which feeds into the claim verification pipeline. This
+        step prompts you to download the model if it has not yet been installed.
+      </p>
+    </div>
+
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+        Step 4 — Local AI (Ollama)
+      </p>
+      <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+        Checks whether Ollama is running and whether the vision model (LLaVA) and text
+        model (Qwen2.5) are installed. These models are optional — all 16+ forensic
+        detectors work without them. If Ollama is unavailable, the wizard confirms which
+        features will be skipped.
+      </p>
+    </div>
+
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+        Step 5 — Ready
+      </p>
+      <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+        Summarises the results of all checks. Green items are ready. Items with warnings
+        can be resolved before you continue, or skipped — Jura Trace will operate with the
+        services that are available.
+      </p>
+    </div>
+
+  </div>
+
+  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
+    Re-running the wizard
+  </h3>
+
+  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
+    The wizard records its completion state in the application's local storage so it does
+    not appear on every launch. To re-run it — for example, after installing FFmpeg or
+    pulling new Ollama models — clear the application's local settings and relaunch Jura
+    Trace. The wizard will run again on the next startup.
+  </p>
+
+  <!-- Callout: how to clear local storage -->
+  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+    <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+      <strong class="text-text-light dark:text-text-dark">Clearing local settings.</strong>
+      On macOS and Linux, open the application's data directory and delete the
+      <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">localStorage</span>
+      store. On Windows, this is located in the Jura Trace application data folder under
+      <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">%APPDATA%\com.juralabs.jura-trace\</span>.
+      Note: clearing local settings resets deployment profiles and display preferences.
+      Your database file and all asset records are stored separately and are not affected.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     7. Updates
+     ══════════════════════════════════════════════════════════════════ -->
+<section id="auto-updater" class="mb-12" aria-labelledby="heading-auto-updater">
+  <h2 id="heading-auto-updater" class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
+    7. Updates
+  </h2>
+
+  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
+    Jura Trace can check for and apply updates automatically. Updates are served from the
+    GitHub releases page for the project. No account or registration is required.
+  </p>
+
+  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
+    Checking for updates
+  </h3>
+
+  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
+    Click <strong class="text-text-light dark:text-text-dark">Check for Updates</strong>
+    in the Settings page. Jura Trace queries the GitHub releases page to determine whether
+    a newer stable release is available.
+  </p>
+
+  <ul class="space-y-3 mb-6 text-sm text-flint dark:text-flint-light leading-relaxed">
+    <li class="flex gap-2">
+      <span class="text-lapis dark:text-lapis-light flex-none">→</span>
+      <span>If an update is available, a prompt appears with the new version number and the option to download and install.</span>
+    </li>
+    <li class="flex gap-2">
+      <span class="text-lapis dark:text-lapis-light flex-none">→</span>
+      <span>The update is downloaded in the background and applied when you confirm. Jura Trace will restart automatically to complete the installation.</span>
+    </li>
+    <li class="flex gap-2">
+      <span class="text-lapis dark:text-lapis-light flex-none">→</span>
+      <span>If no update is available, a brief confirmation message confirms you are on the latest version.</span>
+    </li>
+  </ul>
+
+  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
+    RC and pre-release builds
+  </h3>
+
+  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
+    Release candidate (RC) and alpha builds are not included in the automatic update
+    channel. If you are running an RC build, the updater will not offer a newer RC — it
+    will only prompt when a full stable release is published. To move between pre-release
+    builds, download the installer directly from the GitHub releases page.
+  </p>
+
+  <!-- Callout: update safety -->
+  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+    <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+      <strong class="text-text-light dark:text-text-dark">Your data is not affected by updates.</strong>
+      The application database, asset records, and fingerprint history are stored
+      separately from the application binary. Updating Jura Trace does not modify or
+      remove any of your data.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     8. Your Plan
+     ══════════════════════════════════════════════════════════════════ -->
+<section id="your-plan" class="mb-12" aria-labelledby="heading-your-plan">
+  <h2 id="heading-your-plan" class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
+    8. Your Plan
+  </h2>
+
+  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
+    Jura Trace uses a tiered licence model. Your current tier determines which features
+    are active and whether tier-specific panels appear in the results view. During the pilot
+    phase, the tier can be selected manually in Settings under <strong class="text-text-light dark:text-text-dark">Your Plan</strong>.
+  </p>
+
+  <div class="space-y-4">
+
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+        Community
+      </p>
+      <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+        Includes all core verification and protection features: C2PA signing and verification,
+        perceptual fingerprinting, EXIF anomaly detection, the full set of 16+ forensic
+        detectors, PDF trust reports, and ZIP case exports. Community is the default tier for
+        all pilot users.
+      </p>
+    </div>
+
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+        Professional
+      </p>
+      <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+        Adds the analyst declaration header in PDF reports, raw signal scores for all
+        detectors (the "Technical View" toggle in results), and batch verification of
+        multiple files in a single queue. Intended for individual analysts, journalists,
+        and researchers who work with sensitive or legally significant material.
+      </p>
+    </div>
+
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+        Team
+      </p>
+      <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+        Includes all Professional features. Intended for newsrooms, cultural institutions, and
+        organisations deploying Jura Trace across multiple workstations, where a shared
+        database location and consistent deployment configuration are needed.
+      </p>
+    </div>
+
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+        Enterprise
+      </p>
+      <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+        Includes all Team features and adds API access, advanced deployment options, and
+        dedicated support. Enterprise licences are arranged directly with Juralabs and are
+        scoped to the organisation's specific requirements.
+      </p>
+    </div>
+
+  </div>
+
+  <!-- Callout: tier hints are informational only -->
+  <div class="bg-graphite rounded-lg border border-border-dark p-4 mt-6">
+    <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+      <strong class="text-text-light dark:text-text-dark">Tier hints are informational.</strong>
+      During the pilot phase, tier hints may appear on the Verify page when a feature is
+      associated with a higher tier. These hints do not block any functionality — all features
+      remain accessible regardless of the selected tier while the pilot is in progress.
     </p>
   </div>
 </section>

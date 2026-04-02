@@ -94,6 +94,7 @@ export async function importFiles(paths: string[]): Promise<Asset[]> {
     height: 1080,
     c2paSigned: false,
     watermarked: false,
+    fingerprinted: false,
     createdAt: new Date().toISOString(),
   }));
 }
@@ -158,16 +159,18 @@ export async function getAssets(): Promise<Asset[]> {
   }
 }
 
-/** Get filtered assets with optional content type, signed status, and search. */
+/** Get filtered assets with optional content type, signed status, fingerprint status, and search. */
 export async function getFilteredAssets(
   contentType?: string,
   c2paSigned?: boolean,
   searchQuery?: string,
+  fingerprinted?: boolean,
 ): Promise<Asset[]> {
   try {
     return await invoke<Asset[]>('get_filtered_assets', {
       contentType: contentType ?? null,
       c2paSigned: c2paSigned ?? null,
+      fingerprinted: fingerprinted ?? null,
       searchQuery: searchQuery ?? null,
     });
   } catch {

@@ -72,7 +72,10 @@ export interface Asset {
   metadataJson?: string;
   c2paSigned: boolean;
   watermarked: boolean;
+  /** Whether at least one perceptual fingerprint exists for this asset. */
+  fingerprinted: boolean;
   createdAt: string;
+  sha256Hash?: string;
 }
 
 /** Supported content types */

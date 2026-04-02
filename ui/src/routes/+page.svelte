@@ -28,7 +28,7 @@
 
   <!-- Hero -->
   <section class="text-center py-16 pb-12">
-    <p class="text-xs text-flint dark:text-[#A09D95] uppercase tracking-widest mb-5">Local-first content integrity</p>
+    <p class="text-xs text-flint dark:text-[#A09D95] uppercase tracking-widest mb-5">16+ forensic detectors. Everything stays on your device.</p>
     <h1
       class="text-4xl font-heading text-text-light dark:text-quartz mb-5 font-normal"
       style="letter-spacing: -0.01em; line-height: 1.3;"
@@ -36,10 +36,7 @@
       Know What's Real
     </h1>
     <p class="text-base text-flint dark:text-[#9B9890] max-w-md mx-auto mb-3 leading-relaxed">
-      In a world of synthetic media, the ability to verify what you see matters more than ever.
-    </p>
-    <p class="text-sm text-flint/70 dark:text-flint max-w-sm mx-auto italic leading-relaxed">
-      Everything happens on your machine. Nothing leaves.
+      AI-generated content has made verification essential. Jura Trace gives you 16+ forensic detectors, C2PA provenance credentials, and invisible watermarking — all running locally, with no cloud and no accounts.
     </p>
   </section>
 
@@ -250,30 +247,6 @@
       </p>
     </div>
 
-  </section>
-
-  <!-- Philosophy anchor -->
-  <section
-    class="py-20 text-center relative"
-    aria-label="Our philosophy"
-  >
-    <!-- Vertical rule above -->
-    <div
-      class="absolute top-0 left-1/2 -translate-x-1/2 w-px h-10 bg-flint/20"
-      aria-hidden="true"
-    ></div>
-
-    <div class="max-w-lg mx-auto">
-      <p class="text-xs text-flint dark:text-[#A09D95] uppercase tracking-widest mb-6">The human centre</p>
-      <blockquote
-        class="font-heading text-xl font-normal text-text-light dark:text-quartz leading-relaxed mb-5"
-        style="letter-spacing: -0.01em;"
-      >
-        Keep people at the heart of every decision.<br>
-        <em class="text-lapis-light dark:text-[#8AABBF] not-italic">Use technology to support and guide, not to take over.</em>
-      </blockquote>
-      <p class="text-xs text-flint/70 dark:text-flint tracking-wide">Juralabs CIC — Reclaiming Technology for Society</p>
-    </div>
   </section>
 
 </div>

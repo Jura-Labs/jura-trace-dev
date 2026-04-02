@@ -188,10 +188,32 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         Batch
       </h3>
+      <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-3">
+        Drag multiple files or a folder onto the Verify drop zone, or use the file picker to
+        select several files at once. Each file is queued and analysed sequentially using
+        the investigation mode you have selected.
+      </p>
+      <ul class="space-y-2 mb-3">
+        <li class="flex gap-2 text-sm text-flint dark:text-flint-light leading-relaxed">
+          <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
+          <span>A progress bar shows the current file being analysed and overall completion across the queue.</span>
+        </li>
+        <li class="flex gap-2 text-sm text-flint dark:text-flint-light leading-relaxed">
+          <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
+          <span>Results appear in a summary table showing the verdict, trust score, and key findings for each file.</span>
+        </li>
+        <li class="flex gap-2 text-sm text-flint dark:text-flint-light leading-relaxed">
+          <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
+          <span>Expand any row in the summary table for the full detail view of that file's analysis.</span>
+        </li>
+        <li class="flex gap-2 text-sm text-flint dark:text-flint-light leading-relaxed">
+          <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
+          <span>Batch results can be exported as a combined PDF report covering all files, or as individual reports per file.</span>
+        </li>
+      </ul>
       <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
-        Select multiple files at once. Jura Trace analyses each file in sequence and shows
-        individual results in a list. Useful when reviewing a set of images from a single
-        news event or collection.
+        Batch mode is useful when reviewing a set of images from a single news event,
+        assessing a collection submission, or processing multiple files before an editorial deadline.
       </p>
     </div>
 
@@ -315,12 +337,12 @@
         </tr>
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4 font-semibold text-amber dark:text-amber-light">Moderate</td>
-          <td class="py-2 pr-4">41–70%</td>
+          <td class="py-2 pr-4">40–70%</td>
           <td class="py-2">Mixed or limited evidence. Some signals are normal; others are flagged. Use with caution.</td>
         </tr>
         <tr>
           <td class="py-2 pr-4 font-semibold text-cinnabar dark:text-cinnabar-light">Low Trust</td>
-          <td class="py-2 pr-4">0–40%</td>
+          <td class="py-2 pr-4">0–39%</td>
           <td class="py-2">Significant anomalies detected. Multiple signals suggest manipulation or synthetic origin.</td>
         </tr>
       </tbody>
@@ -541,7 +563,9 @@
 
   </div>
 
-  [Screenshot: Full results panel showing the verdict badge set to "Inconclusive", a trust score bar at 61%, the EXIF metadata section with two anomalies highlighted, and an expanded ELA forensic row with a heatmap visualisation]
+  <div class="text-xs text-flint dark:text-flint-light italic my-2" role="note">
+    Visual guide: Results panel with an Inconclusive verdict badge, a 61% trust score bar, EXIF anomalies highlighted, and an expanded ELA forensic row with heatmap.
+  </div>
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
@@ -655,7 +679,9 @@
 
   </div>
 
-  [Screenshot: Video verify results showing a frame timeline strip with six thumbnail frames, two of which have amber score badges, and one expanded frame showing the per-frame deepfake heatmap]
+  <div class="text-xs text-flint dark:text-flint-light italic my-2" role="note">
+    Visual guide: Video verify results with a frame timeline strip, two frames marked with amber score badges, and an expanded frame showing the per-frame deepfake heatmap.
+  </div>
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
@@ -730,6 +756,226 @@
     </div>
 
   </div>
+
+  <!-- ── Visual Investigation Tools ──────────────────────────────── -->
+  <div class="mt-8">
+
+    <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
+      Visual Investigation Tools
+    </h3>
+
+    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
+      These tools are available on-demand from the results panel. They do not run
+      automatically — select the tool you need for your investigation.
+    </p>
+
+    <div class="space-y-4">
+
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+          Colour Channel Separation
+        </p>
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+          Displays the individual red, green, blue, and difference channels of an image separately.
+          Inconsistencies that are invisible in the composite — such as mismatched noise grain
+          between regions — often become apparent when channels are examined in isolation.
+        </p>
+      </div>
+
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+          Noise Pattern Visualisation
+        </p>
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+          Extracts the noise residual from the image and renders it alongside a variance
+          heatmap. Regions with inconsistent noise signatures — a common indicator of compositing
+          or AI generation — appear as bright areas on the heatmap.
+        </p>
+      </div>
+
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+          Per-Channel CLAHE
+        </p>
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+          Applies contrast-limited adaptive histogram equalisation (CLAHE) separately to
+          each colour channel. This technique recovers detail in shadows and highlights that
+          standard display gamma obscures, making compression artefacts and tonal discontinuities
+          visible to the eye.
+        </p>
+      </div>
+
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+          Frequency Domain Analysis
+        </p>
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+          Renders an FFT magnitude spectrum, a DCT coefficient heatmap, and a JPEG block-grid
+          overlay for the image. Splicing and generation artefacts often leave a distinct
+          frequency signature — periodic peaks in the FFT or misaligned DCT block boundaries
+          between image regions.
+        </p>
+      </div>
+
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+          JPEG Quantisation Grid
+        </p>
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+          Detects misaligned JPEG block boundaries across the image and renders them as a
+          boundary artefact heatmap, alongside the extracted quantisation tables. When a
+          region of an image has been composited from a differently-compressed source, its
+          8×8 block grid typically does not align with the rest of the file.
+        </p>
+      </div>
+
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+          Side-by-Side Comparison
+        </p>
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+          Places the original image alongside any forensic visualisation — noise heatmap,
+          ELA result, frequency spectrum, or others — in a split view. Use this when you
+          need to correlate a suspected artefact location in the visualisation with the
+          corresponding area in the source image.
+        </p>
+      </div>
+
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+          Region of Interest (ROI) Selection
+        </p>
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+          Click and drag to define a rectangular region on the image. Jura Trace re-runs the
+          analysis pipeline on that region only, producing a focused result for the selected
+          area. This is useful when a specific part of the image — a face, a sky region,
+          or a suspicious edge — needs closer scrutiny.
+        </p>
+      </div>
+
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+          GAN Fingerprint
+        </p>
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+          Uses FFT-based spectral analysis to identify the periodic artefacts that generative
+          adversarial networks — including StyleGAN, ProGAN, and similar architectures —
+          leave in their output. The tool subtracts a 1/f noise model and detects residual
+          peaks that match known generator signatures, returning a visualisation and an
+          attribution estimate.
+        </p>
+      </div>
+
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+          Annotation Layer
+        </p>
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+          Draws an interactive SVG canvas over the image, letting you add arrows, circles,
+          rectangles, and text labels in five colours. Annotations are saved to the local
+          database alongside the analysis record and are included when you export a ZIP case
+          bundle. Use the annotation layer to mark regions of concern for a colleague or
+          legal team.
+        </p>
+      </div>
+
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+          Analyst Notes
+        </p>
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+          A free-text field of up to 2,000 characters saved with the analysis session in
+          local storage. Use analyst notes to record your reasoning, document steps you
+          took during manual inspection, or flag items for follow-up. Notes persist between
+          application sessions and are included in ZIP exports.
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Geolocation and Temporal Tools ──────────────────────────── -->
+  <div class="mt-8">
+
+    <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
+      Geolocation and Temporal Tools
+    </h3>
+
+    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
+      When GPS coordinates or a capture timestamp are present in an image's metadata,
+      these tools cross-reference the claimed location and time against physical evidence
+      in the image itself. They are available on-demand from the Geolocation &amp; Temporal
+      panel in the results view.
+    </p>
+
+    <div class="space-y-4">
+
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+          Sun Position Calculator
+        </p>
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+          Calculates the expected sun angle (azimuth and elevation) for the GPS coordinates
+          and timestamp recorded in the image's EXIF data. The calculation runs entirely
+          on-device using a pure Rust solar position model — no internet connection is required.
+          The result can be compared against visible shadows or lighting direction in the image.
+        </p>
+      </div>
+
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+          Shadow-Based Time Estimation
+        </p>
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+          Estimates the time of capture by measuring shadow angles visible in the image and
+          working backwards through the sun position model. This provides an independent
+          time estimate that can be compared against the EXIF timestamp — a significant
+          discrepancy between the two is a meaningful signal worth investigating.
+        </p>
+      </div>
+
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+          Weather Cross-Reference
+        </p>
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+          Queries the Open-Meteo historical weather archive to retrieve the recorded
+          conditions — temperature, precipitation, cloud cover — for the claimed location
+          and date. This tool is <strong class="text-text-light dark:text-text-dark">opt-in</strong>:
+          it makes a network request to Open-Meteo's public API and is only available when
+          GPS coordinates and a timestamp are present in the metadata.
+        </p>
+      </div>
+
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+          Seasonal Indicators
+        </p>
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+          Analyses the image for environmental cues — vegetation greenness, snow coverage,
+          and overall warmth — to estimate the probable season at the claimed location.
+          The result is compared against the expected season for the date and coordinates
+          in the metadata, flagging implausible combinations such as a claimed December date
+          with full summer foliage in a temperate location.
+        </p>
+      </div>
+
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
+        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+          Diffusion Model Artefacts
+        </p>
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+          Analyses the image for characteristics specific to AI diffusion models, including
+          unusual texture smoothness, VAE decoder banding, and resolution fingerprints.
+          These artefacts differ from GAN signatures and are characteristic of Stable Diffusion,
+          DALL-E, and Midjourney outputs — the detector provides a targeted check when
+          diffusion-model generation is suspected.
+        </p>
+      </div>
+
+    </div>
+  </div>
+
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
@@ -744,6 +990,37 @@
     Once analysis is complete, you can export the results in two formats. The export buttons
     appear at the bottom of the results panel.
   </p>
+
+  <!-- ── Analyst Declaration ──────────────────────────────────────── -->
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5 mb-6">
+    <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
+      Analyst Declaration
+    </p>
+    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-3">
+      Before exporting, an analyst declaration modal allows you to record your name,
+      organisation, case reference, and the date of analysis. This information appears in the
+      header block of the PDF trust report, establishing a clear chain of custody for the
+      document.
+    </p>
+    <ul class="space-y-2 mb-3">
+      <li class="flex gap-2 text-sm text-flint dark:text-flint-light leading-relaxed">
+        <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
+        <span>The declaration is saved locally and pre-filled on the next export, so you do not need to re-enter your details each time.</span>
+      </li>
+      <li class="flex gap-2 text-sm text-flint dark:text-flint-light leading-relaxed">
+        <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
+        <span>For legal evidence work, select the <strong class="text-text-light dark:text-text-dark">Berkeley Protocol</strong> report format. This produces a structured PDF with seven evidence sections aligned with the Berkeley Protocol on Digital Open Source Investigations, designed for use in legal proceedings.</span>
+      </li>
+    </ul>
+    <div class="bg-graphite rounded-lg border border-border-dark p-4">
+      <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+        <strong class="text-text-light dark:text-text-dark">Note:</strong>
+        The analyst declaration fields are optional. If you leave them blank, the PDF report
+        is generated without a declaration header. No declaration data is stored externally
+        or transmitted — it remains in application local storage on your device.
+      </p>
+    </div>
+  </div>
 
   <div class="space-y-5 mb-6">
 
@@ -794,6 +1071,11 @@
           <td class="py-2 pr-4 font-semibold text-text-light dark:text-text-dark align-top">PDF report</td>
           <td class="py-2 pr-4 align-top">Sharing with non-technical colleagues, editorial review</td>
           <td class="py-2 align-top">Verdict, score, detector summaries, metadata, C2PA details</td>
+        </tr>
+        <tr class="border-b border-border-light/50 dark:border-border-dark/50">
+          <td class="py-2 pr-4 font-semibold text-text-light dark:text-text-dark align-top">Berkeley Protocol report</td>
+          <td class="py-2 pr-4 align-top">Legal proceedings, formal evidence submission</td>
+          <td class="py-2 align-top">7 structured evidence sections + analyst declaration + raw signal scores</td>
         </tr>
         <tr>
           <td class="py-2 pr-4 font-semibold text-text-light dark:text-text-dark align-top">ZIP export</td>

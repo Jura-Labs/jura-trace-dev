@@ -161,15 +161,16 @@
   // ── Re-fetch when filters change ─────────────────────────────────
   $effect(() => {
     const contentType = filterContentType || undefined;
-    // 'watermarked' filter is applied client-side; don't pass c2paSigned for it
+    // 'watermarked' is applied client-side (no backend column); others go to backend
     const c2paSigned  = filterStatus === 'signed'
       ? true
       : filterStatus === 'unsigned'
         ? false
         : undefined;
+    const fingerprintedFilter = filterStatus === 'fingerprinted' ? true : undefined;
     const query = searchDebounced.trim() || undefined;
 
-    getFilteredAssets(contentType, c2paSigned, query).then((result) => {
+    getFilteredAssets(contentType, c2paSigned, query, fingerprintedFilter).then((result) => {
       assets = result;
     });
   });
@@ -863,6 +864,7 @@
         <option value="signed">C2PA Signed</option>
         <option value="unsigned">Not Signed</option>
         <option value="watermarked">Watermarked</option>
+        <option value="fingerprinted">Fingerprinted</option>
       </select>
     </div>
 
@@ -1993,7 +1995,7 @@
                 >
                   {asset.watermarked ? 'Watermarked' : 'No Watermark'}
                 </span>
-                {#if asset.contentType === 'image'}
+                {#if asset.fingerprinted}
                   <span class="text-xs px-2 py-0.5 rounded bg-lapis/15 text-lapis dark:text-lapis-light">
                     Fingerprinted
                   </span>

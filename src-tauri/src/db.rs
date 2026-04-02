@@ -323,10 +323,12 @@ impl Database {
     pub fn get_all_assets(&self) -> SqliteResult<Vec<Asset>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT asset_id, file_path, file_name, content_type, mime_type, file_size,
-                    width, height, ai_description, ai_tags, metadata_json,
-                    c2pa_signed, watermarked, sha256_hash, created_at
-             FROM assets ORDER BY created_at DESC",
+            "SELECT a.asset_id, a.file_path, a.file_name, a.content_type, a.mime_type,
+                    a.file_size, a.width, a.height, a.ai_description, a.ai_tags,
+                    a.metadata_json, a.c2pa_signed, a.watermarked, a.sha256_hash,
+                    a.created_at,
+                    (EXISTS (SELECT 1 FROM fingerprints WHERE asset_id = a.asset_id)) AS fingerprinted
+             FROM assets a ORDER BY a.created_at DESC",
         )?;
 
         let rows = stmt.query_map([], |row| {
@@ -351,6 +353,7 @@ impl Database {
                 watermarked: row.get::<_, i32>(12)? != 0,
                 sha256_hash: row.get(13)?,
                 created_at: row.get(14)?,
+                fingerprinted: row.get::<_, i32>(15)? != 0,
             })
         })?;
 
@@ -450,10 +453,12 @@ impl Database {
     pub fn get_asset_by_id(&self, asset_id: &str) -> SqliteResult<Option<Asset>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT asset_id, file_path, file_name, content_type, mime_type, file_size,
-                    width, height, ai_description, ai_tags, metadata_json,
-                    c2pa_signed, watermarked, sha256_hash, created_at
-             FROM assets WHERE asset_id = ?1",
+            "SELECT a.asset_id, a.file_path, a.file_name, a.content_type, a.mime_type,
+                    a.file_size, a.width, a.height, a.ai_description, a.ai_tags,
+                    a.metadata_json, a.c2pa_signed, a.watermarked, a.sha256_hash,
+                    a.created_at,
+                    (EXISTS (SELECT 1 FROM fingerprints WHERE asset_id = a.asset_id)) AS fingerprinted
+             FROM assets a WHERE a.asset_id = ?1",
         )?;
 
         let result = stmt.query_row(params![asset_id], |row| {
@@ -478,6 +483,7 @@ impl Database {
                 watermarked: row.get::<_, i32>(12)? != 0,
                 sha256_hash: row.get(13)?,
                 created_at: row.get(14)?,
+                fingerprinted: row.get::<_, i32>(15)? != 0,
             })
         });
 
@@ -566,6 +572,7 @@ impl Database {
         &self,
         content_type: Option<&str>,
         c2pa_signed: Option<bool>,
+        fingerprinted: Option<bool>,
         search_query: Option<&str>,
     ) -> SqliteResult<Vec<Asset>> {
         let conn = self.conn.lock().unwrap();
@@ -574,12 +581,24 @@ impl Database {
         let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
         if let Some(ct) = content_type {
-            conditions.push(format!("content_type = ?{}", param_values.len() + 1));
+            conditions.push(format!("a.content_type = ?{}", param_values.len() + 1));
             param_values.push(Box::new(ct.to_string()));
         }
         if let Some(signed) = c2pa_signed {
-            conditions.push(format!("c2pa_signed = ?{}", param_values.len() + 1));
+            conditions.push(format!("a.c2pa_signed = ?{}", param_values.len() + 1));
             param_values.push(Box::new(signed as i32));
+        }
+        if let Some(fp) = fingerprinted {
+            if fp {
+                conditions.push(
+                    "EXISTS (SELECT 1 FROM fingerprints WHERE asset_id = a.asset_id)".to_string(),
+                );
+            } else {
+                conditions.push(
+                    "NOT EXISTS (SELECT 1 FROM fingerprints WHERE asset_id = a.asset_id)"
+                        .to_string(),
+                );
+            }
         }
         if let Some(query) = search_query {
             if !query.is_empty() {
@@ -594,7 +613,7 @@ impl Database {
                     .replace('_', "\\_");
                 let n = param_values.len() + 1;
                 conditions.push(format!(
-                    "(file_name LIKE ?{n} ESCAPE '\\' OR mime_type LIKE ?{n} ESCAPE '\\')"
+                    "(a.file_name LIKE ?{n} ESCAPE '\\' OR a.mime_type LIKE ?{n} ESCAPE '\\')"
                 ));
                 param_values.push(Box::new(format!("%{escaped}%")));
             }
@@ -607,10 +626,12 @@ impl Database {
         };
 
         let sql = format!(
-            "SELECT asset_id, file_path, file_name, content_type, mime_type, file_size,
-                    width, height, ai_description, ai_tags, metadata_json,
-                    c2pa_signed, watermarked, sha256_hash, created_at
-             FROM assets{where_clause} ORDER BY created_at DESC"
+            "SELECT a.asset_id, a.file_path, a.file_name, a.content_type, a.mime_type,
+                    a.file_size, a.width, a.height, a.ai_description, a.ai_tags,
+                    a.metadata_json, a.c2pa_signed, a.watermarked, a.sha256_hash,
+                    a.created_at,
+                    (EXISTS (SELECT 1 FROM fingerprints WHERE asset_id = a.asset_id)) AS fingerprinted
+             FROM assets a{where_clause} ORDER BY a.created_at DESC"
         );
 
         let mut stmt = conn.prepare(&sql)?;
@@ -639,6 +660,7 @@ impl Database {
                 watermarked: row.get::<_, i32>(12)? != 0,
                 sha256_hash: row.get(13)?,
                 created_at: row.get(14)?,
+                fingerprinted: row.get::<_, i32>(15)? != 0,
             })
         })?;
 
@@ -649,10 +671,12 @@ impl Database {
     pub fn get_recent_assets(&self, limit: u32) -> SqliteResult<Vec<Asset>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT asset_id, file_path, file_name, content_type, mime_type, file_size,
-                    width, height, ai_description, ai_tags, metadata_json,
-                    c2pa_signed, watermarked, sha256_hash, created_at
-             FROM assets ORDER BY created_at DESC LIMIT ?1",
+            "SELECT a.asset_id, a.file_path, a.file_name, a.content_type, a.mime_type,
+                    a.file_size, a.width, a.height, a.ai_description, a.ai_tags,
+                    a.metadata_json, a.c2pa_signed, a.watermarked, a.sha256_hash,
+                    a.created_at,
+                    (EXISTS (SELECT 1 FROM fingerprints WHERE asset_id = a.asset_id)) AS fingerprinted
+             FROM assets a ORDER BY a.created_at DESC LIMIT ?1",
         )?;
 
         let rows = stmt.query_map(params![limit], |row| {
@@ -677,6 +701,7 @@ impl Database {
                 watermarked: row.get::<_, i32>(12)? != 0,
                 sha256_hash: row.get(13)?,
                 created_at: row.get(14)?,
+                fingerprinted: row.get::<_, i32>(15)? != 0,
             })
         })?;
 
@@ -1935,12 +1960,14 @@ mod tests {
         doc.content_type = "document".to_string();
         db.insert_asset(&doc).unwrap();
 
-        let images = db.get_filtered_assets(Some("image"), None, None).unwrap();
+        let images = db
+            .get_filtered_assets(Some("image"), None, None, None)
+            .unwrap();
         assert_eq!(images.len(), 1);
         assert_eq!(images[0].asset_id, "a1");
 
         let docs = db
-            .get_filtered_assets(Some("document"), None, None)
+            .get_filtered_assets(Some("document"), None, None, None)
             .unwrap();
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].asset_id, "a2");
@@ -1955,11 +1982,15 @@ mod tests {
             .unwrap();
         db.set_c2pa_signed("a2", "/tmp/other_c2pa.jpg").unwrap();
 
-        let signed = db.get_filtered_assets(None, Some(true), None).unwrap();
+        let signed = db
+            .get_filtered_assets(None, Some(true), None, None)
+            .unwrap();
         assert_eq!(signed.len(), 1);
         assert_eq!(signed[0].asset_id, "a2");
 
-        let unsigned = db.get_filtered_assets(None, Some(false), None).unwrap();
+        let unsigned = db
+            .get_filtered_assets(None, Some(false), None, None)
+            .unwrap();
         assert_eq!(unsigned.len(), 1);
         assert_eq!(unsigned[0].asset_id, "a1");
     }
@@ -1980,12 +2011,48 @@ mod tests {
         ))
         .unwrap();
 
-        let results = db.get_filtered_assets(None, None, Some("sunset")).unwrap();
+        let results = db
+            .get_filtered_assets(None, None, None, Some("sunset"))
+            .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].asset_id, "a1");
 
-        let all = db.get_filtered_assets(None, None, Some("")).unwrap();
+        let all = db.get_filtered_assets(None, None, None, Some("")).unwrap();
         assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn filter_by_fingerprinted() {
+        let db = open_temp_db();
+        db.insert_asset(&make_asset("a1", "photo.jpg", "2026-01-01T00:00:00Z"))
+            .unwrap();
+        db.insert_asset(&make_asset("a2", "other.jpg", "2026-01-02T00:00:00Z"))
+            .unwrap();
+        // Insert a fingerprint only for a1
+        db.insert_fingerprint("fp1", "a1", "phash", "0000000000000000")
+            .unwrap();
+
+        let fp_only = db
+            .get_filtered_assets(None, None, Some(true), None)
+            .unwrap();
+        assert_eq!(fp_only.len(), 1);
+        assert_eq!(fp_only[0].asset_id, "a1");
+        assert!(fp_only[0].fingerprinted);
+
+        let no_fp = db
+            .get_filtered_assets(None, None, Some(false), None)
+            .unwrap();
+        assert_eq!(no_fp.len(), 1);
+        assert_eq!(no_fp[0].asset_id, "a2");
+        assert!(!no_fp[0].fingerprinted);
+
+        // No filter — both returned, fingerprinted field reflects reality
+        let all = db.get_filtered_assets(None, None, None, None).unwrap();
+        assert_eq!(all.len(), 2);
+        let a1 = all.iter().find(|a| a.asset_id == "a1").unwrap();
+        let a2 = all.iter().find(|a| a.asset_id == "a2").unwrap();
+        assert!(a1.fingerprinted);
+        assert!(!a2.fingerprinted);
     }
 
     // ── False-positive reports ───────────────────────────────────────

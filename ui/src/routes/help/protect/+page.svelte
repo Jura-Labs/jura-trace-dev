@@ -168,7 +168,9 @@
     </li>
   </ol>
 
-  [Screenshot: Protect page with an asset selected and the C2PA signing panel visible on the right, showing the "Sign with C2PA" button and a signed asset with manifest details]
+  <div class="text-xs text-flint dark:text-flint-light italic my-2" role="note">
+    Visual guide: Protect page with an asset selected, the C2PA signing panel open, and a signed asset showing its manifest details.
+  </div>
 
   <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3 mt-6">
     What gets embedded
@@ -263,6 +265,42 @@
       modification — however small — will cause the content hash to fail when the file is
       later verified. You will see a clear warning on the Verify page if the hash does not
       match.
+    </p>
+  </div>
+
+  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3 mt-6">
+    Metadata preservation
+  </h3>
+
+  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
+    When C2PA signing completes, a confirmation panel appears on the Protect page to confirm
+    that the original file's metadata was preserved in the signed copy. This matters because
+    EXIF data — camera model, capture date, GPS coordinates, colour profile — forms part of
+    the provenance record and must not be silently discarded during signing.
+  </p>
+
+  <ul class="space-y-3 mb-6 text-sm text-flint dark:text-flint-light leading-relaxed">
+    <li class="flex gap-2">
+      <span class="text-malachite dark:text-malachite-light flex-none">✓</span>
+      <span>The signed copy is saved alongside the original. <strong class="text-text-light dark:text-text-dark">The source file is never overwritten.</strong></span>
+    </li>
+    <li class="flex gap-2">
+      <span class="text-malachite dark:text-malachite-light flex-none">✓</span>
+      <span>All original EXIF fields are carried through into the signed output file.</span>
+    </li>
+    <li class="flex gap-2">
+      <span class="text-malachite dark:text-malachite-light flex-none">✓</span>
+      <span>Both the original and the signed copy remain in your care — neither is sent to any external service.</span>
+    </li>
+  </ul>
+
+  <!-- Callout: archival note -->
+  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+    <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+      <strong class="text-text-light dark:text-text-dark">Archival workflows.</strong>
+      For long-term collections, keep the original unsigned file alongside the signed copy.
+      The original represents the first stratum of your provenance chain — the signed copy
+      provides the verifiable record of when and by whom it was deposited.
     </p>
   </div>
 </section>
@@ -399,7 +437,9 @@
     </li>
   </ol>
 
-  [Screenshot: Protection panel showing the watermark section with institution name input, strength selector set to Medium, and the "Embed Watermark" button]
+  <div class="text-xs text-flint dark:text-flint-light italic my-2" role="note">
+    Visual guide: Watermark section with the institution name field, strength selector set to Medium, and the Embed Watermark button.
+  </div>
 
   <!-- Note: images only -->
   <div class="bg-graphite rounded-lg border border-border-dark p-4 mt-4">
@@ -456,7 +496,9 @@
     </li>
   </ol>
 
-  [Screenshot: Protect page showing the batch watermark progress bar mid-operation, with a count of "12 of 47 images processed" and a Cancel button]
+  <div class="text-xs text-flint dark:text-flint-light italic my-2" role="note">
+    Visual guide: Batch watermark progress bar mid-operation, showing a processed count and a Cancel button.
+  </div>
 
   <div class="bg-graphite rounded-lg border border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">

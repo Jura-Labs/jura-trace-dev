@@ -120,10 +120,10 @@
       <a
         href="/"
         onclick={() => handleNavClick('/')}
-        class="flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
+        class="flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
         aria-label="Jura Trace — home"
       >
-        <LogoMark size={24} />
+        <LogoMark size={32} />
         <span class="brand-name text-sm text-text-light dark:text-text-dark">Jura Trace</span>
       </a>
 
@@ -249,11 +249,9 @@
         <div class="flex items-center gap-3">
           <LogoMark size={16} />
           <span class="brand-name text-xs text-text-light dark:text-text-dark">Jura Trace</span>
-          <span class="text-xs">v0.5.0-dev</span>
+          <span class="text-xs">v0.9.0</span>
         </div>
-        <p class="text-xs text-center italic text-flint dark:text-flint-light max-w-sm leading-relaxed">
-          Keep people at the heart of every decision. Use technology to support and guide, not to take over.
-        </p>
+        <p class="text-xs text-center text-flint dark:text-flint-light">Reclaiming Technology for Society</p>
         <div class="flex items-center gap-4 text-xs">
           <button
             onclick={() => showFeedback = true}

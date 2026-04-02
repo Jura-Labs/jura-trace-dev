@@ -43,6 +43,8 @@ pub struct Asset {
     pub metadata_json: Option<String>,
     pub c2pa_signed: bool,
     pub watermarked: bool,
+    /// Whether at least one perceptual fingerprint exists for this asset.
+    pub fingerprinted: bool,
     pub created_at: String,
     /// SHA-256 hex digest of the file contents at import time.
     /// `None` for assets imported before this field was added.
@@ -486,6 +488,9 @@ fn import_files(
             metadata_json: meta_json,
             c2pa_signed: false,
             watermarked: false,
+            // Fingerprints are inserted after this push; newly imported assets
+            // start as false and the caller re-fetches if it needs the live value.
+            fingerprinted: false,
             created_at: now,
             sha256_hash,
         });
@@ -1997,6 +2002,7 @@ fn find_similar(
 fn get_filtered_assets(
     content_type: Option<String>,
     c2pa_signed: Option<bool>,
+    fingerprinted: Option<bool>,
     search_query: Option<String>,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<Vec<Asset>, String> {
@@ -2005,6 +2011,7 @@ fn get_filtered_assets(
         .get_filtered_assets(
             content_type.as_deref(),
             c2pa_signed,
+            fingerprinted,
             search_query.as_deref(),
         )
         .map_err(|e| e.to_string())
