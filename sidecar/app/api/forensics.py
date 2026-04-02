@@ -797,7 +797,7 @@ async def roi_analysis(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/forensics/gan-fingerprint")
+@router.post("/gan-fingerprint")
 async def gan_fingerprint(file: UploadFile = File(...)):
     """Visualise GAN spectral fingerprint with model attribution.
 

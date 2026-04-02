@@ -109,13 +109,20 @@ for package in ["uvicorn", "fastapi", "pydantic", "pydantic_settings", "starlett
 datas += collect_data_files("skimage")
 datas += collect_data_files("sklearn")
 
-# chromadb ships sqlite and tokenizer data files
-d, b, h = collect_all("chromadb")
-datas += d; binaries += b; hiddenimports += h
+# chromadb and sentence-transformers are optional heavy dependencies.
+# collect_all is wrapped in try/except so CI builds without them don't abort.
+for _optional_pkg in ["chromadb", "sentence_transformers"]:
+    try:
+        d, b, h = collect_all(_optional_pkg)
+        datas += d; binaries += b; hiddenimports += h
+    except Exception:
+        pass
 
-# sentence-transformers ships model config data files
-d, b, h = collect_all("sentence_transformers")
-datas += d; binaries += b; hiddenimports += h
+# certifi — SSL CA bundle needed for outbound HTTPS requests
+try:
+    datas += collect_data_files("certifi")
+except Exception:
+    pass
 
 # invisible-watermark (package name differs from pip install name)
 d, b, h = collect_all("imwatermark")
@@ -200,6 +207,23 @@ hiddenimports += [
     "app.services.audio_metadata",
     "app.services.video_frames",
     "app.services.video_deepfake",
+
+    # Sprint 21-26 additions — must be listed explicitly
+    "app.services.noise_visualisation",
+    "app.services.clahe",
+    "app.services.frequency_visualisation",
+    "app.services.jpeg_grid",
+    "app.services.weather_check",
+    "app.services.diffusion_artefacts",
+    "app.services.seasonal_indicators",
+    "app.services.roi_analysis",
+    "app.services.gan_fingerprint",
+
+    # scipy submodule used by gan_fingerprint.py
+    "scipy.ndimage",
+
+    # certifi — SSL CA bundle for outbound HTTPS (weather_check)
+    "certifi",
 
     # ── App framework modules ─────────────────────────────────────────────────
     "app.api.forensics",
