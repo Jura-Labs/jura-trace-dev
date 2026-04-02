@@ -99,32 +99,35 @@
     }
   }
 
-  // ── Ollama URL resolution ──────────────────────────────────────────
-  // Read the user-configured Ollama URL from Settings (localStorage),
-  // falling back to the default localhost address.
-  function getOllamaUrl(): string {
-    if (typeof localStorage !== 'undefined') {
-      const saved = localStorage.getItem('jura-ollama-url');
-      if (saved) return saved.replace(/\/+$/, '');
-    }
-    return 'http://127.0.0.1:11434';
-  }
-
   // ── Ollama model pull ──────────────────────────────────────────────
+  // Routed through the sidecar proxy (POST /ollama/pull) rather than
+  // calling Ollama directly.  The CSP restricts connect-src to
+  // 127.0.0.1:8200, so a direct fetch to a remote Ollama instance (e.g.
+  // http://192.168.1.100:11434) would be blocked.  The sidecar forwards
+  // the request to whatever JURA_OLLAMA_BASE_URL is configured there.
   async function pullOllamaModel(modelName: string) {
     pullingModel = modelName;
     pullError = null;
     try {
-      const ollamaUrl = getOllamaUrl();
-      const resp = await fetch(`${ollamaUrl}/api/pull`, {
+      const resp = await fetch('http://127.0.0.1:8200/ollama/pull', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: modelName, stream: false }),
+        body: JSON.stringify({ name: modelName }),
       });
-      if (!resp.ok) throw new Error(`Pull failed: ${resp.status}`);
+      if (!resp.ok) {
+        let detail = `HTTP ${resp.status}`;
+        try {
+          const body = await resp.json();
+          if (body?.message) detail = body.message;
+        } catch {
+          // ignore parse failure — use the status code message
+        }
+        throw new Error(detail);
+      }
       await refreshHealth();
     } catch (e) {
-      pullError = `Failed to download ${modelName}. Please check Ollama is running and try again.`;
+      const msg = e instanceof Error ? e.message : String(e);
+      pullError = `Failed to download ${modelName}: ${msg}`;
     } finally {
       pullingModel = null;
     }

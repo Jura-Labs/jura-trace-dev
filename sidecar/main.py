@@ -20,7 +20,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 
-from app.api import forensics, health
+from app.api import forensics, health, ollama
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -89,6 +89,10 @@ async def verify_api_key(request: Request, call_next: object) -> Response:
 
 app.include_router(health.router, tags=["health"])
 app.include_router(forensics.router, prefix="/forensics", tags=["forensics"])
+# Ollama proxy — unauthenticated (called during setup wizard before API keys exist).
+# The auth middleware already exempts paths that don't start with /forensics, so
+# no special exemption is needed here.
+app.include_router(ollama.router, tags=["ollama"])
 
 if __name__ == "__main__":
     import uvicorn
