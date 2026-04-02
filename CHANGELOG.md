@@ -6,6 +6,79 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## RC10–RC14 — API Hardening, Detection Calibration, Dependency Audit (2–3 Apr 2026)
+
+### REST API (Port 8300)
+
+**Added**
+- Batch verify endpoint: `POST /api/v1/verify/batch` — multipart upload, 20-file limit, per-file results with partial failure handling
+- API key management: `create_api_key`, `list_api_keys`, `revoke_api_key` Tauri IPC commands + Settings UI section (tier-gated to Team/Enterprise)
+- Settings UI: create key form with name + rate limit, one-time key display banner with copy button, key table with active/revoked badges, inline revoke confirmation
+- 2 new API integration tests (batch verify + empty batch 400), total 15
+
+### Methodology Versioning
+
+**Added**
+- `MethodologyRecord` struct with DB migration (schema v5)
+- Methodology metadata wired into verify pipeline and VerificationResult
+- Raw signal scores in PDF trust reports: 7 core + 4 regional detector float values with thresholds and Clean/Flagged status
+- Methodology metadata block in PDF (mode, version, formula, detectors run)
+
+### AI Detection Calibration
+
+**Changed**
+- Authentic verdict threshold raised from `< 0.30` to `< 0.20` in sidecar deepfake.py — scores 0.20–0.30 now classified as "inconclusive" instead of "authentic"
+- Inconclusive trust ceiling lowered from 0.60 to 0.55 in `compute_trust` — prevents borderline AI images from exceeding the 0.70 trust constraint
+- Closes 7.3% false-negative gap discovered via 500-image deep corpus review (3 photorealistic AI images — camping tents, t-shirt with garbled text, pendant necklace — were scoring 0.74–0.76)
+
+### Watermark Detection
+
+**Fixed**
+- False positive watermark detection on AI-generated images: new `_assess_watermark_confidence()` checks printable ASCII ratio, Unicode replacement char ratio, and byte diversity to distinguish genuine payloads from frequency-domain noise
+- Gemini AI image: confidence dropped from 0.8 (false positive) to 0.12 (correctly rejected)
+
+### Sidecar Dependency Audit (13 Issues)
+
+**Fixed**
+- `python-multipart` added to `requirements-ci.txt` — the CI-safe file actually used by PyInstaller builds (was only in requirements.txt/lock, causing Windows sidecar crash: "Form data requires python-multipart")
+- 9 service modules from Sprints 21–26 added to PyInstaller `hiddenimports`: noise_visualisation, clahe, frequency_visualisation, jpeg_grid, weather_check, diffusion_artefacts, seasonal_indicators, roi_analysis, gan_fingerprint
+- `scipy.ndimage` added to hiddenimports (used by gan_fingerprint.py)
+- `certifi` added to hiddenimports + spec datas (SSL CA bundle for weather_check HTTPS)
+- `h11`, `starlette`, `anyio`, `sniffio`, `certifi` pinned in requirements-ci.txt
+- `collect_all(chromadb)` / `collect_all(sentence_transformers)` wrapped in try/except to prevent build abort when optional deps not installed
+- GAN fingerprint endpoint routing bug fixed: `@router.post("/forensics/gan-fingerprint")` → `@router.post("/gan-fingerprint")` (was double-prefixed, unreachable)
+
+### Setup Wizard
+
+**Fixed**
+- Ollama model pull reads configured URL from localStorage (`jura-ollama-url`) instead of hardcoding `127.0.0.1:11434` — supports remote Ollama instances
+
+### Corpus Training Agents
+
+**Added**
+- `scripts/agents/` — 8-module CLI agent system for automated corpus management:
+  - `crawl_ai_images.py`: ELSA 1M (multi-model SD/DALL-E/MJ), CIFAR-10 baseline
+  - `crawl_authentic_images.py`: CIFAR-10 test, Wikimedia Commons Featured, Open Images V7
+  - `apply_protections.py`: fingerprint, watermark, C2PA sign, combined (all four) via REST API
+  - `verify_corpus.py`: full verify pipeline across standard/deep/archival modes
+  - `validate_constraint.py`: enforces AI+protection trust < 0.70 with per-protection breakdown
+  - `deep_review.py`: end-to-end orchestrator (crawl → protect → verify × 3 modes → validate)
+  - `run_all.py`: lightweight orchestrator with `--quick` mode
+  - `api_client.py` + `config.py`: shared REST API client and configuration
+
+### CI/CD
+
+**Changed**
+- Linux release build disabled (not under active testing, saves ~20 min CI per release)
+
+### Test Counts
+
+- **Rust**: 283 tests passing (+11 API integration, methodology), clippy clean
+- **Python**: 375+ tests, 61 sidecar tests verified after dependency changes
+- **Frontend**: 0 svelte-check errors across 223 files
+
+---
+
 ## Sprint 26 — Berkeley Protocol, GAN Fingerprint, Annotations (29 Mar 2026)
 
 ### Legal Evidence Reporting

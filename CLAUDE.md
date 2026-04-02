@@ -260,6 +260,10 @@ Jura Trace uses a split-repo model to keep source code private while distributin
 - **Deployment design**: `docs/deployment-experience-design.md` — FFmpeg bundling, Ollama, model downloads, setup wizard
 - **Strategic pivot**: `docs/strategic-pivot-assessment.md` — verification-first messaging, post-v1.0 roadmap
 - **Phase A plan**: `docs/sprint-plans/phase-a-plan.md` — FP reduction, API wrapper, reports, versioning (July-Aug 2026)
+- **API module**: `src-tauri/src/api/` — Axum REST API (port 8300): mod.rs, routes.rs, types.rs, auth.rs, rate_limit.rs, error.rs
+- **API integration tests**: `src-tauri/tests/api_integration.rs` — 15 tests (health, auth, verify, batch, fingerprint, rate limiting, OpenAPI)
+- **Corpus training agents**: `scripts/agents/` — crawl_ai_images.py, crawl_authentic_images.py, apply_protections.py, verify_corpus.py, validate_constraint.py, deep_review.py, run_all.py
+- **CI requirements**: `sidecar/requirements-ci.txt` — CI-safe deps used by PyInstaller builds (excludes torch/whisper/chromadb)
 
 ## Design Principles
 
@@ -322,7 +326,9 @@ Deepfake classifier retrained: AUC-ROC 1.0000 (was 0.945), FP rate 0% (was 14%).
 
 **Post-RC9 fixes (2 April 2026)**: Setup wizard reinstall resilience. Version-gated wizard re-trigger: `jura-setup-version` stored alongside `jura-setup-complete` — wizard auto-runs on upgrade/reinstall when app version changes (fixes localStorage surviving Windows uninstall). Sidecar offline reminder banner: sticky bottom banner 5 s after launch if sidecar offline (Set up now / Not now / Don't remind me, with `jura-sidecar-reminder-dismissed` localStorage key). "Re-run Setup Wizard" button in Settings page for manual re-trigger.
 
-**Test counts**: 272 Rust tests, 375+ Python tests, 164 Playwright e2e tests, 223 SvelteKit files with 0 svelte-check errors, clippy + fmt clean.
+**RC10–RC14 (2–3 April 2026)**: REST API and detection hardening. Batch verify endpoint (`POST /api/v1/verify/batch`, 20-file limit, per-file results). API key management UI in Settings (tier-gated to Team/Enterprise: create, list, revoke, one-time key display). MethodologyRecord struct + DB migration (schema v5) for methodology versioning. Raw signal scores + methodology metadata in PDF trust reports. 15 API integration tests (2 new batch verify). Setup wizard reads configured Ollama URL from localStorage (supports remote Ollama). Linux release build disabled (not under active testing). Windows sidecar crash fix: `python-multipart` added to `requirements-ci.txt` (the file CI actually uses for PyInstaller builds). Full sidecar dependency audit (13 issues): 9 missing PyInstaller hiddenimports from Sprints 21–26, `scipy.ndimage`/`certifi` added, `h11`/`starlette`/`anyio`/`sniffio` pinned in CI requirements, `collect_all(chromadb/sentence_transformers)` wrapped in try/except, GAN fingerprint endpoint double-prefix routing bug fixed. Watermark false-positive fix: `_assess_watermark_confidence()` checks printable ratio + byte diversity to distinguish genuine payloads from frequency-domain noise (Gemini AI images no longer trigger false watermark detection). AI detection threshold tightening: authentic verdict threshold raised 0.30→0.20, inconclusive trust ceiling lowered 0.60→0.55 (closes 7.3% FP gap found in 500-image corpus review). Corpus training agents (`scripts/agents/`): automated crawlers for AI/authentic datasets, protection pipeline (fingerprint, watermark, C2PA), verification across standard/deep/archival modes, constraint validation (AI+protection must score < 0.70 trust). Deep corpus review: 500 AI images from ELSA 1M (multi-model SD/DALL-E/MJ) + 334 authentic (CIFAR-10 + Wikimedia Commons).
+
+**Test counts**: 283 Rust tests, 375+ Python tests, 164 Playwright e2e tests, 223 SvelteKit files with 0 svelte-check errors, clippy + fmt clean.
 
 ## British Spelling
 
