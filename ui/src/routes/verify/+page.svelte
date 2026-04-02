@@ -105,11 +105,11 @@
   /** Set to true when the user cancels mid-analysis; causes the result to be discarded. */
   let cancelled = $state(false);
 
-  /** Estimated analysis duration label based on the current verify mode. */
+  /** Analysis mode label shown during progress. */
   const estimatedTime = $derived(
-    verifyMode === 'archival' ? 'Estimated time: ~90 seconds'
-    : verifyMode === 'deep' ? 'Estimated time: ~45 seconds'
-    : 'Estimated time: ~15 seconds'
+    verifyMode === 'archival' ? 'Running archival analysis…'
+    : verifyMode === 'deep' ? 'Running deep analysis…'
+    : 'Running standard analysis…'
   );
   let showTechnicalDetails = $state(false);
   let showInvestigatePanel = $state(false);
@@ -1997,17 +1997,17 @@
             {
               mode: 'standard' as VerifyMode,
               label: 'Standard',
-              description: '~15 seconds — EXIF, C2PA, ELA, AI detection',
+              description: 'Core forensic checks — recommended for most content',
             },
             {
               mode: 'deep' as VerifyMode,
               label: 'Deep',
-              description: '~60 seconds — all Standard detectors plus regional analysis, NPR, chromatic aberration, JPEG ghost',
+              description: 'Extended analysis with regional and frequency-domain detectors',
             },
             {
               mode: 'archival' as VerifyMode,
               label: 'Archival',
-              description: '~90 seconds — full Deep analysis with scanner-calibrated tolerances for digitised collections',
+              description: 'Full analysis with scanner-calibrated tolerances for digitised collections',
             },
           ] as opt}
             <button
@@ -4425,10 +4425,14 @@
           >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
-          Technical Details
-          <span class="text-xs text-flint/60 dark:text-flint-light/70">
-            ({verifyMode === 'standard' ? 'EXIF + C2PA + ELA + deepfake' : verifyMode === 'deep' ? 'full pipeline' : 'archival pipeline'})
-          </span>
+          Detailed Forensic Results
+          <a
+            href="/help/methodology"
+            class="text-xs text-lapis dark:text-lapis-light hover:underline ml-1"
+            onclick={(e) => e.stopPropagation()}
+          >
+            What do these mean?
+          </a>
         </button>
       </div>
 
