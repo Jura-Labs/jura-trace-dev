@@ -723,7 +723,7 @@ fn compute_trust(
             Some("medium") => 0.35,
             _ => 0.45, // low confidence synthetic ≈ inconclusive
         },
-        Some("inconclusive") => 0.60,
+        Some("inconclusive") => 0.55,
         _ => 1.0, // no ceiling for authentic or sidecar offline
     };
 
@@ -3946,7 +3946,7 @@ mod tests {
     #[test]
     fn trust_inconclusive_verdict_caps_trust() {
         // Fake wedding image scenario: deepfake score 0.31, inconclusive verdict.
-        // Previously scored 92% "High Trust" — now capped at 60%.
+        // Previously scored 92% "High Trust" — now capped at 55%.
         let trust = compute_trust(
             None,
             None,
@@ -3963,8 +3963,8 @@ mod tests {
             false,
         );
         assert!(
-            trust <= 0.60,
-            "Inconclusive verdict should cap trust at 0.60, got {trust:.3}"
+            trust <= 0.55,
+            "Inconclusive verdict should cap trust at 0.55, got {trust:.3}"
         );
         assert!(
             trust >= 0.30,
@@ -4188,7 +4188,7 @@ mod tests {
         // The key regression test: a fake image with clean ELA/noise/copy-move
         // but inconclusive deepfake should NOT show "High Trust".
         // Previously: trust = 0.92 (92% High Trust) — dangerously misleading.
-        // Now: capped at 0.60 by inconclusive ceiling.
+        // Now: capped at 0.55 by inconclusive ceiling.
         let trust = compute_trust(
             Some(0.05), // ELA clean
             Some(0.06), // Noise clean
@@ -4205,8 +4205,8 @@ mod tests {
             false,
         );
         assert!(
-            trust <= 0.60,
-            "Inconclusive should cap trust at 60% max, got {:.1}%",
+            trust <= 0.55,
+            "Inconclusive should cap trust at 55% max, got {:.1}%",
             trust * 100.0
         );
     }
@@ -4417,7 +4417,7 @@ mod tests {
 
     #[test]
     fn trust_regional_cap_overrides_verdict_ceiling() {
-        // Regional cap (0.55) is stricter than the inconclusive verdict ceiling (0.60)
+        // Regional cap (0.55) equals the inconclusive verdict ceiling (0.55)
         // — the minimum of both must apply.
         let trust = compute_trust(
             Some(0.05),

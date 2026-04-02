@@ -845,10 +845,14 @@ def _perform_deepfake_detection_impl(
         wm_types = [w.type.replace("_", " ").title() for w in watermarks if w.detected]
         summary = f"AI watermark detected ({', '.join(wm_types)}). {summary}"
 
-    # Three-way verdict: replaces binary suspicious/clean with honest uncertainty
+    # Three-way verdict: replaces binary suspicious/clean with honest uncertainty.
+    # The authentic threshold (0.20) is deliberately conservative — scores in the
+    # 0.20-0.65 range are "inconclusive" which imposes a trust ceiling of 0.55.
+    # This prevents photorealistic AI images with low deepfake scores (0.25-0.30)
+    # from being declared authentic and bypassing the trust ceiling entirely.
     if score > 0.65 or any(w.detected for w in watermarks):
         verdict_level = "synthetic"
-    elif score < 0.30:
+    elif score < 0.20:
         verdict_level = "authentic"
     else:
         verdict_level = "inconclusive"
