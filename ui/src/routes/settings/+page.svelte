@@ -188,6 +188,12 @@
     currentTier = await getLicenceTier();
   });
 
+  function handleRerunWizard() {
+    localStorage.removeItem('jura-setup-complete');
+    // Navigate to root layout where the wizard is mounted
+    window.location.href = '/';
+  }
+
   function saveSettings() {
     localStorage.setItem(KEY_OLLAMA_URL,   ollamaUrl);
     localStorage.setItem(KEY_VISION_MODEL, visionModel);
@@ -911,6 +917,30 @@
         Updates are downloaded and applied locally. No telemetry is sent.
       </p>
     </div>
+  </section>
+
+  <!-- Setup Wizard -->
+  <section
+    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
+    aria-labelledby="setup-wizard-heading"
+  >
+    <div class="flex items-center gap-1.5 mb-1">
+      <h2 id="setup-wizard-heading" class="text-lg font-heading text-text-light dark:text-quartz">Setup Wizard</h2>
+      <ContextualHelpLink href="/help/settings#setup-wizard" label="Learn about the setup wizard" />
+    </div>
+    <p class="text-xs text-flint dark:text-flint-light mb-4">
+      Re-run the first-launch setup wizard to check the Analysis Engine, FFmpeg, and Ollama configuration.
+      Useful after reinstalling or upgrading Jura Trace.
+    </p>
+
+    <button
+      onclick={handleRerunWizard}
+      class="px-5 py-2.5 min-h-[44px] rounded border text-sm font-medium transition-colors
+             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+             border-lapis/60 text-lapis dark:text-lapis-light hover:bg-lapis/10 hover:border-lapis"
+    >
+      Re-run Setup Wizard
+    </button>
   </section>
 
   <!-- Your Plan -->

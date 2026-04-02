@@ -320,7 +320,9 @@ Deepfake classifier retrained: AUC-ROC 1.0000 (was 0.945), FP rate 0% (was 14%).
 
 **RC9 (2 April 2026)**: Release candidate build. Azure Trusted Signing for Windows (installer + sidecar binary signed). Releases published to public `juralabs/jura-trace` repo. Sidecar shell permission fix (`shell:allow-execute` + `shell:allow-spawn`). Setup wizard Ollama model download flow. Verify page: time estimates removed, descriptions simplified, "Detailed Forensic Results" with help link. Branding: logo 24→32px, philosophy sections removed, footer "Reclaiming Technology for Society", dashboard copy aligned with website. Fingerprint filter full-stack (Rust + DB + TypeScript + Protect page). Protect page UX: status column, batch toolbar, empty state button, inline delete confirmation, mobile badges, CSV fingerprint. 10 new contextual help links. Help documentation: 27 fixes across 6 pages (trust score bands, Phase A tools, tiers, batch verify, metadata preservation, setup wizard, auto-updater). CI: push-to-main trigger removed (PRs + manual only). Linux build paused (not under active testing). macOS disk cleanup.
 
-**Test counts**: 272 Rust tests, 375+ Python tests, 160+ Playwright e2e tests, 223 SvelteKit files with 0 svelte-check errors, clippy + fmt clean.
+**Post-RC9 fixes (2 April 2026)**: Setup wizard reinstall resilience. Version-gated wizard re-trigger: `jura-setup-version` stored alongside `jura-setup-complete` — wizard auto-runs on upgrade/reinstall when app version changes (fixes localStorage surviving Windows uninstall). Sidecar offline reminder banner: sticky bottom banner 5 s after launch if sidecar offline (Set up now / Not now / Don't remind me, with `jura-sidecar-reminder-dismissed` localStorage key). "Re-run Setup Wizard" button in Settings page for manual re-trigger.
+
+**Test counts**: 272 Rust tests, 375+ Python tests, 164 Playwright e2e tests, 223 SvelteKit files with 0 svelte-check errors, clippy + fmt clean.
 
 ## British Spelling
 
