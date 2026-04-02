@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.9.0-rc.14)"
+        required: true
 
 # contents: write is still needed for checking out source from jura-archive.
 # All release creation/publishing targets juralabs/jura-trace via RELEASE_PAT.
@@ -17,6 +22,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.create.outputs.result }}
+      tag: ${{ steps.resolve-tag.outputs.tag }}
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -63,7 +71,7 @@ jobs:
         with:
           github-token: ${{ secrets.RELEASE_PAT }}
           script: |
-            const tag = context.ref.replace('refs/tags/', '');
+            const tag = ('${{ github.event.inputs.tag }}' || context.ref.replace('refs/tags/', ''));
             // Fallback body points to jura-trace — jura-archive is private and
             // users cannot browse it.
             const body = process.env.CHANGELOG_BODY
