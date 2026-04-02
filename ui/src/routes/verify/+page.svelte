@@ -3657,6 +3657,10 @@
 
       <!-- ── Verdict Summary ──────────────────────────────────────── -->
       <div id="section-verdict" class="px-5 py-4 border-b border-border-light dark:border-border-dark">
+        <div class="flex items-center gap-1.5 mb-2">
+          <p class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Verdict</p>
+          <ContextualHelpLink href="/help/verify#trust-score" label="Learn how the verdict and trust score are calculated" />
+        </div>
         <VerdictSummary {result} fileName={fileName ?? 'Unknown file'} />
 
         <!-- Contextual caveat -->
@@ -3677,9 +3681,12 @@
           class="px-5 py-4 border-b border-border-light dark:border-border-dark"
           aria-labelledby="ai-origin-heading"
         >
-          <h2 id="ai-origin-heading" class="text-sm font-medium text-text-light dark:text-quartz mb-3">
-            AI Origin Detection
-          </h2>
+          <div class="flex items-center gap-1.5 mb-3">
+            <h2 id="ai-origin-heading" class="text-sm font-medium text-text-light dark:text-quartz">
+              AI Origin Detection
+            </h2>
+            <ContextualHelpLink href="/help/methodology#detector-reference" label="Learn about AI origin detection methods" />
+          </div>
           <div class="space-y-2">
 
             <!-- C2PA AI Declaration signal -->
@@ -3770,6 +3777,7 @@
           </svg>
           Signal Agreement
           <span class="text-xs text-flint/60 dark:text-flint-light/70">detector cross-check</span>
+          <ContextualHelpLink href="/help/methodology" label="Learn how signal agreement is calculated across detectors" />
         </button>
         {#if showSignalAgreement}
           <div id="signal-agreement-panel" class="mt-3">
@@ -5622,6 +5630,7 @@
         <section id="section-c2pa" class="px-5 py-4" aria-labelledby="c2pa-heading">
           <div class="flex items-center gap-3 mb-4">
             <h2 id="c2pa-heading" class="text-sm font-medium text-text-light dark:text-quartz">C2PA Credentials</h2>
+            <ContextualHelpLink href="/help/verify#provenance" label="Learn about C2PA Content Credentials and provenance" />
             <span
               class="text-xs font-medium px-2 py-0.5 rounded
                      {manifest.isValid

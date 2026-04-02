@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { getVersion, checkSidecarHealth, getDbPath, setDbPath, getLicenceTier, setLicenceTier } from '$lib/api';
   import type { LicenceTier, SidecarHealth, TierInfo } from '$lib/types';
+  import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import {
     type DeploymentProfile,
     MAX_PROFILES,
@@ -636,7 +637,10 @@
     aria-labelledby="status-heading"
   >
     <div class="flex items-center justify-between mb-4">
-      <h2 id="status-heading" class="text-lg font-heading text-text-light dark:text-quartz">Service Status</h2>
+      <div class="flex items-center gap-1.5">
+        <h2 id="status-heading" class="text-lg font-heading text-text-light dark:text-quartz">Service Status</h2>
+        <ContextualHelpLink href="/help/settings#service-status" label="Learn about service status indicators" />
+      </div>
       <button
         class="text-xs px-3 py-2.5 min-h-[44px] rounded border border-border-light dark:border-border-dark text-flint hover:text-text-light dark:hover:text-text-light dark:hover:text-quartz hover:border-lapis/50
                transition-colors disabled:opacity-50
@@ -745,7 +749,10 @@
     class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="db-location-heading"
   >
-    <h2 id="db-location-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-1">Database Location</h2>
+    <div class="flex items-center gap-1.5 mb-1">
+      <h2 id="db-location-heading" class="text-lg font-heading text-text-light dark:text-quartz">Database Location</h2>
+      <ContextualHelpLink href="/help/settings#database" label="Learn about database storage and location settings" />
+    </div>
     <p class="text-xs text-flint dark:text-flint-light mb-4">
       Where assets, fingerprints, and verification records are stored. Useful for institutional deployments where data must reside on a shared or managed drive.
     </p>
@@ -911,7 +918,10 @@
     class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="plan-heading"
   >
-    <h2 id="plan-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-1">Your Plan</h2>
+    <div class="flex items-center gap-1.5 mb-1">
+      <h2 id="plan-heading" class="text-lg font-heading text-text-light dark:text-quartz">Your Plan</h2>
+      <ContextualHelpLink href="/help/settings#your-plan" label="Learn about licence plans and features" />
+    </div>
     <p class="text-xs text-flint dark:text-flint-light mb-4">
       Pilot mode — tier selection is manual. In production, this will reflect your licence agreement.
     </p>

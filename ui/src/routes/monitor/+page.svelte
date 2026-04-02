@@ -305,13 +305,16 @@
       >
         Watch
       </span>
-      <h2
-        id="watchlist-heading"
-        class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
-        style="letter-spacing: -0.01em;"
-      >
-        URL Watchlist
-      </h2>
+      <div class="flex items-center gap-1.5">
+        <h2
+          id="watchlist-heading"
+          class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
+          style="letter-spacing: -0.01em;"
+        >
+          URL Watchlist
+        </h2>
+        <ContextualHelpLink href="/help/monitor#url-watchlist" label="Learn about URL monitoring and watchlists" />
+      </div>
     </div>
 
     <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-6">

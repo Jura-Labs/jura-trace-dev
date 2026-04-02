@@ -275,6 +275,7 @@
   function selectAsset(asset: Asset) {
     if (selectedAsset?.assetId === asset.assetId) {
       selectedAsset = null;
+      confirmDeleteId = null;
       videoMetadata = null;
       audioMetadata = null;
       videoFrames = null;
@@ -286,6 +287,7 @@
       watermarkAssetId = null;
       watermarkResult = null;
       lastSignedAssetId = null;
+      confirmDeleteId = null;
       // Reset and fetch media metadata for video/audio assets
       videoMetadata = null;
       audioMetadata = null;
@@ -386,12 +388,14 @@
     }
   }
 
+  // ── Delete confirmation state ─────────────────────────────────────
+  let confirmDeleteId = $state<string | null>(null);
+
   // ── Delete asset ─────────────────────────────────────────────────
   async function handleDelete(assetId: string) {
-    const confirmed = confirm('Delete this asset? This action cannot be undone.');
-    if (!confirmed) return;
     try {
       await deleteAsset(assetId);
+      confirmDeleteId = null;
       assets = assets.filter(a => a.assetId !== assetId);
       if (selectedAsset?.assetId === assetId) selectedAsset = null;
     } catch (e) {
@@ -411,6 +415,7 @@
       'Height',
       'C2PA Signed',
       'Watermarked',
+      'Fingerprinted',
       'File Path',
       'Created',
     ];
@@ -433,6 +438,7 @@
       escapeCsv(a.height ?? ''),
       escapeCsv(a.c2paSigned ? 'Yes' : 'No'),
       escapeCsv(a.watermarked ? 'Yes' : 'No'),
+      escapeCsv(a.fingerprinted ? 'Yes' : 'No'),
       escapeCsv(a.filePath),
       escapeCsv(new Date(a.createdAt).toISOString()),
     ].join(','));
@@ -723,7 +729,7 @@
       </p>
     </div>
 
-    <!-- Asset count + bulk actions + CSV export -->
+    <!-- Asset count + CSV export -->
     <div class="flex items-center gap-3 flex-shrink-0 pt-1 flex-wrap justify-end">
       <span class="text-xs text-flint dark:text-flint-light" aria-live="polite" aria-atomic="true">
         {displayedAssets.length} asset{displayedAssets.length !== 1 ? 's' : ''}
@@ -731,34 +737,6 @@
           <span class="sr-only">(filtered)</span>
         {/if}
       </span>
-      {#if unsignedAssets.length > 0}
-        <button
-          class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
-          onclick={openBatchSign}
-          aria-label="Sign all unsigned images with C2PA ({unsignedAssets.length} eligible)"
-        >
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-              d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          Sign All with C2PA
-          <span class="ml-0.5 text-xs opacity-70">({unsignedAssets.length})</span>
-        </button>
-      {/if}
-      {#if unwatermarkedImages.length > 0}
-        <button
-          class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
-          onclick={openBatchWatermark}
-          aria-label="Watermark all unwatermarked images ({unwatermarkedImages.length} eligible)"
-        >
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-              d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.955 11.955 0 010 12c0 6.627 5.373 12 12 12s12-5.373 12-12c0-2.416-.714-4.668-1.952-6.56m-8.048.56A4 4 0 0112 8v4m0 0v4m0-4h4m-4 0H8" />
-          </svg>
-          Watermark All Images
-          <span class="ml-0.5 text-xs opacity-70">({unwatermarkedImages.length})</span>
-        </button>
-      {/if}
       {#if displayedAssets.length > 0}
         <button
           class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center rounded border border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
@@ -932,6 +910,40 @@
         aria-label="Clear all filters"
       >
         Clear filters
+      </button>
+    {/if}
+
+    <!-- Batch action triggers -->
+    {#if unsignedAssets.length > 0}
+      <button
+        class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian flex-shrink-0"
+        onclick={openBatchSign}
+        aria-label="Sign all unsigned assets with C2PA ({unsignedAssets.length} eligible)"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Sign All
+        <span class="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-lapis/20 text-lapis dark:text-lapis-light text-[10px] font-medium px-1">
+          {unsignedAssets.length}
+        </span>
+      </button>
+    {/if}
+    {#if unwatermarkedImages.length > 0}
+      <button
+        class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian flex-shrink-0"
+        onclick={openBatchWatermark}
+        aria-label="Watermark all unwatermarked images ({unwatermarkedImages.length} eligible)"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.955 11.955 0 010 12c0 6.627 5.373 12 12 12s12-5.373 12-12c0-2.416-.714-4.668-1.952-6.56m-8.048.56A4 4 0 0112 8v4m0 0v4m0-4h4m-4 0H8" />
+        </svg>
+        Watermark All
+        <span class="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-lapis/20 text-lapis dark:text-lapis-light text-[10px] font-medium px-1">
+          {unwatermarkedImages.length}
+        </span>
       </button>
     {/if}
 
@@ -1190,9 +1202,12 @@
     >
       <!-- Panel header -->
       <div class="px-5 py-4 border-b border-border-light dark:border-graphite-light/50 flex items-center justify-between gap-4">
-        <h2 class="text-base text-text-light dark:text-quartz">
-          Watermark All Images
-        </h2>
+        <div class="flex items-center gap-1.5">
+          <h2 class="text-base text-text-light dark:text-quartz">
+            Watermark All Images
+          </h2>
+          <ContextualHelpLink href="/help/protect#watermarking" label="Learn about invisible watermarking" />
+        </div>
         {#if !batchRunning}
           <button
             class="text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
@@ -1451,9 +1466,21 @@
             Import images, documents, or media files to begin protecting
             your content with C2PA credentials and invisible watermarks.
           </p>
-          <p class="text-sm text-flint/70 dark:text-flint leading-relaxed">
+          <p class="text-sm text-flint/70 dark:text-flint leading-relaxed mb-5">
             Drop files above or click to browse.
           </p>
+          <button
+            class="inline-flex items-center gap-2 px-6 py-3 min-h-[44px] bg-lapis text-white text-sm rounded hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+            onclick={handleFilePicker}
+            aria-label="Import files — open file browser"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M12 16V4m0 0L8 8m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4" />
+            </svg>
+            Import Files
+          </button>
         </div>
       {/if}
     </div>
@@ -1554,14 +1581,33 @@
                       Watermark
                     </button>
                   {/if}
-                  <button
-                    class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-cinnabar/30 text-cinnabar dark:text-cinnabar-light hover:bg-cinnabar/10 transition-colors
-                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-1"
-                    onclick={() => handleDelete(asset.assetId)}
-                    aria-label="Delete {asset.fileName}"
-                  >
-                    Delete
-                  </button>
+                  {#if confirmDeleteId === asset.assetId}
+                    <button
+                      class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-cinnabar bg-cinnabar text-white hover:bg-cinnabar/80 transition-colors
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-1"
+                      onclick={() => handleDelete(asset.assetId)}
+                      aria-label="Confirm deletion of {asset.fileName}"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:border-lapis/50 transition-colors
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
+                      onclick={() => { confirmDeleteId = null; }}
+                      aria-label="Cancel deletion of {asset.fileName}"
+                    >
+                      Cancel
+                    </button>
+                  {:else}
+                    <button
+                      class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-cinnabar/30 text-cinnabar dark:text-cinnabar-light hover:bg-cinnabar/10 transition-colors
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-1"
+                      onclick={() => { confirmDeleteId = asset.assetId; }}
+                      aria-label="Delete {asset.fileName}"
+                    >
+                      Delete
+                    </button>
+                  {/if}
                 </div>
               </div>
             {/if}
@@ -1576,7 +1622,7 @@
 
       <!-- Column headers (sortable) — desktop only -->
       <div
-        class="hidden sm:grid grid-cols-[1fr_100px_110px_130px] gap-4 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint dark:text-flint-light uppercase tracking-wide"
+        class="hidden sm:grid grid-cols-[1fr_80px_170px_90px_130px] gap-4 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint dark:text-flint-light uppercase tracking-wide"
         role="row"
         aria-label="Asset list column headers"
       >
@@ -1600,6 +1646,9 @@
 
         <!-- Type (non-sortable label) -->
         <span role="columnheader">Type</span>
+
+        <!-- Status (non-sortable label) -->
+        <span role="columnheader">Status</span>
 
         <!-- File Size -->
         <button
@@ -1654,6 +1703,12 @@
             {#if asset.c2paSigned}
               <span class="text-xs px-1.5 py-0.5 rounded bg-malachite/15 text-malachite dark:text-malachite-light flex-shrink-0">Signed</span>
             {/if}
+            {#if asset.watermarked}
+              <span class="text-xs px-1.5 py-0.5 rounded bg-lapis/15 text-lapis dark:text-lapis-light flex-shrink-0">Watermarked</span>
+            {/if}
+            {#if asset.fingerprinted}
+              <span class="text-xs px-1.5 py-0.5 rounded bg-gray-200 dark:bg-graphite-light text-flint dark:text-flint-light flex-shrink-0">Fingerprinted</span>
+            {/if}
           </div>
           <div class="flex items-center gap-3 mt-1.5 text-xs text-flint dark:text-flint-light">
             <span>{asset.mimeType}</span>
@@ -1664,7 +1719,7 @@
 
         <!-- Desktop row -->
         <button
-          class="hidden sm:grid w-full grid-cols-[1fr_100px_110px_130px] gap-4 px-4 py-3 border-b border-border-light/50 dark:border-graphite-light/50
+          class="hidden sm:grid w-full grid-cols-[1fr_80px_170px_90px_130px] gap-4 px-4 py-3 border-b border-border-light/50 dark:border-graphite-light/50
                  hover:bg-gray-50 dark:hover:bg-graphite-light/30 transition-colors text-left
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                  {selectedAsset?.assetId === asset.assetId
@@ -1705,6 +1760,22 @@
           <span class="text-sm text-flint dark:text-flint-light self-center">
             {CONTENT_TYPE_LABELS[asset.contentType] || asset.contentType}
           </span>
+
+          <!-- Status badges cell -->
+          <div class="self-center flex flex-wrap gap-1" aria-label="Protection status">
+            {#if asset.c2paSigned}
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-malachite/15 text-malachite dark:text-malachite-light leading-tight">Signed</span>
+            {/if}
+            {#if asset.watermarked}
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-lapis/15 text-lapis dark:text-lapis-light leading-tight">Watermarked</span>
+            {/if}
+            {#if asset.fingerprinted}
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 dark:bg-graphite-light text-flint dark:text-flint-light leading-tight">Fingerprinted</span>
+            {/if}
+            {#if !asset.c2paSigned && !asset.watermarked && !asset.fingerprinted}
+              <span class="text-[10px] text-flint/60 dark:text-flint-light/50 italic">Unprotected</span>
+            {/if}
+          </div>
 
           <span class="text-sm text-flint dark:text-flint-light self-center">{formatFileSize(asset.fileSize)}</span>
 
@@ -2006,7 +2077,10 @@
               {#if !asset.c2paSigned && canSignC2pa(asset)}
                 {#if signingAssetId === asset.assetId}
                   <div class="col-span-full mt-3 p-3 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark">
-                    <p class="text-sm text-text-light dark:text-quartz mb-3">Sign with C2PA Content Credentials</p>
+                    <div class="flex items-center gap-1.5 mb-3">
+                      <p class="text-sm text-text-light dark:text-quartz">Sign with C2PA Content Credentials</p>
+                      <ContextualHelpLink href="/help/protect#c2pa-signing" label="Learn about C2PA Content Credentials signing" />
+                    </div>
 
                     {#if metadataWarningLoading}
                       <div class="mb-3 flex items-center gap-2 text-xs text-flint dark:text-flint-light">
@@ -2352,15 +2426,40 @@
               {/if}
 
               <!-- Delete asset -->
-              <div class="col-span-full mt-3 pt-3 border-t border-border-light/50 dark:border-graphite-light/50 flex justify-end">
-                <button
-                  class="text-sm text-cinnabar hover:text-cinnabar-dark dark:hover:text-cinnabar-light transition-colors
-                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded px-2 py-1"
-                  onclick={() => handleDelete(asset.assetId)}
-                  aria-label="Delete asset {asset.fileName}"
-                >
-                  Delete Asset
-                </button>
+              <div class="col-span-full mt-3 pt-3 border-t border-border-light/50 dark:border-graphite-light/50 flex items-center justify-end gap-2">
+                {#if confirmDeleteId === asset.assetId}
+                  <span class="text-xs text-flint dark:text-flint-light" id="delete-confirm-label-{asset.assetId}">
+                    Permanently delete this asset?
+                  </span>
+                  <button
+                    class="text-sm px-3 py-1.5 min-h-[44px] inline-flex items-center rounded border border-cinnabar/60 bg-cinnabar text-white
+                           hover:bg-cinnabar/80 transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                    onclick={() => handleDelete(asset.assetId)}
+                    aria-describedby="delete-confirm-label-{asset.assetId}"
+                    aria-label="Confirm deletion of {asset.fileName}"
+                  >
+                    Confirm Delete
+                  </button>
+                  <button
+                    class="text-sm px-3 py-1.5 min-h-[44px] inline-flex items-center rounded border border-border-light dark:border-border-dark text-flint dark:text-flint-light
+                           hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                    onclick={() => { confirmDeleteId = null; }}
+                    aria-label="Cancel deletion of {asset.fileName}"
+                  >
+                    Cancel
+                  </button>
+                {:else}
+                  <button
+                    class="text-sm text-cinnabar hover:text-cinnabar-dark dark:hover:text-cinnabar-light transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded px-2 py-1 min-h-[44px] inline-flex items-center"
+                    onclick={() => { confirmDeleteId = asset.assetId; }}
+                    aria-label="Delete asset {asset.fileName}"
+                  >
+                    Delete Asset
+                  </button>
+                {/if}
               </div>
 
             </div>
