@@ -53,7 +53,7 @@ test.describe('Navigation and layout', () => {
 
   test('footer contains version string', async ({ page }) => {
     const footer = page.locator('footer');
-    await expect(footer).toContainText(/v\d+\.\d+\.\d+-dev/);
+    await expect(footer).toContainText(/v\d+\.\d+\.\d+/);
   });
 });
 

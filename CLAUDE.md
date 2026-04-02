@@ -17,7 +17,10 @@ Jura Trace is one of two products built by **Jura Labs** (UK Social Enterprise �
 
 **Developed by**: Juralabs Community Interest Company (UK) — https://juralabs.org
 **Licence**: PolyForm Noncommercial 1.0.0
-**Current Version**: 0.9.0-rc.3 (Phase 3 — Sprint 20 in progress, v1.0 blocked on signing certs only)
+**Current Version**: 0.9.0-rc.9 (Phase A — v1.0 blocked on pilot testing feedback only)
+**Source repo**: `juralabs/jura-archive` (private)
+**Release repo**: `juralabs/jura-trace` (public — installers only, no source)
+**Windows signing**: Azure Trusted Signing (certificate ID a7e35def-628b-4980-8785-2e535f709418)
 
 ## Core Architecture
 
@@ -314,6 +317,8 @@ Deepfake classifier retrained: AUC-ROC 1.0000 (was 0.945), FP rate 0% (was 14%).
 **Sprint 24 (Phase A)**: In progress — ROI selection, shadow time, diffusion detection. Shadow-based time estimation (inverse sun angle, `estimate_shadow_time` Tauri command). Geolocation & Temporal investigation panel (sun position, shadow time, weather cross-reference). Diffusion model artefact detection (`POST /forensics/diffusion-artefacts` — texture smoothness, VAE banding, resolution fingerprint). Seasonal indicators (`POST /forensics/seasonal-indicators` — greenness, snow, warmth, season estimation). ROI selection tool (`POST /forensics/roi-analysis` — click-and-drag region analysis with SVG overlay). On-demand investigation buttons for seasonal and diffusion analysis.
 
 **Sprint 26 (Phase A)**: Complete — Berkeley Protocol, GAN fingerprint, annotations. Berkeley Protocol PDF report template (7 legal evidence sections, format selector). GAN fingerprint visualisation (`POST /forensics/gan-fingerprint` — FFT + 1/f model subtraction + peak detection + model attribution). Annotation layer: SQLite `annotations` table (schema v3), 3 Tauri CRUD commands, interactive SVG canvas overlay with arrow/circle/rectangle/text tools + 5 colour palette + delete on hover.
+
+**RC9 (2 April 2026)**: Release candidate build. Azure Trusted Signing for Windows (installer + sidecar binary signed). Releases published to public `juralabs/jura-trace` repo. Sidecar shell permission fix (`shell:allow-execute` + `shell:allow-spawn`). Setup wizard Ollama model download flow. Verify page: time estimates removed, descriptions simplified, "Detailed Forensic Results" with help link. Branding: logo 24→32px, philosophy sections removed, footer "Reclaiming Technology for Society", dashboard copy aligned with website. Fingerprint filter full-stack (Rust + DB + TypeScript + Protect page). Protect page UX: status column, batch toolbar, empty state button, inline delete confirmation, mobile badges, CSV fingerprint. 10 new contextual help links. Help documentation: 27 fixes across 6 pages (trust score bands, Phase A tools, tiers, batch verify, metadata preservation, setup wizard, auto-updater). CI: push-to-main trigger removed (PRs + manual only). Linux build paused (not under active testing). macOS disk cleanup.
 
 **Test counts**: 272 Rust tests, 375+ Python tests, 160+ Playwright e2e tests, 223 SvelteKit files with 0 svelte-check errors, clippy + fmt clean.
 

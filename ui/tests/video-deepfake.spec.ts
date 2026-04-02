@@ -109,9 +109,9 @@ async function injectMockResult(page: import('@playwright/test').Page) {
   const fullAnalysisBtn = viewToggle.locator('button', { hasText: 'Full Analysis' });
   await fullAnalysisBtn.click();
 
-  // The video analysis is inside "Technical Details" which is collapsed.
+  // The video analysis is inside "Detailed Forensic Results" which is collapsed.
   // Click the toggle to expand it.
-  const detailsToggle = page.locator('button', { hasText: 'Technical Details' });
+  const detailsToggle = page.locator('button', { hasText: 'Detailed Forensic Results' });
   await detailsToggle.click();
 
   // Now wait for the video analysis section to render
