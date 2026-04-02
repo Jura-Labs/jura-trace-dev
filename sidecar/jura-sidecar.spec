@@ -172,6 +172,10 @@ hiddenimports += [
     # pydantic-settings env-var loading
     "pydantic_settings.env_settings",
 
+    # python-multipart — FastAPI imports this dynamically for form/file uploads
+    "multipart",
+    "multipart.multipart",
+
     # ── App service modules ───────────────────────────────────────────────────
     # FastAPI router discovery cannot be traced statically; list every module
     # that is imported (directly or via the router) at request time.
