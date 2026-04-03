@@ -237,8 +237,11 @@ def download_openimages(output_dir: Path, max_images: int) -> list[dict]:
     return entries
 
 
+# CIFAR-10 removed from default sources: 32x32 images are too small for
+# forensic analysis and produce 54% false positive rate (upscaling artefacts
+# mimic AI texture smoothness). Keep the function for baseline testing but
+# do not include in production corpus builds.
 SOURCES = {
-    "cifar10": download_cifar10_authentic,
     "wikimedia": download_wikimedia,
     "openimages": download_openimages,
 }

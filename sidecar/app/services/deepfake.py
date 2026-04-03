@@ -596,6 +596,25 @@ def _perform_deepfake_detection_impl(
     except Exception as exc:
         raise ValueError(f"Cannot decode image: {exc}") from exc
 
+    # ── Minimum size guard ───────────────────────────────────────────
+    # Images smaller than 128x128 produce unreliable forensic signals
+    # because upscaling to analysis_size creates interpolation artefacts
+    # that mimic AI-generated texture smoothness. Return an honest
+    # "insufficient data" response rather than a misleading score.
+    orig_h, orig_w = img_array.shape[:2]
+    if orig_h < 128 or orig_w < 128:
+        return DeepfakeResponse(
+            score=0.0,
+            suspicious=False,
+            confidence="low",
+            verdict_level="authentic",
+            signals=[],
+            heatmap_base64="",
+            summary=f"Image too small for reliable analysis ({orig_w}x{orig_h}). "
+                    f"Minimum 128x128 required for forensic detection.",
+            watermarks=[],
+        ), {}
+
     # ── Screenshot pre-classifier ─────────────────────────────────────
     # Screenshots (UI renders) share features with AI images — no EXIF,
     # PNG format, uniform noise, high LBP uniformity — causing false

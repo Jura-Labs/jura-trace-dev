@@ -74,8 +74,8 @@ def main():
     )
     parser.add_argument(
         "--authentic-sources",
-        default="coco,wikimedia",
-        help="Authentic image sources (default: coco,wikimedia)",
+        default="wikimedia,openimages",
+        help="Authentic image sources (default: wikimedia,openimages)",
     )
     args = parser.parse_args()
 
