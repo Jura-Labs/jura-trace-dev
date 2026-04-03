@@ -1,14 +1,14 @@
 {
-  "trained_at": "2026-04-03T18:30:13.800361",
+  "trained_at": "2026-04-03T19:37:06.700546",
   "approach": "UnivFD-style linear probe on CLIP ViT-B/32 embeddings",
   "clip_model": "ViT-B-32",
   "clip_pretrained": "laion2b_s34b_b79k",
   "embedding_dim": 512,
-  "n_samples": 1477,
-  "n_authentic": 958,
-  "n_ai_generated": 519,
+  "n_samples": 1883,
+  "n_authentic": 1158,
+  "n_ai_generated": 725,
   "cv_folds": 5,
-  "cv_auc_roc": 0.9849,
+  "cv_auc_roc": 0.9841,
   "probe_params": {
     "C": 0.1,
     "max_iter": 1000,
@@ -16,29 +16,29 @@
   },
   "cv_classification_report": {
     "authentic": {
-      "precision": 0.9642470205850487,
-      "recall": 0.9290187891440501,
-      "f1-score": 0.9463051568314726,
-      "support": 958.0
+      "precision": 0.9736603088101726,
+      "recall": 0.92573402417962,
+      "f1-score": 0.9490925188136343,
+      "support": 1158.0
     },
     "ai_generated": {
-      "precision": 0.8772563176895307,
-      "recall": 0.9364161849710982,
-      "f1-score": 0.9058713886300093,
-      "support": 519.0
+      "precision": 0.8900255754475703,
+      "recall": 0.96,
+      "f1-score": 0.9236894492368944,
+      "support": 725.0
     },
-    "accuracy": 0.9316181448882871,
+    "accuracy": 0.9389272437599575,
     "macro avg": {
-      "precision": 0.9207516691372897,
-      "recall": 0.9327174870575742,
-      "f1-score": 0.9260882727307409,
-      "support": 1477.0
+      "precision": 0.9318429421288714,
+      "recall": 0.9428670120898099,
+      "f1-score": 0.9363909840252644,
+      "support": 1883.0
     },
     "weighted avg": {
-      "precision": 0.9336795359521619,
-      "recall": 0.9316181448882871,
-      "f1-score": 0.9320972179712429,
-      "support": 1477.0
+      "precision": 0.9414589377597815,
+      "recall": 0.9389272437599575,
+      "f1-score": 0.9393117299431423,
+      "support": 1883.0
     }
   }
 }
