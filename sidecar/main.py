@@ -19,6 +19,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import forensics, health, ollama
 from app.config import settings
@@ -62,6 +63,23 @@ app = FastAPI(
     redoc_url=None,
     openapi_url=None,
     lifespan=lifespan,
+)
+
+
+# CORS: allow the Tauri webview (tauri://localhost, https://tauri.localhost,
+# http://localhost:1420) to call the sidecar. Without this, the browser sends
+# an OPTIONS preflight that returns 405 and the actual POST never fires.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "tauri://localhost",
+        "https://tauri.localhost",
+        "http://tauri.localhost",
+        "http://localhost:1420",
+        "http://127.0.0.1:1420",
+    ],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
 )
 
 

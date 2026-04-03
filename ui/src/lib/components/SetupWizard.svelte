@@ -563,9 +563,15 @@
             Step 4 of 5
           </p>
 
-          <h2 id="step3-heading" class="font-heading text-xl font-semibold text-quartz leading-tight mb-5" style="letter-spacing: -0.01em;">
-            Local AI
+          <h2 id="step3-heading" class="font-heading text-xl font-semibold text-quartz leading-tight mb-2" style="letter-spacing: -0.01em;">
+            Local AI <span class="text-sm font-normal text-flint-light">(optional)</span>
           </h2>
+          <p class="text-xs text-flint-light mb-5 leading-relaxed">
+            Ollama adds two optional features: <strong class="text-quartz">image descriptions</strong> (auto-generated captions via LLaVA)
+            and <strong class="text-quartz">claim verification</strong> (fact-checking text against a knowledge base via Qwen).
+            These are convenience features — all core verification, forensic analysis, and AI detection work without Ollama.
+            You can install it later from Settings at any time.
+          </p>
 
           {#if !ollamaAvailable}
             <!-- ── Ollama not running ─────────────────────────────── -->
@@ -581,11 +587,9 @@
                 <circle cx="10" cy="14" r="0.5" fill="currentColor" stroke="none" />
               </svg>
               <div>
-                <p class="text-sm font-medium text-quartz">Ollama is not running</p>
+                <p class="text-sm font-medium text-quartz">Ollama is not installed</p>
                 <p class="text-xs text-flint-light mt-1 leading-relaxed">
-                  Ollama runs AI models locally on your machine — no data leaves your device.
-                  It powers image descriptions and claim verification.
-                  Jura Trace works fully without it.
+                  You can skip this step and install Ollama later from Settings.
                 </p>
               </div>
             </div>
