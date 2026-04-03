@@ -27,6 +27,8 @@
   // ── Model pull state ──────────────────────────────────────────────
   let pullingModel = $state<string | null>(null);
   let pullError = $state<string | null>(null);
+  let pullProgress = $state<string | null>(null);
+  let pullPercent = $state<number | null>(null);
 
   // ── Derived capability flags ───────────────────────────────────────
   const sidecarOnline = $derived(health !== null);
@@ -108,28 +110,77 @@
   async function pullOllamaModel(modelName: string) {
     pullingModel = modelName;
     pullError = null;
+    pullProgress = 'Connecting...';
+    pullPercent = null;
+
     try {
       const resp = await fetch('http://127.0.0.1:8200/ollama/pull', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: modelName }),
+        body: JSON.stringify({ name: modelName, stream: true }),
       });
+
       if (!resp.ok) {
         let detail = `HTTP ${resp.status}`;
         try {
           const body = await resp.json();
           if (body?.message) detail = body.message;
-        } catch {
-          // ignore parse failure — use the status code message
-        }
+        } catch { /* ignore */ }
         throw new Error(detail);
       }
+
+      // Read SSE stream for progress updates
+      const reader = resp.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (reader) {
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              if (data.error) {
+                throw new Error(data.message || data.error);
+              }
+
+              if (data.status === 'success') {
+                pullProgress = 'Complete';
+                pullPercent = 100;
+              } else if (data.completed && data.total) {
+                const pct = Math.round((data.completed / data.total) * 100);
+                const mb = (data.completed / 1_000_000).toFixed(0);
+                const totalMb = (data.total / 1_000_000).toFixed(0);
+                pullProgress = `${data.status || 'Downloading'} — ${mb} / ${totalMb} MB`;
+                pullPercent = pct;
+              } else if (data.status) {
+                pullProgress = data.status;
+              }
+            } catch (parseErr) {
+              if (parseErr instanceof Error && parseErr.message !== line.slice(6)) {
+                throw parseErr;
+              }
+            }
+          }
+        }
+      }
+
       await refreshHealth();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       pullError = `Failed to download ${modelName}: ${msg}`;
     } finally {
       pullingModel = null;
+      pullProgress = null;
+      pullPercent = null;
     }
   }
 
@@ -461,7 +512,7 @@
                     {#if platform === 'mac'}
                       brew install ffmpeg
                     {:else if platform === 'windows'}
-                      See Settings for a download link
+                      winget install Gyan.FFmpeg
                     {:else}
                       sudo apt install ffmpeg
                     {/if}
@@ -476,6 +527,19 @@
                     {healthChecking ? 'Checking…' : 'Re-check'}
                   </button>
                 </div>
+                {#if platform === 'windows'}
+                  <p class="text-xs text-flint-light mt-2">
+                    Or download from
+                    <button
+                      onclick={() => openOllamaDownload()}
+                      class="text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                    >ffmpeg.org</button>
+                    and add to your system PATH.
+                  </p>
+                {/if}
+                <p class="text-xs text-flint-light mt-2">
+                  This is optional — image verification works without FFmpeg. You can install it later from Settings.
+                </p>
               </div>
             </div>
           {/if}
