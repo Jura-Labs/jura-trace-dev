@@ -273,79 +273,98 @@ def collect_all_verify_files(max_per_category: int = 500) -> list[tuple[Path, st
     return files
 
 
+def _verify_single(args: tuple) -> dict:
+    """Verify a single file — worker function for thread pool."""
+    file_path, label, protection, mode = args
+    resp = verify_file(file_path, mode=mode)
+
+    result = {
+        "filename": file_path.name,
+        "path": str(file_path),
+        "label": label,
+        "protection": protection,
+        "mode": mode,
+        "error": resp is None,
+    }
+
+    if resp is not None:
+        data = resp.get("data", {})
+        result.update({
+            "overall_trust": data.get("overallTrust"),
+            "verdict": data.get("verdict"),
+            "content_type": data.get("contentType"),
+            "degraded": resp.get("degraded", False),
+        })
+
+        df = data.get("deepfakeResult")
+        if df:
+            result["deepfake_score"] = df.get("score")
+            result["deepfake_verdict"] = df.get("verdict")
+            result["classifier_score"] = df.get("classifierScore")
+
+        ela = data.get("elaResult")
+        if ela:
+            result["ela_score"] = ela.get("score")
+
+        c2pa = data.get("c2paResult")
+        if c2pa:
+            result["c2pa_valid"] = c2pa.get("valid")
+            result["c2pa_ai_declared"] = c2pa.get("aiDeclared")
+
+        wm = data.get("watermarkExtractResult")
+        if wm:
+            result["watermark_detected"] = wm.get("hasWatermark")
+            result["watermark_confidence"] = wm.get("confidence")
+
+    return result
+
+
+# Default concurrency — 4 parallel verify requests. The sidecar uses
+# CPU-bound OpenCV/numpy so more than 4 gives diminishing returns and
+# may cause OOM on machines with < 8 GB RAM.
+DEFAULT_WORKERS = 4
+
+
 def verify_across_modes(
     files: list[tuple[Path, str, str]],
     modes: list[str],
+    max_workers: int = DEFAULT_WORKERS,
 ) -> list[dict]:
-    """Verify all files across multiple modes."""
+    """Verify all files across multiple modes using a thread pool."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     all_results = []
     total_ops = len(files) * len(modes)
     completed = 0
     start = time.time()
 
     for mode in modes:
-        stage_header(f"VERIFY: {len(files)} files in {mode} mode")
+        stage_header(f"VERIFY: {len(files)} files in {mode} mode ({max_workers} workers)")
         mode_start = time.time()
 
-        for i, (file_path, label, protection) in enumerate(files):
-            resp = verify_file(file_path, mode=mode)
-            completed += 1
+        work_items = [(fp, label, prot, mode) for fp, label, prot in files]
+        mode_results = []
 
-            result = {
-                "filename": file_path.name,
-                "path": str(file_path),
-                "label": label,
-                "protection": protection,
-                "mode": mode,
-                "error": resp is None,
-            }
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = {pool.submit(_verify_single, item): i for i, item in enumerate(work_items)}
 
-            if resp is not None:
-                data = resp.get("data", {})
-                result.update({
-                    "overall_trust": data.get("overallTrust"),
-                    "verdict": data.get("verdict"),
-                    "content_type": data.get("contentType"),
-                    "degraded": resp.get("degraded", False),
-                })
+            for future in as_completed(futures):
+                result = future.result()
+                mode_results.append(result)
+                completed += 1
 
-                # Deepfake result
-                df = data.get("deepfakeResult")
-                if df:
-                    result["deepfake_score"] = df.get("score")
-                    result["deepfake_verdict"] = df.get("verdict")
-                    result["classifier_score"] = df.get("classifierScore")
+                if completed % 25 == 0 or completed == 1:
+                    elapsed = time.time() - start
+                    rate = completed / elapsed if elapsed > 0 else 0
+                    eta = (total_ops - completed) / rate if rate > 0 else 0
+                    done_mode = len(mode_results)
+                    print(
+                        f"  [{timestamp()}] {mode}: {done_mode}/{len(files)} "
+                        f"(total {completed}/{total_ops}, "
+                        f"{rate:.1f}/s, ETA {eta / 60:.0f}m)"
+                    )
 
-                # ELA
-                ela = data.get("elaResult")
-                if ela:
-                    result["ela_score"] = ela.get("score")
-
-                # C2PA
-                c2pa = data.get("c2paResult")
-                if c2pa:
-                    result["c2pa_valid"] = c2pa.get("valid")
-                    result["c2pa_ai_declared"] = c2pa.get("aiDeclared")
-
-                # Watermark
-                wm = data.get("watermarkExtractResult")
-                if wm:
-                    result["watermark_detected"] = wm.get("hasWatermark")
-                    result["watermark_confidence"] = wm.get("confidence")
-
-            all_results.append(result)
-
-            # Progress every 25 files
-            if (i + 1) % 25 == 0 or i == 0:
-                elapsed = time.time() - start
-                rate = completed / elapsed if elapsed > 0 else 0
-                eta = (total_ops - completed) / rate if rate > 0 else 0
-                print(
-                    f"  [{timestamp()}] {mode}: {i + 1}/{len(files)} "
-                    f"(total {completed}/{total_ops}, "
-                    f"{rate:.1f}/s, ETA {eta / 60:.0f}m)"
-                )
-
+        all_results.extend(mode_results)
         mode_elapsed = time.time() - mode_start
         print(f"  [{timestamp()}] {mode} mode complete in {mode_elapsed:.0f}s")
 
@@ -475,6 +494,7 @@ def main():
     parser.add_argument("--ai-count", type=int, default=AI_TARGET)
     parser.add_argument("--authentic-count", type=int, default=AUTHENTIC_TARGET)
     parser.add_argument("--protect-count", type=int, default=PROTECT_TARGET)
+    parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS, help="Parallel verify workers (default: 4)")
     args = parser.parse_args()
 
     banner("JURA TRACE — DEEP CORPUS REVIEW PIPELINE")
@@ -540,7 +560,7 @@ def main():
         print("  No files to verify.")
         sys.exit(1)
 
-    all_results = verify_across_modes(all_files, VERIFY_MODES)
+    all_results = verify_across_modes(all_files, VERIFY_MODES, max_workers=args.workers)
 
     # Save raw results
     config.RESULTS_BASE.mkdir(parents=True, exist_ok=True)
