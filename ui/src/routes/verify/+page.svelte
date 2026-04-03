@@ -15,6 +15,7 @@
   import type { ReportContext, ReportFormat } from '$lib/pdf';
   import { exportCaseZip } from '$lib/zip';
   import { getVersion } from '$lib/api';
+  import { saveVerifySession, restoreVerifySession, clearVerifySession } from '$lib/stores/verifySession';
 
   // ── State ──────────────────────────────────────────────────────────
   let activeTab = $state<'file' | 'batch' | 'url'>('file');
@@ -527,6 +528,21 @@
     localStorage.setItem('jura-analyst-note', analystNote);
   });
 
+  // Save verify session so results survive navigation to Help/Settings
+  $effect(() => {
+    if (result && fileName) {
+      saveVerifySession({
+        result,
+        fileName,
+        filePath,
+        previewDataUrl: previewUrl,
+        mode: verifyMode,
+        verifiedAt: new Date().toISOString(),
+        batchItems: batchItems.length > 0 ? batchItems : undefined,
+      });
+    }
+  });
+
   onMount(() => {
     // Restore persisted view mode (simple/expert).
     // 'detail' is the legacy value from the old summary/detail system — treat it as 'expert'.
@@ -552,6 +568,23 @@
       month: 'long',
       year: 'numeric',
     });
+
+    // Restore previous verify session if the user navigated away and back
+    if (!result) {
+      const saved = restoreVerifySession();
+      if (saved) {
+        result = saved.result;
+        fileName = saved.fileName;
+        filePath = saved.filePath;
+        verifyMode = (saved.mode as VerifyMode) || 'standard';
+        checked = true;
+        previewUrl = saved.previewDataUrl;
+        if (saved.batchItems && saved.batchItems.length > 0) {
+          batchItems = saved.batchItems as BatchItem[];
+          activeTab = 'batch';
+        }
+      }
+    }
 
     // Async init — fire-and-forget; cleanup is returned synchronously below
     (async () => {
@@ -795,6 +828,7 @@
   }
 
   async function runFileVerification(path: string, name: string) {
+    clearVerifySession();
     filePath = path;
     fileName = name;
     result = null;
@@ -856,6 +890,7 @@
     const url = urlInput.trim();
     if (!url) return;
 
+    clearVerifySession();
     fileName = url.split('/').pop()?.split('?')[0] || url;
     filePath = null;
     result = null;
