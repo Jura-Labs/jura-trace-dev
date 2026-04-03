@@ -174,14 +174,20 @@ def main():
     print(f"\nTotal samples: {len(y)} (authentic={sum(y == 0)}, ai={sum(y == 1)})")
     print(f"Embedding dimension: {X.shape[1]}")
 
-    # Train probe: LogisticRegression with L2 penalty (C=0.1 for regularisation)
-    print("\nTraining LogisticRegression probe (C=0.1, max_iter=1000)...")
+    # Train probe: LogisticRegression with balanced class weights.
+    # class_weight='balanced' offsets the authentic:AI imbalance by weighting
+    # each class inversely proportional to its frequency. Without it, the
+    # decision boundary shifts toward predicting "authentic" when the authentic
+    # corpus is larger, causing AI recall to drop dramatically.
+    # C=0.5 (was 0.1) — less aggressive regularisation with more training data.
+    print("\nTraining LogisticRegression probe (C=0.5, balanced, max_iter=1000)...")
 
     probe = LogisticRegression(
-        C=0.1,
+        C=0.5,
         max_iter=1000,
         random_state=42,
         solver="lbfgs",
+        class_weight="balanced",
     )
 
     # 5-fold stratified cross-validation
