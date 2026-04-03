@@ -3566,6 +3566,43 @@
             onViewExpert={() => { viewMode = 'expert'; }}
           />
 
+          <!-- Action buttons — export and report -->
+          <div class="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onclick={() => { showReportModal = true; }}
+              class="min-h-[44px] px-4 py-2.5 text-sm font-medium rounded-lg
+                     bg-lapis hover:bg-lapis-dark text-white transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                     focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+            >
+              {exportingReport ? 'Generating...' : 'Export Report'}
+            </button>
+            <button
+              type="button"
+              onclick={handleExportCase}
+              disabled={exportingCase}
+              class="min-h-[44px] px-4 py-2.5 text-sm font-medium rounded-lg border
+                     border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                     focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                     disabled:opacity-50"
+            >
+              {exportingCase ? 'Packaging...' : 'Export Case'}
+            </button>
+            <button
+              type="button"
+              onclick={() => { showFalsePositiveModal = true; }}
+              class="min-h-[44px] px-4 py-2.5 text-sm font-medium rounded-lg border
+                     border-border-light dark:border-border-dark text-flint dark:text-flint-light
+                     hover:text-text-light dark:hover:text-quartz hover:border-lapis/30 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                     focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+            >
+              Report False Positive
+            </button>
+          </div>
+
           <!-- AI description — shown beneath the card when available -->
           {#if result.aiDescription}
             <div class="mt-4 rounded-lg border border-lapis/20 bg-lapis/5 px-4 py-3">
