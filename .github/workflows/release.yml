@@ -263,6 +263,17 @@ jobs:
           New-Item -ItemType Directory -Force -Path src-tauri\binaries | Out-Null
           Copy-Item sidecar\dist\jura-sidecar.exe src-tauri\binaries\${{ matrix.sidecar_name }}
 
+      # ── Copy ML model files into bundle ────────────────────────────────
+      # The GBM classifier and UnivFD probe must ship alongside the sidecar.
+      # Tauri bundles them via the "resources" config in tauri.conf.json.
+      - name: Copy model files to Tauri resources
+        run: |
+          mkdir -p src-tauri/models
+          cp models/deepfake_classifier.joblib src-tauri/models/ 2>/dev/null || true
+          cp models/univfd_probe.joblib src-tauri/models/ 2>/dev/null || true
+          ls -la src-tauri/models/
+        shell: bash
+
       # ── Windows: sign sidecar binary BEFORE Tauri bundles it ────────────
       # Windows Defender frequently quarantines unsigned PyInstaller binaries.
       # Signing the sidecar .exe before Tauri packages it into the installer

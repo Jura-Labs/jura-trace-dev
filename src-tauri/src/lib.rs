@@ -3513,6 +3513,27 @@ pub fn run() {
                     );
                     None
                 } else {
+                    // Set JURA_MODELS_DIR so the sidecar can find the GBM
+                    // classifier and UnivFD probe model files shipped alongside
+                    // the app bundle. The models/ directory lives next to the
+                    // main executable in the installed app.
+                    if let Ok(resource_dir) = app.path().resource_dir() {
+                        let models_dir = resource_dir.join("models");
+                        if models_dir.is_dir() {
+                            #[allow(unused_unsafe)]
+                            unsafe {
+                                std::env::set_var("JURA_MODELS_DIR", &models_dir);
+                            }
+                            log::info!("JURA_MODELS_DIR set to {:?}", models_dir);
+                        } else {
+                            log::warn!(
+                                "Models directory not found at {:?} — classifier \
+                                 and UnivFD probe will be unavailable",
+                                models_dir
+                            );
+                        }
+                    }
+
                     match app.shell().sidecar("jura-sidecar") {
                         Err(e) => {
                             log::warn!(
