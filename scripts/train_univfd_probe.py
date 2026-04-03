@@ -39,8 +39,8 @@ def collect_images(directory: str) -> list[Path]:
         print(f"  WARNING: directory not found: {d}")
         return []
     return sorted(
-        f for f in d.iterdir()
-        if f.suffix.lower() in IMAGE_EXTENSIONS
+        f for f in d.rglob("*")
+        if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
     )
 
 
