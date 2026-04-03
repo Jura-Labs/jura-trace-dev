@@ -6,6 +6,7 @@
   import { createBlobTracker } from '$lib/blob';
   import type { Annotation, AnnotationData, LicenceTier, VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult, SolarPosition, TimeEstimate, WeatherCheckResult, SeasonalIndicatorsResult, DiffusionArtefactsResult, RoiAnalysisResult } from '$lib/types';
   import VerdictSummary from '$lib/components/VerdictSummary.svelte';
+  import SimpleVerdict from '$lib/components/SimpleVerdict.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
   import InspectionChecklist from '$lib/components/InspectionChecklist.svelte';
   import SignalAgreement from '$lib/components/SignalAgreement.svelte';
@@ -118,8 +119,10 @@
   let showRegionAnalysis = $state(false);
   let expandedFrameIndex = $state<number | null>(null);
 
-  // ── Summary / Detail view mode ────────────────────────────────────
-  let viewMode = $state<'summary' | 'detail'>('summary');
+  // ── Simple / Expert view mode ─────────────────────────────────────
+  // 'simple' = plain-English verdict card (default for all users)
+  // 'expert' = full forensic breakdown (accessible via "See Detailed Analysis")
+  let viewMode = $state<'simple' | 'expert'>('simple');
 
   // ── Side-by-side comparison mode state ───────────────────────────
   /** Whether comparison mode is active (second image loaded alongside the primary). */
@@ -514,7 +517,7 @@
   });
 
   // ── Lifecycle ─────────────────────────────────────────────────────
-  // Persist view mode preference
+  // Persist view mode preference (simple/expert)
   $effect(() => {
     localStorage.setItem('jura-verify-view-mode', viewMode);
   });
@@ -525,9 +528,10 @@
   });
 
   onMount(() => {
-    // Restore persisted view mode (summary/detail)
+    // Restore persisted view mode (simple/expert).
+    // 'detail' is the legacy value from the old summary/detail system — treat it as 'expert'.
     const savedViewMode = localStorage.getItem('jura-verify-view-mode');
-    if (savedViewMode === 'detail') viewMode = 'detail';
+    if (savedViewMode === 'expert' || savedViewMode === 'detail') viewMode = 'expert';
 
     // Restore persisted raw scores preference
     showRawScores = localStorage.getItem('jura-raw-scores-default') === 'true';
@@ -3243,7 +3247,7 @@
                 {@const scoreData = detectorScores()[signal.id]}
                 <button
                   onclick={() => {
-                    if (viewMode === 'summary') viewMode = 'detail';
+                    if (viewMode === 'simple') viewMode = 'expert';
                     showTechnicalDetails = true;
                     // Allow DOM update before scrolling
                     requestAnimationFrame(() => scrollToSection(signal.id));
@@ -3433,26 +3437,26 @@
             aria-label="Result view mode"
           >
             <button
-              onclick={() => viewMode = 'summary'}
+              onclick={() => viewMode = 'simple'}
               class="px-3 py-1.5 min-h-[36px] transition-colors duration-150
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
-                     {viewMode === 'summary'
+                     {viewMode === 'simple'
                        ? 'bg-lapis text-white dark:bg-lapis text-white'
                        : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
-              aria-pressed={viewMode === 'summary'}
+              aria-pressed={viewMode === 'simple'}
             >
-              Summary
+              Simple
             </button>
             <button
-              onclick={() => viewMode = 'detail'}
+              onclick={() => viewMode = 'expert'}
               class="px-3 py-1.5 min-h-[36px] transition-colors duration-150 border-l border-border-light dark:border-border-dark
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
-                     {viewMode === 'detail'
+                     {viewMode === 'expert'
                        ? 'bg-lapis text-white dark:bg-lapis text-white'
                        : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
-              aria-pressed={viewMode === 'detail'}
+              aria-pressed={viewMode === 'expert'}
             >
-              Full Analysis
+              Expert
             </button>
           </div>
           <button
@@ -3477,8 +3481,8 @@
         </div>
       {/if}
 
-      <!-- ── Sticky section navigation (detail view only) ─────────── -->
-      {#if viewMode === 'detail'}
+      <!-- ── Sticky section navigation (expert view only) ─────────── -->
+      {#if viewMode === 'expert'}
         <nav
           class="sticky top-14 z-20 bg-white/95 dark:bg-graphite/95 backdrop-blur-sm border-b border-border-light dark:border-border-dark py-1.5 px-4 flex gap-1 overflow-x-auto"
           aria-label="Jump to analysis section"
@@ -3499,6 +3503,7 @@
           ].filter(s => s.always || s.show) as navItem}
             <button
               onclick={() => {
+                viewMode = 'expert';
                 showTechnicalDetails = true;
                 requestAnimationFrame(() => scrollToSection(navItem.id));
               }}
@@ -3515,80 +3520,48 @@
         </nav>
       {/if}
 
-      <!-- ── Summary view ──────────────────────────────────────────── -->
-      {#if viewMode === 'summary'}
+      <!-- ── Simple view ───────────────────────────────────────────── -->
+      {#if viewMode === 'simple'}
 
-        <!-- Verdict Summary -->
-        <div class="px-5 py-4 border-b border-border-light dark:border-border-dark">
-          <VerdictSummary {result} fileName={fileName ?? 'Unknown file'} />
+        <div class="p-5">
+          <SimpleVerdict
+            {result}
+            fileName={fileName ?? 'Unknown file'}
+            {sidecarHealth}
+            onViewExpert={() => { viewMode = 'expert'; }}
+          />
 
-          <!-- Contextual caveat — one-line plain-English note keyed to the broad verdict category -->
-          <p class="text-xs text-flint dark:text-flint-light leading-relaxed mt-2">
-            {#if result.deepfakeResult?.verdictLevel === 'synthetic' || (result.deepfakeResult?.suspicious && result.deepfakeResult?.verdictLevel !== 'authentic')}
-              Multiple detectors flagged signs of AI generation or manipulation. Review the signal breakdown below for details.
-            {:else if result.deepfakeResult?.verdictLevel === 'inconclusive' || trustLevel() === 'medium'}
-              Automated analysis could not make a confident determination. Apply professional judgement alongside these findings.
-            {:else}
-              No signs of manipulation or AI generation were detected by automated analysis. This does not guarantee the content is unmodified.
-            {/if}
-          </p>
-        </div>
-
-        <!-- Top signals in plain English -->
-        {@const topSignals = getTopSignals(result)}
-        {#if topSignals.length > 0}
-          <div
-            class="px-5 py-4 border-b border-border-light dark:border-border-dark"
-            aria-label="Key findings"
-          >
-            <p class="text-xs font-medium text-flint dark:text-flint-light uppercase tracking-wide mb-3">
-              Key Findings
-            </p>
-            <ul class="space-y-2" role="list">
-              {#each topSignals as signal}
-                <li class="flex items-start gap-2.5 text-sm text-text-light dark:text-quartz leading-relaxed">
-                  <span
-                    class="flex-shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full
-                           {signal.toLowerCase().includes('detected') || signal.toLowerCase().includes('anomal') || signal.toLowerCase().includes('failed') || signal.toLowerCase().includes('inconsistenc') || signal.toLowerCase().includes('synthetic') || signal.toLowerCase().includes('inconclusive')
-                             ? 'bg-amber'
-                             : 'bg-malachite'}"
-                    aria-hidden="true"
-                  ></span>
-                  {signal}
-                </li>
-              {/each}
-              {#if result.aiDescription}
-                <li class="flex items-start gap-2">
-                  <span class="w-2 h-2 rounded-full bg-lapis dark:bg-lapis-light mt-1.5 flex-shrink-0" aria-hidden="true"></span>
-                  <div>
-                    <span class="font-medium text-sm text-gray-800 dark:text-quartz">AI Description</span>
-                    <p class="text-sm text-gray-600 dark:text-flint-light italic leading-relaxed mt-0.5 break-words">
-                      "{result.aiDescription}"
-                    </p>
-                  </div>
-                </li>
-              {/if}
-            </ul>
-          </div>
-        {/if}
-
-        <!-- View full analysis CTA -->
-        <div class="px-5 py-3 flex items-center justify-between gap-4">
-          <p class="text-xs text-flint dark:text-flint-light">
-            All analysis runs locally on your device.
-          </p>
-          <button
-            onclick={() => viewMode = 'detail'}
-            class="flex-shrink-0 text-xs px-3 py-2 min-h-[36px] rounded border border-lapis/50 text-lapis dark:text-lapis-light
-                   hover:bg-lapis/10 transition-colors duration-150
-                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
-                   focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
-          >
-            View full analysis
-          </button>
+          <!-- AI description — shown beneath the card when available -->
+          {#if result.aiDescription}
+            <div class="mt-4 rounded-lg border border-lapis/20 bg-lapis/5 px-4 py-3">
+              <p class="text-xs font-medium text-lapis dark:text-lapis-light mb-1">AI Description (via Ollama)</p>
+              <p class="text-sm text-text-light dark:text-quartz italic leading-relaxed break-words">
+                "{result.aiDescription}"
+              </p>
+            </div>
+          {/if}
         </div>
 
       {:else}
+
+      <!-- ── Back to Simple View (Expert View header) ─────────────── -->
+      <div class="px-5 py-3 border-b border-border-light dark:border-border-dark flex items-center justify-between">
+        <p class="text-xs text-flint dark:text-flint-light">
+          Expert view — full forensic breakdown
+        </p>
+        <button
+          type="button"
+          onclick={() => { viewMode = 'simple'; }}
+          class="text-xs px-3 py-1.5 min-h-[36px] rounded border border-border-light dark:border-border-dark
+                 text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz
+                 hover:border-lapis/50 transition-colors duration-150
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+          aria-label="Return to simple view"
+        >
+          Simple View
+        </button>
+      </div>
 
       <!-- ── RAG Claim Verdict ─────────────────────────────────────── -->
       {#if result.claimVerdict || result.ragClaimResult}
