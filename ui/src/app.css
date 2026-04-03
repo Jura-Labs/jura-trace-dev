@@ -119,3 +119,68 @@
     opacity: 0.3;
   }
 }
+
+/* ── Custom scrollbars ──────────────────────────────────────────────────────
+   WebKit (Chrome, Safari, Tauri webview) and Firefox.
+   Uses brand palette: Flint thumb on Graphite track.
+   Applied globally so all scrollable areas in the app are consistent.
+   Respects prefers-reduced-motion by keeping the visual treatment static.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Firefox */
+* {
+  scrollbar-color: #78756D #272B34;
+  scrollbar-width: thin;
+}
+
+/* WebKit / Tauri webview */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #272B34;           /* Graphite */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #78756D;           /* Flint (dark) */
+  border-radius: 4px;
+  border: 2px solid #272B34;     /* inset gap so thumb doesn't touch track edge */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9B9890;           /* Flint (light) — brighter on hover */
+}
+
+::-webkit-scrollbar-corner {
+  background: #272B34;           /* Graphite — matches track colour */
+}
+
+/* Light mode overrides — subtler, but still visible */
+.light ::-webkit-scrollbar-track,
+:root:not(.dark) ::-webkit-scrollbar-track {
+  background: #E8E6E0;           /* Border-light */
+}
+
+.light ::-webkit-scrollbar-thumb,
+:root:not(.dark) ::-webkit-scrollbar-thumb {
+  background: #9B9890;           /* Flint (light) */
+  border-color: #E8E6E0;
+}
+
+.light ::-webkit-scrollbar-thumb:hover,
+:root:not(.dark) ::-webkit-scrollbar-thumb:hover {
+  background: #78756D;           /* Flint (dark) */
+}
+
+.light ::-webkit-scrollbar-corner,
+:root:not(.dark) ::-webkit-scrollbar-corner {
+  background: #E8E6E0;
+}
+
+.light * ,
+:root:not(.dark) * {
+  scrollbar-color: #9B9890 #E8E6E0;
+}

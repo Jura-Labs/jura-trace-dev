@@ -197,15 +197,77 @@
   let showZoomModal = $state(false);
   let zoomLevel = $state(1);
 
+  // Pan state — offset in CSS pixels at scale 1 (applied before scale)
+  let panX = $state(0);
+  let panY = $state(0);
+  let isPanning = $state(false);
+  let panStartX = 0;
+  let panStartY = 0;
+  let panOriginX = 0;
+  let panOriginY = 0;
+
   function handleImageClick() {
     showZoomModal = true;
     zoomLevel = 1;
+    panX = 0;
+    panY = 0;
   }
 
   function handleZoomWheel(e: WheelEvent) {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.25 : 0.25;
-    zoomLevel = Math.min(Math.max(zoomLevel + delta, 0.5), 5);
+    const newZoom = Math.min(Math.max(zoomLevel + delta, 0.5), 5);
+    // Reset pan when zooming back to 1:1
+    if (newZoom === 1) { panX = 0; panY = 0; }
+    zoomLevel = newZoom;
+  }
+
+  function handlePanStart(e: MouseEvent) {
+    // Only begin pan when the image is zoomed in
+    if (zoomLevel <= 1) return;
+    isPanning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panOriginX = panX;
+    panOriginY = panY;
+    e.preventDefault();
+  }
+
+  function handlePanMove(e: MouseEvent) {
+    if (!isPanning) return;
+    panX = panOriginX + (e.clientX - panStartX);
+    panY = panOriginY + (e.clientY - panStartY);
+    e.preventDefault();
+  }
+
+  function handlePanEnd() {
+    isPanning = false;
+  }
+
+  // Touch pan support
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  function handleTouchPanStart(e: TouchEvent) {
+    if (zoomLevel <= 1 || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+    panOriginX = panX;
+    panOriginY = panY;
+    isPanning = true;
+  }
+
+  function handleTouchPanMove(e: TouchEvent) {
+    if (!isPanning || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    panX = panOriginX + (t.clientX - touchStartX);
+    panY = panOriginY + (t.clientY - touchStartY);
+    e.preventDefault();
+  }
+
+  function handleTouchPanEnd() {
+    isPanning = false;
   }
 
   // ── Image inspection filter state ────────────────────────────────
@@ -945,6 +1007,8 @@
     elaBlendMode = 'normal';
     showZoomModal = false;
     zoomLevel = 1;
+    panX = 0;
+    panY = 0;
     activeFilter = 'none';
     brightness = 100;
     contrast = 100;
@@ -6455,11 +6519,12 @@
     role="dialog"
     aria-modal="true"
     aria-label="Image zoom viewer"
-    onclick={() => { showZoomModal = false; }}
+    onclick={() => { if (!isPanning) showZoomModal = false; }}
     onkeydown={(e) => {
-      if (e.key === 'Escape') { showZoomModal = false; }
+      if (e.key === 'Escape') { showZoomModal = false; panX = 0; panY = 0; }
       if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomLevel = Math.min(zoomLevel + 0.5, 5); }
-      if (e.key === '-') { e.preventDefault(); zoomLevel = Math.max(zoomLevel - 0.5, 0.5); }
+      if (e.key === '-') { e.preventDefault(); const nz = Math.max(zoomLevel - 0.5, 0.5); if (nz === 1) { panX = 0; panY = 0; } zoomLevel = nz; }
+      if (e.key === '0') { e.preventDefault(); zoomLevel = 1; panX = 0; panY = 0; }
     }}
     tabindex="-1"
   >
@@ -6470,7 +6535,7 @@
              text-quartz hover:text-white bg-graphite/60 hover:bg-graphite
              transition-colors duration-150
              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian"
-      onclick={(e) => { e.stopPropagation(); showZoomModal = false; }}
+      onclick={(e) => { e.stopPropagation(); showZoomModal = false; panX = 0; panY = 0; }}
       aria-label="Close zoom viewer"
     >
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -6480,32 +6545,45 @@
 
     <!-- Keyboard shortcut hint -->
     <p class="absolute top-4 left-4 text-xs text-quartz/60 select-none pointer-events-none" aria-hidden="true">
-      + / − to zoom &nbsp;·&nbsp; Esc to close
+      + / − to zoom &nbsp;·&nbsp; drag to pan &nbsp;·&nbsp; Esc to close
     </p>
 
-    <!-- Scrollable image area — wheel zoom applied here -->
+    <!-- Pan/zoom image area
+         overflow-hidden clips the image when panned; the inner wrapper fills
+         the full backdrop so mouse events cover the whole area. -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div
-      class="overflow-auto max-h-[90vh] max-w-[90vw] flex items-center justify-center"
+      class="absolute inset-0 overflow-hidden flex items-center justify-center"
       onclick={(e) => { e.stopPropagation(); }}
       onwheel={handleZoomWheel}
+      onmousedown={handlePanStart}
+      onmousemove={handlePanMove}
+      onmouseup={handlePanEnd}
+      onmouseleave={handlePanEnd}
+      ontouchstart={handleTouchPanStart}
+      ontouchmove={handleTouchPanMove}
+      ontouchend={handleTouchPanEnd}
+      style="cursor: {zoomLevel > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default'};"
     >
       <img
         src={previewUrl}
         alt="Zoomed view of {fileName ?? 'analysed file'}"
-        class="max-w-none motion-safe:transition-transform duration-200"
-        style="transform: scale({zoomLevel}); transform-origin: center; filter: {getFilterStyle(activeFilter)};"
+        class="max-w-none select-none pointer-events-none"
+        class:motion-safe:transition-transform={!isPanning}
+        style="transform: translate({panX}px, {panY}px) scale({zoomLevel}); transform-origin: center; filter: {getFilterStyle(activeFilter)}; {!isPanning ? 'transition: transform 150ms ease-out;' : ''}"
+        draggable="false"
       />
     </div>
 
-    <!-- Zoom controls -->
+    <!-- Zoom controls — sit above the pan layer -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div
-      class="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2
+      class="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2
              bg-graphite/90 rounded-lg px-4 py-2 border border-graphite-light/30"
       onclick={(e) => { e.stopPropagation(); }}
+      onmousedown={(e) => { e.stopPropagation(); }}
       role="group"
       aria-label="Zoom controls"
     >
@@ -6513,7 +6591,7 @@
         type="button"
         class="w-8 h-8 flex items-center justify-center text-quartz hover:text-white rounded transition-colors
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis text-lg font-light"
-        onclick={() => { zoomLevel = Math.max(zoomLevel - 0.5, 0.5); }}
+        onclick={() => { const nz = Math.max(zoomLevel - 0.5, 0.5); if (nz === 1) { panX = 0; panY = 0; } zoomLevel = nz; }}
         aria-label="Zoom out"
         disabled={zoomLevel <= 0.5}
       >
@@ -6537,9 +6615,9 @@
         type="button"
         class="text-xs text-flint-light hover:text-quartz transition-colors px-2 py-1 rounded
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
-        onclick={() => { zoomLevel = 1; }}
+        onclick={() => { zoomLevel = 1; panX = 0; panY = 0; }}
         aria-label="Reset zoom to 100%"
-        disabled={zoomLevel === 1}
+        disabled={zoomLevel === 1 && panX === 0 && panY === 0}
       >
         Reset
       </button>
