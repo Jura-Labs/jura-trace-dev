@@ -6,6 +6,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Post-RC14 — UX Redesign, Detection Calibration, UnivFD Probe (3 Apr 2026)
+
+### Two-Tier Verify Results
+
+**Added**
+- Simple View (default): large verdict card, analysis completeness indicator ("17/19 detectors"), 3-4 plain-English bullets, actionable next steps, editing vs AI distinction
+- Trust score percentage moved to Expert View only (12/15 persona consensus)
+- Export Report, Export Case, Report False Positive buttons in Simple View
+- Verify session persistence via sessionStorage — results survive navigation to Help/Settings
+- Tauri save dialog for exports (user chooses save location)
+
+### Detector Rebalancing
+
+**Changed**
+- ELA weight 2.0 → 1.0 (biggest false positive source on multiply-compressed images)
+- Shadow consistency and splice boundary removed from trust scoring (demoted to Expert View display-only)
+- Regional amplification cap now requires segmented ELA + colour temperature (not 2-of-4)
+
+### UnivFD Probe
+
+**Added**
+- Trained LogisticRegression probe on CLIP ViT-B/32 embeddings (4.8 KB)
+- AUC-ROC 0.9774, AI detection rate 99.6% (498/500), trained on 834 images
+- Probe auto-loaded by sidecar `clip_detector.py` — replaces useless zero-shot classification
+- Authentic FP rate 28.7% — requires expanded corpus (backlogged)
+
+### Detection Fixes
+
+**Fixed**
+- 128px minimum image size guard in deepfake detection — images below threshold return "too small for reliable analysis" instead of misleading scores (fixes 53.9% FP on CIFAR-10 32x32 thumbnails)
+- Ollama model pull proxied through sidecar (`POST /ollama/pull`) — bypasses CSP for remote Ollama instances
+- Cross-platform Reveal in Finder on Protect page (Windows `\` path separator)
+- Release workflow `workflow_dispatch` trigger for manual re-runs
+
+---
+
 ## RC10–RC14 — API Hardening, Detection Calibration, Dependency Audit (2–3 Apr 2026)
 
 ### REST API (Port 8300)
