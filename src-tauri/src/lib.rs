@@ -591,11 +591,12 @@ fn compute_trust(
     // causing a fake image to show 92% "High Trust" alongside "Inconclusive".
     let deepfake_trust = deepfake_score.map(|s| 1.0 - s);
 
-    // Weighted manipulation signals: ELA weight 2.0 (most reliable),
-    // noise and copy-move weight 1.0 each.
+    // Weighted manipulation signals: ELA, noise, and copy-move at weight 1.0.
+    // ELA was previously 2.0 but forensic audit found it generates too many
+    // false positives on multiply-compressed images — demoted to match others.
     let mut manipulation_signals: Vec<(f64, f64)> = Vec::new(); // (trust, weight)
     if let Some(s) = ela_score {
-        manipulation_signals.push((1.0 - s, 2.0));
+        manipulation_signals.push((1.0 - s, 1.0));
     }
     if let Some(s) = noise_score {
         manipulation_signals.push((1.0 - s, 1.0));
@@ -652,13 +653,14 @@ fn compute_trust(
 
     // ── Regional detector scores ─────────────────────────────────────
     // Segmented ELA (weight 1.5) and colour temperature (weight 1.5) are
-    // stronger splice indicators; shadow consistency and splice boundary
-    // carry weight 1.0 each.
+    // the remaining auto-pipeline regional detectors. Shadow consistency
+    // and splice boundary were demoted to on-demand investigation tools
+    // after forensic audit found they add scoring noise without reliable
+    // discrimination (shadow: noisy gradient analysis; splice: never sets
+    // suspicious=true).
     let regional_signals: Vec<(f64, f64)> = [
         (segmented_ela_score, 1.5_f64),
-        (shadow_consistency_score, 1.0),
         (colour_temperature_score, 1.5),
-        (splice_boundary_score, 1.0),
     ]
     .iter()
     .filter_map(|(score_opt, weight)| score_opt.map(|s| (1.0 - s, *weight)))
@@ -689,18 +691,13 @@ fn compute_trust(
     };
 
     // ── Composite regional amplification cap ────────────────────────
-    // When 2+ of the four regional detectors simultaneously flag the image
-    // as suspicious (score > 0.5), the convergence of evidence is strong
-    // enough to warrant a hard cap at 0.55 regardless of other signals.
-    let suspicious_regional_count = [
-        segmented_ela_score,
-        shadow_consistency_score,
-        colour_temperature_score,
-        splice_boundary_score,
-    ]
-    .iter()
-    .filter(|s| s.map(|v| v > 0.5).unwrap_or(false))
-    .count();
+    // When both remaining regional detectors (segmented ELA + colour temp)
+    // simultaneously flag the image as suspicious (score > 0.5), the
+    // convergence of evidence warrants a hard cap at 0.55.
+    let suspicious_regional_count = [segmented_ela_score, colour_temperature_score]
+        .iter()
+        .filter(|s| s.map(|v| v > 0.5).unwrap_or(false))
+        .count();
 
     let regional_cap = if suspicious_regional_count >= 2 {
         0.55_f64
@@ -4327,7 +4324,9 @@ mod tests {
 
     #[test]
     fn trust_three_suspicious_regional_detectors_still_capped() {
-        // Three suspicious regional detectors — cap must still hold
+        // Both active regional detectors suspicious + shadow (ignored) — cap holds
+        // Shadow consistency score is passed but no longer participates in
+        // regional signals after the forensic audit demotion.
         let trust = compute_trust(
             Some(0.05),
             None,
@@ -4337,15 +4336,15 @@ mod tests {
             Some("authentic"),
             0.9,
             None,
-            Some(0.8),  // segmented ELA
-            Some(0.6),  // shadow consistency
-            Some(0.75), // colour temperature
+            Some(0.8),  // segmented ELA (active)
+            Some(0.6),  // shadow consistency (ignored in scoring)
+            Some(0.75), // colour temperature (active)
             None,
             false,
         );
         assert!(
             trust <= 0.55,
-            "Three suspicious regional detectors should cap at 0.55, got {trust:.3}"
+            "Two active suspicious regional detectors should cap at 0.55, got {trust:.3}"
         );
     }
 
