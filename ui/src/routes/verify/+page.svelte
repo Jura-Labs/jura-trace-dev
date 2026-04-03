@@ -104,6 +104,8 @@
   // ── Video analysis progress state ─────────────────────────────────
   /** Human-readable phase description shown beneath the spinner for video files. */
   let analysisPhase = $state<string | null>(null);
+  let analysisStartTime = $state<number | null>(null);
+  let analysisElapsed = $state(0);
   /** Set to true when the user cancels mid-analysis; causes the result to be discarded. */
   let cancelled = $state(false);
 
@@ -528,6 +530,18 @@
     localStorage.setItem('jura-analyst-note', analystNote);
   });
 
+  // Elapsed timer during analysis — updates every second while loading
+  $effect(() => {
+    if (loading && analysisStartTime) {
+      const interval = setInterval(() => {
+        analysisElapsed = Math.floor((Date.now() - (analysisStartTime ?? Date.now())) / 1000);
+      }, 1000);
+      return () => clearInterval(interval);
+    } else {
+      analysisElapsed = 0;
+    }
+  });
+
   // Save verify session so results survive navigation to Help/Settings
   $effect(() => {
     if (result && fileName) {
@@ -654,9 +668,10 @@
           showReportModal = false;
         } else if (loading) {
           cancelAnalysis();
-        } else if (result) {
-          reset();
         }
+        // Deliberately no reset() on Escape when a result is showing.
+        // Users were accidentally losing their analysis results by pressing
+        // Escape after closing the zoom modal.
       }
     }
 
@@ -837,6 +852,7 @@
     errorType = null;
     cancelled = false;
     loading = true;
+    analysisStartTime = Date.now();
 
     const isVideo = isVideoFileName(name);
 
@@ -898,6 +914,7 @@
     error = null;
     errorType = null;
     loading = true;
+    analysisStartTime = Date.now();
 
     try {
       result = await verifyUrl(url, verifyMode);
@@ -2231,13 +2248,21 @@
               aria-label={analysisPhase ?? 'Analysing file'}
             ></div>
             {#if analysisPhase}
-              <!-- Video analysis: show the current phase message -->
               <p class="text-sm text-flint dark:text-flint-light">{analysisPhase}</p>
+            {:else if verifyMode === 'archival'}
+              <p class="text-sm text-flint dark:text-flint-light">Running all 19 forensic detectors — this takes 30–60 seconds...</p>
+            {:else if verifyMode === 'deep'}
+              <p class="text-sm text-flint dark:text-flint-light">Running deep forensic analysis — this takes 15–30 seconds...</p>
             {:else}
-              <p class="text-sm text-flint dark:text-flint-light">Analysing file — this may take a moment...</p>
+              <p class="text-sm text-flint dark:text-flint-light">Analysing file...</p>
             {/if}
             {#if fileName}
               <p class="text-xs text-flint/70 dark:text-flint-light/70">{fileName}</p>
+            {/if}
+            {#if analysisElapsed > 2}
+              <p class="text-xs text-flint/50 dark:text-flint-light/50 tabular-nums">
+                {analysisElapsed}s elapsed — analysis is running, please wait
+              </p>
             {/if}
           </div>
         {:else}
