@@ -99,15 +99,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS Apple Silicon — disabled to save CI costs ($0.08/min).
-          # Build locally: cd sidecar && python -m PyInstaller jura-sidecar.spec --noconfirm
-          # cp dist/jura-sidecar src-tauri/binaries/jura-sidecar-aarch64-apple-darwin
-          # cd src-tauri && cargo tauri build
-          # Upload: gh release upload <tag> --repo juralabs/jura-trace "...dmg"
-          # - label: macOS (Apple Silicon)
-          #   runner: macos-latest
-          #   target: aarch64-apple-darwin
-          #   sidecar_name: jura-sidecar-aarch64-apple-darwin
+          # macOS Apple Silicon (M1/M2/M3)
+          - label: macOS (Apple Silicon)
+            runner: macos-latest
+            target: aarch64-apple-darwin
+            sidecar_name: jura-sidecar-aarch64-apple-darwin
 
           # macOS Intel is intentionally removed from this matrix.
           # GitHub is deprecating the macos-13 Intel runner (EOL Q3 2026) and
