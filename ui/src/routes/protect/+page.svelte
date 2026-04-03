@@ -685,11 +685,13 @@
     }
   }
 
-  async function openInFinder(path: string) {
+  async function openInFinder(filePath: string) {
     if (!inTauri) return;
     try {
       const { open } = await import('@tauri-apps/plugin-shell');
-      const dir = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : path;
+      // Extract the containing directory (works for both / and \ separators)
+      const sep = filePath.includes('\\') ? '\\' : '/';
+      const dir = filePath.substring(0, filePath.lastIndexOf(sep)) || filePath;
       await open(dir);
     } catch {
       // Shell plugin unavailable — silently fail

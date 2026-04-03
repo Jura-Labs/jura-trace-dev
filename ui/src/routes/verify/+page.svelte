@@ -954,7 +954,32 @@
   }
 
   // ── Export helpers ────────────────────────────────────────────────
-  function triggerDownload(blob: Blob, filename: string) {
+  async function triggerDownload(blob: Blob, filename: string) {
+    // In Tauri, use the save dialog so the user chooses the location.
+    // Falls back to browser-style download for dev/Playwright.
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      try {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        const { writeFile } = await import('@tauri-apps/plugin-fs');
+        const chosen = await save({
+          defaultPath: filename,
+          filters: [
+            { name: filename.endsWith('.zip') ? 'ZIP Archive' : 'PDF Document',
+              extensions: [filename.split('.').pop() || 'bin'] },
+          ],
+        });
+        if (chosen) {
+          const bytes = new Uint8Array(await blob.arrayBuffer());
+          await writeFile(chosen, bytes);
+          // Brief feedback — could be a toast in future
+          console.log(`Saved to: ${chosen}`);
+        }
+        return;
+      } catch (e) {
+        console.warn('Tauri save dialog failed, falling back to browser download:', e);
+      }
+    }
+    // Browser fallback
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
