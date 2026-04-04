@@ -78,8 +78,8 @@ app.add_middleware(
         "http://localhost:1420",
         "http://127.0.0.1:1420",
     ],
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["X-Jura-API-Key", "Content-Type"],
 )
 
 

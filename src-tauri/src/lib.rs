@@ -684,8 +684,11 @@ fn compute_trust(
     };
 
     let base_trust = if let Some(ft) = forensic_trust {
-        // Weight: 40% EXIF metadata, 60% forensic analysis
-        (exif_trust * 0.4 + ft * 0.6 + c2pa_bonus).min(1.0)
+        // Weight: 20% EXIF metadata, 80% forensic analysis.
+        // EXIF is trivially forgeable and absent from most social media images.
+        // Reduced from 40% after security audit found forged EXIF could boost
+        // AI images to 54% trust, bypassing the inconclusive threshold.
+        (exif_trust * 0.2 + ft * 0.8 + c2pa_bonus).min(1.0)
     } else {
         (exif_trust + c2pa_bonus).min(1.0)
     };
@@ -3014,7 +3017,7 @@ fn dir_is_writable(dir: &std::path::Path) -> bool {
 /// 1. `JURA_DB_PATH` environment variable — if the parent directory exists
 ///    and is writable.
 /// 2. `config.json` in `app_data_dir` with a `db_path` key — if valid.
-/// 3. Default: `app_data_dir/jura_archive.db` (preserves all existing installs).
+/// 3. Default: `app_data_dir/jura_trace.db` (preserves all existing installs).
 fn resolve_db_path(app: &tauri::App) -> PathBuf {
     let data_dir = app
         .path()
@@ -3065,7 +3068,7 @@ fn resolve_db_path(app: &tauri::App) -> PathBuf {
     }
 
     // Priority 3: default — legacy filename for migration compatibility
-    let default_path = data_dir.join("jura_archive.db");
+    let default_path = data_dir.join("jura_trace.db");
     log::info!(
         "Database path resolved to default: {}",
         default_path.display()
@@ -3821,7 +3824,7 @@ mod tests {
             None,
             false,
         );
-        assert!(trust > 0.60, "Expected >0.60, got {trust:.3}");
+        assert!(trust > 0.50, "Expected >0.50, got {trust:.3}");
     }
 
     #[test]
@@ -3933,8 +3936,8 @@ mod tests {
             false,
         );
         assert!(
-            trust > 0.75,
-            "AVIF news image should score >75%, got {:.1}%",
+            trust > 0.65,
+            "AVIF news image should score >65%, got {:.1}%",
             trust * 100.0
         );
     }
@@ -4574,7 +4577,7 @@ mod tests {
     fn default_path_used_when_no_env_no_config() {
         let dir = tempfile::tempdir().expect("tempdir");
         let cfg = read_app_config(dir.path());
-        let default = dir.path().join("jura_archive.db");
+        let default = dir.path().join("jura_trace.db");
         let chosen = if let Some(p) = cfg.db_path {
             PathBuf::from(p)
         } else {

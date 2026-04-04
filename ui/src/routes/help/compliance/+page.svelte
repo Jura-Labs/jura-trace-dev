@@ -141,15 +141,15 @@
         <tbody class="text-flint dark:text-flint-light">
           <tr class="border-b border-border-light dark:border-border-dark">
             <td class="py-2 pr-4">macOS</td>
-            <td class="py-2 font-mono text-xs">~/Library/Application Support/Jura Trace/jura_archive.db</td>
+            <td class="py-2 font-mono text-xs">~/Library/Application Support/Jura Trace/jura_trace.db</td>
           </tr>
           <tr class="border-b border-border-light dark:border-border-dark">
             <td class="py-2 pr-4">Windows</td>
-            <td class="py-2 font-mono text-xs">%APPDATA%\Jura Trace\jura_archive.db</td>
+            <td class="py-2 font-mono text-xs">%APPDATA%\Jura Trace\jura_trace.db</td>
           </tr>
           <tr>
             <td class="py-2 pr-4">Linux</td>
-            <td class="py-2 font-mono text-xs">~/.local/share/jura-trace/jura_archive.db</td>
+            <td class="py-2 font-mono text-xs">~/.local/share/jura-trace/jura_trace.db</td>
           </tr>
         </tbody>
       </table>

@@ -516,7 +516,7 @@
   <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
     Jura Trace stores all asset records, fingerprints, verification history, and audit
     logs in a single SQLite database file named
-    <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">jura_archive.db</span>.
+    <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">jura_trace.db</span>.
     The current file path is shown at the top of the Database Location section.
   </p>
 
@@ -540,15 +540,15 @@
       <tbody class="text-flint dark:text-flint-light">
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4 font-semibold">macOS</td>
-          <td class="py-2 font-mono text-xs break-all">~/Library/Application Support/com.juralabs.jura-trace/jura_archive.db</td>
+          <td class="py-2 font-mono text-xs break-all">~/Library/Application Support/com.juralabs.jura-trace/jura_trace.db</td>
         </tr>
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4 font-semibold">Windows</td>
-          <td class="py-2 font-mono text-xs break-all">%APPDATA%\com.juralabs.jura-trace\jura_archive.db</td>
+          <td class="py-2 font-mono text-xs break-all">%APPDATA%\com.juralabs.jura-trace\jura_trace.db</td>
         </tr>
         <tr>
           <td class="py-2 pr-4 font-semibold">Linux</td>
-          <td class="py-2 font-mono text-xs break-all">~/.local/share/com.juralabs.jura-trace/jura_archive.db</td>
+          <td class="py-2 font-mono text-xs break-all">~/.local/share/com.juralabs.jura-trace/jura_trace.db</td>
         </tr>
       </tbody>
     </table>
@@ -590,7 +590,7 @@
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">3</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Default</strong> —
-        <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">jura_archive.db</span>
+        <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">jura_trace.db</span>
         in the platform application data directory, as shown in the table above.
       </span>
     </li>
@@ -618,7 +618,7 @@
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
       <span>
         Select the destination folder in the file picker. Jura Trace will use the name
-        <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">jura_archive.db</span>
+        <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">jura_trace.db</span>
         in the chosen folder.
       </span>
     </li>
@@ -646,7 +646,7 @@
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Back up your database regularly.</strong>
       The
-      <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">jura_archive.db</span>
+      <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">jura_trace.db</span>
       file contains your entire asset catalogue, fingerprint records, verification history,
       and audit log. It is a single file and can be copied to any backup destination
       whilst Jura Trace is closed.

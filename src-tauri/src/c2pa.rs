@@ -206,7 +206,7 @@ pub fn sign_file(
     let license_value = license.unwrap_or("All Rights Reserved");
 
     let manifest_def = serde_json::json!({
-        "claim_generator": "Jura Trace/0.1.0",
+        "claim_generator": "Jura Trace/0.9.0",
         "title": file_name,
         "assertions": [
             {
@@ -485,7 +485,7 @@ mod tests {
         let info = ManifestInfo {
             title: Some("test.jpg".to_string()),
             format: Some("image/jpeg".to_string()),
-            claim_generator: Some("Jura Trace/0.1.0".to_string()),
+            claim_generator: Some("Jura Trace/0.9.0".to_string()),
             assertions: vec![AssertionInfo {
                 label: "c2pa.actions".to_string(),
                 value: "{}".to_string(),

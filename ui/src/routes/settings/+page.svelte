@@ -75,7 +75,7 @@
 
       // Append the filename to the chosen directory using the platform-aware path API
       const { join } = await import('@tauri-apps/api/path');
-      const newPath = await join(selected, 'jura_archive.db');
+      const newPath = await join(selected, 'jura_trace.db');
 
       const result = await setDbPath(newPath);
       currentDbPath = result;

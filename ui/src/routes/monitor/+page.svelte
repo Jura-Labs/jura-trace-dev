@@ -391,21 +391,9 @@
               />
             </div>
             <div>
-              <label
-                for="watchlist-frequency"
-                class="block text-xs text-flint dark:text-flint-light mb-1.5"
-              >
-                Check frequency
-              </label>
-              <select
-                id="watchlist-frequency"
-                bind:value={newFrequency}
-                class="rounded-md border border-border-light dark:border-[rgba(122,119,112,0.3)] bg-white dark:bg-graphite px-3 py-2 text-sm text-text-light dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
-              >
-                <option value="hourly">Hourly</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-              </select>
+              <p class="text-xs text-flint dark:text-flint-light mt-1 leading-relaxed">
+                URLs are saved for manual checking. Automated monitoring is planned for a future release.
+              </p>
             </div>
           </div>
 
