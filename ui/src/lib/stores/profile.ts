@@ -21,7 +21,7 @@ export interface DeploymentProfile {
   /** Ollama text model identifier, e.g. qwen2.5:7b-instruct */
   textModel: string;
   /** Default pipeline depth when verifying assets */
-  defaultVerifyMode: 'fast' | 'deep';
+  defaultVerifyMode: 'standard' | 'deep' | 'archival';
   /** ISO 8601 creation timestamp */
   createdAt: string;
 }

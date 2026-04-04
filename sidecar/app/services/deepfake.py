@@ -13,6 +13,7 @@ later once training data is assembled.
 """
 
 import base64
+import hashlib
 import io
 import logging
 import math
@@ -212,8 +213,27 @@ _classifier = None
 _classifier_loaded = False
 
 
+_DEEPFAKE_CLASSIFIER_SHA256 = (
+    "3a02785ad72d19fe4bedb13bfec4a85901323600ef3199919bb983186da20161"
+)
+
+
+def _check_file_sha256(path: str, expected: str) -> bool:
+    """Return True if the SHA-256 of *path* matches *expected* (hex string)."""
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest() == expected
+
+
 def _load_classifier():
-    """Attempt to load the trained GBM classifier. Returns None on failure."""
+    """Attempt to load the trained GBM classifier. Returns None on failure.
+
+    Performs a SHA-256 integrity check before loading. If the hash does not
+    match the expected value the model is not loaded and a WARNING is logged.
+    This prevents a tampered or corrupted model file from being used silently.
+    """
     global _classifier, _classifier_loaded
     if _classifier_loaded:
         return _classifier
@@ -222,6 +242,12 @@ def _load_classifier():
         import joblib
         model_path = os.path.join(MODELS_DIR, "deepfake_classifier.joblib")
         if os.path.exists(model_path):
+            if not _check_file_sha256(model_path, _DEEPFAKE_CLASSIFIER_SHA256):
+                logger.warning(
+                    "deepfake_classifier.joblib failed SHA-256 integrity check — "
+                    "refusing to load. Re-train or restore from a trusted source."
+                )
+                return None
             _classifier = joblib.load(model_path)
     except Exception:
         _classifier = None
@@ -703,9 +729,9 @@ def _perform_deepfake_detection_impl(
             heatmap_base64 = _generate_spectrum_heatmap(grey_for_heatmap)
 
             response = DeepfakeResponse(
-                score=0.05,
+                score=0.15,
                 suspicious=False,
-                confidence="high",
+                confidence="low",
                 verdict_level="authentic",
                 signals=[
                     DeepfakeSignal(
@@ -828,14 +854,19 @@ def _perform_deepfake_detection_impl(
     # ── EXIF-based false positive reduction ───────────────────────────
     # Images with genuine camera EXIF (make, model, exposure) are very
     # unlikely to be AI-generated. CDN-processed PNGs that lack camera
-    # EXIF account for most of the 14% false positive rate. When camera
-    # EXIF is present AND the heuristic score is below 0.6 (i.e. the
+    # EXIF account for most of the false positive rate. When camera EXIF
+    # is present AND the heuristic score is below 0.6 (i.e. the
     # statistical signals are not overwhelming), cap the final blended
-    # score at 0.45 — below the suspicious threshold. This prevents
-    # real camera photos from being flagged unless the evidence is
-    # truly compelling (heuristic > 0.6).
+    # score at 0.55 — within the inconclusive band, not below the
+    # authentic threshold. This prevents real camera photos from being
+    # flagged unless the evidence is truly compelling (heuristic > 0.6).
+    #
+    # KNOWN LIMITATION: EXIF metadata can be injected (stripped from a
+    # real photo and appended to an AI-generated image). The cap is set
+    # at 0.55 (inconclusive) rather than lower to retain a visible signal
+    # for analyst review rather than silently clearing it as authentic.
     if has_camera_exif and heuristic_score < 0.6:
-        score = min(score, 0.45)
+        score = min(score, 0.55)
 
     # Generate frequency spectrum heatmap
     heatmap_base64 = _generate_spectrum_heatmap(grey)

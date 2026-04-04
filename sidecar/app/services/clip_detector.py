@@ -22,6 +22,7 @@ If ``open_clip`` is not installed, the service gracefully degrades
 and returns a response with ``model_available=False``.
 """
 
+import hashlib
 import io
 import logging
 import os
@@ -41,6 +42,10 @@ _model_load_attempted = False
 # UnivFD probe state — lazy-loaded from models/univfd_probe.joblib
 _univfd_probe = None
 _univfd_probe_loaded = False
+
+_UNIVFD_PROBE_SHA256 = (
+    "7a99e7e969929d7adc4cd36374580b071bb99d37785f6f0b89ac443d95922856"
+)
 
 # Text prompts for zero-shot classification.
 # Prompts 0-1 describe real photographs; 2-4 describe AI/synthetic content.
@@ -114,8 +119,19 @@ def _load_univfd_probe():
         probe_path = os.path.normpath(probe_path)
 
         if os.path.exists(probe_path):
-            _univfd_probe = joblib.load(probe_path)
-            logger.info("UnivFD probe loaded from %s", probe_path)
+            h = hashlib.sha256()
+            with open(probe_path, "rb") as fh:
+                for chunk in iter(lambda: fh.read(65536), b""):
+                    h.update(chunk)
+            if h.hexdigest() != _UNIVFD_PROBE_SHA256:
+                logger.warning(
+                    "univfd_probe.joblib failed SHA-256 integrity check — "
+                    "refusing to load. Re-train or restore from a trusted source."
+                )
+                _univfd_probe = None
+            else:
+                _univfd_probe = joblib.load(probe_path)
+                logger.info("UnivFD probe loaded from %s", probe_path)
         else:
             logger.info("UnivFD probe not found at %s — using zero-shot only", probe_path)
     except Exception:

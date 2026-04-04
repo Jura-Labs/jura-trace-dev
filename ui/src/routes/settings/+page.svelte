@@ -129,7 +129,7 @@
       ollamaUrl,
       visionModel,
       textModel,
-      defaultVerifyMode: 'fast',
+      defaultVerifyMode: 'standard',
       createdAt: new Date().toISOString(),
     };
     saveProfile(profile);

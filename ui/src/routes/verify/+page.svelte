@@ -2129,6 +2129,16 @@
       <p class="text-flint dark:text-flint-light text-sm mt-1">
         Check the authenticity and provenance of files. All analysis happens locally on your device.
       </p>
+      <!-- Inline Analysis Engine status — visible in both Simple and Expert views -->
+      <div class="flex items-center gap-1.5 mt-2" role="status" aria-live="polite">
+        <span
+          class="w-2 h-2 rounded-full flex-shrink-0 {sidecarAvailable ? 'bg-malachite' : 'bg-amber'}"
+          aria-hidden="true"
+        ></span>
+        <span class="text-xs {sidecarAvailable ? 'text-malachite dark:text-malachite-light' : 'text-amber dark:text-amber-light'}">
+          {sidecarAvailable ? 'Analysis Engine online' : 'Limited analysis — Analysis Engine offline'}
+        </span>
+      </div>
     </div>
     <div class="flex items-center gap-3">
       <!-- Mode toggle -->
