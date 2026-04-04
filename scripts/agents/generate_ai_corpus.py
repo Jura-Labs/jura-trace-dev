@@ -122,6 +122,18 @@ PROMPTS = [
     "A stranded polar bear on a small piece of sea ice",
     "A coastal town with sandbag flood defences along the shore",
 
+    # Jura Labs branding / marketing (save separately for brand use)
+    "A geological cross-section showing layered rock strata in warm earth tones",
+    "A close-up of polished obsidian stone with reflective surface on dark background",
+    "Layered sandstone cliff face showing millions of years of geological history",
+    "A single eye reflected in a magnifying glass examining a photograph",
+    "A glowing lapis lazuli gemstone on a dark slate surface with warm lighting",
+    "A digital forensic analyst examining an image on a large monitor in a dimly lit room",
+    "An abstract representation of data layers like geological strata with blue and amber tones",
+    "A museum archivist carefully handling a historical photograph with white gloves",
+    "A compass and magnifying glass on a vintage map suggesting investigation and truth",
+    "Crystalline mineral formations in deep blue and green tones suggesting trust and permanence",
+
     # Miscellaneous / edge cases
     "A close-up macro photograph of a butterfly wing showing scales",
     "A black and white photograph of a steam train at a station",
