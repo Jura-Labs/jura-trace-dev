@@ -34,12 +34,14 @@ from scripts.agents import config
 
 # Diverse prompts covering categories that AI-generated content typically falls into
 PROMPTS = [
-    # People / portraits
-    "A professional headshot of a middle-aged woman in a business suit",
-    "A street photographer capturing candid moments in a busy market",
-    "A group of friends laughing at a cafe table",
-    "An elderly man reading a newspaper in a park",
-    "A child playing with a golden retriever in a garden",
+    # People / portraits (describe features, not identities)
+    "Portrait of a South Asian woman, mid-30s, medium build, wearing a blue blazer, studio lighting",
+    "Candid street photo of a tall European man, early 60s, grey hair, reading on a bench",
+    "Group photo of three East Asian adults, 20s, athletic build, at an outdoor cafe",
+    "Headshot of a Middle Eastern man, late 40s, short beard, wearing glasses",
+    "Portrait of an African woman, early 50s, slim build, wearing a patterned headwrap",
+    "Photo of a Caucasian teenager, red hair, freckles, sitting in a library",
+    "Candid photo of a Latin American woman, 70s, petite, smiling in a garden",
 
     # Landscapes / nature
     "A misty mountain landscape at sunrise with pine trees",
@@ -47,48 +49,59 @@ PROMPTS = [
     "A dramatic storm approaching over an open wheat field",
     "A calm lake reflecting snow-capped mountains",
     "A desert sand dune at golden hour with long shadows",
+    "A tropical beach with turquoise water and palm trees",
+    "A rolling green hillside with sheep and stone walls",
+    "A dense bamboo forest with dappled sunlight",
 
     # Architecture / urban
-    "A modern glass skyscraper reflecting clouds at sunset",
-    "A narrow cobblestone alley in an old European city",
-    "An abandoned factory with broken windows and ivy",
-    "A traditional Japanese temple surrounded by cherry blossoms",
-    "A busy intersection in a major city at night with light trails",
+    "A modern glass office building reflecting clouds at sunset",
+    "A narrow cobblestone street in a Mediterranean village",
+    "An old brick warehouse converted into apartments",
+    "A wooden pagoda surrounded by autumn trees",
+    "A city skyline at night with illuminated bridges",
+    "A Victorian terrace house with a red front door",
+    "A brutalist concrete car park in overcast light",
 
     # Food / products
-    "A beautifully plated gourmet meal in a fine dining restaurant",
     "A rustic loaf of sourdough bread on a wooden cutting board",
-    "A luxury watch on a marble surface with dramatic lighting",
+    "A luxury wristwatch on a marble surface with dramatic lighting",
     "A fresh fruit smoothie in a glass jar with berries",
-    "A vintage camera on a leather desk with warm lighting",
+    "A vintage film camera on a leather desk",
+    "A bowl of ramen with chopsticks and steam rising",
+    "A ceramic vase of wildflowers on a windowsill",
+    "A stack of old leather-bound books on an oak shelf",
 
     # Animals
     "A fox in a snowy forest looking directly at the camera",
-    "A hummingbird hovering near a red flower",
-    "A lion resting under an acacia tree on the savannah",
-    "An underwater photograph of a sea turtle",
-    "A barn owl perched on a fence post at dusk",
+    "A hummingbird hovering near a red flower in sunlight",
+    "A lion resting under an acacia tree on the African savannah",
+    "An underwater photograph of a sea turtle swimming over coral",
+    "A barn owl perched on a wooden fence post at dusk",
+    "A tabby cat curled up on a woollen blanket",
+    "A golden retriever running through a field of tall grass",
 
-    # News / documentary style
-    "A press conference with microphones on a podium",
-    "Emergency workers responding to a flood in a residential area",
-    "A protest march with people holding signs in a city square",
-    "Scientists working in a laboratory with microscopes",
-    "A satellite image of a coastal city",
+    # Documentary / workplace
+    "A row of microphones on an empty podium in a conference room",
+    "A laboratory bench with microscopes and glass beakers",
+    "A satellite image of a coastline with river delta",
+    "A weather radar screen showing a large storm system",
+    "An empty courtroom with wooden benches and a judge's chair",
 
     # Art / creative
-    "An oil painting of a stormy sea in the style of Turner",
-    "A minimalist geometric pattern in earth tones",
+    "An oil painting of a stormy sea with crashing waves",
+    "A minimalist geometric pattern in earth tones on canvas",
     "A surreal image of a staircase leading into clouds",
-    "A watercolour painting of a village market scene",
-    "A photorealistic rendering of a futuristic city",
+    "A watercolour painting of a village market with fruit stalls",
+    "A photorealistic digital rendering of a futuristic city",
 
     # Miscellaneous / edge cases
-    "A close-up macro photograph of a butterfly wing",
-    "A black and white photograph of a train station",
-    "A drone view of a sports stadium during a match",
-    "A medical X-ray of a human hand",
-    "A satellite weather map showing a hurricane",
+    "A close-up macro photograph of a butterfly wing showing scales",
+    "A black and white photograph of a steam train at a station",
+    "A drone aerial view of a circular sports stadium",
+    "A flat lay of office supplies on a white desk",
+    "A time-lapse photograph of star trails over a mountain",
+    "An infrared photograph of a forest in false colour",
+    "A tilt-shift photograph making a city look like a miniature model",
 ]
 
 
