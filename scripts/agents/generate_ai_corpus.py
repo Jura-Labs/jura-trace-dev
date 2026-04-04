@@ -94,6 +94,34 @@ PROMPTS = [
     "A watercolour painting of a village market with fruit stalls",
     "A photorealistic digital rendering of a futuristic city",
 
+    # Conflict / humanitarian (documentary style, no graphic content)
+    "A damaged residential building with broken windows and rubble on the street",
+    "A refugee camp with rows of white tents in a dry landscape",
+    "An abandoned checkpoint with concrete barriers on a dusty road",
+    "A burnt-out vehicle on the side of a rural road",
+    "A makeshift shelter built from tarpaulin and corrugated metal",
+    "A bombed bridge with twisted metal over a river",
+    "An empty school classroom with overturned desks and debris",
+
+    # Political / protest (environments, not specific events)
+    "A large crowd gathered in a public square with banners and flags",
+    "A wall covered in political graffiti and posters",
+    "A line of riot shields on an empty street",
+    "A podium with multiple national flags at a summit venue",
+    "A ballot box on a table in a school gymnasium",
+
+    # Climate change / environmental
+    "A glacier calving into the ocean with chunks of ice falling",
+    "A dried-up riverbed with cracked mud and dead fish",
+    "A wildfire burning through a pine forest at night with orange sky",
+    "A flooded residential street with water up to the windows of houses",
+    "A coral reef showing severe bleaching with white and grey coral",
+    "An aerial photo of deforestation showing bare red earth next to dense forest",
+    "A solar panel farm stretching across a desert landscape",
+    "A smokestack emitting thick grey emissions against a cloudy sky",
+    "A stranded polar bear on a small piece of sea ice",
+    "A coastal town with sandbag flood defences along the shore",
+
     # Miscellaneous / edge cases
     "A close-up macro photograph of a butterfly wing showing scales",
     "A black and white photograph of a steam train at a station",
