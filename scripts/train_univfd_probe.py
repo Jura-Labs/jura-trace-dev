@@ -112,6 +112,12 @@ def main():
         default=os.path.join(os.path.dirname(__file__), "..", "models"),
         help="Output directory for model files",
     )
+    parser.add_argument(
+        "--C",
+        type=float,
+        default=0.5,
+        help="Regularisation strength for LogisticRegression (higher = less regularisation)",
+    )
     args = parser.parse_args()
 
     # Check dependencies
@@ -180,10 +186,10 @@ def main():
     # decision boundary shifts toward predicting "authentic" when the authentic
     # corpus is larger, causing AI recall to drop dramatically.
     # C=0.5 (was 0.1) — less aggressive regularisation with more training data.
-    print("\nTraining LogisticRegression probe (C=0.5, balanced, max_iter=1000)...")
+    print(f"\nTraining LogisticRegression probe (C={args.C}, balanced, max_iter=1000)...")
 
     probe = LogisticRegression(
-        C=0.5,
+        C=args.C,
         max_iter=1000,
         random_state=42,
         solver="lbfgs",

@@ -1,14 +1,14 @@
 {
-  "trained_at": "2026-04-04T12:41:05.517420",
+  "trained_at": "2026-04-06T23:27:05.268667",
   "approach": "UnivFD-style linear probe on CLIP ViT-B/32 embeddings",
   "clip_model": "ViT-B-32",
   "clip_pretrained": "laion2b_s34b_b79k",
   "embedding_dim": 512,
-  "n_samples": 2433,
-  "n_authentic": 1658,
-  "n_ai_generated": 775,
+  "n_samples": 3540,
+  "n_authentic": 2073,
+  "n_ai_generated": 1467,
   "cv_folds": 5,
-  "cv_auc_roc": 0.9802,
+  "cv_auc_roc": 0.9895,
   "probe_params": {
     "C": 0.1,
     "max_iter": 1000,
@@ -16,29 +16,29 @@
   },
   "cv_classification_report": {
     "authentic": {
-      "precision": 0.9702719797596457,
-      "recall": 0.9252110977080821,
-      "f1-score": 0.9472059277554801,
-      "support": 1658.0
+      "precision": 0.9600769600769601,
+      "recall": 0.9628557645923782,
+      "f1-score": 0.9614643545279383,
+      "support": 2073.0
     },
     "ai_generated": {
-      "precision": 0.8544600938967136,
-      "recall": 0.9393548387096774,
-      "f1-score": 0.8948985863552551,
-      "support": 775.0
+      "precision": 0.947296372347707,
+      "recall": 0.9434219495569189,
+      "f1-score": 0.9453551912568307,
+      "support": 1467.0
     },
-    "accuracy": 0.9297163995067818,
+    "accuracy": 0.9548022598870056,
     "macro avg": {
-      "precision": 0.9123660368281796,
-      "recall": 0.9322829682088798,
-      "f1-score": 0.9210522570553676,
-      "support": 2433.0
+      "precision": 0.9536866662123336,
+      "recall": 0.9531388570746486,
+      "f1-score": 0.9534097728923845,
+      "support": 3540.0
     },
     "weighted avg": {
-      "precision": 0.9333816338723575,
-      "recall": 0.9297163995067818,
-      "f1-score": 0.9305441153489143,
-      "support": 2433.0
+      "precision": 0.9547805978739051,
+      "recall": 0.9548022598870056,
+      "f1-score": 0.954788608053725,
+      "support": 3540.0
     }
   }
 }
