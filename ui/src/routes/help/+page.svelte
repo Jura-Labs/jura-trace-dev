@@ -42,6 +42,16 @@
       description: 'Practical workflows tailored for museum curators, investigative journalists, fact-checkers, and IT administrators.',
     },
     {
+      href: '/help/model-cards',
+      title: 'Model Cards',
+      description: 'Training data, performance metrics, known limitations, and version history for the GBM and UnivFD classifiers.',
+    },
+    {
+      href: '/help/continuity',
+      title: 'Continuity Promise',
+      description: 'Our commitments to data portability, source code release, and long-term availability.',
+    },
+    {
       href: '/help/compliance',
       title: 'IT and Compliance',
       description: 'Information security, data protection, and regulatory compliance for institutional deployment.',
@@ -114,4 +124,23 @@
       </a>
     {/each}
   </div>
+</section>
+
+<!-- Earth-line section divider -->
+<div class="earth-line mt-10 mb-8" role="separator" aria-hidden="true"></div>
+
+<!-- Equity positioning -->
+<section aria-labelledby="equity-heading" class="mb-8">
+  <h2 id="equity-heading" class="font-heading text-lg text-text-light dark:text-quartz mb-3 tracking-heading">
+    Built for Those Who Need It Most
+  </h2>
+  <p class="text-sm text-flint dark:text-flint-light leading-relaxed max-w-2xl">
+    Jura Trace is designed to work where verification is most urgent and resources
+    are most constrained — offline, on-device, without sending sensitive content to
+    any server. It is free for journalists, fact-checkers, and human rights
+    organisations, because the communities facing the greatest threat from synthetic
+    media should not face a paywall to verify it. The local-first architecture means
+    no internet connection is required, no data leaves your machine, and no cloud
+    account is needed.
+  </p>
 </section>

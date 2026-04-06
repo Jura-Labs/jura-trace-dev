@@ -52,14 +52,14 @@ def detect_mime(path: str, data: bytes) -> str:
 
 
 def collect_images(directory: str) -> list[Path]:
-    """Collect image files from a directory."""
+    """Collect image files from a directory (recursive)."""
     d = Path(directory)
     if not d.exists():
         print(f"  WARNING: directory not found: {d}")
         return []
     return sorted(
-        f for f in d.iterdir()
-        if f.suffix.lower() in IMAGE_EXTENSIONS
+        f for f in d.rglob("*")
+        if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
     )
 
 
