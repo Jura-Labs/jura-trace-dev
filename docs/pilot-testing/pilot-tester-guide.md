@@ -373,7 +373,7 @@ This section is optional for your pilot testing. Try it if you have a few minute
 
 3. Your image appears in the asset list. Click on it to select it.
 
-4. **Sign with C2PA Content Credentials:**
+4. **Sign with C2PA provenance:**
 
    C2PA (Coalition for Content Provenance and Authenticity) is an open industry standard for embedding provenance records in media files. Think of it as a digital certificate of origin — a verifiable record of who created or handled the file, and when.
 

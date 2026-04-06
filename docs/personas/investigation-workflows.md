@@ -42,7 +42,7 @@ The photo is a JPEG, 2.1 MB, taken on what appears to be a smartphone. The metad
 
 Before importing to Jura Trace, Marcus saves the original file from Signal to a dedicated case folder on his local drive, noting the time of receipt, the source pseudonym, and the method of delivery. He does not open the image in any editing application.
 
-He opens Jura Trace and navigates to the PROTECT tab. He runs a standard C2PA verification scan on the file to check whether Content Credentials exist before any analysis. This is a one-second non-destructive read.
+He opens Jura Trace and navigates to the PROTECT tab. He runs a standard C2PA verification scan on the file to check whether a provenance manifest exists before any analysis. This is a one-second non-destructive read.
 
 *Tool used*: C2PA verification (read-only, no signing).
 *What it reveals*: No C2PA manifest present. This is expected — smartphone photos rarely carry C2PA credentials yet. It does not indicate manipulation; it confirms the absence of provenance metadata, which is itself information.

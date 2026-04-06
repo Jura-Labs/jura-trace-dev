@@ -164,7 +164,7 @@ Response:
 
 **Estimated time: 5 minutes**
 
-This section tests the core protection tools: C2PA Content Credentials signing and invisible watermarking. The tester should use a JPEG image of their own, or use the sample file provided by your Juralabs pilot coordinator.
+This section tests the core protection tools: C2PA provenance signing and invisible watermarking. The tester should use a JPEG image of their own, or use the sample file provided by your Juralabs pilot coordinator.
 
 > **Note on test files.** For consistent results, use a JPEG image between 500 KB and 5 MB. Very small images (under 50 KB) may produce lower watermark confidence scores.
 
@@ -176,7 +176,7 @@ This section tests the core protection tools: C2PA Content Credentials signing a
 
    [Screenshot: Protect page with image loaded]
 
-3. - [ ] Locate the **C2PA Content Credentials** section. Read the description of what it does.
+3. - [ ] Locate the **C2PA Provenance** section. Read the description of what it does.
 
 4. - [ ] Enter an institution or creator name in the relevant field (the tester's own name or organisation name is fine).
 
@@ -538,7 +538,7 @@ Notes:
 
 ### Content creators
 
-**Q10.** "Would you sign your work with C2PA Content Credentials before every publication, or only for certain types of content? What would influence that decision?"
+**Q10.** "Would you sign your work with C2PA provenance before every publication, or only for certain types of content? What would influence that decision?"
 
 ```
 Response:

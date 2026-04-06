@@ -38,7 +38,7 @@ kamadak-exif = "0.5"
 # Image processing (dimensions, basic info)
 image = "0.25"
 
-# C2PA Content Credentials (Phase 1, Weeks 7-8)
+# C2PA provenance manifests (Phase 1, Weeks 7-8)
 c2pa = { version = "0.76", features = ["file_io"] }
 
 # Certificate generation for C2PA signing
