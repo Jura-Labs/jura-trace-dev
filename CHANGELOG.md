@@ -6,6 +6,57 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 6–7 April 2026 — C2PA Rebranding, UnivFD Retrain, Corpus Expansion
+
+### C2PA Provenance Manifest Rebranding
+
+**Changed**
+- "C2PA Content Credentials" renamed to "C2PA provenance manifest" across 38 files — "Content Credentials" is Adobe's trademarked term, not a C2PA standard term
+- Files updated: UI routes (verify, protect, monitor), Rust backend (`lib.rs`, `c2pa.rs`), docs (ARCHITECTURE.md, BRAND_GUIDELINES.md, user guides, help pages, pilot testing docs), PDF/ZIP export templates
+- Commits: a7e4b1d (bulk rename) and b356485 (missed occurrences)
+- Plane issue JTV-64 created for website copy update (Todo, medium priority, website + branding labels)
+
+### UnivFD Probe Retrain
+
+**Changed**
+- Corpus expanded from 834 → 6,009 images (2,873 authentic + 3,136 AI)
+- AUC-ROC improved: 0.9774 → 0.9929
+- Authentic FP rate reduced: 28.7% → 2.7%
+- AI detection rate: 95.2%
+- Regularisation tuned: C=0.5 → C=1.0
+- Wikimedia art/illustrations removed from authentic corpus (38% of that source were FPs due to stylised, non-photographic content)
+- Training corpus relocated to external USB for local storage management
+
+**Added (authentic sources)**
+- 300 COCO natural scene images
+- 828 Google Photos
+
+**Added (AI sources)**
+- 500 DiffusionDB (Stable Diffusion v1.x)
+- 500 DALL-E 3
+- 500 Civitai SFW (community Stable Diffusion models)
+- 300 SDXL-Turbo
+- 150 Midjourney v6
+- 70 Gemini Imagen 4
+
+### Corpus Generator Improvements
+
+**Changed**
+- `generate_ai_corpus.py`: conflict and political prompts replaced with neutral scene descriptions for Imagen safety filter compliance; Gemini Flash fallback removed — Imagen 4 only
+- `train_univfd_probe.py`: `--C` regularisation parameter added (default 1.0)
+
+**Added**
+- `scripts/generate_local_sd.py` — new local Stable Diffusion image generator supporting SDXL-Turbo, SD 2.1, SD 1.5, and SSD-1B; generates images offline without cloud API calls
+
+### TRIED Compliance Roadmap
+
+**Changed**
+- Roadmap updated with current detection metrics (FP 2.7%, AUC-ROC 0.9929)
+- Sprint 30 marked ~15/22 points complete
+- GPU cost section updated: M1 Mac training validated, no cloud GPU required
+
+---
+
 ## Post-RC14 — UX Redesign, Detection Calibration, UnivFD Probe (3 Apr 2026)
 
 ### Two-Tier Verify Results

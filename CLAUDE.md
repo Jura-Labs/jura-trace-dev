@@ -215,9 +215,13 @@ Jura Trace uses a split-repo model to keep source code private while distributin
 - **Colour temperature**: `sidecar/app/services/colour_temperature.py` — CIELAB colour space segmentation
 - **Splice boundary**: `sidecar/app/services/splice_boundary.py` — three-signal edge analysis (JPEG grid + noise + feathering)
 - **Trained classifier**: `models/deepfake_classifier.joblib` — GBM classifier on 80-feature vector (AUC 0.945)
+- **UnivFD probe**: `models/univfd_probe.joblib` — LogisticRegression on CLIP ViT-B/32 embeddings; 6,009 images; AUC-ROC 0.9929; FP rate 2.7%; AI detection rate 95.2%
 - **Training pipeline**: `scripts/train_classifier.py` — feature extraction + GBM training + CV evaluation
+- **UnivFD training script**: `scripts/train_univfd_probe.py` — CLIP embedding extraction + LogisticRegression probe training + CV evaluation; `--C` parameter for regularisation tuning
 - **Corpus builder**: `scripts/build_corpus.py` — authentic press photo downloader (Guardian)
 - **Corpus expander**: `scripts/expand_corpus.py` — HuggingFace + COCO dataset downloader
+- **Local SD generator**: `scripts/generate_local_sd.py` — local Stable Diffusion image generator (SDXL-Turbo, SD 2.1, SD 1.5, SSD-1B)
+- **AI corpus generator**: `scripts/generate_ai_corpus.py` — Gemini Imagen 4 AI image generator; neutral-scene prompts only (Imagen safety filter compliant)
 - **Calibration pipeline**: `scripts/calibrate.py` — batch detector evaluation + threshold recommendations
 - **Logo component**: `ui/src/lib/components/LogoMark.svelte` — eye logo mark SVG
 - **Sprint plan**: `docs/sprint-plans/sprint-region-forensics.md` — Sprint 9 region-based forensics plan
@@ -260,6 +264,7 @@ Jura Trace uses a split-repo model to keep source code private while distributin
 - **Deployment design**: `docs/deployment-experience-design.md` — FFmpeg bundling, Ollama, model downloads, setup wizard
 - **Strategic pivot**: `docs/strategic-pivot-assessment.md` — verification-first messaging, post-v1.0 roadmap
 - **Phase A plan**: `docs/sprint-plans/phase-a-plan.md` — FP reduction, API wrapper, reports, versioning (July-Aug 2026)
+- **TRIED compliance roadmap**: `docs/tried-compliance-roadmap.md` — Sprint 30 progress (~15/22 points), current metrics (FP 2.7%, AUC 0.9929), GPU cost elimination confirmed
 - **API module**: `src-tauri/src/api/` — Axum REST API (port 8300): mod.rs, routes.rs, types.rs, auth.rs, rate_limit.rs, error.rs
 - **API integration tests**: `src-tauri/tests/api_integration.rs` — 15 tests (health, auth, verify, batch, fingerprint, rate limiting, OpenAPI)
 - **Corpus training agents**: `scripts/agents/` — crawl_ai_images.py, crawl_authentic_images.py, apply_protections.py, verify_corpus.py, validate_constraint.py, deep_review.py, run_all.py
@@ -330,22 +335,25 @@ Deepfake classifier retrained: AUC-ROC 1.0000 (was 0.945), FP rate 0% (was 14%).
 
 **Post-RC14 (3 April 2026)**: Two-tier Simple/Expert verify results view: SimpleVerdict.svelte with plain-English verdict card, analysis completeness indicator, 3-4 summary bullets, actionable next steps; trust score % moved to Expert View only (12/15 persona consensus). Detector weight rebalancing from forensic audit: ELA weight 2.0→1.0 (biggest FP source), shadow consistency and splice boundary removed from trust scoring (demoted to Expert View display-only), regional amplification cap now requires segmented ELA + colour temp (not 2-of-4). 128px minimum image size guard in deepfake detection (fixes 53.9% FP rate on CIFAR-10 32x32 thumbnails). Verify session persistence via sessionStorage (results survive navigation to Help/Settings). Export Report, Export Case, Report False Positive buttons added to Simple View. Tauri save dialog for exports (user chooses save location). Cross-platform Reveal in Finder fix (Windows `\` path separator). Ollama model pull proxied through sidecar (`POST /ollama/pull`) to bypass CSP for remote Ollama instances. UnivFD probe trained: AUC-ROC 0.9774, 99.6% AI detection rate, 4.8KB LogisticRegression on CLIP ViT-B/32 embeddings (834 images: 500 AI + 334 authentic). Probe auto-loaded by sidecar clip_detector.py. Release workflow `workflow_dispatch` trigger added for manual re-runs.
 
+**6–7 April 2026**: C2PA provenance manifest rebranding. "C2PA Content Credentials" (Adobe's trademarked term) renamed to "C2PA provenance manifest" across 38 files — UI, Rust backend, docs, PDF/ZIP exports, help pages, pilot testing docs (commits a7e4b1d and b356485). UnivFD probe retrained on expanded corpus: 6,009 images (2,873 authentic + 3,136 AI). AUC-ROC improved 0.9774 → 0.9929. FP rate reduced 28.7% → 2.7%. AI detection rate 95.2%. Regularisation tuned C=0.5 → C=1.0. Wikimedia art/illustrations removed as FP source. New authentic sources: COCO (300), Google Photos (828). New AI sources: DiffusionDB (500), DALL-E 3 (500), Civitai SFW (500), SDXL-Turbo (300), Midjourney v6 (150), Gemini Imagen 4 (70). Training corpus moved to external USB. Corpus generator improvements: `generate_ai_corpus.py` conflict/political prompts replaced with neutral scenes for Imagen safety filter compliance, Gemini Flash fallback removed (Imagen 4 only); `generate_local_sd.py` new local Stable Diffusion generator script added (SDXL-Turbo, SD 2.1, SD 1.5, SSD-1B); `train_univfd_probe.py` `--C` parameter added for regularisation tuning. TRIED compliance roadmap updated: Sprint 30 ~15/22 points complete, GPU costs eliminated (M1 Mac training validated). Plane issue JTV-64 created: website Content Credentials → C2PA provenance rebranding.
+
 **Test counts**: 283 Rust tests, 375+ Python tests, 164 Playwright e2e tests, 226 SvelteKit files with 0 svelte-check errors, clippy + fmt clean.
 
 ## Backlog
 
-Items identified during the 2–3 April session, prioritised for future sprints:
+Items prioritised for future sprints. Updated 7 April 2026.
 
-1. **Reduce UnivFD authentic FP rate** — current 28.7% FP on authentic images; expand authentic corpus with press photos, stock imagery, real camera photos (not Wikimedia art/illustrations). Re-train probe. (HIGH)
+1. ~~**Reduce UnivFD authentic FP rate**~~ — **Resolved 7 Apr 2026**: corpus expanded to 6,009 images; FP rate 28.7% → 2.7%; AUC-ROC 0.9929.
 2. **FP telemetry to Jura Labs endpoint** — opt-in anonymous upload of false positive reports for model improvement. Requires server-side API. (HIGH, long-term)
 3. **URL watchlist automated checking** — Monitor CRUD exists but no scheduled polling. Requires cron/scheduler. (MEDIUM, paid tier feature)
-4. **Expand training corpus to 3000-5000 images** — diverse generators (Midjourney v6, DALL-E 3, Flux, Firefly, Gemini). (HIGH)
+4. ~~**Expand training corpus to 3000-5000 images**~~ — **Resolved 7 Apr 2026**: corpus now 6,009 images with diverse generators (Midjourney v6, DALL-E 3, DiffusionDB, Civitai, SDXL-Turbo, Gemini Imagen 4).
 5. **Remove chromatic aberration from deep mode** — forensic audit rated accuracy 1/5, long-term viability 1/5. ~200ms saved. (LOW)
 6. **SIFT upgrade for copy-move detection** — patent expired 2020, better match quality than ORB. (LOW)
 7. **EXIF injection detection** — detect suspiciously perfect/generic metadata. (MEDIUM)
 8. **GitHub Actions minutes** — exhausted free tier; release workflow requires manual build or payment. (BLOCKER for CI releases)
 9. **Bring Your Own Certificate (BYOC)** — allow institutions to supply their own C2PA signing certificate (from a Trust List CA) for full third-party verifier trust. Settings page cert import, key storage, per-asset cert selection. (MEDIUM, Enterprise tier feature)
 10. **C2PA Conformance Program** — evaluate cost/process of joining the C2PA Conformance Program for Trust List inclusion. Contact membership@c2pa.org. Deferred to post-revenue. (LOW, long-term)
+11. **Website rebranding** — update juralabs.org copy: "Content Credentials" → "C2PA provenance manifest" throughout. Plane issue JTV-64 (Todo, medium priority). (MEDIUM)
 
 ## British Spelling
 
