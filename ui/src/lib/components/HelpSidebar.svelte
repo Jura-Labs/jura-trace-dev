@@ -22,15 +22,17 @@
     {
       groupLabel: 'Understanding',
       items: [
-        { href: '/help/methodology', label: 'How Analysis Works', title: 'Methodology and trust score computation' },
-        { href: '/help/glossary',    label: 'Glossary',           title: 'Definitions of technical terms' },
-        { href: '/help/personas',    label: 'Usage Guides',       title: 'Workflows for different use cases' },
+        { href: '/help/methodology',  label: 'How Analysis Works', title: 'Methodology and trust score computation' },
+        { href: '/help/model-cards',  label: 'Model Cards',        title: 'ML classifier training data and performance' },
+        { href: '/help/glossary',     label: 'Glossary',           title: 'Definitions of technical terms' },
+        { href: '/help/personas',     label: 'Usage Guides',       title: 'Workflows for different use cases' },
       ],
     },
     {
       groupLabel: 'Compliance',
       items: [
         { href: '/help/berkeley-protocol', label: 'Berkeley Protocol',    title: 'International evidence standards alignment' },
+        { href: '/help/continuity',        label: 'Continuity Promise',   title: 'Data portability and long-term availability commitments' },
         { href: '/help/compliance',        label: 'IT Security Summary',  title: 'Information security and data protection overview' },
         { href: '/help/compliance#dpia',   label: 'DPIA Template',        title: 'Data Protection Impact Assessment guidance' },
       ],

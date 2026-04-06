@@ -42,9 +42,11 @@
         { href: '/help/monitor',     label: 'Monitor' },
         { href: '/help/settings',    label: 'Settings' },
         { href: '/help/methodology',        label: 'How Analysis Works' },
+        { href: '/help/model-cards',        label: 'Model Cards' },
         { href: '/help/glossary',            label: 'Glossary' },
         { href: '/help/personas',            label: 'Usage Guides' },
         { href: '/help/berkeley-protocol',   label: 'Berkeley Protocol' },
+        { href: '/help/continuity',          label: 'Continuity Promise' },
         { href: '/help/compliance',          label: 'IT Security' },
       ] as item}
         <li>

@@ -360,6 +360,12 @@
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
             </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Limited to metadata embedded at capture time. Cannot detect modifications to the image content itself — only inconsistencies in the surrounding metadata. Files stripped of all metadata produce no signal.
+              </dd>
+            </div>
           </dl>
         </div>
       </details>
@@ -408,6 +414,12 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Jura Trace uses a self-signed certificate. Manifests signed by Jura Trace are valid but not trusted by third-party C2PA verifiers such as Adobe's Content Authenticity web tool. Institutional trust requires a certificate from a C2PA Trust List authority.
+              </dd>
             </div>
           </dl>
         </div>
@@ -458,6 +470,12 @@
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
             </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Unreliable on multiply-compressed JPEG images. Social media platforms compress images multiple times, creating ELA artefacts indistinguishable from manipulation. Weight reduced to 1.0 (from 2.0) in trust scoring to reflect this limitation.
+              </dd>
+            </div>
           </dl>
         </div>
       </details>
@@ -506,6 +524,12 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                May flag authentic images with intentional grain (film scans, night photography, high-ISO captures) as anomalous. Cannot distinguish artistic noise from manipulation-related noise inconsistency.
+              </dd>
             </div>
           </dl>
         </div>
@@ -556,6 +580,12 @@
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
             </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Uses ORB feature matching, which can miss small, rotated, or scaled copied regions. SIFT upgrade planned (patent expired 2020). Performance degrades on heavily compressed images where keypoints are destroyed.
+              </dd>
+            </div>
           </dl>
         </div>
       </details>
@@ -604,6 +634,12 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Trained on 709 images from generators available before April 2026. May underperform on outputs from newer generators. Minimum image size: 128&#215;128 pixels. See the <a href="/help/model-cards#gbm-classifier" class="text-lapis dark:text-lapis-light underline hover:no-underline">GBM model card</a> for full training data documentation.
+              </dd>
             </div>
           </dl>
         </div>
@@ -654,6 +690,12 @@
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
             </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Computationally intensive. Less effective on highly compressed content where pixel neighbour relationships are already disrupted by quantisation. Best suited to high-quality source images.
+              </dd>
+            </div>
           </dl>
         </div>
       </details>
@@ -702,6 +744,12 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Rated 1/5 accuracy in forensic audit (March 2026). Included in Deep mode only as an investigative signal. Results should not be weighted heavily and are excluded from trust scoring.
+              </dd>
             </div>
           </dl>
         </div>
@@ -752,6 +800,12 @@
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
             </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Only applicable to JPEG files. Produces no signal on PNG, WebP, TIFF, or other non-JPEG formats. The detector section is greyed out for non-JPEG inputs.
+              </dd>
+            </div>
           </dl>
         </div>
       </details>
@@ -800,6 +854,12 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Deep &#183; Archival</dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Grid-based analysis divides images into 8&#215;8 cells. Artefacts in a single cell may indicate localised compression differences rather than deliberate manipulation. Consider alongside other regional detectors.
+              </dd>
             </div>
           </dl>
         </div>
@@ -850,6 +910,12 @@
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Deep &#183; Archival</dd>
             </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Removed from trust scoring due to high false positive rate. Displayed as an investigative signal in Expert View only. Useful for manual inspection of light direction but not reliable for automated detection.
+              </dd>
+            </div>
           </dl>
         </div>
       </details>
@@ -899,6 +965,12 @@
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Deep &#183; Archival</dd>
             </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Assumes single-illuminant scenes. Mixed lighting conditions (e.g. tungsten + daylight, indoor/outdoor transitions) produce false positives. Results are most meaningful for outdoor scenes with consistent natural light.
+              </dd>
+            </div>
           </dl>
         </div>
       </details>
@@ -947,6 +1019,12 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Deep &#183; Archival</dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Removed from trust scoring due to high false positive rate on images with natural sharp edges (architecture, text, geometric patterns). Displayed as an investigative signal in Expert View only.
+              </dd>
             </div>
           </dl>
         </div>
@@ -1000,6 +1078,12 @@
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Deep &#183; Archival — only when the optional model is installed</dd>
             </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                2.7% false positive rate on authentic images. Non-photographic content (paintings, digital illustrations) may still trigger false positives. Requires the optional CLIP ViT&#8209;B/32 model (~350 MB). See the <a href="/help/model-cards#univfd-probe" class="text-lapis dark:text-lapis-light underline hover:no-underline">UnivFD model card</a> for full documentation.
+              </dd>
+            </div>
           </dl>
         </div>
       </details>
@@ -1052,6 +1136,12 @@
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Deep &#183; Archival — only when Ollama is running and faster-whisper is installed</dd>
             </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Requires Ollama running locally with a Qwen2.5 model downloaded. Knowledge base is limited to ~150 passages across 6 documents — claims outside this domain cannot be verified. Accuracy depends on transcription quality (faster-whisper). Not a replacement for professional fact-checking — results indicate consistency with the local knowledge base only.
+              </dd>
+            </div>
           </dl>
         </div>
       </details>
@@ -1100,6 +1190,12 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
               <dd class="text-flint dark:text-flint-light">Standard &#183; Deep &#183; Archival — video files only</dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Analyses a sample of frames (6 in Standard, 20 in Deep, 40 in Archival) — not every frame. Manipulation confined to un-sampled frames may be missed. Temporal consistency signals (noise drift, spectral drift, LBP drift) require sufficient frame count for meaningful measurement. Requires FFmpeg for frame extraction.
+              </dd>
             </div>
           </dl>
         </div>
