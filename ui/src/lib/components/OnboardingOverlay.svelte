@@ -264,7 +264,7 @@
                 Protect
               </h2>
               <p class="text-xs text-flint-light leading-relaxed">
-                Stamp your images and documents with C2PA Content Credentials —
+                Stamp your images and documents with C2PA provenance —
                 machine-readable proof of origin.
               </p>
             </div>

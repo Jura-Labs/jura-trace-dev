@@ -1808,7 +1808,7 @@ pub(crate) fn verify_url_inner(
     verify_content_inner(&tmp_path, "url", mode, state)
 }
 
-/// Sign an asset with C2PA Content Credentials.
+/// Sign an asset with a C2PA provenance manifest.
 #[tauri::command]
 fn sign_asset(
     asset_id: String,
@@ -1934,7 +1934,7 @@ fn read_manifest(file_path: String) -> Result<Option<c2pa::ManifestInfo>, AppErr
     })
 }
 
-/// Verify C2PA Content Credentials on a file (alias for read_manifest in VERIFY pipeline).
+/// Verify C2PA provenance on a file (alias for read_manifest in VERIFY pipeline).
 ///
 /// SECURITY: Canonicalises the path before parsing to prevent:
 ///   - Directory traversal via `../` sequences
@@ -2379,7 +2379,7 @@ fn check_metadata_before_sign(
         warnings.push(format!("Copyright field: \"{copyright}\""));
     }
     if has_existing_c2pa {
-        warnings.push("Existing C2PA Content Credentials are present".to_string());
+        warnings.push("Existing C2PA provenance manifest is present".to_string());
     }
 
     let warning_message = if warnings.is_empty() {

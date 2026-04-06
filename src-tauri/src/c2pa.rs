@@ -1,4 +1,4 @@
-//! C2PA Content Credentials — signing, reading, and verification.
+//! C2PA provenance — signing, reading, and verification.
 //!
 //! All operations are local. No network calls to external services.
 
@@ -186,7 +186,7 @@ pub fn ensure_certificate(data_dir: &Path) -> Result<(Vec<u8>, Vec<u8>), String>
 
 // ===== Signing =====
 
-/// Sign a file with C2PA Content Credentials.
+/// Sign a file with a C2PA provenance manifest.
 ///
 /// Creates a new file at `output` with an embedded C2PA manifest containing
 /// the specified creator information, licence, and AI training opt-out.
@@ -234,8 +234,13 @@ pub fn sign_file(
     let mut builder = c2pa::Builder::from_json(&manifest_def.to_string())
         .map_err(|e| format!("Failed to create C2PA builder: {e}"))?;
 
-    let signer = c2pa::create_signer::from_keys(cert, key, c2pa::SigningAlg::Es256, None)
-        .map_err(|e| format!("Failed to create signer: {e}"))?;
+    let signer = c2pa::create_signer::from_keys(
+        cert,
+        key,
+        c2pa::SigningAlg::Es256,
+        Some("http://timestamp.digicert.com".to_string()),
+    )
+    .map_err(|e| format!("Failed to create signer: {e}"))?;
 
     builder
         .sign_file(&*signer, source, output)

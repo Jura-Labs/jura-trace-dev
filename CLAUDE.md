@@ -344,6 +344,8 @@ Items identified during the 2–3 April session, prioritised for future sprints:
 6. **SIFT upgrade for copy-move detection** — patent expired 2020, better match quality than ORB. (LOW)
 7. **EXIF injection detection** — detect suspiciously perfect/generic metadata. (MEDIUM)
 8. **GitHub Actions minutes** — exhausted free tier; release workflow requires manual build or payment. (BLOCKER for CI releases)
+9. **Bring Your Own Certificate (BYOC)** — allow institutions to supply their own C2PA signing certificate (from a Trust List CA) for full third-party verifier trust. Settings page cert import, key storage, per-asset cert selection. (MEDIUM, Enterprise tier feature)
+10. **C2PA Conformance Program** — evaluate cost/process of joining the C2PA Conformance Program for Trust List inclusion. Contact membership@c2pa.org. Deferred to post-revenue. (LOW, long-term)
 
 ## British Spelling
 

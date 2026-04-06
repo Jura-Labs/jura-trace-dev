@@ -473,7 +473,7 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
   }
 
   // ── C2PA Credentials ────────────────────────────────────────
-  heading('C2PA Content Credentials');
+  heading('C2PA Provenance');
   if (result.c2paManifest) {
     const m = result.c2paManifest;
     row('Status', m.isValid ? 'Valid' : 'Invalid');
@@ -500,7 +500,7 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
       }
     }
   } else {
-    paragraph('No C2PA Content Credentials found in this file.');
+    paragraph('No C2PA provenance manifest found in this file.');
   }
   y += SECTION_GAP;
 
@@ -923,7 +923,7 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
     'Colour Temperature: Segments the image in CIELAB colour space and measures per-region colour temperature. Abrupt temperature changes across regions can indicate splicing.',
     'Splice Boundary: Applies three complementary edge detectors (JPEG grid alignment, noise asymmetry, feathering patterns) at grid junctions to locate compositing boundaries.',
     'EXIF Anomaly Analysis: Checks embedded metadata for consistency, completeness, and known manipulation patterns. Missing or contradictory metadata reduces trust.',
-    'C2PA Content Credentials: Verifies cryptographically signed provenance manifests embedded in the file, following the Coalition for Content Provenance and Authenticity specification.',
+    'C2PA Provenance: Verifies cryptographically signed provenance manifests embedded in the file, following the Coalition for Content Provenance and Authenticity specification.',
     'All analysis is performed locally on the user\'s device. No data is transmitted to external servers at any point during the verification process.',
   ];
   for (const text of methodologyText) {

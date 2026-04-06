@@ -182,40 +182,20 @@ def generate_gemini(output_dir: Path, count: int) -> list[dict]:
             prompt = f"{prompt}, variation {variation}"
 
         try:
-            # Try Imagen 4 first (dedicated image gen), fall back to Gemini Flash
-            try:
-                response = client.models.generate_images(
-                    model="imagen-4.0-generate-001",
-                    prompt=prompt,
-                    config=types.GenerateImagesConfig(
-                        number_of_images=1,
-                    ),
-                )
-                # Imagen returns generated_images list
-                if response.generated_images:
-                    img_data = response.generated_images[0].image.image_bytes
-                    if isinstance(img_data, str):
-                        img_data = base64.b64decode(img_data)
-                else:
-                    raise Exception("No images returned")
-            except Exception:
-                # Fallback to Gemini Flash multimodal
-                response = client.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents=f"Generate a photorealistic image: {prompt}",
-                    config=types.GenerateContentConfig(
-                        response_modalities=["IMAGE", "TEXT"],
-                    ),
-                )
-                img_data = None
-                for part in response.candidates[0].content.parts:
-                    if part.inline_data and part.inline_data.mime_type.startswith("image/"):
-                        img_data = part.inline_data.data
-                        if isinstance(img_data, str):
-                            img_data = base64.b64decode(img_data)
-                        break
-                if img_data is None:
-                    raise Exception("No image in response")
+            # Imagen 4 only — no fallback to Flash (doesn't support image
+            # output on most accounts). Skip and continue on failure.
+            response = client.models.generate_images(
+                model="imagen-4.0-generate-001",
+                prompt=prompt,
+                config=types.GenerateImagesConfig(
+                    number_of_images=1,
+                ),
+            )
+            if not response.generated_images:
+                raise Exception("No images returned")
+            img_data = response.generated_images[0].image.image_bytes
+            if isinstance(img_data, str):
+                img_data = base64.b64decode(img_data)
 
             # Crop bottom-right 8% to remove Google's visual watermark,
             # making detection more challenging for the classifier.

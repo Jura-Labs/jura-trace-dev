@@ -17,7 +17,7 @@ The VERIFY section of Jura Trace analyses a file and gives you a structured pict
 2. [Trust scores and verdicts](#trust-scores-and-verdicts)
 3. [Metadata analysis](#metadata-analysis)
 4. [Forensic signals](#forensic-signals)
-5. [C2PA Content Credentials](#c2pa-content-credentials-in-verification)
+5. [C2PA provenance](#c2pa-provenance-in-verification)
 6. [Video and audio verification](#video-and-audio-verification)
 7. [Document verification](#document-verification)
 8. [Exporting results](#exporting-results)
@@ -134,9 +134,9 @@ When two or more regional detectors fire simultaneously, the trust score receive
 
 ---
 
-## C2PA Content Credentials in verification
+## C2PA provenance in verification
 
-When Jura Trace analyses a file, it automatically checks for an embedded C2PA Content Credential. The result appears in the credentials section of the results page.
+When Jura Trace analyses a file, it automatically checks for an embedded C2PA provenance manifest. The result appears in the credentials section of the results page.
 
 [Screenshot: C2PA credential panel showing status, signing date, and claim generator]
 

@@ -189,7 +189,7 @@
         <tr>
           <td class="py-2.5 pr-6 text-text-light dark:text-text-dark font-medium">Content integrity</td>
           <td class="py-2.5 pr-6 tabular-nums text-flint dark:text-flint-light">§5.4</td>
-          <td class="py-2.5 text-flint dark:text-flint-light">C2PA Content Credentials, perceptual hashing, invisible watermarking</td>
+          <td class="py-2.5 text-flint dark:text-flint-light">C2PA provenance, perceptual hashing, invisible watermarking</td>
         </tr>
         <tr>
           <td class="py-2.5 pr-6 text-text-light dark:text-text-dark font-medium">Methodology documentation</td>
@@ -314,7 +314,7 @@
 
     <div>
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
-        C2PA Content Credentials
+        C2PA Provenance
       </h3>
       <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
         The Coalition for Content Provenance and Authenticity (C2PA) standard embeds a
@@ -619,7 +619,7 @@
       <span class="text-malachite dark:text-malachite-light flex-none mt-0.5">✓</span>
       <span class="text-flint dark:text-flint-light leading-relaxed">
         <strong class="text-text-light dark:text-text-dark">C2PA signing creates a new file.</strong>
-        When you sign a file with C2PA Content Credentials, Jura Trace writes a new file
+        When you sign a file with C2PA provenance, Jura Trace writes a new file
         alongside the original, appending <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">_c2pa</span>
         to the filename. The original remains unmodified.
       </span>
@@ -691,7 +691,7 @@
                    text-lapis dark:text-lapis-light text-xs font-semibold
                    flex items-center justify-center mt-0.5">2</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">Sign with C2PA Content Credentials.</strong>
+        <strong class="text-text-light dark:text-text-dark">Sign with C2PA provenance.</strong>
         Apply a C2PA signature to each file. This creates a cryptographic provenance
         record that binds your institution's identity to the file at this moment. The
         signed copy is written alongside the original.

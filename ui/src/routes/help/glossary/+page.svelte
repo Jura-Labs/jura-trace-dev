@@ -147,10 +147,10 @@
         >C2PA <span class="font-normal text-flint dark:text-flint-light">(Coalition for Content Provenance and Authenticity)</span></dt>
         <dd class="mt-1 text-sm text-flint dark:text-flint-light leading-relaxed max-w-prose">
           An open technical standard for embedding cryptographic provenance metadata —
-          Content Credentials — directly into digital files. Supported by Adobe, Microsoft,
+          provenance manifests — directly into digital files. Supported by Adobe, Microsoft,
           and major camera manufacturers. C2PA manifests record who created or edited a
           file, when, and with what tools. Jura Trace can both sign assets with new C2PA
-          credentials and verify the integrity of existing manifests.
+          provenance manifests and verify the integrity of existing manifests.
         </dd>
       </div>
 
@@ -201,11 +201,12 @@
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Content Credentials</dt>
         <dd class="mt-1 text-sm text-flint dark:text-flint-light leading-relaxed max-w-prose">
-          The user-facing name for C2PA provenance metadata embedded in a file. A Content
-          Credentials manifest contains information about the creator, creation date,
-          editing tools, and any subsequent modifications. Each layer of editing leaves a
-          verifiable deposit in the file's provenance chain — a geological record of the
-          content's history.
+          Content Credentials is Adobe's branded term for C2PA provenance manifests — the
+          cryptographic provenance metadata embedded in a file. A C2PA provenance manifest
+          contains information about the creator, creation date, editing tools, and any
+          subsequent modifications. Each layer of editing leaves a verifiable deposit in
+          the file's provenance chain — a geological record of the content's history.
+          Jura Trace uses the open C2PA standard directly.
         </dd>
       </div>
 
@@ -595,7 +596,7 @@
         <dd class="mt-1 text-sm text-flint dark:text-flint-light leading-relaxed max-w-prose">
           The documented history of a piece of content — who created it, how it has been
           modified, and where it has been. Provenance is the bedrock of trust in digital
-          media. C2PA Content Credentials are the primary provenance mechanism in Jura Trace,
+          media. C2PA provenance manifests are the primary provenance mechanism in Jura Trace,
           providing a tamper-evident chain from original capture through every subsequent
           edit.
         </dd>

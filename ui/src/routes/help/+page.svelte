@@ -77,7 +77,7 @@
     </li>
     <li class="flex gap-3 text-sm text-flint dark:text-flint-light leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
-      <span>Import your first asset on the <a href="/help/protect" class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"><strong class="text-text-light dark:text-text-dark">Protect</strong> page</a> to apply Content Credentials or an invisible watermark.</span>
+      <span>Import your first asset on the <a href="/help/protect" class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"><strong class="text-text-light dark:text-text-dark">Protect</strong> page</a> to apply C2PA provenance or an invisible watermark.</span>
     </li>
     <li class="flex gap-3 text-sm text-flint dark:text-flint-light leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">3</span>

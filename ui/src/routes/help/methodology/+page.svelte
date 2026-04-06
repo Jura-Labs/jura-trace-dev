@@ -167,8 +167,8 @@
       <li class="flex gap-2">
         <span class="flex-shrink-0 text-lapis dark:text-lapis-light mt-0.5" aria-hidden="true">&#8594;</span>
         <span>
-          <span class="font-medium text-text-light dark:text-quartz">C2PA Content Credentials bonus: +10%.</span>
-          When a cryptographically valid Content Credentials manifest is present — providing
+          <span class="font-medium text-text-light dark:text-quartz">C2PA provenance bonus: +10%.</span>
+          When a cryptographically valid C2PA provenance manifest is present — providing
           a verifiable record of the content's origin — the score receives a 10% uplift,
           up to a maximum of 100%.
         </span>
@@ -192,7 +192,7 @@
 
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
       PDF documents cannot be subjected to pixel-level forensic analysis. For PDFs,
-      the score is derived from C2PA Content Credentials alone:
+      the score is derived from C2PA provenance alone:
     </p>
 
     <div class="overflow-x-auto mb-6">
@@ -364,7 +364,7 @@
         </div>
       </details>
 
-      <!-- 2. C2PA Content Credentials -->
+      <!-- 2. C2PA Provenance -->
       <details class="group rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite">
         <summary
           class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none
@@ -372,7 +372,7 @@
         >
           <span class="flex items-center gap-3">
             <span class="text-xs font-mono tabular-nums text-flint dark:text-flint-light w-5 flex-shrink-0" aria-hidden="true">02</span>
-            <span class="font-medium text-sm text-text-light dark:text-quartz">C2PA Content Credentials</span>
+            <span class="font-medium text-sm text-text-light dark:text-quartz">C2PA Provenance</span>
           </span>
           <span class="flex-shrink-0 text-xs text-flint dark:text-flint-light select-none">
             <span class="hidden group-open:inline">Close</span>

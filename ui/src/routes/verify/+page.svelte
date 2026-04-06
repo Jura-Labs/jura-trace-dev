@@ -1494,9 +1494,9 @@
 
     // C2PA
     if (r.c2paValid === true)
-      signals.push({ text: 'C2PA Content Credentials are present and valid', weight: 0 });
+      signals.push({ text: 'C2PA provenance manifest is present and valid', weight: 0 });
     else if (r.c2paValid === false)
-      signals.push({ text: 'C2PA Content Credentials are present but failed validation', weight: 3 });
+      signals.push({ text: 'C2PA provenance manifest is present but failed validation', weight: 3 });
 
     // EXIF anomalies
     if (r.exifAnalysis) {
@@ -2638,7 +2638,7 @@
         <div class="text-xs text-lapis dark:text-lapis-light leading-relaxed">
           <p class="font-semibold mb-1">Document analysis — limited signals available</p>
           <p>Image forensic detectors (ELA, noise analysis, deepfake detection) do not apply to PDF documents.
-             Trust is based on C2PA Content Credentials{result.c2paValid === true ? ' (valid credential found)' : result.c2paValid === false ? ' (invalid credential detected)' : ' (no credentials present)'}
+             Trust is based on C2PA provenance{result.c2paValid === true ? ' (valid manifest found)' : result.c2paValid === false ? ' (invalid manifest detected)' : ' (no provenance manifest present)'}
              and file metadata only.</p>
         </div>
       </div>
@@ -5799,7 +5799,7 @@
         <section id="section-c2pa" class="px-5 py-4" aria-labelledby="c2pa-heading">
           <div class="flex items-center gap-3 mb-4">
             <h2 id="c2pa-heading" class="text-sm font-medium text-text-light dark:text-quartz">C2PA Credentials</h2>
-            <ContextualHelpLink href="/help/verify#provenance" label="Learn about C2PA Content Credentials and provenance" />
+            <ContextualHelpLink href="/help/verify#provenance" label="Learn about C2PA provenance" />
             <span
               class="text-xs font-medium px-2 py-0.5 rounded
                      {manifest.isValid
@@ -5938,7 +5938,7 @@
             <p class="mt-2 text-xs text-flint/70 dark:text-flint-light/60 italic leading-relaxed">
               Single claim — no prior provenance history embedded. Full ingredient chain traversal
               requires multi-manifest C2PA records created by compatible tools (e.g. Adobe Firefly,
-              Leica cameras, or Content Credentials enabled at capture).
+              Leica cameras, or C2PA provenance enabled at capture).
             </p>
           </div>
         </section>
@@ -5952,7 +5952,7 @@
             </span>
           </div>
           <p class="text-sm text-flint dark:text-flint-light">
-            No C2PA Content Credentials found in
+            No C2PA provenance manifest found in
             <span class="text-text-light dark:text-quartz">{fileName}</span>.
             This file has not been signed with C2PA provenance data.
           </p>
@@ -6490,7 +6490,7 @@
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-8 text-center">
       <p class="text-flint dark:text-flint-light text-sm">
         {#if activeTab === 'file'}
-          Drop a file above to analyse its metadata, compression artefacts, and C2PA Content Credentials.
+          Drop a file above to analyse its metadata, compression artefacts, and C2PA provenance.
         {:else if activeTab === 'batch'}
           Drop multiple files above to queue them for batch verification.
         {:else}

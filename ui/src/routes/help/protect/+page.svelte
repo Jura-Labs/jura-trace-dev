@@ -10,7 +10,7 @@
   </h1>
   <p class="text-base text-flint dark:text-flint-light leading-relaxed max-w-2xl">
     The Protect section gives your digital assets a permanent, verifiable record of origin.
-    Applying Content Credentials and invisible watermarks lays down the first stratum of
+    Applying C2PA provenance and invisible watermarks lays down the first stratum of
     provenance — a foundation that remains legible even after a file has been compressed,
     resized, or redistributed across the web.
   </p>
@@ -34,7 +34,7 @@
     <li>
       <a href="#c2pa-signing"
          class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        2. C2PA Content Credentials
+        2. C2PA Provenance
       </a>
     </li>
     <li>
@@ -81,7 +81,7 @@
     <li class="flex gap-3 text-sm text-flint dark:text-flint-light leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark font-semibold">C2PA Content Credentials</strong> —
+        <strong class="text-text-light dark:text-text-dark font-semibold">C2PA Provenance</strong> —
         an open standard (Coalition for Content Provenance and Authenticity) that embeds a
         cryptographically signed manifest inside the file itself. The manifest records who
         created the asset, when it was signed, and a hash of the original content.
@@ -116,15 +116,15 @@
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
-     2. C2PA Content Credentials
+     2. C2PA Provenance
      ══════════════════════════════════════════════════════════════════ -->
 <section id="c2pa-signing" class="mb-12">
   <h2 class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    2. C2PA Content Credentials
+    2. C2PA Provenance
   </h2>
 
   <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
-    Content Credentials (C2PA) provide a tamper-evident record of origin baked directly into
+    C2PA provenance manifests provide a tamper-evident record of origin baked directly into
     the file. Any application that supports the C2PA standard can read and verify this
     record — including the Jura Trace Verify page and tools at
     <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">contentcredentials.org</span>.

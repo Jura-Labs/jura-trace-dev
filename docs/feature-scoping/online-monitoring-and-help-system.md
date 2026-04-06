@@ -37,7 +37,7 @@ The user's question: "How can Monitor realistically detect online if my PDF cont
 
 Jura Trace already embeds three types of detectable signal in protected content. Each has different detectability properties across the web:
 
-#### Signal 1: C2PA Content Credentials (XMP/JUMBF metadata)
+#### Signal 1: C2PA provenance manifests (XMP/JUMBF metadata)
 
 **What it is**: A cryptographically signed JSON manifest embedded in the file's metadata. Contains creator, timestamp, rights, and a hash of the original content.
 
@@ -298,7 +298,7 @@ The v1.0 KPI is 50+ institutional users. The target users — museum archivists,
 - What trust scores mean and how to act on them
 - Why a verdict says "inconclusive" and what to do next
 - How to interpret ELA heatmaps without a forensics background
-- What C2PA Content Credentials prove (and what they don't)
+- What C2PA provenance manifests prove (and what they don't)
 - How the watermark works, what attacks it resists, and what the limitations are
 
 Without in-app help, every pilot institution requires a human support touchpoint. At 50 institutions, that is not scalable. Good in-app help reduces support overhead and increases user confidence — both are essential for the NPS > 40 target.

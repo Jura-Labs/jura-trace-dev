@@ -22,7 +22,7 @@
     {
       id: 'c2pa',
       label: 'C2PA Verification',
-      description: 'Reads and validates Content Credentials (C2PA manifests) embedded in the file to establish provenance.',
+      description: 'Reads and validates C2PA provenance manifests embedded in the file to establish provenance.',
       ran: true, // Always runs
     },
     {

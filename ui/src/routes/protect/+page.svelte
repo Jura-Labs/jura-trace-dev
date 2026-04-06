@@ -2080,9 +2080,14 @@
                 {#if signingAssetId === asset.assetId}
                   <div class="col-span-full mt-3 p-3 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark">
                     <div class="flex items-center gap-1.5 mb-3">
-                      <p class="text-sm text-text-light dark:text-quartz">Sign with C2PA Content Credentials</p>
-                      <ContextualHelpLink href="/help/protect#c2pa-signing" label="Learn about C2PA Content Credentials signing" />
+                      <p class="text-sm text-text-light dark:text-quartz">Sign with C2PA provenance</p>
+                      <ContextualHelpLink href="/help/protect#c2pa-signing" label="Learn about C2PA provenance signing" />
                     </div>
+
+                    <p class="text-xs text-flint dark:text-flint-light mb-3 leading-relaxed">
+                      Jura Trace signs with a local certificate. Third-party verifiers may show this as an unrecognised signer.
+                      Organisations with their own C2PA Trust List certificate can supply it in a future release.
+                    </p>
 
                     {#if metadataWarningLoading}
                       <div class="mb-3 flex items-center gap-2 text-xs text-flint dark:text-flint-light">
@@ -2196,7 +2201,7 @@
                       <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
                     </svg>
                     <div class="text-xs text-malachite dark:text-malachite-light leading-relaxed">
-                      <p class="font-semibold mb-1">Content Credential signed successfully</p>
+                      <p class="font-semibold mb-1">C2PA provenance manifest signed successfully</p>
                       <p>Existing file metadata (EXIF, IPTC, XMP) has been preserved. The C2PA manifest was added alongside your existing metadata — no fields were removed or overwritten.</p>
                     </div>
                   </div>

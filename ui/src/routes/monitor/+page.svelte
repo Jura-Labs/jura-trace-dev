@@ -277,7 +277,7 @@
       </svg>
       <p class="text-xs leading-relaxed text-lapis dark:text-lapis-light">
         Content monitoring cannot detect whether your content has been used to train AI models.
-        Watermarks and C2PA Content Credentials do not survive AI model training — they are
+        Watermarks and C2PA provenance manifests do not survive AI model training — they are
         designed to detect republication and unauthorised hosting, not extraction into training
         datasets.{' '}
         <a
@@ -665,7 +665,7 @@
       {@const p = overview.protection}
       <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-8">
         {p.totalAssets.toLocaleString()} {p.totalAssets === 1 ? 'file' : 'files'} in your archive,
-        {p.c2paSigned.toLocaleString()} with Content Credentials,
+        {p.c2paSigned.toLocaleString()} with C2PA provenance,
         {p.fingerprinted.toLocaleString()} fingerprinted.
         {#if p.earliestAt}
           First protected {formatDate(p.earliestAt)}.
@@ -694,7 +694,7 @@
           <p
             class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
             style="letter-spacing: -0.02em;"
-            aria-label="{p.c2paSigned.toLocaleString()} with Content Credentials"
+            aria-label="{p.c2paSigned.toLocaleString()} with C2PA provenance"
           >
             {p.c2paSigned.toLocaleString()}
           </p>

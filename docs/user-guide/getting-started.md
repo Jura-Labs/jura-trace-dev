@@ -28,7 +28,7 @@ Jura Trace is a local-first desktop application for content verification and pro
 
 Jura Trace gives you two tools in one application.
 
-**PROTECT** lets you embed tamper-evident credentials into your images, documents, audio, and video files. You can attach your organisation's identity to a file using C2PA Content Credentials (an open industry standard), and add an invisible watermark that survives copying, resizing, and conversion. Once protected, a file carries layers of verification that persist even when it is shared or downloaded by others.
+**PROTECT** lets you embed tamper-evident credentials into your images, documents, audio, and video files. You can attach your organisation's identity to a file using C2PA provenance signing (an open industry standard), and add an invisible watermark that survives copying, resizing, and conversion. Once protected, a file carries layers of verification that persist even when it is shared or downloaded by others.
 
 **VERIFY** analyses any file you receive or find online, giving you a trust score and a set of forensic signals that indicate whether the content has been manipulated or AI-generated. It checks for EXIF anomalies (inconsistencies in the file's recorded technical history), image splicing patterns, AI-generation signatures, embedded credentials, and more.
 
@@ -170,7 +170,7 @@ Jura Trace automatically reads the file's existing metadata — camera model, cr
 
 [Screenshot: Metadata panel showing extracted EXIF data and editable fields]
 
-### Step 4 — Sign with C2PA Content Credentials
+### Step 4 — Sign with C2PA provenance
 
 Click 'Sign with C2PA'. This embeds a tamper-evident credential into the file that records:
 

@@ -81,7 +81,7 @@ export async function exportCaseZip(
     'Checks embedded metadata for consistency, completeness, and known manipulation',
     'patterns. Missing or contradictory metadata reduces trust.',
     '',
-    'C2PA Content Credentials',
+    'C2PA Provenance',
     'Verifies cryptographically signed provenance manifests embedded in the file,',
     'following the Coalition for Content Provenance and Authenticity specification.',
     '',

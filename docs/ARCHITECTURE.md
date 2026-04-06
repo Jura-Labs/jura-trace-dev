@@ -58,7 +58,7 @@
 
 | Module | Crate | Purpose |
 |--------|-------|---------|
-| `c2pa` | c2pa-rs | Sign, verify, and read C2PA Content Credentials |
+| `c2pa` | c2pa-rs | Sign, verify, and read C2PA provenance manifests |
 | `fingerprint` | image_hasher | Perceptual hashing (aHash, dHash, pHash) with Hamming distance similarity |
 | `metadata` | kamadak-exif | Extract and inspect EXIF metadata (Tier 1 cataloguing) |
 | `exif_anomaly` | — | Detect EXIF anomalies (timestamps, GPS, software, dimensions) and compute trust score |

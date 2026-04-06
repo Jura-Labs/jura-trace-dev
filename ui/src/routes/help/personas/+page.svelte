@@ -81,7 +81,7 @@
       <strong class="text-text-light dark:text-text-dark">Protect</strong> page.
     </li>
     <li>
-      Sign each asset with C2PA Content Credentials (C2PA) — this creates a cryptographic
+      Sign each asset with C2PA provenance — this creates a cryptographic
       record of your institution's ownership, including a timestamp and the signing
       authority.
     </li>
@@ -275,7 +275,7 @@
 
   <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
     You create original photographs, illustrations, or videos and want to prove your
-    authorship before publishing. C2PA Content Credentials and invisible watermarking
+    authorship before publishing. C2PA provenance and invisible watermarking
     deposit a durable record of your creative origin — one that survives the compression
     and cropping common across social media platforms.
   </p>
@@ -290,7 +290,7 @@
       <strong class="text-text-light dark:text-text-dark">Protect</strong> page.
     </li>
     <li>
-      Sign with C2PA Content Credentials — this embeds your creator information and a
+      Sign with C2PA provenance — this embeds your creator information and a
       verifiable timestamp into the file.
     </li>
     <li>
@@ -823,7 +823,7 @@
       Import field evidence into Jura Trace immediately upon receipt.
     </li>
     <li>
-      Sign with C2PA Content Credentials to establish a provenance record from the point
+      Sign with C2PA provenance to establish a provenance record from the point
       of intake — the timestamp attests to when you first received the evidence.
     </li>
     <li>

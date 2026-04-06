@@ -146,7 +146,7 @@ Never: "jura trace", "Jura trace", "JURATRACE"
 | Context | Good | Avoid |
 |---------|------|-------|
 | Verification result | "This image shows signs of manipulation in the lower-right region." | "WARNING: FAKE IMAGE DETECTED!" |
-| C2PA status | "No Content Credentials found. This doesn't mean the content is false — most content doesn't have them yet." | "UNVERIFIED! No proof of origin!" |
+| C2PA status | "No C2PA provenance found. This doesn't mean the content is false — most content doesn't carry provenance yet." | "UNVERIFIED! No proof of origin!" |
 | Welcome | "Jura Trace processes everything locally. Your files never leave this machine." | "We're SO excited to help you fight misinformation!" |
 | Error | "Could not connect to the analysis services." | "Oops! Something went wrong!" |
 | Sidecar status | "Analysis services connected" | "ML Sidecar: Online" |

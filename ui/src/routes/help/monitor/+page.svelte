@@ -161,7 +161,7 @@
           <span class="text-malachite dark:text-malachite-light flex-none">✓</span>
           <span>
             <strong class="text-text-light dark:text-text-dark">Signed with C2PA</strong> —
-            files that carry a valid Content Credentials manifest.
+            files that carry a valid C2PA provenance manifest.
           </span>
         </li>
         <li class="flex gap-2">

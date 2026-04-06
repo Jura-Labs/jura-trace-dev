@@ -1,6 +1,6 @@
 ---
 title: "Protect Workflow Guide — Jura Trace"
-description: "A complete guide to protecting your digital assets with C2PA Content Credentials, invisible watermarking, and batch operations in Jura Trace."
+description: "A complete guide to protecting your digital assets with C2PA provenance signing, invisible watermarking, and batch operations in Jura Trace."
 last-updated: 25 March 2026
 status: published
 ---
@@ -13,7 +13,7 @@ The PROTECT section of Jura Trace gives you tools to embed lasting, verifiable p
 
 ## Table of Contents
 
-1. [C2PA Content Credentials](#c2pa-content-credentials)
+1. [C2PA provenance signing](#c2pa-provenance-signing)
 2. [Invisible watermarking](#invisible-watermarking)
 3. [Batch watermarking](#batch-watermarking)
 4. [Asset catalogue and fingerprinting](#asset-catalogue-and-fingerprinting)
@@ -22,7 +22,7 @@ The PROTECT section of Jura Trace gives you tools to embed lasting, verifiable p
 
 ---
 
-## C2PA Content Credentials
+## C2PA provenance signing
 
 ### What is C2PA?
 

@@ -14,7 +14,7 @@ Pre-development (v0.1.0-dev)
 
 **PROTECT** — Safeguard digital assets
 - Auto-catalogue: AI-generated descriptions, tags, and metadata for bulk archives
-- C2PA signing: Embed Content Credentials proving origin and rights
+- C2PA signing: Embed provenance manifests proving origin and rights
 - Fingerprinting: Perceptual hashes that survive crop, resize, and recompression
 - Watermarking: Invisible watermarks for scrape detection
 
@@ -22,7 +22,7 @@ Pre-development (v0.1.0-dev)
 - Image forensics: Error Level Analysis, noise patterns, metadata anomalies
 - Deepfake detection: Local AI model scoring for synthetic media
 - Claim checking: "Is this claim credible?" with sourced answers
-- Provenance reading: Verify C2PA Content Credentials on any file
+- Provenance reading: Verify C2PA provenance manifests on any file
 
 ## Prerequisites
 

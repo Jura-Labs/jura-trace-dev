@@ -307,7 +307,7 @@ export async function checkMetadataBeforeSign(assetId: string): Promise<Metadata
 }
 
 
-/** Sign an asset with C2PA Content Credentials. */
+/** Sign an asset with C2PA provenance. */
 export async function signAsset(
   assetId: string,
   creatorName: string,

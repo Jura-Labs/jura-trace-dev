@@ -107,7 +107,7 @@
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold mt-0.5">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">C2PA credential checking</strong> —
-        reads any embedded Content Credentials manifest and verifies the content hash against
+        reads any embedded C2PA provenance manifest and verifies the content hash against
         the current file data.
       </span>
     </li>
@@ -1110,7 +1110,7 @@
       <span class="text-malachite dark:text-malachite-light flex-none">✓</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">C2PA credential check</strong> —
-        reads and verifies any embedded Content Credentials manifest.
+        reads and verifies any embedded C2PA provenance manifest.
       </span>
     </li>
     <li class="flex gap-2">
