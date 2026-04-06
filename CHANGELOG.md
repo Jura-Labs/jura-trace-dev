@@ -6,6 +6,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 7 April 2026 — Sprint 28: Input Quality Assessment
+
+### Input Quality Assessment Engine
+
+**Added**
+- `InputQualityAssessment` struct in `src-tauri/src/lib.rs` with eight fields: `jpegQualityEstimate` (0–100), `resolutionCategory` (low / standard / high), `width`, `height`, `isScreenshotLikely`, `isJpeg`, `hasGps`, `hasTimestamp`, and `degradedDetectors` (list of detector names whose reliability is reduced)
+- Three Rust helper functions: `assess_input_quality()`, `estimate_jpeg_quality()`, `detect_screenshot()`
+- `VerificationResult.input_quality: Option<InputQualityAssessment>` — quality data flows through the full verify pipeline
+- Assessment runs after EXIF analysis, before sidecar calls (commit 11fecde)
+
+### Per-Analysis Limitation Banners
+
+**Added**
+- `LimitationBanner.svelte` component (`ui/src/lib/components/`) — amber warning banners rendered in Expert View when input quality reduces detector reliability
+- Five warning conditions: heavy JPEG compression (estimated quality < 40), low resolution (< 0.5 MP), screenshot detected, non-JPEG format, missing GPS/timestamp
+- WCAG 2.2 AA compliant: `role="status"`, `aria-label`, full dark mode support
+
+### Detector Applicability Indicators
+
+**Added**
+- `getDetectorApplicability()` helper function on the verify page
+- Four status levels: Analysed (malachite), Limited (amber), N/A (grey), Unavailable (cinnabar)
+- Applicability badges added to ELA, Noise, Copy-Move, and Deepfake detector headings in Expert View
+- Derives status from `degradedDetectors` (backend) and `sidecarAvailable` (frontend state)
+- `applicabilityBadge` Svelte snippet for consistent badge rendering across detectors
+
+**Test counts**: 283 Rust tests, 375+ Python tests, 164 Playwright e2e tests, 231 SvelteKit files with 0 svelte-check errors, clippy + fmt clean.
+
+---
+
 ## 6–7 April 2026 — C2PA Rebranding, UnivFD Retrain, Corpus Expansion
 
 ### C2PA Provenance Manifest Rebranding
