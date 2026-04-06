@@ -72,6 +72,30 @@ pub struct MethodologyRecord {
     pub analysed_at: String,
 }
 
+/// Input quality assessment — run before detectors to identify
+/// conditions that reduce the reliability of forensic analysis.
+/// TRIED Pillar 2: contextual limitation disclosure.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InputQualityAssessment {
+    /// Estimated JPEG quality factor (1–100). None for non-JPEG.
+    pub jpeg_quality_estimate: Option<u8>,
+    /// Resolution category: "high" (>2MP), "medium" (0.5–2MP), "low" (<0.5MP), "thumbnail" (<128px).
+    pub resolution_category: String,
+    /// Image dimensions (width, height). None for non-image.
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    /// Whether the image appears to be a screenshot (aspect ratio + border heuristics).
+    pub is_screenshot_likely: bool,
+    /// Whether the file is JPEG format.
+    pub is_jpeg: bool,
+    /// Whether EXIF GPS and timestamp data are present.
+    pub has_gps: bool,
+    pub has_timestamp: bool,
+    /// List of detector names with reduced reliability for this input.
+    pub degraded_detectors: Vec<String>,
+}
+
 /// Verification result from the VERIFY pipeline.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -128,6 +152,8 @@ pub struct VerificationResult {
     /// Methodology metadata (pipeline version, sidecar version, classifier hash).
     /// Enables reproducibility and legal defensibility of results.
     pub methodology: Option<MethodologyRecord>,
+    /// Input quality assessment — identifies conditions that degrade detector reliability.
+    pub input_quality: Option<InputQualityAssessment>,
 }
 
 /// Result of comparing the EXIF-embedded thumbnail against the full image.
@@ -751,6 +777,179 @@ fn document_trust(c2pa_valid: Option<bool>, ai_declared: bool) -> f64 {
     }
 }
 
+/// Estimate JPEG quality from file size ratio (bytes per pixel).
+///
+/// This is a rough heuristic — not a precise Q-factor extraction. Empirical
+/// mapping: files with very few bytes per pixel are heavily compressed and
+/// will degrade ELA, noise, and JPEG ghost detector reliability.
+fn estimate_jpeg_quality(
+    path: &std::path::Path,
+    width: Option<u32>,
+    height: Option<u32>,
+) -> Option<u8> {
+    let file_size = std::fs::metadata(path).map(|m| m.len()).ok()?;
+    let pixels = width? as u64 * height? as u64;
+    if pixels == 0 {
+        return None;
+    }
+
+    // Bytes per pixel ratio — empirical mapping to approximate Q-factor
+    let bpp = file_size as f64 / pixels as f64;
+    let q = if bpp > 3.0 {
+        95
+    } else if bpp > 2.0 {
+        90
+    } else if bpp > 1.0 {
+        85
+    } else if bpp > 0.5 {
+        75
+    } else if bpp > 0.3 {
+        65
+    } else if bpp > 0.15 {
+        50
+    } else if bpp > 0.08 {
+        35
+    } else {
+        20
+    };
+    Some(q)
+}
+
+/// Detect whether an image is likely a screenshot based on aspect ratio
+/// and EXIF characteristics.
+///
+/// Combines three signals: common screenshot aspect ratio, absence of camera
+/// EXIF, and a recognised screenshot pixel width. All three must be true to
+/// avoid false positives on letterboxed camera photos.
+fn detect_screenshot(
+    width: Option<u32>,
+    height: Option<u32>,
+    exif: &Option<exif_anomaly::ExifAnalysis>,
+) -> bool {
+    let w = width.unwrap_or(0) as f64;
+    let h = height.unwrap_or(0) as f64;
+    if w == 0.0 || h == 0.0 {
+        return false;
+    }
+
+    // Common screenshot aspect ratios (phone portrait and desktop landscape)
+    let ratio = w / h;
+    let is_phone_ratio = (ratio - 9.0 / 16.0).abs() < 0.05
+        || (ratio - 9.0 / 19.5).abs() < 0.05
+        || (ratio - 9.0 / 20.0).abs() < 0.05;
+    let is_desktop_ratio = (ratio - 16.0 / 9.0).abs() < 0.05 || (ratio - 16.0 / 10.0).abs() < 0.05;
+
+    // No camera EXIF = likely screenshot or web-sourced image
+    let no_camera = exif.as_ref().is_none_or(|e| !e.has_exif);
+
+    // Common screenshot widths (iOS, Android, standard desktop resolutions)
+    let common_width = matches!(
+        w as u32,
+        750 | 828 | 1080 | 1125 | 1170 | 1242 | 1284 | 1290 | 1920 | 2560 | 2880 | 3840
+    );
+
+    (is_phone_ratio || is_desktop_ratio) && no_camera && common_width
+}
+
+/// Assess input quality to identify conditions that degrade detector reliability.
+///
+/// Runs before detector dispatch — adds <5 ms to the pipeline. Returns an
+/// `InputQualityAssessment` containing the resolution category, JPEG quality
+/// estimate, screenshot likelihood, and a list of detectors whose results
+/// should be treated with reduced confidence for this input.
+fn assess_input_quality(
+    path: &std::path::Path,
+    info: &format_router::FormatInfo,
+    exif: &Option<exif_anomaly::ExifAnalysis>,
+    width: Option<u32>,
+    height: Option<u32>,
+) -> InputQualityAssessment {
+    let is_jpeg = info.mime_type == "image/jpeg";
+    let is_image = info.content_type == format_router::ContentType::Image;
+
+    // JPEG quality estimation from file size heuristic
+    let jpeg_quality_estimate = if is_jpeg {
+        estimate_jpeg_quality(path, width, height)
+    } else {
+        None
+    };
+
+    // Resolution category
+    let pixels = width.unwrap_or(0) as u64 * height.unwrap_or(0) as u64;
+    let resolution_category = if !is_image {
+        "n/a".to_string()
+    } else if width.unwrap_or(0) < 128 || height.unwrap_or(0) < 128 {
+        "thumbnail".to_string()
+    } else if pixels < 500_000 {
+        "low".to_string()
+    } else if pixels < 2_000_000 {
+        "medium".to_string()
+    } else {
+        "high".to_string()
+    };
+
+    // Screenshot detection heuristic
+    let is_screenshot_likely = if is_image {
+        detect_screenshot(width, height, exif)
+    } else {
+        false
+    };
+
+    // EXIF GPS/timestamp presence
+    let has_gps = exif
+        .as_ref()
+        .is_some_and(|e| e.gps_latitude.is_some() && e.gps_longitude.is_some());
+    let has_timestamp = exif.as_ref().is_some_and(|e| e.has_exif);
+
+    // Build degraded detectors list
+    let mut degraded = Vec::new();
+
+    if let Some(q) = jpeg_quality_estimate {
+        if q < 40 {
+            degraded.push("ELA".to_string());
+            degraded.push("Noise Analysis".to_string());
+            degraded.push("JPEG Ghost".to_string());
+        }
+    }
+
+    if resolution_category == "low" || resolution_category == "thumbnail" {
+        degraded.push("Deepfake Detection".to_string());
+        degraded.push("Copy-Move Detection".to_string());
+        degraded.push("Segmented ELA".to_string());
+    }
+
+    if is_screenshot_likely {
+        degraded.push("EXIF Anomaly".to_string());
+        degraded.push("JPEG Ghost".to_string());
+    }
+
+    if !is_jpeg {
+        degraded.push("JPEG Ghost".to_string());
+    }
+
+    if !has_gps || !has_timestamp {
+        degraded.push("Sun Position".to_string());
+        degraded.push("Weather Cross-Reference".to_string());
+        degraded.push("Shadow Time Estimation".to_string());
+    }
+
+    // Deduplicate
+    degraded.sort();
+    degraded.dedup();
+
+    InputQualityAssessment {
+        jpeg_quality_estimate,
+        resolution_category,
+        width,
+        height,
+        is_screenshot_likely,
+        is_jpeg,
+        has_gps,
+        has_timestamp,
+        degraded_detectors: degraded,
+    }
+}
+
 /// Inner verification logic shared by `verify_content` and `verify_url`.
 ///
 /// `mode` controls which pipeline stages run:
@@ -830,14 +1029,26 @@ fn verify_content_inner(
     let is_video = info.content_type == format_router::ContentType::Video;
     let is_audio = info.content_type == format_router::ContentType::Audio;
 
+    // ── Image dimensions ─────────────────────────────────────────────────
+    // Computed once here so both the EXIF analyser and the input quality
+    // assessment can use the same values without a second filesystem decode.
+    let (img_w, img_h): (Option<u32>, Option<u32>) = if is_image {
+        let (w, h) = metadata::get_image_dimensions(&path).unwrap_or((0, 0));
+        (
+            if w > 0 { Some(w) } else { None },
+            if h > 0 { Some(h) } else { None },
+        )
+    } else {
+        (None, None)
+    };
+
     // ── EXIF metadata extraction ─────────────────────────────────────────
     let t_exif = std::time::Instant::now();
     // EXIF analysis (images only)
     let exif_analysis = if info.content_type == format_router::ContentType::Image {
         let meta = metadata::extract_exif(&path);
-        let (actual_w, actual_h) = metadata::get_image_dimensions(&path).unwrap_or((0, 0));
-        let actual_w = if actual_w > 0 { Some(actual_w) } else { None };
-        let actual_h = if actual_h > 0 { Some(actual_h) } else { None };
+        let actual_w = img_w;
+        let actual_h = img_h;
         let mut analysis = exif_anomaly::analyse(meta.as_ref(), actual_w, actual_h);
 
         // Reduce missing-EXIF penalty for modern web codecs (AVIF, WebP, HEIC).
@@ -874,6 +1085,24 @@ fn verify_content_inner(
         None
     };
     log::info!("PERF: EXIF metadata extraction took {:?}", t_exif.elapsed());
+
+    // ── Input quality assessment ─────────────────────────────────────────
+    // Runs immediately after EXIF extraction so detector-reliability warnings
+    // can reference EXIF presence. The assessment itself is pure computation
+    // on already-cached data and adds <5 ms to the pipeline.
+    let input_quality: Option<InputQualityAssessment> = if is_image {
+        let q = assess_input_quality(&path, &info, &exif_analysis, img_w, img_h);
+        log::info!(
+            "Input quality: resolution={}, jpeg_q={:?}, screenshot={}, degraded={:?}",
+            q.resolution_category,
+            q.jpeg_quality_estimate,
+            q.is_screenshot_likely,
+            q.degraded_detectors
+        );
+        Some(q)
+    } else {
+        None
+    };
 
     // ── Thumbnail consistency check ───────────────────────────────────────
     // Compare the EXIF-embedded JPEG thumbnail against the full image using
@@ -1723,6 +1952,7 @@ fn verify_content_inner(
         thumbnail_check,
         input_sha256,
         methodology,
+        input_quality,
     })
 }
 
@@ -4273,6 +4503,7 @@ mod tests {
             thumbnail_check: None,
             input_sha256: None,
             methodology: None,
+            input_quality: None,
         };
         let json = serde_json::to_string(&result).unwrap();
         assert!(

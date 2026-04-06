@@ -4,13 +4,14 @@
   import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive, parseAppError, getLicenceTier, extractTextFromImage, calculateSunPosition, estimateShadowTime, checkHistoricalWeather, analyseSeasonalIndicators, analyseDiffusionArtefacts, analyseRoi, saveAnnotation, getAnnotations, deleteAnnotationApi } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
-  import type { Annotation, AnnotationData, LicenceTier, VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult, SolarPosition, TimeEstimate, WeatherCheckResult, SeasonalIndicatorsResult, DiffusionArtefactsResult, RoiAnalysisResult } from '$lib/types';
+  import type { Annotation, AnnotationData, InputQualityAssessment, LicenceTier, VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult, SolarPosition, TimeEstimate, WeatherCheckResult, SeasonalIndicatorsResult, DiffusionArtefactsResult, RoiAnalysisResult } from '$lib/types';
   import VerdictSummary from '$lib/components/VerdictSummary.svelte';
   import SimpleVerdict from '$lib/components/SimpleVerdict.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
   import InspectionChecklist from '$lib/components/InspectionChecklist.svelte';
   import SignalAgreement from '$lib/components/SignalAgreement.svelte';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
+  import LimitationBanner from '$lib/components/LimitationBanner.svelte';
   import { generateTrustReport } from '$lib/pdf';
   import type { ReportContext, ReportFormat } from '$lib/pdf';
   import { exportCaseZip } from '$lib/zip';
@@ -1374,6 +1375,36 @@
     if (score < 0.3) return 'text-malachite dark:text-malachite-light';
     if (score < 0.6) return 'text-amber dark:text-amber-light';
     return 'text-cinnabar dark:text-cinnabar-light';
+  }
+
+  /** Sidecar-dependent detectors that cannot run when the analysis engine is offline. */
+  const SIDECAR_DETECTORS = [
+    'ELA', 'Noise Analysis', 'Copy-Move Detection', 'Deepfake Detection',
+    'NPR', 'Chromatic Aberration', 'JPEG Ghost', 'Segmented ELA',
+    'Shadow Consistency', 'Colour Temperature', 'Splice Boundary', 'CLIP Detection',
+  ];
+
+  /**
+   * Returns the applicability status for a named detector given the current
+   * input quality assessment and result availability.
+   *
+   * - 'analysed'     — ran successfully, result is present
+   * - 'limited'      — ran but reliability is degraded for this input
+   * - 'not_applicable' — result absent (skipped or not supported for this file type)
+   * - 'unavailable'  — sidecar offline; detector could not run
+   */
+  function getDetectorApplicability(
+    detectorName: string,
+    quality: InputQualityAssessment | null | undefined,
+    resultExists: boolean,
+    sidecarOnline: boolean,
+  ): 'analysed' | 'limited' | 'not_applicable' | 'unavailable' {
+    if (!sidecarOnline && SIDECAR_DETECTORS.includes(detectorName)) {
+      return 'unavailable';
+    }
+    if (!resultExists) return 'not_applicable';
+    if (quality?.degradedDetectors?.includes(detectorName)) return 'limited';
+    return 'analysed';
   }
 
   function forensicScoreBgClass(score: number): string {
@@ -4616,6 +4647,27 @@
       {#if showTechnicalDetails}
       <div id="technical-details">
 
+      <!-- ── Applicability badge snippet (reused across detector headings) ── -->
+      {#snippet applicabilityBadge(status: string)}
+        <span class="text-[10px] font-medium px-1.5 py-0.5 rounded-full uppercase tracking-wider
+          {status === 'analysed' ? 'bg-malachite/10 text-malachite dark:bg-malachite/20 dark:text-malachite-light' :
+           status === 'limited' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' :
+           status === 'not_applicable' ? 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400' :
+           'bg-cinnabar/10 text-cinnabar dark:bg-cinnabar/20 dark:text-cinnabar-light'}">
+          {status === 'analysed' ? 'Analysed' :
+           status === 'limited' ? 'Limited' :
+           status === 'not_applicable' ? 'N/A' :
+           'Unavailable'}
+        </span>
+      {/snippet}
+
+      <!-- ── Input quality limitation banners ──────────────────────── -->
+      {#if result.inputQuality}
+        <div class="px-5 pt-4">
+          <LimitationBanner quality={result.inputQuality} />
+        </div>
+      {/if}
+
       <!-- ── ELA Analysis ──────────────────────────────────────────── -->
       {#if result.elaResult}
         {@const ela = result.elaResult}
@@ -4628,6 +4680,7 @@
               >
                 {ela.suspicious ? 'Suspicious' : 'Normal'}
               </span>
+              {@render applicabilityBadge(getDetectorApplicability('ELA', result?.inputQuality, !!result?.elaResult, sidecarAvailable))}
             </div>
             <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(ela.score)}">
               <span>{(ela.score * 100).toFixed(1)}%</span>
@@ -4718,6 +4771,7 @@
               >
                 {noise.suspicious ? 'Suspicious' : 'Normal'}
               </span>
+              {@render applicabilityBadge(getDetectorApplicability('Noise Analysis', result?.inputQuality, !!result?.noiseResult, sidecarAvailable))}
             </div>
             <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(noise.score)}">
               <span>{(noise.score * 100).toFixed(1)}%</span>
@@ -4777,6 +4831,7 @@
               >
                 {cm.suspicious ? 'Suspicious' : 'Clean'}
               </span>
+              {@render applicabilityBadge(getDetectorApplicability('Copy-Move Detection', result?.inputQuality, !!result?.copyMoveResult, sidecarAvailable))}
             </div>
             <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(cm.score)}">
               <span>{(cm.score * 100).toFixed(1)}%</span>
@@ -5512,6 +5567,7 @@
               >
                 {df.confidence} confidence
               </span>
+              {@render applicabilityBadge(getDetectorApplicability('Deepfake Detection', result?.inputQuality, !!result?.deepfakeResult, sidecarAvailable))}
             </div>
             <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(df.score)}">
               <span>{(df.score * 100).toFixed(1)}%</span>

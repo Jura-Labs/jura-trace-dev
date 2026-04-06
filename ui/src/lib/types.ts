@@ -392,6 +392,28 @@ export interface WeatherCheckResult {
   error?: string;
 }
 
+/** Input quality assessment — identifies conditions that degrade detector reliability. */
+export interface InputQualityAssessment {
+  /** Estimated JPEG quality factor (1–100). null for non-JPEG. */
+  jpegQualityEstimate?: number | null;
+  /** Resolution category: "high", "medium", "low", "thumbnail", "n/a". */
+  resolutionCategory: string;
+  /** Image width in pixels. */
+  width?: number | null;
+  /** Image height in pixels. */
+  height?: number | null;
+  /** Whether the image appears to be a screenshot. */
+  isScreenshotLikely: boolean;
+  /** Whether the file is JPEG format. */
+  isJpeg: boolean;
+  /** Whether EXIF GPS coordinates are present. */
+  hasGps: boolean;
+  /** Whether EXIF timestamp is present. */
+  hasTimestamp: boolean;
+  /** Detector names with reduced reliability for this input. */
+  degradedDetectors: string[];
+}
+
 /** Verification result from the VERIFY pipeline */
 export interface VerificationResult {
   /** Investigation mode used: 'standard' | 'deep' | 'archival' */
@@ -436,6 +458,8 @@ export interface VerificationResult {
   thumbnailCheck?: ThumbnailCheck | null;
   /** Methodology metadata for reproducibility (pipeline version, sidecar version, classifier hash). */
   methodology?: MethodologyRecord | null;
+  /** Input quality assessment — conditions that degrade detector reliability. */
+  inputQuality?: InputQualityAssessment | null;
 }
 
 /** Methodology metadata captured at verification time for reproducibility. */
