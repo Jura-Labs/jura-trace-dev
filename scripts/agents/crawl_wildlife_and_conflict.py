@@ -98,15 +98,29 @@ CONFLICT_REJECT_KEYWORDS = [
 ]
 
 
-def fetch_json(url: str, timeout: int = 30) -> dict | None:
-    """GET a URL and return parsed JSON. Returns None on failure."""
-    req = Request(url, headers={"User-Agent": "JuraTraceCorpusBuilder/1.0 (research)"})
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read())
-    except (HTTPError, URLError, json.JSONDecodeError) as e:
-        print(f"  fetch_json error: {e}")
-        return None
+def fetch_json(url: str, timeout: int = 30, max_retries: int = 4) -> dict | None:
+    """GET a URL and return parsed JSON. Retries on HTTP 429 with backoff."""
+    headers = {
+        "User-Agent": "JuraTraceCorpusBuilder/1.0 (research; +https://juralabs.org; paul@juralabs.org)",
+        "Accept": "application/json",
+    }
+    for attempt in range(max_retries):
+        try:
+            req = Request(url, headers=headers)
+            with urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read())
+        except HTTPError as e:
+            if e.code == 429 and attempt < max_retries - 1:
+                backoff = 10 * (2 ** attempt)  # 10, 20, 40, 80s
+                print(f"  429 rate limit — backing off {backoff}s...")
+                time.sleep(backoff)
+                continue
+            print(f"  fetch_json error: {e}")
+            return None
+        except (URLError, json.JSONDecodeError) as e:
+            print(f"  fetch_json error: {e}")
+            return None
+    return None
 
 
 def list_category_files(category: str, limit: int = 50) -> list[str]:
@@ -124,10 +138,16 @@ def list_category_files(category: str, limit: int = 50) -> list[str]:
 
 
 def get_image_info(file_title: str) -> dict | None:
-    """Fetch image URL, licence, and metadata for a Commons file."""
+    """Fetch image URL, licence, and metadata for a Commons file.
+
+    Uses iiurlwidth=1280 to return a thumbnail URL instead of the original,
+    which is much kinder to Wikimedia's servers (per their API guidance
+    at https://w.wiki/GHai) and avoids aggressive rate-limiting.
+    """
     url = (
         f"{COMMONS_API}?action=query&titles={quote(file_title)}"
         f"&prop=imageinfo&iiprop=url|size|mime|extmetadata"
+        f"&iiurlwidth=1280"
         f"&format=json"
     )
     data = fetch_json(url)
@@ -140,11 +160,14 @@ def get_image_info(file_title: str) -> dict | None:
             continue
         info = info_list[0]
         meta = info.get("extmetadata", {})
+        # Prefer the thumbnail URL (thumburl) — cached, no rate limit,
+        # 1280px longest edge is more than enough for training
+        download_url = info.get("thumburl") or info.get("url")
         return {
             "title": file_title,
-            "url": info.get("url"),
-            "width": info.get("width", 0),
-            "height": info.get("height", 0),
+            "url": download_url,
+            "width": info.get("thumbwidth") or info.get("width", 0),
+            "height": info.get("thumbheight") or info.get("height", 0),
             "mime": info.get("mime", ""),
             "licence": (meta.get("LicenseShortName", {}) or {}).get("value", "").lower(),
             "description": (meta.get("ImageDescription", {}) or {}).get("value", "")[:500],
@@ -170,19 +193,32 @@ def is_conflict_safe(info: dict) -> bool:
     return True
 
 
-def download_image(url: str, dest: Path) -> bool:
-    """Download an image to dest. Returns True on success."""
-    req = Request(url, headers={"User-Agent": "JuraTraceCorpusBuilder/1.0 (research)"})
-    try:
-        with urlopen(req, timeout=60) as resp:
-            data = resp.read()
-        if len(data) < 1024:
+def download_image(url: str, dest: Path, max_retries: int = 3) -> bool:
+    """Download an image to dest. Retries on 429 with backoff."""
+    headers = {
+        "User-Agent": "JuraTraceCorpusBuilder/1.0 (research; +https://juralabs.org; paul@juralabs.org)",
+    }
+    for attempt in range(max_retries):
+        try:
+            req = Request(url, headers=headers)
+            with urlopen(req, timeout=60) as resp:
+                data = resp.read()
+            if len(data) < 1024:
+                return False
+            dest.write_bytes(data)
+            return True
+        except HTTPError as e:
+            if e.code == 429 and attempt < max_retries - 1:
+                backoff = 15 * (2 ** attempt)  # 15, 30, 60s
+                print(f"  429 on download — backing off {backoff}s...")
+                time.sleep(backoff)
+                continue
+            print(f"  download error: {e}")
             return False
-        dest.write_bytes(data)
-        return True
-    except (HTTPError, URLError) as e:
-        print(f"  download error: {e}")
-        return False
+        except URLError as e:
+            print(f"  download error: {e}")
+            return False
+    return False
 
 
 def crawl_categories(
@@ -221,7 +257,7 @@ def crawl_categories(
         for title in titles:
             if downloaded >= count:
                 break
-            time.sleep(0.5)  # be polite to the Commons API
+            time.sleep(1.5)  # be polite to the Commons API (1.5s per request)
 
             info = get_image_info(title)
             if not info or not info.get("url"):
