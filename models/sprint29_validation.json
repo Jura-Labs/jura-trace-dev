@@ -1,0 +1,98 @@
+{
+  "validated_at": "2026-04-07T18:09:40.701993",
+  "test_set": "/Volumes/Samsung USB/Training Data/corpus/sprint29_validation",
+  "sidecar": "http://127.0.0.1:8200",
+  "overall_fp_rate": 0.0168,
+  "overall_recall": 0.99,
+  "overall_fp_ok": true,
+  "overall_recall_ok": true,
+  "all_gates_passed": false,
+  "stratum_results": {
+    "consumer_phone": {
+      "n": 99,
+      "tp": 0,
+      "fp": 1,
+      "tn": 98,
+      "fn": 0,
+      "mean_score": 0.1879
+    },
+    "mirrorless_dslr": {
+      "n": 50,
+      "tp": 0,
+      "fp": 0,
+      "tn": 50,
+      "fn": 0,
+      "mean_score": 0.1264
+    },
+    "drone": {
+      "n": 14,
+      "tp": 0,
+      "fp": 1,
+      "tn": 13,
+      "fn": 0,
+      "mean_score": 0.2075
+    },
+    "web_jpeg_easy": {
+      "n": 50,
+      "tp": 0,
+      "fp": 0,
+      "tn": 50,
+      "fn": 0,
+      "mean_score": 0.0853
+    },
+    "wildlife_macro": {
+      "n": 25,
+      "tp": 0,
+      "fp": 2,
+      "tn": 23,
+      "fn": 0,
+      "mean_score": 0.336
+    },
+    "ai_diverse": {
+      "n": 100,
+      "tp": 99,
+      "fp": 0,
+      "tn": 0,
+      "fn": 1,
+      "mean_score": 0.8135
+    }
+  },
+  "gates": [
+    {
+      "stratum": "consumer_phone",
+      "metric": "1.01%",
+      "gate": "\u22648%",
+      "ok": true
+    },
+    {
+      "stratum": "mirrorless_dslr",
+      "metric": "0.00%",
+      "gate": "\u22647%",
+      "ok": true
+    },
+    {
+      "stratum": "drone",
+      "metric": "7.14%",
+      "gate": "\u22647%",
+      "ok": false
+    },
+    {
+      "stratum": "web_jpeg_easy",
+      "metric": "0.00%",
+      "gate": "\u22645%",
+      "ok": true
+    },
+    {
+      "stratum": "wildlife_macro",
+      "metric": "8.00%",
+      "gate": "\u226412%",
+      "ok": true
+    },
+    {
+      "stratum": "ai_diverse",
+      "metric": "99.00%",
+      "gate": "\u226590%",
+      "ok": true
+    }
+  ]
+}
