@@ -176,10 +176,47 @@ def download_wikimedia(output_dir: Path, max_images: int) -> list[dict]:
     return entries
 
 
-def download_openimages(output_dir: Path, max_images: int) -> list[dict]:
-    """Download images from Open Images V7 via HuggingFace."""
+def _existing_image_count(output_dir: Path) -> int:
+    """Count existing image files so repeated runs don't overwrite."""
+    if not output_dir.exists():
+        return 0
+    exts = {".jpg", ".jpeg", ".png", ".webp"}
+    return sum(1 for p in output_dir.iterdir() if p.is_file() and p.suffix.lower() in exts)
+
+
+def _existing_hashes(output_dir: Path) -> set[str]:
+    """Return sha256 hashes of existing images to avoid re-downloading dupes."""
+    if not output_dir.exists():
+        return set()
+    hashes = set()
+    exts = {".jpg", ".jpeg", ".png", ".webp"}
+    for p in output_dir.iterdir():
+        if p.is_file() and p.suffix.lower() in exts:
+            try:
+                hashes.add(hashlib.sha256(p.read_bytes()).hexdigest())
+            except Exception:
+                pass
+    return hashes
+
+
+def download_flickr30k(output_dir: Path, max_images: int) -> list[dict]:
+    """Download photographs from Flickr30k via HuggingFace.
+
+    Replaces the previous `openimages` source (djghosh/open-images-v7-selected
+    was removed from the Hub in early 2026). Flickr30k contains ~30,000
+    real photographs with wide subject diversity: people in candid and
+    posed settings, events, sports, everyday scenes. Ideal authentic
+    corpus supplement for a forensic training pipeline.
+
+    Dataset: lmms-lab/flickr30k, split=test (~31,014 photographs).
+
+    Resume-safe: counts existing files and offsets filename numbering
+    so repeated invocations accumulate rather than overwrite.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
-    print(f"\n  [openimages] Downloading from Open Images V7 (max {max_images})...")
+    start_idx = _existing_image_count(output_dir)
+    existing_hashes = _existing_hashes(output_dir)
+    print(f"\n  [flickr30k] Downloading from Flickr30k (max {max_images}, existing {start_idx})...")
 
     try:
         from datasets import load_dataset
@@ -189,16 +226,17 @@ def download_openimages(output_dir: Path, max_images: int) -> list[dict]:
 
     try:
         ds = load_dataset(
-            "djghosh/open-images-v7-selected",
-            split="validation",
+            "lmms-lab/flickr30k",
+            split="test",
             streaming=True,
         )
     except Exception as e:
-        print(f"  [openimages] Failed to load dataset: {e}")
+        print(f"  [flickr30k] Failed to load dataset: {e}")
         return []
 
     entries = []
     downloaded = 0
+    skipped_dupes = 0
 
     for item in ds:
         if downloaded >= max_images:
@@ -208,21 +246,125 @@ def download_openimages(output_dir: Path, max_images: int) -> list[dict]:
         if img is None:
             continue
 
+        try:
+            w, h = img.size
+        except Exception:
+            continue
+        if w < 256 or h < 256:
+            continue
+
         buf = BytesIO()
-        img.save(buf, format="PNG")
+        fmt = "JPEG" if img.mode == "RGB" else "PNG"
+        img.save(buf, format=fmt, quality=92)
         img_bytes = buf.getvalue()
 
         if len(img_bytes) < 5000:
             continue
 
         sha = hashlib.sha256(img_bytes).hexdigest()
-        out_name = f"openimages_{downloaded:04d}.png"
+        if sha in existing_hashes:
+            skipped_dupes += 1
+            continue
+        existing_hashes.add(sha)
+
+        ext = ".jpg" if fmt == "JPEG" else ".png"
+        out_name = f"flickr30k_{start_idx + downloaded:05d}{ext}"
         out_path = output_dir / out_name
         out_path.write_bytes(img_bytes)
 
         entries.append({
             "filename": out_name,
-            "source": "openimages",
+            "source": "flickr30k",
+            "sha256": sha,
+            "size_bytes": len(img_bytes),
+            "label": "authentic",
+            "downloaded_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+        downloaded += 1
+        if downloaded % 100 == 0:
+            print(f"  [flickr30k] {downloaded}/{max_images} downloaded...")
+
+    print(f"  [flickr30k] {downloaded} images downloaded ({skipped_dupes} dupes skipped)")
+    return entries
+
+
+# Backward-compat alias so existing `--sources openimages` invocations still work.
+def download_openimages(output_dir: Path, max_images: int) -> list[dict]:
+    """Alias for flickr30k — the OpenImages HF mirror was removed in early 2026."""
+    return download_flickr30k(output_dir, max_images)
+
+
+def download_flickr8k(output_dir: Path, max_images: int) -> list[dict]:
+    """Download photographs from Flickr8k via HuggingFace.
+
+    Replaces the previous `unsplash` source (the HF script-based Unsplash
+    datasets were deprecated in early 2026). Flickr8k contains ~8,000
+    amateur and semi-professional photographs — a good complement to
+    Flickr30k (broader subjects) and COCO (annotated scenes).
+
+    Dataset: jxie/flickr8k, split=train.
+
+    Resume-safe: counts existing files and skips duplicates by sha256.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    start_idx = _existing_image_count(output_dir)
+    existing_hashes = _existing_hashes(output_dir)
+    print(f"\n  [flickr8k] Downloading from Flickr8k (max {max_images}, existing {start_idx})...")
+
+    try:
+        from datasets import load_dataset
+    except ImportError:
+        print("  Error: 'datasets' library required. pip install datasets")
+        return []
+
+    try:
+        ds = load_dataset("jxie/flickr8k", split="train", streaming=True)
+    except Exception as e:
+        print(f"  [flickr8k] Failed to load dataset: {e}")
+        return []
+
+    entries = []
+    downloaded = 0
+    skipped_dupes = 0
+
+    for item in ds:
+        if downloaded >= max_images:
+            break
+
+        img = item.get("image")
+        if img is None:
+            continue
+
+        try:
+            w, h = img.size
+        except Exception:
+            continue
+        if w < 256 or h < 256:
+            continue
+
+        buf = BytesIO()
+        fmt = "JPEG" if img.mode == "RGB" else "PNG"
+        img.save(buf, format=fmt, quality=92)
+        img_bytes = buf.getvalue()
+
+        if len(img_bytes) < 5000:
+            continue
+
+        sha = hashlib.sha256(img_bytes).hexdigest()
+        if sha in existing_hashes:
+            skipped_dupes += 1
+            continue
+        existing_hashes.add(sha)
+
+        ext = ".jpg" if fmt == "JPEG" else ".png"
+        out_name = f"flickr8k_{start_idx + downloaded:05d}{ext}"
+        out_path = output_dir / out_name
+        out_path.write_bytes(img_bytes)
+
+        entries.append({
+            "filename": out_name,
+            "source": "flickr8k",
             "sha256": sha,
             "size_bytes": len(img_bytes),
             "label": "authentic",
@@ -231,10 +373,16 @@ def download_openimages(output_dir: Path, max_images: int) -> list[dict]:
 
         downloaded += 1
         if downloaded % 50 == 0:
-            print(f"  [openimages] {downloaded}/{max_images} downloaded...")
+            print(f"  [flickr8k] {downloaded}/{max_images} downloaded...")
 
-    print(f"  [openimages] {downloaded} images downloaded")
+    print(f"  [flickr8k] {downloaded} images downloaded ({skipped_dupes} dupes skipped)")
     return entries
+
+
+# Backward-compat alias so existing `--sources unsplash` invocations still work.
+def download_unsplash(output_dir: Path, max_images: int) -> list[dict]:
+    """Alias for flickr8k — the Unsplash HF mirrors were removed in early 2026."""
+    return download_flickr8k(output_dir, max_images)
 
 
 # CIFAR-10 removed from default sources: 32x32 images are too small for
@@ -243,7 +391,10 @@ def download_openimages(output_dir: Path, max_images: int) -> list[dict]:
 # do not include in production corpus builds.
 SOURCES = {
     "wikimedia": download_wikimedia,
-    "openimages": download_openimages,
+    "openimages": download_openimages,   # alias for flickr30k
+    "flickr30k": download_flickr30k,
+    "unsplash": download_unsplash,        # alias for flickr8k
+    "flickr8k": download_flickr8k,
 }
 
 

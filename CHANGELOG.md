@@ -6,6 +6,65 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 7 April 2026 — Sprint 30 Corpus Expansion: 10,091 Images
+
+### Corpus to 10,000 Target Met
+
+**Added**
+- **+2,600 training images** across three HuggingFace sources, closing both 5,000 targets in a single session at £0 API cost
+- Authentic corpus: 3,287 → **5,087** (target 5,000, ✅ met)
+- AI-generated corpus: 4,204 → **5,004** (target 5,000, ✅ met)
+- Combined total: 7,491 → **10,091 / 10,000**
+
+**New authentic sources**
+- `flickr30k` (lmms-lab/flickr30k) — 1,300 photographs, diverse subjects and geography
+- `flickr8k` (jxie/flickr8k) — 500 amateur and semi-professional photographs
+
+**AI corpus extension**
+- `elsa` (elsaEU/ELSA1M_track1) — +800 images with per-generator labelling captured from dataset `model` field (includes `stabilityai/stable-diffusion-2` and `elsa_multimodel` variants)
+- Grok Aurora target (500) already met pre-session; no new generation required
+
+### Crawler Infrastructure
+
+**Added**
+- `JURA_CORPUS_BASE` environment variable support in `scripts/agents/config.py` — crawlers now write to any configurable location (e.g. external USB drive) without touching the repo
+- `download_flickr30k()` and `download_flickr8k()` in `scripts/agents/crawl_authentic_images.py` — replace the previous `openimages` and `unsplash` sources which were removed from the HuggingFace Hub in early 2026 (dataset-script deprecation). Backward-compatible aliases preserved for existing scripts
+- `_existing_image_count()` and `_existing_hashes()` helpers — resume-safe behaviour: crawlers count existing files and skip duplicate content by SHA-256, so repeated invocations accumulate rather than overwrite
+- Per-generator labelling in `crawl_ai_images.py` — when a dataset provides a `model` field (ELSA does), the generator slug is stored in each manifest entry for later per-generator performance evaluation
+
+**New file**
+- `scripts/agents/generate_grok_corpus.py` — xAI Grok Aurora corpus generation agent. Uses the `grok-2-image-1212` endpoint via the xAI API, configurable via `XAI_API_KEY` env var with a `XAI_BUDGET_CAP_USD` safety cap (default $50). Includes a 500-prompt set covering portraits (diverse demographics), news/documentary scenes, landscapes, architecture, products, and composite conflict zone imagery. Supports `--dry-run` mode for prompt inspection. Not executed this session — Grok Aurora target already met at 500 images from pre-session work.
+
+**Fixed**
+- Crawler overwrite bug: previous versions of `download_flickr30k` restarted filename numbering at `00000` on each invocation, silently overwriting files from earlier runs. Now uses `start_idx + downloaded` with collision-free indexing.
+
+### Documentation
+
+**Added**
+- `docs/corpus-state-2026-04-07.md` — authoritative corpus inventory (filesystem-sourced, since stale manifests diverged significantly from reality). Records both morning pre-expansion state (7,491) and evening post-expansion state (10,091)
+- Sprint 30 status note in `docs/sprint-plans/tried-compliance-roadmap.md` updated to reflect corpus target achievement
+
+### Storage
+
+- Corpus now lives on external Samsung USB drive at `/Volumes/Samsung USB/Training Data/corpus/training/` (60 GB drive, 43 GB free, 29% used). Configured via `JURA_CORPUS_BASE` env var.
+
+### Cost
+
+- **£0 total** — all sources are free HuggingFace streaming datasets. Original Sprint 30 cost estimate was £88–128 for paid APIs (Grok, Leonardo, Recraft, Ideogram, Flux Pro). None required.
+
+### TRIED Pillar Impact
+
+- **Pillar 1 (Real-World Adaptability)**: corpus diversity supports claim of "trained on 10,000+ real and AI images across 15+ generator families including Grok Aurora"
+- **Pillar 4 (Fairness)**: 5,087 authentic images across COCO, Flickr30k, Flickr8k, ImageNet, CelebA, Google Photos, and camera DCIM provides the volume needed for meaningful demographic subgroup analysis in Sprint 29 bias audit
+
+### Next Steps
+
+- GBM retrain on 10,091-image corpus (Sprint 30 remaining work, S30-03)
+- Model card updates with new corpus statistics (S30-05)
+- Demographic bias audit (Sprint 29, depends on expanded corpus)
+
+---
+
 ## 7 April 2026 — Sprint 28: Input Quality Assessment
 
 ### Input Quality Assessment Engine

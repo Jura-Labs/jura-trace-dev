@@ -14,13 +14,20 @@ SIDECAR_URL = os.getenv("JURA_SIDECAR_URL", "http://127.0.0.1:8200")
 JURA_API_KEY = os.getenv("JURA_API_KEY", "")
 
 # ── Paths ────────────────────────────────────────────────────────────────
+# Corpus base directory can be overridden via JURA_CORPUS_BASE env var.
+# This allows the corpus to live on an external drive (e.g., USB) without
+# touching the repo. Default: <repo>/corpus/training
 _ROOT = Path(__file__).resolve().parent.parent.parent
-CORPUS_BASE = _ROOT / "corpus" / "training"
+_CORPUS_BASE_OVERRIDE = os.getenv("JURA_CORPUS_BASE", "")
+if _CORPUS_BASE_OVERRIDE:
+    CORPUS_BASE = Path(_CORPUS_BASE_OVERRIDE)
+else:
+    CORPUS_BASE = _ROOT / "corpus" / "training"
 CORPUS_AI = CORPUS_BASE / "ai_generated"
 CORPUS_AUTHENTIC = CORPUS_BASE / "authentic"
 CORPUS_VIDEO = CORPUS_BASE / "video"
-PROTECTED_BASE = _ROOT / "corpus" / "protected"
-RESULTS_BASE = _ROOT / "corpus" / "results"
+PROTECTED_BASE = (Path(_CORPUS_BASE_OVERRIDE).parent / "protected") if _CORPUS_BASE_OVERRIDE else (_ROOT / "corpus" / "protected")
+RESULTS_BASE = (Path(_CORPUS_BASE_OVERRIDE).parent / "results") if _CORPUS_BASE_OVERRIDE else (_ROOT / "corpus" / "results")
 
 # ── Constraint thresholds ────────────────────────────────────────────────
 # AI-generated content must ALWAYS score below this trust value, even

@@ -94,7 +94,19 @@ def download_from_huggingface(
 
     entries = []
     downloaded = 0
+
+    # Resume-safe: count existing files and skip duplicate content
+    exts = {".jpg", ".jpeg", ".png", ".webp"}
+    existing_files = sorted(p for p in output_dir.iterdir() if p.is_file() and p.suffix.lower() in exts) if output_dir.exists() else []
+    start_idx = len(existing_files)
     seen_hashes = set()
+    for p in existing_files[:2000]:  # cap hash loading at 2,000 for speed
+        try:
+            seen_hashes.add(hashlib.sha256(p.read_bytes()).hexdigest())
+        except Exception:
+            pass
+    if start_idx:
+        print(f"  [{source_key}] Resuming — {start_idx} existing files, {len(seen_hashes)} hashes loaded")
 
     for i, item in enumerate(ds):
         if downloaded >= max_images:
@@ -123,8 +135,12 @@ def download_from_huggingface(
             continue
         seen_hashes.add(sha)
 
-        # Save
-        filename = f"{label}_{downloaded:04d}.png"
+        # Per-generator labelling when dataset provides a model field
+        model_id = item.get("model") or label
+        model_slug = str(model_id).lower().replace(" ", "_").replace("/", "_")[:30]
+
+        # Save with resume-safe index offset
+        filename = f"{label}_{start_idx + downloaded:05d}.png"
         filepath = output_dir / filename
         filepath.write_bytes(img_bytes)
 
@@ -135,7 +151,7 @@ def download_from_huggingface(
             "sha256": sha,
             "size_bytes": len(img_bytes),
             "label": "ai_generated",
-            "generator": label,
+            "generator": model_slug,
             "downloaded_at": datetime.now(timezone.utc).isoformat(),
         })
 
