@@ -111,6 +111,12 @@ def main():
         default=os.path.join(os.path.dirname(__file__), "..", "models"),
         help="Output directory for model files",
     )
+    parser.add_argument(
+        "--version-suffix",
+        type=str,
+        default="",
+        help="Optional version suffix for the output filename (e.g. '_v2' produces deepfake_classifier_v2.joblib)",
+    )
     args = parser.parse_args()
 
     print("Jura Trace -- AI Image Classifier Training")
@@ -231,7 +237,8 @@ def main():
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    model_path = output_dir / "deepfake_classifier.joblib"
+    model_filename = f"deepfake_classifier{args.version_suffix}.joblib"
+    model_path = output_dir / model_filename
     joblib.dump(clf, model_path)
     print(f"\nModel saved: {model_path}")
 
@@ -257,7 +264,8 @@ def main():
             for idx in top_indices
         ],
     }
-    meta_path = output_dir / "deepfake_classifier_meta.json"
+    meta_filename = f"deepfake_classifier{args.version_suffix}_meta.json"
+    meta_path = output_dir / meta_filename
     meta_path.write_text(json.dumps(meta, indent=2))
     print(f"Metadata saved: {meta_path}")
 
