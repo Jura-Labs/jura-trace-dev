@@ -47,14 +47,12 @@ from app.services.noise_visualisation import perform_noise_visualisation
 from app.services.clahe import perform_clahe
 from app.services.frequency_visualisation import perform_frequency_visualisation
 from app.services.jpeg_grid import perform_jpeg_grid_visualisation
-from app.services.weather_check import check_weather as _check_weather
 from app.services.audio_metadata import perform_audio_metadata
 from app.services.transcription import perform_transcription
 from app.services.video_deepfake import perform_video_deepfake_analysis
 from app.services.video_frames import perform_frame_extraction
 from app.services.video_metadata import perform_video_metadata
 from app.services.diffusion_artefacts import detect_diffusion_artefacts
-from app.services.seasonal_indicators import analyse_seasonal_indicators
 from app.services.roi_analysis import analyse_roi
 from app.services.gan_fingerprint import visualise_gan_fingerprint
 from app.services.watermark import perform_watermark_embed, perform_watermark_extract
@@ -726,19 +724,6 @@ async def jpeg_grid_visualisation(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/weather-check")
-async def weather_check(
-    latitude: float = Query(...),
-    longitude: float = Query(...),
-    date: str = Query(..., description="ISO date YYYY-MM-DD"),
-):
-    """Query historical weather for location and date (opt-in network feature)."""
-    try:
-        return await _check_weather(latitude, longitude, date)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
 @router.post("/diffusion-artefacts")
 async def diffusion_artefacts(
     file: UploadFile = File(...),
@@ -757,27 +742,6 @@ async def diffusion_artefacts(
 
     try:
         return detect_diffusion_artefacts(image_bytes)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/seasonal-indicators")
-async def seasonal_indicators(
-    file: UploadFile = File(...),
-):
-    """Analyse seasonal indicators in the image.
-
-    Estimates the likely season of capture by analysing vegetation
-    greenness, snow coverage, and colour temperature. Useful for
-    cross-referencing claimed capture dates against visual evidence.
-
-    Returns an estimated season, confidence score, and human-readable
-    indicator descriptions.
-    """
-    image_bytes = await _read_and_validate(file)
-
-    try:
-        return analyse_seasonal_indicators(image_bytes)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

@@ -6,6 +6,95 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 7 April 2026 — Sprint 29 Progress + Corpus Expansion + Model Refresh
+
+### Added
+
+**Sprint 29 Track 1 — MakerNote Authenticity Bonus (commit `476f265`)**
+- `KNOWN_CAMERA_VENDORS` table in `src-tauri/src/metadata.rs` covering 36 vendors including 11 Global Majority brands (Tecno, Infinix, Itel, Realme, Honor, Vivo, Oppo, Xiaomi, OnePlus, Asus, Motorola)
+- `camera_authenticity_confidence()` function producing a 0.0–1.0 score based on MakerNote presence and vendor match
+- `camera_authenticity_bonus` field on `ExifAnalysis`; threaded through `verify_content_inner` → `detect_deepfake` → sidecar via `?camera_authenticity_bonus=` query parameter
+- Applied in Python sidecar with maximum 0.25 score reduction; bypassed when heuristic_score ≥ 0.75
+- 6 new `exif_anomaly` unit tests, all passing
+
+**Sprint 29 Track 2 — Wildlife + War/Conflict Corpus (commits `8429728`, `3c817c7`)**
+- New crawler `scripts/agents/crawl_wildlife_and_conflict.py` with thumbnail URL strategy, 429 backoff, 1.5 s per-request delay
+- 204 wildlife/macro images downloaded from Wikimedia Commons (insects, birds, wild mammals, underwater, reptiles, amphibians, spiders, butterflies)
+- 203 war/conflict images downloaded from Wikimedia Commons conflict categories with ethical filters (no casualties, CC licences only, source logging)
+
+**Sprint 29 Track 3 — Forensic Feature Engineering (commit `52a5690`)**
+- 4 new features added to `sidecar/app/services/deepfake.py`: `noise_lf_hf_ratio`, `demosaic_inter_channel_coherence`, `noise_anisotropy_mean`, `noise_anisotropy_std`
+- Feature vector grows from 80 to 84 dimensions; backwards-compatible: classifier loader trims to `clf.n_features_in_` for GBM v4
+- 24 unit tests in `sidecar/tests/test_new_features.py`; all 47 pre-existing deepfake tests still pass
+
+**Sprint 29 Track 4 — Stratified Validation Script (commit `49a7e8a`)**
+- `scripts/build_validation_test_set.py` with `build` and `validate` subcommands
+- 8 strata: consumer_phone, mirrorless_dslr, drone, web_jpeg_easy, global_majority_handset, wildlife_macro, war_conflict, ai_diverse
+- First validation run: 339 images, overall FP 1.68%, AI recall 99.00%
+
+**Composite border detector**
+- `scripts/find_composite_borders.py` — flags authentic corpus images that are stacked composites
+- Run on full 4,673-image corpus: 21 candidates flagged (0.45% rate); HTML preview at `corpus/border_candidates.html` pending user visual review
+
+**Context7 MCP + GitHub MCP installed**
+- `npx -y @upstash/context7-mcp` and `npx -y @modelcontextprotocol/server-github` added via `claude mcp add`
+- Both registered in `.claude.json`; require Claude Code restart to activate
+
+### Changed
+
+**GBM Deepfake Classifier — v2 → v3 → v4 retrain chain**
+- v2 baseline: 9,658 images (earlier session)
+- v3 (commit `4fa4547`): 10,721 images — COCO train set added, audited Wikimedia restored
+- v4 final (commit `0857764`): 10,709 images — Wikimedia re-audit removed 12 outliers (cartoons, microscope slide, album artwork, studio composites, underwater shots)
+- v4 metrics: AUC-ROC 0.9868, authentic FP 4.54%, AI recall 92.52%, calibrated threshold 0.49, SHA-256 `2931f197cba6f376e85b1cbcfd584e6802f36e4fbf68ff00c83d61d4d655db18`
+- Camera FP improvements: consumer (Pixel/iPhone) 15.6% → 8.81% (cleared 2× bias gate); high-end (DJI/DSC) 13.5% → 10.32%
+
+**UnivFD Probe — v6 → v7 → v8 retrain chain**
+- v7: 10,724 images, AUC-ROC 0.9909, FP 4.91%
+- v8 final (commit `29317db`): 10,712 images, AUC-ROC 0.9911, FP 5.01%, recall 96.01%, SHA-256 `d16fb22baf3981d62888e2458733c1a4c0743a5895470d82e9de76766f776908`
+
+**Corpus size**
+- 10,775 → 11,576 images (6,571 authentic + 5,005 AI)
+
+**Wikimedia re-audit**
+- 12 outliers removed from training corpus: cartoons, microscope slide, album artwork, studio still-life, underwater shots — content whose visual characteristics confound the classifier's noise/frequency features
+
+### Documentation
+
+- Model cards page (`/help/model-cards`) updated to GBM v4.0 + UnivFD v8.0 with version history tables
+- Agent persona files refreshed: `ml-data-scientist`, `content-authenticity-expert`, `rag-ollama-engineer`, `dpia-template.md` — stale "AUC 1.000, FP 0%, 709 images" references replaced with current v4 metrics (commit `7c60a20`)
+- Help index page: "Built for Those Who Need It Most" equity paragraph added (commit `06fed51`)
+- Sprint 29 TRIED roadmap entry expanded with war/conflict addition (commit `275ba38`)
+- TRIED roadmap Sprint 29 reframed from "Fairness Foundation" to "Camera Reinforcement & Bias Prep" (commit `9806f6a`)
+
+### Deferred
+
+Six UI audit items identified by Chrome DevTools review + ux-frontend-designer and content-authenticity-expert agents; deferred to next sprint:
+
+- UI-1: Fix remaining "Content Credentials" text on dashboard (`+page.svelte` line 186)
+- UI-2: R/B/G channel toggle — decide remove or repair (root cause: sampling from already-greyscale image after first toggle)
+- UI-3: Remove `InspectionChecklist` from verify flow; move content to Help → Verify Guide
+- UI-4: Surface MakerNote bonus in verify UI — add `cameraAuthenticityBonus` to `ExifAnalysis` interface; malachite badge when > 0.5
+- UI-5: Setup wizard null-guard bug — `+layout.svelte` line 47 fires on null `setupVersion`; add `&& setupVersion !== null`
+- UI-6: Three remaining "content credentials" instances in monitor page, glossary, and dashboard stat label
+
+Additional UX recommendations noted (not enumerated, not scheduled): sidecar-offline banner split ("what works / what's unavailable"), Monitor empty-state consolidation, "Investigate Further" panel sub-section split.
+
+### Infrastructure
+
+**Disk cleanup — critical incident**
+- Root disk reached 99% capacity mid-session; 33 GB recovered:
+  - `~/.cache/huggingface` — 17 GB
+  - `src-tauri/target/debug` — ~10 GB
+  - `src-tauri/target/release` — ~4 GB
+  - pip cache — 1.3 GB
+  - Python `__pycache__` directories — ~840 MB
+  - `sidecar/build` — 229 MB
+- Disk space recovered: 119 MiB → 34 GiB free
+- Tauri required cold rebuild after target deletion (~1 m 50 s)
+
+---
+
 ## 7 April 2026 — DEC-2026-04-07-001: Option C Corpus Strategy Adopted
 
 ### Decision

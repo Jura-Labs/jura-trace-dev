@@ -936,32 +936,6 @@
 
       <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-          Weather Cross-Reference
-        </p>
-        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
-          Queries the Open-Meteo historical weather archive to retrieve the recorded
-          conditions — temperature, precipitation, cloud cover — for the claimed location
-          and date. This tool is <strong class="text-text-light dark:text-text-dark">opt-in</strong>:
-          it makes a network request to Open-Meteo's public API and is only available when
-          GPS coordinates and a timestamp are present in the metadata.
-        </p>
-      </div>
-
-      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-          Seasonal Indicators
-        </p>
-        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
-          Analyses the image for environmental cues — vegetation greenness, snow coverage,
-          and overall warmth — to estimate the probable season at the claimed location.
-          The result is compared against the expected season for the date and coordinates
-          in the metadata, flagging implausible combinations such as a claimed December date
-          with full summer foliage in a temperate location.
-        </p>
-      </div>
-
-      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
           Diffusion Model Artefacts
         </p>
         <p class="text-sm text-flint dark:text-flint-light leading-relaxed">

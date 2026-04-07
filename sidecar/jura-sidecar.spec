@@ -213,16 +213,16 @@ hiddenimports += [
     "app.services.clahe",
     "app.services.frequency_visualisation",
     "app.services.jpeg_grid",
-    "app.services.weather_check",
     "app.services.diffusion_artefacts",
-    "app.services.seasonal_indicators",
     "app.services.roi_analysis",
     "app.services.gan_fingerprint",
 
     # scipy submodule used by gan_fingerprint.py
     "scipy.ndimage",
 
-    # certifi — SSL CA bundle for outbound HTTPS (weather_check)
+    # certifi — SSL CA bundle bundled by httpx; retained even though all
+    # outbound httpx calls are to 127.0.0.1, because httpx imports certifi
+    # at module load time regardless of target host.
     "certifi",
 
     # ── App framework modules ─────────────────────────────────────────────────

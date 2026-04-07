@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, DiffusionArtefactsResult, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, RoiAnalysisResult, SeasonalIndicatorsResult, SidecarHealth, SimilarAsset, SolarPosition, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult, WeatherCheckResult } from './types';
+import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, DiffusionArtefactsResult, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, RoiAnalysisResult, SidecarHealth, SimilarAsset, SolarPosition, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -925,86 +925,6 @@ export async function estimateShadowTime(
     day,
     shadowAzimuth,
   });
-}
-
-/**
- * Check historical weather conditions for a GPS coordinate and date
- * using the Open-Meteo archive API.
- *
- * This is an opt-in network request — the caller must obtain user consent
- * before calling this function, as it sends coordinates and a date to an
- * external service.
- *
- * @param lat    GPS latitude in decimal degrees.
- * @param lon    GPS longitude in decimal degrees.
- * @param year   Year (e.g. 2024).
- * @param month  Month (1–12).
- * @param day    Day of month (1–31).
- */
-export async function checkHistoricalWeather(
-  lat: number,
-  lon: number,
-  year: number,
-  month: number,
-  day: number,
-): Promise<WeatherCheckResult> {
-  if (isTauri) {
-    try {
-      return await invoke<WeatherCheckResult>('check_historical_weather', {
-        latitude: lat,
-        longitude: lon,
-        year,
-        month,
-        day,
-      });
-    } catch {
-      // Command not yet registered — fall through to browser mock
-    }
-  }
-  // Browser mock
-  return {
-    available: true,
-    date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-    latitude: lat,
-    longitude: lon,
-    temperatureMaxC: 18.4,
-    temperatureMinC: 11.2,
-    precipitationMm: 0.0,
-    rainMm: 0.0,
-    snowfallCm: 0.0,
-    maxWindKmh: 14.5,
-    weatherCode: 1,
-    weatherDescription: 'Mainly clear',
-    source: 'Open-Meteo Archive API (mock)',
-    disclaimer: 'Historical weather data is approximate and provided for investigative context only.',
-  };
-}
-
-/**
- * Analyse seasonal indicators (vegetation, snow, warmth) in a local image file.
- *
- * Posts the image to the sidecar's `/forensics/seasonal-indicators` endpoint.
- * Returns estimated season, confidence, and a list of supporting indicators.
- *
- * @param filePath  Absolute path to the image file.
- */
-export async function analyseSeasonalIndicators(filePath: string): Promise<SeasonalIndicatorsResult> {
-  if (isTauri) {
-    try {
-      return await invoke<SeasonalIndicatorsResult>('analyse_seasonal_indicators', { filePath });
-    } catch {
-      // Command not yet registered — fall through to browser mock
-    }
-  }
-  // Browser mock
-  return {
-    greennessIndex: 0.42,
-    snowCoverage: 0.03,
-    warmthIndex: 0.61,
-    estimatedSeason: 'Summer',
-    confidence: 0.74,
-    indicators: ['High greenness index', 'Low snow coverage', 'Warm colour temperature'],
-  };
 }
 
 /**
