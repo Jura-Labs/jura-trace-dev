@@ -214,7 +214,7 @@ _classifier_loaded = False
 
 
 _DEEPFAKE_CLASSIFIER_SHA256 = (
-    "6905de5bfc0258aa574fbd3d0dc7521354822640bc5d17e2827d9f736eb7e7ae"
+    "35757d642bc4608c6557527bfeaa7b6a6a748a2063387c664a8cfc5daaca7a80"
 )
 
 

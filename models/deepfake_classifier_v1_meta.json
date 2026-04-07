@@ -1,8 +1,8 @@
 {
-  "trained_at": "2026-04-07T11:21:24.871166",
-  "n_samples": 9658,
-  "n_authentic": 4673,
-  "n_ai_generated": 4985,
+  "trained_at": "2026-04-07T01:29:22.858483",
+  "n_samples": 6290,
+  "n_authentic": 2873,
+  "n_ai_generated": 3417,
   "n_features": 80,
   "feature_names": [
     "spectral_decay_beta",
@@ -87,7 +87,7 @@
     "demosaic_peak_strength"
   ],
   "cv_folds": 5,
-  "cv_auc_roc": 0.9885,
+  "cv_auc_roc": 0.9841,
   "model_params": {
     "n_estimators": 200,
     "max_depth": 4,
@@ -97,64 +97,64 @@
   },
   "top_features": [
     {
-      "name": "lsb_randomness",
-      "importance": 0.2347
+      "name": "lsb_entropy_mean",
+      "importance": 0.2
     },
     {
       "name": "blocking_strength",
-      "importance": 0.1266
+      "importance": 0.1943
     },
     {
-      "name": "lsb_entropy_mean",
-      "importance": 0.1235
-    },
-    {
-      "name": "noise_mean_abs",
-      "importance": 0.0957
+      "name": "lsb_randomness",
+      "importance": 0.1339
     },
     {
       "name": "az_var_band_0",
-      "importance": 0.0831
-    },
-    {
-      "name": "cross_channel_noise_corr_mean",
-      "importance": 0.0505
+      "importance": 0.105
     },
     {
       "name": "lbp_var",
-      "importance": 0.0444
+      "importance": 0.0328
     },
     {
-      "name": "color_corr_rg",
-      "importance": 0.0241
+      "name": "cross_channel_noise_corr_mean",
+      "importance": 0.0313
+    },
+    {
+      "name": "noise_mean_abs",
+      "importance": 0.0236
     },
     {
       "name": "hf_to_mf_ratio",
-      "importance": 0.024
-    },
-    {
-      "name": "glcm_energy_std",
-      "importance": 0.0153
-    },
-    {
-      "name": "color_g_skew",
-      "importance": 0.0119
-    },
-    {
-      "name": "noise_autocorr_v1",
-      "importance": 0.0098
+      "importance": 0.0221
     },
     {
       "name": "az_var_band_1",
-      "importance": 0.008
+      "importance": 0.02
     },
     {
-      "name": "noise_skewness",
-      "importance": 0.0076
+      "name": "color_g_mean",
+      "importance": 0.0195
     },
     {
-      "name": "color_r_skew",
-      "importance": 0.0072
+      "name": "multiscale_gradient_ratio",
+      "importance": 0.0177
+    },
+    {
+      "name": "noise_autocorr_d1",
+      "importance": 0.0116
+    },
+    {
+      "name": "glcm_energy_std",
+      "importance": 0.0109
+    },
+    {
+      "name": "color_b_std",
+      "importance": 0.0096
+    },
+    {
+      "name": "noise_autocorr_v1",
+      "importance": 0.0086
     }
   ]
 }
