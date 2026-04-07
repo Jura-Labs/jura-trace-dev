@@ -171,6 +171,33 @@ pub struct DeepfakeResult {
     pub classifier_available: bool,
 }
 
+/// CLIP-based AI image detection result (UnivFD probe + zero-shot classifier).
+///
+/// Returned by the sidecar's `/forensics/clip-detect` endpoint. Surfaced to
+/// the frontend as the "CLIP Classification" section in Expert View. Only
+/// populated when the optional CLIP model is installed in the sidecar
+/// environment (`open_clip` and ViT-B/32 weights).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ClipDetectionResult {
+    pub score: f64,
+    #[serde(default, alias = "verdict_level")]
+    pub verdict_level: String,
+    pub confidence: String,
+    /// Per-class probabilities. Frontend type calls this `classProbs`.
+    #[serde(rename = "classProbs", alias = "class_probabilities")]
+    pub class_probs: std::collections::HashMap<String, f64>,
+    pub summary: String,
+    #[serde(default, alias = "model_available")]
+    pub model_available: bool,
+    #[serde(default, alias = "model_name")]
+    pub model_name: String,
+    #[serde(default, alias = "univfd_score")]
+    pub univfd_score: Option<f64>,
+    #[serde(default, alias = "univfd_available")]
+    pub univfd_available: bool,
+}
+
 /// NPR (Neighbouring Pixel Relationships) analysis result.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -779,6 +806,37 @@ impl SidecarClient {
 
         resp.json::<DeepfakeResult>()
             .map_err(|e| format!("Failed to parse deepfake response: {e}"))
+    }
+
+    /// Run CLIP-based AI image classification on an image file.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/clip-detect`.
+    /// Returns a structured result including the UnivFD probe score, the
+    /// zero-shot CLIP classification, and per-class probabilities.
+    ///
+    /// If the optional CLIP model is not installed in the sidecar environment,
+    /// the response will have `model_available=false` and a neutral score.
+    /// The endpoint always returns HTTP 200 so the frontend can render a
+    /// graceful degradation message.
+    pub fn detect_clip(&self, image_path: &Path) -> Result<ClipDetectionResult, String> {
+        let form = self.build_image_form(image_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/clip-detect", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(30))
+            .send()
+            .map_err(|e| format!("Sidecar clip-detect request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!("Sidecar clip-detect returned {status}: {body}"));
+        }
+
+        resp.json::<ClipDetectionResult>()
+            .map_err(|e| format!("Failed to parse clip-detect response: {e}"))
     }
 
     /// Run Neighbouring Pixel Relationships analysis on an image file.

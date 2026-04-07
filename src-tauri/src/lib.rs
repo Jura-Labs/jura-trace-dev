@@ -119,6 +119,9 @@ pub struct VerificationResult {
     pub noise_result: Option<sidecar::NoiseResult>,
     pub copy_move_result: Option<sidecar::CopyMoveResult>,
     pub deepfake_result: Option<sidecar::DeepfakeResult>,
+    /// CLIP-based AI classification result (UnivFD probe + zero-shot classifier).
+    /// Only populated when the optional CLIP model is installed in the sidecar.
+    pub clip_result: Option<sidecar::ClipDetectionResult>,
     pub npr_result: Option<sidecar::NprResult>,
     pub jpeg_ghost_result: Option<sidecar::JpegGhostResult>,
     pub ca_result: Option<sidecar::CaResult>,
@@ -1230,100 +1233,136 @@ fn verify_content_inner(
     // and avoids the overhead of a separate thread pool. Each thread
     // receives a cheap `SidecarClient::clone()` (Arc-based connection pool)
     // and an owned `PathBuf`.
-    let (ela_score, ela_result, deepfake_score, deepfake_result, watermark_extract_result) =
-        if sidecar_up {
-            let t_standard = std::time::Instant::now();
+    let (
+        ela_score,
+        ela_result,
+        deepfake_score,
+        deepfake_result,
+        watermark_extract_result,
+        clip_result,
+    ) = if sidecar_up {
+        let t_standard = std::time::Instant::now();
 
-            let ela_path = path.to_path_buf();
-            let df_path = path.to_path_buf();
-            let wm_path = path.to_path_buf();
-            let ela_client = app.sidecar.clone();
-            let df_client = app.sidecar.clone();
-            let wm_client = app.sidecar.clone();
-            let mime = info.mime_type.clone();
+        let ela_path = path.to_path_buf();
+        let df_path = path.to_path_buf();
+        let wm_path = path.to_path_buf();
+        let clip_path = path.to_path_buf();
+        let ela_client = app.sidecar.clone();
+        let df_client = app.sidecar.clone();
+        let wm_client = app.sidecar.clone();
+        let clip_client = app.sidecar.clone();
+        let mime = info.mime_type.clone();
 
-            let (ela_out, df_out, wm_out) = std::thread::scope(|s| {
-                let ela_h = s.spawn(move || {
-                    let t = std::time::Instant::now();
-                    let r = ela_client.analyse_ela(&ela_path);
-                    log::info!("PERF: ELA took {:?}", t.elapsed());
-                    r
-                });
-                let df_h = s.spawn(move || {
-                    let t = std::time::Instant::now();
-                    let r = df_client.detect_deepfake(
-                        &df_path,
-                        &mime,
-                        has_camera_exif,
-                        camera_authenticity_bonus,
-                    );
-                    log::info!("PERF: deepfake took {:?}", t.elapsed());
-                    r
-                });
-                let wm_h = s.spawn(move || {
-                    let t = std::time::Instant::now();
-                    let r = wm_client.check_watermark_extract(&wm_path);
-                    log::info!("PERF: watermark extraction took {:?}", t.elapsed());
-                    r
-                });
-                (ela_h.join(), df_h.join(), wm_h.join())
+        let (ela_out, df_out, wm_out, clip_out) = std::thread::scope(|s| {
+            let ela_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = ela_client.analyse_ela(&ela_path);
+                log::info!("PERF: ELA took {:?}", t.elapsed());
+                r
             });
+            let df_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = df_client.detect_deepfake(
+                    &df_path,
+                    &mime,
+                    has_camera_exif,
+                    camera_authenticity_bonus,
+                );
+                log::info!("PERF: deepfake took {:?}", t.elapsed());
+                r
+            });
+            let wm_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = wm_client.check_watermark_extract(&wm_path);
+                log::info!("PERF: watermark extraction took {:?}", t.elapsed());
+                r
+            });
+            let clip_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = clip_client.detect_clip(&clip_path);
+                log::info!("PERF: CLIP detection took {:?}", t.elapsed());
+                r
+            });
+            (ela_h.join(), df_h.join(), wm_h.join(), clip_h.join())
+        });
 
-            log::info!(
-                "PERF: standard group (ELA + deepfake + watermark, parallel) took {:?}",
-                t_standard.elapsed()
-            );
+        log::info!(
+            "PERF: standard group (ELA + deepfake + watermark + CLIP, parallel) took {:?}",
+            t_standard.elapsed()
+        );
 
-            let (ela_score, ela_result) = match ela_out {
-                Ok(Ok(r)) => {
-                    let score = r.score;
-                    (Some(score), Some(r))
-                }
-                Ok(Err(e)) => {
-                    log::warn!("Sidecar ELA failed: {e}");
-                    (None, None)
-                }
-                Err(_) => {
-                    log::warn!("Sidecar ELA thread panicked");
-                    (None, None)
-                }
-            };
-            let (deepfake_score, deepfake_result) = match df_out {
-                Ok(Ok(r)) => {
-                    let score = r.score;
-                    (Some(score), Some(r))
-                }
-                Ok(Err(e)) => {
-                    log::warn!("Sidecar deepfake detection failed: {e}");
-                    (None, None)
-                }
-                Err(_) => {
-                    log::warn!("Sidecar deepfake thread panicked");
-                    (None, None)
-                }
-            };
-            let watermark_extract_result = match wm_out {
-                Ok(Ok(r)) => Some(r),
-                Ok(Err(e)) => {
-                    log::warn!("Sidecar watermark extraction failed: {e}");
-                    None
-                }
-                Err(_) => {
-                    log::warn!("Sidecar watermark extract thread panicked");
-                    None
-                }
-            };
-
-            (
-                ela_score,
-                ela_result,
-                deepfake_score,
-                deepfake_result,
-                watermark_extract_result,
-            )
-        } else {
-            (None, None, None, None, None)
+        let (ela_score, ela_result) = match ela_out {
+            Ok(Ok(r)) => {
+                let score = r.score;
+                (Some(score), Some(r))
+            }
+            Ok(Err(e)) => {
+                log::warn!("Sidecar ELA failed: {e}");
+                (None, None)
+            }
+            Err(_) => {
+                log::warn!("Sidecar ELA thread panicked");
+                (None, None)
+            }
         };
+        let (deepfake_score, deepfake_result) = match df_out {
+            Ok(Ok(r)) => {
+                let score = r.score;
+                (Some(score), Some(r))
+            }
+            Ok(Err(e)) => {
+                log::warn!("Sidecar deepfake detection failed: {e}");
+                (None, None)
+            }
+            Err(_) => {
+                log::warn!("Sidecar deepfake thread panicked");
+                (None, None)
+            }
+        };
+        let watermark_extract_result = match wm_out {
+            Ok(Ok(r)) => Some(r),
+            Ok(Err(e)) => {
+                log::warn!("Sidecar watermark extraction failed: {e}");
+                None
+            }
+            Err(_) => {
+                log::warn!("Sidecar watermark extract thread panicked");
+                None
+            }
+        };
+        // CLIP detection — gracefully degrade if the optional model is missing.
+        // The endpoint always returns HTTP 200 with model_available=false in
+        // that case, so a parse error here means something else went wrong.
+        let clip_result = match clip_out {
+            Ok(Ok(r)) => {
+                if r.model_available {
+                    Some(r)
+                } else {
+                    log::info!("CLIP detection: model not installed (graceful skip)");
+                    None
+                }
+            }
+            Ok(Err(e)) => {
+                log::warn!("Sidecar CLIP detection failed: {e}");
+                None
+            }
+            Err(_) => {
+                log::warn!("Sidecar CLIP thread panicked");
+                None
+            }
+        };
+
+        (
+            ela_score,
+            ela_result,
+            deepfake_score,
+            deepfake_result,
+            watermark_extract_result,
+            clip_result,
+        )
+    } else {
+        (None, None, None, None, None, None)
+    };
 
     // ── Deep parallel group ──────────────────────────────────────────────
     // Nine detectors run concurrently when in deep/archival mode.
@@ -1948,6 +1987,7 @@ fn verify_content_inner(
         noise_result,
         copy_move_result,
         deepfake_result,
+        clip_result,
         npr_result,
         jpeg_ghost_result,
         ca_result,
@@ -4499,6 +4539,7 @@ mod tests {
             noise_result: None,
             copy_move_result: None,
             deepfake_result: None,
+            clip_result: None,
             npr_result: None,
             jpeg_ghost_result: None,
             ca_result: None,
