@@ -156,6 +156,20 @@ FEATURE_NAMES: list[str] = [
     # _extract_demosaicing_traces (lossless-only, 2)
     "demosaic_peak_count",
     "demosaic_peak_strength",
+    # ── Sprint 29 Track 3 — camera ISP vs VAE discriminators (4) ────────
+    # These four features are appended AFTER all 80 original features so
+    # that existing GBM v4 models (trained on features[0:80]) remain valid.
+    # At inference time the classifier's ``n_features_in_`` attribute is
+    # checked; if it is 80 the vector is trimmed to the first 80 values
+    # before calling ``predict_proba``.  New models retrained on all 84
+    # features will set ``n_features_in_ = 84`` and receive the full vector.
+    # _extract_noise_lf_hf_ratio (1)
+    "noise_lf_hf_ratio",
+    # _extract_demosaic_inter_channel_coherence (1)
+    "demosaic_inter_channel_coherence",
+    # _extract_noise_anisotropy (2)
+    "noise_anisotropy_mean",
+    "noise_anisotropy_std",
 ]
 
 
@@ -204,6 +218,11 @@ def extract_features_for_training(
     if codec_class == "lossless":
         features.update(_extract_bitplane_regularity(grey))
         features.update(_extract_demosaicing_traces(img_bgr))
+
+    # Sprint 29 Track 3 — camera ISP vs VAE discriminators (appended last)
+    features.update(_extract_noise_lf_hf_ratio(grey))
+    features.update(_extract_demosaic_inter_channel_coherence(img_bgr))
+    features.update(_extract_noise_anisotropy(grey))
 
     return features, codec_class
 
@@ -803,6 +822,11 @@ def _perform_deepfake_detection_impl(
         features.update(_extract_bitplane_regularity(grey))
         features.update(_extract_demosaicing_traces(img_bgr))
 
+    # Sprint 29 Track 3 — camera ISP vs VAE discriminators (appended last)
+    features.update(_extract_noise_lf_hf_ratio(grey))
+    features.update(_extract_demosaic_inter_channel_coherence(img_bgr))
+    features.update(_extract_noise_anisotropy(grey))
+
     # Score via heuristic ensemble with codec-aware thresholds
     heuristic_score, signals = _heuristic_score(
         features, codec_class, has_camera_exif=has_camera_exif,
@@ -817,6 +841,15 @@ def _perform_deepfake_detection_impl(
             vec = extract_feature_vector(features)
             import numpy as _np
             vec_clean = [0.0 if _np.isnan(v) else v for v in vec]
+            # Backwards-compatibility: GBM v4 was trained on 80 features.
+            # If the model's expected input width is smaller than the current
+            # vector (84 with Sprint 29 Track 3 additions), trim to the model's
+            # width so old checkpoints are not broken.  New v5+ models trained
+            # on all 84 features will have n_features_in_ == 84 and receive the
+            # full vector.
+            expected = getattr(clf, "n_features_in_", len(vec_clean))
+            if expected < len(vec_clean):
+                vec_clean = vec_clean[:expected]
             proba = clf.predict_proba([vec_clean])[0]
             # proba[1] = probability of class 1 (ai_generated)
             classifier_score = float(proba[1])
@@ -1565,6 +1598,174 @@ def _extract_demosaicing_traces(img_bgr: np.ndarray) -> dict[str, float]:
         }
     except Exception:
         return {"demosaic_peak_count": 8.0, "demosaic_peak_strength": 100.0}
+
+
+# ── Sprint 29 Track 3: camera ISP vs VAE discriminators ──────────────────
+#
+# These three functions extract 4 features that help separate computational
+# photography output (Pixel HDR+, iPhone Deep Fusion, DJI drone ISPs) from
+# VAE-decoded / diffusion-model images, which both share an unusually smooth
+# noise floor that confuses the GBM classifier.
+#
+# They are intentionally appended AFTER all 80 original features so that GBM
+# v4 (trained on 80 features) can be loaded and used without modification —
+# see the backwards-compatibility trim in the classifier blending section.
+
+
+def _extract_noise_lf_hf_ratio(grey: np.ndarray) -> dict[str, float]:
+    """Sprint 29 Track 3, Feature 1: noise LF/HF band-power ratio.
+
+    Separates the bilateral-filter noise residual into low-frequency (LF) and
+    high-frequency (HF) radial FFT bands and returns their power ratio.
+
+    Interpretation:
+        - Real camera photos: high ratio (computational denoising suppresses HF
+          sensor read noise but preserves LF noise structure from lens/scene).
+        - AI generators: low ratio (VAE decoder suppresses BOTH bands).
+        - Flat/smooth synthetics: also low ratio.
+
+    Guard: returns NaN for images smaller than 64px in either dimension.
+    """
+    try:
+        h, w = grey.shape[:2]
+        if h < 64 or w < 64:
+            return {"noise_lf_hf_ratio": float("nan")}
+
+        luma = grey.astype(np.float32)
+        # Bilateral filter on uint8 input; result back to float
+        denoised = cv2.bilateralFilter(
+            luma.astype(np.uint8), d=9, sigmaColor=75, sigmaSpace=75
+        ).astype(np.float32)
+        residual = luma - denoised
+
+        # 2D FFT of the noise residual; shift zero-frequency to centre
+        f_shift = np.fft.fftshift(np.fft.fft2(residual.astype(np.float64)))
+        power = np.abs(f_shift) ** 2
+
+        cy, cx = h // 2, w // 2
+        max_r = min(cy, cx)
+
+        # Build a radial distance map from the centre
+        yy, xx = np.ogrid[:h, :w]
+        r_map = np.sqrt((yy - cy) ** 2 + (xx - cx) ** 2) / (max_r + 1e-10)
+
+        lf_mask = r_map <= 0.15
+        hf_mask = (r_map >= 0.30) & (r_map <= 0.50)
+
+        lf_power = float(np.sum(power[lf_mask]))
+        hf_power = float(np.sum(power[hf_mask]))
+
+        ratio = lf_power / (hf_power + 1e-10)
+        return {"noise_lf_hf_ratio": ratio}
+    except Exception:
+        return {"noise_lf_hf_ratio": float("nan")}
+
+
+def _extract_demosaic_inter_channel_coherence(img_bgr: np.ndarray) -> dict[str, float]:
+    """Sprint 29 Track 3, Feature 2: inter-channel demosaicing coherence.
+
+    Measures the Pearson correlation of per-channel FFT magnitude maps in a
+    small neighbourhood around the Bayer demosaicing frequency (h/2, w/2).
+
+    Interpretation:
+        - Real cameras (Bayer sensor): all three channels carry a coherent
+          demosaicing artefact → high pairwise correlation (~0.7–0.95).
+        - AI generators (no sensor history): the per-channel FFT peaks are
+          uncorrelated noise → low correlation (~0.0–0.3).
+
+    Guard: returns NaN for single-channel or <64px images.
+    """
+    try:
+        if img_bgr.ndim < 3 or img_bgr.shape[2] < 3:
+            return {"demosaic_inter_channel_coherence": float("nan")}
+        h, w = img_bgr.shape[:2]
+        if h < 64 or w < 64:
+            return {"demosaic_inter_channel_coherence": float("nan")}
+
+        half_win = 8  # sample a 17×17 region around the Bayer frequency
+        cy, cx = h // 2, w // 2
+
+        channel_patches: list[np.ndarray] = []
+        for ch_idx in range(3):
+            ch = img_bgr[:, :, ch_idx].astype(np.float64)
+            f_shift = np.fft.fftshift(np.abs(np.fft.fft2(ch)))
+            y0 = max(cy - half_win, 0)
+            y1 = min(cy + half_win + 1, h)
+            x0 = max(cx - half_win, 0)
+            x1 = min(cx + half_win + 1, w)
+            patch = f_shift[y0:y1, x0:x1].flatten()
+            channel_patches.append(patch)
+
+        # Ensure equal lengths (shouldn't differ but guard anyway)
+        min_len = min(len(p) for p in channel_patches)
+        if min_len < 4:
+            return {"demosaic_inter_channel_coherence": float("nan")}
+        r_patch, g_patch, b_patch = [p[:min_len] for p in channel_patches]
+
+        corr_rg = _safe_corrcoef(r_patch, g_patch)
+        corr_gb = _safe_corrcoef(g_patch, b_patch)
+        corr_rb = _safe_corrcoef(r_patch, b_patch)
+
+        coherence = float(np.mean([corr_rg, corr_gb, corr_rb]))
+        return {"demosaic_inter_channel_coherence": coherence}
+    except Exception:
+        return {"demosaic_inter_channel_coherence": float("nan")}
+
+
+def _extract_noise_anisotropy(grey: np.ndarray) -> dict[str, float]:
+    """Sprint 29 Track 3, Features 3–4: directional noise anisotropy.
+
+    Divides the bilateral-filter noise residual into a 4×4 grid and computes
+    the log horizontal-to-vertical variance ratio per cell.  Returns the mean
+    and std of those 16 values.
+
+    Interpretation:
+        - Real sensor noise has a weak row/column readout correlation that
+          creates slight directional asymmetry (non-zero mean, modest std).
+        - AI noise is isotropic (mean ≈ 0 in log space, low std).
+        - Computational photography preserves the row/column pattern.
+
+    Guard: returns NaN when the image is too small for a 4×4 grid.
+    """
+    try:
+        h, w = grey.shape[:2]
+        if h < 64 or w < 64:
+            return {"noise_anisotropy_mean": float("nan"), "noise_anisotropy_std": float("nan")}
+
+        luma = grey.astype(np.float32)
+        denoised = cv2.bilateralFilter(
+            luma.astype(np.uint8), d=9, sigmaColor=75, sigmaSpace=75
+        ).astype(np.float32)
+        residual = (luma - denoised).astype(np.float64)
+
+        cell_h = h // 4
+        cell_w = w // 4
+        aniso_values: list[float] = []
+
+        for row in range(4):
+            for col in range(4):
+                cell = residual[
+                    row * cell_h : (row + 1) * cell_h,
+                    col * cell_w : (col + 1) * cell_w,
+                ]
+                if cell.size < 4:
+                    continue
+                # Finite-difference variance in each axis
+                h_var = float(np.var(np.diff(cell, axis=1)))
+                v_var = float(np.var(np.diff(cell, axis=0)))
+                # Log ratio to symmetrise around zero
+                log_ratio = math.log(h_var / (v_var + 1e-10) + 1e-10)
+                aniso_values.append(log_ratio)
+
+        if len(aniso_values) < 2:
+            return {"noise_anisotropy_mean": float("nan"), "noise_anisotropy_std": float("nan")}
+
+        return {
+            "noise_anisotropy_mean": float(np.mean(aniso_values)),
+            "noise_anisotropy_std": float(np.std(aniso_values)),
+        }
+    except Exception:
+        return {"noise_anisotropy_mean": float("nan"), "noise_anisotropy_std": float("nan")}
 
 
 def _extract_saturation_luminance(img_bgr: np.ndarray) -> dict[str, float]:
