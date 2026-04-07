@@ -6,6 +6,75 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 7 April 2026 — DEC-2026-04-07-001: Option C Corpus Strategy Adopted
+
+### Decision
+
+**Adopted:** Option C — single commercial-safe production model deployed to all Jura Trace tiers (Community, Professional, Team, Enterprise), with a separate research artefact under OpenRAIL-M for academic and human rights research use.
+
+**Rejected:** the previously-proposed two-model strategy of maintaining separate research and commercial production model variants.
+
+### Rationale
+
+Synthesis of four parallel agent reviews (legal-compliance-advisor, ml-data-scientist, project-manager, grant-writer) on 7 April 2026 converged on Option C as the lowest-legal-risk, lowest-operational-cost, highest-grant-credibility approach. Annual operational cost drops from £5,000–6,500 (two-model) to £2,000–4,000 (Option C). Removes Enterprise procurement objection ("why is my paid tier weaker?"). Resolves Mozilla Democracy x AI 2027 open-source eligibility via the OpenRAIL-M research artefact. Strengthens EMIF August 2026 narrative.
+
+### Architectural Requirements
+
+- **Filesystem segregation:** corpus split into `production/` (commercial-safe) and `research/` (research-licensed) paths
+- **Training script firewall:** denylist enforcement; refuses to train production model on any file matching a research-licensed dataset hash
+- **Model card declaration:** every production model card must state the Option C commitment
+- **Research artefact lifecycle:** standalone download, separate model registry path, never bundled with the application binary, OpenRAIL-M licensed with Responsible Use Statement
+
+### Constraints Recognised
+
+- **MLAAD CC-BY-NC ambiguity:** v9 is CC-BY-NC 4.0; commercial-tier deployment under that licence is legally ambiguous. Resolution path: write to Fraunhofer AISEC (MLAAD authors) for explicit case-by-case commercial permission. Until granted, MLAAD is treated as research-only.
+- **EU GDPR Article 27 Representative:** escalated to URGENT given EU training data sources (MLAAD, ASVspoof 5)
+- **Datasets dropped:** VoxCeleb (institutional friction), In-the-Wild audio (GDPR Article 9 biometric exposure on identifiable politicians and celebrities)
+- **Never used:** Mtechlaw/TfGBV-Grok-NCII-Dataset (non-consensual content)
+
+### Documents
+
+**Added**
+- `docs/decisions/option-c-corpus-strategy.md` — formal decision memo (DEC-2026-04-07-001) with full rationale, architectural requirements, financial impact, implementation plan, and Responsible Use Statement appendix
+- `docs/av-corpus-revised-proposition.md` — four-agent synthesis document with revised propositions covering corpus, audio architecture (W2V2-Base + MFCC ensemble, not XLS-R-300M), audio corpus targets (22K + 20K, not 5K + 5K), face-swap limitation disclosure, DeepFake-Eval-2024 zero-shot benchmark protocol, and Plane mutations
+
+**Updated**
+- `docs/av-corpus-methodology.md` — status changed to "PARTIALLY SUPERSEDED"; sections 3, 5.3, 6, 8, 10, 11 superseded by revised proposition and decision memo
+- `docs/sprint-plans/tried-compliance-roadmap.md` — sprint range extended to 27–36 (added Sprints 35 audio detector and 36 EMIF/finalisation); Option C binding statement added at top
+
+### Cost Impact
+
+| Item | Two-model (rejected) | Option C (adopted) | Delta |
+|---|---|---|---|
+| Annual operational cost | £5,000–6,500 | £2,000–4,000 | −£3,000–2,500/year |
+| Documentation burden | 2× model cards, 2× help system, 2× tier logic | 1× production card, 1× research artefact (separate lifecycle) | ~50% reduction |
+| QA paths per release | 12 | 6 | 50% reduction |
+| Contract breach exposure | Moderate | Low | Significant reduction |
+
+**One-off costs to enable Option C:** £700–1,800 (D&O insurance £500–800/year + solicitor bundle £200–1,000 + filesystem migration £0). Funded via UnLtd Starting Up Award budget under "pre-trading governance and legal review" line items.
+
+### Implementation Sequence
+
+| Sprint | Implementation step |
+|---|---|
+| 27 (current) | Decision memo published; methodology doc updated; D&O insurance quotes; research form submissions; Fraunhofer AISEC outreach for MLAAD commercial permission |
+| 28 | Filesystem migration to production/research segregation |
+| 30 | Video test set assembly using research/video/ for FF++/Celeb-DF |
+| 31 | Training script firewall implementation; solicitor engagement for OpenRAIL-M drafting |
+| 32 | TRIED self-assessment cites Option C as governance commitment |
+| 33 | Audio corpus download split per dataset licence |
+| 35 (NEW) | Audio detector v1.1 production model trained on commercial-safe audio only |
+| 36 (NEW) | EMIF application cites Option C as core methodology commitment |
+
+### Approval
+
+- **Decided by:** Paul Griffiths, Director, Juralabs Community Interest Company
+- **Decision ID:** DEC-2026-04-07-001
+- **Effective:** 7 April 2026
+- **Next review:** Sprint 36 (August 2026) at EMIF application finalisation
+
+---
+
 ## 7 April 2026 — Sprint 30 Corpus Expansion: 10,091 Images
 
 ### Corpus to 10,000 Target Met
@@ -62,6 +131,64 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - GBM retrain on 10,091-image corpus (Sprint 30 remaining work, S30-03)
 - Model card updates with new corpus statistics (S30-05)
 - Demographic bias audit (Sprint 29, depends on expanded corpus)
+
+---
+
+## 7 April 2026 — GBM v4 + UnivFD v8 Production
+
+### GBM Deepfake Classifier: v4 Promoted
+
+**Three retrains on 7 April 2026, culminating in v4 (commit 0857764).**
+
+| Version | Corpus | AUC-ROC | FP Rate | Recall | Notes |
+|---|---|---|---|---|---|
+| v2 (baseline) | 9,658 | 0.9885 | 4.81% | 93.90% | Pre-session baseline |
+| v3 | 10,721 | 0.9863 | 4.67% | 92.50% | Added COCO train + audited Wikimedia restored |
+| v4 (production) | 10,709 | 0.9868 | 4.54% | 92.52% | Wikimedia re-audit removed 12 outliers |
+
+**v4 production metrics**
+- Corpus: 10,709 images (5,724 authentic + 4,985 AI), 14 generator families
+- AUC-ROC: 0.9868 (5-fold cross-validation)
+- Authentic FP rate: 4.54%
+- AI detection rate (recall): 92.52%
+- Calibrated threshold: 0.49 (FP 4.79%, recall 92.68%)
+- File: `models/deepfake_classifier.joblib` (~1.2 MB)
+- SHA-256: `2931f197cba6f376e85b1cbcfd584e6802f36e4fbf68ff00c83d61d4d655db18`
+
+**Wikimedia re-audit (v3 → v4):** 12 outliers removed — cartoons, microscope slides, album artwork, studio composites, and underwater photography. These are non-photographic or controlled-lighting images that distorted the authentic decision boundary.
+
+### UnivFD Linear Probe: v8 Promoted
+
+| Version | Corpus | AUC-ROC | FP Rate | Recall |
+|---|---|---|---|---|
+| v6 | 6,009 | 0.9929 | 2.7% | 95.2% |
+| v7 | 10,724 | 0.9909 | 4.91% | 96.03% |
+| v8 (production) | 10,712 | 0.9911 | 5.01% | 96.01% |
+
+**v8 production metrics**
+- Corpus: 10,712 images (5,727 authentic + 4,985 AI)
+- AUC-ROC: 0.9911 (5-fold cross-validation)
+- Authentic FP rate: 5.01%
+- AI detection rate (recall): 96.01%
+- File: `models/univfd_probe.joblib` (4.8 KB)
+- SHA-256: `d16fb22baf3981d62888e2458733c1a4c0743a5895470d82e9de76766f776908`
+
+### MakerNote Authenticity Bonus (commit 476f265)
+
+**Added** to `src-tauri/src/exif_anomaly.rs`: images carrying a `MakerNote` EXIF block receive a trust score bonus during EXIF anomaly analysis. MakerNote data is written by camera firmware and is structurally difficult to fabricate — its presence is a reliable indicator of a real camera capture. This improvement operates at inference time and benefits all existing verified assets without retraining.
+
+Real-world camera FP improvement vs v2 baseline:
+- `camera_consumer` (Pixel/iPhone/PXL): 15.6% → 8.81% (-6.79pp) — cleared 2× bias gate
+- `camera_high_end` (DJI/DSC): 13.5% → 10.32% — still flagged, addressed in Sprint 29 Track 2
+
+### Bias Check Findings (GBM v4)
+
+Top FP sources (descending):
+1. `wikimedia_photos`: 24.80% (n=254) — bulk wildlife/insect macro; addressed in Sprint 29 Track 2 with 200 iNaturalist photographs
+2. `camera_high_end`: 10.32% (n=126) — still flagged
+3. `camera_consumer`: 8.81% (n=295) — cleared
+
+AI generators: all families pass at ≥67% recall. 100% recall: Grok Aurora, ELSA SD, Midjourney v6, SDXL, Gemini Imagen, ArtBench, HF AI. 91.4%: DALL-E 3. 75.8%: Civitai SFW. 67.6%: DiffusionDB (weakest — older SD v1.x outputs).
 
 ---
 

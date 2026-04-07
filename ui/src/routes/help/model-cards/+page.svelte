@@ -87,11 +87,11 @@
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Last trained</dt>
-          <dd class="text-flint dark:text-flint-light">3 April 2026</dd>
+          <dd class="text-flint dark:text-flint-light">7 April 2026</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Version</dt>
-          <dd class="text-flint dark:text-flint-light">2.0</dd>
+          <dd class="text-flint dark:text-flint-light">4.0</dd>
         </div>
       </dl>
     </div>
@@ -113,15 +113,15 @@
       <dl class="space-y-3 text-sm">
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Total images</dt>
-          <dd class="text-flint dark:text-flint-light">709 (326 authentic + 383 AI-generated)</dd>
+          <dd class="text-flint dark:text-flint-light">10,709 (5,724 authentic + 4,985 AI-generated)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Authentic sources</dt>
-          <dd class="text-flint dark:text-flint-light">Guardian press photos, COCO validation set, real camera DCIM photos, Wikimedia Commons photographs</dd>
+          <dd class="text-flint dark:text-flint-light">Guardian press photos, COCO (train + validation), Flickr30k, Flickr8k, real camera DCIM photos, Wikimedia Commons photographs (curated, non-art)</dd>
         </div>
         <div>
-          <dt class="font-medium text-text-light dark:text-quartz">AI-generated sources</dt>
-          <dd class="text-flint dark:text-flint-light">ELSA 1M (Stable Diffusion, DALL-E mix), Gemini Imagen 4, SDXL-Turbo, user-submitted test images</dd>
+          <dt class="font-medium text-text-light dark:text-quartz">AI-generated sources (14 generator families)</dt>
+          <dd class="text-flint dark:text-flint-light">ELSA 1M (Stable Diffusion, DALL-E mix), DiffusionDB, DALL-E 3, Civitai SFW, SDXL-Turbo, Midjourney v6, Gemini Imagen 4, Grok Aurora, ArtBench, HuggingFace AI, and others</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Feature vector</dt>
@@ -143,15 +143,19 @@
         <tbody class="text-flint dark:text-flint-light">
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">AUC-ROC (5-fold cross-validation)</td>
-            <td class="py-2 pr-4 font-mono">1.0000</td>
+            <td class="py-2 pr-4 font-mono">0.9868</td>
           </tr>
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">Authentic false positive rate</td>
-            <td class="py-2 pr-4 font-mono">0%</td>
+            <td class="py-2 pr-4 font-mono">4.54%</td>
           </tr>
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">AI detection rate (recall)</td>
-            <td class="py-2 pr-4 font-mono">100%</td>
+            <td class="py-2 pr-4 font-mono">92.52%</td>
+          </tr>
+          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
+            <td class="py-2 pr-4">Calibrated threshold</td>
+            <td class="py-2 pr-4 font-mono">0.49 (FP 4.79%, recall 92.68%)</td>
           </tr>
           <tr>
             <td class="py-2 pr-4">Cross-validation folds</td>
@@ -165,7 +169,8 @@
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Known Limitations</h3>
     <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
       <li><strong>Minimum image size:</strong> Images below 128&times;128 pixels produce unreliable results. A guard prevents analysis of very small images.</li>
-      <li><strong>Training corpus size:</strong> 709 images is relatively small. Perfect cross-validation scores (AUC 1.0) may indicate the model has learned format-specific artefacts rather than generalisable AI detection features. The format confound (JPEG vs PNG) was addressed in v2.0 by adding authentic PNGs to the training corpus.</li>
+      <li><strong>Wildlife and macro photography:</strong> The <code>wikimedia_photos</code> category shows a 24.80% FP rate (n=254), driven largely by wildlife and insect macro photography. Additional iNaturalist photographs are being added to the training corpus to address this.</li>
+      <li><strong>High-end camera photos:</strong> Images from DJI drones and Sony DSC cameras show a 10.32% FP rate. MakerNote EXIF data provides a partial mitigation at inference time.</li>
       <li><strong>Generator coverage:</strong> May underperform on content from generators released after April 2026 that were not represented in the training set. Quarterly retraining planned.</li>
       <li><strong>Compression sensitivity:</strong> Heavy JPEG compression or multiple re-compression cycles degrade the feature vector quality, reducing reliability.</li>
     </ul>
@@ -187,10 +192,20 @@
             <td class="py-2 pr-4">18 March 2026</td>
             <td class="py-2 pr-4">Initial training. 545 images, AUC 0.945, 14% FP rate.</td>
           </tr>
-          <tr>
+          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4 font-mono">2.0</td>
             <td class="py-2 pr-4">3 April 2026</td>
             <td class="py-2 pr-4">Format confound eliminated (authentic PNGs added). Corpus expanded to 709. AUC 1.000, FP rate 0%.</td>
+          </tr>
+          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
+            <td class="py-2 pr-4 font-mono">3.0</td>
+            <td class="py-2 pr-4">7 April 2026</td>
+            <td class="py-2 pr-4">Corpus expanded to 10,721 (added COCO train set + audited Wikimedia restored). AUC 0.9863, FP 4.67%, recall 92.50%.</td>
+          </tr>
+          <tr>
+            <td class="py-2 pr-4 font-mono">4.0</td>
+            <td class="py-2 pr-4">7 April 2026</td>
+            <td class="py-2 pr-4">Corpus expanded to 10,709 images (14 generator families). Wikimedia re-audit removed 12 outliers (cartoons, microscope, album, studio, underwater). AUC 0.9868, FP 4.54%, recall 92.52%.</td>
           </tr>
         </tbody>
       </table>
@@ -243,7 +258,7 @@
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Version</dt>
-          <dd class="text-flint dark:text-flint-light">6.0</dd>
+          <dd class="text-flint dark:text-flint-light">8.0</dd>
         </div>
       </dl>
     </div>
@@ -266,15 +281,15 @@
       <dl class="space-y-3 text-sm">
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Total images</dt>
-          <dd class="text-flint dark:text-flint-light">6,009 (2,873 authentic + 3,136 AI-generated)</dd>
+          <dd class="text-flint dark:text-flint-light">10,712 (5,727 authentic + 4,985 AI-generated)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Authentic sources</dt>
-          <dd class="text-flint dark:text-flint-light">COCO validation (1,600), Google Photos (828), ImageNet validation (600), CelebA faces (200), camera DCIM photos (59)</dd>
+          <dd class="text-flint dark:text-flint-light">COCO (train + validation), Flickr30k, Flickr8k, Google Photos, ImageNet validation, CelebA faces, camera DCIM photos, Wikimedia Commons photographs (curated, non-art)</dd>
         </div>
         <div>
-          <dt class="font-medium text-text-light dark:text-quartz">AI-generated sources (10+ generator families)</dt>
-          <dd class="text-flint dark:text-flint-light">ELSA 1M / Stable Diffusion (500), DiffusionDB (500), DALL-E 3 (500), Civitai SFW (500), SDXL-Turbo (300), ArtBench (200), Midjourney v6 (150), Gemini Imagen 4 (70), user-submitted (38), and others</dd>
+          <dt class="font-medium text-text-light dark:text-quartz">AI-generated sources (14 generator families)</dt>
+          <dd class="text-flint dark:text-flint-light">ELSA 1M / Stable Diffusion, DiffusionDB, DALL-E 3, Civitai SFW, SDXL-Turbo, ArtBench, Midjourney v6, Gemini Imagen 4, Grok Aurora, HuggingFace AI, and others</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Regularisation</dt>
@@ -296,19 +311,15 @@
         <tbody class="text-flint dark:text-flint-light">
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">AUC-ROC (5-fold cross-validation)</td>
-            <td class="py-2 pr-4 font-mono">0.9929</td>
+            <td class="py-2 pr-4 font-mono">0.9911</td>
           </tr>
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">Authentic false positive rate</td>
-            <td class="py-2 pr-4 font-mono">2.7% (77 / 2,873)</td>
+            <td class="py-2 pr-4 font-mono">5.01%</td>
           </tr>
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">AI detection rate (recall)</td>
-            <td class="py-2 pr-4 font-mono">95.2% (2,987 / 3,136)</td>
-          </tr>
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4">Overall accuracy</td>
-            <td class="py-2 pr-4 font-mono">95.7%</td>
+            <td class="py-2 pr-4 font-mono">96.01%</td>
           </tr>
           <tr>
             <td class="py-2 pr-4">Cross-validation folds</td>
@@ -322,18 +333,18 @@
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Known Limitations</h3>
     <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
       <li><strong>CLIP dependency:</strong> Requires the open_clip ViT-B/32 model (~350 MB). When CLIP is not installed, the probe is unavailable and gracefully skipped.</li>
-      <li><strong>Non-photographic content:</strong> Paintings, digital illustrations, and stylised artwork can produce false positives. Wikimedia art/illustrations were removed from the training corpus after analysis showed a 38% false positive rate on that source.</li>
-      <li><strong>High-end camera photos:</strong> Some images from high-end cameras (DJI drones, Sony DSC series) with very clean noise profiles are occasionally flagged. These represent 18 of the 77 current false positives.</li>
-      <li><strong>COCO/ImageNet edge cases:</strong> 38 of 77 false positives come from COCO and ImageNet images, likely images with unusual compositions or post-processing that overlap with AI-generated CLIP embeddings.</li>
-      <li><strong>Generator coverage:</strong> Trained on 10+ generator families up to April 2026. New generators may produce outputs that fall outside the learned decision boundary. Quarterly retraining planned.</li>
+      <li><strong>Non-photographic content:</strong> Paintings, digital illustrations, and stylised artwork can produce false positives. Wikimedia art/illustrations were removed from the training corpus after analysis showed a high false positive rate on that source.</li>
+      <li><strong>Wildlife and macro photography:</strong> The <code>wikimedia_photos</code> subset (wildlife, insect macro) is the top FP source. Sprint 29 Track 2 is expanding the authentic corpus with iNaturalist photographs to address this.</li>
+      <li><strong>High-end camera photos:</strong> Images from DJI drones and Sony DSC cameras with very clean noise profiles are occasionally flagged. MakerNote EXIF data provides a partial mitigation at inference time.</li>
+      <li><strong>Generator coverage:</strong> Trained on 14 generator families up to April 2026. New generators may produce outputs that fall outside the learned decision boundary. Quarterly retraining planned.</li>
       <li><strong>Demographic bias:</strong> Not yet audited for demographic performance disparities. A demographic bias evaluation is planned (Sprint 29 of the TRIED compliance roadmap).</li>
     </ul>
 
     <!-- Improvement history -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Improvement History</h3>
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
-      The probe's false positive rate was reduced from 28.7% to 2.7% through a
-      systematic four-step process on 6&ndash;7 April 2026:
+      The probe's false positive rate was reduced from 28.7% to 5.01% through iterative corpus
+      expansion and curation across 3&ndash;7 April 2026:
     </p>
     <div class="overflow-x-auto mb-6">
       <table class="w-full text-sm border-collapse">
@@ -364,11 +375,23 @@
             <td class="py-2 pr-4 font-mono">3.7%</td>
             <td class="py-2 pr-4 font-mono">2,826</td>
           </tr>
-          <tr>
-            <td class="py-2 pr-4">Full expansion (10+ generators)</td>
+          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
+            <td class="py-2 pr-4">Expansion to 10+ generators (v6)</td>
             <td class="py-2 pr-4 font-mono">0.9929</td>
             <td class="py-2 pr-4 font-mono">2.7%</td>
             <td class="py-2 pr-4 font-mono">6,009</td>
+          </tr>
+          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
+            <td class="py-2 pr-4">Full 10K corpus expansion (v7)</td>
+            <td class="py-2 pr-4 font-mono">0.9909</td>
+            <td class="py-2 pr-4 font-mono">4.91%</td>
+            <td class="py-2 pr-4 font-mono">10,724</td>
+          </tr>
+          <tr>
+            <td class="py-2 pr-4">Wikimedia re-audit, v8 production</td>
+            <td class="py-2 pr-4 font-mono">0.9911</td>
+            <td class="py-2 pr-4 font-mono">5.01%</td>
+            <td class="py-2 pr-4 font-mono">10,712</td>
           </tr>
         </tbody>
       </table>
@@ -396,10 +419,20 @@
             <td class="py-2 pr-4">4 April 2026</td>
             <td class="py-2 pr-4">Iterative corpus expansion and threshold tuning. Added Gemini, DCIM photos. FP rate reduced to 0% on limited test set.</td>
           </tr>
-          <tr>
+          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4 font-mono">6.0</td>
             <td class="py-2 pr-4">7 April 2026</td>
             <td class="py-2 pr-4">Major corpus expansion to 6,009 images. 10+ generator families. Wikimedia art removed. C=1.0. AUC 0.9929, FP 2.7%.</td>
+          </tr>
+          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
+            <td class="py-2 pr-4 font-mono">7.0</td>
+            <td class="py-2 pr-4">7 April 2026</td>
+            <td class="py-2 pr-4">Corpus expanded to 10,724 images (full 10K target). AUC 0.9909, FP 4.91%, recall 96.03%.</td>
+          </tr>
+          <tr>
+            <td class="py-2 pr-4 font-mono">8.0</td>
+            <td class="py-2 pr-4">7 April 2026</td>
+            <td class="py-2 pr-4">Corpus to 10,712 after Wikimedia re-audit. AUC 0.9911, FP 5.01%, recall 96.01%.</td>
           </tr>
         </tbody>
       </table>
