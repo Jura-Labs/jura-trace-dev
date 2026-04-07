@@ -1,0 +1,116 @@
+{
+  "checked_at": "2026-04-07",
+  "model": "models/deepfake_classifier_v4.joblib",
+  "overall_fp_rate": 0.0454,
+  "overall_recall": 0.9252,
+  "threshold": 0.5,
+  "authentic_sources": {
+    "camera_high_end": {
+      "n": 126,
+      "fp": 13,
+      "fp_rate": 0.1032
+    },
+    "celeba": {
+      "n": 200,
+      "fp": 2,
+      "fp_rate": 0.01
+    },
+    "coco": {
+      "n": 800,
+      "fp": 34,
+      "fp_rate": 0.0425
+    },
+    "coco_extra": {
+      "n": 800,
+      "fp": 37,
+      "fp_rate": 0.0462
+    },
+    "coco_train": {
+      "n": 800,
+      "fp": 42,
+      "fp_rate": 0.0525
+    },
+    "flickr": {
+      "n": 1800,
+      "fp": 20,
+      "fp_rate": 0.0111
+    },
+    "other": {
+      "n": 49,
+      "fp": 3,
+      "fp_rate": 0.0612
+    },
+    "camera_consumer": {
+      "n": 295,
+      "fp": 26,
+      "fp_rate": 0.0881
+    },
+    "imagenet": {
+      "n": 600,
+      "fp": 20,
+      "fp_rate": 0.0333
+    },
+    "wikimedia_photos": {
+      "n": 254,
+      "fp": 63,
+      "fp_rate": 0.248
+    }
+  },
+  "ai_sources": {
+    "other": {
+      "n": 691,
+      "tp": 644,
+      "recall": 0.932
+    },
+    "artbench": {
+      "n": 200,
+      "tp": 200,
+      "recall": 1.0
+    },
+    "civitai": {
+      "n": 500,
+      "tp": 379,
+      "recall": 0.758
+    },
+    "dalle3": {
+      "n": 500,
+      "tp": 457,
+      "recall": 0.914
+    },
+    "diffusiondb": {
+      "n": 500,
+      "tp": 338,
+      "recall": 0.676
+    },
+    "elsa_sd": {
+      "n": 1300,
+      "tp": 1300,
+      "recall": 1.0
+    },
+    "gemini": {
+      "n": 144,
+      "tp": 144,
+      "recall": 1.0
+    },
+    "grok_aurora": {
+      "n": 500,
+      "tp": 500,
+      "recall": 1.0
+    },
+    "hf_ai": {
+      "n": 200,
+      "tp": 200,
+      "recall": 1.0
+    },
+    "midjourney": {
+      "n": 150,
+      "tp": 150,
+      "recall": 1.0
+    },
+    "sdxl": {
+      "n": 300,
+      "tp": 300,
+      "recall": 1.0
+    }
+  }
+}

@@ -44,7 +44,7 @@ _univfd_probe = None
 _univfd_probe_loaded = False
 
 _UNIVFD_PROBE_SHA256 = (
-    "0a56499c5b2f84ee4eb8e504deef2560edf9723e3081c94babc51720c35e10d6"
+    "d16fb22baf3981d62888e2458733c1a4c0743a5895470d82e9de76766f776908"
 )
 
 # Text prompts for zero-shot classification.
