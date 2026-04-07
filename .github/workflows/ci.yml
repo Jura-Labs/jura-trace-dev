@@ -161,3 +161,30 @@ jobs:
 
       - name: Run pytest
         run: cd sidecar && python -m pytest tests/ -v
+
+  # ── Repo hygiene: fail build if stray model backup files are committed ─────
+  # Rationale: unverified .joblib backups in models/ are a supply-chain risk —
+  # the production model file carries a hardcoded SHA-256 integrity check, but
+  # a .backup file sitting beside it has no such check and could be renamed by
+  # any local process to shadow the production model (pickle EoP vector).
+  # Flagged by the security-auditor cross-review on 2026-04-07; this guard
+  # prevents regression.
+  repo-hygiene:
+    name: Repo hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Forbid model backup files
+        run: |
+          set -e
+          matches=$(find models -type f \( -name '*.backup' -o -name '*.bak' -o -name '*.joblib.old' \) 2>/dev/null || true)
+          if [ -n "$matches" ]; then
+            echo "ERROR: model backup files found in models/ — these are unverified and must not be committed."
+            echo "Offending files:"
+            echo "$matches"
+            echo ""
+            echo "Remove them with: git rm <path>"
+            exit 1
+          fi
+          echo "OK — no stray model backup files."
