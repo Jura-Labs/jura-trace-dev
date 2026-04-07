@@ -741,11 +741,17 @@ impl SidecarClient {
     /// camera-origin EXIF data (make, model, GPS, etc.). Images with rich
     /// camera EXIF are less likely to be AI-generated; the sidecar can use
     /// this as an additional prior when calibrating the detection threshold.
+    ///
+    /// `camera_authenticity_bonus` (range 0.0–1.0) is the MakerNote-derived
+    /// authenticity confidence from `exif_anomaly::ExifAnalysis`. The sidecar
+    /// uses this to suppress false positives on computational photography
+    /// output (Pixel HDR+, iPhone Deep Fusion, drone ISPs).
     pub fn detect_deepfake(
         &self,
         image_path: &Path,
         mime_type: &str,
         has_camera_exif: bool,
+        camera_authenticity_bonus: f64,
     ) -> Result<DeepfakeResult, String> {
         let form = self.build_image_form(image_path)?;
 
@@ -753,8 +759,8 @@ impl SidecarClient {
         // so percent-encoding the slash is sufficient.
         let encoded_mime = mime_type.replace('/', "%2F");
         let url = format!(
-            "{}/forensics/deepfake?mime_type={}&has_camera_exif={}",
-            self.base_url, encoded_mime, has_camera_exif
+            "{}/forensics/deepfake?mime_type={}&has_camera_exif={}&camera_authenticity_bonus={}",
+            self.base_url, encoded_mime, has_camera_exif, camera_authenticity_bonus
         );
 
         let resp = self

@@ -209,6 +209,7 @@ async def detect_deepfake(
     file: UploadFile = File(...),
     mime_type: str = Query(default="image/jpeg"),
     has_camera_exif: bool | None = Query(default=None),
+    camera_authenticity_bonus: float = Query(default=0.0, ge=0.0, le=1.0),
 ) -> DeepfakeResponse:
     """
     Detect AI-generated or synthetic content in an uploaded image.
@@ -224,6 +225,12 @@ async def detect_deepfake(
     camera-origin EXIF data. Images with rich camera EXIF are less likely
     to be AI-generated; the scoring midpoint is shifted accordingly.
     If not explicitly set, camera EXIF is auto-detected from the image.
+
+    The ``camera_authenticity_bonus`` (0.0–1.0) is the MakerNote-derived
+    confidence that the file came from a real camera. Sprint 29 Track 1:
+    when a vendor-recognised MakerNote is present, the deepfake score is
+    suppressed proportionally to mitigate false positives on computational
+    photography output (Pixel HDR+, iPhone Deep Fusion, drone ISPs).
     """
     image_bytes = await _read_and_validate(file)
 
@@ -242,7 +249,10 @@ async def detect_deepfake(
 
     try:
         return perform_deepfake_detection(
-            image_bytes, mime_type=mime_type, has_camera_exif=has_camera_exif,
+            image_bytes,
+            mime_type=mime_type,
+            has_camera_exif=has_camera_exif,
+            camera_authenticity_bonus=camera_authenticity_bonus,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

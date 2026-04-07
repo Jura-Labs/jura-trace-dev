@@ -57,6 +57,12 @@ pub struct ExifAnalysis {
     pub gps_latitude: Option<f64>,
     /// GPS longitude in decimal degrees (east positive), if present in EXIF.
     pub gps_longitude: Option<f64>,
+    /// Camera-origin authenticity confidence in [0.0, 1.0] derived from
+    /// MakerNote presence + vendor match. 1.0 means a strong positive signal
+    /// that this is a genuine camera capture (not AI-generated). Used by
+    /// the deepfake scoring layer to mitigate false positives on computational
+    /// photography output. 0.0 means no MakerNote, no signal either way.
+    pub camera_authenticity_bonus: f64,
 }
 
 // ===== Analysis =====
@@ -72,30 +78,32 @@ pub fn analyse(
 ) -> ExifAnalysis {
     let mut findings = Vec::new();
 
-    let (fields_populated, fields_total, gps_latitude, gps_longitude) = match metadata {
-        Some(meta) => {
-            check_software(meta, &mut findings);
-            check_missing_exif(meta, &mut findings);
-            check_timestamps(meta, &mut findings);
-            check_dimensions(meta, actual_width, actual_height, &mut findings);
-            check_gps(meta, &mut findings);
-            let (fp, ft) = compute_completeness(meta);
-            (fp, ft, meta.gps_latitude, meta.gps_longitude)
-        }
-        None => {
-            findings.push(AnomalyFinding {
-                check_id: "no_exif_data".into(),
-                title: "No EXIF data present".into(),
-                description: "This file contains no EXIF metadata. Authentic camera images \
-                              always have EXIF data — absence may indicate AI generation, \
-                              social media reprocessing, or deliberate stripping."
-                    .into(),
-                severity: Severity::High,
-                category: "completeness".into(),
-            });
-            (0, 16, None, None)
-        }
-    };
+    let (fields_populated, fields_total, gps_latitude, gps_longitude, camera_authenticity_bonus) =
+        match metadata {
+            Some(meta) => {
+                check_software(meta, &mut findings);
+                check_missing_exif(meta, &mut findings);
+                check_timestamps(meta, &mut findings);
+                check_dimensions(meta, actual_width, actual_height, &mut findings);
+                check_gps(meta, &mut findings);
+                let bonus = check_maker_note_authenticity(meta, &mut findings);
+                let (fp, ft) = compute_completeness(meta);
+                (fp, ft, meta.gps_latitude, meta.gps_longitude, bonus)
+            }
+            None => {
+                findings.push(AnomalyFinding {
+                    check_id: "no_exif_data".into(),
+                    title: "No EXIF data present".into(),
+                    description: "This file contains no EXIF metadata. Authentic camera images \
+                                  always have EXIF data — absence may indicate AI generation, \
+                                  social media reprocessing, or deliberate stripping."
+                        .into(),
+                    severity: Severity::High,
+                    category: "completeness".into(),
+                });
+                (0, 16, None, None, 0.0)
+            }
+        };
 
     // Score: start at 1.0, deduct per finding severity
     let mut score = 1.0_f64;
@@ -115,7 +123,50 @@ pub fn analyse(
         has_exif: metadata.is_some(),
         gps_latitude,
         gps_longitude,
+        camera_authenticity_bonus,
     }
+}
+
+/// Check whether the image carries an authentic camera MakerNote signature.
+///
+/// MakerNotes are vendor-proprietary binary blobs embedded by camera firmware.
+/// AI image generators do not synthesise these. A present, substantial MakerNote
+/// whose `Make` tag matches a known vendor is a strong positive authenticity
+/// signal.
+///
+/// Returns the bonus score in [0.0, 1.0]. The deepfake scoring layer applies
+/// this as a negative adjustment to the AI probability.
+fn check_maker_note_authenticity(
+    meta: &crate::metadata::ImageMetadata,
+    findings: &mut Vec<AnomalyFinding>,
+) -> f64 {
+    let bonus = crate::metadata::camera_authenticity_confidence(meta);
+    if bonus >= 0.7 {
+        let make = meta
+            .camera_make
+            .as_deref()
+            .unwrap_or("unknown vendor")
+            .to_string();
+        let model = meta.camera_model.as_deref().unwrap_or("").to_string();
+        let model_part = if model.is_empty() {
+            String::new()
+        } else {
+            format!(" {model}")
+        };
+        findings.push(AnomalyFinding {
+            check_id: "authentic_maker_note".into(),
+            title: "Camera MakerNote signature detected".into(),
+            description: format!(
+                "This file carries a {make}{model_part} MakerNote ({} bytes), a vendor-proprietary \
+                 binary signature embedded by genuine camera firmware. AI image generators do not \
+                 synthesise MakerNotes — this is a positive authenticity signal.",
+                meta.maker_note_length
+            ),
+            severity: Severity::Info,
+            category: "authenticity".into(),
+        });
+    }
+    bonus
 }
 
 // ===== Check Functions =====
@@ -500,6 +551,8 @@ mod tests {
             artist: None,
             description: None,
             orientation: None,
+            has_maker_note: false,
+            maker_note_length: 0,
         }
     }
 
@@ -523,6 +576,8 @@ mod tests {
             artist: Some("Jane Doe".into()),
             description: None,
             orientation: Some(1),
+            has_maker_note: true,
+            maker_note_length: 2048,
         }
     }
 
@@ -777,5 +832,75 @@ mod tests {
         // camelCase keys must appear even when null
         assert!(json.contains("\"gpsLatitude\":null"));
         assert!(json.contains("\"gpsLongitude\":null"));
+    }
+
+    // ── MakerNote authenticity bonus ──────────────────────────────────
+
+    #[test]
+    fn maker_note_present_with_known_vendor_gives_full_bonus() {
+        let mut meta = camera_meta(); // Canon, has_maker_note=true, length=2048
+        meta.has_maker_note = true;
+        meta.maker_note_length = 2048;
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        assert_eq!(result.camera_authenticity_bonus, 1.0);
+        // Authentic finding should be present at Info severity (no deduction)
+        let auth_finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "authentic_maker_note");
+        assert!(auth_finding.is_some());
+        assert_eq!(auth_finding.unwrap().severity, Severity::Info);
+    }
+
+    #[test]
+    fn maker_note_absent_zero_bonus() {
+        let mut meta = camera_meta();
+        meta.has_maker_note = false;
+        meta.maker_note_length = 0;
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        assert_eq!(result.camera_authenticity_bonus, 0.0);
+    }
+
+    #[test]
+    fn maker_note_unknown_vendor_partial_bonus() {
+        let mut meta = empty_meta();
+        meta.camera_make = Some("ObscureBrand".into());
+        meta.has_maker_note = true;
+        meta.maker_note_length = 1024;
+        let result = analyse(Some(&meta), None, None);
+        // Vendor not in known table → 0.4
+        assert!((result.camera_authenticity_bonus - 0.4).abs() < 1e-9);
+    }
+
+    #[test]
+    fn maker_note_global_majority_vendors_recognised() {
+        for vendor in &["Tecno", "Infinix", "Itel", "Realme", "Xiaomi"] {
+            let mut meta = empty_meta();
+            meta.camera_make = Some((*vendor).into());
+            meta.has_maker_note = true;
+            meta.maker_note_length = 4096;
+            let result = analyse(Some(&meta), None, None);
+            assert_eq!(
+                result.camera_authenticity_bonus, 1.0,
+                "Vendor {vendor} should be recognised as a known camera vendor"
+            );
+        }
+    }
+
+    #[test]
+    fn maker_note_too_small_zero_bonus() {
+        let mut meta = camera_meta();
+        meta.has_maker_note = true;
+        meta.maker_note_length = 8; // suspiciously small
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        assert_eq!(result.camera_authenticity_bonus, 0.0);
+    }
+
+    #[test]
+    fn camera_authenticity_bonus_serializes_camelcase() {
+        let meta = camera_meta();
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        let json = serde_json::to_string(&result).expect("serialization must succeed");
+        assert!(json.contains("\"cameraAuthenticityBonus\""));
     }
 }

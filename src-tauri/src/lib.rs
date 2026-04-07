@@ -1212,6 +1212,15 @@ fn verify_content_inner(
         .map(|a| a.has_exif && a.fields_populated >= 4)
         .unwrap_or(false);
 
+    // ── MakerNote camera authenticity bonus ─────────────────────────────
+    // Sprint 29 Track 1: when a vendor-recognised MakerNote is present,
+    // pass the confidence score (0.0–1.0) to the deepfake detector so it
+    // can suppress false positives on computational photography output.
+    let camera_authenticity_bonus = exif_analysis
+        .as_ref()
+        .map(|a| a.camera_authenticity_bonus)
+        .unwrap_or(0.0);
+
     // ── Standard parallel group ──────────────────────────────────────────
     // ELA + deepfake + watermark extraction are independent and each takes
     // 1-5 s. Running them concurrently cuts standard-mode wall time from
@@ -1242,7 +1251,12 @@ fn verify_content_inner(
                 });
                 let df_h = s.spawn(move || {
                     let t = std::time::Instant::now();
-                    let r = df_client.detect_deepfake(&df_path, &mime, has_camera_exif);
+                    let r = df_client.detect_deepfake(
+                        &df_path,
+                        &mime,
+                        has_camera_exif,
+                        camera_authenticity_bonus,
+                    );
                     log::info!("PERF: deepfake took {:?}", t.elapsed());
                     r
                 });

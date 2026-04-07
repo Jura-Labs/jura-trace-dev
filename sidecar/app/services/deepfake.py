@@ -566,6 +566,7 @@ def perform_deepfake_detection_with_features(
     mime_type: str = "image/jpeg",
     has_camera_exif: bool = False,
     univfd_score: float | None = None,
+    camera_authenticity_bonus: float = 0.0,
 ) -> tuple[DeepfakeResponse, dict[str, float]]:
     """
     Detect AI-generated content and return both the response and feature dict.
@@ -577,6 +578,7 @@ def perform_deepfake_detection_with_features(
     """
     return _perform_deepfake_detection_impl(
         image_bytes, analysis_size, mime_type, has_camera_exif, univfd_score,
+        camera_authenticity_bonus,
     )
 
 
@@ -586,6 +588,7 @@ def perform_deepfake_detection(
     mime_type: str = "image/jpeg",
     has_camera_exif: bool = False,
     univfd_score: float | None = None,
+    camera_authenticity_bonus: float = 0.0,
 ) -> DeepfakeResponse:
     """
     Detect AI-generated content in an image.
@@ -595,6 +598,10 @@ def perform_deepfake_detection(
         analysis_size: Resize longest edge to this for consistent analysis.
         mime_type: MIME type of the source image for codec-aware thresholds.
         has_camera_exif: True if the image has camera EXIF data (make/model/exposure).
+        univfd_score: Optional UnivFD probe score (0.0–1.0) to blend in.
+        camera_authenticity_bonus: MakerNote-derived camera-origin confidence
+            (0.0–1.0). Suppresses the final score proportionally to mitigate
+            false positives on computational photography output.
 
     Returns:
         DeepfakeResponse with score, signals, and heatmap.
@@ -604,6 +611,7 @@ def perform_deepfake_detection(
     """
     response, _features = _perform_deepfake_detection_impl(
         image_bytes, analysis_size, mime_type, has_camera_exif, univfd_score,
+        camera_authenticity_bonus,
     )
     return response
 
@@ -614,6 +622,7 @@ def _perform_deepfake_detection_impl(
     mime_type: str = "image/jpeg",
     has_camera_exif: bool = False,
     univfd_score: float | None = None,
+    camera_authenticity_bonus: float = 0.0,
 ) -> tuple[DeepfakeResponse, dict[str, float]]:
     """Internal implementation shared by both public entry points."""
     try:
@@ -867,6 +876,32 @@ def _perform_deepfake_detection_impl(
     # for analyst review rather than silently clearing it as authentic.
     if has_camera_exif and heuristic_score < 0.6:
         score = min(score, 0.55)
+
+    # ── MakerNote authenticity bonus (Sprint 29 Track 1) ──────────────
+    # When a vendor-recognised MakerNote is present, suppress the final
+    # score proportionally to the confidence. The maximum reduction is
+    # 0.25 at full confidence (bonus=1.0). This mitigates false positives
+    # on computational photography output (Pixel HDR+, iPhone Deep Fusion,
+    # drone ISPs, mid-range Android handsets) which the GBM classifier
+    # confuses with AI-generated content because of their smooth noise
+    # floors and bit-plane manipulation.
+    #
+    # Floor the verdict at "inconclusive" rather than "authentic" to
+    # preserve the signal for analyst review — MakerNotes can be forged
+    # in principle (though the binary blob complexity makes this rare).
+    #
+    # The reduction is bypassed if the heuristic score is overwhelming
+    # (≥ 0.75) — strong forensic evidence overrides the bonus.
+    if camera_authenticity_bonus > 0.0 and heuristic_score < 0.75:
+        # Maximum 0.25 reduction at bonus=1.0
+        max_reduction = 0.25
+        reduction = camera_authenticity_bonus * max_reduction
+        score = max(score - reduction, 0.0)
+        # Floor at "inconclusive" — never push to authentic territory
+        # via MakerNote bonus alone. The score still reflects the original
+        # forensic signals, just adjusted for the camera-origin prior.
+        if score < 0.20 and camera_authenticity_bonus < 1.0:
+            score = max(score, 0.20)
 
     # Generate frequency spectrum heatmap
     heatmap_base64 = _generate_spectrum_heatmap(grey)

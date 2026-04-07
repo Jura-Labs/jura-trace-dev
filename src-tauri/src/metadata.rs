@@ -43,6 +43,14 @@ pub struct ImageMetadata {
     pub description: Option<String>,
     /// EXIF orientation value (1-8)
     pub orientation: Option<u16>,
+    /// Whether the file contains a non-empty MakerNote tag.
+    /// MakerNotes are vendor-proprietary binary blobs that AI image generators
+    /// virtually never produce. A present, non-empty MakerNote whose camera_make
+    /// matches a known vendor is a strong positive authenticity signal.
+    pub has_maker_note: bool,
+    /// MakerNote byte length (0 when absent). Provides confidence — most genuine
+    /// camera MakerNotes are 1–50 KB; a 4-byte placeholder is suspicious.
+    pub maker_note_length: usize,
 }
 
 /// Extract EXIF metadata from an image file.
@@ -82,6 +90,15 @@ pub fn extract_exif(path: &Path) -> Option<ImageMetadata> {
     let gps_latitude = extract_gps_coord(&exif, Tag::GPSLatitude, Tag::GPSLatitudeRef);
     let gps_longitude = extract_gps_coord(&exif, Tag::GPSLongitude, Tag::GPSLongitudeRef);
 
+    // MakerNote presence and length
+    let (has_maker_note, maker_note_length) = exif
+        .get_field(Tag::MakerNote, In::PRIMARY)
+        .map(|f| match &f.value {
+            Value::Undefined(bytes, _) => (!bytes.is_empty(), bytes.len()),
+            _ => (false, 0),
+        })
+        .unwrap_or((false, 0));
+
     Some(ImageMetadata {
         camera_make: get_str(Tag::Make).map(|s| s.trim_matches('"').to_string()),
         camera_model: get_str(Tag::Model).map(|s| s.trim_matches('"').to_string()),
@@ -101,7 +118,93 @@ pub fn extract_exif(path: &Path) -> Option<ImageMetadata> {
         artist: get_str(Tag::Artist).map(|s| s.trim_matches('"').to_string()),
         description: get_str(Tag::ImageDescription).map(|s| s.trim_matches('"').to_string()),
         orientation: get_u16(Tag::Orientation),
+        has_maker_note,
+        maker_note_length,
     })
+}
+
+/// Known camera vendors that produce parseable MakerNotes.
+/// AI image generators do not synthesise these — a clean MakerNote with
+/// a matching `Make` tag is a high-confidence authenticity signal.
+const KNOWN_CAMERA_VENDORS: &[&str] = &[
+    "apple",      // iPhone (Deep Fusion / Smart HDR pipeline)
+    "google",     // Pixel (HDR+ / Computational Photo)
+    "samsung",    // Galaxy S/A series
+    "sony",       // ILCE, DSC, Xperia
+    "canon",      // EOS, PowerShot
+    "nikon",      // Z, D, Coolpix
+    "fujifilm",   // X-series
+    "panasonic",  // Lumix
+    "olympus",    // OM-D, PEN
+    "om digital", // OM-1 successor brand
+    "leica",
+    "sigma", // fp series
+    "ricoh", // GR
+    "pentax",
+    "hasselblad",
+    "phase one",
+    "dji", // drones — Mavic, Mini, Air, Phantom
+    "gopro",
+    "insta360",
+    "huawei",
+    "xiaomi",
+    "oppo",
+    "vivo",
+    "oneplus",
+    "realme",
+    "tecno",   // mid-range, common in Global Majority markets
+    "infinix", // mid-range, common in Global Majority markets
+    "itel",
+    "honor",
+    "asus",
+    "motorola",
+    "nokia",
+    "lg electronics",
+    "blackberry",
+    "tcl",
+    "lenovo",
+];
+
+/// Determine whether the metadata indicates a genuine camera-origin image
+/// based on MakerNote presence + vendor match. Returns a confidence score
+/// in [0.0, 1.0] where higher = more confident the image came from a real camera.
+///
+/// This is a positive authenticity signal designed to mitigate false positives
+/// on computational photography output (Pixel HDR+, iPhone Deep Fusion, etc.)
+/// which the deepfake classifier confuses with AI-generated content.
+pub fn camera_authenticity_confidence(meta: &ImageMetadata) -> f64 {
+    if !meta.has_maker_note || meta.maker_note_length < 16 {
+        // No MakerNote, or trivially small (suspicious — could be a placeholder)
+        return 0.0;
+    }
+
+    let make_lower = meta
+        .camera_make
+        .as_deref()
+        .map(|s| s.to_lowercase())
+        .unwrap_or_default();
+
+    if make_lower.is_empty() {
+        // MakerNote present but no Make tag — unusual, low confidence
+        return 0.3;
+    }
+
+    let vendor_match = KNOWN_CAMERA_VENDORS.iter().any(|v| make_lower.contains(v));
+
+    if !vendor_match {
+        // MakerNote present but vendor not recognised — moderate confidence,
+        // could be a less-common manufacturer not in the table
+        return 0.4;
+    }
+
+    // Strong signal: vendor matches AND MakerNote is substantial
+    if meta.maker_note_length >= 256 {
+        // Typical genuine MakerNote (1-50 KB range)
+        1.0
+    } else {
+        // Vendor matches but MakerNote is unusually small
+        0.7
+    }
 }
 
 /// Convert EXIF GPS rational values + reference (N/S or E/W) to decimal degrees.
