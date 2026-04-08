@@ -618,6 +618,16 @@ fn compute_trust(
     colour_temperature_score: Option<f64>,
     _splice_boundary_score: Option<f64>,
     ai_declared_by_c2pa: bool,
+    // JPEG Ghost was added to scoring in Sprint 28 (S28-4, April 2026).
+    // ml-data-scientist + content-authenticity-expert cross-review consensus:
+    // Farid 2009 JPEG ghost detection remains the best CPU-only splice /
+    // composite signal for single-JPEG-resave attacks that the UnivFD v8
+    // probe (CLIP semantic) cannot see and the GBM v4 classifier only
+    // partially catches via blocking_strength / dct_benford_div. Wired in
+    // at 0.5 weight (half of ELA/noise/copy-move) as a capped contribution.
+    // Parameter is positional-last to keep signature growth backwards-
+    // compatible for tests that don't exercise JPEG Ghost scoring.
+    jpeg_ghost_score: Option<f64>,
 ) -> f64 {
     // C2PA that honestly declares AI generation should penalise trust — the
     // content's own provenance record confirms it is synthetic.  A valid
@@ -639,6 +649,13 @@ fn compute_trust(
     // Weighted manipulation signals: ELA, noise, and copy-move at weight 1.0.
     // ELA was previously 2.0 but forensic audit found it generates too many
     // false positives on multiply-compressed images — demoted to match others.
+    // JPEG Ghost added in Sprint 28 (S28-4) at weight 0.5 as a capped
+    // contribution — half the influence of ELA/noise/copy-move. The half
+    // weight reflects its narrower scope (single-JPEG-resave splice attacks)
+    // and its partial redundancy with GBM v4 features (blocking_strength,
+    // dct_benford_div). It cannot dominate the verdict even when highly
+    // suspicious, but it can meaningfully shift trust when the other
+    // manipulation signals are ambiguous.
     let mut manipulation_signals: Vec<(f64, f64)> = Vec::new(); // (trust, weight)
     if let Some(s) = ela_score {
         manipulation_signals.push((1.0 - s, 1.0));
@@ -648,6 +665,9 @@ fn compute_trust(
     }
     if let Some(s) = copy_move_score {
         manipulation_signals.push((1.0 - s, 1.0));
+    }
+    if let Some(s) = jpeg_ghost_score {
+        manipulation_signals.push((1.0 - s, 0.5));
     }
 
     let manipulation_trust = if manipulation_signals.is_empty() {
@@ -1830,6 +1850,7 @@ fn verify_content_inner(
     let shadow_consistency_score = shadow_consistency_result.as_ref().map(|r| r.score);
     let colour_temperature_score = colour_temperature_result.as_ref().map(|r| r.score);
     let splice_boundary_score = splice_boundary_result.as_ref().map(|r| r.score);
+    let jpeg_ghost_score = jpeg_ghost_result.as_ref().map(|r| r.score);
     // PDFs and other documents have no applicable forensic detectors.
     // Use a lightweight C2PA-only path rather than defaulting to 0.50 from
     // the unwrap_or on missing EXIF data.
@@ -1851,6 +1872,7 @@ fn verify_content_inner(
             colour_temperature_score,
             splice_boundary_score,
             ai_declared_by_c2pa,
+            jpeg_ghost_score,
         )
     };
     log::info!("PERF: trust score computation took {:?}", t_trust.elapsed());
@@ -4080,6 +4102,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         assert!(trust > 0.85, "Expected >0.85, got {trust:.3}");
     }
@@ -4101,6 +4124,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         assert!(trust < 0.5, "Expected <0.5, got {trust:.3}");
     }
@@ -4122,6 +4146,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         assert!(trust > 0.50, "Expected >0.50, got {trust:.3}");
     }
@@ -4143,6 +4168,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         assert!(trust < 0.55, "Expected <0.55, got {trust:.3}");
     }
@@ -4164,6 +4190,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         assert!(
             trust_weighted > 0.55,
@@ -4187,6 +4214,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let trust_with = compute_trust(
             Some(0.1),
@@ -4202,6 +4230,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         assert!(
             trust_with > trust_without,
@@ -4212,7 +4241,7 @@ mod tests {
     #[test]
     fn trust_no_forensics_falls_back_to_exif() {
         let trust = compute_trust(
-            None, None, None, None, None, None, 0.8, None, None, None, None, None, false,
+            None, None, None, None, None, None, 0.8, None, None, None, None, None, false, None,
         );
         assert!((trust - 0.8).abs() < 0.01, "Expected ~0.8, got {trust:.3}");
     }
@@ -4233,6 +4262,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         assert!(
             trust > 0.65,
@@ -4257,6 +4287,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         assert!(trust <= 1.0, "Trust exceeded 1.0: {trust:.3}");
     }
@@ -4281,6 +4312,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         assert!(
             trust <= 0.55,
@@ -4308,6 +4340,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         assert!(
             trust <= 0.25,
@@ -4332,6 +4365,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         assert!(
             trust <= 0.45,
@@ -4355,6 +4389,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         assert!(
             trust > 0.85,
@@ -4379,6 +4414,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         assert!(
             trust > 0.70,
@@ -4523,6 +4559,7 @@ mod tests {
             None,
             None, // no regional detectors
             false,
+            None,
         );
         assert!(
             trust <= 0.55,
@@ -4600,6 +4637,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let trust_without = compute_trust(
             Some(0.05),
@@ -4615,6 +4653,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         assert!(
             trust_with < trust_without,
@@ -4639,6 +4678,7 @@ mod tests {
             Some(0.65), // colour temperature suspicious
             None,
             false,
+            None,
         );
         assert!(
             trust <= 0.55,
@@ -4665,6 +4705,7 @@ mod tests {
             Some(0.75), // colour temperature (active)
             None,
             false,
+            None,
         );
         assert!(
             trust <= 0.55,
@@ -4689,6 +4730,7 @@ mod tests {
             Some(0.3), // colour temperature clean
             None,      // splice boundary — absent
             false,
+            None,
         );
         assert!(
             trust > 0.55,
@@ -4713,6 +4755,7 @@ mod tests {
             Some(0.06),
             Some(0.03),
             false,
+            None,
         );
         let trust_no_regional = compute_trust(
             Some(0.04),
@@ -4728,6 +4771,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         // With all regional detectors clean the trust should be close to the
         // no-regional baseline (regional scores ≈ 0 contribute ~1.0 trust).
@@ -4756,6 +4800,7 @@ mod tests {
             Some(0.65),
             None,
             false,
+            None,
         );
         assert!(
             trust <= 0.55,
@@ -4906,6 +4951,7 @@ mod tests {
             None,
             None,
             true, // AI declared
+            None,
         );
         let trust_no_ai = compute_trust(
             Some(0.1),
@@ -4921,6 +4967,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         assert!(
             trust_ai_declared < trust_no_ai,
@@ -4947,9 +4994,10 @@ mod tests {
             None,
             None,
             true,
+            None,
         );
         let trust_none = compute_trust(
-            None, None, None, None, None, None, 0.8, None, None, None, None, None, false,
+            None, None, None, None, None, None, 0.8, None, None, None, None, None, false, None,
         );
         assert!(
             trust_ai < trust_none,
@@ -4975,6 +5023,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let trust_ai = compute_trust(
             None,
@@ -4990,6 +5039,7 @@ mod tests {
             None,
             None,
             true,
+            None,
         );
         // valid: 1.0 + 0.10 capped at 1.0 = 1.0
         assert!(
