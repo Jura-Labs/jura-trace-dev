@@ -688,12 +688,12 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
+              <dd class="text-flint dark:text-flint-light">On-demand investigation tool (not part of the automatic pipeline)</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Computationally intensive. Less effective on highly compressed content where pixel neighbour relationships are already disrupted by quantisation. Best suited to high-quality source images.
+                Demoted to on-demand in Sprint 28 (April 2026). Content-authenticity-expert cross-review noted that the Tan et al. AAAI 2024 paper uses NPR features as input to a learned classifier, not as a standalone threshold, and that a hand-tuned NPR statistic is partially redundant with the UnivFD v8 probe which encodes upsampling artefacts at a higher level of abstraction via CLIP features. The sidecar endpoint remains available for manual investigation. Also computationally intensive and less effective on highly compressed content where pixel neighbour relationships are already disrupted by quantisation.
               </dd>
             </div>
           </dl>

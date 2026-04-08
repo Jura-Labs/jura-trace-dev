@@ -1380,9 +1380,9 @@ fn verify_content_inner(
     };
 
     // ── Deep parallel group ──────────────────────────────────────────────
-    // Nine detectors run concurrently when in deep/archival mode.
+    // Five detectors run concurrently when in deep/archival mode.
     // Slowest is copy-move (~5 s); without parallelism the group takes
-    // ~25 s sequentially. With parallelism wall time is bounded by the
+    // ~15-20 s sequentially. With parallelism wall time is bounded by the
     // slowest single detector rather than the sum of all detectors.
     let (
         noise_score,
@@ -1405,25 +1405,30 @@ fn verify_content_inner(
         //   - Chromatic aberration: removed entirely in Sprint 28 (April
         //     2026) — forensic audit rated accuracy 1/5, long-term viability
         //     1/5; phone cameras and modern processing defeat radial CA
-        //     detection; AI generators produce CA-free output. See the
-        //     tech-debt audit decisions memory for full rationale.
-        // NPR and JPEG Ghost remain in this block pending S28-3 (NPR demotion)
-        // and S28-4 (JPEG Ghost wired into compute_trust at 0.5× weight).
+        //     detection; AI generators produce CA-free output.
+        //   - NPR: demoted to on-demand in Sprint 28 (S28-3, April 2026).
+        //     Content-authenticity-expert cross-review: Tan et al. AAAI 2024
+        //     uses NPR features as input to a learned classifier, not a
+        //     standalone threshold; a hand-tuned NPR statistic is partially
+        //     redundant with the UnivFD v8 probe (which encodes upsampling
+        //     artefacts at a higher level of abstraction via CLIP features).
+        //     Option<NprResult> field kept on VerificationResult for the
+        //     on-demand endpoint.
+        // JPEG Ghost remains in this block pending S28-4 (wire into
+        // compute_trust at 0.5× weight per the tech-debt audit reversal).
         let noise_path = path.to_path_buf();
         let cm_path = path.to_path_buf();
-        let npr_path = path.to_path_buf();
         let jg_path = path.to_path_buf();
         let seg_path = path.to_path_buf();
         let ct_path = path.to_path_buf();
 
         let noise_client = app.sidecar.clone();
         let cm_client = app.sidecar.clone();
-        let npr_client = app.sidecar.clone();
         let jg_client = app.sidecar.clone();
         let seg_client = app.sidecar.clone();
         let ct_client = app.sidecar.clone();
 
-        let (noise_out, cm_out, npr_out, jg_out, seg_out, ct_out) = std::thread::scope(|s| {
+        let (noise_out, cm_out, jg_out, seg_out, ct_out) = std::thread::scope(|s| {
             let noise_h = s.spawn(move || {
                 let t = std::time::Instant::now();
                 let r = noise_client.analyse_noise(&noise_path);
@@ -1434,12 +1439,6 @@ fn verify_content_inner(
                 let t = std::time::Instant::now();
                 let r = cm_client.detect_copy_move(&cm_path);
                 log::info!("PERF: copy-move detection took {:?}", t.elapsed());
-                r
-            });
-            let npr_h = s.spawn(move || {
-                let t = std::time::Instant::now();
-                let r = npr_client.analyse_npr(&npr_path);
-                log::info!("PERF: NPR analysis took {:?}", t.elapsed());
                 r
             });
             let jg_h = s.spawn(move || {
@@ -1463,14 +1462,13 @@ fn verify_content_inner(
             (
                 noise_h.join(),
                 cm_h.join(),
-                npr_h.join(),
                 jg_h.join(),
                 seg_h.join(),
                 ct_h.join(),
             )
         });
 
-        log::info!("PERF: deep group (noise + copy-move + NPR + JPEG ghost + segmented ELA + colour-temp, parallel) took {:?}", t_deep.elapsed());
+        log::info!("PERF: deep group (noise + copy-move + JPEG ghost + segmented ELA + colour-temp, parallel) took {:?}", t_deep.elapsed());
 
         let (noise_score, noise_result) = match noise_out {
             Ok(Ok(r)) => (Some(r.score), Some(r)),
@@ -1492,17 +1490,6 @@ fn verify_content_inner(
             Err(_) => {
                 log::warn!("Sidecar copy-move thread panicked");
                 (None, None)
-            }
-        };
-        let npr_result = match npr_out {
-            Ok(Ok(r)) => Some(r),
-            Ok(Err(e)) => {
-                log::warn!("Sidecar NPR analysis failed: {e}");
-                None
-            }
-            Err(_) => {
-                log::warn!("Sidecar NPR thread panicked");
-                None
             }
         };
         let jpeg_ghost_result = match jg_out {
@@ -1539,10 +1526,11 @@ fn verify_content_inner(
             }
         };
 
-        // Shadow consistency and splice boundary no longer auto-run in the
-        // deep group — see comment at the top of this block. The Option
-        // fields remain on VerificationResult for backwards-compatible
-        // serialisation and for the on-demand endpoints.
+        // NPR, shadow consistency, and splice boundary no longer auto-run
+        // in the deep group — see comment at the top of this block. The
+        // Option fields remain on VerificationResult for backwards-
+        // compatible serialisation and for the on-demand endpoints.
+        let npr_result: Option<sidecar::NprResult> = None;
         let shadow_consistency_result: Option<sidecar::ShadowConsistencyResult> = None;
         let splice_boundary_result: Option<sidecar::SpliceBoundaryResult> = None;
 
