@@ -30,7 +30,7 @@ impl Database {
     }
 
     /// Schema version — increment when adding migrations.
-    const SCHEMA_VERSION: i32 = 5;
+    const SCHEMA_VERSION: i32 = 6;
 
     /// Create tables if they do not already exist, and run any pending migrations.
     ///
@@ -130,6 +130,32 @@ impl Database {
             );
             conn.pragma_update(None, "user_version", 5)?;
             log::info!("Database migrated to schema version 5 (methodology versioning columns)");
+        }
+
+        // Version 5 → 6: add detectors_run column to verifications (Sprint 28 S28-5)
+        //
+        // Stores a JSON array of detector identifiers that actually ran for
+        // a given verification. Rationale (rust-backend-engineer cross-review,
+        // April 2026): Sprint 28 removed chromatic aberration, removed
+        // diffusion artefacts, and demoted NPR / shadow consistency / splice
+        // boundary to on-demand. Old DB rows from pre-Sprint-28 RC builds
+        // still reference fields whose detectors no longer auto-run.
+        // Without this column, the PDF / ZIP renderers cannot distinguish
+        // between "detector was run but produced a null result" and
+        // "detector was never run in this build". Populate at verification
+        // time from the actual lineup used; NULL on old rows means
+        // "detector list unknown — pre-v6 build" and the renderer displays
+        // a label rather than inferring from field presence.
+        //
+        // This is a one-line ALTER TABLE — idempotent via the if-exists
+        // pattern used by earlier migrations.
+        if current_version < 6 {
+            let _ = conn.execute(
+                "ALTER TABLE verifications ADD COLUMN detectors_run TEXT",
+                [],
+            );
+            conn.pragma_update(None, "user_version", 6)?;
+            log::info!("Database migrated to schema version 6 (detectors_run column)");
         }
 
         Ok(())
