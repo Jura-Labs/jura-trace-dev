@@ -229,6 +229,12 @@ pub struct VerificationSummary {
     pub c2pa_valid: Option<bool>,
     pub overall_trust: f64,
     pub created_at: String,
+    /// Ordered list of detector IDs that ran during this verification.
+    ///
+    /// Populated from the schema v6 `detectors_run` column (JSON array).
+    /// `None` for rows written before schema v6; empty vec vs None is preserved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detectors_run: Option<Vec<String>>,
 }
 
 /// Bucketed distribution of trust scores across all verifications.

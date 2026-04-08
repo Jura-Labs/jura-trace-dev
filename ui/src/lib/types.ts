@@ -850,6 +850,9 @@ export interface VerificationSummary {
   c2paValid?: boolean;
   overallTrust: number;
   createdAt: string;
+  /** Ordered list of detector IDs from schema v6 `detectors_run` column.
+   *  Absent for rows written before schema v6. */
+  detectorsRun?: string[];
 }
 
 /** Aggregate trust distribution across all verifications */

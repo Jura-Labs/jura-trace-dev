@@ -910,7 +910,7 @@ impl Database {
         let mut stmt = conn.prepare(
             "SELECT verification_id, source_type, content_type,
                     ela_score, deepfake_score, c2pa_valid,
-                    overall_trust, created_at
+                    overall_trust, created_at, detectors_run
              FROM verifications
              ORDER BY created_at DESC
              LIMIT ?1 OFFSET ?2",
@@ -918,6 +918,12 @@ impl Database {
 
         let rows = stmt.query_map(params![limit, offset], |row| {
             let c2pa_raw: Option<i32> = row.get(5)?;
+            // `detectors_run` is NULL for rows written before schema v6.
+            // Parse the JSON array into Vec<String>; leave as None on NULL or
+            // parse failure so older rows degrade gracefully.
+            let detectors_run_json: Option<String> = row.get(8)?;
+            let detectors_run: Option<Vec<String>> =
+                detectors_run_json.and_then(|json| serde_json::from_str(&json).ok());
             Ok(VerificationSummary {
                 verification_id: row.get(0)?,
                 source_type: row.get(1)?,
@@ -927,6 +933,7 @@ impl Database {
                 c2pa_valid: c2pa_raw.map(|v| v != 0),
                 overall_trust: row.get(6)?,
                 created_at: row.get(7)?,
+                detectors_run,
             })
         })?;
 
@@ -2496,6 +2503,81 @@ mod tests {
         let ids1: Vec<_> = page1.iter().map(|v| &v.verification_id).collect();
         let ids2: Vec<_> = page2.iter().map(|v| &v.verification_id).collect();
         assert!(ids1.iter().all(|id| !ids2.contains(id)));
+    }
+
+    /// Round-trip test: insert a verification with a `detectors_run` JSON array,
+    /// read it back via `get_verification_history`, and assert the list matches.
+    /// Also verifies that a row written with `NULL` `detectors_run` deserialises
+    /// as `None` (schema-v5 backward-compat path).
+    #[test]
+    fn get_verification_history_includes_detectors_run() {
+        let db = open_temp_db();
+
+        let detectors = vec![
+            "ela".to_string(),
+            "deepfake".to_string(),
+            "c2pa".to_string(),
+        ];
+        let detectors_json = serde_json::to_string(&detectors).unwrap();
+
+        // Row with detectors_run populated.
+        db.insert_verification(
+            "v-with-detectors",
+            "file",
+            "image",
+            Some(0.10),
+            Some(0.05),
+            Some(true),
+            &[],
+            0.90,
+            None,
+            None,
+            None,
+            None,
+            Some(detectors_json.as_str()),
+        )
+        .unwrap();
+
+        // Row with detectors_run = NULL (simulates pre-schema-v6 row).
+        db.insert_verification(
+            "v-no-detectors",
+            "file",
+            "image",
+            None,
+            None,
+            None,
+            &[],
+            0.50,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+        let history = db.get_verification_history(10, 0).unwrap();
+        assert_eq!(history.len(), 2);
+
+        // Most-recent-first ordering — v-no-detectors was inserted after v-with-detectors.
+        let no_det = history
+            .iter()
+            .find(|v| v.verification_id == "v-no-detectors")
+            .expect("v-no-detectors not found");
+        assert!(
+            no_det.detectors_run.is_none(),
+            "NULL detectors_run should deserialise as None"
+        );
+
+        let with_det = history
+            .iter()
+            .find(|v| v.verification_id == "v-with-detectors")
+            .expect("v-with-detectors not found");
+        let retrieved = with_det
+            .detectors_run
+            .as_ref()
+            .expect("detectors_run should be Some");
+        assert_eq!(retrieved, &detectors, "detectors_run round-trip mismatch");
     }
 
     #[test]
