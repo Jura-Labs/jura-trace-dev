@@ -487,6 +487,21 @@ export interface ExifAnalysis {
   gpsLatitude?: number;
   /** GPS longitude in decimal degrees (added by Rust backend; optional pending backend update). */
   gpsLongitude?: number;
+  /**
+   * MakerNote-derived camera authenticity confidence (0.0–1.0). Added in
+   * Sprint 29 (Track 1). A value > 0.5 means the file carries a
+   * vendor-recognised camera MakerNote — vendor-proprietary binary blobs
+   * that AI image generators virtually never synthesise. Used as a
+   * positive authenticity signal that suppresses the final deepfake score
+   * proportionally to mitigate false positives on computational
+   * photography output. 0.0 means no MakerNote, no signal either way.
+   *
+   * Field name on the Rust side: `camera_authenticity_bonus` on
+   * `ExifAnalysis` in `src-tauri/src/exif_anomaly.rs`, serialised via
+   * serde camelCase rename (see `camera_authenticity_bonus_serializes_camelcase`
+   * test at line 900 of that file).
+   */
+  cameraAuthenticityBonus?: number;
 }
 
 /** Severity display configuration */

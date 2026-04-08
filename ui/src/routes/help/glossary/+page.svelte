@@ -197,16 +197,27 @@
 
       <div>
         <dt
-          id="term-content-credentials"
+          id="term-c2pa-provenance"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >Content Credentials</dt>
+        >C2PA Provenance Manifest</dt>
         <dd class="mt-1 text-sm text-flint dark:text-flint-light leading-relaxed max-w-prose">
-          Content Credentials is Adobe's branded term for C2PA provenance manifests — the
-          cryptographic provenance metadata embedded in a file. A C2PA provenance manifest
-          contains information about the creator, creation date, editing tools, and any
-          subsequent modifications. Each layer of editing leaves a verifiable deposit in
-          the file's provenance chain — a geological record of the content's history.
-          Jura Trace uses the open C2PA standard directly.
+          The cryptographic provenance metadata embedded in a file under the open
+          <a
+            href="https://c2pa.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-lapis dark:text-lapis-light underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          >C2PA (Coalition for Content Provenance and Authenticity)</a>
+          standard. A C2PA provenance manifest contains information about the creator,
+          creation date, editing tools, and any subsequent modifications. Each layer of
+          editing leaves a verifiable deposit in the file's provenance chain — a
+          geological record of the content's history. Jura Trace signs with a C2PA
+          provenance manifest and verifies manifests from other signers including Adobe,
+          BBC, Canon, Leica, Microsoft, and Nikon.
+          <span class="block mt-2 text-xs text-flint/80 dark:text-flint-light/80">
+            See also: <em>Content Credentials</em> — Adobe's branded term for the same
+            underlying C2PA standard. The two terms refer to the same technology.
+          </span>
         </dd>
       </div>
 

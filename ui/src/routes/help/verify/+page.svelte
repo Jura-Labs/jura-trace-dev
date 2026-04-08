@@ -721,14 +721,68 @@
 
     <div>
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
-        Manual visual inspection
+        Manual visual inspection — eight checks
       </h3>
-      <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
-        The inspection checklist (available via the Checklist button in the results panel)
-        guides you through eight manual checks — looking for shadow inconsistencies,
-        unnatural skin texture, misaligned text, and other artefacts that automated
-        detectors can miss. The checklist is designed for trained reviewers but is accessible
-        to any careful observer.
+      <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-3">
+        Automated detectors can miss artefacts that a careful human reviewer will spot.
+        Run through these eight checks for any image where the verdict is inconclusive
+        or where the case is high-stakes. The checks are designed for trained reviewers
+        but are accessible to any careful observer.
+      </p>
+      <ol class="space-y-3 text-sm text-flint dark:text-flint-light leading-relaxed list-decimal pl-5">
+        <li>
+          <strong class="text-text-light dark:text-text-dark">Text rendering.</strong>
+          Are text elements clear, correctly spelled, and properly aligned? AI-generated
+          images frequently produce garbled, misspelled, or nonsensical text — look for
+          floating letters, incorrect words, or blended characters.
+        </li>
+        <li>
+          <strong class="text-text-light dark:text-text-dark">Hand and finger anatomy.</strong>
+          Do hands have the correct number of fingers with natural proportions? AI image
+          generators commonly produce hands with extra, fused, or missing fingers, and
+          joints that bend at implausible angles.
+        </li>
+        <li>
+          <strong class="text-text-light dark:text-text-dark">Skin texture.</strong>
+          Does skin show natural pores, lines, and imperfections? Synthetically generated
+          skin often appears unnaturally smooth, overly blended, or symmetrical in ways
+          real skin is not.
+        </li>
+        <li>
+          <strong class="text-text-light dark:text-text-dark">Geometric perspective.</strong>
+          Do parallel lines converge naturally? Is perspective consistent across the entire
+          scene? Look for objects that appear to be at incompatible scales, or architecture
+          whose geometry does not hold up under scrutiny.
+        </li>
+        <li>
+          <strong class="text-text-light dark:text-text-dark">Shadow direction.</strong>
+          Are shadows consistent across all objects in the scene? Shadows cast by different
+          objects should all originate from the same light source. Inconsistent shadow
+          directions are a common sign of compositing.
+        </li>
+        <li>
+          <strong class="text-text-light dark:text-text-dark">Reflections.</strong>
+          Are reflections present where expected and physically correct? Reflective
+          surfaces — water, glass, metal — should mirror their surroundings accurately.
+          Missing or distorted reflections suggest manipulation or generation.
+        </li>
+        <li>
+          <strong class="text-text-light dark:text-text-dark">Background detail.</strong>
+          Are background elements sharp and free of blending artefacts or repeating
+          patterns? AI-generated backgrounds often contain copy-move artefacts, mismatched
+          detail levels, or implausible geometry at the edges of objects.
+        </li>
+        <li>
+          <strong class="text-text-light dark:text-text-dark">Contextual logic.</strong>
+          Does the scene make logical sense overall? Consider whether the combination of
+          objects, people, environment, and lighting is physically plausible and
+          contextually coherent.
+        </li>
+      </ol>
+      <p class="text-xs text-flint/80 dark:text-flint-light/80 leading-relaxed mt-3 italic">
+        These checks were previously available as an interactive in-app component. They were
+        moved to the help docs in April 2026 because forensic visual inspection is reference
+        material that benefits from being browseable and printable, not a fillable form.
       </p>
     </div>
 

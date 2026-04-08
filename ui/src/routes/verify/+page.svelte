@@ -8,7 +8,6 @@
   import VerdictSummary from '$lib/components/VerdictSummary.svelte';
   import SimpleVerdict from '$lib/components/SimpleVerdict.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
-  import InspectionChecklist from '$lib/components/InspectionChecklist.svelte';
   import SignalAgreement from '$lib/components/SignalAgreement.svelte';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import LimitationBanner from '$lib/components/LimitationBanner.svelte';
@@ -119,7 +118,6 @@
   let showTechnicalDetails = $state(false);
   let showInvestigatePanel = $state(false);
   let showSignalAgreement = $state(false);
-  let showInspectionChecklist = $state(false);
   let showRegionAnalysis = $state(false);
   let expandedFrameIndex = $state<number | null>(null);
 
@@ -277,96 +275,18 @@
   let brightness = $state(100);
   let contrast = $state(100);
 
-  // ── Colour channel separation state ──────────────────────────────
-  let activeChannel = $state<'none' | 'r' | 'g' | 'b' | 'rg' | 'rb' | 'gb'>('none');
-  /** Blob URL of the channel-separated image, or null when no channel is active. */
-  let channelImageUrl = $state<string | null>(null);
-
-  /**
-   * Applies colour channel separation to the preview image using an off-screen
-   * canvas. Returns a data URL of the resulting greyscale channel image.
-   * The caller is responsible for revoking any previous blob URL.
-   */
-  function applyChannelSeparation(imgElement: HTMLImageElement, channel: string): string {
-    const canvas = document.createElement('canvas');
-    canvas.width = imgElement.naturalWidth;
-    canvas.height = imgElement.naturalHeight;
-    const ctx = canvas.getContext('2d')!;
-    ctx.drawImage(imgElement, 0, 0);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i], g = data[i + 1], b = data[i + 2];
-      let val: number;
-      switch (channel) {
-        case 'r':  val = r; break;
-        case 'g':  val = g; break;
-        case 'b':  val = b; break;
-        case 'rg': val = Math.abs(r - g); break;
-        case 'rb': val = Math.abs(r - b); break;
-        case 'gb': val = Math.abs(g - b); break;
-        default:   val = 0;
-      }
-      // Display as greyscale
-      data[i] = data[i + 1] = data[i + 2] = val;
-    }
-    ctx.putImageData(imageData, 0, 0);
-    return canvas.toDataURL('image/png');
-  }
-
-  /**
-   * Toggles the active channel: if the same channel is clicked again, resets
-   * to 'none'. Otherwise loads the preview image element and computes the
-   * channel image, storing it as a blob URL via the existing blob tracker.
-   */
-  function toggleChannel(channel: typeof activeChannel) {
-    if (activeChannel === channel) {
-      // Reset
-      activeChannel = 'none';
-      if (channelImageUrl) {
-        URL.revokeObjectURL(channelImageUrl);
-        channelImageUrl = null;
-      }
-      return;
-    }
-    activeChannel = channel;
-
-    // Re-compute from the currently displayed preview <img>
-    const imgEl = document.querySelector<HTMLImageElement>('img[data-preview="true"]');
-    if (!imgEl || !imgEl.complete || imgEl.naturalWidth === 0) {
-      // Image not ready — silently ignore
-      return;
-    }
-
-    if (channelImageUrl) {
-      URL.revokeObjectURL(channelImageUrl);
-    }
-
-    const dataUrl = applyChannelSeparation(imgEl, channel);
-    // Convert data URL to blob URL for CSP compliance
-    fetch(dataUrl)
-      .then(res => res.blob())
-      .then(blob => {
-        channelImageUrl = URL.createObjectURL(blob);
-      })
-      .catch(() => {
-        // Fallback: store the data URL directly (CSP may block; handled gracefully)
-        channelImageUrl = dataUrl;
-      });
-  }
-
-  // Reset channel state whenever a new result loads (or is cleared).
-  // Reading `result` here registers it as a reactive dependency so
-  // this effect re-runs every time result changes.
-  $effect(() => {
-    void result; // dependency registration
-    if (channelImageUrl) {
-      URL.revokeObjectURL(channelImageUrl);
-      channelImageUrl = null;
-    }
-    activeChannel = 'none';
-  });
+  // Colour channel separation (R/G/B toggle, with difference pairs R-G,
+  // R-B, G-B) was removed in April 2026 following a content-authenticity-
+  // expert cross-review. Rationale: non-experts could not interpret the
+  // greyscale channel output, and experts already have the 16 automated
+  // detectors plus external tools (GIMP channel mixer, Photoshop channels
+  // panel, ImageJ) that do this better. The feature had a known reactivity
+  // bug where toggling a second time sampled from the already-greyscale
+  // DOM img element, corrupting subsequent toggles. Removing the feature
+  // eliminates the bug and simplifies the inspection toolbar. See the
+  // external-tool reference in `/help/methodology` for analysts who need
+  // channel separation — it is not a forensic task Jura Trace needs to
+  // perform in-app.
 
   function getFilterStyle(filter: InspectFilter): string {
     const base =
@@ -384,11 +304,6 @@
     activeFilter = 'none';
     brightness = 100;
     contrast = 100;
-    activeChannel = 'none';
-    if (channelImageUrl) {
-      URL.revokeObjectURL(channelImageUrl);
-      channelImageUrl = null;
-    }
   }
 
   // ── Scroll-to-top visibility ──────────────────────────────────────
@@ -1001,7 +916,6 @@
     cancelled = false;
     showInvestigatePanel = false;
     showSignalAgreement = false;
-    showInspectionChecklist = false;
     showRegionAnalysis = false;
     showElaOverlay = false;
     elaOpacity = 60;
@@ -1013,11 +927,6 @@
     activeFilter = 'none';
     brightness = 100;
     contrast = 100;
-    activeChannel = 'none';
-    if (channelImageUrl) {
-      URL.revokeObjectURL(channelImageUrl);
-      channelImageUrl = null;
-    }
     activeSection = null;
     closeComparison();
     clearRoi();
@@ -2649,13 +2558,13 @@
                      The image itself is pointer-events-none so all gestures reach the
                      container div's onpointerdown/move/up handlers. -->
                 <img
-                  src={channelImageUrl ?? previewUrl}
+                  src={previewUrl}
                   alt={roiMode ? 'Analysed file — drag to select a region' : 'Analysed file — drag to draw an annotation'}
                   class="w-full max-h-[400px] object-contain block select-none pointer-events-none"
                   loading="lazy"
                   data-preview="true"
                   draggable="false"
-                  style="{channelImageUrl ? '' : `filter: ${getFilterStyle(activeFilter)};`}"
+                  style="filter: {getFilterStyle(activeFilter)};"
                 />
               {:else}
                 <button
@@ -2665,12 +2574,12 @@
                   aria-label="Open zoom viewer for {fileName ?? 'analysed file'}"
                 >
                   <img
-                    src={channelImageUrl ?? previewUrl}
+                    src={previewUrl}
                     alt="Analysed file"
                     class="w-full max-h-[400px] object-contain block"
                     loading="lazy"
                     data-preview="true"
-                    style="{channelImageUrl ? '' : `filter: ${getFilterStyle(activeFilter)};`}"
+                    style="filter: {getFilterStyle(activeFilter)};"
                   />
                 </button>
               {/if}
@@ -3056,7 +2965,7 @@
                     </button>
                   {/each}
 
-                  {#if activeFilter !== 'none' || brightness !== 100 || contrast !== 100 || activeChannel !== 'none'}
+                  {#if activeFilter !== 'none' || brightness !== 100 || contrast !== 100}
                     <button
                       type="button"
                       onclick={resetInspection}
@@ -3099,50 +3008,14 @@
                   </div>
                 </div>
 
-                <!-- Colour channel separation toolbar -->
-                <div class="mt-2 pt-2 border-t border-border-light/60 dark:border-border-dark/60">
-                  <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Colour channel separation">
-                    <span class="text-xs text-flint dark:text-flint-light mr-0.5 flex-shrink-0">Channels:</span>
-                    {#each ([
-                      { key: 'r',  label: 'R',   title: 'Red channel only — highlights red-tinted regions and colour inconsistencies' },
-                      { key: 'g',  label: 'G',   title: 'Green channel only — often most detail-rich; useful for detecting green screen artefacts' },
-                      { key: 'b',  label: 'B',   title: 'Blue channel only — reveals blue cast anomalies and compression artefacts in shadows' },
-                      { key: 'rg', label: 'R-G', title: 'Red minus Green difference — amplifies warm/cool colour seams between spliced regions' },
-                      { key: 'rb', label: 'R-B', title: 'Red minus Blue difference — highlights magenta/cyan boundaries indicating compositing' },
-                      { key: 'gb', label: 'G-B', title: 'Green minus Blue difference — exposes yellow/blue transitions typical in AI-generated skies' },
-                    ] as const) as ch}
-                      <button
-                        type="button"
-                        title={ch.title}
-                        onclick={() => toggleChannel(ch.key as typeof activeChannel)}
-                        class="text-xs px-2 py-1 min-h-[28px] rounded border transition-colors duration-150
-                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1
-                               focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
-                               {activeChannel === ch.key
-                                 ? 'border-lapis bg-lapis/10 text-lapis dark:text-lapis-light font-medium'
-                                 : 'border-border-light dark:border-border-dark text-gray-600 dark:text-flint-light hover:border-lapis/50 dark:hover:border-lapis-light/50'}"
-                        aria-pressed={activeChannel === ch.key}
-                      >
-                        {ch.label}
-                      </button>
-                    {/each}
-                    {#if activeChannel !== 'none'}
-                      <span class="text-xs text-lapis dark:text-lapis-light ml-1 flex-shrink-0" aria-live="polite" aria-atomic="true">
-                        {activeChannel.length <= 2 ? activeChannel.toUpperCase() + ' channel' : activeChannel.toUpperCase() + ' difference'} active
-                      </span>
-                    {/if}
-                  </div>
-                </div>
-
-                <!-- Link to Visual Inspection Checklist + ROI mode toggle -->
+                <!-- ROI mode toggle (Inspection Checklist link removed April 2026 — content moved to /help/verify-guide) -->
                 <div class="mt-1.5 flex flex-wrap items-center gap-3">
                   <a
-                    href="#inspection-checklist"
-                    onclick={(e) => { e.preventDefault(); showInspectionChecklist = true; requestAnimationFrame(() => document.getElementById('inspection-checklist')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }}
+                    href="/help/verify"
                     class="text-xs text-lapis dark:text-lapis-light hover:underline
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                   >
-                    Visual Inspection Checklist (8 items)
+                    Visual inspection guide (help docs)
                   </a>
 
                   <!-- ROI mode toggle -->
@@ -3448,11 +3321,11 @@
             <!-- Left: original under examination -->
             <div class="relative bg-gray-100 dark:bg-obsidian/60">
               <img
-                src={channelImageUrl ?? previewUrl}
+                src={previewUrl}
                 alt="Original file under examination"
                 class="w-full max-h-[380px] object-contain block"
                 loading="lazy"
-                style="{channelImageUrl ? '' : `filter: ${getFilterStyle(activeFilter)};`}"
+                style="filter: {getFilterStyle(activeFilter)};"
               />
               <!-- Overlay label -->
               <div
@@ -3972,32 +3845,6 @@
         {#if showSignalAgreement}
           <div id="signal-agreement-panel" class="mt-3">
             <SignalAgreement {result} />
-          </div>
-        {/if}
-      </div>
-
-      <!-- ── Visual Inspection Checklist ──────────────────────────── -->
-      <div id="inspection-checklist" class="px-5 py-3 border-b border-border-dark">
-        <button
-          class="flex items-center gap-2 text-sm text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-          onclick={() => { showInspectionChecklist = !showInspectionChecklist; }}
-          aria-expanded={showInspectionChecklist}
-          aria-controls="inspection-checklist-panel"
-        >
-          <svg
-            class="w-3.5 h-3.5 transition-transform duration-200 {showInspectionChecklist ? 'rotate-90' : ''}"
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-          </svg>
-          Visual Inspection Checklist
-          <span class="text-xs text-flint/60 dark:text-flint-light/70">manual assessment</span>
-        </button>
-        {#if showInspectionChecklist}
-          <div id="inspection-checklist-panel" class="mt-3">
-            <InspectionChecklist />
           </div>
         {/if}
       </div>
@@ -5584,6 +5431,38 @@
               {/if}
             </p>
           </div>
+
+          <!--
+            MakerNote camera authenticity badge (Sprint 29 Track 1 — surfaced UI-4).
+            Rendered when the Rust EXIF analyser returns a camera_authenticity_bonus
+            > 0.5, meaning the file carries a vendor-recognised camera MakerNote
+            (vendor-proprietary binary blob that AI generators virtually never
+            synthesise). Positive authenticity signal, info severity (malachite).
+            Hidden when the bonus is absent, 0, or ≤ 0.5 to avoid cluttering
+            the EXIF section on images where it is not meaningful.
+          -->
+          {#if exif.cameraAuthenticityBonus != null && exif.cameraAuthenticityBonus > 0.5}
+            <div
+              class="mb-4 flex items-start gap-3 rounded-md px-3 py-2.5 bg-malachite/10 border border-malachite/30"
+              role="note"
+              aria-label="Camera MakerNote authenticity signal"
+            >
+              <span class="flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-malachite/15 text-malachite dark:text-malachite-light border border-malachite/30">
+                Authentic
+              </span>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-medium text-malachite dark:text-malachite-light leading-snug">
+                  Camera MakerNote signature verified
+                </p>
+                <p class="text-xs text-flint dark:text-flint-light leading-relaxed mt-0.5">
+                  This file carries a vendor-proprietary MakerNote blob from a
+                  recognised camera manufacturer. AI image generators virtually
+                  never synthesise MakerNotes. Confidence:
+                  <span class="tabular-nums font-medium">{Math.round(exif.cameraAuthenticityBonus * 100)}%</span>.
+                </p>
+              </div>
+            </div>
+          {/if}
 
           <!-- Findings list -->
           {#if exif.findings.length > 0}

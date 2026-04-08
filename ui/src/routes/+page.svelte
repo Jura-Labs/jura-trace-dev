@@ -63,11 +63,11 @@
       <p
         class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
         style="letter-spacing: -0.02em;"
-        aria-label="{stats.c2paSignedCount.toLocaleString()} content credentials"
+        aria-label="{stats.c2paSignedCount.toLocaleString()} C2PA-signed files"
       >
         {stats.c2paSignedCount.toLocaleString()}
       </p>
-      <p class="text-xs text-flint dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">content credentials</p>
+      <p class="text-xs text-flint dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">C2PA-signed files</p>
     </div>
 
     <div class="text-center">
@@ -183,9 +183,9 @@
         </h2>
       </div>
       <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
-        Import your files and let Jura Trace catalogue them with care. Sign with C2PA Content
-        Credentials so your work carries proof of origin wherever it travels. Generate perceptual
-        fingerprints that persist even when images are cropped, resized, or screenshotted.
+        Import your files and let Jura Trace catalogue them with care. Sign with a C2PA
+        provenance manifest so your work carries proof of origin wherever it travels. Generate
+        perceptual fingerprints that persist even when images are cropped, resized, or screenshotted.
       </p>
 
       <!-- Asset hint -->

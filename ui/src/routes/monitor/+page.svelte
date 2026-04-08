@@ -330,7 +330,7 @@
         <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
           Add URLs where your protected content is published (for example, your website, social media profiles,
           or any page hosting your images). Jura Trace will periodically check each URL for changes
-          and verify that your content credentials remain intact.
+          and verify that your C2PA provenance manifest and perceptual fingerprints remain intact.
         </p>
         <p class="text-xs text-flint dark:text-flint-light leading-relaxed mt-1">
           <span class="font-medium">Note:</span> Domain-wide monitoring (scanning every page on a website)
