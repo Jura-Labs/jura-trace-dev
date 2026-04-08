@@ -1,33 +1,46 @@
 """
-Jura Trace Sidecar — RAG Claim Verification Service.
+Jura Trace Sidecar — Knowledge Base Retrieval (investigative aid).
 
-Verifies claims associated with an image (from captions, EXIF descriptions,
-C2PA assertions, or user-provided text) using a local TF-IDF knowledge base
-for retrieval, augmented by a local Ollama LLM for reasoning.
+This module is NOT a fact-checker and does NOT produce verdicts about the
+truth or falsity of any claim. It matches analyst-entered text against a
+preliminary local reference corpus and returns one of three statuses:
+
+- ``consistent_with_kb``          — retrieved passages are consistent with the claim
+- ``inconsistent_with_kb``        — retrieved passages contradict the claim
+- ``insufficient_context_in_kb``  — the corpus does not cover the claim
+
+See the in-app model card at /help/model-cards (#kb-retrieval) for the
+full scope, limitations, non-warranty notice, and out-of-scope use list.
 
 No external API calls are made — all retrieval and inference is performed
 locally.  If Ollama is unavailable the service degrades gracefully and
-returns an "unavailable" verdict.
+returns an "unavailable" status.
 
 Algorithm:
 1. Split claims_text into individual claims (by sentence / newline).
 2. For each claim, retrieve the most relevant passages from the knowledge
    base using TF-IDF cosine similarity (KnowledgeRetriever).
-3. Build a grounded prompt that includes the retrieved passages as reference
-   material, instructing the LLM to reason from the provided text rather
-   than from parametric recall.
-4. Send the grounded prompt to Ollama at temperature 0.1.
-5. Parse the verdict token (SUPPORTED / DISPUTED / UNVERIFIED) from the
+3. **Fail-closed:** if no relevant passages are retrieved, return
+   ``insufficient_context_in_kb`` immediately without invoking the language
+   model. This is deliberate — it prevents the model from reasoning from
+   parametric memory about claims the corpus cannot support. The parametric
+   fallback path was removed in April 2026 following a defamation-exposure
+   review (see .claude/projects/.../memory/project_tech_debt_audit_apr2026.md).
+4. Otherwise, build a grounded prompt that includes the retrieved passages as
+   reference material, instructing the LLM to assess consistency with the
+   provided reference text only.
+5. Send the grounded prompt to Ollama at temperature 0.1.
+6. Parse the status token (CONSISTENT / INCONSISTENT / INSUFFICIENT) from the
    response, together with a brief explanation.
-6. Aggregate individual verdicts into an overall verdict:
-     - All supported               → supported
-     - Any disputed                → disputed
-     - Mix of supported/unverified → mixed
-     - All unverified              → unverified
-     - Ollama unavailable          → unavailable
-7. Return a ClaimCheckResponse with per-claim verdicts, an aggregated overall
-   verdict, methodology disclosure (including knowledge base stats), and a
-   human-readable summary.
+7. Aggregate individual statuses into an overall status:
+     - All consistent_with_kb                      → consistent_with_kb
+     - Any inconsistent_with_kb                    → inconsistent_with_kb
+     - Mix of consistent_with_kb / insufficient    → mixed_kb_match
+     - All insufficient_context_in_kb              → insufficient_context_in_kb
+     - Ollama unavailable                          → unavailable
+8. Return a ClaimCheckResponse with per-claim statuses, aggregated overall
+   status, methodology disclosure, and a human-readable summary that makes
+   clear the output is a retrieval match, not a factual verdict.
 """
 
 from __future__ import annotations
@@ -48,16 +61,34 @@ logger = logging.getLogger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-_VALID_VERDICTS = {"supported", "disputed", "unverified"}
+# Status vocabulary. Note the deliberate absence of "verdict" — this tool
+# does not emit verdicts about the truth or falsity of any claim. It reports
+# whether analyst-entered text is consistent with the retrieved reference
+# passages, or whether the preliminary corpus lacks coverage of the subject.
+CONSISTENT = "consistent_with_kb"
+INCONSISTENT = "inconsistent_with_kb"
+INSUFFICIENT = "insufficient_context_in_kb"
+UNAVAILABLE = "unavailable"
+MIXED = "mixed_kb_match"
 
-# Grounded prompt: LLM is instructed to use only the retrieved reference
-# material, which limits hallucination to the scope of the knowledge base.
+_VALID_STATUSES = {CONSISTENT, INCONSISTENT, INSUFFICIENT}
+
+# Grounded prompt. The LLM is explicitly instructed NOT to act as a
+# fact-checker and NOT to reason from its own training data — it assesses
+# consistency with the provided reference passages only. There is no
+# parametric-memory fallback: if no passages are retrieved, the caller
+# returns INSUFFICIENT without invoking the model.
 _PROMPT_TEMPLATE_RAG = textwrap.dedent("""\
-    You are a fact-checking assistant. Use ONLY the reference material below to \
-evaluate the claim. If the reference material does not contain relevant \
-information, respond with UNVERIFIED. Respond with ONLY one of: SUPPORTED, \
-DISPUTED, UNVERIFIED, followed by a brief explanation (1-2 sentences). Do not \
-add any other commentary.
+    You are a reference-retrieval assessment tool. You are NOT a fact-checker \
+and MUST NOT use any information outside the reference material below. Your \
+task is to report whether the reference material is consistent with, \
+inconsistent with, or insufficient to assess the claim.
+
+    Respond with ONLY one of: CONSISTENT, INCONSISTENT, INSUFFICIENT, followed \
+by a brief explanation (1-2 sentences) that cites the reference material. Do \
+NOT add commentary about the real-world truth of the claim — only about \
+consistency with the provided reference passages. If the reference material \
+does not contain information relevant to the claim, respond INSUFFICIENT.
 
     Reference material:
     {retrieved_passages}
@@ -65,42 +96,27 @@ add any other commentary.
     Claim: {claim}
     Context: {context}
 
-    Verdict:\
+    Response:\
 """)
 
-# Fallback prompt used when no knowledge base passages are available for a
-# claim.  Explicitly warns the model (and downstream readers) that the result
-# depends on parametric recall.
-_PROMPT_TEMPLATE_FALLBACK = textwrap.dedent("""\
-    You are a fact-checking assistant. No reference material is available for \
-this claim — your response will be based on your training data only, which may \
-be incomplete or inaccurate. Respond with ONLY one of: SUPPORTED, DISPUTED, \
-UNVERIFIED, followed by a brief explanation (1-2 sentences). Do not add any \
-other commentary.
-
-    Claim: {claim}
-    Context: {context}
-
-    Verdict:\
-""")
-
-# Methodology templates — filled in dynamically with knowledge base stats.
+# Methodology template — filled in dynamically with knowledge base stats.
+# Framed as a retrieval match, not a fact-check.
 _METHODOLOGY_RAG_TEMPLATE = (
-    "Claims verified against local knowledge base ({n_docs} documents, "
-    "{n_passages} passages) using TF-IDF retrieval + Ollama {model}. "
-    "Retrieved passages grounded the verification — the LLM was instructed to "
-    "reason from provided reference material rather than parametric recall. "
-    "Temperature was set to 0.1 for deterministic output. "
-    "This is AI-assisted analysis — results should be interpreted as indicative, "
-    "not conclusive."
+    "Knowledge base retrieval match against local preliminary corpus "
+    "({n_docs} documents, {n_passages} passages) using TF-IDF + local "
+    "Ollama {model} (temperature 0.1). The language model was instructed to "
+    "assess consistency with the retrieved reference passages only. This is "
+    "a preliminary investigative aid, not a fact-checker — see the model "
+    "card (/help/model-cards#kb-retrieval) for scope, limitations, and "
+    "non-warranty notice. Results must not be cited as authority for the "
+    "truth or falsity of any claim."
 )
 
 _METHODOLOGY_NO_KB = (
-    "WARNING: No knowledge base available. Verification relies on model training "
-    "data only (parametric recall). Results may be unreliable. "
-    "Each claim was evaluated using a local Ollama LLM at temperature 0.1. "
-    "This is AI-assisted analysis — results should be interpreted as indicative, "
-    "not conclusive."
+    "Knowledge base unavailable — no passages could be retrieved. No claim "
+    "assessment was performed. This tool never reasons from parametric "
+    "model memory about claims the corpus cannot support. See the model "
+    "card (/help/model-cards#kb-retrieval) for scope and limitations."
 )
 
 
@@ -210,23 +226,27 @@ async def _call_ollama(
 
 def _parse_verdict(raw: str) -> tuple[str, str, float]:
     """
-    Extract a (verdict, explanation, confidence) triple from Ollama's raw output.
+    Extract a (status, explanation, confidence) triple from Ollama's raw output.
 
-    The model is prompted to start with SUPPORTED / DISPUTED / UNVERIFIED.
+    The model is prompted to start with CONSISTENT / INCONSISTENT / INSUFFICIENT.
     We search for one of these tokens (case-insensitive) and treat everything
-    after it as the explanation.
+    after it as the explanation. Legacy verdict tokens
+    (SUPPORTED / DISPUTED / UNVERIFIED) are accepted for backwards compatibility
+    with users running older locally-cached prompts or intermediate builds, and
+    mapped onto the new vocabulary.
 
-    Confidence heuristic:
-      - SUPPORTED or DISPUTED with explanation ≥ 20 chars: 0.75
-      - SUPPORTED or DISPUTED with short explanation:      0.55
-      - UNVERIFIED with any explanation:                   0.40
-      - Token not found (parse failure):                   0.20 (→ unverified)
+    Confidence heuristic (reflects retrieval-match certainty, NOT factual truth):
+      - CONSISTENT or INCONSISTENT with explanation ≥ 20 chars: 0.75
+      - CONSISTENT or INCONSISTENT with short explanation:      0.55
+      - INSUFFICIENT with any explanation:                      0.40
+      - Token not found (parse failure):                        0.20 (→ INSUFFICIENT)
 
     Args:
         raw: The raw text response from Ollama.
 
     Returns:
-        Tuple of (verdict_str, explanation_str, confidence_float).
+        Tuple of (status_str, explanation_str, confidence_float) where
+        status_str is one of the new-vocabulary constants.
     """
     # Strip markdown fence delimiters (``` lines) but keep the content inside.
     # Some models wrap their response in a code block; we want the text within.
@@ -234,15 +254,31 @@ def _parse_verdict(raw: str) -> tuple[str, str, float]:
     cleaned = re.sub(r"\n?```$", "", cleaned)             # closing fence
     cleaned = re.sub(r"^[:\s]+", "", cleaned).strip()
 
+    # Accept both new and legacy tokens. New vocabulary first so it wins on
+    # ambiguous responses where the model prints both.
     pattern = re.compile(
-        r"\b(SUPPORTED|DISPUTED|UNVERIFIED)\b(.*)$",
+        r"\b(CONSISTENT|INCONSISTENT|INSUFFICIENT|SUPPORTED|DISPUTED|UNVERIFIED)\b(.*)$",
         re.IGNORECASE | re.DOTALL,
     )
     match = pattern.search(cleaned)
     if not match:
-        return "unverified", cleaned[:200] if cleaned else "Could not parse model response.", 0.20
+        return (
+            INSUFFICIENT,
+            cleaned[:200] if cleaned else "Could not parse model response.",
+            0.20,
+        )
 
-    verdict = match.group(1).lower()
+    raw_token = match.group(1).upper()
+    # Map legacy tokens onto the new vocabulary.
+    token_map = {
+        "CONSISTENT": CONSISTENT,
+        "SUPPORTED": CONSISTENT,
+        "INCONSISTENT": INCONSISTENT,
+        "DISPUTED": INCONSISTENT,
+        "INSUFFICIENT": INSUFFICIENT,
+        "UNVERIFIED": INSUFFICIENT,
+    }
+    status = token_map[raw_token]
     explanation = match.group(2).strip().lstrip(":.–—-").strip()
 
     # Trim explanation to a reasonable length
@@ -250,79 +286,107 @@ def _parse_verdict(raw: str) -> tuple[str, str, float]:
         explanation = explanation[:297] + "..."
 
     if not explanation:
-        explanation = f"Model returned verdict: {verdict.upper()} without further explanation."
+        explanation = (
+            f"Model returned {raw_token} without further explanation."
+        )
 
-    if verdict in ("supported", "disputed"):
+    if status in (CONSISTENT, INCONSISTENT):
         confidence = 0.75 if len(explanation) >= 20 else 0.55
     else:
         confidence = 0.40
 
-    return verdict, explanation, confidence
+    return status, explanation, confidence
 
 
 # ── Verdict aggregation ───────────────────────────────────────────────────────
 
 
-def _aggregate_verdicts(verdicts: list[str]) -> str:
+def _aggregate_verdicts(statuses: list[str]) -> str:
     """
-    Combine per-claim verdicts into a single overall verdict.
+    Combine per-claim retrieval-match statuses into a single overall status.
 
     Rules (evaluated in priority order):
-      - Any "unavailable"       → "unavailable"
-      - Any "disputed"          → "disputed"
-      - Mix of supported + unverified → "mixed"
-      - All "supported"         → "supported"
-      - All "unverified"        → "unverified"
-      - Empty list              → "unverified"
+      - Any "unavailable"                            → "unavailable"
+      - Any "inconsistent_with_kb"                   → "inconsistent_with_kb"
+      - Mix of consistent + insufficient             → "mixed_kb_match"
+      - All "consistent_with_kb"                     → "consistent_with_kb"
+      - All "insufficient_context_in_kb" (or empty)  → "insufficient_context_in_kb"
 
     Args:
-        verdicts: List of individual verdict strings.
+        statuses: List of per-claim status strings (new vocabulary).
 
     Returns:
-        A single verdict string.
+        A single overall status string.
     """
-    if not verdicts:
-        return "unverified"
+    if not statuses:
+        return INSUFFICIENT
 
-    verdict_set = set(verdicts)
+    status_set = set(statuses)
 
-    if "unavailable" in verdict_set:
-        return "unavailable"
-    if "disputed" in verdict_set:
-        return "disputed"
-    if "supported" in verdict_set and "unverified" in verdict_set:
-        return "mixed"
-    if verdict_set == {"supported"}:
-        return "supported"
-    return "unverified"
+    if UNAVAILABLE in status_set:
+        return UNAVAILABLE
+    if INCONSISTENT in status_set:
+        return INCONSISTENT
+    if CONSISTENT in status_set and INSUFFICIENT in status_set:
+        return MIXED
+    if status_set == {CONSISTENT}:
+        return CONSISTENT
+    return INSUFFICIENT
 
 
 def _build_summary(overall: str, claims: list[ClaimVerdict]) -> str:
-    """Build a human-readable summary string for the ClaimCheckResponse."""
+    """Build a human-readable summary string for the ClaimCheckResponse.
+
+    Framing is deliberately retrieval-match, not fact-check. The phrase
+    "verdict" does not appear in user-facing output.
+    """
     n = len(claims)
-    if overall == "unavailable":
+    if overall == UNAVAILABLE:
         return (
-            "Claim verification could not be completed because the Ollama service "
-            "is unavailable. Install and start Ollama to enable AI-assisted claim checking."
+            "Knowledge base retrieval could not be performed because the Ollama "
+            "service is unavailable. Install and start Ollama to enable this "
+            "investigative aid. This tool is not a fact-checker — see the "
+            "model card for scope and limitations."
         )
     counts: dict[str, int] = {}
     for c in claims:
         counts[c.verdict] = counts.get(c.verdict, 0) + 1
 
-    parts = []
-    for v in ("supported", "disputed", "unverified"):
-        if counts.get(v, 0):
-            parts.append(f"{counts[v]} {v}")
-
-    count_str = ", ".join(parts) if parts else "0 claims"
-    verdict_labels = {
-        "supported": "All claims are supported by available knowledge.",
-        "disputed": "One or more claims are disputed.",
-        "mixed": "Claims show mixed support — some supported, some unverifiable.",
-        "unverified": "Insufficient information to verify the claims.",
+    label_map = {
+        CONSISTENT: "consistent with reference material",
+        INCONSISTENT: "inconsistent with reference material",
+        INSUFFICIENT: "no relevant reference material found",
     }
-    base = verdict_labels.get(overall, f"Overall verdict: {overall}.")
-    return f"Analysed {n} claim{'s' if n != 1 else ''}. {count_str}. {base}"
+    parts = []
+    for status in (CONSISTENT, INCONSISTENT, INSUFFICIENT):
+        if counts.get(status, 0):
+            parts.append(f"{counts[status]} {label_map[status]}")
+
+    count_str = "; ".join(parts) if parts else "0 claims"
+    overall_labels = {
+        CONSISTENT: (
+            "All analyst-entered claims are consistent with the local "
+            "reference corpus. This is a retrieval match only — it does "
+            "NOT establish that the claims are factually true."
+        ),
+        INCONSISTENT: (
+            "One or more claims appear inconsistent with the local reference "
+            "corpus. This is a retrieval match only — it does NOT establish "
+            "that the claims are factually false."
+        ),
+        MIXED: (
+            "Some claims matched reference material, others did not. The "
+            "knowledge base has only partial coverage of the subject."
+        ),
+        INSUFFICIENT: (
+            "The local reference corpus does not cover these claims. No "
+            "assessment was performed beyond retrieval."
+        ),
+    }
+    base = overall_labels.get(overall, f"Overall status: {overall}.")
+    return (
+        f"Analysed {n} claim{'s' if n != 1 else ''}. {count_str}. {base}"
+    )
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -362,11 +426,11 @@ async def check_claims(
     # ── Empty input ───────────────────────────────────────────────────────────
     if not claims:
         return ClaimCheckResponse(
-            overall_verdict="unverified",
+            overall_verdict=INSUFFICIENT,
             claims=[],
             model_used=model,
             methodology=_build_methodology(model),
-            summary="No claims were provided for verification.",
+            summary="No claims were provided for knowledge base retrieval.",
         )
 
     # ── Check Ollama availability ─────────────────────────────────────────────
@@ -375,21 +439,22 @@ async def check_claims(
         unavailable_claims = [
             ClaimVerdict(
                 claim=c,
-                verdict="unavailable",
+                verdict=UNAVAILABLE,
                 explanation=(
                     "Ollama is not available. Start the Ollama service to enable "
-                    "AI-assisted claim verification."
+                    "knowledge base retrieval. This tool is an investigative aid, "
+                    "not a fact-checker."
                 ),
                 confidence=0.0,
             )
             for c in claims
         ]
         return ClaimCheckResponse(
-            overall_verdict="unavailable",
+            overall_verdict=UNAVAILABLE,
             claims=unavailable_claims,
             model_used=model,
             methodology=_build_methodology(model),
-            summary=_build_summary("unavailable", unavailable_claims),
+            summary=_build_summary(UNAVAILABLE, unavailable_claims),
         )
 
     # ── Check model availability ──────────────────────────────────────────────
@@ -398,7 +463,7 @@ async def check_claims(
         unavailable_claims = [
             ClaimVerdict(
                 claim=c,
-                verdict="unavailable",
+                verdict=UNAVAILABLE,
                 explanation=(
                     f"Model '{model}' is not available in Ollama. "
                     f"Pull it with: ollama pull {model}"
@@ -408,15 +473,15 @@ async def check_claims(
             for c in claims
         ]
         return ClaimCheckResponse(
-            overall_verdict="unavailable",
+            overall_verdict=UNAVAILABLE,
             claims=unavailable_claims,
             model_used=model,
             methodology=_build_methodology(model),
-            summary=_build_summary("unavailable", unavailable_claims),
+            summary=_build_summary(UNAVAILABLE, unavailable_claims),
         )
 
-    # ── Verify each claim ─────────────────────────────────────────────────────
-    verified: list[ClaimVerdict] = []
+    # ── Retrieve and assess each claim ───────────────────────────────────────
+    assessed: list[ClaimVerdict] = []
     for claim in claims:
         # Retrieve relevant passages from the knowledge base for this claim.
         # The retrieval query combines the claim with any caller-provided context
@@ -424,57 +489,76 @@ async def check_claims(
         retrieval_query = f"{claim} {context}".strip() if context else claim
         passages = _retriever.retrieve(retrieval_query, top_k=3)
 
-        if passages:
-            retrieved_text = "\n\n".join(passages)
-            prompt = _PROMPT_TEMPLATE_RAG.format(
-                retrieved_passages=retrieved_text,
-                claim=claim,
-                context=context or "None provided.",
-            )
-        else:
-            # No passages retrieved — fall back to parametric recall with warning.
+        # Fail-closed: if no relevant passages were retrieved, return
+        # INSUFFICIENT immediately without calling the language model. The
+        # parametric-memory fallback path was removed in April 2026 — this
+        # tool must never reason from training data about claims the corpus
+        # cannot support, because that is the pathway to confidently-wrong
+        # outputs and defamation exposure. See the model card at
+        # /help/model-cards#kb-retrieval.
+        if not passages:
             logger.debug(
                 "No knowledge base passages retrieved for claim: %.80s", claim
             )
-            prompt = _PROMPT_TEMPLATE_FALLBACK.format(
-                claim=claim,
-                context=context or "None provided.",
+            assessed.append(
+                ClaimVerdict(
+                    claim=claim,
+                    verdict=INSUFFICIENT,
+                    explanation=(
+                        "No relevant passages found in the local reference "
+                        "corpus. This tool only reports on coverage present "
+                        "in its knowledge base — see the model card for the "
+                        "current corpus scope."
+                    ),
+                    confidence=0.40,
+                )
             )
+            continue
+
+        retrieved_text = "\n\n".join(passages)
+        prompt = _PROMPT_TEMPLATE_RAG.format(
+            retrieved_passages=retrieved_text,
+            claim=claim,
+            context=context or "None provided.",
+        )
 
         try:
             raw = await _call_ollama(prompt, ollama_base_url, model)
-            verdict, explanation, confidence = _parse_verdict(raw)
+            status, explanation, confidence = _parse_verdict(raw)
         except httpx.TimeoutException:
-            logger.warning("Ollama timed out while verifying claim: %.80s", claim)
-            verdict, explanation, confidence = (
-                "unverified",
+            logger.warning(
+                "Ollama timed out during retrieval assessment for claim: %.80s",
+                claim,
+            )
+            status, explanation, confidence = (
+                INSUFFICIENT,
                 "Ollama request timed out. The model may be loading — please retry.",
                 0.0,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Ollama error while verifying claim: %s", exc)
-            verdict, explanation, confidence = (
-                "unverified",
-                f"Verification failed: {exc}",
+            logger.warning("Ollama error during retrieval assessment: %s", exc)
+            status, explanation, confidence = (
+                INSUFFICIENT,
+                f"Retrieval assessment failed: {exc}",
                 0.0,
             )
 
-        verified.append(
+        assessed.append(
             ClaimVerdict(
                 claim=claim,
-                verdict=verdict,
+                verdict=status,
                 explanation=explanation,
                 confidence=round(confidence, 4),
             )
         )
 
-    overall = _aggregate_verdicts([v.verdict for v in verified])
+    overall = _aggregate_verdicts([v.verdict for v in assessed])
     return ClaimCheckResponse(
         overall_verdict=overall,
-        claims=verified,
+        claims=assessed,
         model_used=model,
         methodology=_build_methodology(model),
-        summary=_build_summary(overall, verified),
+        summary=_build_summary(overall, assessed),
     )
 
 

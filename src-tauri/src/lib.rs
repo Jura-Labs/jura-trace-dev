@@ -598,9 +598,13 @@ fn compute_trust(
     exif_trust: f64,
     c2pa_valid: Option<bool>,
     segmented_ela_score: Option<f64>,
-    shadow_consistency_score: Option<f64>,
+    // Shadow consistency and splice boundary were demoted to on-demand
+    // investigation tools (April 2026). Callers still pass them positionally
+    // for signature stability across RC builds, but they are not used in
+    // trust scoring. See the regional-detector comment below.
+    _shadow_consistency_score: Option<f64>,
     colour_temperature_score: Option<f64>,
-    splice_boundary_score: Option<f64>,
+    _splice_boundary_score: Option<f64>,
     ai_declared_by_c2pa: bool,
 ) -> f64 {
     // C2PA that honestly declares AI generation should penalise trust — the
@@ -1383,15 +1387,23 @@ fn verify_content_inner(
     ) = if sidecar_up && is_deep {
         let t_deep = std::time::Instant::now();
 
+        // Shadow consistency and splice boundary were demoted to on-demand
+        // investigation tools in April 2026 (see compute_trust comment near
+        // line 683). Previously they ran in this parallel block but neither
+        // contributed to trust scoring — shadow produced noisy gradient output
+        // and splice boundary never set suspicious=true in production. Both
+        // are still available via their standalone sidecar endpoints for
+        // manual investigation, but they no longer run on every deep verify.
+        // NPR, JPEG Ghost, and chromatic aberration remain in the deep block
+        // pending the Sprint 28 post-v1.0 demotion work — see tech-debt audit
+        // decisions memory for the full sequencing.
         let noise_path = path.to_path_buf();
         let cm_path = path.to_path_buf();
         let npr_path = path.to_path_buf();
         let jg_path = path.to_path_buf();
         let ca_path = path.to_path_buf();
         let seg_path = path.to_path_buf();
-        let shad_path = path.to_path_buf();
         let ct_path = path.to_path_buf();
-        let sb_path = path.to_path_buf();
 
         let noise_client = app.sidecar.clone();
         let cm_client = app.sidecar.clone();
@@ -1399,11 +1411,9 @@ fn verify_content_inner(
         let jg_client = app.sidecar.clone();
         let ca_client = app.sidecar.clone();
         let seg_client = app.sidecar.clone();
-        let shad_client = app.sidecar.clone();
         let ct_client = app.sidecar.clone();
-        let sb_client = app.sidecar.clone();
 
-        let (noise_out, cm_out, npr_out, jg_out, ca_out, seg_out, shad_out, ct_out, sb_out) =
+        let (noise_out, cm_out, npr_out, jg_out, ca_out, seg_out, ct_out) =
             std::thread::scope(|s| {
                 let noise_h = s.spawn(move || {
                     let t = std::time::Instant::now();
@@ -1441,22 +1451,10 @@ fn verify_content_inner(
                     log::info!("PERF: segmented ELA took {:?}", t.elapsed());
                     r
                 });
-                let shad_h = s.spawn(move || {
-                    let t = std::time::Instant::now();
-                    let r = shad_client.check_shadow_consistency(&shad_path);
-                    log::info!("PERF: shadow consistency took {:?}", t.elapsed());
-                    r
-                });
                 let ct_h = s.spawn(move || {
                     let t = std::time::Instant::now();
                     let r = ct_client.check_colour_temperature(&ct_path);
                     log::info!("PERF: colour temperature took {:?}", t.elapsed());
-                    r
-                });
-                let sb_h = s.spawn(move || {
-                    let t = std::time::Instant::now();
-                    let r = sb_client.check_splice_boundary(&sb_path);
-                    log::info!("PERF: splice boundary took {:?}", t.elapsed());
                     r
                 });
                 (
@@ -1466,13 +1464,11 @@ fn verify_content_inner(
                     jg_h.join(),
                     ca_h.join(),
                     seg_h.join(),
-                    shad_h.join(),
                     ct_h.join(),
-                    sb_h.join(),
                 )
             });
 
-        log::info!("PERF: deep group (noise + copy-move + NPR + JPEG ghost + CA + segmented ELA + shadow + colour-temp + splice-boundary, parallel) took {:?}", t_deep.elapsed());
+        log::info!("PERF: deep group (noise + copy-move + NPR + JPEG ghost + CA + segmented ELA + colour-temp, parallel) took {:?}", t_deep.elapsed());
 
         let (noise_score, noise_result) = match noise_out {
             Ok(Ok(r)) => (Some(r.score), Some(r)),
@@ -1540,17 +1536,6 @@ fn verify_content_inner(
                 None
             }
         };
-        let shadow_consistency_result = match shad_out {
-            Ok(Ok(r)) => Some(r),
-            Ok(Err(e)) => {
-                log::warn!("Sidecar shadow consistency analysis failed: {e}");
-                None
-            }
-            Err(_) => {
-                log::warn!("Sidecar shadow consistency thread panicked");
-                None
-            }
-        };
         let colour_temperature_result = match ct_out {
             Ok(Ok(r)) => Some(r),
             Ok(Err(e)) => {
@@ -1562,17 +1547,13 @@ fn verify_content_inner(
                 None
             }
         };
-        let splice_boundary_result = match sb_out {
-            Ok(Ok(r)) => Some(r),
-            Ok(Err(e)) => {
-                log::warn!("Sidecar splice boundary detection failed: {e}");
-                None
-            }
-            Err(_) => {
-                log::warn!("Sidecar splice boundary thread panicked");
-                None
-            }
-        };
+
+        // Shadow consistency and splice boundary no longer auto-run in the
+        // deep group — see comment at the top of this block. The Option
+        // fields remain on VerificationResult for backwards-compatible
+        // serialisation and for the on-demand endpoints.
+        let shadow_consistency_result: Option<sidecar::ShadowConsistencyResult> = None;
+        let splice_boundary_result: Option<sidecar::SpliceBoundaryResult> = None;
 
         (
             noise_score,

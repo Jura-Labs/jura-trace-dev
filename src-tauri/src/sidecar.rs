@@ -2232,26 +2232,55 @@ mod tests {
 
     #[test]
     fn test_claim_check_result_deserialise_snake_case() {
+        // New-vocabulary fixture. The claim checker was reframed from a
+        // fact-checker to a knowledge-base retrieval aid in April 2026
+        // (see tech-debt audit decisions memory). The Rust side treats
+        // these strings as opaque and only checks round-tripping.
         let json = r#"{
-            "overall_verdict": "supported",
+            "overall_verdict": "consistent_with_kb",
             "claims": [
                 {
                     "claim": "The photograph was taken in Edinburgh.",
-                    "verdict": "supported",
-                    "explanation": "GPS metadata and landmarks are consistent.",
+                    "verdict": "consistent_with_kb",
+                    "explanation": "Retrieved passages describe Edinburgh landmarks consistent with the image.",
                     "confidence": 0.85
                 }
             ],
             "model_used": "qwen2.5:7b-instruct",
-            "methodology": "RAG with local knowledge base",
-            "summary": "Analysed 1 claim. 1 supported."
+            "methodology": "Knowledge base retrieval match against local preliminary corpus",
+            "summary": "Analysed 1 claim. 1 consistent with reference material."
         }"#;
         let result: ClaimCheckResult = serde_json::from_str(json).unwrap();
-        assert_eq!(result.overall_verdict, "supported");
+        assert_eq!(result.overall_verdict, "consistent_with_kb");
         assert_eq!(result.claims.len(), 1);
-        assert_eq!(result.claims[0].verdict, "supported");
+        assert_eq!(result.claims[0].verdict, "consistent_with_kb");
         assert!((result.claims[0].confidence - 0.85).abs() < 0.001);
         assert_eq!(result.model_used, "qwen2.5:7b-instruct");
         assert!(!result.summary.is_empty());
+    }
+
+    #[test]
+    fn test_claim_check_result_deserialise_legacy_vocabulary() {
+        // Backwards-compatibility: older sidecar builds may still emit
+        // "supported" / "disputed" / "unverified". The Rust deserialiser
+        // treats verdict/overall_verdict as opaque strings, so the old
+        // tokens must still round-trip without error — they're aliases.
+        let json = r#"{
+            "overall_verdict": "supported",
+            "claims": [
+                {
+                    "claim": "Legacy build test.",
+                    "verdict": "supported",
+                    "explanation": "Legacy token round-trip check.",
+                    "confidence": 0.75
+                }
+            ],
+            "model_used": "qwen2.5:7b-instruct",
+            "methodology": "Legacy RAG fixture",
+            "summary": "Legacy summary."
+        }"#;
+        let result: ClaimCheckResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.overall_verdict, "supported");
+        assert_eq!(result.claims[0].verdict, "supported");
     }
 }

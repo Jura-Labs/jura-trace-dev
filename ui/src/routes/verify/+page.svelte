@@ -3739,35 +3739,52 @@
         </button>
       </div>
 
-      <!-- ── RAG Claim Verdict ─────────────────────────────────────── -->
+      <!-- ── Knowledge Base Retrieval Match (not a fact-checker) ────── -->
       {#if result.claimVerdict || result.ragClaimResult}
         {@const rag = result.ragClaimResult}
-        {@const verdict = result.claimVerdict ?? rag?.verdict}
+        {@const rawVerdict = result.claimVerdict ?? rag?.verdict}
+        <!--
+          Normalise legacy and new vocabulary to a single comparator.
+          The claim checker was reframed from a fact-checker to a knowledge
+          base retrieval aid in April 2026. Legacy sidecar builds may still
+          emit the old tokens; normalise here so display is consistent.
+        -->
+        {@const normalised =
+          rawVerdict === 'supported' || rawVerdict === 'consistent_with_kb'
+            ? 'consistent'
+            : rawVerdict === 'disputed' || rawVerdict === 'inconsistent_with_kb'
+              ? 'inconsistent'
+              : rawVerdict === 'mixed' || rawVerdict === 'mixed_kb_match'
+                ? 'mixed'
+                : rawVerdict === 'unavailable'
+                  ? 'unavailable'
+                  : 'insufficient'}
         <div
           class="px-5 py-3 border-b border-border-light dark:border-border-dark
-                 {verdict === 'supported'
+                 {normalised === 'consistent'
                    ? 'bg-malachite/5'
-                   : verdict === 'disputed'
+                   : normalised === 'inconsistent'
                      ? 'bg-cinnabar/5'
                      : 'bg-amber/5'}"
-          aria-label="Claim verification verdict"
+          aria-label="Knowledge base retrieval match"
         >
           <div class="flex items-center gap-3 mb-1.5">
-            <span class="text-xs font-medium uppercase tracking-wide text-flint dark:text-flint-light">Claim Verification</span>
+            <span class="text-xs font-medium uppercase tracking-wide text-flint dark:text-flint-light">Knowledge Base Match</span>
             <span
               class="text-xs font-medium px-2 py-0.5 rounded border
-                     {verdict === 'supported'
+                     {normalised === 'consistent'
                        ? 'bg-malachite/15 text-malachite dark:text-malachite-light border-malachite/30'
-                       : verdict === 'disputed'
+                       : normalised === 'inconsistent'
                          ? 'bg-cinnabar/15 text-cinnabar dark:text-cinnabar-light border-cinnabar/30'
-                         : verdict === 'mixed'
+                         : normalised === 'mixed'
                            ? 'bg-amber/15 text-amber dark:text-amber-light border-amber/30'
                            : 'bg-graphite text-flint dark:text-flint-light border-border-dark'}"
             >
-              {verdict === 'supported' ? 'Supported'
-                : verdict === 'disputed' ? 'Disputed'
-                : verdict === 'mixed' ? 'Mixed'
-                : 'Unverified'}
+              {normalised === 'consistent' ? 'Consistent with KB'
+                : normalised === 'inconsistent' ? 'Inconsistent with KB'
+                : normalised === 'mixed' ? 'Mixed KB match'
+                : normalised === 'unavailable' ? 'Unavailable'
+                : 'Insufficient KB context'}
             </span>
             {#if rag?.confidence != null}
               <span class="text-xs text-flint dark:text-flint-light tabular-nums">
@@ -3788,9 +3805,9 @@
                 >
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                 </svg>
-                {rag.sources.length} source{rag.sources.length === 1 ? '' : 's'} consulted
+                {rag.sources.length} passage{rag.sources.length === 1 ? '' : 's'} retrieved
               </summary>
-              <div class="mt-2 space-y-1.5" role="list" aria-label="RAG verification sources">
+              <div class="mt-2 space-y-1.5" role="list" aria-label="Retrieved reference passages">
                 {#each rag.sources as source, i (i)}
                   <div class="rounded-md px-3 py-2 bg-gray-50 dark:bg-obsidian/50 border border-border-light dark:border-border-dark text-xs" role="listitem">
                     <p class="font-medium text-text-light dark:text-quartz">{source.title}</p>
@@ -3801,6 +3818,30 @@
               </div>
             </details>
           {/if}
+
+          <!--
+            Non-warranty notice (Sprint tech-debt April 2026).
+            Legal-compliance-advisor cross-review rated this HIGH defamation
+            risk in its pre-refactor state. The disclaimer below is
+            non-dismissible and renders on every claim match output so that
+            users cannot cite the result as authority for the truth or
+            falsity of any claim. Matches the model card non-warranty.
+          -->
+          <p
+            class="mt-3 text-[11px] leading-relaxed text-flint/90 dark:text-flint-light/80 border-t border-border-light/60 dark:border-border-dark/60 pt-2"
+            role="note"
+            aria-label="Knowledge base retrieval non-warranty"
+          >
+            <strong class="text-flint dark:text-flint-light">This is a retrieval match, not a fact-check.</strong>
+            The tool reports whether the entered text is consistent with a small preliminary
+            reference corpus. It does not assess the truth or falsity of any claim, person,
+            organisation, or event, has not been formally evaluated for accuracy, and must not
+            be cited as authority in any evidentiary or published context. See the
+            <a
+              href="/help/model-cards#kb-retrieval"
+              class="text-lapis dark:text-lapis-light underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            >model card</a> for scope and limitations.
+          </p>
         </div>
       {/if}
 
@@ -6256,42 +6297,73 @@
         </section>
       {/if}
 
-      <!-- ── Claim Check (from transcription) ──────────────────────── -->
+      <!-- ── Knowledge Base Retrieval Match (from transcription) ───── -->
       {#if result.claimCheckResult}
         {@const cc = result.claimCheckResult}
+        <!--
+          Vocabulary normaliser — see the RAG panel above for rationale.
+          The claim checker was reframed from a fact-checker to a knowledge
+          base retrieval aid in April 2026. Legacy sidecar builds may still
+          emit the old tokens.
+        -->
+        {@const normOverall =
+          cc.overallVerdict === 'supported' || cc.overallVerdict === 'consistent_with_kb'
+            ? 'consistent'
+            : cc.overallVerdict === 'disputed' || cc.overallVerdict === 'inconsistent_with_kb'
+              ? 'inconsistent'
+              : cc.overallVerdict === 'mixed' || cc.overallVerdict === 'mixed_kb_match'
+                ? 'mixed'
+                : cc.overallVerdict === 'unavailable'
+                  ? 'unavailable'
+                  : 'insufficient'}
         <section
           class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5"
           aria-labelledby="claim-check-heading"
         >
-          <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center justify-between mb-2">
             <h3
               id="claim-check-heading"
               class="font-serif text-base font-semibold text-obsidian dark:text-white"
             >
-              Claim Verification
+              Knowledge Base Match
             </h3>
             <span class="text-xs px-2 py-0.5 rounded font-medium
-              {cc.overallVerdict === 'supported' ? 'bg-malachite/10 text-malachite dark:text-malachite-light' :
-               cc.overallVerdict === 'disputed' ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light' :
-               cc.overallVerdict === 'mixed' ? 'bg-amber/10 text-amber dark:text-amber-light' :
+              {normOverall === 'consistent' ? 'bg-malachite/10 text-malachite dark:text-malachite-light' :
+               normOverall === 'inconsistent' ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light' :
+               normOverall === 'mixed' ? 'bg-amber/10 text-amber dark:text-amber-light' :
                'bg-graphite/20 text-flint dark:text-flint-light'}">
-              {cc.overallVerdict.charAt(0).toUpperCase() + cc.overallVerdict.slice(1)}
+              {normOverall === 'consistent' ? 'Consistent with KB'
+                : normOverall === 'inconsistent' ? 'Inconsistent with KB'
+                : normOverall === 'mixed' ? 'Mixed KB match'
+                : normOverall === 'unavailable' ? 'Unavailable'
+                : 'Insufficient KB context'}
             </span>
           </div>
+          <p class="text-[11px] text-flint/80 dark:text-flint-light/70 mb-3">
+            Preliminary investigative aid &mdash; not a fact-checker.
+          </p>
 
           <p class="text-xs text-flint dark:text-flint-light mb-3">{cc.summary}</p>
 
           {#if cc.claims.length > 0}
             <div class="space-y-2">
               {#each cc.claims as claim}
+                {@const normClaim =
+                  claim.verdict === 'supported' || claim.verdict === 'consistent_with_kb'
+                    ? 'consistent'
+                    : claim.verdict === 'disputed' || claim.verdict === 'inconsistent_with_kb'
+                      ? 'inconsistent'
+                      : 'insufficient'}
                 <div class="rounded-md border border-border-light dark:border-border-dark p-3">
                   <div class="flex items-start justify-between gap-2 mb-1">
                     <p class="text-xs font-medium text-obsidian dark:text-white">{claim.claim}</p>
                     <span class="flex-shrink-0 text-xs px-1.5 py-0.5 rounded
-                      {claim.verdict === 'supported' ? 'bg-malachite/10 text-malachite dark:text-malachite-light' :
-                       claim.verdict === 'disputed' ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light' :
+                      {normClaim === 'consistent' ? 'bg-malachite/10 text-malachite dark:text-malachite-light' :
+                       normClaim === 'inconsistent' ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light' :
                        'bg-graphite/20 text-flint dark:text-flint-light'}">
-                      {claim.verdict}
+                      {normClaim === 'consistent' ? 'Consistent'
+                        : normClaim === 'inconsistent' ? 'Inconsistent'
+                        : 'No context'}
                     </span>
                   </div>
                   <p class="text-xs text-flint dark:text-flint-light">{claim.explanation}</p>
@@ -6299,7 +6371,7 @@
                     <div class="mt-1 flex items-center gap-1">
                       <div class="h-1 w-16 rounded-full bg-gray-200 dark:bg-obsidian">
                         <div
-                          class="h-1 rounded-full {claim.verdict === 'supported' ? 'bg-malachite' : claim.verdict === 'disputed' ? 'bg-cinnabar' : 'bg-amber'}"
+                          class="h-1 rounded-full {normClaim === 'consistent' ? 'bg-malachite' : normClaim === 'inconsistent' ? 'bg-cinnabar' : 'bg-amber'}"
                           style="width: {claim.confidence * 100}%"
                         ></div>
                       </div>
@@ -6312,7 +6384,24 @@
           {/if}
 
           <p class="mt-3 text-xs text-flint dark:text-flint-light">
-            Model: {cc.modelUsed} · {cc.methodology}
+            Model: {cc.modelUsed} &middot; {cc.methodology}
+          </p>
+
+          <!-- Non-warranty notice (tech-debt April 2026). See RAG panel for rationale. -->
+          <p
+            class="mt-3 text-[11px] leading-relaxed text-flint/90 dark:text-flint-light/80 border-t border-border-light/60 dark:border-border-dark/60 pt-2"
+            role="note"
+            aria-label="Knowledge base retrieval non-warranty"
+          >
+            <strong class="text-flint dark:text-flint-light">This is a retrieval match, not a fact-check.</strong>
+            The tool reports whether transcribed claims are consistent with a small preliminary
+            reference corpus. It does not assess the truth or falsity of any claim, person,
+            organisation, or event, has not been formally evaluated for accuracy, and must not
+            be cited as authority in any evidentiary or published context. See the
+            <a
+              href="/help/model-cards#kb-retrieval"
+              class="text-lapis dark:text-lapis-light underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            >model card</a> for scope and limitations.
           </p>
         </section>
       {/if}

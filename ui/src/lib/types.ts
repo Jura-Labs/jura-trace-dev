@@ -499,7 +499,32 @@ export const SEVERITY_CONFIG: Record<Severity, { label: string; textClass: strin
 };
 
 /** Claim verdict from RAG verification */
-export type ClaimVerdict = 'supported' | 'disputed' | 'unverified' | 'mixed';
+/**
+ * Knowledge base retrieval match status.
+ *
+ * This type intentionally retains the legacy name `ClaimVerdict` for
+ * backwards compatibility with older sidecar builds and existing code,
+ * but the underlying tool is NOT a fact-checker — see the model card at
+ * /help/model-cards#kb-retrieval. The status values were renamed from
+ * "supported / disputed / unverified / mixed" in April 2026 to reflect
+ * that the tool reports retrieval coverage, not factual verdicts.
+ *
+ * Legacy values are retained in the union so that older analyses still
+ * render correctly when loaded from the SQLite database or imported
+ * from v0.9 case exports.
+ */
+export type ClaimVerdict =
+  // New vocabulary (v0.9.0 post-April 2026)
+  | 'consistent_with_kb'
+  | 'inconsistent_with_kb'
+  | 'insufficient_context_in_kb'
+  | 'mixed_kb_match'
+  | 'unavailable'
+  // Legacy vocabulary (pre-April 2026 — retained for backwards compatibility)
+  | 'supported'
+  | 'disputed'
+  | 'unverified'
+  | 'mixed';
 
 /** Application statistics for the dashboard */
 export interface AppStats {

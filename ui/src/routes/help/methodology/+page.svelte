@@ -1129,7 +1129,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                The local knowledge base covers a limited domain. Claims about topics not represented in the knowledge base are returned as "unverified" rather than disputed. Transcription errors may also lead to incorrect claim extraction.
+                The local knowledge base is a small preliminary corpus covering a limited domain. Claims about topics not represented in the corpus return <em>insufficient context</em> &mdash; the tool does not reason from its training data about claims the corpus cannot support. This is a retrieval match, not a fact-check; see the <a href="/help/model-cards#kb-retrieval" class="text-lapis dark:text-lapis-light underline hover:no-underline">model card</a> for scope, limitations, and the explicit non-warranty. Transcription errors may also lead to incorrect claim extraction.
               </dd>
             </div>
             <div>

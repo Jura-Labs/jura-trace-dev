@@ -137,18 +137,38 @@ class ClipDetectionResponse(BaseModel):
 
 
 class ClaimVerdict(BaseModel):
-    """A single claim verification result."""
+    """A single knowledge-base retrieval match result.
+
+    Despite the class name (retained for backwards-compatible JSON field
+    order), this is NOT a verdict about the truth or falsity of a claim.
+    It reports whether the analyst-entered text is consistent with the
+    retrieved passages from a small preliminary reference corpus. See
+    the model card at /help/model-cards#kb-retrieval for scope.
+    """
 
     claim: str
-    verdict: str  # "supported", "disputed", "unverified", "unavailable"
+    # One of: "consistent_with_kb", "inconsistent_with_kb",
+    # "insufficient_context_in_kb", "unavailable".
+    # Legacy builds may still produce "supported" / "disputed" /
+    # "unverified" — callers should treat these as aliases for
+    # consistent / inconsistent / insufficient respectively.
+    verdict: str
     explanation: str
-    confidence: float  # 0.0–1.0
+    confidence: float  # 0.0–1.0 — retrieval-match certainty, NOT factual certainty
 
 
 class ClaimCheckResponse(BaseModel):
-    """RAG claim verification result."""
+    """Knowledge base retrieval match result (preliminary investigative aid).
 
-    overall_verdict: str  # "supported", "disputed", "unverified", "mixed", "unavailable"
+    This is NOT a fact-checking tool. It reports whether analyst-entered
+    text is consistent with a small preliminary reference corpus. Results
+    must not be cited as authority for the truth or falsity of any claim.
+    See the model card at /help/model-cards#kb-retrieval.
+    """
+
+    # One of: "consistent_with_kb", "inconsistent_with_kb",
+    # "insufficient_context_in_kb", "mixed_kb_match", "unavailable".
+    overall_verdict: str
     claims: list[ClaimVerdict]
     model_used: str
     methodology: str

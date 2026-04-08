@@ -97,42 +97,42 @@ class TestParseVerdict:
     def test_supported_parsed(self):
         raw = "SUPPORTED The claim matches known historical records."
         verdict, explanation, confidence = _parse_verdict(raw)
-        assert verdict == "supported"
+        assert verdict == "consistent_with_kb"
         assert "historical" in explanation
         assert confidence > 0.5
 
     def test_disputed_parsed(self):
         raw = "DISPUTED This contradicts multiple verified sources."
         verdict, explanation, confidence = _parse_verdict(raw)
-        assert verdict == "disputed"
+        assert verdict == "inconsistent_with_kb"
         assert confidence > 0.5
 
     def test_unverified_parsed(self):
         raw = "UNVERIFIED There is insufficient information to assess this claim."
         verdict, explanation, confidence = _parse_verdict(raw)
-        assert verdict == "unverified"
+        assert verdict == "insufficient_context_in_kb"
         assert confidence <= 0.45
 
     def test_case_insensitive_parsing(self):
         raw = "supported this appears to be accurate."
         verdict, _, _ = _parse_verdict(raw)
-        assert verdict == "supported"
+        assert verdict == "consistent_with_kb"
 
     def test_unknown_returns_unverified(self):
         raw = "I cannot determine the answer to this question."
         verdict, _, confidence = _parse_verdict(raw)
-        assert verdict == "unverified"
+        assert verdict == "insufficient_context_in_kb"
         assert confidence == 0.20
 
     def test_markdown_fencing_stripped(self):
         raw = "```\nSUPPORTED The evidence supports this.\n```"
         verdict, _, _ = _parse_verdict(raw)
-        assert verdict == "supported"
+        assert verdict == "consistent_with_kb"
 
     def test_leading_colon_stripped(self):
         raw = ": SUPPORTED The claim is well-supported by available data."
         verdict, explanation, _ = _parse_verdict(raw)
-        assert verdict == "supported"
+        assert verdict == "consistent_with_kb"
         assert explanation  # explanation should not be empty
 
     def test_explanation_truncated_at_300_chars(self):
@@ -143,7 +143,7 @@ class TestParseVerdict:
 
     def test_empty_raw_returns_unverified(self):
         verdict, _, confidence = _parse_verdict("")
-        assert verdict == "unverified"
+        assert verdict == "insufficient_context_in_kb"
         assert confidence == 0.20
 
     def test_confidence_higher_for_long_explanation(self):
@@ -161,38 +161,38 @@ class TestAggregateVerdicts:
     """Tests for _aggregate_verdicts — list[str] → overall verdict string."""
 
     def test_all_supported_returns_supported(self):
-        assert _aggregate_verdicts(["supported", "supported", "supported"]) == "supported"
+        assert _aggregate_verdicts(["consistent_with_kb", "consistent_with_kb", "consistent_with_kb"]) == "consistent_with_kb"
 
     def test_any_disputed_returns_disputed(self):
-        assert _aggregate_verdicts(["supported", "disputed", "unverified"]) == "disputed"
+        assert _aggregate_verdicts(["consistent_with_kb", "inconsistent_with_kb", "insufficient_context_in_kb"]) == "inconsistent_with_kb"
 
     def test_disputed_overrides_supported(self):
-        assert _aggregate_verdicts(["supported", "disputed"]) == "disputed"
+        assert _aggregate_verdicts(["consistent_with_kb", "inconsistent_with_kb"]) == "inconsistent_with_kb"
 
     def test_mix_of_supported_and_unverified_returns_mixed(self):
-        assert _aggregate_verdicts(["supported", "unverified"]) == "mixed"
+        assert _aggregate_verdicts(["consistent_with_kb", "insufficient_context_in_kb"]) == "mixed_kb_match"
 
     def test_all_unverified_returns_unverified(self):
-        assert _aggregate_verdicts(["unverified", "unverified"]) == "unverified"
+        assert _aggregate_verdicts(["insufficient_context_in_kb", "insufficient_context_in_kb"]) == "insufficient_context_in_kb"
 
     def test_any_unavailable_returns_unavailable(self):
-        assert _aggregate_verdicts(["supported", "unavailable"]) == "unavailable"
+        assert _aggregate_verdicts(["consistent_with_kb", "unavailable"]) == "unavailable"
 
     def test_empty_list_returns_unverified(self):
-        assert _aggregate_verdicts([]) == "unverified"
+        assert _aggregate_verdicts([]) == "insufficient_context_in_kb"
 
     def test_single_supported(self):
-        assert _aggregate_verdicts(["supported"]) == "supported"
+        assert _aggregate_verdicts(["consistent_with_kb"]) == "consistent_with_kb"
 
     def test_single_disputed(self):
-        assert _aggregate_verdicts(["disputed"]) == "disputed"
+        assert _aggregate_verdicts(["inconsistent_with_kb"]) == "inconsistent_with_kb"
 
     def test_single_unverified(self):
-        assert _aggregate_verdicts(["unverified"]) == "unverified"
+        assert _aggregate_verdicts(["insufficient_context_in_kb"]) == "insufficient_context_in_kb"
 
     def test_unavailable_dominates_disputed(self):
         # unavailable is checked first
-        assert _aggregate_verdicts(["disputed", "unavailable"]) == "unavailable"
+        assert _aggregate_verdicts(["inconsistent_with_kb", "unavailable"]) == "unavailable"
 
 
 # ── Summary building ───────────────────────────────────────────────────────────
@@ -215,19 +215,25 @@ class TestBuildSummary:
         assert "Ollama" in summary
 
     def test_supported_summary_includes_count(self):
-        claims = [self._make_verdict("supported"), self._make_verdict("supported")]
-        summary = _build_summary("supported", claims)
+        claims = [self._make_verdict("consistent_with_kb"), self._make_verdict("consistent_with_kb")]
+        summary = _build_summary("consistent_with_kb", claims)
         assert "2" in summary
 
     def test_summary_is_non_empty_string(self):
-        claims = [self._make_verdict("unverified")]
-        summary = _build_summary("unverified", claims)
+        claims = [self._make_verdict("insufficient_context_in_kb")]
+        summary = _build_summary("insufficient_context_in_kb", claims)
         assert isinstance(summary, str) and summary
 
     def test_mixed_summary_mentions_mixed(self):
-        claims = [self._make_verdict("supported"), self._make_verdict("unverified")]
-        summary = _build_summary("mixed", claims)
-        assert "mixed" in summary.lower() or "supported" in summary.lower()
+        claims = [self._make_verdict("consistent_with_kb"), self._make_verdict("insufficient_context_in_kb")]
+        summary = _build_summary("mixed_kb_match", claims)
+        # Summary framing intentionally avoids machine-readable tokens in
+        # user-facing prose — it must convey "some matched, some didn't" in
+        # natural language without echoing the status constants. The new
+        # vocabulary copy says "consistent with reference material" and
+        # "partial coverage".
+        low = summary.lower()
+        assert "consistent" in low and "partial coverage" in low
 
 
 # ── Graceful degradation: Ollama unavailable ──────────────────────────────────
@@ -328,13 +334,13 @@ class TestEmptyInput:
     @pytest.mark.asyncio
     async def test_empty_string_returns_no_claims(self):
         result = await check_claims("")
-        assert result.overall_verdict == "unverified"
+        assert result.overall_verdict == "insufficient_context_in_kb"
         assert result.claims == []
 
     @pytest.mark.asyncio
     async def test_whitespace_only_returns_no_claims(self):
         result = await check_claims("   \n  ")
-        assert result.overall_verdict == "unverified"
+        assert result.overall_verdict == "insufficient_context_in_kb"
         assert result.claims == []
 
     @pytest.mark.asyncio
@@ -388,8 +394,8 @@ class TestPositivePath:
                 model="qwen2.5:7b-instruct",
             )
 
-        assert result.overall_verdict == "supported"
-        assert result.claims[0].verdict == "supported"
+        assert result.overall_verdict == "consistent_with_kb"
+        assert result.claims[0].verdict == "consistent_with_kb"
 
     @pytest.mark.asyncio
     async def test_disputed_claim_returns_disputed(self):
@@ -416,7 +422,7 @@ class TestPositivePath:
                 model="qwen2.5:7b-instruct",
             )
 
-        assert result.overall_verdict == "disputed"
+        assert result.overall_verdict == "inconsistent_with_kb"
 
     @pytest.mark.asyncio
     async def test_multiple_claims_aggregated(self):
@@ -444,7 +450,7 @@ class TestPositivePath:
             result = await check_claims(text, model="qwen2.5:7b-instruct")
 
         assert len(result.claims) == 3
-        assert result.overall_verdict == "supported"
+        assert result.overall_verdict == "consistent_with_kb"
 
     @pytest.mark.asyncio
     async def test_context_passed_to_prompt(self):
@@ -493,11 +499,11 @@ class TestPositivePath:
         # Validate via Pydantic (will raise if schema is wrong)
         validated = ClaimCheckResponse.model_validate(result.model_dump())
         assert validated.overall_verdict in (
-            "supported", "disputed", "unverified", "mixed", "unavailable"
+            "consistent_with_kb", "inconsistent_with_kb", "insufficient_context_in_kb", "mixed_kb_match", "unavailable"
         )
         for claim in validated.claims:
             assert 0.0 <= claim.confidence <= 1.0
-            assert claim.verdict in ("supported", "disputed", "unverified", "unavailable")
+            assert claim.verdict in ("consistent_with_kb", "inconsistent_with_kb", "insufficient_context_in_kb", "unavailable")
 
 
 # ── API endpoint tests ─────────────────────────────────────────────────────────
