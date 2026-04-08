@@ -254,11 +254,19 @@ class TestScreenshotBypassIntegration:
     """Test that the screenshot pre-classifier correctly gates the pipeline."""
 
     def test_screenshot_bypasses_ensemble(self):
-        """A clear screenshot should bypass the ensemble and get a low score."""
+        """A clear screenshot should bypass the ensemble and get a low score.
+
+        The hardcoded bypass score is 0.15 (raised from 0.05 in commit
+        ead664a to prevent AI images resembling screenshots from receiving
+        "high confidence authentic" verdicts). The assertion upper bound
+        is 0.20 to allow for any future minor tuning without breaking
+        this test — the semantic guarantee is score, verdict_level,
+        suspicious, and summary, not the exact numeric value.
+        """
         result = perform_deepfake_detection(
             _make_screenshot(), mime_type="image/png"
         )
-        assert result.score <= 0.10
+        assert result.score <= 0.20
         assert result.verdict_level == "authentic"
         assert result.suspicious is False
         assert "screenshot" in result.summary.lower()

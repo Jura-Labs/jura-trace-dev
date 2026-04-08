@@ -657,6 +657,19 @@ def _perform_deepfake_detection_impl(
     # "insufficient data" response rather than a misleading score.
     orig_h, orig_w = img_array.shape[:2]
     if orig_h < 128 or orig_w < 128:
+        # Populate the feature dict with NaN so callers of
+        # `perform_deepfake_detection_with_features()` — notably
+        # `video_deepfake.py` during per-frame analysis — always
+        # receive a dict containing every FEATURE_NAMES key. Returning
+        # `{}` here previously broke the documented contract and
+        # silently corrupted temporal drift calculations whenever a
+        # video frame was below 128x128 (e.g. thumbnail previews).
+        # `_compute_drift` in `video_deepfake.py` correctly filters
+        # NaN values, so this produces a "no drift measurable" result
+        # rather than a KeyError.
+        small_image_features: dict[str, float] = {
+            name: float("nan") for name in FEATURE_NAMES
+        }
         return DeepfakeResponse(
             score=0.0,
             suspicious=False,
@@ -667,7 +680,7 @@ def _perform_deepfake_detection_impl(
             summary=f"Image too small for reliable analysis ({orig_w}x{orig_h}). "
                     f"Minimum 128x128 required for forensic detection.",
             watermarks=[],
-        ), {}
+        ), small_image_features
 
     # ── Screenshot pre-classifier ─────────────────────────────────────
     # Screenshots (UI renders) share features with AI images — no EXIF,
@@ -784,7 +797,23 @@ def _perform_deepfake_detection_impl(
                 univfd_score=None,
                 univfd_available=False,
             )
-            return response, {"screenshot_confidence": screenshot_conf}
+            # Populate the full feature dict with NaN so that callers of
+            # `perform_deepfake_detection_with_features()` — notably
+            # `video_deepfake.py` during per-frame analysis — receive a
+            # dict with every FEATURE_NAMES key present. The previous
+            # single-key return `{"screenshot_confidence": ...}` violated
+            # the function's documented contract and silently broke the
+            # temporal drift calculations (noise_drift, spectral_drift,
+            # LBP drift) whenever a video frame hit the screenshot
+            # bypass path (title cards, credits, rendered graphics).
+            # NaN propagates cleanly through numpy aggregates rather
+            # than returning silently wrong 0.0 drift values.
+            # See qa-tester cross-review diagnosis 2026-04-08.
+            bypass_features: dict[str, float] = {
+                name: float("nan") for name in FEATURE_NAMES
+            }
+            bypass_features["screenshot_confidence"] = float(screenshot_conf)
+            return response, bypass_features
         else:
             logger.info(
                 "Screenshot pre-classifier overridden — AI-like texture detected. "
