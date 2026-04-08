@@ -113,6 +113,25 @@ cd ui && npx playwright test
 cd ui && npx svelte-check
 ```
 
+### Disk pressure — periodic cargo clean
+
+`src-tauri/target/` grows steadily during active Rust development and can
+reach 15 GB or more with incremental build artefacts. On laptops with
+tight disk budgets this will fill the root filesystem and break subsequent
+`cargo check` / `cargo test` / `cargo tauri dev` runs with `ENOSPC` (no
+space left on device). It can also fail non-cargo writes — mid-session
+disk exhaustion has previously taken out Claude Code's own scratch
+directory and the editor's staging area for in-flight file edits.
+
+**Practice**: run `cargo clean --manifest-path src-tauri/Cargo.toml`
+whenever free space on `/` drops below ~5 GB. It frees the target dir
+cleanly; the next `cargo check` takes ~1–2 minutes to rehydrate caches
+and ~10 minutes for a cold full rebuild. Also delete `sidecar/build/`
+(PyInstaller output, not tracked) which can add another 200–300 MB.
+
+Check disk usage with `df -h /` and target size with
+`du -sh src-tauri/target`.
+
 ## Project Structure
 
 ```
