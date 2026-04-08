@@ -758,6 +758,36 @@ export async function setLicenceTier(tier: LicenceTier): Promise<void> {
   return invoke<void>('set_licence_tier', { tier });
 }
 
+/**
+ * Get the user's AI image description preference.
+ *
+ * Returns:
+ *   - `true`  — explicitly enabled
+ *   - `false` — explicitly disabled
+ *   - `null`  — not yet decided (treated as disabled by the verify pipeline
+ *               until the user makes a choice via Settings)
+ */
+export async function getAiDescriptionEnabled(): Promise<boolean | null> {
+  try {
+    return await invoke<boolean | null>('get_ai_description_enabled');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Persist the user's AI image description preference.
+ *
+ * AI descriptions via Ollama LLaVA add 5–30 seconds to each image verify,
+ * so this is gated behind an explicit user opt-in.
+ *
+ * @param enabled  `true` to enable, `false` to disable, `null` to clear the
+ *                 preference back to "not set".
+ */
+export async function setAiDescriptionEnabled(enabled: boolean | null): Promise<void> {
+  return invoke<void>('set_ai_description_enabled', { enabled });
+}
+
 // ── API Key Management ─────────────────────────────────────────────
 
 export interface ApiKeyInfo {

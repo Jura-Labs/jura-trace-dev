@@ -279,6 +279,19 @@ pub struct AppState {
     /// SHA-256 hex digest of the GBM classifier model file, computed once at
     /// startup. `None` if the model file is not present.
     pub classifier_model_hash: Option<String>,
+    /// User preference for AI image descriptions via Ollama LLaVA.
+    ///
+    /// - `Some(true)`  — explicitly enabled by the user
+    /// - `Some(false)` — explicitly disabled by the user
+    /// - `None`        — not yet decided; treated as disabled at verify time
+    ///   to protect perf until the user opts in via Settings. The setup wizard
+    ///   and Settings page are expected to resolve this to an explicit value.
+    ///
+    /// This feature adds 5–30 s per image verify when active and depends on
+    /// Ollama + LLaVA being installed. Gated here so users who care about
+    /// verify speed can turn it off, while users who want rich descriptions
+    /// can keep it on.
+    pub ai_description_enabled: Option<bool>,
 }
 
 /// Compute the SHA-256 hash of a file, returning a lowercase hex string.
@@ -1798,10 +1811,13 @@ fn verify_content_inner(
     };
 
     // ── Tier 3: AI image description via Ollama LLaVA (optional) ─────────
-    // Only for image content in non-quick modes. Runs in the background after
-    // all forensic analysis is complete — if Ollama is unavailable the result
-    // is simply None and the pipeline continues unaffected.
-    let ai_description: Option<String> = if is_image && sidecar_available {
+    // Only for image content in non-quick modes, and only when the user has
+    // explicitly opted in via Settings. This call is serial (adds 5–30 s on
+    // typical hardware) so it is gated behind `AppState::ai_description_enabled`
+    // — see that field's doc comment for the tri-state semantics. If Ollama
+    // is unavailable the sidecar returns None and the pipeline continues.
+    let ai_desc_allowed = matches!(app.ai_description_enabled, Some(true));
+    let ai_description: Option<String> = if is_image && sidecar_available && ai_desc_allowed {
         let t_describe = std::time::Instant::now();
         let desc_path = path.to_path_buf();
         let desc_client = app.sidecar.clone();
@@ -3077,6 +3093,47 @@ fn set_licence_tier(
     Ok(())
 }
 
+// ===== AI Image Description Preference =====
+
+/// Return the user's AI image description preference.
+///
+/// `None` means the user has not yet made a choice — the frontend should
+/// treat this as "auto" and surface a recommendation (enable if Ollama and
+/// LLaVA are detected by the sidecar health check). `Some(true)` / `Some(false)`
+/// are explicit user preferences honoured by the verify pipeline.
+#[tauri::command]
+fn get_ai_description_enabled(
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<Option<bool>, String> {
+    let app = state.lock().map_err(|e| e.to_string())?;
+    Ok(app.ai_description_enabled)
+}
+
+/// Persist the user's AI image description preference to `config.json` and
+/// update the live `AppState`. Passing `null` from the frontend clears the
+/// preference back to "not set".
+#[tauri::command]
+fn set_ai_description_enabled(
+    app_handle: tauri::AppHandle,
+    state: State<'_, Arc<Mutex<AppState>>>,
+    enabled: Option<bool>,
+) -> Result<(), String> {
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+
+    let mut config = read_app_config(&data_dir);
+    config.ai_description_enabled = enabled;
+    write_app_config(&data_dir, &config)?;
+
+    let mut app = state.lock().map_err(|e| e.to_string())?;
+    app.ai_description_enabled = enabled;
+
+    log::info!("AI image description preference updated to {:?}", enabled);
+    Ok(())
+}
+
 // ===== Setup Wizard Flag =====
 
 /// Return whether the first-run setup wizard should be suppressed.
@@ -3241,6 +3298,11 @@ struct AppConfig {
     /// Defaults to `false` so existing installs are unaffected.
     #[serde(default)]
     skip_setup_wizard: bool,
+    /// User preference for AI image descriptions (Ollama LLaVA).
+    /// See `AppState::ai_description_enabled` for semantics. Stored as a
+    /// tri-state so we can distinguish "never set" from "explicitly off".
+    #[serde(default)]
+    ai_description_enabled: Option<bool>,
 }
 
 /// Read the persisted config.json from app_data_dir.
@@ -3723,6 +3785,15 @@ pub fn run() {
             let startup_config = read_app_config(&data_dir);
             let licence_tier = startup_config.licence_tier;
             log::info!("Licence tier: {:?}", licence_tier);
+            let ai_description_enabled = startup_config.ai_description_enabled;
+            log::info!(
+                "AI image description preference: {}",
+                match ai_description_enabled {
+                    Some(true) => "enabled",
+                    Some(false) => "disabled",
+                    None => "not set (defaults off until user opts in)",
+                }
+            );
 
             let database = db::Database::open(&db_path).expect("failed to open database");
 
@@ -3923,6 +3994,7 @@ pub fn run() {
                 licence_tier,
                 sidecar_process: sidecar_child,
                 classifier_model_hash: classifier_hash,
+                ai_description_enabled,
             }));
 
             // ── Local REST API server (port 8300) ────────────────────────────
@@ -3995,6 +4067,8 @@ pub fn run() {
             set_db_path,
             get_licence_tier,
             set_licence_tier,
+            get_ai_description_enabled,
+            set_ai_description_enabled,
             get_skip_wizard,
             calculate_sun_position,
             estimate_shadow_time,

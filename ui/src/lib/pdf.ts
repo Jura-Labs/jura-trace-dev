@@ -1004,8 +1004,14 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
     y += SECTION_GAP + 4;
     heading('Appendix: Tool Versions');
 
+    // Berkeley Protocol requires reproducible identifiers, not marketing version
+    // strings. The classifier is identified by the SHA-256 hash of the model file
+    // captured in MethodologyRecord at verification time — a legally defensible
+    // fingerprint that cannot go stale as models are retrained.
     const berkeleyClassifier = result.deepfakeResult?.classifierAvailable
-      ? 'GBM v2 (AUC 1.0000)'
+      ? result.methodology?.classifierModelHash
+        ? `GBM classifier (SHA-256: ${result.methodology.classifierModelHash.substring(0, 16)}…)`
+        : 'GBM classifier (hash unavailable)'
       : 'Heuristic only';
     const berkeleyClip = result.clipResult
       ? 'ViT-B/32 (open_clip)'

@@ -37,6 +37,7 @@ fn build_test_state() -> (Arc<Mutex<AppState>>, tempfile::TempDir) {
         licence_tier: LicenceTier::Community,
         sidecar_process: None,
         classifier_model_hash: None,
+        ai_description_enabled: None,
     };
 
     (Arc::new(Mutex::new(state)), dir)

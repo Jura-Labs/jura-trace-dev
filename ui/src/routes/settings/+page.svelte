@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getVersion, checkSidecarHealth, getDbPath, setDbPath, getLicenceTier, setLicenceTier, createApiKey, listApiKeys, revokeApiKey } from '$lib/api';
+  import { getVersion, checkSidecarHealth, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, createApiKey, listApiKeys, revokeApiKey } from '$lib/api';
   import type { ApiKeyInfo, CreateKeyResult } from '$lib/api';
   import type { LicenceTier, SidecarHealth, TierInfo } from '$lib/types';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
@@ -187,6 +187,7 @@
     reloadProfiles();
     currentDbPath = await getDbPath();
     currentTier = await getLicenceTier();
+    aiDescPref = await getAiDescriptionEnabled();
     await loadApiKeys();
   });
 
@@ -337,6 +338,51 @@
       tierChanging = false;
       if (tierFeedbackTimer !== null) clearTimeout(tierFeedbackTimer);
       tierFeedbackTimer = setTimeout(() => { tierFeedback = null; }, 5000);
+    }
+  }
+
+  // ── AI image description preference ────────────────────────────────────
+  // LLaVA-backed image descriptions run as the final stage of verify on
+  // image content. They depend on Ollama being installed and reachable, and
+  // add 5–30 seconds to every image verify. Gated behind an explicit user
+  // opt-in so verify stays fast by default. The tri-state value distinguishes
+  // "never decided" (null) from "explicitly off" (false).
+  let aiDescPref = $state<boolean | null>(null);
+  let aiDescChanging = $state(false);
+  let aiDescFeedback = $state<{ ok: boolean; message: string } | null>(null);
+  let aiDescFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Effective state shown in the UI: undecided defaults to "off". */
+  const aiDescActive = $derived(aiDescPref === true);
+
+  /** True when Ollama appears reachable from the sidecar health check. */
+  const ollamaDetected = $derived(
+    sidecarHealth?.ollama != null && sidecarHealth.ollama.length > 0,
+  );
+
+  async function handleAiDescToggle(event: Event) {
+    const checkbox = event.currentTarget as HTMLInputElement;
+    const next = checkbox.checked;
+    aiDescChanging = true;
+    aiDescFeedback = null;
+    try {
+      await setAiDescriptionEnabled(next);
+      aiDescPref = next;
+      aiDescFeedback = {
+        ok: true,
+        message: next
+          ? 'AI image descriptions enabled. Verify will take longer on images.'
+          : 'AI image descriptions disabled. Verify will run faster.',
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      aiDescFeedback = { ok: false, message: `Failed to update preference: ${msg}` };
+      // Roll the checkbox back to the last known state so the UI stays honest.
+      checkbox.checked = aiDescActive;
+    } finally {
+      aiDescChanging = false;
+      if (aiDescFeedbackTimer !== null) clearTimeout(aiDescFeedbackTimer);
+      aiDescFeedbackTimer = setTimeout(() => { aiDescFeedback = null; }, 5000);
     }
   }
 
@@ -1095,6 +1141,79 @@
         aria-live="polite"
       >
         {tierFeedback.message}
+      </p>
+    {/if}
+  </section>
+
+  <!-- Analysis preferences -->
+  <section
+    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
+    aria-labelledby="analysis-heading"
+  >
+    <div class="flex items-center gap-1.5 mb-1">
+      <h2 id="analysis-heading" class="text-lg font-heading text-text-light dark:text-quartz">Analysis preferences</h2>
+    </div>
+    <p class="text-xs text-flint dark:text-flint-light mb-4">
+      Control which optional analysis stages run during verify. Turning stages off makes verify faster.
+    </p>
+
+    <div class="flex items-start justify-between gap-4 p-4 rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40">
+      <div class="min-w-0 flex-1">
+        <label for="ai-desc-toggle" class="block text-sm font-medium text-text-light dark:text-quartz">
+          AI image descriptions
+        </label>
+        <p class="text-xs text-flint dark:text-flint-light mt-1 leading-relaxed">
+          Uses Ollama LLaVA to generate a plain-English description of each verified image.
+          Adds roughly 5–30 seconds per image. Requires Ollama with a vision model installed.
+        </p>
+        <p class="text-xs mt-2">
+          {#if ollamaDetected}
+            <span class="text-malachite dark:text-malachite-light">Ollama detected</span>
+            {#if sidecarHealth?.ollama}<span class="text-flint dark:text-flint-light"> — version {sidecarHealth.ollama}</span>{/if}
+          {:else}
+            <span class="text-flint dark:text-flint-light">
+              Ollama not detected. Enabling this has no effect until Ollama is installed and a vision model (e.g. <code class="font-mono text-[11px]">llava</code>) is pulled.
+            </span>
+          {/if}
+        </p>
+        {#if aiDescPref === null}
+          <p class="text-xs text-flint/70 dark:text-flint-light/70 mt-2 italic">
+            Not yet set — currently off. Enable to opt in.
+          </p>
+        {/if}
+      </div>
+      <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+        <input
+          id="ai-desc-toggle"
+          type="checkbox"
+          class="sr-only peer"
+          checked={aiDescActive}
+          disabled={aiDescChanging}
+          onchange={handleAiDescToggle}
+          aria-describedby="ai-desc-hint"
+        />
+        <span
+          class="w-11 h-6 bg-gray-300 dark:bg-flint/40 rounded-full peer peer-checked:bg-lapis dark:peer-checked:bg-lapis-light
+                 peer-focus-visible:ring-2 peer-focus-visible:ring-lapis peer-focus-visible:ring-offset-2
+                 dark:peer-focus-visible:ring-offset-graphite
+                 peer-disabled:opacity-50 peer-disabled:cursor-not-allowed
+                 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full
+                 after:h-5 after:w-5 after:transition-transform peer-checked:after:translate-x-5"
+          aria-hidden="true"
+        ></span>
+      </label>
+    </div>
+
+    {#if aiDescFeedback !== null}
+      <p
+        class="mt-3 text-sm px-3 py-2 rounded border
+               {aiDescFeedback.ok
+                 ? 'text-malachite dark:text-malachite-light border-malachite/20 bg-malachite/5'
+                 : 'text-cinnabar dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
+        role="status"
+        aria-live="polite"
+      >
+        {aiDescFeedback.message}
       </p>
     {/if}
   </section>

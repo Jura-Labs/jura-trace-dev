@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
-  import { checkSidecarHealth } from '$lib/api';
+  import { checkSidecarHealth, getAiDescriptionEnabled, setAiDescriptionEnabled } from '$lib/api';
   import type { SidecarHealth } from '$lib/types';
 
   // ── Props ──────────────────────────────────────────────────────────
@@ -59,8 +59,33 @@
   const platform = detectPlatform();
 
   // ── Navigation ─────────────────────────────────────────────────────
+
+  /**
+   * Auto-enable AI image descriptions on successful wizard completion,
+   * but only when the user has a working stack AND hasn't already made a
+   * choice. Rationale: if Ollama + a vision model are installed, the user
+   * has opted into the LLM experience and the LLaVA description is the
+   * natural complement to forensic analysis. We only flip the preference
+   * when it's currently `null` (never set) so we don't override a user
+   * who explicitly disabled it and then re-ran the wizard.
+   *
+   * Silently swallows errors — failing to set the preference should not
+   * block wizard completion.
+   */
+  async function autoEnableAiDescriptionIfEligible() {
+    try {
+      if (!llavaInstalled) return;
+      const current = await getAiDescriptionEnabled();
+      if (current !== null) return; // respect any explicit user choice
+      await setAiDescriptionEnabled(true);
+    } catch {
+      // Non-fatal; verify will simply keep its default-off behaviour.
+    }
+  }
+
   async function goNext() {
     if (isLastStep) {
+      await autoEnableAiDescriptionIfEligible();
       onComplete();
       return;
     }
