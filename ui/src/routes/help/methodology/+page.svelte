@@ -307,11 +307,55 @@
       Detector Reference
     </h2>
 
-    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
       Expand each detector to learn what it measures, how it works, and when it
-      may produce false positives. All 16 detectors run locally on your device —
+      may produce false positives. All detectors run locally on your device —
       no data is transmitted externally.
     </p>
+
+    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
+      The automatic detectors run on every verification (at the mode indicated
+      in each entry's <em>Active in modes</em> line). The on-demand investigation
+      tools are available in Expert View and can be triggered manually by an
+      analyst when the automatic signals are ambiguous or when a specific
+      question needs a targeted probe. On-demand tools do not contribute to
+      the numeric trust score.
+    </p>
+
+    <!--
+      Detector lineup after Sprint 28 tech-debt audit (April 2026):
+
+      Automatic (in trust scoring):
+        1. EXIF Anomaly
+        2. C2PA Provenance
+        3. ELA
+        4. Noise Analysis
+        5. Copy-Move
+        6. AI Generation (GBM v4 + UnivFD v8 ensemble)
+        9. JPEG Ghost (0.5× weight — S28-4)
+        10. Segmented ELA
+        12. Colour Temperature
+        14. CLIP Detection (optional, blends into ensemble)
+        16. Video Deepfake (video only)
+
+      On-demand investigation tools (NOT in trust scoring):
+        7. NPR — demoted S28-3 (April 2026)
+        11. Shadow Consistency — demoted April 2026
+        13. Splice Boundary — demoted April 2026
+
+      Investigative aid (separate category, not a forensic detector):
+        15. Knowledge Base Retrieval (formerly RAG Claim Checker)
+
+      Removed entirely:
+        8. Chromatic Aberration — S28-1 (April 2026), audit 1/5 accuracy
+        Diffusion artefacts — S28-2 (April 2026), superseded by UnivFD v8
+        Seasonal indicators — Sprint 27 April 2026, pseudoscience
+        Weather cross-reference — Sprint 27 April 2026, was browser-mock
+    -->
+
+    <h3 class="font-heading text-lg text-text-light dark:text-quartz mb-3 mt-2 tracking-heading">
+      Automatic detectors
+    </h3>
 
     <div class="space-y-2">
 
@@ -853,12 +897,12 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint dark:text-flint-light">Deep &#183; Archival</dd>
+              <dd class="text-flint dark:text-flint-light">On-demand investigation tool (not part of the automatic pipeline)</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Removed from trust scoring due to high false positive rate. Displayed as an investigative signal in Expert View only. Useful for manual inspection of light direction but not reliable for automated detection.
+                Demoted to on-demand in April 2026. The gradient-weighted light direction estimate is noisy on textured scenes and cluttered backgrounds, and the forensic audit concluded it adds scoring noise without reliable discrimination. The canonical shadow-constraint technique (Kee, O'Brien &amp; Farid 2013) requires user-placed shadow/object point pairs and is a better fit as a manual ROI tool, not an automatic detector. Available in Expert View for manual inspection of light direction.
               </dd>
             </div>
           </dl>
@@ -963,12 +1007,12 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint dark:text-flint-light">Deep &#183; Archival</dd>
+              <dd class="text-flint dark:text-flint-light">On-demand investigation tool (not part of the automatic pipeline)</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Removed from trust scoring due to high false positive rate on images with natural sharp edges (architecture, text, geometric patterns). Displayed as an investigative signal in Expert View only.
+                Demoted to on-demand in April 2026. The three-signal fusion (JPEG grid alignment, noise asymmetry, feathering) is heuristic stacking without published validation, and the forensic audit found the detector never set suspicious=true in production — contributing noise without adding discriminative value. Available in Expert View for manual inspection. A future replacement using learned splice localisation (TruFor / MVSS-Net) is backlog work.
               </dd>
             </div>
           </dl>
