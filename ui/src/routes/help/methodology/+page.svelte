@@ -689,61 +689,6 @@
         </div>
       </details>
 
-      <!-- 7. NPR -->
-      <details class="group rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite">
-        <summary
-          class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis rounded"
-        >
-          <span class="flex items-center gap-3">
-            <span class="text-xs font-mono tabular-nums text-flint dark:text-flint-light w-5 flex-shrink-0" aria-hidden="true">07</span>
-            <span class="font-medium text-sm text-text-light dark:text-quartz">Neighbouring Pixel Relationships (NPR)</span>
-          </span>
-          <span class="flex-shrink-0 text-xs text-flint dark:text-flint-light select-none">
-            <span class="hidden group-open:inline">Close</span>
-            <span class="group-open:hidden">Details</span>
-          </span>
-        </summary>
-        <div class="px-4 pb-4 pt-3 border-t border-border-light dark:border-border-dark">
-          <dl class="space-y-3 text-sm">
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                How adjacent pixels relate to one another. Natural photographs have characteristic correlation patterns between neighbouring pixels, arising from optical blur, sensor interpolation, and scene continuity. AI generators produce pixels through a fundamentally different process that disturbs these relationships.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Computes horizontal and vertical pixel correlation coefficients, the variance of pixel differences, and high-frequency energy ratios. These values are compared against empirical distributions from authentic photographs.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What a positive finding means</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Pixel relationship statistics deviate significantly from natural camera output. This is a complementary AI-detection signal that is independent of ELA and noise analysis.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Heavily upscaled images, images with strong sharpening filters, and artwork or illustrations all exhibit non-photographic pixel relationships and will typically trigger this detector.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint dark:text-flint-light">On-demand investigation tool (not part of the automatic pipeline)</dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Demoted to on-demand in Sprint 28 (April 2026). Content-authenticity-expert cross-review noted that the Tan et al. AAAI 2024 paper uses NPR features as input to a learned classifier, not as a standalone threshold, and that a hand-tuned NPR statistic is partially redundant with the UnivFD v8 probe which encodes upsampling artefacts at a higher level of abstraction via CLIP features. The sidecar endpoint remains available for manual investigation. Also computationally intensive and less effective on highly compressed content where pixel neighbour relationships are already disrupted by quantisation.
-              </dd>
-            </div>
-          </dl>
-        </div>
-      </details>
-
       <!-- 9. JPEG Ghost -->
       <details class="group rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite">
         <summary
@@ -854,61 +799,6 @@
         </div>
       </details>
 
-      <!-- 11. Shadow Consistency -->
-      <details class="group rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite">
-        <summary
-          class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis rounded"
-        >
-          <span class="flex items-center gap-3">
-            <span class="text-xs font-mono tabular-nums text-flint dark:text-flint-light w-5 flex-shrink-0" aria-hidden="true">11</span>
-            <span class="font-medium text-sm text-text-light dark:text-quartz">Shadow Consistency</span>
-          </span>
-          <span class="flex-shrink-0 text-xs text-flint dark:text-flint-light select-none">
-            <span class="hidden group-open:inline">Close</span>
-            <span class="group-open:hidden">Details</span>
-          </span>
-        </summary>
-        <div class="px-4 pb-4 pt-3 border-t border-border-light dark:border-border-dark">
-          <dl class="space-y-3 text-sm">
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Whether the implied direction of light is consistent across different regions of the image. In an authentic photograph, shadows and highlights all point away from the same light source. Composite images — where elements were photographed under different lighting conditions — frequently fail this check.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Divides the image into regions and computes a gradient-weighted estimate of light direction (expressed as an angle) for each region. Compares estimated light directions across regions. Significant angular disagreement — weighted by the strength of the gradient signal — is treated as evidence of inconsistent lighting.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What a positive finding means</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Different parts of the image appear to have been lit from different directions, suggesting elements were photographed or generated separately and composited together.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Scenes with multiple artificial light sources (studio setups, concert photography, street scenes at night), reflective surfaces, and images with strong background/foreground separation can legitimately show regional lighting inconsistencies.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint dark:text-flint-light">On-demand investigation tool (not part of the automatic pipeline)</dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Demoted to on-demand in April 2026. The gradient-weighted light direction estimate is noisy on textured scenes and cluttered backgrounds, and the forensic audit concluded it adds scoring noise without reliable discrimination. The canonical shadow-constraint technique (Kee, O'Brien &amp; Farid 2013) requires user-placed shadow/object point pairs and is a better fit as a manual ROI tool, not an automatic detector. Available in Expert View for manual inspection of light direction.
-              </dd>
-            </div>
-          </dl>
-        </div>
-      </details>
-
       <!-- 12. Colour Temperature -->
       <details class="group rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite">
         <summary
@@ -958,61 +848,6 @@
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
                 Assumes single-illuminant scenes. Mixed lighting conditions (e.g. tungsten + daylight, indoor/outdoor transitions) produce false positives. Results are most meaningful for outdoor scenes with consistent natural light.
-              </dd>
-            </div>
-          </dl>
-        </div>
-      </details>
-
-      <!-- 13. Splice Boundary -->
-      <details class="group rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite">
-        <summary
-          class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis rounded"
-        >
-          <span class="flex items-center gap-3">
-            <span class="text-xs font-mono tabular-nums text-flint dark:text-flint-light w-5 flex-shrink-0" aria-hidden="true">13</span>
-            <span class="font-medium text-sm text-text-light dark:text-quartz">Splice Boundary</span>
-          </span>
-          <span class="flex-shrink-0 text-xs text-flint dark:text-flint-light select-none">
-            <span class="hidden group-open:inline">Close</span>
-            <span class="group-open:hidden">Details</span>
-          </span>
-        </summary>
-        <div class="px-4 pb-4 pt-3 border-t border-border-light dark:border-border-dark">
-          <dl class="space-y-3 text-sm">
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                The physical boundary where one image region ends and another begins — the cut edge produced when elements are composited. Three independent edge signals are combined to localise these boundaries.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Analyses three signals simultaneously: (1) JPEG DCT grid discontinuities — abrupt changes in the compression block pattern at potential splice points; (2) noise level changes — sudden shifts in noise grain across a boundary; (3) feathering artefacts — the soft-edge signature left by selection tools and layer masking. Agreement between multiple signals at the same location substantially increases confidence.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What a positive finding means</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                One or more signals detected an anomalous edge inconsistent with natural image content. When corroborated by Segmented ELA flagging the same region, this is the highest-confidence composite manipulation signal Jura Trace can produce.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Hard vignettes, image borders, intentionally added frames or decorative edges, and embedded watermarks or logos all create artificial boundaries that can trigger this detector. Cropped images may show strong grid discontinuities at the crop boundary.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint dark:text-flint-light">On-demand investigation tool (not part of the automatic pipeline)</dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Demoted to on-demand in April 2026. The three-signal fusion (JPEG grid alignment, noise asymmetry, feathering) is heuristic stacking without published validation, and the forensic audit found the detector never set suspicious=true in production — contributing noise without adding discriminative value. Available in Expert View for manual inspection. A future replacement using learned splice localisation (TruFor / MVSS-Net) is backlog work.
               </dd>
             </div>
           </dl>
@@ -1184,6 +1019,179 @@
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
                 Analyses a sample of frames (6 in Standard, 20 in Deep, 40 in Archival) — not every frame. Manipulation confined to un-sampled frames may be missed. Temporal consistency signals (noise drift, spectral drift, LBP drift) require sufficient frame count for meaningful measurement. Requires FFmpeg for frame extraction.
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </details>
+
+      <h3 class="font-heading text-lg text-text-light dark:text-quartz mb-3 mt-8 tracking-heading">
+        On-demand investigation tools
+      </h3>
+
+      <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
+        These tools are available in Expert View and can be triggered manually when
+        the automatic signals are ambiguous or a specific question needs a targeted
+        probe. They are <strong>not</strong> part of the automatic pipeline and do
+        not contribute to the numeric trust score.
+      </p>
+
+      <!-- On-demand: NPR -->
+      <details class="group rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite">
+        <summary
+          class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis rounded"
+        >
+          <span class="flex items-center gap-3">
+            <span class="font-medium text-sm text-text-light dark:text-quartz">Neighbouring Pixel Relationships (NPR)</span>
+          </span>
+          <span class="flex-shrink-0 text-xs text-flint dark:text-flint-light select-none">
+            <span class="hidden group-open:inline">Close</span>
+            <span class="group-open:hidden">Details</span>
+          </span>
+        </summary>
+        <div class="px-4 pb-4 pt-3 border-t border-border-light dark:border-border-dark">
+          <dl class="space-y-3 text-sm">
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                How adjacent pixels relate to one another. Natural photographs have characteristic correlation patterns between neighbouring pixels, arising from optical blur, sensor interpolation, and scene continuity. AI generators produce pixels through a fundamentally different process that disturbs these relationships.
+              </dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Computes horizontal and vertical pixel correlation coefficients, the variance of pixel differences, and high-frequency energy ratios. These values are compared against empirical distributions from authentic photographs.
+              </dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What a positive finding means</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Pixel relationship statistics deviate significantly from natural camera output. This is a complementary AI-detection signal that is independent of ELA and noise analysis.
+              </dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Heavily upscaled images, images with strong sharpening filters, and artwork or illustrations all exhibit non-photographic pixel relationships and will typically trigger this detector.
+              </dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
+              <dd class="text-flint dark:text-flint-light">On-demand investigation tool (not part of the automatic pipeline)</dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Demoted to on-demand in Sprint 28 (April 2026). Content-authenticity-expert cross-review noted that the Tan et al. AAAI 2024 paper uses NPR features as input to a learned classifier, not as a standalone threshold, and that a hand-tuned NPR statistic is partially redundant with the UnivFD v8 probe which encodes upsampling artefacts at a higher level of abstraction via CLIP features. The sidecar endpoint remains available for manual investigation. Also computationally intensive and less effective on highly compressed content where pixel neighbour relationships are already disrupted by quantisation.
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </details>
+
+      <!-- On-demand: Shadow Consistency -->
+      <details class="group rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite">
+        <summary
+          class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis rounded"
+        >
+          <span class="flex items-center gap-3">
+            <span class="font-medium text-sm text-text-light dark:text-quartz">Shadow Consistency</span>
+          </span>
+          <span class="flex-shrink-0 text-xs text-flint dark:text-flint-light select-none">
+            <span class="hidden group-open:inline">Close</span>
+            <span class="group-open:hidden">Details</span>
+          </span>
+        </summary>
+        <div class="px-4 pb-4 pt-3 border-t border-border-light dark:border-border-dark">
+          <dl class="space-y-3 text-sm">
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Whether the implied direction of light is consistent across different regions of the image. In an authentic photograph, shadows and highlights all point away from the same light source. Composite images — where elements were photographed under different lighting conditions — frequently fail this check.
+              </dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Divides the image into regions and computes a gradient-weighted estimate of light direction (expressed as an angle) for each region. Compares estimated light directions across regions. Significant angular disagreement — weighted by the strength of the gradient signal — is treated as evidence of inconsistent lighting.
+              </dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What a positive finding means</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Different parts of the image appear to have been lit from different directions, suggesting elements were photographed or generated separately and composited together.
+              </dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Scenes with multiple artificial light sources (studio setups, concert photography, street scenes at night), reflective surfaces, and images with strong background/foreground separation can legitimately show regional lighting inconsistencies.
+              </dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
+              <dd class="text-flint dark:text-flint-light">On-demand investigation tool (not part of the automatic pipeline)</dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Demoted to on-demand in April 2026. The gradient-weighted light direction estimate is noisy on textured scenes and cluttered backgrounds, and the forensic audit concluded it adds scoring noise without reliable discrimination. The canonical shadow-constraint technique (Kee, O'Brien &amp; Farid 2013) requires user-placed shadow/object point pairs and is a better fit as a manual ROI tool, not an automatic detector. Available in Expert View for manual inspection of light direction.
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </details>
+
+      <!-- On-demand: Splice Boundary -->
+      <details class="group rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite">
+        <summary
+          class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis rounded"
+        >
+          <span class="flex items-center gap-3">
+            <span class="font-medium text-sm text-text-light dark:text-quartz">Splice Boundary</span>
+          </span>
+          <span class="flex-shrink-0 text-xs text-flint dark:text-flint-light select-none">
+            <span class="hidden group-open:inline">Close</span>
+            <span class="group-open:hidden">Details</span>
+          </span>
+        </summary>
+        <div class="px-4 pb-4 pt-3 border-t border-border-light dark:border-border-dark">
+          <dl class="space-y-3 text-sm">
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                The physical boundary where one image region ends and another begins — the cut edge produced when elements are composited. Three independent edge signals are combined to localise these boundaries.
+              </dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Analyses three signals simultaneously: (1) JPEG DCT grid discontinuities — abrupt changes in the compression block pattern at potential splice points; (2) noise level changes — sudden shifts in noise grain across a boundary; (3) feathering artefacts — the soft-edge signature left by selection tools and layer masking. Agreement between multiple signals at the same location substantially increases confidence.
+              </dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What a positive finding means</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                One or more signals detected an anomalous edge inconsistent with natural image content. When corroborated by Segmented ELA flagging the same region, this is the highest-confidence composite manipulation signal Jura Trace can produce.
+              </dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Hard vignettes, image borders, intentionally added frames or decorative edges, and embedded watermarks or logos all create artificial boundaries that can trigger this detector. Cropped images may show strong grid discontinuities at the crop boundary.
+              </dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
+              <dd class="text-flint dark:text-flint-light">On-demand investigation tool (not part of the automatic pipeline)</dd>
+            </div>
+            <div>
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                Demoted to on-demand in April 2026. The three-signal fusion (JPEG grid alignment, noise asymmetry, feathering) is heuristic stacking without published validation, and the forensic audit found the detector never set suspicious=true in production — contributing noise without adding discriminative value. Available in Expert View for manual inspection. A future replacement using learned splice localisation (TruFor / MVSS-Net) is backlog work.
               </dd>
             </div>
           </dl>
