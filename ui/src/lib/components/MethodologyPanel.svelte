@@ -67,22 +67,22 @@
   A collapsible disclosure panel providing transparency about which pipeline
   stages ran, what each signal measures, version provenance, and a disclaimer.
 -->
-<details class="group bg-obsidian/50 border border-graphite rounded-lg overflow-hidden">
+<details class="group bg-white dark:bg-obsidian/50 border border-border-light dark:border-graphite rounded-lg overflow-hidden">
 
   <!-- ── Toggle header ──────────────────────────────────────────────── -->
   <summary
     class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none
            list-none
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
-           focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian
-           hover:bg-graphite/40 transition-colors duration-150"
+           focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+           hover:bg-gray-50 dark:hover:bg-graphite/40 transition-colors duration-150"
     aria-label="How was this analysed? — toggle methodology details"
   >
-    <span class="text-sm font-medium text-flint dark:text-flint-light">How was this analysed?</span>
+    <span class="text-sm font-medium text-text-light dark:text-flint-light">How was this analysed?</span>
 
     <!-- Chevron rotates when open — group-open is set by <details> -->
     <svg
-      class="w-4 h-4 text-flint dark:text-flint-light flex-shrink-0 transition-transform duration-200 motion-safe:group-open:rotate-180"
+      class="w-4 h-4 text-text-light dark:text-flint-light flex-shrink-0 transition-transform duration-200 motion-safe:group-open:rotate-180"
       fill="none"
       stroke="currentColor"
       viewBox="0 0 24 24"
@@ -93,7 +93,7 @@
   </summary>
 
   <!-- ── Panel body ──────────────────────────────────────────────────── -->
-  <div class="border-t border-graphite divide-y divide-graphite/60">
+  <div class="border-t border-border-light dark:border-graphite divide-y divide-border-light dark:divide-graphite/60">
 
     <!-- ── Section: Pipeline Stages ─────────────────────────────────── -->
     <section class="px-4 py-4" aria-labelledby="methodology-stages-heading">
@@ -109,7 +109,7 @@
               class="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center
                      {stage.ran
                        ? 'bg-malachite/15 border border-malachite/30'
-                       : 'bg-graphite-light/50 border border-graphite-light'}"
+                       : 'bg-gray-100 dark:bg-graphite-light/50 border border-gray-200 dark:border-graphite-light'}"
               aria-label="{stage.label}: {stage.ran ? 'ran' : 'skipped'}"
             >
               {#if stage.ran}
@@ -119,7 +119,7 @@
                 </svg>
               {:else}
                 <!-- Dash / minus for skipped -->
-                <svg class="w-3 h-3 text-flint/50" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <svg class="w-3 h-3 text-flint/60 dark:text-flint/50" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 12H4" />
                 </svg>
               {/if}
@@ -128,14 +128,14 @@
             <!-- Stage name + description -->
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-xs font-medium {stage.ran ? 'text-quartz' : 'text-flint/60'}">
+                <span class="text-xs font-medium {stage.ran ? 'text-text-light dark:text-quartz' : 'text-flint/70 dark:text-flint/60'}">
                   {stage.label}
                 </span>
                 <span
                   class="text-xs px-1.5 py-px rounded
                          {stage.ran
-                           ? 'bg-malachite/10 text-malachite-light'
-                           : 'bg-graphite-light text-flint/60'}"
+                           ? 'bg-malachite/10 text-malachite dark:text-malachite-light'
+                           : 'bg-gray-100 dark:bg-graphite-light text-flint/70 dark:text-flint/60'}"
                 >
                   {stage.ran ? 'Ran' : 'Skipped'}
                 </span>
@@ -164,13 +164,13 @@
               class="rounded-md px-3 py-2 text-xs
                      {signal.triggered
                        ? 'bg-amber/10 border border-amber/20'
-                       : 'bg-graphite-light/40 border border-graphite-light/60'}"
+                       : 'bg-gray-50 dark:bg-graphite-light/40 border border-gray-200 dark:border-graphite-light/60'}"
             >
               <div class="flex items-center justify-between gap-3 mb-0.5">
                 <div class="flex items-center gap-2 min-w-0">
                   <!-- Triggered indicator -->
                   <span
-                    class="flex-shrink-0 w-1.5 h-1.5 rounded-full {signal.triggered ? 'bg-amber' : 'bg-flint/30'}"
+                    class="flex-shrink-0 w-1.5 h-1.5 rounded-full {signal.triggered ? 'bg-amber' : 'bg-flint/40 dark:bg-flint/30'}"
                     aria-label="{signal.triggered ? 'Triggered' : 'Not triggered'}"
                   ></span>
                   <span class="font-mono {signal.triggered ? 'text-amber dark:text-amber-light' : 'text-flint dark:text-flint-light'} truncate">
@@ -178,14 +178,14 @@
                   </span>
                 </div>
                 <div class="flex items-center gap-3 flex-shrink-0">
-                  <span class="text-flint/60 tabular-nums">
+                  <span class="text-flint/70 dark:text-flint/60 tabular-nums">
                     weight: {signal.weight.toFixed(1)}
                   </span>
                   <span
                     class="text-xs px-1.5 py-px rounded
                            {signal.triggered
-                             ? 'bg-amber/15 text-amber-light'
-                             : 'bg-graphite-light text-flint/60'}"
+                             ? 'bg-amber/15 text-amber dark:text-amber-light'
+                             : 'bg-gray-100 dark:bg-graphite-light text-flint/70 dark:text-flint/60'}"
                   >
                     {signal.triggered ? 'Triggered' : 'Clear'}
                   </span>
@@ -207,17 +207,17 @@
       <div class="space-y-1 text-xs">
         <div class="flex items-center justify-between gap-4">
           <span class="text-flint dark:text-flint-light">Jura Trace</span>
-          <span class="text-quartz font-mono tabular-nums">v0.2.0-dev</span>
+          <span class="text-text-light dark:text-quartz font-mono tabular-nums">v0.2.0-dev</span>
         </div>
         {#if sidecarVersion}
           <div class="flex items-center justify-between gap-4">
             <span class="text-flint dark:text-flint-light">Analysis Engine</span>
-            <span class="text-quartz font-mono tabular-nums">v{sidecarVersion}</span>
+            <span class="text-text-light dark:text-quartz font-mono tabular-nums">v{sidecarVersion}</span>
           </div>
         {:else}
           <div class="flex items-center justify-between gap-4">
             <span class="text-flint dark:text-flint-light">Analysis Engine</span>
-            <span class="text-flint/50 font-mono">offline</span>
+            <span class="text-flint/60 dark:text-flint/50 font-mono">offline</span>
           </div>
         {/if}
       </div>

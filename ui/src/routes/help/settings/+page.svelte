@@ -139,7 +139,7 @@
   </div>
 
   <!-- ── What works without Ollama ───────────────────────────────── -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4 mb-8">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4 mb-8">
     <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">Everything else works without Ollama</p>
     <ul class="space-y-1 text-sm text-flint dark:text-flint-light">
       <li class="flex gap-2"><span class="text-malachite dark:text-malachite-light flex-none">✓</span> All 21 forensic detectors (ELA, noise, copy-move, deepfake, and more)</li>
@@ -367,7 +367,7 @@
   </p>
 
   <!-- Callout: use case example -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Example.</strong>
       A photojournalist might save an "Office" profile pointing to a shared Ollama server
@@ -495,7 +495,7 @@
   </div>
 
   <!-- Callout: refresh -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Tip:</strong>
       The Service Status panel does not update automatically. Click
@@ -642,7 +642,7 @@
   </ol>
 
   <!-- Callout: backup -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Back up your database regularly.</strong>
       The
@@ -699,7 +699,7 @@
   </dl>
 
   <!-- Callout: local-first reminder -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4 mt-6">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4 mt-6">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Local-first by design.</strong>
       Jura Trace does not collect usage data, send telemetry, or connect to any cloud
@@ -799,7 +799,7 @@
   </p>
 
   <!-- Callout: how to clear local storage -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Clearing local settings.</strong>
       On macOS and Linux, open the application's data directory and delete the
@@ -862,7 +862,7 @@
   </p>
 
   <!-- Callout: update safety -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Your data is not affected by updates.</strong>
       The application database, asset records, and fingerprint history are stored
@@ -937,7 +937,7 @@
   </div>
 
   <!-- Callout: tier hints are informational only -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4 mt-6">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4 mt-6">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Tier hints are informational.</strong>
       During the pilot phase, tier hints may appear on the Verify page when a feature is

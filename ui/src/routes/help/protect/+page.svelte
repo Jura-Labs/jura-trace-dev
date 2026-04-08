@@ -106,7 +106,7 @@
   </p>
 
   <!-- Callout: local-first -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">All processing is local.</strong>
       Your files never leave your device. Jura Trace does not connect to any cloud service
@@ -258,7 +258,7 @@
   </div>
 
   <!-- Callout: tamper evidence -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Tamper evidence, not tamper prevention.</strong>
       A C2PA manifest does not prevent a file from being modified. It means that any
@@ -295,7 +295,7 @@
   </ul>
 
   <!-- Callout: archival note -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Archival workflows.</strong>
       For long-term collections, keep the original unsigned file alongside the signed copy.
@@ -371,7 +371,7 @@
   </div>
 
   <!-- Recommendation callout -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4 mb-6">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4 mb-6">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Recommendation:</strong>
       Use <strong class="text-text-light dark:text-text-dark">Medium</strong> for most
@@ -442,7 +442,7 @@
   </div>
 
   <!-- Note: images only -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4 mt-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4 mt-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Images only.</strong>
       Invisible watermarking applies to JPEG and PNG files. Video and audio formats use
@@ -500,7 +500,7 @@
     Visual guide: Batch watermark progress bar mid-operation, showing a processed count and a Cancel button.
   </div>
 
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Strength setting for batch operations:</strong>
       The batch watermark uses the strength level set in the batch controls selector, not

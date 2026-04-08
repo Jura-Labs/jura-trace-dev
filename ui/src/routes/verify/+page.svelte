@@ -2540,7 +2540,7 @@
         <!-- Image + signal strip side-by-side -->
         <div class="flex gap-3 items-start">
           <!-- Main image container -->
-          <div class="flex-1 rounded-lg overflow-hidden border border-border-light dark:border-border-dark bg-obsidian/30">
+          <div class="flex-1 rounded-lg overflow-hidden border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/30">
             <!-- Image with optional ELA overlay — click to open zoom modal, drag to select ROI, or draw annotation -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
@@ -3407,7 +3407,7 @@
                            ? 'bg-lapis/15 text-lapis dark:text-lapis-light border-lapis/30'
                            : result.mode === 'deep'
                              ? 'bg-lapis/10 text-lapis dark:text-lapis-light border-lapis/20'
-                             : 'bg-graphite text-flint dark:text-flint-light border-border-dark dark:border-border-dark'}"
+                             : 'bg-gray-100 dark:bg-graphite text-flint dark:text-flint-light border-border-light dark:border-border-dark'}"
                   title="Investigation mode used for this analysis"
                   aria-label="Investigation mode: {result.mode}"
                 >
@@ -3651,7 +3651,7 @@
                          ? 'bg-cinnabar/15 text-cinnabar dark:text-cinnabar-light border-cinnabar/30'
                          : normalised === 'mixed'
                            ? 'bg-amber/15 text-amber dark:text-amber-light border-amber/30'
-                           : 'bg-graphite text-flint dark:text-flint-light border-border-dark'}"
+                           : 'bg-gray-100 dark:bg-graphite text-flint dark:text-flint-light border-border-light dark:border-border-dark'}"
             >
               {normalised === 'consistent' ? 'Consistent with KB'
                 : normalised === 'inconsistent' ? 'Inconsistent with KB'
@@ -3753,7 +3753,7 @@
           <div class="space-y-2">
 
             <!-- C2PA AI Declaration signal -->
-            <div class="flex items-center justify-between rounded-lg border border-border-light dark:border-border-dark bg-obsidian/30 px-3 py-2.5">
+            <div class="flex items-center justify-between rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/30 px-3 py-2.5">
               <span class="text-xs text-flint dark:text-flint-light">C2PA Declaration</span>
               {#if result.aiGenerator}
                 <span
@@ -3776,7 +3776,7 @@
             <!-- Deepfake Ensemble signal -->
             {#if result.deepfakeResult}
               {@const df = result.deepfakeResult}
-              <div class="flex items-center justify-between rounded-lg border border-border-light dark:border-border-dark bg-obsidian/30 px-3 py-2.5">
+              <div class="flex items-center justify-between rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/30 px-3 py-2.5">
                 <div>
                   <span class="text-xs text-flint dark:text-flint-light">Deepfake Ensemble</span>
                   {#if df.score !== null && df.score !== undefined}
@@ -3801,7 +3801,7 @@
             <!-- Watermark signal -->
             {#if result.watermarkExtractResult}
               {@const wm = result.watermarkExtractResult}
-              <div class="flex items-center justify-between rounded-lg border border-border-light dark:border-border-dark bg-obsidian/30 px-3 py-2.5">
+              <div class="flex items-center justify-between rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/30 px-3 py-2.5">
                 <span class="text-xs text-flint dark:text-flint-light">Jura Trace Watermark</span>
                 {#if wm.hasWatermark}
                   <span
@@ -3902,7 +3902,7 @@
             </div>
 
             <div
-              class="rounded-lg border border-border-dark bg-obsidian/50 px-4 py-3"
+              class="rounded-lg border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/50 px-4 py-3"
               aria-label="Reverse image search options"
             >
               <p class="text-xs text-flint dark:text-flint-light mb-3 leading-relaxed">
@@ -3981,7 +3981,7 @@
                 </p>
               {:else}
                 <!-- GPS coordinates summary -->
-                <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-obsidian/30 border border-border-light dark:border-border-dark text-xs">
+                <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-gray-50 dark:bg-obsidian/30 border border-border-light dark:border-border-dark text-xs">
                   <svg class="w-3.5 h-3.5 flex-shrink-0 text-flint dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -4511,7 +4511,7 @@
 
           <!-- Noise heatmap -->
           {#if noise.heatmapBase64}
-            <div class="mb-3 rounded-md overflow-hidden border border-border-dark bg-obsidian">
+            <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
               <img
                 src={blobs.url(noise.heatmapBase64, 'image/png')}
                 alt="Noise variance heatmap — blue is low variance, red is high variance"
@@ -4571,7 +4571,7 @@
 
           <!-- Visualisation -->
           {#if cm.visualisationBase64}
-            <div class="mb-3 rounded-md overflow-hidden border border-border-dark bg-obsidian">
+            <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
               <img
                 src={blobs.url(cm.visualisationBase64, 'image/png')}
                 alt="Copy-move detection visualisation showing matched feature pairs and clone region bounding boxes"
@@ -5321,7 +5321,7 @@
                 </div>
                 <div>
                   <p class="text-xs text-flint dark:text-flint-light mb-1">Frequency Spectrum</p>
-                  <div class="rounded-md overflow-hidden border border-border-dark bg-obsidian">
+                  <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
                     <img
                       src={blobs.url(df.heatmapBase64, 'image/png')}
                       alt="Frequency spectrum heatmap — anomalous patterns may indicate AI generation"
@@ -5331,7 +5331,7 @@
                 </div>
               </div>
             {:else}
-              <div class="mb-3 rounded-md overflow-hidden border border-border-dark bg-obsidian">
+              <div class="mb-3 rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
                 <img
                   src={blobs.url(df.heatmapBase64, 'image/png')}
                   alt="Frequency spectrum heatmap — anomalous patterns may indicate AI generation"
@@ -5952,7 +5952,7 @@
                     </span>
 
                     <!-- Score bar -->
-                    <div class="h-1.5 w-full bg-graphite/20">
+                    <div class="h-1.5 w-full bg-gray-200 dark:bg-graphite/20">
                       <div
                         class="h-full transition-all
                                {fr.verdictLevel === 'authentic' ? 'bg-malachite dark:bg-malachite-light' :
@@ -6210,7 +6210,7 @@
               {normOverall === 'consistent' ? 'bg-malachite/10 text-malachite dark:text-malachite-light' :
                normOverall === 'inconsistent' ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light' :
                normOverall === 'mixed' ? 'bg-amber/10 text-amber dark:text-amber-light' :
-               'bg-graphite/20 text-flint dark:text-flint-light'}">
+               'bg-gray-100 dark:bg-graphite/20 text-flint dark:text-flint-light'}">
               {normOverall === 'consistent' ? 'Consistent with KB'
                 : normOverall === 'inconsistent' ? 'Inconsistent with KB'
                 : normOverall === 'mixed' ? 'Mixed KB match'
@@ -6239,7 +6239,7 @@
                     <span class="flex-shrink-0 text-xs px-1.5 py-0.5 rounded
                       {normClaim === 'consistent' ? 'bg-malachite/10 text-malachite dark:text-malachite-light' :
                        normClaim === 'inconsistent' ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light' :
-                       'bg-graphite/20 text-flint dark:text-flint-light'}">
+                       'bg-gray-100 dark:bg-graphite/20 text-flint dark:text-flint-light'}">
                       {normClaim === 'consistent' ? 'Consistent'
                         : normClaim === 'inconsistent' ? 'Inconsistent'
                         : 'No context'}

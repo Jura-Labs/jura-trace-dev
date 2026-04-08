@@ -118,7 +118,7 @@
   </ul>
 
   <!-- Callout: local-first -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">All data is local.</strong>
       The Monitor draws entirely from your on-device SQLite database. No activity data,
@@ -322,7 +322,7 @@
   </div>
 
   <!-- Callout: what is not recorded -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Privacy note:</strong>
       The audit log records file paths and actions, not file contents. The full pixel data,
@@ -387,7 +387,7 @@
   </p>
 
   <!-- Callout: intended use -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Using the chain as evidence.</strong>
       The hash chain is designed to give you confidence that your audit log has not been
@@ -451,7 +451,7 @@
   </div>
 
   <!-- Callout: clear filters -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4 mt-6">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4 mt-6">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Tip:</strong>
       Use the <strong class="text-text-light dark:text-text-dark">Clear filters</strong>
@@ -557,7 +557,7 @@
   </div>
 
   <!-- Callout: honest limitation -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">An honest limitation.</strong>
       No current technology can reliably detect whether a specific image was included in
@@ -631,7 +631,7 @@
     investigative response over time.
   </p>
 
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Local-first design.</strong>
       All watchlist data — registered URLs, event history, and case notes — is stored in the

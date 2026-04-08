@@ -220,7 +220,7 @@
       case 'not_run':
       case 'not_present':
       default:
-        return 'bg-graphite border-graphite-light';
+        return 'bg-gray-100 dark:bg-graphite border-gray-300 dark:border-graphite-light';
     }
   }
 
@@ -242,11 +242,11 @@
 
   /** Row border class — highlight disagreeing rows with amber */
   function rowBorderClass(row: SignalRow): string {
-    if (!hasDisagreement) return 'border-graphite/60';
+    if (!hasDisagreement) return 'border-border-light dark:border-graphite/60';
     const isSuspicious = row.outcome === 'suspicious' || row.outcome === 'synthetic' || row.outcome === 'invalid';
     const isClean = row.outcome === 'clean' || row.outcome === 'authentic' || row.outcome === 'valid';
     if (isSuspicious || isClean) return 'border-amber/30';
-    return 'border-graphite/60';
+    return 'border-border-light dark:border-graphite/60';
   }
 
   /** Confidence bar width — clamped to 0–100% */
@@ -264,12 +264,12 @@
   Agreement / disagreement summary banner shown at top.
 -->
 <div
-  class="bg-obsidian/50 border border-graphite rounded-lg overflow-hidden"
+  class="bg-white dark:bg-obsidian/50 border border-border-light dark:border-graphite rounded-lg overflow-hidden"
   aria-label="Signal agreement summary"
 >
 
   <!-- ── Section header ─────────────────────────────────────────────── -->
-  <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-graphite">
+  <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-border-light dark:border-graphite">
     <h3 class="text-sm font-medium text-flint dark:text-flint-light">Signal Agreement</h3>
 
     <!-- Agreement indicator badge -->
@@ -305,7 +305,7 @@
   <!-- ── Disagreement callout ────────────────────────────────────────── -->
   {#if hasDisagreement}
     <div
-      class="px-4 py-2.5 border-b border-graphite bg-amber/5 text-xs text-amber dark:text-amber-light leading-relaxed"
+      class="px-4 py-2.5 border-b border-border-light dark:border-graphite bg-amber/5 text-xs text-amber dark:text-amber-light leading-relaxed"
       role="alert"
       aria-live="polite"
     >
@@ -318,7 +318,7 @@
 
   <!-- ── Table header ────────────────────────────────────────────────── -->
   <div
-    class="grid grid-cols-[1fr_120px_80px] gap-3 px-4 py-2 border-b border-graphite text-xs text-flint dark:text-flint-light uppercase tracking-wide"
+    class="grid grid-cols-[1fr_120px_80px] gap-3 px-4 py-2 border-b border-border-light dark:border-graphite text-xs text-flint dark:text-flint-light uppercase tracking-wide"
     aria-hidden="true"
   >
     <span>Detector</span>
@@ -328,7 +328,7 @@
 
   <!-- ── Rows ────────────────────────────────────────────────────────── -->
   <ul
-    class="divide-y divide-graphite/60"
+    class="divide-y divide-border-light dark:divide-graphite/60"
     role="list"
     aria-label="Detection results by method"
   >
@@ -342,7 +342,7 @@
       >
 
         <!-- Detector name -->
-        <span class="text-xs text-quartz leading-snug">{row.detector}</span>
+        <span class="text-xs text-text-light dark:text-quartz leading-snug">{row.detector}</span>
 
         <!-- Result badge -->
         <span>
@@ -363,7 +363,7 @@
             </span>
             <!-- Mini progress bar -->
             <div
-              class="w-12 h-1 rounded-full bg-graphite-light overflow-hidden"
+              class="w-12 h-1 rounded-full bg-gray-200 dark:bg-graphite-light overflow-hidden"
               role="presentation"
             >
               <div
@@ -389,7 +389,7 @@
 
   <!-- CA footnote — only shown when the CA row ran -->
   {#if result.caResult != null}
-    <p class="px-4 py-2 text-xs text-flint/50 border-t border-graphite/60 leading-relaxed">
+    <p class="px-4 py-2 text-xs text-flint/70 dark:text-flint/50 border-t border-border-light dark:border-graphite/60 leading-relaxed">
       * Chromatic Aberration is informational only — results may be unreliable for mobile photos with computational lens correction.
     </p>
   {/if}

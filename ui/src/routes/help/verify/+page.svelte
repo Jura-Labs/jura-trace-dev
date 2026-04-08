@@ -147,7 +147,7 @@
   </ul>
 
   <!-- Callout: local-first -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">All analysis is local.</strong>
       No file data, no metadata, and no analysis results are sent to any external server.
@@ -225,7 +225,7 @@
         Paste a public URL and Jura Trace will fetch the resource and analyse it. The
         request is made from your device — no proxy or cloud service is involved.
       </p>
-      <div class="bg-graphite rounded-lg border border-border-dark p-4">
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
         <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
           <strong class="text-text-light dark:text-text-dark">Security note:</strong>
           Jura Trace will not fetch URLs pointing to your local network, private IP address
@@ -296,7 +296,7 @@
   </div>
 
   <!-- Tip: which mode to use -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Not sure which to choose?</strong>
       Start with Standard. If the result is inconclusive and the content is high-stakes,
@@ -384,7 +384,7 @@
   </p>
 
   <!-- Important caveat -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">The trust score is not a guarantee.</strong>
       A score of 85% does not mean the content is definitely authentic. A score of 20% does
@@ -416,7 +416,7 @@
   </p>
 
   <div class="space-y-4 mb-6">
-    <div class="bg-graphite rounded-lg border border-border-dark p-4">
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
       <div class="flex items-center gap-3 mb-2">
         <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-malachite/10 text-malachite dark:text-malachite-light border border-malachite/20">
           Authentic
@@ -430,7 +430,7 @@
       </p>
     </div>
 
-    <div class="bg-graphite rounded-lg border border-border-dark p-4">
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
       <div class="flex items-center gap-3 mb-2">
         <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber/10 text-amber dark:text-amber-light border border-amber/20">
           Inconclusive
@@ -446,7 +446,7 @@
       </p>
     </div>
 
-    <div class="bg-graphite rounded-lg border border-border-dark p-4">
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
       <div class="flex items-center gap-3 mb-2">
         <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light border border-cinnabar/20">
           Synthetic
@@ -461,7 +461,7 @@
   </div>
 
   <!-- Tip: verdicts vs trust score -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Verdict and trust score can diverge.</strong>
       An image may return an <em>Authentic</em> verdict (low deepfake score) but a low trust
@@ -708,7 +708,7 @@
         can help you find earlier versions of an image, identify its origin, or find other
         contexts in which it has been published.
       </p>
-      <div class="bg-graphite rounded-lg border border-border-dark p-4">
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
         <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
           <strong class="text-text-light dark:text-text-dark">Privacy note:</strong>
           Using reverse image search requires uploading or sharing the image with an external
@@ -1040,7 +1040,7 @@
         <span>For legal evidence work, select the <strong class="text-text-light dark:text-text-dark">Berkeley Protocol</strong> report format. This produces a structured PDF with seven evidence sections aligned with the Berkeley Protocol on Digital Open Source Investigations, designed for use in legal proceedings.</span>
       </li>
     </ul>
-    <div class="bg-graphite rounded-lg border border-border-dark p-4">
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
       <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
         <strong class="text-text-light dark:text-text-dark">Note:</strong>
         The analyst declaration fields are optional. If you leave them blank, the PDF report
@@ -1164,7 +1164,7 @@
     is internally consistent.
   </p>
 
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       A high trust score on a PDF confirms provenance integrity — that the document has not
       been modified since it was signed and that the signing identity is declared. It does not

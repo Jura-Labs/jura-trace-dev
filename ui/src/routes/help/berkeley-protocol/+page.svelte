@@ -276,7 +276,7 @@
   </p>
 
   <!-- Callout: audit integrity command -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Before any legal submission.</strong>
       Run the audit chain integrity check from Settings &#8594; Audit Log &#8594; Verify
@@ -359,7 +359,7 @@
   </div>
 
   <!-- Callout: combined use -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Best practice.</strong>
       For the strongest integrity record, use all three mechanisms together: sign with C2PA
@@ -436,7 +436,7 @@
   </ul>
 
   <!-- Callout: link to methodology -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       When submitting findings to legal proceedings, include a printed copy of the
       <a href="/help/methodology"
@@ -644,7 +644,7 @@
   </ul>
 
   <!-- Callout: storage advice -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Storage recommendation.</strong>
       Store original evidence files in a write-protected location (a read-only volume or
@@ -764,7 +764,7 @@
   </ol>
 
   <!-- Callout: methodology page -->
-  <div class="bg-graphite rounded-lg border border-border-dark p-4">
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       Include a printed copy of the
       <a href="/help/methodology"
