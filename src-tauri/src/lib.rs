@@ -932,7 +932,6 @@ fn assess_input_quality(
 
     if !has_gps || !has_timestamp {
         degraded.push("Sun Position".to_string());
-        degraded.push("Weather Cross-Reference".to_string());
         degraded.push("Shadow Time Estimation".to_string());
     }
 

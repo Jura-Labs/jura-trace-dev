@@ -373,25 +373,6 @@ export interface JpegGridResult {
   gridConsistency: number;
 }
 
-/** Historical weather check result. */
-export interface WeatherCheckResult {
-  available: boolean;
-  date?: string;
-  latitude?: number;
-  longitude?: number;
-  temperatureMaxC?: number | null;
-  temperatureMinC?: number | null;
-  precipitationMm?: number | null;
-  rainMm?: number | null;
-  snowfallCm?: number | null;
-  maxWindKmh?: number | null;
-  weatherCode?: number | null;
-  weatherDescription?: string;
-  source?: string;
-  disclaimer?: string;
-  error?: string;
-}
-
 /** Input quality assessment — identifies conditions that degrade detector reliability. */
 export interface InputQualityAssessment {
   /** Estimated JPEG quality factor (1–100). null for non-JPEG. */
@@ -930,16 +911,6 @@ export interface DiffusionArtefactsResult {
   resolutionMatch: boolean;
   resolutionNote: string;
   overallDiffusionScore: number;
-}
-
-/** Seasonal vegetation and weather indicator analysis result. */
-export interface SeasonalIndicatorsResult {
-  greennessIndex: number;
-  snowCoverage: number;
-  warmthIndex: number;
-  estimatedSeason: string;
-  confidence: number;
-  indicators: string[];
 }
 
 // ── Annotation types ─────────────────────────────────────────────

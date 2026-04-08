@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
-  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive, parseAppError, getLicenceTier, extractTextFromImage, calculateSunPosition, estimateShadowTime, checkHistoricalWeather, analyseSeasonalIndicators, analyseDiffusionArtefacts, analyseRoi, saveAnnotation, getAnnotations, deleteAnnotationApi } from '$lib/api';
+  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive, parseAppError, getLicenceTier, extractTextFromImage, calculateSunPosition, estimateShadowTime, analyseDiffusionArtefacts, analyseRoi, saveAnnotation, getAnnotations, deleteAnnotationApi } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
-  import type { Annotation, AnnotationData, InputQualityAssessment, LicenceTier, VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult, SolarPosition, TimeEstimate, WeatherCheckResult, SeasonalIndicatorsResult, DiffusionArtefactsResult, RoiAnalysisResult } from '$lib/types';
+  import type { Annotation, AnnotationData, InputQualityAssessment, LicenceTier, VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult, SolarPosition, TimeEstimate, DiffusionArtefactsResult, RoiAnalysisResult } from '$lib/types';
   import VerdictSummary from '$lib/components/VerdictSummary.svelte';
   import SimpleVerdict from '$lib/components/SimpleVerdict.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
@@ -1022,8 +1022,6 @@
     closeComparison();
     clearRoi();
     showGeoPanel = false;
-    seasonalResult = null;
-    seasonalError = null;
     diffusionResult = null;
     diffusionError = null;
     // Clear annotation state
@@ -1675,11 +1673,11 @@
   let shadowLoading = $state(false);
   let shadowError = $state<string | null>(null);
 
-  // Weather sub-panel
-  let weatherResult = $state<WeatherCheckResult | null>(null);
-  let weatherLoading = $state(false);
-  let weatherError = $state<string | null>(null);
-  let weatherConsentGiven = $state(false);
+  // Weather cross-reference was removed in April 2026 — the feature's
+  // Tauri command was never registered on the Rust side, so the desktop
+  // app only ever showed hardcoded mock data. The sidecar endpoint and
+  // service have also been deleted. See the tech-debt audit decisions
+  // memory for the full rationale.
 
   /** GPS coordinates from EXIF, if available in the current result. */
   const gpsCoords = $derived(
@@ -1763,31 +1761,6 @@
     }
   }
 
-  async function handleCheckWeather() {
-    if (!gpsCoords || weatherLoading) return;
-    const dateParts = parseSunDate();
-    if (!dateParts) {
-      weatherError = 'Please enter a valid date (YYYY-MM-DD) before checking weather.';
-      return;
-    }
-    weatherLoading = true;
-    weatherError = null;
-    weatherResult = null;
-    try {
-      weatherResult = await checkHistoricalWeather(
-        gpsCoords.lat,
-        gpsCoords.lon,
-        dateParts.year,
-        dateParts.month,
-        dateParts.day,
-      );
-    } catch (e) {
-      weatherError = e instanceof Error ? e.message : 'Weather lookup failed.';
-    } finally {
-      weatherLoading = false;
-    }
-  }
-
   // Reset geo panel state when result changes
   $effect(() => {
     void result;
@@ -1796,9 +1769,6 @@
     sunError = null;
     shadowTimeResults = [];
     shadowError = null;
-    weatherResult = null;
-    weatherError = null;
-    weatherConsentGiven = false;
     sunDateInput = '';
     sunHourInput = 12;
     shadowAzimuth = 180;
@@ -1816,25 +1786,6 @@
       if (!isNaN(hour)) sunHourInput = hour;
     }
   });
-
-  // ── Seasonal Analysis ─────────────────────────────────────────────
-  let seasonalResult = $state<SeasonalIndicatorsResult | null>(null);
-  let seasonalLoading = $state(false);
-  let seasonalError = $state<string | null>(null);
-
-  async function handleSeasonalAnalysis() {
-    if (!filePath || seasonalLoading) return;
-    seasonalLoading = true;
-    seasonalError = null;
-    seasonalResult = null;
-    try {
-      seasonalResult = await analyseSeasonalIndicators(filePath);
-    } catch (e) {
-      seasonalError = e instanceof Error ? e.message : 'Seasonal analysis failed. Check that the Analysis Engine is running.';
-    } finally {
-      seasonalLoading = false;
-    }
-  }
 
   // ── Diffusion Artefacts ───────────────────────────────────────────
   let diffusionResult = $state<DiffusionArtefactsResult | null>(null);
@@ -1858,8 +1809,6 @@
   // Reset on-demand panels when result changes
   $effect(() => {
     void result;
-    seasonalResult = null;
-    seasonalError = null;
     diffusionResult = null;
     diffusionError = null;
   });
@@ -4127,7 +4076,7 @@
             </svg>
             Geolocation &amp; Temporal
             {#if gpsCoords}
-              <span class="text-xs text-flint/60 dark:text-flint-light/70">sun angle, shadow time, weather</span>
+              <span class="text-xs text-flint/60 dark:text-flint-light/70">sun angle, shadow time</span>
             {:else}
               <span class="text-xs text-flint/50 dark:text-flint-light/60 italic">no GPS data in EXIF</span>
             {/if}
@@ -4139,8 +4088,8 @@
               {#if !gpsCoords}
                 <!-- No GPS coords available -->
                 <p class="text-xs text-flint dark:text-flint-light px-1">
-                  No GPS coordinates were found in the EXIF metadata. Sun position, shadow time estimation,
-                  and weather cross-referencing require location data embedded in the image.
+                  No GPS coordinates were found in the EXIF metadata. Sun position and shadow time
+                  estimation require location data embedded in the image.
                 </p>
               {:else}
                 <!-- GPS coordinates summary -->
@@ -4165,7 +4114,7 @@
                   </button>
                 </div>
 
-                <!-- Date/time picker shared by sun position, shadow time, and weather -->
+                <!-- Date/time picker shared by sun position and shadow time -->
                 <fieldset class="rounded-lg border border-border-light dark:border-border-dark bg-white dark:bg-graphite px-4 pt-3 pb-4">
                   <legend class="text-xs font-medium text-text-light dark:text-quartz px-1">Date &amp; Time</legend>
                   <div class="flex flex-wrap items-end gap-4 mt-2">
@@ -4311,141 +4260,76 @@
                       </p>
                       <ul class="space-y-2">
                         {#each shadowTimeResults as est, i}
-                          <li class="flex items-center gap-4 text-xs bg-obsidian/20 dark:bg-obsidian/40 rounded px-3 py-2">
+                          {@const degToMin = (est.sunElevation > 30 ? 4 : est.sunElevation > 10 ? 8 : 20)}
+                          {@const minLow = Math.round(est.azimuthError * degToMin)}
+                          {@const minHigh = Math.round(est.azimuthError * degToMin * 2)}
+                          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs bg-obsidian/20 dark:bg-obsidian/40 rounded px-3 py-2">
                             <span class="text-flint dark:text-flint-light flex-shrink-0">Option {i + 1}</span>
-                            <span class="font-medium text-text-light dark:text-quartz tabular-nums flex-1">{est.timeFormatted}</span>
+                            <span class="font-medium text-text-light dark:text-quartz tabular-nums flex-1 min-w-0">{est.timeFormatted}</span>
                             <span class="text-flint dark:text-flint-light tabular-nums">Elev. {est.sunElevation.toFixed(1)}&deg;</span>
-                            <span class="text-flint/70 dark:text-flint-light/60 tabular-nums">&plusmn;{est.azimuthError.toFixed(1)}&deg; error</span>
+                            <span class="text-flint/70 dark:text-flint-light/60 tabular-nums">&plusmn;{est.azimuthError.toFixed(1)}&deg; azimuth</span>
+                            <span class="font-medium text-lapis dark:text-lapis-light tabular-nums">&asymp; &plusmn;{minLow}&ndash;{minHigh} min</span>
                           </li>
                         {/each}
                       </ul>
+                    </div>
+
+                    <!--
+                      Quantitative limitations block (Sprint tech-debt April 2026).
+                      Niamh persona (solicitor) cross-review flagged that qualitative
+                      caveats fail cross-examination — temporal uncertainty must be
+                      expressed in minutes based on the underlying azimuth error and
+                      assumptions. The per-row ±min estimate above uses a three-band
+                      degree-to-minute conversion:
+                        elevation > 30° → ~4 min per ° azimuth error (solar noon, low-lat)
+                        elevation 10–30° → ~8 min per ° azimuth error
+                        elevation < 10° → ~20 min per ° azimuth error (sunrise/sunset)
+                      The upper bound doubles the lower band to reflect latitude and
+                      season contribution to the uncertainty envelope. Values are
+                      deliberately conservative. See docs/methodology/shadow-time.md
+                      for the full derivation when that document lands.
+                    -->
+                    <div
+                      class="mt-3 rounded-lg border border-lapis/30 bg-lapis/5 dark:bg-lapis/10 px-4 py-3"
+                      role="note"
+                      aria-label="Shadow time estimation limitations"
+                    >
+                      <p class="text-xs font-semibold text-lapis dark:text-lapis-light mb-2">
+                        Limitations of shadow-based time estimation
+                      </p>
+                      <p class="text-xs text-text-light/90 dark:text-quartz/90 leading-relaxed mb-2">
+                        This is an <strong>estimation aid, not a forensic determination</strong>. Results
+                        depend on assumptions which, if violated, invalidate the output.
+                      </p>
+                      <ul class="text-xs text-text-light/85 dark:text-quartz/85 leading-relaxed space-y-1 list-disc pl-4 mb-2">
+                        <li><strong>Flat horizontal surface:</strong> the shadow must fall on level ground. Sloped or uneven surfaces shift the apparent azimuth.</li>
+                        <li><strong>Direct sunlight:</strong> overcast conditions, diffuse light, or secondary reflections produce shadows that do not correspond to true sun position.</li>
+                        <li><strong>User-measured azimuth:</strong> you supplied the shadow direction. Measurement error of &plusmn;5&ndash;10&deg; is typical and maps to tens of minutes of time uncertainty.</li>
+                        <li><strong>No horizon obstruction:</strong> buildings, foliage, or terrain can create shadows that do not reflect true solar geometry.</li>
+                        <li><strong>Conservative &plusmn;min bounds above</strong> assume low-latitude, non-polar conditions. At polar latitudes, or near the solstices, the uncertainty can be an order of magnitude larger.</li>
+                      </ul>
+                      <p class="text-xs text-text-light/85 dark:text-quartz/85 leading-relaxed">
+                        Outputs are candidate time windows to guide investigation. They are not a forensic
+                        determination of when an image was captured and should not be presented as such in legal
+                        proceedings without corroborating evidence and expert review.
+                      </p>
                     </div>
                   {:else if !shadowLoading && sunDateInput && shadowTimeResults.length === 0 && shadowError === null}
                     <!-- hint: awaiting user action -->
                   {/if}
                 </fieldset>
 
-                <!-- Weather cross-reference -->
-                <div class="rounded-lg border border-amber/30 bg-amber/5 dark:bg-amber/8 px-4 pt-3 pb-4">
-                  <p class="text-xs font-medium text-amber dark:text-amber-light mb-1">Historical Weather Cross-Reference</p>
-                  <p class="text-xs text-amber/80 dark:text-amber-light/70 mb-3 leading-relaxed">
-                    This will query the Open-Meteo archive API. Your GPS coordinates and date will be
-                    sent to an external service (open-meteo.com). Consider whether this is appropriate
-                    for sensitive investigations.
-                  </p>
-
-                  {#if !weatherConsentGiven}
-                    <button
-                      type="button"
-                      onclick={() => { weatherConsentGiven = true; handleCheckWeather(); }}
-                      disabled={!sunDateInput}
-                      class="text-xs px-3 py-1.5 min-h-[36px] rounded border border-amber/50 text-amber dark:text-amber-light
-                             hover:bg-amber/10 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed
-                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber focus-visible:ring-offset-2
-                             focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
-                    >
-                      Check Historical Weather
-                    </button>
-                  {/if}
-
-                  {#if weatherLoading}
-                    <span class="flex items-center gap-1.5 text-xs text-amber dark:text-amber-light">
-                      <span class="w-3 h-3 border-2 border-amber border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Loading weather data"></span>
-                      Loading weather data...
-                    </span>
-                  {/if}
-
-                  {#if weatherError}
-                    <p class="mt-2 text-xs text-cinnabar dark:text-cinnabar-light" role="alert">{weatherError}</p>
-                  {/if}
-
-                  {#if weatherResult}
-                    {#if weatherResult.available && !weatherResult.error}
-                      <dl class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs mt-2" aria-label="Historical weather data">
-                        {#if weatherResult.weatherDescription}
-                          <div class="flex justify-between col-span-2">
-                            <dt class="text-flint dark:text-flint-light">Conditions</dt>
-                            <dd class="font-medium text-text-light dark:text-quartz">{weatherResult.weatherDescription}</dd>
-                          </div>
-                        {/if}
-                        {#if weatherResult.temperatureMaxC != null}
-                          <div class="flex justify-between">
-                            <dt class="text-flint dark:text-flint-light">Temp max</dt>
-                            <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{weatherResult.temperatureMaxC.toFixed(1)}&deg;C</dd>
-                          </div>
-                        {/if}
-                        {#if weatherResult.temperatureMinC != null}
-                          <div class="flex justify-between">
-                            <dt class="text-flint dark:text-flint-light">Temp min</dt>
-                            <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{weatherResult.temperatureMinC.toFixed(1)}&deg;C</dd>
-                          </div>
-                        {/if}
-                        {#if weatherResult.precipitationMm != null}
-                          <div class="flex justify-between">
-                            <dt class="text-flint dark:text-flint-light">Precipitation</dt>
-                            <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{weatherResult.precipitationMm.toFixed(1)} mm</dd>
-                          </div>
-                        {/if}
-                        {#if weatherResult.snowfallCm != null && weatherResult.snowfallCm > 0}
-                          <div class="flex justify-between">
-                            <dt class="text-flint dark:text-flint-light">Snowfall</dt>
-                            <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{weatherResult.snowfallCm.toFixed(1)} cm</dd>
-                          </div>
-                        {/if}
-                        {#if weatherResult.maxWindKmh != null}
-                          <div class="flex justify-between">
-                            <dt class="text-flint dark:text-flint-light">Max wind</dt>
-                            <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{weatherResult.maxWindKmh.toFixed(1)} km/h</dd>
-                          </div>
-                        {/if}
-                      </dl>
-                      {#if weatherResult.source || weatherResult.disclaimer}
-                        <p class="text-xs text-flint/60 dark:text-flint-light/50 mt-2 leading-relaxed">
-                          {#if weatherResult.source}{weatherResult.source}.{/if}
-                          {#if weatherResult.disclaimer}{weatherResult.disclaimer}{/if}
-                        </p>
-                      {/if}
-                    {:else}
-                      <p class="text-xs text-cinnabar dark:text-cinnabar-light mt-2" role="alert">
-                        {weatherResult.error ?? 'Weather data unavailable for this date and location.'}
-                      </p>
-                    {/if}
-                  {/if}
-                </div>
               {/if}
             </div>
           {/if}
         </div>
       {/if}
 
-      <!-- ── On-demand Investigation: Seasonal & Diffusion ──────────── -->
+      <!-- ── On-demand Investigation: Diffusion ───────────────────────── -->
       {#if result.contentType === 'image' && filePath}
         <div class="px-5 py-3 border-b border-border-dark">
           <p class="text-xs font-medium text-text-light dark:text-quartz mb-2">On-demand Analysis</p>
           <div class="flex flex-wrap gap-2">
-
-            <!-- Seasonal Analysis button -->
-            <button
-              type="button"
-              onclick={handleSeasonalAnalysis}
-              disabled={seasonalLoading}
-              class="text-xs px-3 py-1.5 min-h-[36px] rounded border border-border-light dark:border-border-dark
-                     text-flint dark:text-flint-light hover:border-lapis/50 dark:hover:border-lapis-light/50
-                     hover:text-lapis dark:hover:text-lapis-light transition-colors duration-150
-                     disabled:opacity-50 disabled:cursor-not-allowed
-                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
-                     focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
-              title="Estimate season from vegetation, snow, and colour temperature signals in the image"
-            >
-              {#if seasonalLoading}
-                <span class="flex items-center gap-1.5">
-                  <span class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Analysing"></span>
-                  Analysing...
-                </span>
-              {:else}
-                Seasonal Analysis
-              {/if}
-            </button>
 
             <!-- Diffusion Artefacts button -->
             <button
@@ -4470,52 +4354,6 @@
               {/if}
             </button>
           </div>
-
-          <!-- Seasonal result -->
-          {#if seasonalError}
-            <div class="mt-2 rounded-md px-3 py-2 bg-cinnabar/10 border border-cinnabar/30 text-xs text-cinnabar dark:text-cinnabar-light" role="alert">
-              {seasonalError}
-            </div>
-          {/if}
-
-          {#if seasonalResult}
-            <div
-              class="mt-3 rounded-lg border border-border-light dark:border-border-dark bg-white dark:bg-graphite px-4 pt-3 pb-4"
-              role="region"
-              aria-label="Seasonal analysis results"
-            >
-              <div class="flex items-center gap-3 mb-3">
-                <p class="text-xs font-medium text-text-light dark:text-quartz">Seasonal Analysis</p>
-                <span class="text-xs px-2 py-0.5 rounded font-medium bg-lapis/10 text-lapis dark:text-lapis-light border border-lapis/20">
-                  {seasonalResult.estimatedSeason}
-                </span>
-                <span class="text-xs text-flint dark:text-flint-light">
-                  {Math.round(seasonalResult.confidence * 100)}% confidence
-                </span>
-              </div>
-              <dl class="grid grid-cols-3 gap-x-4 gap-y-1 text-xs mb-3">
-                <div class="flex flex-col gap-0.5">
-                  <dt class="text-flint dark:text-flint-light">Greenness</dt>
-                  <dd class="tabular-nums font-medium {seasonalResult.greennessIndex > 0.5 ? 'text-malachite dark:text-malachite-light' : 'text-text-light dark:text-quartz'}">{(seasonalResult.greennessIndex * 100).toFixed(1)}%</dd>
-                </div>
-                <div class="flex flex-col gap-0.5">
-                  <dt class="text-flint dark:text-flint-light">Snow Coverage</dt>
-                  <dd class="tabular-nums font-medium {seasonalResult.snowCoverage > 0.3 ? 'text-lapis dark:text-lapis-light' : 'text-text-light dark:text-quartz'}">{(seasonalResult.snowCoverage * 100).toFixed(1)}%</dd>
-                </div>
-                <div class="flex flex-col gap-0.5">
-                  <dt class="text-flint dark:text-flint-light">Warmth Index</dt>
-                  <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{(seasonalResult.warmthIndex * 100).toFixed(1)}%</dd>
-                </div>
-              </dl>
-              {#if seasonalResult.indicators.length > 0}
-                <ul class="flex flex-wrap gap-1.5" aria-label="Supporting indicators">
-                  {#each seasonalResult.indicators as indicator}
-                    <li class="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light">{indicator}</li>
-                  {/each}
-                </ul>
-              {/if}
-            </div>
-          {/if}
 
           <!-- Diffusion artefacts result -->
           {#if diffusionError}
