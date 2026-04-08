@@ -700,61 +700,6 @@
         </div>
       </details>
 
-      <!-- 8. Chromatic Aberration -->
-      <details class="group rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite">
-        <summary
-          class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis rounded"
-        >
-          <span class="flex items-center gap-3">
-            <span class="text-xs font-mono tabular-nums text-flint dark:text-flint-light w-5 flex-shrink-0" aria-hidden="true">08</span>
-            <span class="font-medium text-sm text-text-light dark:text-quartz">Chromatic Aberration</span>
-          </span>
-          <span class="flex-shrink-0 text-xs text-flint dark:text-flint-light select-none">
-            <span class="hidden group-open:inline">Close</span>
-            <span class="group-open:hidden">Details</span>
-          </span>
-        </summary>
-        <div class="px-4 pb-4 pt-3 border-t border-border-light dark:border-border-dark">
-          <dl class="space-y-3 text-sm">
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Whether the image contains the radial colour fringing pattern produced by real camera lenses. All physical lenses bend different wavelengths of light by slightly different amounts, producing a characteristic colour fringe — strongest at the image edges — that AI generators do not replicate.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Measures the offset between the red and blue colour channels at a sample of high-contrast edge points across the image. Fits a radial distortion model and computes the R-squared coefficient of determination. A high R-squared value indicates a consistent lens aberration pattern consistent with a real camera.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What a positive finding means</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                The image lacks a consistent radial chromatic aberration pattern. AI-generated images and heavily post-processed photographs typically fail this check.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Camera software that corrects chromatic aberration in-camera (common in modern smartphones and mirrorless cameras), screenshots, illustrations, and CGI renders will all fail this check without being manipulated.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
-              <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Rated 1/5 accuracy in forensic audit (March 2026). Included in Deep mode only as an investigative signal. Results should not be weighted heavily and are excluded from trust scoring.
-              </dd>
-            </div>
-          </dl>
-        </div>
-      </details>
-
       <!-- 9. JPEG Ghost -->
       <details class="group rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite">
         <summary

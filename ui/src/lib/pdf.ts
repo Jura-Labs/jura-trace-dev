@@ -49,7 +49,6 @@ const DETECTOR_THRESHOLDS: Record<string, number | null> = {
   copyMove: 0.10,
   deepfake: 0.50,
   npr: null,
-  ca: null,
   jpegGhost: null,
 };
 
@@ -391,7 +390,6 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
     if (result.copyMoveResult) berkeleyDetectors.push('Copy-Move Detection');
     if (result.deepfakeResult) berkeleyDetectors.push('AI Generation Detection');
     if (result.nprResult) berkeleyDetectors.push('NPR');
-    if (result.caResult) berkeleyDetectors.push('Chromatic Aberration');
     if (result.jpegGhostResult) berkeleyDetectors.push('JPEG Ghost');
     if (result.segmentedElaResult) berkeleyDetectors.push('Segmented ELA');
     if (result.shadowConsistencyResult) berkeleyDetectors.push('Shadow Consistency');
@@ -687,7 +685,6 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
     result.copyMoveResult != null ||
     result.deepfakeResult != null ||
     result.nprResult != null ||
-    result.caResult != null ||
     result.jpegGhostResult != null;
 
   const hasRegionalScores =
@@ -741,12 +738,6 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
       result.nprResult?.score,
       DETECTOR_THRESHOLDS.npr,
       result.nprResult?.suspicious
-    );
-    signalTableRow(
-      'Chromatic Aberration',
-      result.caResult?.score,
-      DETECTOR_THRESHOLDS.ca,
-      result.caResult?.suspicious
     );
     signalTableRow(
       'JPEG Ghost',
@@ -819,7 +810,6 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
   if (result.copyMoveResult) detectorsRun.push('Copy-Move Detection');
   if (result.deepfakeResult) detectorsRun.push('AI Generation Detection');
   if (result.nprResult) detectorsRun.push('Neighbouring Pixel Relationships');
-  if (result.caResult) detectorsRun.push('Chromatic Aberration');
   if (result.jpegGhostResult) detectorsRun.push('JPEG Ghost');
   if (result.segmentedElaResult) detectorsRun.push('Segmented ELA');
   if (result.shadowConsistencyResult) detectorsRun.push('Shadow Consistency');
@@ -916,7 +906,6 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
     'Copy-Move Detection: Uses ORB feature matching to find duplicated regions within the image. Clustered matches suggest content has been cloned from one area to another.',
     'AI Generation Detection: An ensemble of 13 statistical signals analyses frequency spectra, gradient patterns, noise consistency, colour distribution, and other features to estimate the likelihood of AI generation.',
     'Neighbouring Pixel Relationships (NPR): Analyses statistical correlations between adjacent pixels in horizontal, vertical, and diagonal directions. AI-generated images often exhibit atypical inter-pixel dependencies.',
-    'Chromatic Aberration: Measures the radial shift between colour channels towards the image periphery. Absent or artificially uniform chromatic aberration can indicate a synthetic or composited origin.',
     'JPEG Ghost: Recompresses the image across multiple JPEG quality levels and identifies regions that deviate significantly from a consistent quality history, suggesting prior manipulation.',
     'Segmented ELA: Divides the image into an 8x8 grid and computes per-region ELA scores. High inter-region variance suggests inconsistent editing or compositing.',
     'Shadow Consistency: Estimates the dominant light direction in each image region using gradient analysis. Significant directional inconsistencies between regions suggest compositing.',

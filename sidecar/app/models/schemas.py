@@ -110,17 +110,6 @@ class NprResponse(BaseModel):
     summary: str
 
 
-class CaResponse(BaseModel):
-    """Chromatic Aberration consistency analysis result."""
-
-    r_squared: float
-    is_consistent: bool
-    score: float
-    suspicious: bool
-    sample_count: int
-    summary: str
-
-
 class ClipDetectionResponse(BaseModel):
     """CLIP-based AI image detection result."""
 

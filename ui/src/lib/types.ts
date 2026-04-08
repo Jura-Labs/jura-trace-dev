@@ -176,16 +176,6 @@ export interface JpegGhostResult {
   summary: string;
 }
 
-/** Chromatic Aberration consistency analysis result */
-export interface CaResult {
-  rSquared: number;
-  isConsistent: boolean;
-  score: number;
-  suspicious: boolean;
-  sampleCount: number;
-  summary: string;
-}
-
 // ── Region-based Forensic Detectors ───────────────────────────────
 
 /** A single region analysed by the segmented ELA detector */
@@ -291,7 +281,6 @@ export interface SidecarCapabilities {
   deepfake: boolean;
   jpegGhost: boolean;
   npr: boolean;
-  chromaticAberration: boolean;
   rag: boolean;
   watermark: boolean;
   clipDetect: boolean;
@@ -420,7 +409,6 @@ export interface VerificationResult {
   deepfakeResult?: DeepfakeResult;
   nprResult?: NprResult;
   jpegGhostResult?: JpegGhostResult;
-  caResult?: CaResult;
   clipResult?: ClipDetectionResult;
   segmentedElaResult?: SegmentedElaResult | null;
   shadowConsistencyResult?: ShadowConsistencyResult | null;

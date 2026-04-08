@@ -31,7 +31,6 @@ DETECTORS = [
     ("deepfake", "/forensics/deepfake"),
     ("jpeg_ghost", "/forensics/jpeg-ghost"),
     ("npr", "/forensics/npr"),
-    ("chromatic_aberration", "/forensics/chromatic-aberration"),
     ("segmented_ela", "/forensics/segmented-ela"),
     ("shadow_consistency", "/forensics/shadow-consistency"),
     ("colour_temperature", "/forensics/colour-temperature"),

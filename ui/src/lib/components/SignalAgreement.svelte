@@ -136,18 +136,6 @@
           : 'clean',
       confidence: result.jpegGhostResult != null ? 1 - result.jpegGhostResult.score : null,
     },
-
-    // Chromatic Aberration — deep/archival mode only; informational
-    {
-      id: 'ca',
-      detector: 'Chromatic Aberration *',
-      outcome: result.caResult == null
-        ? 'not_run'
-        : result.caResult.suspicious
-          ? 'concerns'
-          : 'clean',
-      confidence: result.caResult != null ? 1 - result.caResult.score : null,
-    },
   ]);
 
   // ── Disagreement detection ───────────────────────────────────────────────
@@ -386,12 +374,5 @@
       </li>
     {/each}
   </ul>
-
-  <!-- CA footnote — only shown when the CA row ran -->
-  {#if result.caResult != null}
-    <p class="px-4 py-2 text-xs text-flint/70 dark:text-flint/50 border-t border-border-light dark:border-graphite/60 leading-relaxed">
-      * Chromatic Aberration is informational only — results may be unreliable for mobile photos with computational lens correction.
-    </p>
-  {/if}
 
 </div>

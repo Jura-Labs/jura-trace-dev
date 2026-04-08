@@ -7,7 +7,6 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from app.config import settings
 from app.models.schemas import (
     AudioMetadataResponse,
-    CaResponse,
     ClaimCheckResponse,
     ClipDetectionResponse,
     ColourTemperatureResponse,
@@ -28,7 +27,6 @@ from app.models.schemas import (
     WatermarkEmbedResponse,
     WatermarkExtractResponse,
 )
-from app.services.chromatic_aberration import perform_ca_analysis
 from app.services.describe_image import describe_image as _describe_image
 from app.services.describe_image import extract_text_from_image as _extract_text_from_image
 from app.services.claim_checker import check_claims as _check_claims
@@ -298,28 +296,6 @@ async def analyse_npr(
 
     try:
         return perform_npr_analysis(image_bytes)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/chromatic-aberration", response_model=CaResponse)
-async def analyse_chromatic_aberration(
-    file: UploadFile = File(...),
-) -> CaResponse:
-    """
-    Analyse chromatic aberration consistency in an uploaded image.
-
-    Real camera lenses produce radial chromatic aberration — channel shifts
-    that grow linearly with distance from the image centre.  AI generators
-    lack a physical lens model, so this radial pattern is absent or random.
-
-    Returns an R\u00b2 value for the radial fit, a score (0.0 = consistent CA /
-    likely real, 1.0 = absent CA / likely AI), and a suspicious flag.
-    """
-    image_bytes = await _read_and_validate(file)
-
-    try:
-        return perform_ca_analysis(image_bytes)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

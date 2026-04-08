@@ -34,7 +34,6 @@ from app.services.deepfake import perform_deepfake_detection
 from app.services.ela import perform_ela
 from app.services.noise_analysis import perform_noise_analysis
 from app.services.npr import perform_npr_analysis
-from app.services.chromatic_aberration import perform_ca_analysis
 from app.services.jpeg_ghost import perform_jpeg_ghost_detection
 
 
@@ -116,14 +115,6 @@ def evaluate_image(path: Path, category: str) -> dict:
         result["npr_suspicious"] = npr.suspicious
     except Exception:
         result["npr_score"] = None
-
-    # Chromatic Aberration
-    try:
-        ca = perform_ca_analysis(data)
-        result["ca_score"] = ca.score
-        result["ca_r_squared"] = ca.r_squared
-    except Exception:
-        result["ca_score"] = None
 
     # JPEG Ghost
     try:

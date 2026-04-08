@@ -33,8 +33,6 @@ pub struct Capabilities {
     pub jpeg_ghost: bool,
     #[serde(default)]
     pub npr: bool,
-    #[serde(default, alias = "chromatic_aberration")]
-    pub chromatic_aberration: bool,
     #[serde(default, alias = "segmented_ela")]
     pub segmented_ela: bool,
     #[serde(default, alias = "shadow_consistency")]
@@ -231,21 +229,6 @@ pub struct JpegGhostResult {
     pub total_blocks: u32,
     #[serde(alias = "heatmap_base64")]
     pub heatmap_base64: String,
-    pub summary: String,
-}
-
-/// Chromatic Aberration consistency analysis result.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct CaResult {
-    #[serde(alias = "r_squared")]
-    pub r_squared: f64,
-    #[serde(alias = "is_consistent")]
-    pub is_consistent: bool,
-    pub score: f64,
-    pub suspicious: bool,
-    #[serde(alias = "sample_count")]
-    pub sample_count: u32,
     pub summary: String,
 }
 
@@ -892,35 +875,6 @@ impl SidecarClient {
 
         resp.json::<JpegGhostResult>()
             .map_err(|e| format!("Failed to parse JPEG ghost detection response: {e}"))
-    }
-
-    /// Run Chromatic Aberration consistency analysis on an image file.
-    ///
-    /// Authentic camera images exhibit consistent chromatic aberration across
-    /// the frame; composites and AI-generated images often show inconsistencies.
-    ///
-    /// Sends the file as a multipart upload to `POST /forensics/chromatic-aberration`.
-    pub fn analyse_ca(&self, image_path: &Path) -> Result<CaResult, String> {
-        let form = self.build_image_form(image_path)?;
-
-        let resp = self
-            .client
-            .post(format!("{}/forensics/chromatic-aberration", self.base_url))
-            .multipart(form)
-            .timeout(Duration::from_secs(30))
-            .send()
-            .map_err(|e| format!("Sidecar chromatic aberration request failed: {e}"))?;
-
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let body = resp.text().unwrap_or_default();
-            return Err(format!(
-                "Sidecar chromatic aberration returned {status}: {body}"
-            ));
-        }
-
-        resp.json::<CaResult>()
-            .map_err(|e| format!("Failed to parse chromatic aberration response: {e}"))
     }
 
     /// Run segmented ELA on an image file.
@@ -1643,26 +1597,6 @@ mod tests {
         assert_eq!(result.deviating_blocks, 120);
         assert_eq!(result.total_blocks, 400);
         assert_eq!(result.heatmap_base64, "iVBOR...");
-        assert!(!result.summary.is_empty());
-    }
-
-    #[test]
-    fn test_ca_result_deserialise_snake_case() {
-        // Python sidecar returns snake_case
-        let json = r#"{
-            "r_squared": 0.91,
-            "is_consistent": true,
-            "score": 0.12,
-            "suspicious": false,
-            "sample_count": 48,
-            "summary": "Chromatic aberration pattern is spatially consistent"
-        }"#;
-        let result: CaResult = serde_json::from_str(json).unwrap();
-        assert!((result.r_squared - 0.91).abs() < 0.001);
-        assert!(result.is_consistent);
-        assert!((result.score - 0.12).abs() < 0.001);
-        assert!(!result.suspicious);
-        assert_eq!(result.sample_count, 48);
         assert!(!result.summary.is_empty());
     }
 

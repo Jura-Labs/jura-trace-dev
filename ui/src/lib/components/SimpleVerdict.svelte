@@ -40,7 +40,6 @@
     // Extended detectors (deep/archival mode)
     if (result.nprResult) count++;
     if (result.jpegGhostResult) count++;
-    if (result.caResult) count++;
     if (result.clipResult) count++;
     // Region-based detectors (4 sub-detectors)
     if (result.segmentedElaResult) count++;

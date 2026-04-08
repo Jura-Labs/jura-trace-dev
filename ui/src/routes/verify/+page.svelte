@@ -712,9 +712,6 @@
     if (result.jpegGhostResult) {
       indicators.push({ id: 'section-jpegGhost', name: 'JPEG Ghost', shortName: 'JPEG Ghost', flagged: result.jpegGhostResult.suspicious, available: true });
     }
-    if (result.caResult) {
-      indicators.push({ id: 'section-ca', name: 'Chromatic Aberration', shortName: 'CA', flagged: !result.caResult.isConsistent, available: true });
-    }
     return indicators;
   });
 
@@ -1287,7 +1284,7 @@
   /** Sidecar-dependent detectors that cannot run when the analysis engine is offline. */
   const SIDECAR_DETECTORS = [
     'ELA', 'Noise Analysis', 'Copy-Move Detection', 'Deepfake Detection',
-    'NPR', 'Chromatic Aberration', 'JPEG Ghost', 'Segmented ELA',
+    'NPR', 'JPEG Ghost', 'Segmented ELA',
     'Shadow Consistency', 'Colour Temperature', 'Splice Boundary', 'CLIP Detection',
   ];
 
@@ -1375,7 +1372,6 @@
       'section-deepfake':  result.deepfakeResult   ? { score: result.deepfakeResult.score,   threshold: 0.50 } : undefined,
       'section-npr':       result.nprResult        ? { score: result.nprResult.score,        threshold: 0.40 } : undefined,
       'section-jpegGhost': result.jpegGhostResult  ? { score: result.jpegGhostResult.score,  threshold: 0.40 } : undefined,
-      'section-ca':        result.caResult         ? { score: result.caResult.score,         threshold: 0.50 } : undefined,
     };
   });
 
@@ -3510,7 +3506,6 @@
             { id: 'section-exif', label: 'EXIF', show: !!result.exifAnalysis },
             { id: 'section-npr', label: 'NPR', show: !!result.nprResult },
             { id: 'section-jpegGhost', label: 'JPEG Ghost', show: !!result.jpegGhostResult },
-            { id: 'section-ca', label: 'Chromatic', show: !!result.caResult },
             { id: 'section-region', label: 'Regional', show: hasRegionResults },
           ].filter(s => s.always || s.show) as navItem}
             <button
@@ -5126,65 +5121,6 @@
               pattern when re-compressed at the target quality level.
             </div>
           {/if}
-        </section>
-      {/if}
-
-      <!-- ── Chromatic Aberration Analysis ─────────────────────────── -->
-      {#if result.caResult}
-        {@const ca = result.caResult}
-        <section id="section-ca" class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="ca-heading">
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-3">
-              <h2 id="ca-heading" class="text-sm font-medium text-text-light dark:text-quartz">Chromatic Aberration</h2>
-              <span
-                class="text-xs font-medium px-2 py-0.5 rounded border
-                       {ca.isConsistent
-                         ? 'bg-malachite/15 border-malachite/20 text-malachite dark:text-malachite-light'
-                         : 'bg-amber/15 border-amber/20 text-amber dark:text-amber-light'}"
-              >
-                {ca.isConsistent ? 'Consistent' : 'Inconsistent'}
-              </span>
-              <!-- Informational tag — always shown -->
-              <span
-                class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-gray-700 dark:text-flint-light border border-gray-300 dark:border-border-dark"
-                title="Chromatic aberration analysis is informational only — results may be unreliable for mobile phone photos processed with computational lens correction"
-              >
-                Informational
-              </span>
-            </div>
-            <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(ca.score)}">
-              <span>{(ca.score * 100).toFixed(1)}%</span>
-              {#if showRawScores}
-                <span class="text-flint dark:text-flint-light font-normal" aria-label="threshold 50 per cent">
-                  / threshold 50%
-                </span>
-              {/if}
-            </div>
-          </div>
-
-          <!-- Stats -->
-          <div class="grid grid-cols-3 gap-4 text-xs mb-3">
-            <div>
-              <span class="text-flint dark:text-flint-light">R² Value</span>
-              <p class="text-text-light dark:text-quartz tabular-nums">{ca.rSquared.toFixed(4)}</p>
-            </div>
-            <div>
-              <span class="text-flint dark:text-flint-light">Sample Count</span>
-              <p class="text-text-light dark:text-quartz tabular-nums">{ca.sampleCount}</p>
-            </div>
-            <div>
-              <span class="text-flint dark:text-flint-light">Consistent</span>
-              <p class="text-text-light dark:text-quartz">{ca.isConsistent ? 'Yes' : 'No'}</p>
-            </div>
-          </div>
-
-          <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-2">{ca.summary}</p>
-
-          <p class="text-xs text-flint/60 dark:text-flint-light/70 italic leading-relaxed">
-            Note: this detector is informational only. Results are unreliable for mobile phone
-            photos processed with computational lens correction (iPhone, Pixel, Samsung), HDR
-            composites, or images that have been resized or cropped.
-          </p>
         </section>
       {/if}
 

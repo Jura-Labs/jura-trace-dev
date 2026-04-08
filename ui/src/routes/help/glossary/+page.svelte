@@ -156,20 +156,6 @@
 
       <div>
         <dt
-          id="term-chromatic-aberration"
-          class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >Chromatic Aberration</dt>
-        <dd class="mt-1 text-sm text-flint dark:text-flint-light leading-relaxed max-w-prose">
-          Colour fringing that occurs at high-contrast edges in photographs taken through
-          real camera lenses. The effect follows a consistent radial pattern outward from
-          the image centre. AI-generated images typically lack natural chromatic aberration,
-          making its absence — or an unnatural pattern — a forensic signal. Jura Trace
-          analyses lens chromatic aberration using a radial regression model.
-        </dd>
-      </div>
-
-      <div>
-        <dt
           id="term-clip"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >CLIP <span class="font-normal text-flint dark:text-flint-light">(Contrastive Language-Image Pre-training)</span></dt>

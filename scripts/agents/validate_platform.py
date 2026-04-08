@@ -67,7 +67,6 @@ def check_python_imports():
         "app.services.deepfake",
         "app.services.jpeg_ghost",
         "app.services.npr",
-        "app.services.chromatic_aberration",
         "app.services.segmented_ela",
         "app.services.shadow_consistency",
         "app.services.colour_temperature",
@@ -317,7 +316,7 @@ def check_sidecar_endpoints():
     caps = data.get("capabilities", {})
     expected_caps = [
         "ela", "noise", "copy_move", "deepfake", "jpeg_ghost", "npr",
-        "chromatic_aberration", "segmented_ela", "shadow_consistency",
+        "segmented_ela", "shadow_consistency",
         "colour_temperature", "splice_boundary", "watermark",
     ]
     for cap in expected_caps:

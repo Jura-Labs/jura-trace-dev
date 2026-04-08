@@ -192,7 +192,6 @@ hiddenimports += [
     "app.services.deepfake",
     "app.services.jpeg_ghost",
     "app.services.npr",
-    "app.services.chromatic_aberration",
     "app.services.segmented_ela",
     "app.services.shadow_consistency",
     "app.services.colour_temperature",

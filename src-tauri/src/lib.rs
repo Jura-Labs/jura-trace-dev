@@ -124,7 +124,6 @@ pub struct VerificationResult {
     pub clip_result: Option<sidecar::ClipDetectionResult>,
     pub npr_result: Option<sidecar::NprResult>,
     pub jpeg_ghost_result: Option<sidecar::JpegGhostResult>,
-    pub ca_result: Option<sidecar::CaResult>,
     pub segmented_ela_result: Option<sidecar::SegmentedElaResult>,
     pub shadow_consistency_result: Option<sidecar::ShadowConsistencyResult>,
     pub colour_temperature_result: Option<sidecar::ColourTemperatureResult>,
@@ -1392,7 +1391,6 @@ fn verify_content_inner(
         copy_move_result,
         npr_result,
         jpeg_ghost_result,
-        ca_result,
         segmented_ela_result,
         shadow_consistency_result,
         colour_temperature_result,
@@ -1400,21 +1398,21 @@ fn verify_content_inner(
     ) = if sidecar_up && is_deep {
         let t_deep = std::time::Instant::now();
 
-        // Shadow consistency and splice boundary were demoted to on-demand
-        // investigation tools in April 2026 (see compute_trust comment near
-        // line 683). Previously they ran in this parallel block but neither
-        // contributed to trust scoring — shadow produced noisy gradient output
-        // and splice boundary never set suspicious=true in production. Both
-        // are still available via their standalone sidecar endpoints for
-        // manual investigation, but they no longer run on every deep verify.
-        // NPR, JPEG Ghost, and chromatic aberration remain in the deep block
-        // pending the Sprint 28 post-v1.0 demotion work — see tech-debt audit
-        // decisions memory for the full sequencing.
+        // Demoted/removed from the deep parallel block:
+        //   - Shadow consistency + splice boundary: demoted to on-demand in
+        //     April 2026 (see compute_trust comment near line 683). Fields
+        //     remain as Option<T> None for backwards-compatible serde.
+        //   - Chromatic aberration: removed entirely in Sprint 28 (April
+        //     2026) — forensic audit rated accuracy 1/5, long-term viability
+        //     1/5; phone cameras and modern processing defeat radial CA
+        //     detection; AI generators produce CA-free output. See the
+        //     tech-debt audit decisions memory for full rationale.
+        // NPR and JPEG Ghost remain in this block pending S28-3 (NPR demotion)
+        // and S28-4 (JPEG Ghost wired into compute_trust at 0.5× weight).
         let noise_path = path.to_path_buf();
         let cm_path = path.to_path_buf();
         let npr_path = path.to_path_buf();
         let jg_path = path.to_path_buf();
-        let ca_path = path.to_path_buf();
         let seg_path = path.to_path_buf();
         let ct_path = path.to_path_buf();
 
@@ -1422,66 +1420,57 @@ fn verify_content_inner(
         let cm_client = app.sidecar.clone();
         let npr_client = app.sidecar.clone();
         let jg_client = app.sidecar.clone();
-        let ca_client = app.sidecar.clone();
         let seg_client = app.sidecar.clone();
         let ct_client = app.sidecar.clone();
 
-        let (noise_out, cm_out, npr_out, jg_out, ca_out, seg_out, ct_out) =
-            std::thread::scope(|s| {
-                let noise_h = s.spawn(move || {
-                    let t = std::time::Instant::now();
-                    let r = noise_client.analyse_noise(&noise_path);
-                    log::info!("PERF: noise analysis took {:?}", t.elapsed());
-                    r
-                });
-                let cm_h = s.spawn(move || {
-                    let t = std::time::Instant::now();
-                    let r = cm_client.detect_copy_move(&cm_path);
-                    log::info!("PERF: copy-move detection took {:?}", t.elapsed());
-                    r
-                });
-                let npr_h = s.spawn(move || {
-                    let t = std::time::Instant::now();
-                    let r = npr_client.analyse_npr(&npr_path);
-                    log::info!("PERF: NPR analysis took {:?}", t.elapsed());
-                    r
-                });
-                let jg_h = s.spawn(move || {
-                    let t = std::time::Instant::now();
-                    let r = jg_client.detect_jpeg_ghost(&jg_path);
-                    log::info!("PERF: JPEG ghost detection took {:?}", t.elapsed());
-                    r
-                });
-                let ca_h = s.spawn(move || {
-                    let t = std::time::Instant::now();
-                    let r = ca_client.analyse_ca(&ca_path);
-                    log::info!("PERF: chromatic aberration analysis took {:?}", t.elapsed());
-                    r
-                });
-                let seg_h = s.spawn(move || {
-                    let t = std::time::Instant::now();
-                    let r = seg_client.check_segmented_ela(&seg_path);
-                    log::info!("PERF: segmented ELA took {:?}", t.elapsed());
-                    r
-                });
-                let ct_h = s.spawn(move || {
-                    let t = std::time::Instant::now();
-                    let r = ct_client.check_colour_temperature(&ct_path);
-                    log::info!("PERF: colour temperature took {:?}", t.elapsed());
-                    r
-                });
-                (
-                    noise_h.join(),
-                    cm_h.join(),
-                    npr_h.join(),
-                    jg_h.join(),
-                    ca_h.join(),
-                    seg_h.join(),
-                    ct_h.join(),
-                )
+        let (noise_out, cm_out, npr_out, jg_out, seg_out, ct_out) = std::thread::scope(|s| {
+            let noise_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = noise_client.analyse_noise(&noise_path);
+                log::info!("PERF: noise analysis took {:?}", t.elapsed());
+                r
             });
+            let cm_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = cm_client.detect_copy_move(&cm_path);
+                log::info!("PERF: copy-move detection took {:?}", t.elapsed());
+                r
+            });
+            let npr_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = npr_client.analyse_npr(&npr_path);
+                log::info!("PERF: NPR analysis took {:?}", t.elapsed());
+                r
+            });
+            let jg_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = jg_client.detect_jpeg_ghost(&jg_path);
+                log::info!("PERF: JPEG ghost detection took {:?}", t.elapsed());
+                r
+            });
+            let seg_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = seg_client.check_segmented_ela(&seg_path);
+                log::info!("PERF: segmented ELA took {:?}", t.elapsed());
+                r
+            });
+            let ct_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = ct_client.check_colour_temperature(&ct_path);
+                log::info!("PERF: colour temperature took {:?}", t.elapsed());
+                r
+            });
+            (
+                noise_h.join(),
+                cm_h.join(),
+                npr_h.join(),
+                jg_h.join(),
+                seg_h.join(),
+                ct_h.join(),
+            )
+        });
 
-        log::info!("PERF: deep group (noise + copy-move + NPR + JPEG ghost + CA + segmented ELA + colour-temp, parallel) took {:?}", t_deep.elapsed());
+        log::info!("PERF: deep group (noise + copy-move + NPR + JPEG ghost + segmented ELA + colour-temp, parallel) took {:?}", t_deep.elapsed());
 
         let (noise_score, noise_result) = match noise_out {
             Ok(Ok(r)) => (Some(r.score), Some(r)),
@@ -1527,17 +1516,6 @@ fn verify_content_inner(
                 None
             }
         };
-        let ca_result = match ca_out {
-            Ok(Ok(r)) => Some(r),
-            Ok(Err(e)) => {
-                log::warn!("Sidecar chromatic aberration analysis failed: {e}");
-                None
-            }
-            Err(_) => {
-                log::warn!("Sidecar chromatic aberration thread panicked");
-                None
-            }
-        };
         let segmented_ela_result = match seg_out {
             Ok(Ok(r)) => Some(r),
             Ok(Err(e)) => {
@@ -1575,16 +1553,13 @@ fn verify_content_inner(
             copy_move_result,
             npr_result,
             jpeg_ghost_result,
-            ca_result,
             segmented_ela_result,
             shadow_consistency_result,
             colour_temperature_result,
             splice_boundary_result,
         )
     } else {
-        (
-            None, None, None, None, None, None, None, None, None, None, None,
-        )
+        (None, None, None, None, None, None, None, None, None, None)
     };
 
     // ── Video parallel group ─────────────────────────────────────────────
@@ -1940,7 +1915,6 @@ fn verify_content_inner(
                 "deepfake_score": deepfake_score,
                 "npr_score": npr_result.as_ref().map(|r| r.score),
                 "jpeg_ghost_score": jpeg_ghost_result.as_ref().map(|r| r.score),
-                "ca_score": ca_result.as_ref().map(|r| r.score),
                 "segmented_ela_score": segmented_ela_score,
                 "shadow_consistency_score": shadow_consistency_score,
                 "colour_temperature_score": colour_temperature_score,
@@ -1986,7 +1960,6 @@ fn verify_content_inner(
         clip_result,
         npr_result,
         jpeg_ghost_result,
-        ca_result,
         segmented_ela_result,
         shadow_consistency_result,
         colour_temperature_result,
@@ -4596,7 +4569,6 @@ mod tests {
             clip_result: None,
             npr_result: None,
             jpeg_ghost_result: None,
-            ca_result: None,
             segmented_ela_result: None,
             shadow_consistency_result: None,
             colour_temperature_result: None,
