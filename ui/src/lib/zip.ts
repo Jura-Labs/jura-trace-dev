@@ -6,6 +6,7 @@
 import JSZip from 'jszip';
 import type { VerificationResult } from './types';
 import { getTrustLevel } from './types';
+import { DETECTOR_ID_LABELS } from './detectorLabels';
 
 export interface CaseExportMeta {
   fileName: string;
@@ -39,6 +40,7 @@ export async function exportCaseZip(
     'Contents',
     '-'.repeat(20),
     'report.json          Full verification result as JSON',
+    'detectors-run.json   Exact detector lineup and pipeline metadata',
     'methodology.txt      Explanation of each analysis technique',
     'heatmaps/            Forensic visualisation images (if available)',
     '',
@@ -108,6 +110,64 @@ export async function exportCaseZip(
     // Decode base64 to binary
     heatmapFolder.file(hm.name, hm.data, { base64: true });
   }
+
+  // ── detectors-run.json ──────────────────────────────────────
+  // Documents the exact detector lineup for this verification so a reviewer
+  // can see precisely what ran and reproduce the configuration.
+  //
+  // Prefer result.detectorsRun (authoritative — written by the Rust backend
+  // into the schema v6 `detectors_run` DB column). When absent (legacy case
+  // export from a pre-S28-FU1 build), infer from which *Result fields are
+  // populated and mark as non-authoritative.
+  let exportedDetectorsRun: string[];
+  let authoritative: boolean;
+
+  if (result.detectorsRun && result.detectorsRun.length > 0) {
+    exportedDetectorsRun = result.detectorsRun;
+    authoritative = true;
+  } else {
+    // Legacy inference — cannot distinguish "ran and returned null" from "never ran"
+    authoritative = false;
+    exportedDetectorsRun = [];
+    if (result.exifAnalysis)                exportedDetectorsRun.push('exif_anomaly');
+    if (result.c2paManifest !== undefined)   exportedDetectorsRun.push('c2pa');
+    if (result.elaResult)                   exportedDetectorsRun.push('ela');
+    if (result.noiseResult)                 exportedDetectorsRun.push('noise');
+    if (result.copyMoveResult)              exportedDetectorsRun.push('copy_move');
+    if (result.deepfakeResult)              exportedDetectorsRun.push('deepfake');
+    if (result.jpegGhostResult)             exportedDetectorsRun.push('jpeg_ghost');
+    if (result.segmentedElaResult)          exportedDetectorsRun.push('segmented_ela');
+    if (result.colourTemperatureResult)     exportedDetectorsRun.push('colour_temperature');
+    if (result.clipResult)                  exportedDetectorsRun.push('clip');
+    if (result.watermarkExtractResult)      exportedDetectorsRun.push('watermark');
+    if (result.videoDeepfakeResult)         exportedDetectorsRun.push('video_deepfake');
+    if (result.transcriptionResult)         exportedDetectorsRun.push('transcription');
+    if (result.nprResult)                   exportedDetectorsRun.push('npr');
+    if (result.shadowConsistencyResult)     exportedDetectorsRun.push('shadow_consistency');
+    if (result.spliceBoundaryResult)        exportedDetectorsRun.push('splice_boundary');
+  }
+
+  // Build a filtered label map covering only the detectors that ran
+  const detectorIdLabels: Record<string, string> = {};
+  for (const id of exportedDetectorsRun) {
+    if (DETECTOR_ID_LABELS[id]) {
+      detectorIdLabels[id] = DETECTOR_ID_LABELS[id];
+    }
+  }
+
+  const detectorsRunManifest = {
+    authoritative,
+    detectorsRun: exportedDetectorsRun,
+    mode: result.mode ?? 'standard',
+    contentType: result.contentType,
+    pipelineVersion: result.methodology?.pipelineVersion ?? version,
+    analysedAt: result.methodology?.analysedAt ?? meta.exportedAt,
+    detectorIdLabels,
+    ...(result.methodology ? { methodology: result.methodology } : {}),
+    note: 'Detector ID vocabulary \u2014 stable across builds. Labels may change but IDs are permanent.',
+  };
+
+  zip.file('detectors-run.json', JSON.stringify(detectorsRunManifest, null, 2));
 
   return zip.generateAsync({ type: 'blob' });
 }

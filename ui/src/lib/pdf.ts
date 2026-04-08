@@ -4,8 +4,68 @@
  */
 
 import { jsPDF } from 'jspdf';
-import type { VerificationResult } from './types';
+import type { VerificationResult, VerifyMode } from './types';
 import { getTrustLevel } from './types';
+import { DETECTOR_ID_LABELS } from './detectorLabels';
+
+// ── Expected detector IDs per (mode, content-type) combination ───────
+//
+// Used to label rows as "Not run in this analysis" when a detector is
+// expected for the mode/content-type but absent from result.detectorsRun.
+// On-demand detectors (npr, shadow_consistency, splice_boundary) are never
+// in the automatic pipeline, so they are not listed here.
+//
+// `quick` is a legacy alias for the minimal set; the UI no longer exposes
+// it but the backend still accepts it.
+type ContentCategory = 'image' | 'video' | 'audio' | 'document' | 'other';
+
+const EXPECTED_DETECTORS_BY_MODE: Record<
+  VerifyMode | 'quick',
+  Partial<Record<ContentCategory, string[]>>
+> = {
+  quick: {
+    image:    ['exif_anomaly', 'c2pa'],
+    video:    ['exif_anomaly', 'c2pa'],
+    audio:    ['exif_anomaly', 'c2pa'],
+    document: ['exif_anomaly', 'c2pa'],
+    other:    ['exif_anomaly', 'c2pa'],
+  },
+  standard: {
+    image:    ['exif_anomaly', 'c2pa', 'ela', 'deepfake', 'clip', 'watermark'],
+    video:    ['exif_anomaly', 'c2pa', 'video_deepfake', 'transcription'],
+    audio:    ['exif_anomaly', 'c2pa', 'transcription'],
+    document: ['exif_anomaly', 'c2pa'],
+    other:    ['exif_anomaly', 'c2pa'],
+  },
+  deep: {
+    image:    ['exif_anomaly', 'c2pa', 'ela', 'noise', 'copy_move', 'deepfake',
+               'jpeg_ghost', 'segmented_ela', 'colour_temperature', 'clip', 'watermark'],
+    video:    ['exif_anomaly', 'c2pa', 'video_deepfake', 'transcription'],
+    audio:    ['exif_anomaly', 'c2pa', 'transcription'],
+    document: ['exif_anomaly', 'c2pa'],
+    other:    ['exif_anomaly', 'c2pa'],
+  },
+  archival: {
+    image:    ['exif_anomaly', 'c2pa', 'ela', 'noise', 'copy_move', 'deepfake',
+               'jpeg_ghost', 'segmented_ela', 'colour_temperature', 'clip', 'watermark'],
+    video:    ['exif_anomaly', 'c2pa', 'video_deepfake', 'transcription'],
+    audio:    ['exif_anomaly', 'c2pa', 'transcription'],
+    document: ['exif_anomaly', 'c2pa'],
+    other:    ['exif_anomaly', 'c2pa'],
+  },
+};
+
+/**
+ * Resolve the expected detector IDs for a given mode and content-type string.
+ * Returns an empty array when the combination is unrecognised.
+ */
+function expectedDetectors(mode: string | undefined, contentType: string | undefined): string[] {
+  const m = (mode ?? 'standard') as VerifyMode | 'quick';
+  const modeMap = EXPECTED_DETECTORS_BY_MODE[m] ?? EXPECTED_DETECTORS_BY_MODE.standard;
+  const ct = (contentType ?? 'other') as ContentCategory;
+  const key: ContentCategory = ['image', 'video', 'audio', 'document'].includes(ct) ? ct : 'other';
+  return modeMap[key] ?? [];
+}
 
 export interface ReportMeta {
   fileName: string;
@@ -147,58 +207,75 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
    * @param score          Normalised score 0.0–1.0, or null/undefined if not run
    * @param threshold      Fixed threshold 0.0–1.0, or null if no published threshold
    * @param suspicious     Result-level suspicious flag; used when threshold is null
+   * @param notRunOverride When true, the row spans all data columns with the
+   *                       italic grey label "Not run in this analysis", replacing
+   *                       score/threshold/status cells. Used when a detector is
+   *                       expected for the current mode/content-type but is absent
+   *                       from result.detectorsRun.
    */
   function signalTableRow(
     detectorLabel: string,
     score: number | null | undefined,
     threshold: number | null,
-    suspicious: boolean | null | undefined
+    suspicious: boolean | null | undefined,
+    notRunOverride = false
   ) {
     checkPage(LINE_HEIGHT + 1);
-    const notRun = score == null;
-    const scoreText = notRun ? '\u2014' : score.toFixed(2);
-    const thresholdText = threshold != null ? threshold.toFixed(2) : '\u2014';
-
-    let statusText: string;
-    let statusR: number;
-    let statusG: number;
-    let statusB: number;
-    if (notRun) {
-      statusText = '\u2014';
-      statusR = 140; statusG = 140; statusB = 140;
-    } else if (threshold != null) {
-      if (score! >= threshold) {
-        statusText = 'Flagged';
-        statusR = 180; statusG = 60; statusB = 60;
-      } else {
-        statusText = 'Clean';
-        statusR = 40; statusG = 120; statusB = 60;
-      }
-    } else {
-      // No fixed threshold — use the result's own suspicious flag
-      if (suspicious === true) {
-        statusText = 'Flagged';
-        statusR = 180; statusG = 60; statusB = 60;
-      } else if (suspicious === false) {
-        statusText = 'Clean';
-        statusR = 40; statusG = 120; statusB = 60;
-      } else {
-        statusText = '\u2014';
-        statusR = 140; statusG = 140; statusB = 140;
-      }
-    }
 
     doc.setFontSize(8);
     doc.setTextColor(50);
     doc.text(detectorLabel, COL_DETECTOR, y);
 
-    doc.setTextColor(40);
-    doc.text(scoreText, COL_SCORE, y);
-    doc.text(thresholdText, COL_THRESHOLD, y);
+    if (notRunOverride) {
+      // Italic grey spanning the three data columns
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(140);
+      doc.text('Not run in this analysis', COL_SCORE, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(40);
+    } else {
+      const notRun = score == null;
+      const scoreText = notRun ? '\u2014' : score.toFixed(2);
+      const thresholdText = threshold != null ? threshold.toFixed(2) : '\u2014';
 
-    doc.setTextColor(statusR, statusG, statusB);
-    doc.text(statusText, COL_STATUS, y);
-    doc.setTextColor(40); // reset
+      let statusText: string;
+      let statusR: number;
+      let statusG: number;
+      let statusB: number;
+      if (notRun) {
+        statusText = '\u2014';
+        statusR = 140; statusG = 140; statusB = 140;
+      } else if (threshold != null) {
+        if (score! >= threshold) {
+          statusText = 'Flagged';
+          statusR = 180; statusG = 60; statusB = 60;
+        } else {
+          statusText = 'Clean';
+          statusR = 40; statusG = 120; statusB = 60;
+        }
+      } else {
+        // No fixed threshold — use the result's own suspicious flag
+        if (suspicious === true) {
+          statusText = 'Flagged';
+          statusR = 180; statusG = 60; statusB = 60;
+        } else if (suspicious === false) {
+          statusText = 'Clean';
+          statusR = 40; statusG = 120; statusB = 60;
+        } else {
+          statusText = '\u2014';
+          statusR = 140; statusG = 140; statusB = 140;
+        }
+      }
+
+      doc.setTextColor(40);
+      doc.text(scoreText, COL_SCORE, y);
+      doc.text(thresholdText, COL_THRESHOLD, y);
+
+      doc.setTextColor(statusR, statusG, statusB);
+      doc.text(statusText, COL_STATUS, y);
+      doc.setTextColor(40); // reset
+    }
 
     y += LINE_HEIGHT;
 
@@ -677,6 +754,10 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
     y += SECTION_GAP;
   }
 
+  // Compute once here — used both in the signal-scores section below
+  // and in the Methodology block further down.
+  const hasAuthoritativeList = !!(result.detectorsRun && result.detectorsRun.length > 0);
+
   // ── Forensic Signal Scores ───────────────────────────────────
   // Determine which primary and regional detector results are present
   const hasAnySignalScores =
@@ -693,64 +774,134 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
     result.colourTemperatureResult != null ||
     result.spliceBoundaryResult != null;
 
-  if (hasAnySignalScores || hasRegionalScores) {
+  // When we have the authoritative detectors-run list, also show rows for
+  // any detector that was expected but did not run (labelled explicitly).
+  const detRunSet = hasAuthoritativeList
+    ? new Set(result.detectorsRun!)
+    : null;
+  const expDetectors = hasAuthoritativeList
+    ? new Set(expectedDetectors(result.mode, result.contentType))
+    : new Set<string>();
+
+  // A detector row should appear if: (a) the result field is populated, OR
+  // (b) it is expected for the mode/content-type but absent from detectorsRun.
+  function shouldShowRow(id: string, resultPresent: boolean): boolean {
+    if (resultPresent) return true;
+    if (detRunSet && expDetectors.has(id) && !detRunSet.has(id)) return true;
+    return false;
+  }
+
+  function isNotRun(id: string, resultPresent: boolean): boolean {
+    if (!detRunSet) return false; // legacy — never force not-run label
+    return expDetectors.has(id) && !detRunSet.has(id) && !resultPresent;
+  }
+
+  const showEla       = shouldShowRow('ela',               result.elaResult != null);
+  const showNoise     = shouldShowRow('noise',             result.noiseResult != null);
+  const showCopyMove  = shouldShowRow('copy_move',         result.copyMoveResult != null);
+  const showDeepfake  = shouldShowRow('deepfake',          result.deepfakeResult != null);
+  const showNpr       = shouldShowRow('npr',               result.nprResult != null);
+  const showJpegGhost = shouldShowRow('jpeg_ghost',        result.jpegGhostResult != null);
+  const showSegEla    = shouldShowRow('segmented_ela',     result.segmentedElaResult != null);
+  const showShadow    = shouldShowRow('shadow_consistency',result.shadowConsistencyResult != null);
+  const showColTemp   = shouldShowRow('colour_temperature',result.colourTemperatureResult != null);
+  const showSplice    = shouldShowRow('splice_boundary',   result.spliceBoundaryResult != null);
+
+  const hasPrimaryRows  = showEla || showNoise || showCopyMove || showDeepfake || showNpr || showJpegGhost;
+  const hasRegionalRows = showSegEla || showShadow || showColTemp || showSplice;
+
+  if (hasPrimaryRows || hasRegionalRows || hasAnySignalScores || hasRegionalScores) {
     heading('Forensic Signal Scores');
 
     paragraph(
       'Raw numerical scores from each detector (range 0.00\u20131.00, normalised). ' +
       'A score at or above the listed threshold triggers a \u201cFlagged\u201d status. ' +
       'Detectors without a fixed published threshold are marked \u2014 and use their own internal suspicious flag instead. ' +
-      '\u201cNot run\u201d (\u2014) indicates the detector was skipped in the selected analysis mode.',
+      '\u201cNot run in this analysis\u201d indicates the detector was expected for this mode and content type but did not produce a result.',
       7
     );
     y += 2;
   }
 
-  if (hasAnySignalScores) {
+  if (hasPrimaryRows || hasAnySignalScores) {
     signalTableHeader();
 
-    signalTableRow(
-      'Error Level Analysis (ELA)',
-      result.elaResult?.score,
-      DETECTOR_THRESHOLDS.ela,
-      result.elaResult?.suspicious
-    );
-    signalTableRow(
-      'Noise Analysis',
-      result.noiseResult?.score,
-      DETECTOR_THRESHOLDS.noise,
-      result.noiseResult?.suspicious
-    );
-    signalTableRow(
-      'Copy-Move Detection',
-      result.copyMoveResult?.score,
-      DETECTOR_THRESHOLDS.copyMove,
-      result.copyMoveResult?.suspicious
-    );
-    signalTableRow(
-      'AI Generation (Deepfake)',
-      result.deepfakeResult?.score,
-      DETECTOR_THRESHOLDS.deepfake,
-      result.deepfakeResult?.suspicious
-    );
-    signalTableRow(
-      'Neighbouring Pixel Relationships',
-      result.nprResult?.score,
-      DETECTOR_THRESHOLDS.npr,
-      result.nprResult?.suspicious
-    );
-    signalTableRow(
-      'JPEG Ghost',
-      result.jpegGhostResult?.score,
-      DETECTOR_THRESHOLDS.jpegGhost,
-      result.jpegGhostResult?.suspicious
-    );
+    if (showEla) {
+      signalTableRow(
+        'Error Level Analysis (ELA)',
+        result.elaResult?.score,
+        DETECTOR_THRESHOLDS.ela,
+        result.elaResult?.suspicious,
+        isNotRun('ela', result.elaResult != null)
+      );
+    }
+    if (showNoise) {
+      signalTableRow(
+        'Noise Analysis',
+        result.noiseResult?.score,
+        DETECTOR_THRESHOLDS.noise,
+        result.noiseResult?.suspicious,
+        isNotRun('noise', result.noiseResult != null)
+      );
+    }
+    if (showCopyMove) {
+      signalTableRow(
+        'Copy-Move Detection',
+        result.copyMoveResult?.score,
+        DETECTOR_THRESHOLDS.copyMove,
+        result.copyMoveResult?.suspicious,
+        isNotRun('copy_move', result.copyMoveResult != null)
+      );
+    }
+    if (showDeepfake) {
+      signalTableRow(
+        'AI Generation (Deepfake)',
+        result.deepfakeResult?.score,
+        DETECTOR_THRESHOLDS.deepfake,
+        result.deepfakeResult?.suspicious,
+        isNotRun('deepfake', result.deepfakeResult != null)
+      );
+    }
+    if (showNpr) {
+      signalTableRow(
+        'Neighbouring Pixel Relationships',
+        result.nprResult?.score,
+        DETECTOR_THRESHOLDS.npr,
+        result.nprResult?.suspicious,
+        isNotRun('npr', result.nprResult != null)
+      );
+    }
+    if (showJpegGhost) {
+      signalTableRow(
+        'JPEG Ghost',
+        result.jpegGhostResult?.score,
+        DETECTOR_THRESHOLDS.jpegGhost,
+        result.jpegGhostResult?.suspicious,
+        isNotRun('jpeg_ghost', result.jpegGhostResult != null)
+      );
+    }
 
     y += 2;
+
+    // Legacy footer — shown only when detectorsRun is absent, so we cannot
+    // distinguish "ran and returned null" from "never ran in this mode".
+    if (!hasAuthoritativeList) {
+      checkPage(8);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(120);
+      const legacyNote = 'Legacy verification \u2014 detector lineup inferred from result fields. ' +
+        'Regenerate in this build for an authoritative list.';
+      const legacyLines = doc.splitTextToSize(legacyNote, CONTENT_WIDTH);
+      doc.text(legacyLines, MARGIN, y);
+      y += legacyLines.length * 3 + 2;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(40);
+    }
   }
 
   // Regional Analysis subsection (deep / archival mode only)
-  if (hasRegionalScores) {
+  if (hasRegionalRows || hasRegionalScores) {
     checkPage(12);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
@@ -761,35 +912,47 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
 
     signalTableHeader();
 
-    signalTableRow(
-      'Segmented ELA',
-      result.segmentedElaResult?.score,
-      null,
-      result.segmentedElaResult?.suspicious
-    );
-    signalTableRow(
-      'Shadow Consistency',
-      result.shadowConsistencyResult?.score,
-      null,
-      result.shadowConsistencyResult?.suspicious
-    );
-    signalTableRow(
-      'Colour Temperature',
-      result.colourTemperatureResult?.score,
-      null,
-      result.colourTemperatureResult?.suspicious
-    );
-    signalTableRow(
-      'Splice Boundary',
-      result.spliceBoundaryResult?.score,
-      null,
-      result.spliceBoundaryResult?.suspicious
-    );
+    if (showSegEla) {
+      signalTableRow(
+        'Segmented ELA',
+        result.segmentedElaResult?.score,
+        null,
+        result.segmentedElaResult?.suspicious,
+        isNotRun('segmented_ela', result.segmentedElaResult != null)
+      );
+    }
+    if (showShadow) {
+      signalTableRow(
+        'Shadow Consistency',
+        result.shadowConsistencyResult?.score,
+        null,
+        result.shadowConsistencyResult?.suspicious,
+        isNotRun('shadow_consistency', result.shadowConsistencyResult != null)
+      );
+    }
+    if (showColTemp) {
+      signalTableRow(
+        'Colour Temperature',
+        result.colourTemperatureResult?.score,
+        null,
+        result.colourTemperatureResult?.suspicious,
+        isNotRun('colour_temperature', result.colourTemperatureResult != null)
+      );
+    }
+    if (showSplice) {
+      signalTableRow(
+        'Splice Boundary',
+        result.spliceBoundaryResult?.score,
+        null,
+        result.spliceBoundaryResult?.suspicious,
+        isNotRun('splice_boundary', result.spliceBoundaryResult != null)
+      );
+    }
 
     y += 2;
   }
 
-  if (hasAnySignalScores || hasRegionalScores) {
+  if (hasPrimaryRows || hasRegionalRows || hasAnySignalScores || hasRegionalScores) {
     y += SECTION_GAP;
   }
 
@@ -813,28 +976,10 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
   // inference path when an older sidecar version (pre-FU1) returns a
   // result without the new field, so this file stays compatible with
   // case exports loaded from older DB rows.
-  const DETECTOR_ID_LABELS: Record<string, string> = {
-    exif_anomaly: 'EXIF Anomaly Analysis',
-    c2pa: 'C2PA Credential Verification',
-    ela: 'ELA',
-    noise: 'Noise Analysis',
-    copy_move: 'Copy-Move Detection',
-    deepfake: 'AI Generation Detection',
-    jpeg_ghost: 'JPEG Ghost',
-    segmented_ela: 'Segmented ELA',
-    colour_temperature: 'Colour Temperature',
-    clip: 'CLIP Detection',
-    watermark: 'Watermark Extraction',
-    video_deepfake: 'Video Deepfake Analysis',
-    transcription: 'Audio/Video Transcription',
-    npr: 'Neighbouring Pixel Relationships (on-demand)',
-    shadow_consistency: 'Shadow Consistency (on-demand)',
-    splice_boundary: 'Splice Boundary (on-demand)',
-  };
-
+  // (hasAuthoritativeList is declared earlier, before the signal-scores section.)
   let detectorsRun: string[];
-  if (result.detectorsRun && result.detectorsRun.length > 0) {
-    detectorsRun = result.detectorsRun.map(
+  if (hasAuthoritativeList) {
+    detectorsRun = result.detectorsRun!.map(
       (id) => DETECTOR_ID_LABELS[id] ?? id,
     );
   } else {
