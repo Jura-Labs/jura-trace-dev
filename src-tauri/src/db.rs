@@ -572,6 +572,13 @@ impl Database {
     // ── Verification operations ─────────────────────────────────────────
 
     /// Insert a verification result record with optional methodology metadata.
+    ///
+    /// `detectors_run` is a JSON array of stable detector identifiers that
+    /// actually produced a result for this verification. See the schema v6
+    /// migration note in `init_schema()` for the rationale. Pass `None` only
+    /// from legacy callers that cannot enumerate the detector list; new
+    /// callers should always populate it so the PDF / ZIP renderers can
+    /// distinguish "detector ran but returned null" from "detector not run".
     #[allow(clippy::too_many_arguments)]
     pub fn insert_verification(
         &self,
@@ -587,6 +594,7 @@ impl Database {
         sidecar_version: Option<&str>,
         classifier_model_hash: Option<&str>,
         analysis_mode: Option<&str>,
+        detectors_run: Option<&str>,
     ) -> SqliteResult<()> {
         let conn = self.conn.lock().unwrap();
         let now = chrono::Utc::now().to_rfc3339();
@@ -595,8 +603,8 @@ impl Database {
             "INSERT INTO verifications (verification_id, source_type, content_type,
              ela_score, deepfake_score, c2pa_valid, metadata_flags, overall_trust,
              pipeline_version, sidecar_version, classifier_model_hash, analysis_mode,
-             created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+             detectors_run, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![
                 verification_id,
                 source_type,
@@ -610,6 +618,7 @@ impl Database {
                 sidecar_version,
                 classifier_model_hash,
                 analysis_mode,
+                detectors_run,
                 now
             ],
         )?;
@@ -1971,6 +1980,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .unwrap();
     }
@@ -1991,6 +2001,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .unwrap();
         db.insert_verification(
@@ -2002,6 +2013,7 @@ mod tests {
             None,
             &[],
             0.3,
+            None,
             None,
             None,
             None,
@@ -2415,6 +2427,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .unwrap();
         db.insert_verification(
@@ -2426,6 +2439,7 @@ mod tests {
             None,
             &[],
             0.35,
+            None,
             None,
             None,
             None,
@@ -2463,6 +2477,7 @@ mod tests {
                 None,
                 &[],
                 0.5,
+                None,
                 None,
                 None,
                 None,
@@ -2513,6 +2528,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .unwrap();
         db.insert_verification(
@@ -2524,6 +2540,7 @@ mod tests {
             None,
             &[],
             0.7,
+            None,
             None,
             None,
             None,
@@ -2544,6 +2561,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .unwrap();
         // Low: < 0.4
@@ -2556,6 +2574,7 @@ mod tests {
             None,
             &[],
             0.2,
+            None,
             None,
             None,
             None,

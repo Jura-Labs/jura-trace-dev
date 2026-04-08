@@ -429,6 +429,25 @@ export interface VerificationResult {
   methodology?: MethodologyRecord | null;
   /** Input quality assessment — conditions that degrade detector reliability. */
   inputQuality?: InputQualityAssessment | null;
+  /**
+   * Stable string identifiers for every detector that actually produced a
+   * result for this verification. Added in Sprint 28 (S28-FU1) alongside the
+   * schema v6 `detectors_run` DB column. Consumers (PDF renderer, Expert
+   * View badges) use this as an authoritative list of what ran, so missing
+   * entries can be labelled "not run in this analysis" instead of silently
+   * dropped.
+   *
+   * Vocabulary (must match `src-tauri/src/lib.rs` `detectors_run_list`):
+   * `exif_anomaly`, `c2pa`, `ela`, `noise`, `copy_move`, `deepfake`,
+   * `jpeg_ghost`, `segmented_ela`, `colour_temperature`, `clip`,
+   * `watermark`, `video_deepfake`, `transcription`, and on-demand entries
+   * `npr`, `shadow_consistency`, `splice_boundary` when triggered.
+   *
+   * Optional for backwards compatibility with old DB rows that predate
+   * the schema v6 migration — when absent, consumers should fall back to
+   * inferring detector presence from individual `*Result` field population.
+   */
+  detectorsRun?: string[];
 }
 
 /** Methodology metadata captured at verification time for reproducibility. */

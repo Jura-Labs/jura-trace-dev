@@ -156,6 +156,21 @@ pub struct VerificationResult {
     pub methodology: Option<MethodologyRecord>,
     /// Input quality assessment — identifies conditions that degrade detector reliability.
     pub input_quality: Option<InputQualityAssessment>,
+    /// Stable string identifiers for every detector that produced a result
+    /// for this verification. Consumers (PDF / ZIP renderers, Expert View
+    /// badges) use this as an authoritative list of what ran, so that
+    /// missing entries can be labelled "not run in this analysis" instead
+    /// of silently dropped. Added in Sprint 28 (S28-FU1) alongside the
+    /// schema v6 `detectors_run` DB column — the same list is persisted
+    /// to the database at `insert_verification` time.
+    ///
+    /// Vocabulary: `exif_anomaly`, `c2pa`, `ela`, `noise`, `copy_move`,
+    /// `deepfake`, `jpeg_ghost`, `segmented_ela`, `colour_temperature`,
+    /// `clip`, `watermark`, `video_deepfake`, `transcription`, plus
+    /// on-demand entries `npr`, `shadow_consistency`, `splice_boundary`
+    /// when the user has triggered them. Keep in sync with the frontend
+    /// renderer detector-ID list in `ui/src/lib/pdf.ts`.
+    pub detectors_run: Vec<String>,
 }
 
 /// Result of comparing the EXIF-embedded thumbnail against the full image.
@@ -1895,6 +1910,70 @@ fn verify_content_inner(
     // ── Database operations ───────────────────────────────────────────────
     let t_db = std::time::Instant::now();
     let verification_id = uuid::Uuid::new_v4().to_string();
+
+    // Build the detectors_run list — stable string identifiers for every
+    // detector that produced a result for this verification. Consumers
+    // (PDF + ZIP renderers) use this to distinguish "detector ran but
+    // returned null" from "detector was never run in this build / mode"
+    // rather than inferring from field presence. See S28-5 migration.
+    //
+    // Identifier vocabulary matches the detector IDs used by the frontend
+    // renderer; keep in sync with ui/src/lib/pdf.ts DETECTOR_THRESHOLDS
+    // and the methodology page detector reference list.
+    let mut detectors_run_list: Vec<&'static str> = Vec::new();
+    if exif_analysis.is_some() {
+        detectors_run_list.push("exif_anomaly");
+    }
+    if c2pa_manifest.is_some() {
+        detectors_run_list.push("c2pa");
+    }
+    if ela_result.is_some() {
+        detectors_run_list.push("ela");
+    }
+    if noise_result.is_some() {
+        detectors_run_list.push("noise");
+    }
+    if copy_move_result.is_some() {
+        detectors_run_list.push("copy_move");
+    }
+    if deepfake_result.is_some() {
+        detectors_run_list.push("deepfake");
+    }
+    if jpeg_ghost_result.is_some() {
+        detectors_run_list.push("jpeg_ghost");
+    }
+    if segmented_ela_result.is_some() {
+        detectors_run_list.push("segmented_ela");
+    }
+    if colour_temperature_result.is_some() {
+        detectors_run_list.push("colour_temperature");
+    }
+    if clip_result.is_some() {
+        detectors_run_list.push("clip");
+    }
+    if watermark_extract_result.is_some() {
+        detectors_run_list.push("watermark");
+    }
+    if video_deepfake_result.is_some() {
+        detectors_run_list.push("video_deepfake");
+    }
+    if transcription_result.is_some() {
+        detectors_run_list.push("transcription");
+    }
+    // On-demand / demoted detectors: include only if the user triggered
+    // them and a result came back. In the automatic pipeline these are
+    // always None — see the deep parallel block comment for rationale.
+    if npr_result.is_some() {
+        detectors_run_list.push("npr");
+    }
+    if shadow_consistency_result.is_some() {
+        detectors_run_list.push("shadow_consistency");
+    }
+    if splice_boundary_result.is_some() {
+        detectors_run_list.push("splice_boundary");
+    }
+    let detectors_run_json = serde_json::to_string(&detectors_run_list).ok();
+
     let _ = app.db.insert_verification(
         &verification_id,
         source_type,
@@ -1908,6 +1987,7 @@ fn verify_content_inner(
         sidecar_ver.as_deref(),
         app.classifier_model_hash.as_deref(),
         Some(effective_mode),
+        detectors_run_json.as_deref(),
     );
 
     let canonical_path_str = path.to_string_lossy().to_string();
@@ -1986,6 +2066,7 @@ fn verify_content_inner(
         input_sha256,
         methodology,
         input_quality,
+        detectors_run: detectors_run_list.iter().map(|s| s.to_string()).collect(),
     })
 }
 
@@ -4610,6 +4691,7 @@ mod tests {
             input_sha256: None,
             methodology: None,
             input_quality: None,
+            detectors_run: Vec::new(),
         };
         let json = serde_json::to_string(&result).unwrap();
         assert!(

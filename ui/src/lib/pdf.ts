@@ -803,21 +803,57 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
     analysisMode === 'deep' ? 'Deep' :
     'Standard';
 
-  // Build the list of detectors that actually ran
-  const detectorsRun: string[] = [];
-  if (result.elaResult) detectorsRun.push('ELA');
-  if (result.noiseResult) detectorsRun.push('Noise Analysis');
-  if (result.copyMoveResult) detectorsRun.push('Copy-Move Detection');
-  if (result.deepfakeResult) detectorsRun.push('AI Generation Detection');
-  if (result.nprResult) detectorsRun.push('Neighbouring Pixel Relationships');
-  if (result.jpegGhostResult) detectorsRun.push('JPEG Ghost');
-  if (result.segmentedElaResult) detectorsRun.push('Segmented ELA');
-  if (result.shadowConsistencyResult) detectorsRun.push('Shadow Consistency');
-  if (result.colourTemperatureResult) detectorsRun.push('Colour Temperature');
-  if (result.spliceBoundaryResult) detectorsRun.push('Splice Boundary');
-  if (result.clipResult) detectorsRun.push('CLIP Detection');
-  if (result.exifAnalysis) detectorsRun.push('EXIF Anomaly Analysis');
-  if (result.c2paManifest !== undefined) detectorsRun.push('C2PA Credential Verification');
+  // Build the list of detectors that actually ran.
+  //
+  // Prefer the authoritative `result.detectorsRun` list provided by the
+  // Rust backend (Sprint 28 S28-FU1 — matches the schema v6 `detectors_run`
+  // DB column). This avoids the previous "infer from *Result field
+  // population" approach that couldn't distinguish "ran and returned null"
+  // from "never ran in this build / mode". Fall back to the legacy
+  // inference path when an older sidecar version (pre-FU1) returns a
+  // result without the new field, so this file stays compatible with
+  // case exports loaded from older DB rows.
+  const DETECTOR_ID_LABELS: Record<string, string> = {
+    exif_anomaly: 'EXIF Anomaly Analysis',
+    c2pa: 'C2PA Credential Verification',
+    ela: 'ELA',
+    noise: 'Noise Analysis',
+    copy_move: 'Copy-Move Detection',
+    deepfake: 'AI Generation Detection',
+    jpeg_ghost: 'JPEG Ghost',
+    segmented_ela: 'Segmented ELA',
+    colour_temperature: 'Colour Temperature',
+    clip: 'CLIP Detection',
+    watermark: 'Watermark Extraction',
+    video_deepfake: 'Video Deepfake Analysis',
+    transcription: 'Audio/Video Transcription',
+    npr: 'Neighbouring Pixel Relationships (on-demand)',
+    shadow_consistency: 'Shadow Consistency (on-demand)',
+    splice_boundary: 'Splice Boundary (on-demand)',
+  };
+
+  let detectorsRun: string[];
+  if (result.detectorsRun && result.detectorsRun.length > 0) {
+    detectorsRun = result.detectorsRun.map(
+      (id) => DETECTOR_ID_LABELS[id] ?? id,
+    );
+  } else {
+    // Legacy inference path for pre-S28-FU1 results.
+    detectorsRun = [];
+    if (result.elaResult) detectorsRun.push('ELA');
+    if (result.noiseResult) detectorsRun.push('Noise Analysis');
+    if (result.copyMoveResult) detectorsRun.push('Copy-Move Detection');
+    if (result.deepfakeResult) detectorsRun.push('AI Generation Detection');
+    if (result.nprResult) detectorsRun.push('Neighbouring Pixel Relationships');
+    if (result.jpegGhostResult) detectorsRun.push('JPEG Ghost');
+    if (result.segmentedElaResult) detectorsRun.push('Segmented ELA');
+    if (result.shadowConsistencyResult) detectorsRun.push('Shadow Consistency');
+    if (result.colourTemperatureResult) detectorsRun.push('Colour Temperature');
+    if (result.spliceBoundaryResult) detectorsRun.push('Splice Boundary');
+    if (result.clipResult) detectorsRun.push('CLIP Detection');
+    if (result.exifAnalysis) detectorsRun.push('EXIF Anomaly Analysis');
+    if (result.c2paManifest !== undefined) detectorsRun.push('C2PA Credential Verification');
+  }
 
   const detectorsRunText = detectorsRun.length > 0 ? detectorsRun.join(', ') : 'None recorded';
 
