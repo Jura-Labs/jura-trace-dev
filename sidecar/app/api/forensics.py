@@ -50,7 +50,6 @@ from app.services.transcription import perform_transcription
 from app.services.video_deepfake import perform_video_deepfake_analysis
 from app.services.video_frames import perform_frame_extraction
 from app.services.video_metadata import perform_video_metadata
-from app.services.diffusion_artefacts import detect_diffusion_artefacts
 from app.services.roi_analysis import analyse_roi
 from app.services.gan_fingerprint import visualise_gan_fingerprint
 from app.services.watermark import perform_watermark_embed, perform_watermark_extract
@@ -696,28 +695,6 @@ async def jpeg_grid_visualisation(
 
     try:
         return perform_jpeg_grid_visualisation(image_bytes)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/diffusion-artefacts")
-async def diffusion_artefacts(
-    file: UploadFile = File(...),
-):
-    """Detect diffusion model generation artefacts.
-
-    Analyses texture smoothness, VAE decoder banding, and resolution
-    fingerprints to identify images produced by latent diffusion models
-    (Stable Diffusion, DALL-E, Midjourney, Flux).
-
-    Returns a combined diffusion score (0.0 = no artefacts, 1.0 = strong
-    diffusion signals) along with per-signal breakdowns and a smoothness
-    heatmap (base64 PNG).
-    """
-    image_bytes = await _read_and_validate(file)
-
-    try:
-        return detect_diffusion_artefacts(image_bytes)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

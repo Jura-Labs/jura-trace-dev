@@ -931,16 +931,6 @@ export interface TimeEstimate {
   azimuthError: number;
 }
 
-/** Diffusion model artefact analysis result. */
-export interface DiffusionArtefactsResult {
-  textureSmoothnessScore: number;
-  textureSmoothnessMapBase64: string;
-  vaeBandingScore: number;
-  resolutionMatch: boolean;
-  resolutionNote: string;
-  overallDiffusionScore: number;
-}
-
 // ── Annotation types ─────────────────────────────────────────────
 
 /**

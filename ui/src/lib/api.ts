@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, DiffusionArtefactsResult, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, RoiAnalysisResult, SidecarHealth, SimilarAsset, SolarPosition, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
+import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, RoiAnalysisResult, SidecarHealth, SimilarAsset, SolarPosition, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -955,33 +955,6 @@ export async function estimateShadowTime(
     day,
     shadowAzimuth,
   });
-}
-
-/**
- * Check an image for diffusion model artefacts (texture smoothness, VAE banding,
- * resolution inconsistencies).
- *
- * Posts the image to the sidecar's `/forensics/diffusion-artefacts` endpoint.
- *
- * @param filePath  Absolute path to the image file.
- */
-export async function analyseDiffusionArtefacts(filePath: string): Promise<DiffusionArtefactsResult> {
-  if (isTauri) {
-    try {
-      return await invoke<DiffusionArtefactsResult>('analyse_diffusion_artefacts', { filePath });
-    } catch {
-      // Command not yet registered — fall through to browser mock
-    }
-  }
-  // Browser mock
-  return {
-    textureSmoothnessScore: 0.28,
-    textureSmoothnessMapBase64: '',
-    vaeBandingScore: 0.19,
-    resolutionMatch: true,
-    resolutionNote: 'No resolution inconsistencies detected',
-    overallDiffusionScore: 0.24,
-  };
 }
 
 /**

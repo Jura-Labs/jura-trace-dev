@@ -212,7 +212,6 @@ hiddenimports += [
     "app.services.clahe",
     "app.services.frequency_visualisation",
     "app.services.jpeg_grid",
-    "app.services.diffusion_artefacts",
     "app.services.roi_analysis",
     "app.services.gan_fingerprint",
 

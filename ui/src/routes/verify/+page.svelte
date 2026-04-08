@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
-  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive, parseAppError, getLicenceTier, extractTextFromImage, calculateSunPosition, estimateShadowTime, analyseDiffusionArtefacts, analyseRoi, saveAnnotation, getAnnotations, deleteAnnotationApi } from '$lib/api';
+  import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive, parseAppError, getLicenceTier, extractTextFromImage, calculateSunPosition, estimateShadowTime, analyseRoi, saveAnnotation, getAnnotations, deleteAnnotationApi } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
-  import type { Annotation, AnnotationData, InputQualityAssessment, LicenceTier, VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult, SolarPosition, TimeEstimate, DiffusionArtefactsResult, RoiAnalysisResult } from '$lib/types';
+  import type { Annotation, AnnotationData, InputQualityAssessment, LicenceTier, VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult, SolarPosition, TimeEstimate, RoiAnalysisResult } from '$lib/types';
   import VerdictSummary from '$lib/components/VerdictSummary.svelte';
   import SimpleVerdict from '$lib/components/SimpleVerdict.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
@@ -928,8 +928,6 @@
     closeComparison();
     clearRoi();
     showGeoPanel = false;
-    diffusionResult = null;
-    diffusionError = null;
     // Clear annotation state
     annotations = [];
     annotationMode = false;
@@ -1692,31 +1690,13 @@
     }
   });
 
-  // ── Diffusion Artefacts ───────────────────────────────────────────
-  let diffusionResult = $state<DiffusionArtefactsResult | null>(null);
-  let diffusionLoading = $state(false);
-  let diffusionError = $state<string | null>(null);
-
-  async function handleDiffusionCheck() {
-    if (!filePath || diffusionLoading) return;
-    diffusionLoading = true;
-    diffusionError = null;
-    diffusionResult = null;
-    try {
-      diffusionResult = await analyseDiffusionArtefacts(filePath);
-    } catch (e) {
-      diffusionError = e instanceof Error ? e.message : 'Diffusion artefact analysis failed. Check that the Analysis Engine is running.';
-    } finally {
-      diffusionLoading = false;
-    }
-  }
-
-  // Reset on-demand panels when result changes
-  $effect(() => {
-    void result;
-    diffusionResult = null;
-    diffusionError = null;
-  });
+  // Diffusion artefact detector was removed in Sprint 28 (April 2026) per
+  // content-authenticity-expert cross-review recommendation. It was a toy
+  // version of the real literature (Wang et al. 2023 DIRE, Ricker et al.
+  // 2023) using hand-tuned patch std thresholds and a stale resolution
+  // fingerprint set that didn't include Flux, Imagen 4, or Midjourney v6 —
+  // the exact generators the UnivFD v8 probe (AUC 0.9911, FP 5.01%) was
+  // trained to detect. The trained probe supersedes it entirely.
 
   /** Format a sun azimuth as a compass direction label. */
   function azimuthToCompass(deg: number): string {
@@ -4203,86 +4183,6 @@
                 </fieldset>
 
               {/if}
-            </div>
-          {/if}
-        </div>
-      {/if}
-
-      <!-- ── On-demand Investigation: Diffusion ───────────────────────── -->
-      {#if result.contentType === 'image' && filePath}
-        <div class="px-5 py-3 border-b border-border-dark">
-          <p class="text-xs font-medium text-text-light dark:text-quartz mb-2">On-demand Analysis</p>
-          <div class="flex flex-wrap gap-2">
-
-            <!-- Diffusion Artefacts button -->
-            <button
-              type="button"
-              onclick={handleDiffusionCheck}
-              disabled={diffusionLoading}
-              class="text-xs px-3 py-1.5 min-h-[36px] rounded border border-border-light dark:border-border-dark
-                     text-flint dark:text-flint-light hover:border-lapis/50 dark:hover:border-lapis-light/50
-                     hover:text-lapis dark:hover:text-lapis-light transition-colors duration-150
-                     disabled:opacity-50 disabled:cursor-not-allowed
-                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
-                     focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
-              title="Check for diffusion model artefacts — texture smoothness, VAE banding, resolution inconsistencies"
-            >
-              {#if diffusionLoading}
-                <span class="flex items-center gap-1.5">
-                  <span class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Checking"></span>
-                  Checking...
-                </span>
-              {:else}
-                Check Diffusion Artefacts
-              {/if}
-            </button>
-          </div>
-
-          <!-- Diffusion artefacts result -->
-          {#if diffusionError}
-            <div class="mt-2 rounded-md px-3 py-2 bg-cinnabar/10 border border-cinnabar/30 text-xs text-cinnabar dark:text-cinnabar-light" role="alert">
-              {diffusionError}
-            </div>
-          {/if}
-
-          {#if diffusionResult}
-            {@const diffScore = diffusionResult.overallDiffusionScore}
-            <div
-              class="mt-3 rounded-lg border border-border-light dark:border-border-dark bg-white dark:bg-graphite px-4 pt-3 pb-4"
-              role="region"
-              aria-label="Diffusion artefact analysis results"
-            >
-              <div class="flex items-center gap-3 mb-3">
-                <p class="text-xs font-medium text-text-light dark:text-quartz">Diffusion Artefacts</p>
-                <span class="text-xs px-2 py-0.5 rounded font-medium
-                             {diffScore >= 0.5
-                               ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light border border-cinnabar/20'
-                               : diffScore >= 0.3
-                                 ? 'bg-amber/10 text-amber dark:text-amber-light border border-amber/20'
-                                 : 'bg-malachite/10 text-malachite dark:text-malachite-light border border-malachite/20'}">
-                  {diffScore >= 0.5 ? 'Likely Diffusion' : diffScore >= 0.3 ? 'Possible Diffusion' : 'Low Signal'}
-                </span>
-                <span class="text-xs text-flint dark:text-flint-light tabular-nums">{(diffScore * 100).toFixed(1)}%</span>
-              </div>
-              <dl class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs mb-3">
-                <div class="flex justify-between">
-                  <dt class="text-flint dark:text-flint-light">Texture Smoothness</dt>
-                  <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{(diffusionResult.textureSmoothnessScore * 100).toFixed(1)}%</dd>
-                </div>
-                <div class="flex justify-between">
-                  <dt class="text-flint dark:text-flint-light">VAE Banding</dt>
-                  <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{(diffusionResult.vaeBandingScore * 100).toFixed(1)}%</dd>
-                </div>
-                <div class="flex justify-between col-span-2">
-                  <dt class="text-flint dark:text-flint-light">Resolution</dt>
-                  <dd class="font-medium {diffusionResult.resolutionMatch ? 'text-malachite dark:text-malachite-light' : 'text-amber dark:text-amber-light'}">
-                    {diffusionResult.resolutionNote}
-                  </dd>
-                </div>
-              </dl>
-              <p class="text-xs text-flint/60 dark:text-flint-light/50 italic">
-                Diffusion artefact detection is an experimental signal. Treat results as one indicator among many.
-              </p>
             </div>
           {/if}
         </div>
