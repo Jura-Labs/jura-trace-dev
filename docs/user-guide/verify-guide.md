@@ -110,27 +110,29 @@ The forensic signals section shows the output of each individual detector. In St
 
 **Copy-Move Detection** — looks for regions within the image that have been duplicated and moved to another position. This is a common technique in image manipulation, used to cover up or duplicate elements. Matched regions are highlighted in the visualisation.
 
-**Deepfake and AI Detection** — a two-stage pipeline. First, it runs a set of signal-based heuristics (chromatic aberration patterns, JPEG ghost analysis, neighbouring pixel relationships). Then, a trained GradientBoosting classifier (AUC-ROC 0.945) combines 80 features from these signals to produce a final score. The classifier was trained on a corpus of 326 authentic photographs and 219 AI-generated images.
+**Deepfake and AI Detection** — an ensemble of two trained classifiers. GBM v4 (Gradient Boosting Machine) extracts an 84-feature vector covering noise statistics, spectral patterns, texture descriptors, and demosaic coherence, then assigns a probability score based on a corpus of 10,709 training images from 14 generator families (AUC-ROC 0.9868). UnivFD v8 runs in parallel as a LogisticRegression probe on CLIP ViT-B/32 embeddings (AUC-ROC 0.9911, recall 96.01%). Their ensemble score drives the verdict.
 
-The deepfake score reflects the probability that the image was generated or significantly manipulated by AI. A score above 0.65 returns a 'Synthetic' classification; below 0.30 returns 'Authentic'; between 0.30 and 0.65 returns 'Inconclusive'.
+The verdict reflects the probability that the image was generated or significantly manipulated by AI. A score above 0.65 returns a 'Synthetic' classification; below 0.30 returns 'Authentic'; between 0.30 and 0.65 returns 'Inconclusive'.
 
-**Chromatic Aberration** — real camera lenses produce a subtle colour fringing effect at the edges of objects (particularly towards the image corners) caused by different wavelengths of light refracting at slightly different angles. AI-generated images often lack this pattern or show it in an unnaturally uniform way. This detector checks whether the aberration pattern is consistent with a real lens.
-
-**JPEG Ghost Analysis** — analyses the image at multiple compression quality levels and looks for regions that appear to originate from a different compression history. A region that was copied from a JPEG file and pasted into another JPEG file will typically show a characteristic "ghost" at certain quality levels.
-
-**Neighbouring Pixel Relationships (NPR)** — examines the statistical relationships between adjacent pixels. Authentic camera images show characteristic correlation patterns determined by the camera's sensor and processing pipeline. AI-generated images often show subtly different patterns.
+**JPEG Ghost Analysis** — analyses the image at multiple compression quality levels and looks for regions that appear to originate from a different compression history. A region that was copied from a JPEG file and pasted into another JPEG file will typically show a characteristic "ghost" at certain quality levels. Contributes to the trust score at half the weight of ELA, noise, and copy-move pending empirical calibration.
 
 ### Regional detectors (Deep and Archival modes only)
 
 **Segmented ELA** — divides the image into an 8×8 grid and runs Error Level Analysis on each region independently. This reveals inconsistencies between regions that might not be visible in a whole-image analysis — for example, a sky that was generated separately from the foreground.
 
-**Shadow Consistency** — estimates the direction of the dominant light source in each region of the image and checks whether these directions are consistent across the whole image. Composite images often have inconsistent shadow directions because the different source images were lit differently.
-
 **Colour Temperature** — analyses the colour balance of different regions and checks for consistency. Composited images often have visible colour temperature shifts at region boundaries, even after attempts to colour-correct the composite.
 
-**Splice Boundary Detection** — runs three separate edge-detection signals (JPEG grid alignment, noise boundaries, feathering patterns) to identify the boundaries between regions that may have been composited together.
+When Segmented ELA and Colour Temperature fire simultaneously, the trust score receives a composite amplification penalty, reflecting that multiple independent signals pointing to the same conclusion is a stronger finding than any one signal alone.
 
-When two or more regional detectors fire simultaneously, the trust score receives an additional composite amplification penalty, reflecting that multiple independent signals pointing to the same conclusion is a stronger finding than any one signal alone.
+### On-demand investigation tools (Expert View)
+
+Three detectors were demoted from the automatic scoring pipeline in April 2026 after a forensic audit rated their discriminative power too low to contribute reliably, but they remain available as manual investigation tools in Expert View. They do **not** contribute to the numeric trust score.
+
+**Neighbouring Pixel Relationships (NPR)** — examines the statistical relationships between adjacent pixels. Demoted because the Tan et al. AAAI 2024 paper on which the signal is based uses NPR features as input to a learned classifier rather than a standalone threshold, and the UnivFD v8 probe already encodes upsampling artefacts at a higher level of abstraction.
+
+**Shadow Consistency** — estimates the direction of the dominant light source in each region. Demoted because the gradient-weighted estimate is noisy on textured scenes; the canonical Kee-O'Brien-Farid 2013 shadow-constraint technique requires user-placed shadow/object point pairs and is better suited as a manual ROI tool.
+
+**Splice Boundary Detection** — runs three edge-detection signals (JPEG grid alignment, noise boundaries, feathering). Demoted because the three-signal fusion is heuristic stacking without published validation, and in production the detector never set a suspicious flag.
 
 ---
 

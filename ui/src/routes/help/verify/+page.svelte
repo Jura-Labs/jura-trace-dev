@@ -267,18 +267,17 @@
           <td class="py-3 pr-4 align-top whitespace-nowrap">~15 s</td>
           <td class="py-3">
             EXIF anomaly analysis, C2PA credential check, ELA (Error Level Analysis),
-            AI-generation detection, watermark extraction, noise analysis, copy-move
-            detection, JPEG ghost, NPR, chromatic aberration
+            AI-generation detection (GBM v4 + UnivFD v8 ensemble), watermark extraction,
+            noise analysis, copy-move detection, JPEG ghost
           </td>
         </tr>
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-3 pr-4 font-semibold text-text-light dark:text-text-dark align-top">Deep</td>
           <td class="py-3 pr-4 align-top whitespace-nowrap">~60 s</td>
           <td class="py-3">
-            All Standard detectors, plus: segmented ELA (8 × 8 regional grid), shadow
-            consistency analysis, colour temperature analysis, splice boundary detection.
-            Recommended for suspected composites or content where Standard returns an
-            inconclusive result.
+            All Standard detectors, plus: segmented ELA (8 × 8 regional grid) and
+            colour temperature analysis. Recommended for suspected composites or content
+            where Standard returns an inconclusive result.
           </td>
         </tr>
         <tr>

@@ -6180,7 +6180,7 @@
     </div>
 
     <!-- ── Methodology Panel ────────────────────────────────────────── -->
-    <MethodologyPanel {result} {sidecarHealth} />
+    <MethodologyPanel {result} {sidecarHealth} {appVersion} />
 
   {:else if !checked && !loading}
 

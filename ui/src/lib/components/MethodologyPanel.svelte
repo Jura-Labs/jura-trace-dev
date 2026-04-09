@@ -5,9 +5,15 @@
   interface Props {
     result: VerificationResult;
     sidecarHealth: SidecarHealth | null;
+    /**
+     * Jura Trace desktop app version to display in the Version section.
+     * Sourced from the Tauri `getVersion()` API in the calling page. Falls
+     * back to "unknown" when not provided (e.g. browser dev mode).
+     */
+    appVersion?: string | null;
   }
 
-  let { result, sidecarHealth }: Props = $props();
+  let { result, sidecarHealth, appVersion = null }: Props = $props();
 
   // ── Derived ──────────────────────────────────────────────────────────
 
@@ -207,7 +213,7 @@
       <div class="space-y-1 text-xs">
         <div class="flex items-center justify-between gap-4">
           <span class="text-flint dark:text-flint-light">Jura Trace</span>
-          <span class="text-text-light dark:text-quartz font-mono tabular-nums">v0.2.0-dev</span>
+          <span class="text-text-light dark:text-quartz font-mono tabular-nums">v{appVersion ?? 'unknown'}</span>
         </div>
         {#if sidecarVersion}
           <div class="flex items-center justify-between gap-4">

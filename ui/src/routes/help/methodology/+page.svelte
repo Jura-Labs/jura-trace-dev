@@ -664,7 +664,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Extracts an 80-feature vector covering noise statistics (LSB randomness, LSB entropy), spectral decay patterns, Local Binary Pattern (LBP) texture descriptors, and Grey-Level Co-occurrence Matrix (GLCM) contrast measures. A GradientBoosting classifier — trained on 545 images, cross-validation AUC&#8209;ROC 0.945 — assigns a probability score, which is blended with a heuristic signal at a 65%/35% ratio. The pipeline also checks for invisible watermarks from known AI generators.
+                Extracts an 84-feature vector covering noise statistics (LSB randomness, LSB entropy, LF/HF ratio, anisotropy), spectral decay patterns, Local Binary Pattern (LBP) texture descriptors, Grey-Level Co-occurrence Matrix (GLCM) contrast measures, and demosaic inter-channel coherence. A GradientBoosting classifier (GBM v4 — trained on 10,709 images from 14 generator families, cross-validation AUC&#8209;ROC 0.9868, authentic false-positive rate 4.54%, calibrated threshold 0.49) assigns a probability score. This is combined with the UnivFD v8 probe (a LogisticRegression classifier on CLIP ViT-B/32 embeddings, trained on 10,712 images, AUC&#8209;ROC 0.9911, recall 96.01%) into a ensemble score. The pipeline also checks for invisible watermarks from known AI generators.
               </dd>
             </div>
             <div>

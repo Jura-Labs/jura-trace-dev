@@ -402,8 +402,9 @@
       <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-3">
         This indicator shows the status of the Analysis Engine, which runs locally on
         port 8200. The Analysis Engine provides forensic image analysis (ELA, noise, copy-move,
-        deepfake detection, NPR, chromatic aberration, JPEG ghost, regional analysis),
-        watermark embed and extract, video and audio processing, and transcription.
+        deepfake detection, JPEG ghost, regional analysis), watermark embed and extract,
+        video and audio processing, transcription, and the on-demand investigation tools
+        (NPR, shadow consistency, splice boundary) available in Expert View.
       </p>
       <div class="overflow-x-auto">
         <table class="w-full text-sm border-collapse">

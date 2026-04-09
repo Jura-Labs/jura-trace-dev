@@ -374,11 +374,14 @@
         >GBM <span class="font-normal text-flint dark:text-flint-light">(Gradient Boosted Machine)</span></dt>
         <dd class="mt-1 text-sm text-flint dark:text-flint-light leading-relaxed max-w-prose">
           The machine learning classifier at the centre of Jura Trace's AI detection
-          ensemble. Trained on an 80-feature vector extracted from the forensic signal
-          pipeline, using a corpus of 545 images (326 authentic, 219 AI-generated).
-          Achieves a cross-validation AUC-ROC of 0.945. The classifier result is blended
-          with the heuristic signal score at a 65/35 ratio. Degrades gracefully — analysis
-          continues with heuristic scoring alone if the model file is not present.
+          ensemble. Current version is <strong>GBM v4</strong>, trained on an
+          84-feature vector extracted from the forensic signal pipeline using a
+          corpus of 10,709 images (5,724 authentic, 4,985 AI-generated from 14
+          generator families). Achieves a cross-validation AUC-ROC of 0.9868 with
+          an authentic false-positive rate of 4.54% at the calibrated threshold.
+          Combined with the UnivFD v8 CLIP probe (AUC-ROC 0.9911) into an ensemble
+          score. Degrades gracefully — analysis continues with heuristic scoring
+          alone if the model file is not present.
         </dd>
       </div>
 
@@ -674,11 +677,12 @@
         <dd class="mt-1 text-sm text-flint dark:text-flint-light leading-relaxed max-w-prose">
           The forensic analysis service that runs alongside the Jura Trace desktop
           application on port 8200. Handles computationally intensive forensic analysis —
-          ELA, noise, copy-move, deepfake detection, CLIP classification, NPR, chromatic
-          aberration, JPEG ghost, segmented ELA, shadow consistency, colour temperature,
-          splice boundary, watermarking, and video/audio analysis. Jura Trace operates
-          normally when the Analysis Engine is not running; forensic analysis results are simply
-          omitted from the report.
+          ELA, noise, copy-move, deepfake detection (GBM + UnivFD ensemble), CLIP
+          classification, JPEG ghost, segmented ELA, colour temperature, watermarking,
+          and video/audio analysis — plus the on-demand investigation tools
+          (NPR, shadow consistency, splice boundary) available in Expert View.
+          Jura Trace operates normally when the Analysis Engine is not running;
+          forensic analysis results are simply omitted from the report.
         </dd>
       </div>
 

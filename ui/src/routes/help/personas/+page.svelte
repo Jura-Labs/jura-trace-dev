@@ -462,10 +462,12 @@
         describing the analysis pipeline.
       </li>
       <li>
-        The GBM (Gradient Boosting Machine) classifier was trained on a 545-image corpus
-        (326 authentic, 219 AI-generated) with a cross-validation AUC-ROC of 0.945.
-        Be aware of its training data scope when drawing conclusions about content types
-        or generators outside that distribution.
+        The current GBM (Gradient Boosting Machine) classifier is v4, trained on a
+        10,709-image corpus (5,724 authentic, 4,985 AI-generated from 14 generator
+        families) with a cross-validation AUC-ROC of 0.9868 and authentic false-positive
+        rate of 4.54%. It is combined with the UnivFD v8 probe (AUC-ROC 0.9911) into an
+        ensemble score. Be aware of its training data scope when drawing conclusions
+        about content types or generators outside that distribution.
       </li>
       <li>
         Use the false positive report button on verification results to flag
