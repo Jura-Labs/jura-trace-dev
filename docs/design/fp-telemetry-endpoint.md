@@ -1,11 +1,12 @@
 # FP Telemetry Endpoint — Design Document
 
-**Status**: Design complete, Phase A scaffold landed  
+**Status**: Design complete, Phase A scaffold landed, solicitor initial response received  
 **Author**: API Engineer agent  
-**Date**: 2026-04-07  
+**Date**: 2026-04-07 (initial), 2026-04-09 (legal-posture update)  
 **Backlog ref**: #1 — "FP telemetry to Jura Labs endpoint"  
 **Related**: `docs/compliance/dpia-template.md`, `scripts/train_classifier.py`,  
-`src-tauri/src/telemetry/mod.rs`
+`src-tauri/src/telemetry/mod.rs`, `docs/legal/fp-telemetry-solicitor-brief.md`,  
+`docs/legal/fp-telemetry-solicitor-response-2026-04-09.md`
 
 ---
 
@@ -228,18 +229,36 @@ Non-breaking additions (new optional fields) do not require a version bump — t
 
 ## Part C — Privacy and legal posture
 
+> **Legal status (updated 2026-04-09)**: the seven questions in this
+> Part and in the "Questions for review" section at the bottom of
+> this document were sent to a UK solicitor as
+> `docs/legal/fp-telemetry-solicitor-brief.md`. The solicitor's
+> **initial preliminary response** is captured in
+> `docs/legal/fp-telemetry-solicitor-response-2026-04-09.md`. That
+> response is marked INITIAL and will be superseded by a formal
+> written advice memo once the full Phase B review bundle (privacy
+> notice draft, DPIA supplement, Fly.io DPA cover sheet, reconstruction
+> assessment) is prepared. The engineering direction below reflects
+> the preliminary response and is sufficient to proceed with Phase B
+> design work; it is not sufficient to actually collect telemetry
+> from real users until the formal memo is received.
+
 ### C.1 Applicable law
 
-Jura Labs is a UK Community Interest Company. UK GDPR (retained) and the UK Data Protection Act 2018 apply. The telemetry feature involves transmission of data from users' machines to a Jura Labs server. Even with strong anonymisation, the per-install UUID is a pseudonymous identifier — it is not directly identifying but could theoretically be linked to an individual through other means. Therefore this data **is personal data** under UK GDPR Article 4(1) and must have a lawful basis.
+Jura Labs is a UK Community Interest Company. UK GDPR (retained) and the UK Data Protection Act 2018 apply. The telemetry feature involves transmission of data from users' machines to a Jura Labs server.
+
+The per-install UUID is a **pseudonymous identifier** under Article 4(5) UK GDPR — the solicitor's initial response explicitly confirmed this classification. The 80–84-element feature vector is **not in itself personal data** per the solicitor's initial inspection (subject to an ml-data-scientist reconstruction-feasibility assessment — see Q2 follow-up). However, because the install UUID is a pseudonymous handle that groups reports from the same user, the overall dataset still constitutes personal data under Article 4(1) and must have a lawful basis.
 
 ### C.2 Lawful basis
 
-**Chosen basis: Consent (Article 6(1)(a) UK GDPR).**
+**Chosen basis: Consent (Article 6(1)(a) UK GDPR).** *Confirmed by solicitor initial response 2026-04-09.*
 
-Rationale for consent over legitimate interests:
+The solicitor noted that Article 6(1)(f) **legitimate interests** could also defensibly support the processing given the product-improvement purpose and the minimal data collected, but recommended **consent anyway** on the grounds that consent gives stronger legal cover and clearer user control. Rationale for taking the solicitor's recommendation rather than defaulting to legitimate interests:
 
-- *Legitimate interests* would require a balancing test. Given that telemetry is genuinely optional and users would not expect data to leave a "local-first" product without explicit agreement, legitimate interests would likely fail the balancing test under the ICO's three-part test.
-- *Consent* is clear, specific, and freely given (the feature is off by default; the app continues to function fully without it). Consent can be withdrawn at any time via the Settings toggle.
+- Consent is unambiguous and removes the need for the Article 6(1)(f) three-part balancing test (necessity, legitimate interest, not overridden by user rights).
+- Users of a product explicitly marketed as "local-first" would not reasonably expect data to leave their device under a legitimate-interest basis. Consent aligns with user expectations.
+- Consent is clear, specific, and freely given (the feature is off by default; the app continues to function fully without it). Consent can be withdrawn at any time via the Settings toggle.
+- Withdrawing consent triggers the erasure path described in C.3, which is much cleaner than the balancing-test unwind required under legitimate interests.
 
 The consent notice must be:
 
@@ -298,7 +317,7 @@ Juralabs must add a new entry to its Article 30 records-of-processing register f
 
 ### C.7 DPIA requirement
 
-A full DPIA as per `docs/compliance/dpia-template.md` is **recommended but not legally required** for the telemetry endpoint in isolation.
+A full DPIA as per `docs/compliance/dpia-template.md` is **recommended but not legally required** for the telemetry endpoint in isolation. *Confirmed by solicitor initial response 2026-04-09: the existing DPIA skeleton is sufficient for the Phase B pilot, with a formal DPIA review gated before Phase C production launch.*
 
 Assessment against ICO triggers:
 
@@ -310,9 +329,9 @@ Assessment against ICO triggers:
 | New technologies | Partially — AI training pipeline |
 | Automated decision-making with legal/significant effects | No |
 
-Fewer than two triggers apply. However, because this feature changes Jura Trace from a fully local-first product (no outbound data) to one with an optional outbound channel, completing a proportionate DPIA supplement is strongly recommended before the Phase C production launch. The supplement should be appended to `docs/compliance/dpia-template.md` under a "Telemetry Processing Activity" section.
+Fewer than two triggers apply. However, because this feature changes Jura Trace from a fully local-first product (no outbound data) to one with an optional outbound channel, completing a proportionate DPIA supplement is required before the Phase C production launch. The supplement should be appended to `docs/compliance/dpia-template.md` under a "Telemetry Processing Activity" section and submitted to the solicitor for review alongside the Phase B review bundle.
 
-**Open question for legal review**: does the ICO's "public interest" ground for AI research (Schedule 1, para 4 DPA 2018) apply here, reducing the lawful-basis burden? Likely not, as Jura Labs is a CIC not an academic institution and the research benefit is primarily commercial (product improvement). Confirm with a solicitor before Phase C.
+**Resolved (2026-04-09)**: the previously flagged question about whether the ICO's "public interest" ground for AI research (Schedule 1, para 4 DPA 2018) could apply is **moot** — the solicitor recommended consent anyway for its stronger legal cover, so the research-ground analysis no longer gates Phase B. Consent is the sole lawful basis; see C.2.
 
 ---
 
@@ -542,17 +561,29 @@ Arguments for gating: Enterprise/Professional users have signed a licence agreem
 
 ## Questions for review
 
-These items require human input before Phase B can proceed. They are **not** blocking Phase A (the scaffold).
+Status of each item after the solicitor's initial response (2026-04-09).
+The full response is captured at
+`docs/legal/fp-telemetry-solicitor-response-2026-04-09.md`.
 
-1. **Legal posture (solicitor call required)**: Does the ICO's Article 9(2)(j) "scientific research" exemption or the DPA 2018 Schedule 1 para 4 "substantial public interest" ground apply to Jura Labs' training pipeline? If so, consent might not be required as the sole lawful basis. This would simplify the erasure obligation. **Flag for legal review before Phase B.**
+1. ~~**Legal posture (solicitor call required)**~~ — **Resolved.** Solicitor confirmed consent is the recommended lawful basis despite legitimate interests being defensible. The Schedule 1 para 4 research ground is moot. See C.2.
 
-2. **DPA with Fly.io**: Fly.io offers a standard DPA. Does the Juralabs CIC board need to formally sign this, or can it be accepted by the founder? Confirm before Phase B.
+2. ~~**DPA with Fly.io**~~ — **Deferred with engineering action.** Solicitor wants to review the actual signature document before the founder countersigns. Engineering action: download the Fly.io standard DPA, prepare a Juralabs-side cover sheet with CIC registration number, submit to the solicitor alongside the Phase B review bundle. Do NOT sign yet.
 
-3. **Feature vector privacy**: The 80-element feature vector is derived from the image's pixel statistics (ELA residuals, noise patterns, frequency coefficients). Is there any risk that this vector could be used to reconstruct approximate image content? The ml-data-scientist agent should assess this before Phase C. Preliminary view: at 80 floats, reconstruction is not feasible; the vector is a model-specific embedding, not a perceptual hash. But this should be documented.
+3. ~~**Feature vector privacy**~~ — **Open with specific engineering follow-up.** Solicitor said "appears to be not personal information" but explicitly disclaimed technical expertise on reconstruction feasibility. New work item: commission an ml-data-scientist assessment on whether the 80–84-element feature vector can be inverted into approximate pixel content. File at `docs/design/fp-telemetry-feature-vector-privacy.md`. Attach the assessment to the Phase B review bundle for solicitor confirmation.
 
-4. **Tier gating for Phase C**: decision needed from product owner. See Part F above.
+4. ~~**Tier gating for Phase C**~~ — **Open.** Product-owner decision, not a legal question. Current Part F recommendation is "open to all tiers, opt-in is the primary control, tier gating is not a control". Default stands unless product owner overrides.
 
-5. **Retrain weighting for self-reported FP rows**: the ml-data-scientist agent needs to specify the weighting scheme (see Part D.3 caveat) before the first retrain that ingests telemetry data.
+5. ~~**Retrain weighting for self-reported FP rows**~~ — **Open.** ml-data-scientist decision; not a legal question. Not blocking Phase B; must be specified before the first retrain cycle that ingests telemetry data.
+
+**New items from the solicitor's initial response (2026-04-09)**:
+
+6. **Privacy notice draft** — Juralabs prepares the first draft at `docs/legal/fp-telemetry-privacy-notice-draft.md`, solicitor reviews before publication. Must cover the six elements named in Q6 of the brief.
+
+7. **DPIA Phase B supplement** — short addendum to `docs/compliance/dpia-template.md` under a "Telemetry Processing Activity" section. Solicitor considers the existing skeleton sufficient for Phase B pilot but wants a formal review before Phase C.
+
+8. **Fly.io DPA + cover sheet** — see item 2 above.
+
+9. **Formal DPIA review before Phase C** — solicitor to conduct. Schedule 3 months before Phase C launch decision.
 
 ---
 
