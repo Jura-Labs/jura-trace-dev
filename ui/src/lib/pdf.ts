@@ -839,6 +839,21 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
         result.jpegGhostResult?.suspicious,
         isNotRun('jpeg_ghost', result.jpegGhostResult != null)
       );
+      // Experimental weight note — ADR DEC-2026-04-09-001 / backlog item #11.
+      // The 0.5× weight is a cross-review consensus value, not empirically
+      // calibrated (S28-FU9: synthetic corpus could not exercise detector).
+      checkPage(5);
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(120);
+      doc.text(
+        'Experimental weight (0.5\u00D7, uncalibrated) \u2014 pending CASIA v2 research benchmark. ' +
+        'See docs/calibration/s28-jpeg-ghost-weight.md.',
+        COL_DETECTOR + 2, y
+      );
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(40);
+      y += 4;
     }
 
     y += 2;

@@ -11,6 +11,7 @@
   import SignalAgreement from '$lib/components/SignalAgreement.svelte';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import LimitationBanner from '$lib/components/LimitationBanner.svelte';
+  import ExperimentalPill from '$lib/components/ExperimentalPill.svelte';
   import { generateTrustReport } from '$lib/pdf';
   import type { ReportContext, ReportFormat } from '$lib/pdf';
   import { exportCaseZip } from '$lib/zip';
@@ -4970,6 +4971,12 @@
               >
                 {jg.suspicious ? 'Suspicious' : 'Clean'}
               </span>
+              <!-- Experimental badge (ADR DEC-2026-04-09-001) -->
+              <ExperimentalPill
+                variant="uncalibrated"
+                helpHref="/help/methodology#jpeg-ghost-calibration"
+                ariaLabel="Experimental feature: JPEG Ghost is wired into the trust score at a 0.5× weight that is based on cross-review consensus, not empirical calibration. See methodology for details."
+              />
             </div>
             <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(jg.score)}">
               <span>{(jg.score * 100).toFixed(1)}%</span>
@@ -5036,13 +5043,12 @@
               >
                 {clip.verdictLevel === 'authentic' ? 'Authentic' : clip.verdictLevel === 'synthetic' ? 'Synthetic' : 'Inconclusive'}
               </span>
-              <!-- Experimental badge -->
-              <span
-                class="text-xs font-medium px-2 py-0.5 rounded border bg-amber/10 text-amber dark:text-amber-light border-amber/30"
-                title="CLIP-based AI classification is experimental. Do not use as sole evidence."
-              >
-                Experimental
-              </span>
+              <!-- Experimental badge (ADR DEC-2026-04-09-001) -->
+              <ExperimentalPill
+                variant="informational"
+                helpHref="/help/methodology#clip-detection"
+                ariaLabel="Experimental feature: CLIP zero-shot classification outputs near-uniform probabilities due to a known softmax temperature issue. See methodology for details."
+              />
             </div>
             <span class="text-xs tabular-nums {forensicScoreClass(clip.score)}">
               Score: {(clip.score * 100).toFixed(1)}%
@@ -5083,10 +5089,11 @@
 
           <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-2">{clip.summary}</p>
 
-          <div class="text-xs text-amber/80 bg-amber/5 border border-amber/20 rounded-md px-3 py-2">
-            This result is experimental. CLIP-based classification has not been independently
-            validated for forensic use. Treat it as a supporting signal only, not as evidence
-            of manipulation or AI generation.
+          <div class="text-xs text-flint dark:text-flint-light bg-lapis/5 border border-lapis/20 rounded-md px-3 py-2">
+            The class probabilities above are produced by zero-shot cosine similarity without
+            the CLIP logit scale multiplier, which causes near-uniform distributions (~20% per class).
+            The UnivFD probe — a trained linear classifier on the same CLIP embeddings — is the
+            production-grade AI detection path and contributes to the trust score separately.
           </div>
         </section>
       {/if}

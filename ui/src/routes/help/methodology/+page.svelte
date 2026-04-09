@@ -757,6 +757,13 @@
                 Only applicable to JPEG files. Produces no signal on PNG, WebP, TIFF, or other non-JPEG formats. The detector section is greyed out for non-JPEG inputs.
               </dd>
             </div>
+            <div id="jpeg-ghost-calibration">
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Weight calibration status</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                JPEG Ghost contributes to the trust score at a 0.5&#215; weight (half that of ELA, noise analysis, and copy-move detection). This weight is a cross-review consensus value, not an empirically measured one. The Sprint 28 calibration sweep (S28-FU9) could not produce meaningful true positive rate data because the synthetic training corpus uses single-resave PIL composites, which equalise DCT coefficients across the frame when the save quality approximates the background quality — exactly the condition JPEG Ghost is designed to detect. Meaningful calibration requires real-world single-JPEG-resave splice forgeries from a research benchmark such as CASIA v2. This is tracked as backlog item&#160;#10 (post-v1.0 research track). Full calibration results are in
+                <code class="font-mono text-xs bg-gray-100 dark:bg-graphite-light px-1 py-0.5 rounded">docs/calibration/s28-jpeg-ghost-weight.md</code>.
+              </dd>
+            </div>
           </dl>
         </div>
       </details>
@@ -923,6 +930,12 @@
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
                 2.7% false positive rate on authentic images. Non-photographic content (paintings, digital illustrations) may still trigger false positives. Requires the optional CLIP ViT&#8209;B/32 model (~350 MB). See the <a href="/help/model-cards#univfd-probe" class="text-lapis dark:text-lapis-light underline hover:no-underline">UnivFD model card</a> for full documentation.
+              </dd>
+            </div>
+            <div id="clip-detection">
+              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Note: class probabilities are currently experimental</dt>
+              <dd class="text-flint dark:text-flint-light leading-relaxed">
+                The class probability bars shown in the verify results are produced by feeding raw cosine similarity scores directly into a softmax function without applying the CLIP logit scale multiplier. This causes near-uniform distributions (~20% per class) regardless of the image content — the values do not reliably discriminate between authentic and AI-generated images. The UnivFD v8 probe — a trained logistic regression classifier on the same CLIP ViT&#8209;B/32 embeddings — is the production-grade path and contributes to the trust score separately. The class probability display is retained as an exploratory signal pending a fix to the softmax temperature and is marked <em>Experimental — informational only</em> in the verify interface.
               </dd>
             </div>
           </dl>
