@@ -1,5 +1,5 @@
 #!/bin/sh
-# Jura Trace pre-commit hook — quick checks (< 15 seconds)
+# Jura Trace pre-commit hook — quick checks (< 30 seconds)
 # Install: git config core.hooksPath .githooks
 
 set -e
@@ -10,9 +10,22 @@ echo "Pre-commit: checking Rust formatting..."
     exit 1
 }
 
-echo "Pre-commit: checking Rust compilation..."
-(cd src-tauri && cargo check 2>&1 | tail -1) || {
-    echo "ERROR: cargo check failed."
+# `--all-targets` catches test-fixture drift across lib + tests + bins + examples.
+# Without it, bad integration test fixtures (e.g. the scheduler_handle field
+# drift fixed at commit 80e2058) can slip through because `cargo check` alone
+# only compiles the main crate targets.
+echo "Pre-commit: checking Rust compilation (all targets)..."
+(cd src-tauri && cargo check --all-targets 2>&1 | tail -1) || {
+    echo "ERROR: cargo check --all-targets failed."
+    exit 1
+}
+
+# `clippy -D warnings` catches code quality regressions before they hit main.
+# The `--all-targets` flag ensures test code is also linted; `-D warnings`
+# promotes warnings to errors so nothing new slips in silently.
+echo "Pre-commit: running clippy..."
+(cd src-tauri && cargo clippy --all-targets -- -D warnings 2>&1 | tail -1) || {
+    echo "ERROR: cargo clippy found warnings. Fix them or add #[allow(...)] with a justification comment."
     exit 1
 }
 

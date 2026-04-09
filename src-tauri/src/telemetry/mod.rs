@@ -25,10 +25,12 @@
 //! When Phase B is ready, replace the body of [`upload_report`] with a
 //! `reqwest` POST to `https://telemetry.juralabs.org/v1/fp-reports`.
 //! The upload must:
+//!
 //! - Only fire when [`telemetry_enabled`] returns `true`.
 //! - Include `Authorization: Bearer jt_inst_<install_uuid>` from config.
 //! - Retry with exponential backoff (30s → 5min → 1hr → 24hr).
 //! - Mark the local `false_positive_reports.uploaded_at` column on success.
+//!
 //! See `docs/design/fp-telemetry-endpoint.md` Part E for the full client
 //! wiring plan.
 

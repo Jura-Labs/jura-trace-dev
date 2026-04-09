@@ -643,7 +643,7 @@ mod tests {
             last_checked: Option<DateTime<Utc>>,
         }
 
-        let urls = vec![
+        let urls = [
             FakeUrl {
                 id: "url-1",
                 frequency: "hourly",
