@@ -4090,6 +4090,34 @@ pub fn run() {
                 scheduler_handle: None,
             }));
 
+            // ── Register managed state FIRST ─────────────────────────────────
+            //
+            // `app.manage()` must run BEFORE any code path that could lead to a
+            // Tauri command dispatch via `State<'_, Arc<Mutex<AppState>>>`.
+            // Otherwise Tauri's internal state manager will panic with
+            // `state() called before manage()` the first time a handler tries
+            // to acquire the state.
+            //
+            // This race bit the project three times in one day during
+            // `cargo tauri dev` hot-reload cycles: the webview on port 1420
+            // stays alive across Rust binary restarts and reconnects the
+            // moment the new process's event loop starts, firing its onMount
+            // Tauri commands (check_sidecar_health, get_licence_tier, etc.)
+            // immediately. If any async task spawned below could schedule
+            // faster than the setup closure finishes, or if the frontend
+            // reconnects during the setup closure, the command dispatch
+            // happens before `.manage()` has been called.
+            //
+            // The fix is to call `.manage()` with a clone of the Arc at the
+            // earliest possible point — before any spawn, before any path
+            // that could yield to the Tauri runtime — and then continue to
+            // use `shared_state.clone()` for the scheduler and the local
+            // REST API server. `Arc<Mutex<AppState>>` is trivially clonable
+            // so this costs nothing.
+            //
+            // Do not move this line back below the spawn blocks.
+            app.manage(shared_state.clone());
+
             // ── URL watchlist scheduler (Monitor tab, paid tiers) ────────────
             // Spawns a background task that wakes every 60 s and verifies any
             // monitored URLs that are due for a check.  The handle is stored in
@@ -4134,7 +4162,10 @@ pub fn run() {
                 });
             }
 
-            app.manage(shared_state);
+            // `shared_state` is now owned by the scheduler block above plus the
+            // API server spawn plus the managed-state registration. The
+            // original binding drops here; the Arc lives on via the clones.
+            drop(shared_state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
