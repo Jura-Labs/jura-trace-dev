@@ -403,7 +403,6 @@ class CapabilitiesResponse(BaseModel):
     deepfake: bool = True
     jpeg_ghost: bool = True
     npr: bool = True
-    chromatic_aberration: bool = True
     segmented_ela: bool = True
     shadow_consistency: bool = True
     colour_temperature: bool = True
