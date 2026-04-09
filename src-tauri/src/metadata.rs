@@ -4,6 +4,41 @@ use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
+/// Parsed XMP (Extensible Metadata Platform) fields relevant to AI-provenance
+/// detection. XMP is an XML-based metadata packet embedded in most image
+/// formats (JPEG via APP1, PNG via iTXt, TIFF via tag 700). Modern AI
+/// generators increasingly write provenance signals into XMP rather than
+/// EXIF — most importantly `Iptc4xmpExt:DigitalSourceType`, which is the
+/// ground-truth AI-origin declaration under the IPTC / C2PA / CAI framework.
+///
+/// All fields are `Option<String>` and default to `None` when the packet
+/// is absent, malformed, or the specific field is missing. The parser is
+/// deliberately tolerant — it locates the `<x:xmpmeta>` envelope by byte
+/// search and extracts named fields via element / attribute matching.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XmpMetadata {
+    /// `Iptc4xmpExt:DigitalSourceType` — the IPTC-standard AI-provenance
+    /// declaration. Values of interest:
+    /// - `trainedAlgorithmicMedia` (AI-generated, e.g. Firefly, DALL-E)
+    /// - `compositeWithTrainedAlgorithmicMedia` (AI components in a real photo)
+    /// - `algorithmicMedia` (algorithmically composed, non-trained)
+    /// - `digitalCapture` (camera capture — benign authentic value)
+    ///
+    /// Stored as the short local name (without the IPTC namespace URL prefix)
+    /// e.g. `trainedAlgorithmicMedia`.
+    pub digital_source_type: Option<String>,
+    /// `xmp:CreatorTool` — name and version of the software that produced
+    /// the image, e.g. "Adobe Photoshop 25.0", "Stable Diffusion 1.5",
+    /// "DALL-E 3", "Midjourney 6".
+    pub creator_tool: Option<String>,
+    /// `photoshop:Credit` — attribution string.
+    pub credit: Option<String>,
+    /// `dc:creator` — author claim. When the source XMP stores this as an
+    /// `rdf:Seq` / `rdf:Bag`, the first `<rdf:li>` value is captured.
+    pub creator: Option<String>,
+}
+
 /// Extracted metadata from an image file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageMetadata {
@@ -51,6 +86,11 @@ pub struct ImageMetadata {
     /// MakerNote byte length (0 when absent). Provides confidence — most genuine
     /// camera MakerNotes are 1–50 KB; a 4-byte placeholder is suspicious.
     pub maker_note_length: usize,
+    /// Parsed XMP packet fields relevant to AI-provenance detection. Defaults
+    /// to an all-`None` struct when the file has no XMP packet, the packet is
+    /// malformed, or none of the tracked fields are present.
+    #[serde(default)]
+    pub xmp: XmpMetadata,
 }
 
 /// Extract EXIF metadata from an image file.
@@ -63,6 +103,10 @@ pub fn extract_exif(path: &Path) -> Option<ImageMetadata> {
     let exif = ExifReader::new()
         .read_from_container(&mut std::io::BufReader::new(reader))
         .ok()?;
+
+    // XMP is a separate packet from EXIF and may exist even when EXIF is thin.
+    // Read it from the raw file bytes; failures are non-fatal.
+    let xmp = extract_xmp(path).unwrap_or_default();
 
     let get_str = |tag: Tag| -> Option<String> {
         exif.get_field(tag, In::PRIMARY)
@@ -120,7 +164,166 @@ pub fn extract_exif(path: &Path) -> Option<ImageMetadata> {
         orientation: get_u16(Tag::Orientation),
         has_maker_note,
         maker_note_length,
+        xmp,
     })
+}
+
+/// Maximum number of bytes we will read from the head of a file when hunting
+/// for an XMP packet. XMP is conventionally placed in the first APP1 segment
+/// (JPEG) or the first iTXt chunk (PNG) near the file head, so 2 MB is a
+/// very generous cap that still keeps the I/O cost bounded on large files.
+const XMP_SCAN_LIMIT: usize = 2 * 1024 * 1024;
+
+/// Locate and parse an XMP packet from a file.
+///
+/// Reads up to [`XMP_SCAN_LIMIT`] bytes from the head of the file, searches
+/// for an `<x:xmpmeta ...>` ... `</x:xmpmeta>` envelope, and extracts the
+/// four AI-provenance fields tracked by [`XmpMetadata`]. Returns `None` if
+/// the file cannot be opened or no XMP envelope is present; returns
+/// `Some(XmpMetadata::default())` if an envelope is present but contains
+/// none of the tracked fields (so callers can still distinguish "no packet"
+/// from "packet present, no useful fields").
+pub fn extract_xmp(path: &Path) -> Option<XmpMetadata> {
+    let file = File::open(path).ok()?;
+    let mut buf = Vec::with_capacity(64 * 1024);
+    file.take(XMP_SCAN_LIMIT as u64)
+        .read_to_end(&mut buf)
+        .ok()?;
+    parse_xmp_packet(&buf)
+}
+
+/// Parse an XMP packet out of an arbitrary byte slice. Exposed for unit
+/// testing with synthetic payloads.
+pub fn parse_xmp_packet(bytes: &[u8]) -> Option<XmpMetadata> {
+    // `<x:xmpmeta` is the canonical envelope opener written by Adobe's XMP
+    // toolkit and every library that follows the XMP specification. We do
+    // not try to handle the rarer `<?xpacket ...?>` standalone form without
+    // the envelope — those payloads are handled correctly because `xpacket`
+    // normally wraps an `x:xmpmeta` element too.
+    let open = find_subsequence(bytes, b"<x:xmpmeta")?;
+    let close_marker = b"</x:xmpmeta>";
+    let close = find_subsequence(&bytes[open..], close_marker)?;
+    let end = open + close + close_marker.len();
+    // XMP is guaranteed ASCII-safe for the element and attribute names we
+    // care about; lossy UTF-8 decoding keeps us robust against stray bytes.
+    let packet = String::from_utf8_lossy(&bytes[open..end]);
+    let packet = packet.as_ref();
+
+    let digital_source_type = extract_digital_source_type(packet);
+    let creator_tool = extract_xmp_field(packet, "xmp:CreatorTool")
+        .or_else(|| extract_xmp_field(packet, "tiff:Software"));
+    let credit = extract_xmp_field(packet, "photoshop:Credit");
+    let creator = extract_dc_creator(packet);
+
+    Some(XmpMetadata {
+        digital_source_type,
+        creator_tool,
+        credit,
+        creator,
+    })
+}
+
+/// Extract a single-valued XMP field. Handles both the element form
+/// `<ns:Name>value</ns:Name>` and the attribute form `ns:Name="value"`
+/// that Adobe's toolkit emits when the value is scalar.
+fn extract_xmp_field(packet: &str, qualified_name: &str) -> Option<String> {
+    // Attribute form first — it is the more common shape for short scalar
+    // fields like `xmp:CreatorTool` when the emitter is Adobe / Lightroom.
+    let attr_key = format!("{qualified_name}=\"");
+    if let Some(start) = packet.find(&attr_key) {
+        let after = &packet[start + attr_key.len()..];
+        if let Some(end) = after.find('"') {
+            let value = decode_xml_entities(after[..end].trim());
+            if !value.is_empty() {
+                return Some(value);
+            }
+        }
+    }
+    // Element form — `<ns:Name ...>value</ns:Name>`. We tolerate attributes
+    // on the opening tag by scanning forward to the first `>`.
+    let open_tag = format!("<{qualified_name}");
+    if let Some(start) = packet.find(&open_tag) {
+        let after_open = &packet[start + open_tag.len()..];
+        if let Some(gt) = after_open.find('>') {
+            let value_start = gt + 1;
+            let close_tag = format!("</{qualified_name}>");
+            if let Some(close) = after_open[value_start..].find(&close_tag) {
+                let raw = &after_open[value_start..value_start + close];
+                let value = decode_xml_entities(raw.trim());
+                if !value.is_empty() {
+                    return Some(value);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Extract `Iptc4xmpExt:DigitalSourceType`. The value is stored as an IRI
+/// (e.g. `http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia`)
+/// on either a `<rdf:value>` child, a direct element, or a scalar attribute.
+/// We return just the short local-name suffix.
+fn extract_digital_source_type(packet: &str) -> Option<String> {
+    let raw = extract_xmp_field(packet, "Iptc4xmpExt:DigitalSourceType")?;
+    // Strip any IRI prefix — the tracked values live in the last path segment.
+    let short = raw.rsplit('/').next().unwrap_or(&raw).trim().to_string();
+    if short.is_empty() {
+        None
+    } else {
+        Some(short)
+    }
+}
+
+/// Extract `dc:creator`. Stored as an `rdf:Seq` / `rdf:Bag` of `rdf:li`
+/// entries — we return the first non-empty list item.
+fn extract_dc_creator(packet: &str) -> Option<String> {
+    // Simple scalar form first (rare for dc:creator but possible).
+    if let Some(v) = extract_xmp_field(packet, "dc:creator") {
+        // If the scalar is a container literal like "<rdf:Seq>...</rdf:Seq>",
+        // fall through to the list handler below.
+        if !v.contains("rdf:") && !v.contains('<') {
+            return Some(v);
+        }
+    }
+    // List form — pull the first <rdf:li>...</rdf:li> that appears *after*
+    // the dc:creator opener, to avoid matching an unrelated list elsewhere.
+    let start = packet.find("<dc:creator")?;
+    let tail = &packet[start..];
+    let end = tail.find("</dc:creator>").unwrap_or(tail.len());
+    let section = &tail[..end];
+    let li_open = section.find("<rdf:li")?;
+    let after_open = &section[li_open..];
+    let gt = after_open.find('>')?;
+    let value_start = gt + 1;
+    let li_close = after_open[value_start..].find("</rdf:li>")?;
+    let raw = &after_open[value_start..value_start + li_close];
+    let value = decode_xml_entities(raw.trim());
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+/// Minimal XML entity decoder for the five predefined entities. XMP fields
+/// rarely carry numeric character references for the values we care about,
+/// so full entity expansion is not required.
+fn decode_xml_entities(s: &str) -> String {
+    s.replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+}
+
+/// Byte-level substring search. Avoids pulling in an additional crate.
+fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || needle.len() > haystack.len() {
+        return None;
+    }
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
 }
 
 /// Known camera vendors that produce parseable MakerNotes.

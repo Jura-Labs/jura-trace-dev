@@ -99,6 +99,8 @@ pub fn analyse(
                 check_integer_degree_gps(meta, &mut findings);
                 check_mandatory_maker_note_missing(meta, &mut findings);
                 check_iphone_colour_space_mismatch(meta, &mut findings);
+                check_xmp_ai_digital_source(meta, &mut findings);
+                check_xmp_ai_creator_tool(meta, &mut findings);
                 let (fp, ft) = compute_completeness(meta);
                 (fp, ft, meta.gps_latitude, meta.gps_longitude, bonus)
             }
@@ -751,6 +753,92 @@ fn check_iphone_colour_space_mismatch(meta: &ImageMetadata, findings: &mut Vec<A
     });
 }
 
+/// Known AI-generator name fragments for case-insensitive matching against
+/// the XMP `xmp:CreatorTool` field (and, in practice, `tiff:Software` when
+/// the XMP emitter mirrors it there). Deliberately broader than the
+/// `AI_GENERATORS` list used for the EXIF Software field — XMP-only
+/// generators like Flux rarely write EXIF Software, so the two lists stay
+/// independent.
+const KNOWN_AI_GENERATORS: &[&str] = &[
+    "stable diffusion",
+    "sdxl",
+    "dall-e",
+    "dall·e",
+    "midjourney",
+    "imagen",
+    "firefly",
+    "leonardo",
+    "ideogram",
+    "runway",
+    "flux",
+];
+
+/// Class F — XMP packet declares AI generation via
+/// `Iptc4xmpExt:DigitalSourceType`.
+///
+/// The IPTC DigitalSourceType vocabulary is the IPTC / C2PA / CAI
+/// ground-truth field for AI provenance. A value of `trainedAlgorithmicMedia`
+/// (pure generative AI), `compositeWithTrainedAlgorithmicMedia` (AI components
+/// blended into a real capture), or `algorithmicMedia` (non-trained
+/// algorithmic composition) is a near-certain signal — the file itself
+/// declares AI origin. High severity.
+fn check_xmp_ai_digital_source(meta: &ImageMetadata, findings: &mut Vec<AnomalyFinding>) {
+    let Some(dst) = meta.xmp.digital_source_type.as_deref() else {
+        return;
+    };
+    let dst_lower = dst.to_lowercase();
+    let is_ai = dst_lower.contains("trainedalgorithmicmedia")
+        || dst_lower.contains("compositewithtrainedalgorithmicmedia")
+        || dst_lower == "algorithmicmedia"
+        || dst_lower.ends_with("/algorithmicmedia");
+    if !is_ai {
+        return;
+    }
+    findings.push(AnomalyFinding {
+        check_id: "xmp_ai_digital_source".into(),
+        title: "XMP declares AI-generated content".into(),
+        description: format!(
+            "The file's XMP packet sets Iptc4xmpExt:DigitalSourceType to '{dst}', \
+             the IPTC vocabulary value used to mark AI-generated or AI-composited \
+             content. This is a self-declared provenance signal written by the \
+             generator (or a downstream signer). Treat as strong evidence of \
+             AI origin."
+        ),
+        severity: Severity::High,
+        category: "provenance".into(),
+    });
+}
+
+/// Class G — XMP `xmp:CreatorTool` names a known AI generator.
+///
+/// Case-insensitive substring match against [`KNOWN_AI_GENERATORS`]. High
+/// severity. This is distinct from the existing `software_ai_generator`
+/// check on the EXIF Software field because many modern AI generators
+/// (Flux, Leonardo, Ideogram) write only to XMP.
+fn check_xmp_ai_creator_tool(meta: &ImageMetadata, findings: &mut Vec<AnomalyFinding>) {
+    let Some(tool) = meta.xmp.creator_tool.as_deref() else {
+        return;
+    };
+    let tool_lower = tool.to_lowercase();
+    for pattern in KNOWN_AI_GENERATORS {
+        if tool_lower.contains(pattern) {
+            findings.push(AnomalyFinding {
+                check_id: "xmp_ai_creator_tool".into(),
+                title: "XMP CreatorTool names a known AI generator".into(),
+                description: format!(
+                    "The XMP xmp:CreatorTool field is '{tool}', which matches a known \
+                     AI-generator signature ('{pattern}'). Modern generative tools \
+                     increasingly write provenance to XMP rather than to the EXIF \
+                     Software field."
+                ),
+                severity: Severity::High,
+                category: "provenance".into(),
+            });
+            return;
+        }
+    }
+}
+
 fn compute_completeness(meta: &ImageMetadata) -> (u32, u32) {
     let mut count = 0u32;
     if meta.camera_make.is_some() {
@@ -807,6 +895,7 @@ fn compute_completeness(meta: &ImageMetadata) -> (u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::metadata::XmpMetadata;
 
     fn empty_meta() -> ImageMetadata {
         ImageMetadata {
@@ -830,6 +919,7 @@ mod tests {
             orientation: None,
             has_maker_note: false,
             maker_note_length: 0,
+            xmp: XmpMetadata::default(),
         }
     }
 
@@ -855,6 +945,7 @@ mod tests {
             orientation: Some(1),
             has_maker_note: true,
             maker_note_length: 2048,
+            xmp: XmpMetadata::default(),
         }
     }
 
@@ -1397,5 +1488,117 @@ mod tests {
             .findings
             .iter()
             .any(|f| f.check_id == "iphone_colour_space_mismatch"));
+    }
+
+    // ── XMP provenance: DigitalSourceType (Class F) ───────────────────
+
+    #[test]
+    fn xmp_digital_source_trained_algorithmic_media_flagged_high() {
+        let mut meta = empty_meta();
+        meta.xmp = XmpMetadata {
+            digital_source_type: Some("trainedAlgorithmicMedia".into()),
+            ..Default::default()
+        };
+        let result = analyse(Some(&meta), None, None);
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "xmp_ai_digital_source");
+        assert!(
+            finding.is_some(),
+            "trainedAlgorithmicMedia must trigger Class F"
+        );
+        let f = finding.unwrap();
+        assert_eq!(f.severity, Severity::High);
+        assert_eq!(f.category, "provenance");
+    }
+
+    #[test]
+    fn xmp_digital_source_digital_capture_not_flagged() {
+        // Benign authentic value — must never trigger Class F.
+        let mut meta = camera_meta();
+        meta.xmp = XmpMetadata {
+            digital_source_type: Some("digitalCapture".into()),
+            ..Default::default()
+        };
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "xmp_ai_digital_source"));
+    }
+
+    // ── XMP provenance: CreatorTool known generator (Class G) ─────────
+
+    #[test]
+    fn xmp_creator_tool_stable_diffusion_flagged_high() {
+        let mut meta = empty_meta();
+        meta.xmp = XmpMetadata {
+            creator_tool: Some("Stable Diffusion 1.5".into()),
+            ..Default::default()
+        };
+        let result = analyse(Some(&meta), None, None);
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "xmp_ai_creator_tool");
+        assert!(finding.is_some());
+        assert_eq!(finding.unwrap().severity, Severity::High);
+    }
+
+    #[test]
+    fn xmp_creator_tool_iphone_not_flagged() {
+        // Edge case: a genuine camera tool string must not match any
+        // KNOWN_AI_GENERATORS entry (case-insensitive substring).
+        let mut meta = camera_meta();
+        meta.xmp = XmpMetadata {
+            creator_tool: Some("iPhone 15 Pro 17.4.1".into()),
+            ..Default::default()
+        };
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "xmp_ai_creator_tool"));
+    }
+
+    // ── XMP packet present but no relevant fields ─────────────────────
+
+    #[test]
+    fn xmp_packet_present_without_relevant_fields_no_provenance_findings() {
+        // All XMP fields None — a packet may exist on disk but carry only
+        // unrelated metadata (e.g. rating, keywords). Neither Class F
+        // nor Class G should fire.
+        let meta = camera_meta();
+        assert!(meta.xmp.digital_source_type.is_none());
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "xmp_ai_digital_source" || f.check_id == "xmp_ai_creator_tool"));
+    }
+
+    // ── XMP packet parsing (integration with metadata::parse_xmp_packet) ─
+
+    #[test]
+    fn xmp_parser_extracts_digital_source_type_from_iri() {
+        // The IPTC vocabulary stores the value as a full IRI — the parser
+        // must return just the short local name.
+        let packet = br#"<?xml version="1.0"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+           xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/"
+           xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+  <rdf:RDF>
+    <rdf:Description rdf:about=""
+      Iptc4xmpExt:DigitalSourceType="http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"
+      xmp:CreatorTool="Midjourney 6"/>
+  </rdf:RDF>
+</x:xmpmeta>"#;
+        let xmp = crate::metadata::parse_xmp_packet(packet).expect("packet parses");
+        assert_eq!(
+            xmp.digital_source_type.as_deref(),
+            Some("trainedAlgorithmicMedia")
+        );
+        assert_eq!(xmp.creator_tool.as_deref(), Some("Midjourney 6"));
     }
 }
