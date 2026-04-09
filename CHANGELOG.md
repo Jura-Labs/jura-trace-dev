@@ -6,6 +6,83 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 8 April 2026 — Sprint 28 Tech-Debt Sweep (Post-v1.0 Cleanup)
+
+Pre-v1.0 tech-debt audit executed across two days. The audit itself was cross-reviewed by 12 specialist agents (tech-debt-analyst, api-engineer, rust-backend-engineer, ml-data-scientist, content-authenticity-expert, legal-compliance-advisor, project-manager, persona-testing, grant-writer, security-auditor, ux-frontend-designer, rag-ollama-engineer); the cross-review reversed two of the original audit recommendations (kept JPEG Ghost in deep mode at 0.5× weight, kept seasonal/diffusion deletion confirmed) and surfaced one critical release blocker (`.backup` file pickle EoP vector) plus a TRIED Pillar 2 failure in the WITNESS capability brief (line 95 "no cloud calls" claim was already false due to weather cross-reference and reverse image search).
+
+Full audit trail and decision log in `.claude/projects/.../memory/project_tech_debt_audit_apr2026.md`.
+
+### Changed — Detector lineup
+
+The deep-mode parallel detector group reduced from 9 to 5 detectors (noise, copy-move, JPEG Ghost, segmented ELA, colour temperature). Trust scoring now has 12 automatic detectors total plus 3 on-demand investigation tools that do not contribute to the numeric score.
+
+- **Chromatic aberration — deleted entirely** (S28-1, commit `a1d3166`). Forensic audit rated accuracy 1/5 and long-term viability 1/5; content-authenticity-expert confirmed "methodologically real but empirically dead post-2018" (modern smartphones correct CA in-ISP, mirrorless bodies correct from lens profiles, AI generators produce CA-free output). 18 files, 977 deletions across `chromatic_aberration.py` + tests + `/forensics/chromatic-aberration` endpoint + PyInstaller spec + `CaResult` Rust struct and TypeScript interface + display panel in verify page + glossary + methodology page entry.
+- **Diffusion artefact detector — deleted** (S28-2, commit `ba3e87d`). Superseded by the trained UnivFD v8 probe (AUC 0.9911). Content-authenticity-expert: "toy version of the real literature" — hand-tuned patch std thresholds, VAE banding via gradient peakiness, and a stale resolution fingerprint set that didn't include Flux, Imagen 4, or Midjourney v6. 8 files, 388 deletions.
+- **NPR demoted to on-demand** (S28-3, commit `602fb0c`). Tan et al. AAAI 2024 uses NPR features as input to a learned classifier, not a standalone threshold; partially redundant with UnivFD v8's CLIP-level upsampling artefact detection. `Option<NprResult>` field retained on `VerificationResult` for the on-demand endpoint; sidecar service and endpoint kept.
+- **Shadow consistency + splice boundary demoted to on-demand** (S28-6, commit `df88122`). Shadow: gradient-weighted light direction is noisy on textured scenes; the canonical Kee-O'Brien-Farid 2013 shadow-constraint technique requires user ROI. Splice: three-signal heuristic fusion never set `suspicious=true` in production. Both retained as on-demand investigation tools.
+- **Seasonal indicators + weather cross-reference — deleted** (Sprint 27 prep, commit `d650c54`). Discovery during execution: both features' Tauri commands were never registered in Rust — the desktop app only ever showed hardcoded browser-mock data. Sidecar services + endpoints + tests + PyInstaller spec + UI state + help/verify page sections all removed. WITNESS capability brief line 95 "No cloud calls. No telemetry." claim corrected in the same session (commit `32a74b0`) to an honest three-feature network carve-out.
+
+### Changed — Trust scoring
+
+- **JPEG Ghost wired into `compute_trust` at 0.5× weight** (S28-4, commit `63dd511`). Reversal from the original tech-debt audit recommendation. ml-data-scientist + content-authenticity-expert cross-review consensus: Farid 2009 JPEG ghost detection remains the best CPU-only signal for single-JPEG-resave splices that UnivFD cannot see and GBM v4 only partially catches via `blocking_strength` / `dct_benford_div`. 0.5 weight (half of ELA/noise/copy-move at weight 1.0) as capped contribution. Empirical calibration backlog item (#9); plan at `docs/calibration/s28-jpeg-ghost-weight.md` blocked on splice corpus sourcing.
+- **`compute_trust` signature extended** with `jpeg_ghost_score: Option<f64>` as positional-last. 29 test call sites updated.
+
+### Added — Schema v6 `detectors_run` column
+
+Full write-read-render pipeline for recording which detectors actually produced a result for each verification. Enables PDF / ZIP renderers to distinguish "detector ran and returned null" from "detector not run in this build / mode".
+
+- **Migration** (S28-5, commit `a4bad31`). Schema v6 adds `detectors_run TEXT` column to `verifications`. One-line idempotent `ALTER TABLE`.
+- **Writer** (S28-FU1, commit `adf84fe`). `verify_content_inner` builds a stable detector ID list from the actual `*Result` Options, JSON-serialises it, passes it to `insert_verification`, and surfaces it on `VerificationResult.detectors_run`.
+- **Read path** (S28-FU6, commit `038bb1a`). `get_verification_history` SELECT extended; JSON TEXT parsed with graceful `None` on NULL / parse failure. `VerificationSummary` struct gains the field with `#[serde(skip_serializing_if = "Option::is_none")]`. New round-trip test (test count 289 → 290).
+- **PDF consumer** (S28-FU2, same commit as writer). PDF metadata "Detectors Run" row now prefers the authoritative list, legacy inference fallback.
+- **PDF "Not run" labels** (S28-FU4, commit `1a2b3ca`). Raw-scores table renders an explicit italic grey "Not run in this analysis" row for detectors that are in `EXPECTED_DETECTORS_BY_MODE` but absent from `detectors_run`. Pre-FU1 legacy exports get an italic footer note explaining the inferred lineup.
+- **ZIP case export manifest** (S28-FU4). New `detectors-run.json` file in the ZIP with authoritative detector list, mode, content type, pipeline version, methodology record, filtered label map, and an `authoritative: true|false` flag. `DETECTOR_ID_LABELS` extracted to a shared module `ui/src/lib/detectorLabels.ts`.
+
+### Added — Claim checker reframing
+
+- **RAG claim checker → knowledge base retrieval aid** (commit `4e4af0d`). `_PROMPT_TEMPLATE_FALLBACK` parametric-memory fallback deleted (single biggest defamation vector per legal-compliance-advisor cross-review — Defamation Act 2013 s.1 + DE/FR equivalents). Verdict vocabulary renamed `supported/disputed/unverified` → `consistent_with_kb/inconsistent_with_kb/insufficient_context_in_kb/mixed_kb_match`. Prompt rewritten to frame as reference-retrieval assessment. Non-warranty notices on both claim display panels + new model card at `/help/model-cards#kb-retrieval`. Legacy vocabulary aliased for backwards compatibility. Full investment deferred to S29-06 multilingual testing gate.
+
+### Changed — UI polish (UI audit batch)
+
+Six UI audit items from the 7 April deferral closed in commit `c8520b9`:
+
+- **UI-1** Dashboard hero: "C2PA Content Credentials" → "C2PA provenance manifest".
+- **UI-2** R/G/B channel toggle removed entirely. Non-experts couldn't interpret greyscale channel output; experts use external tools; feature had a reactivity bug where the second toggle sampled the already-greyscale DOM image.
+- **UI-3** InspectionChecklist component removed from verify flow. 8 manual visual inspection checks moved to the existing `/help/verify` section, expanded from paragraph to numbered list.
+- **UI-4** MakerNote authenticity bonus surfaced. `cameraAuthenticityBonus?: number` added to `ExifAnalysis` TypeScript interface. Malachite info badge renders in the EXIF section when the value exceeds 0.5.
+- **UI-5** Setup wizard null-guard — verified no-op. Guard has been in place since `f41c7f1` on 2 April 2026; audit item was stale.
+- **UI-6** Three more "content credentials" cleanups: dashboard stat label, monitor page narrative, glossary primary index.
+
+### Changed — Methodology page restructure
+
+- **Automatic vs on-demand split** (S28-6 + FU3 + FU7 + FU8). Intro rewritten. Automatic detectors renumbered consecutively 01–12 (removing gaps at 07/11/13 from CA removal and demotions). On-demand section moved to the end of the list and wrapped in a distinct amber-tinted panel. Side-by-side two-column layout evaluated and rejected (440 px per column is too tight inside the 900 px editorial width for the expanded `<dl>` content).
+
+### Fixed — Security and correctness
+
+- **Deleted `models/deepfake_classifier_v3.joblib.backup`** (commit `87cbb58`). Pickle-deserialisation EoP vector via rename-shadow attack. Flagged as a release blocker by security-auditor cross-review. `.github/workflows/ci.yml` gained a `repo-hygiene` job that fails the build on stray `.backup`/`.bak`/`.joblib.old` files in `models/`.
+- **Video deepfake features dict contract** (commit `a28da2f`). Two early-return paths in `deepfake.py` were returning incomplete feature dicts, violating the `perform_deepfake_detection_with_features()` contract: the 128×128 minimum size guard returned `{}`, and the screenshot pre-classifier bypass returned `{"screenshot_confidence": ...}` only. `video_deepfake.py` per-frame temporal drift (`noise_drift`, `spectral_drift`, LBP drift) would `KeyError` on thumbnail video frames or on frames hitting the screenshot classifier (title cards, credits, rendered graphics). Both paths now populate a full `FEATURE_NAMES` NaN dict; `_compute_drift` already filters NaN so drift calculation degrades gracefully instead of crashing. Diagnosed by qa-tester cross-review.
+- **Deepfake classifier threshold clarification**. Confirmed `compute_trust` does not apply a runtime threshold on `classifier_score` — the GBM probability is blended via `0.20 × heuristic + 0.30 × classifier + 0.50 × univfd`. The `0.49` in `deepfake_classifier_v4.calibration.json` describes standalone classifier performance only.
+
+### Changed — Models and CI
+
+- **Models directory cleanup** (commit `87cbb58`). Deleted `v1/v2/v3` `.joblib` files + their metadata/calibration/bias_check siblings, plus `evaluation_report.json`, `fp_analysis.json`, `per_sample_results.csv`, `threshold_sweep.csv`. Kept: production `deepfake_classifier.joblib`, `v4` fallback + its metadata, `sprint29_validation.json`, `univfd_probe.joblib`, `univfd_probe_meta.json`.
+- **CI `repo-hygiene` job added** to `.github/workflows/ci.yml`.
+- **`tech-debt-analyst` agent registered** at `.claude/agents/tech-debt-analyst.md`.
+
+### Docs
+
+- **JPEG Ghost 0.5× weight calibration plan** at `docs/calibration/s28-jpeg-ghost-weight.md` (372 lines). Outcome C — no splice corpus locally. Sweep methodology, three sourcing options with licence status, implementation checklist, future work.
+- **Cargo target disk pressure note** added to `CLAUDE.md`. Captures the mid-session `ENOSPC` incident when `src-tauri/target` reached 15 GB and broke `cargo check` / `svelte-check` / Claude Code's own scratch writes. Documents `cargo clean --manifest-path src-tauri/Cargo.toml` as a defensive habit.
+- **WITNESS capability brief freshness pass** (commit `ca6d71d`). Training corpus numbers refreshed from stale 10,091 → 10,709 (14 generator families). GBM AUC updated from the overfit `0.945→1.0` to the current v4 0.9868. Sprint 29 "May 2026" references corrected. Pillar 1 compression test suite claim reframed from present-tense to "planned" (no such suite exists yet).
+
+### Statistics
+
+- **13 commits** on main across two days (`87cbb58` → `012d230`), plus 4 follow-up commits (`038bb1a`, `1a2b3ca`, `57b2092`, `012d230`) delegated to specialist agents in parallel worktrees.
+- **Net −1,500 lines** of code across the tech-debt sweep (detector deletions dominate).
+- **Test counts**: 290 Rust lib tests (+1 new round-trip test), 231 SvelteKit files with 0 errors 0 warnings, 423+ sidecar Python tests (3 pre-existing failures fixed in commit `a28da2f`).
+
+---
+
 ## 7 April 2026 — Sprint 29 Progress + Corpus Expansion + Model Refresh
 
 ### Added
