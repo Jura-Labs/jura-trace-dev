@@ -171,7 +171,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 
 ## Current Status
 
-**Version**: 0.9.0-rc14 (Phase A — v1.0 blocked on pilot testing feedback only). Phases 1–3 complete. Sprint 28 tech-debt sweep closed 8 April 2026; Sprint 29 shipped 7 April 2026; currently mid-Sprint 30. For full sprint-by-sprint history see `CHANGELOG.md` and git log.
+**Version**: 0.9.0-rc14 (Phase A — v1.0 blocked on pilot testing feedback only). Phases 1–3 complete. Sprint 28 tech-debt sweep closed 8 April 2026; Sprint 29 shipped 7 April 2026; Sprint 30 backlog sweep 9 April 2026 (SIFT copy-move, EXIF injection detection, FP telemetry Phase B review bundle, URL watchlist scheduler, Tauri race-condition fix, Experimental UI tag rollout, XMP AI-provenance detection). For full sprint-by-sprint history see `CHANGELOG.md` and git log.
 
 **Models in production** (as of 7 April 2026):
 - **GBM Deepfake Classifier v4** — 10,709 images (5,724 authentic + 4,985 AI), 84-feature vector, AUC-ROC 0.9868, authentic FP 4.54%, AI recall 92.52%, threshold 0.49. SHA-256 `2931f197cba6f376e85b1cbcfd584e6802f36e4fbf68ff00c83d61d4d655db18`.
@@ -181,6 +181,8 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 
 **Detector lineup post-Sprint-28**: 12 automatic detectors (EXIF anomaly, C2PA, ELA, noise, copy-move, deepfake GBM+UnivFD ensemble, JPEG Ghost at 0.5× weight, segmented ELA, colour temperature, CLIP, watermark, video deepfake) plus 3 on-demand investigation tools (NPR, shadow consistency, splice boundary) that do not contribute to trust scoring. Chromatic aberration removed entirely (forensic audit 1/5). Diffusion artefact detector removed (superseded by UnivFD v8). Schema v6 `detectors_run` column persists the exact lineup per verification so PDF / ZIP renderers can distinguish "detector ran and returned null" from "detector not run in this build / mode". Full Sprint 28 audit trail in `docs/backlog.md` and project memory.
 
+**EXIF anomaly detector (as of Sprint 30)**: the `exif_anomaly` detector now includes both an injection-detection suite (5 sub-checks: programmatic pipeline library in Software field, templated timestamps, integer-degree GPS, MakerNote absent on mandatory-vendor camera, iPhone sRGB mismatch — all landed in commit `d03f338`) and an XMP provenance suite (2 sub-checks: `xmp_ai_digital_source` for `Iptc4xmpExt:DigitalSourceType` values like `trainedAlgorithmicMedia`, and `xmp_ai_creator_tool` for known AI generators in `xmp:CreatorTool` — landed in commit `ce06f7f`). Both are High severity and flow through the existing `exif_anomaly` scoring path with no new detector ID.
+
 **Known issues / carry-over from Sprint 29**:
 - Track 2 partial: ~1,000 of target 1,200–1,400 Global Majority handset photos still outstanding.
 - Track 4 validation set samples from training corpus — not a true held-out set.
@@ -188,7 +190,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 - Composite border detector: 21 candidates flagged on full corpus, HTML preview pending user review.
 - **JPEG Ghost 0.5× weight is not yet empirically calibrated** — plan at `docs/calibration/s28-jpeg-ghost-weight.md`; blocked on splice corpus sourcing (three options documented, synthetic CC-BY COCO/Flickr30k generator recommended).
 
-**Test counts**: 290 Rust, 375+ Python (47 sidecar deepfake), 164 Playwright e2e, 231 SvelteKit files with 0 svelte-check errors, clippy + fmt clean.
+**Test counts**: 334 Rust lib tests, 375+ Python (47 sidecar deepfake), 164 Playwright e2e, 233 SvelteKit files with 0 svelte-check errors, clippy + fmt clean. Pre-commit hook now runs `cargo fmt`, `cargo check --all-targets`, `cargo clippy --all-targets -- -D warnings`, and `svelte-check` — hardened in commit `0912b14` after two Sprint 30 test-fixture regressions slipped past the lighter `cargo check` alone.
 
 ## Backlog
 
