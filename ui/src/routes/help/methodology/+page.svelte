@@ -402,19 +402,19 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Applies 12 consistency rules to the file's EXIF data: checking whether timestamps are plausible, whether GPS data matches declared location, whether a software editor tag has been added after capture, and whether resolution values are internally consistent.
+                Applies consistency rules to the file's EXIF data: checking whether timestamps are plausible, whether GPS data matches declared location, whether a software editor tag has been added after capture, and whether resolution values are internally consistent. A further set of injection-detection sub-checks looks for fabricated or reconstructed metadata blocks — programmatic imaging libraries in the Software field (Pillow, ImageMagick, OpenCV), canonical template timestamps, GPS at exact integer degrees, cameras whose firmware always writes a MakerNote but where none is present, and iPhones declaring an sRGB colour space without a MakerNote.
               </dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What a positive finding means</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                One or more metadata fields are missing, inconsistent, or contain signatures associated with editing software. This may indicate the metadata was stripped or altered after the original capture.
+                One or more metadata fields are missing, inconsistent, or contain signatures associated with editing software or scripted pipelines. This may indicate the metadata was stripped, altered, or fabricated after the original capture.
               </dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Intentional EXIF stripping for privacy (common before sharing images online), CMS or social media platforms that remove or rewrite metadata, and screenshots (which lack camera data by design).
+                Intentional EXIF stripping for privacy (common before sharing images online), CMS or social media platforms that remove or rewrite metadata, and screenshots (which lack camera data by design). The injection sub-checks can also fire on legitimate scientific or archival workflows that re-encode images through Pillow or ImageMagick, on timer-triggered or time-lapse rigs that produce round-second timestamps, on third-party iPhone camera apps that write sRGB intentionally, and on images that have been through Google Photos, WhatsApp or similar platforms which strip MakerNote data.
               </dd>
             </div>
             <div>

@@ -1,8 +1,14 @@
 //! EXIF anomaly detection — analyse image metadata for manipulation indicators.
 //!
-//! Performs six categories of checks: software detection, missing EXIF,
-//! timestamp validation, dimension consistency, GPS plausibility, and
-//! field completeness. Returns a trust score (0.0–1.0) with findings.
+//! Performs seven categories of checks: software detection, missing EXIF,
+//! timestamp validation, dimension consistency, GPS plausibility, field
+//! completeness, and metadata-injection heuristics (templated timestamps,
+//! integer-degree GPS, pipeline-library software fields, compound MakerNote
+//! absence on mandatory-vendor cameras, and iPhone-sRGB colour-space mismatch).
+//! Returns a trust score (0.0–1.0) with findings.
+//!
+//! See `docs/design/exif-injection-detection.md` for the injection-detection
+//! design rationale, severity justifications, and known false-positive triggers.
 
 use crate::metadata::ImageMetadata;
 use serde::{Deserialize, Serialize};
@@ -87,6 +93,12 @@ pub fn analyse(
                 check_dimensions(meta, actual_width, actual_height, &mut findings);
                 check_gps(meta, &mut findings);
                 let bonus = check_maker_note_authenticity(meta, &mut findings);
+                // Injection-detection heuristics — see docs/design/exif-injection-detection.md
+                check_pipeline_library_software(meta, &mut findings);
+                check_templated_timestamps(meta, &mut findings);
+                check_integer_degree_gps(meta, &mut findings);
+                check_mandatory_maker_note_missing(meta, &mut findings);
+                check_iphone_colour_space_mismatch(meta, &mut findings);
                 let (fp, ft) = compute_completeness(meta);
                 (fp, ft, meta.gps_latitude, meta.gps_longitude, bonus)
             }
@@ -472,6 +484,271 @@ fn check_gps(meta: &ImageMetadata, findings: &mut Vec<AnomalyFinding>) {
         }
         (None, None) => {}
     }
+}
+
+// ===== Injection detection =====
+//
+// Sub-checks under the exif_anomaly detector that identify suspiciously
+// templated, programmatically written, or "reconstructed" EXIF blocks.
+// See docs/design/exif-injection-detection.md for rationale.
+
+/// Imaging-library and batch-pipeline names that appear in the EXIF Software
+/// field when a file has been assembled by a script rather than exported by
+/// camera firmware or a GUI editor. Distinct from `METADATA_TOOLS` (which
+/// rewrite metadata without touching pixels) and `IMAGE_EDITORS` (user-facing
+/// desktop applications).
+const PIPELINE_LIBRARIES: &[&str] = &[
+    "pillow",
+    "pil/",
+    "pil ",
+    "python imaging library",
+    "imagemagick",
+    "graphicsmagick",
+    "magick",
+    "opencv",
+    "skimage",
+    "scikit-image",
+    "photopea",
+    "libvips",
+    "sharp/",
+    "sharp ",
+    "node-sharp",
+];
+
+/// Canonical "tutorial" / script-template timestamp literals. Values that
+/// appear in `exiftool` documentation, public injection scripts, and
+/// placeholder defaults.
+const CANONICAL_TEMPLATE_TIMESTAMPS: &[&str] = &[
+    "2000:01:01 00:00:00",
+    "2020:01:01 00:00:00",
+    "2021:01:01 00:00:00",
+    "2022:01:01 00:00:00",
+    "2023:01:01 00:00:00",
+    "2024:01:01 00:00:00",
+    "2024:01:01 12:00:00",
+    "2025:01:01 00:00:00",
+    "1970:01:01 00:00:00",
+];
+
+/// Camera vendors whose firmware has been observed to write a MakerNote on
+/// every capture. Smartphone vendors (Google, Samsung) are deliberately
+/// excluded because sharing-platform re-encoding routinely strips MakerNote
+/// from their output. Kept as a subset of `KNOWN_CAMERA_VENDORS` in
+/// `metadata.rs` to avoid drift.
+const MAKERNOTE_MANDATORY_VENDORS: &[&str] = &[
+    "apple",
+    "canon",
+    "nikon",
+    "sony",
+    "fujifilm",
+    "olympus",
+    "om digital",
+    "panasonic",
+    "leica",
+    "hasselblad",
+    "phase one",
+    "ricoh",
+    "pentax",
+];
+
+/// Class A — Programmatic pipeline library named in the Software field.
+///
+/// High severity. Genuine camera firmware and the major GUI editors write
+/// their own product name, not the underlying library they bundle. A file
+/// whose Software field literally says `Pillow` or `ImageMagick` was assembled
+/// by a script.
+fn check_pipeline_library_software(meta: &ImageMetadata, findings: &mut Vec<AnomalyFinding>) {
+    let Some(software) = &meta.software else {
+        return;
+    };
+    let lower = software.to_lowercase();
+    for pattern in PIPELINE_LIBRARIES {
+        if lower.contains(pattern) {
+            findings.push(AnomalyFinding {
+                check_id: "software_pipeline_library".into(),
+                title: "Imaging pipeline library in Software field".into(),
+                description: format!(
+                    "Software field contains '{software}', a programmatic imaging library. \
+                     Genuine camera firmware and desktop editors write their own product name. \
+                     A library name here indicates the file was assembled or re-encoded by a script \
+                     rather than produced directly by a camera."
+                ),
+                severity: Severity::High,
+                category: "injection".into(),
+            });
+            return;
+        }
+    }
+}
+
+/// Class B — Templated or suspiciously round timestamps.
+///
+/// Fires on two sub-patterns:
+///   - **canonical template**: either timestamp matches a known
+///     tutorial / script-template literal → Medium severity
+///   - **identical zero-second pair**: original == modified AND both end in
+///     `:00` seconds → Low severity
+fn check_templated_timestamps(meta: &ImageMetadata, findings: &mut Vec<AnomalyFinding>) {
+    let original = meta.datetime_original.as_deref();
+    let modified = meta.datetime_modified.as_deref();
+
+    // Canonical template match — either field hitting a known literal.
+    if let Some(ts) = original {
+        if CANONICAL_TEMPLATE_TIMESTAMPS.contains(&ts) {
+            findings.push(AnomalyFinding {
+                check_id: "timestamp_canonical_template".into(),
+                title: "Canonical template timestamp detected".into(),
+                description: format!(
+                    "Original datetime '{ts}' matches a commonly used placeholder / tutorial value. \
+                     Genuine captures rarely land on these literals."
+                ),
+                severity: Severity::Medium,
+                category: "injection".into(),
+            });
+            return;
+        }
+    }
+    if let Some(ts) = modified {
+        if CANONICAL_TEMPLATE_TIMESTAMPS.contains(&ts) {
+            findings.push(AnomalyFinding {
+                check_id: "timestamp_canonical_template".into(),
+                title: "Canonical template timestamp detected".into(),
+                description: format!(
+                    "Modified datetime '{ts}' matches a commonly used placeholder / tutorial value."
+                ),
+                severity: Severity::Medium,
+                category: "injection".into(),
+            });
+            return;
+        }
+    }
+
+    // Identical zero-second pair — both fields present, equal, and ending `:00`.
+    if let (Some(o), Some(m)) = (original, modified) {
+        if o == m && o.ends_with(":00") && o.len() >= 19 {
+            findings.push(AnomalyFinding {
+                check_id: "timestamp_templated_identical".into(),
+                title: "Identical zero-second original and modified timestamps".into(),
+                description: format!(
+                    "Both original and modified timestamps are '{o}' — identical to the second \
+                     and ending on a zero-second boundary. This pattern is characteristic of a \
+                     scripted EXIF write rather than a natural camera capture."
+                ),
+                severity: Severity::Low,
+                category: "injection".into(),
+            });
+        }
+    }
+}
+
+/// Class C — GPS coordinates at exact integer degrees on both axes.
+///
+/// Real consumer GPS chips produce sub-integer residuals well beyond
+/// decimal place 6. Two independent integer values on the same capture is
+/// characteristic of hand-written or mocked data. `(0, 0)` is already handled
+/// by `check_gps` as `gps_null_island`.
+fn check_integer_degree_gps(meta: &ImageMetadata, findings: &mut Vec<AnomalyFinding>) {
+    let (Some(lat), Some(lon)) = (meta.gps_latitude, meta.gps_longitude) else {
+        return;
+    };
+    // Skip Null Island — already flagged elsewhere at Medium severity.
+    if lat.abs() < 0.01 && lon.abs() < 0.01 {
+        return;
+    }
+    // Reject invalid coordinates — already flagged by check_gps.
+    if !(-90.0..=90.0).contains(&lat) || !(-180.0..=180.0).contains(&lon) {
+        return;
+    }
+    let lat_int = lat.fract().abs() < 1e-6;
+    let lon_int = lon.fract().abs() < 1e-6;
+    if lat_int && lon_int {
+        findings.push(AnomalyFinding {
+            check_id: "gps_integer_degrees".into(),
+            title: "GPS coordinates at exact integer degrees".into(),
+            description: format!(
+                "Latitude {lat:.1} and longitude {lon:.1} are both exact integer values. \
+                 Consumer GPS chips produce residuals beyond the sixth decimal place; exact \
+                 integers on both axes suggest manually entered or templated coordinates."
+            ),
+            severity: Severity::Medium,
+            category: "injection".into(),
+        });
+    }
+}
+
+/// Class D — MakerNote absent on a vendor that always writes one.
+///
+/// Compound signal: the claimed camera make is a brand whose firmware always
+/// writes a MakerNote, yet the parsed MakerNote is absent or trivially small.
+/// Smartphone vendors are deliberately excluded because sharing-platform
+/// re-encoding strips MakerNote routinely. This honours the project-level
+/// constraint "do not fire on MakerNote absence alone".
+fn check_mandatory_maker_note_missing(meta: &ImageMetadata, findings: &mut Vec<AnomalyFinding>) {
+    let Some(make) = meta.camera_make.as_deref() else {
+        return;
+    };
+    let make_lower = make.to_lowercase();
+    let mandatory = MAKERNOTE_MANDATORY_VENDORS
+        .iter()
+        .any(|v| make_lower.contains(v));
+    if !mandatory {
+        return;
+    }
+    if meta.has_maker_note && meta.maker_note_length >= 16 {
+        return;
+    }
+    findings.push(AnomalyFinding {
+        check_id: "maker_note_mandatory_vendor_missing".into(),
+        title: "MakerNote missing on a vendor that always writes one".into(),
+        description: format!(
+            "The Make field declares '{make}', a camera brand whose firmware always writes a \
+             proprietary MakerNote block, yet no substantial MakerNote is present. This can \
+             legitimately happen when an image has been re-encoded by a sharing platform, but \
+             it is also a common signature of reconstructed or injected EXIF."
+        ),
+        severity: Severity::Medium,
+        category: "injection".into(),
+    });
+}
+
+/// Class E — iPhone declaring sRGB colour space with no MakerNote.
+///
+/// Modern iPhones (iPhone 7 and later) default to the Display P3 profile.
+/// A combination of `Make = Apple`, `Model contains iPhone`, `ColorSpace = sRGB`,
+/// and no MakerNote is a narrow but specific signature of hand-rolled EXIF.
+fn check_iphone_colour_space_mismatch(meta: &ImageMetadata, findings: &mut Vec<AnomalyFinding>) {
+    let Some(make) = meta.camera_make.as_deref() else {
+        return;
+    };
+    let Some(model) = meta.camera_model.as_deref() else {
+        return;
+    };
+    let Some(cs) = meta.color_space.as_deref() else {
+        return;
+    };
+    if !make.to_lowercase().contains("apple") {
+        return;
+    }
+    if !model.to_lowercase().contains("iphone") {
+        return;
+    }
+    if !cs.eq_ignore_ascii_case("srgb") {
+        return;
+    }
+    if meta.has_maker_note && meta.maker_note_length >= 16 {
+        return;
+    }
+    findings.push(AnomalyFinding {
+        check_id: "iphone_colour_space_mismatch".into(),
+        title: "iPhone declared with sRGB and no MakerNote".into(),
+        description: format!(
+            "Camera make is '{make}' and model is '{model}', yet the colour space is sRGB and no \
+             MakerNote is present. Modern iPhones default to Display P3 and always write a \
+             MakerNote. This combination is a narrow but specific signature of hand-rolled EXIF."
+        ),
+        severity: Severity::Low,
+        category: "injection".into(),
+    });
 }
 
 fn compute_completeness(meta: &ImageMetadata) -> (u32, u32) {
@@ -902,5 +1179,223 @@ mod tests {
         let result = analyse(Some(&meta), Some(8192), Some(5464));
         let json = serde_json::to_string(&result).expect("serialization must succeed");
         assert!(json.contains("\"cameraAuthenticityBonus\""));
+    }
+
+    // ── Injection: pipeline-library software field (Class A) ──────────
+
+    #[test]
+    fn pipeline_library_software_flagged_high() {
+        let mut meta = camera_meta();
+        meta.software = Some("Pillow 10.2.0".into());
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "software_pipeline_library");
+        assert!(
+            finding.is_some(),
+            "Pillow should be flagged as pipeline library"
+        );
+        assert_eq!(finding.unwrap().severity, Severity::High);
+        assert_eq!(finding.unwrap().category, "injection");
+    }
+
+    #[test]
+    fn pipeline_library_imagemagick_flagged() {
+        let mut meta = camera_meta();
+        meta.software = Some("ImageMagick 7.1.1-11 Q16".into());
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        assert!(result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "software_pipeline_library"));
+    }
+
+    #[test]
+    fn pipeline_library_clean_camera_software_no_finding() {
+        // Edge case: genuine camera firmware should never trigger this rule.
+        let meta = camera_meta(); // "Canon EOS R5 Firmware 1.8.1"
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "software_pipeline_library"));
+    }
+
+    // ── Injection: templated timestamps (Class B) ─────────────────────
+
+    #[test]
+    fn canonical_template_timestamp_flagged_medium() {
+        let mut meta = camera_meta();
+        meta.datetime_original = Some("2024:01:01 12:00:00".into());
+        meta.datetime_modified = Some("2024:01:01 12:00:00".into());
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "timestamp_canonical_template");
+        assert!(finding.is_some());
+        assert_eq!(finding.unwrap().severity, Severity::Medium);
+    }
+
+    #[test]
+    fn identical_zero_second_pair_flagged_low() {
+        let mut meta = camera_meta();
+        meta.datetime_original = Some("2026:03:15 14:22:00".into());
+        meta.datetime_modified = Some("2026:03:15 14:22:00".into());
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "timestamp_templated_identical");
+        assert!(finding.is_some());
+        assert_eq!(finding.unwrap().severity, Severity::Low);
+    }
+
+    #[test]
+    fn genuine_timestamps_no_injection_finding() {
+        // Edge case: original and modified identical but with non-zero seconds → no flag.
+        let mut meta = camera_meta();
+        meta.datetime_original = Some("2026:03:15 14:22:37".into());
+        meta.datetime_modified = Some("2026:03:15 14:22:37".into());
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "timestamp_templated_identical"
+                || f.check_id == "timestamp_canonical_template"));
+    }
+
+    // ── Injection: integer-degree GPS (Class C) ───────────────────────
+
+    #[test]
+    fn integer_degree_gps_flagged() {
+        let mut meta = camera_meta();
+        meta.gps_latitude = Some(51.0);
+        meta.gps_longitude = Some(-1.0);
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "gps_integer_degrees");
+        assert!(finding.is_some());
+        assert_eq!(finding.unwrap().severity, Severity::Medium);
+    }
+
+    #[test]
+    fn realistic_gps_no_integer_finding() {
+        let meta = camera_meta(); // 51.5074, -0.1278
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "gps_integer_degrees"));
+    }
+
+    #[test]
+    fn integer_gps_null_island_not_double_flagged() {
+        // Edge case: (0, 0) should hit gps_null_island but not gps_integer_degrees.
+        let mut meta = camera_meta();
+        meta.gps_latitude = Some(0.0);
+        meta.gps_longitude = Some(0.0);
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        assert!(result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "gps_null_island"));
+        assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "gps_integer_degrees"));
+    }
+
+    // ── Injection: MakerNote missing on mandatory vendor (Class D) ────
+
+    #[test]
+    fn canon_without_maker_note_flagged() {
+        let mut meta = camera_meta();
+        meta.camera_make = Some("Canon".into());
+        meta.has_maker_note = false;
+        meta.maker_note_length = 0;
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "maker_note_mandatory_vendor_missing");
+        assert!(finding.is_some());
+        assert_eq!(finding.unwrap().severity, Severity::Medium);
+    }
+
+    #[test]
+    fn canon_with_maker_note_no_injection_finding() {
+        let meta = camera_meta(); // has_maker_note=true, length=2048
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "maker_note_mandatory_vendor_missing"));
+    }
+
+    #[test]
+    fn pixel_without_maker_note_not_flagged() {
+        // Edge case: smartphone vendors (Google Pixel) are deliberately excluded
+        // from the mandatory-vendor list because sharing platforms strip them.
+        let mut meta = empty_meta();
+        meta.camera_make = Some("Google".into());
+        meta.camera_model = Some("Pixel 8".into());
+        meta.has_maker_note = false;
+        let result = analyse(Some(&meta), None, None);
+        assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "maker_note_mandatory_vendor_missing"));
+    }
+
+    // ── Injection: iPhone colour space mismatch (Class E) ─────────────
+
+    #[test]
+    fn iphone_srgb_no_makernote_flagged() {
+        let mut meta = empty_meta();
+        meta.camera_make = Some("Apple".into());
+        meta.camera_model = Some("iPhone 15 Pro".into());
+        meta.color_space = Some("sRGB".into());
+        meta.has_maker_note = false;
+        let result = analyse(Some(&meta), None, None);
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "iphone_colour_space_mismatch");
+        assert!(finding.is_some());
+        assert_eq!(finding.unwrap().severity, Severity::Low);
+    }
+
+    #[test]
+    fn iphone_with_makernote_no_finding() {
+        let mut meta = empty_meta();
+        meta.camera_make = Some("Apple".into());
+        meta.camera_model = Some("iPhone 15 Pro".into());
+        meta.color_space = Some("sRGB".into());
+        meta.has_maker_note = true;
+        meta.maker_note_length = 4096;
+        let result = analyse(Some(&meta), None, None);
+        assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "iphone_colour_space_mismatch"));
+    }
+
+    #[test]
+    fn canon_srgb_no_iphone_finding() {
+        // Edge case: rule is iPhone-specific; a Canon with sRGB should not fire.
+        let mut meta = empty_meta();
+        meta.camera_make = Some("Canon".into());
+        meta.camera_model = Some("EOS R5".into());
+        meta.color_space = Some("sRGB".into());
+        meta.has_maker_note = false;
+        let result = analyse(Some(&meta), None, None);
+        assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "iphone_colour_space_mismatch"));
     }
 }
