@@ -622,19 +622,19 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Extracts feature descriptors from image patches and performs nearest-neighbour matching across all patch pairs. Matched pairs that are sufficiently separated in the image but have similar visual content are flagged as potential clone regions.
+                Extracts SIFT (Scale-Invariant Feature Transform) descriptors from image patches and performs nearest-neighbour self-matching with Lowe's ratio test. Matched pairs that are spatially separated but visually similar are filtered through RANSAC geometric verification and DBSCAN clustering to identify coherent clone regions.
               </dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What a positive finding means</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                One or more regions appear to have been copied from elsewhere in the same image. This is a reliable indicator of manual editing with a clone stamp or healing brush tool.
+                One or more regions appear to have been copied from elsewhere in the same image. This is a reliable indicator of manual editing with a clone stamp or healing brush tool. SIFT detects clones even when the copied region has been rotated or scaled before pasting.
               </dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Images with naturally repeating patterns — wallpaper, tiling, fabric, crowd scenes — may produce false matches. Very small images or images with few distinguishable features are also more susceptible.
+                Images with naturally repeating patterns — wallpaper, tiling, fabric, crowd scenes — may produce false matches, though Lowe's ratio test and RANSAC geometric verification significantly reduce these. Very small images or images with few distinguishable features are also more susceptible.
               </dd>
             </div>
             <div>
@@ -644,7 +644,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Uses ORB feature matching, which can miss small, rotated, or scaled copied regions. SIFT upgrade planned (patent expired 2020). Performance degrades on heavily compressed images where keypoints are destroyed.
+                Detection requires that the cloned region contains enough gradient structure for SIFT keypoints. Flat, low-texture regions (plain skies, smooth walls) may not yield enough keypoints to detect copying even when a forgery is present. Performance also degrades on heavily compressed images where keypoints are destroyed. Clones in images below approximately 128&times;128 pixels are not attempted.
               </dd>
             </div>
           </dl>
