@@ -1433,6 +1433,131 @@ impl Database {
     /// for any realistic case annotation while keeping the database lean.
     pub const MAX_CASE_NOTES_BYTES: usize = 10_000;
 
+    /// Insert a new event row for a monitored URL.
+    ///
+    /// Called by the scheduler after each automated check.  The `event_type`
+    /// should be one of `"check_ok"`, `"content_changed"`, `"c2pa_stripped"`,
+    /// `"c2pa_changed"`, `"watermark_missing"`, `"missing"`, or `"error"`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn insert_monitor_event(
+        &self,
+        url_id: &str,
+        event_type: &str,
+        content_hash: Option<&str>,
+        c2pa_valid: Option<bool>,
+        watermark_uuid: Option<&str>,
+        watermark_confidence: Option<f64>,
+        http_status: Option<i32>,
+        response_time_ms: Option<i32>,
+        detail_json: Option<&str>,
+    ) -> SqliteResult<MonitorEvent> {
+        let conn = self.conn.lock().unwrap();
+        let event_id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO monitor_events
+             (event_id, url_id, event_type, checked_at,
+              content_hash, c2pa_valid, watermark_uuid, watermark_confidence,
+              http_status, response_time_ms, case_status, detail_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'new', ?11)",
+            params![
+                event_id,
+                url_id,
+                event_type,
+                now,
+                content_hash,
+                c2pa_valid.map(|b| b as i32),
+                watermark_uuid,
+                watermark_confidence,
+                http_status,
+                response_time_ms,
+                detail_json,
+            ],
+        )?;
+        Ok(MonitorEvent {
+            event_id,
+            url_id: url_id.to_string(),
+            event_type: event_type.to_string(),
+            checked_at: now,
+            content_hash: content_hash.map(str::to_string),
+            c2pa_valid,
+            watermark_uuid: watermark_uuid.map(str::to_string),
+            watermark_confidence,
+            http_status,
+            response_time_ms,
+            case_status: "new".to_string(),
+            case_notes: None,
+            case_updated_at: None,
+        })
+    }
+
+    /// Update the denormalised summary columns on a `monitor_urls` row after a
+    /// scheduler check.  Also stamps `last_checked_at` and `updated_at`.
+    pub fn update_monitor_url_last_checked(
+        &self,
+        url_id: &str,
+        status: &str,
+        content_hash: Option<&str>,
+        c2pa_valid: Option<bool>,
+        watermark_match: Option<bool>,
+    ) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE monitor_urls
+             SET last_checked_at    = datetime('now'),
+                 last_status        = ?1,
+                 last_content_hash  = ?2,
+                 last_c2pa_valid    = ?3,
+                 last_watermark_match = ?4,
+                 updated_at         = datetime('now')
+             WHERE url_id = ?5",
+            params![
+                status,
+                content_hash,
+                c2pa_valid.map(|b| b as i32),
+                watermark_match.map(|b| b as i32),
+                url_id,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Return the most recent monitor event for a given URL, if any.
+    ///
+    /// Used by the scheduler to compute the elapsed time since the last check
+    /// without loading the full event list.
+    pub fn get_latest_monitor_event(&self, url_id: &str) -> SqliteResult<Option<MonitorEvent>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT event_id, url_id, event_type, checked_at,
+                    content_hash, c2pa_valid, watermark_uuid, watermark_confidence,
+                    http_status, response_time_ms,
+                    case_status, case_notes, case_updated_at
+             FROM monitor_events
+             WHERE url_id = ?1
+             ORDER BY checked_at DESC
+             LIMIT 1",
+        )?;
+        let mut rows = stmt.query_map(params![url_id], |row| {
+            Ok(MonitorEvent {
+                event_id: row.get(0)?,
+                url_id: row.get(1)?,
+                event_type: row.get(2)?,
+                checked_at: row.get(3)?,
+                content_hash: row.get(4)?,
+                c2pa_valid: row.get::<_, Option<i32>>(5)?.map(|v| v != 0),
+                watermark_uuid: row.get(6)?,
+                watermark_confidence: row.get(7)?,
+                http_status: row.get(8)?,
+                response_time_ms: row.get(9)?,
+                case_status: row.get(10)?,
+                case_notes: row.get(11)?,
+                case_updated_at: row.get(12)?,
+            })
+        })?;
+        rows.next().transpose()
+    }
+
     /// Update the case management status and optional notes on a monitor event.
     ///
     /// Also stamps `case_updated_at` with the current UTC time.

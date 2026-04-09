@@ -13,6 +13,7 @@ mod exif_anomaly;
 mod fingerprint;
 mod format_router;
 mod metadata;
+mod monitor_scheduler;
 pub mod sidecar;
 mod sun_position;
 mod watermark;
@@ -312,6 +313,11 @@ pub struct AppState {
     /// verify speed can turn it off, while users who want rich descriptions
     /// can keep it on.
     pub ai_description_enabled: Option<bool>,
+    /// Handle for the background URL watchlist scheduler (Monitor tab, paid tiers).
+    ///
+    /// `None` before the scheduler has been started.  Used in the
+    /// `RunEvent::Exit` handler to cleanly stop the task.
+    pub scheduler_handle: Option<monitor_scheduler::SchedulerHandle>,
 }
 
 /// Compute the SHA-256 hash of a file, returning a lowercase hex string.
@@ -4080,7 +4086,21 @@ pub fn run() {
                 sidecar_process: sidecar_child,
                 classifier_model_hash: classifier_hash,
                 ai_description_enabled,
+                scheduler_handle: None,
             }));
+
+            // ── URL watchlist scheduler (Monitor tab, paid tiers) ────────────
+            // Spawns a background task that wakes every 60 s and verifies any
+            // monitored URLs that are due for a check.  The handle is stored in
+            // AppState so the RunEvent::Exit handler can cancel it cleanly.
+            // On the Community tier the task idles without performing any checks.
+            {
+                let scheduler_state = shared_state.clone();
+                let handle = monitor_scheduler::spawn_scheduler(scheduler_state);
+                if let Ok(mut guard) = shared_state.lock() {
+                    guard.scheduler_handle = Some(handle);
+                }
+            }
 
             // ── Local REST API server (port 8300) ────────────────────────────
             // Spawned in the Tauri async runtime so it shares the tokio executor
@@ -4171,6 +4191,12 @@ pub fn run() {
                 // Kill the sidecar process when the app exits so it does not
                 // linger in the background consuming system resources.
                 if let Ok(mut state) = app.state::<Mutex<AppState>>().lock() {
+                    // Cancel the background URL watchlist scheduler.
+                    if let Some(handle) = state.scheduler_handle.take() {
+                        handle.cancel();
+                        log::info!("Monitor scheduler cancelled on app exit");
+                    }
+
                     if let Some(child) = state.sidecar_process.take() {
                         if let Err(e) = child.kill() {
                             log::warn!("Failed to kill sidecar on exit: {e}");
