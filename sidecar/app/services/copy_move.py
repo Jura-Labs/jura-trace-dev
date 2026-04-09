@@ -171,13 +171,25 @@ def perform_copy_move_detection(
     if _HAS_SKLEARN and len(good_pairs) >= 8:
         clone_regions = _cluster_matches(good_pairs, img_array.shape)
 
-    # Score: sigmoid of cloned area proportion, centred at 5%.
-    # Previous linear formula saturated at 1% cloned area. The sigmoid
-    # gives a gradual curve: 1%→0.27, 3%→0.38, 5%→0.50, 10%→0.78.
+    # Score: sigmoid of cloned area proportion, centred at 2%.
+    # Midpoint chosen to catch famous-fake small-object clones that the
+    # 5% midpoint missed:
+    #   - KCNA hovercraft landing (2013): multiple hovercraft duplicated
+    #     in a wide frame, each clone ~0.4% of image area.
+    #   - Kate Middleton family portrait (March 2024): clone-stamp edits
+    #     on a sleeve/hand, each edit well under 1% of image area.
+    # On the KCNA synthetic proxy the SIFT+RANSAC stack finds the clones
+    # correctly (14 inliers, 2 regions), but with midpoint=5% a 0.44%
+    # clone scored only 0.24 — below the 0.30 suspicious gate. With
+    # midpoint=2%, the same clone scores ~0.40 and fires correctly.
+    # FP-neutral at this value: re-ran on 75 authentic images from
+    # splice_calibration_150, FP rate remained 0.0% (verified 2026-04-07
+    # by ml-data-scientist agent). Lowe ratio (0.75), RANSAC min_inliers
+    # (8), and DBSCAN min_samples (8) are unchanged.
     total_area = img_array.shape[0] * img_array.shape[1]
     cloned_area = sum(r.area for r in clone_regions)
     cloned_ratio = cloned_area / total_area if total_area > 0 else 0.0
-    score = 1.0 / (1.0 + math.exp(-25.0 * (cloned_ratio - 0.05)))
+    score = 1.0 / (1.0 + math.exp(-25.0 * (cloned_ratio - 0.02)))
 
     suspicious = len(clone_regions) >= 2 and score > 0.3
 

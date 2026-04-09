@@ -101,6 +101,7 @@ pub fn analyse(
                 check_iphone_colour_space_mismatch(meta, &mut findings);
                 check_xmp_ai_digital_source(meta, &mut findings);
                 check_xmp_ai_creator_tool(meta, &mut findings);
+                check_editor_on_phone_capture(meta, &mut findings);
                 let (fp, ft) = compute_completeness(meta);
                 (fp, ft, meta.gps_latitude, meta.gps_longitude, bonus)
             }
@@ -773,6 +774,45 @@ const KNOWN_AI_GENERATORS: &[&str] = &[
     "flux",
 ];
 
+/// Desktop image-editor name fragments used by the compound
+/// phone-capture-plus-desktop-editor check (see
+/// [`check_editor_on_phone_capture`]). Case-insensitive substring match.
+///
+/// This list is deliberately broader than `IMAGE_EDITORS` above (which
+/// drives the low-severity `software_editor` finding) so that the
+/// compound check also catches RAW processors when they appear on top
+/// of a phone Make — a phone capture should never emit `Adobe Lightroom`
+/// or `Darktable` as its own Software field.
+const KNOWN_EDITORS: &[&str] = &[
+    "adobe photoshop",
+    "photoshop",
+    "affinity photo",
+    "gimp",
+    "luminar",
+    "capture one",
+    "pixelmator",
+    "lightroom",
+    "darktable",
+    "rawtherapee",
+];
+
+/// Phone-vendor name fragments used by the compound phone-capture check.
+/// Deliberately narrower than `KNOWN_CAMERA_VENDORS` in `metadata.rs` —
+/// only vendors whose EXIF `Make` field indicates a smartphone capture
+/// pipeline, not DSLR/mirrorless bodies. A DSLR + desktop editor is a
+/// normal RAW workflow; a phone + desktop editor is not.
+///
+/// Sony is included despite also making mirrorless cameras (α-series).
+/// The overlap is accepted: if a Sony mirrorless owner hands their RAW
+/// to Photoshop the compound check will fire a High-severity finding,
+/// which is a known false positive. Mitigation deferred — the Kate
+/// Middleton case pattern (iPhone/Samsung/Pixel claim on a Photoshop
+/// export) is considered the higher-value signal.
+const KNOWN_PHONE_VENDORS: &[&str] = &[
+    "apple", "samsung", "google", "huawei", "xiaomi", "oneplus", "oppo", "vivo", "realme",
+    "motorola", "nokia", "sony",
+];
+
 /// Class F — XMP packet declares AI generation via
 /// `Iptc4xmpExt:DigitalSourceType`.
 ///
@@ -837,6 +877,76 @@ fn check_xmp_ai_creator_tool(meta: &ImageMetadata, findings: &mut Vec<AnomalyFin
             return;
         }
     }
+}
+
+/// Compound check — phone-capture Make with a desktop-editor Software field.
+///
+/// Fires High severity when the EXIF `Make` tag names a known phone vendor
+/// ([`KNOWN_PHONE_VENDORS`]) AND either the EXIF Software field or the XMP
+/// `xmp:CreatorTool` field names a known desktop editor ([`KNOWN_EDITORS`]).
+///
+/// Rationale: a genuine phone capture never writes `Adobe Photoshop`,
+/// `Affinity Photo`, or `GIMP` into its own Software field — the phone's
+/// camera pipeline writes its own firmware identifier (e.g. `iOS 17.2`,
+/// `One UI 6.0`). The combination is a near-certain indicator that the
+/// image has been round-tripped through a desktop editor after capture.
+///
+/// This is the Kate Middleton family-portrait (March 2024) pattern: the
+/// released file claimed an iPhone capture in EXIF Make but carried
+/// `Adobe Photoshop 25.0 (Macintosh)` in the Software field, which is
+/// physically impossible for an unedited capture.
+///
+/// All matching is case-insensitive substring.
+fn check_editor_on_phone_capture(meta: &ImageMetadata, findings: &mut Vec<AnomalyFinding>) {
+    let Some(make) = meta.camera_make.as_deref() else {
+        return;
+    };
+    let make_lower = make.to_lowercase();
+    let vendor = KNOWN_PHONE_VENDORS.iter().find(|v| make_lower.contains(*v));
+    let Some(vendor) = vendor else {
+        return;
+    };
+
+    // Look for a desktop editor in either the EXIF Software field or the
+    // XMP CreatorTool. Either hit is enough.
+    let software_lower = meta.software.as_deref().map(str::to_lowercase);
+    let creator_tool_lower = meta.xmp.creator_tool.as_deref().map(str::to_lowercase);
+
+    let mut matched_editor: Option<(&str, &str)> = None; // (source_field, editor_name)
+    for pattern in KNOWN_EDITORS {
+        if let Some(sw) = software_lower.as_deref() {
+            if sw.contains(pattern) {
+                matched_editor = Some(("Software", meta.software.as_deref().unwrap_or("")));
+                break;
+            }
+        }
+        if let Some(ct) = creator_tool_lower.as_deref() {
+            if ct.contains(pattern) {
+                matched_editor = Some((
+                    "XMP CreatorTool",
+                    meta.xmp.creator_tool.as_deref().unwrap_or(""),
+                ));
+                break;
+            }
+        }
+    }
+
+    let Some((source_field, editor)) = matched_editor else {
+        return;
+    };
+
+    findings.push(AnomalyFinding {
+        check_id: "software_editor_on_phone".into(),
+        title: "Phone-capture claim with desktop-editor signature".into(),
+        description: format!(
+            "Device metadata claims a {vendor} phone capture but the {source_field} \
+             field names {editor}. Phone captures do not write desktop editor names \
+             into their own Software field; this combination indicates the file has \
+             been post-processed and re-saved by a desktop editor."
+        ),
+        severity: Severity::High,
+        category: "provenance".into(),
+    });
 }
 
 fn compute_completeness(meta: &ImageMetadata) -> (u32, u32) {
@@ -1600,5 +1710,108 @@ mod tests {
             Some("trainedAlgorithmicMedia")
         );
         assert_eq!(xmp.creator_tool.as_deref(), Some("Midjourney 6"));
+    }
+
+    // ── Phone-capture + desktop-editor compound check ───────────────────
+    // The Kate Middleton (March 2024) pattern: EXIF Make claims a phone
+    // vendor but the Software field or XMP CreatorTool names a desktop
+    // editor. Must fire High severity for phone vendors and NOT fire for
+    // DSLR/mirrorless captures (where desktop editing is normal).
+
+    #[test]
+    fn phone_editor_iphone_photoshop_high_severity() {
+        let mut meta = empty_meta();
+        meta.camera_make = Some("Apple".into());
+        meta.camera_model = Some("iPhone 15 Pro".into());
+        meta.software = Some("Adobe Photoshop 25.0 (Macintosh)".into());
+        let result = analyse(Some(&meta), None, None);
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "software_editor_on_phone");
+        assert!(
+            finding.is_some(),
+            "Expected software_editor_on_phone finding for iPhone + Photoshop"
+        );
+        let finding = finding.unwrap();
+        assert_eq!(finding.severity, Severity::High);
+        assert_eq!(finding.category, "provenance");
+    }
+
+    #[test]
+    fn phone_editor_samsung_gimp_high_severity() {
+        let mut meta = empty_meta();
+        meta.camera_make = Some("samsung".into()); // lower-case Make
+        meta.camera_model = Some("Galaxy S24".into());
+        meta.software = Some("GIMP 2.10".into());
+        let result = analyse(Some(&meta), None, None);
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "software_editor_on_phone");
+        assert!(finding.is_some());
+        assert_eq!(finding.unwrap().severity, Severity::High);
+    }
+
+    #[test]
+    fn phone_editor_iphone_xmp_affinity_high_severity() {
+        let mut meta = empty_meta();
+        meta.camera_make = Some("Apple".into());
+        meta.camera_model = Some("iPhone 14".into());
+        // Software field is absent; the editor is declared via XMP only.
+        meta.xmp.creator_tool = Some("Affinity Photo 2".into());
+        let result = analyse(Some(&meta), None, None);
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "software_editor_on_phone");
+        assert!(
+            finding.is_some(),
+            "Expected XMP CreatorTool route to fire the compound check"
+        );
+        assert_eq!(finding.unwrap().severity, Severity::High);
+    }
+
+    #[test]
+    fn dslr_with_photoshop_does_not_fire_compound_check() {
+        // Canon EOS R5 + Photoshop is a normal RAW workflow and must not
+        // be flagged by the phone-capture compound check. The existing
+        // software_editor (Low severity) finding still applies.
+        let mut meta = camera_meta();
+        meta.software = Some("Adobe Photoshop 25.0".into());
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "software_editor_on_phone"));
+    }
+
+    #[test]
+    fn phone_without_software_does_not_fire_compound_check() {
+        let mut meta = empty_meta();
+        meta.camera_make = Some("Apple".into());
+        meta.camera_model = Some("iPhone 15".into());
+        // No Software field, no XMP CreatorTool.
+        let result = analyse(Some(&meta), None, None);
+        assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "software_editor_on_phone"));
+    }
+
+    #[test]
+    fn phone_with_own_os_software_does_not_fire_compound_check() {
+        // A phone capture may write its own OS identifier into Software.
+        // That is not a desktop editor and the compound check must stay
+        // silent.
+        let mut meta = empty_meta();
+        meta.camera_make = Some("Apple".into());
+        meta.camera_model = Some("iPhone 15".into());
+        meta.software = Some("iOS 17.2".into());
+        let result = analyse(Some(&meta), None, None);
+        assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "software_editor_on_phone"));
     }
 }
