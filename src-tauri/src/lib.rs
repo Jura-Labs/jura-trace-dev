@@ -1923,9 +1923,24 @@ fn verify_content_inner(
     // returned null" from "detector was never run in this build / mode"
     // rather than inferring from field presence. See S28-5 migration.
     //
-    // Identifier vocabulary matches the detector IDs used by the frontend
-    // renderer; keep in sync with ui/src/lib/pdf.ts DETECTOR_THRESHOLDS
-    // and the methodology page detector reference list.
+    // ── CODEGEN CONTRACT ─────────────────────────────────────────────────
+    // The TypeScript "Not run in this analysis" PDF rows are generated from
+    // the MODE_MATRIX constant in src-tauri/src/bin/gen_detectors.rs, which
+    // is the single source of truth for the expected-detector matrix.
+    //
+    // When you ADD a detector here:
+    //   1. Add the push("your_new_id") below.
+    //   2. Add "your_new_id" to the appropriate rows in MODE_MATRIX inside
+    //      src-tauri/src/bin/gen_detectors.rs.
+    //   3. Run: cargo run --bin gen-detectors -- <repo-root>
+    //      (or `npm run predev` — it does this automatically).
+    //   4. Commit both files together.
+    //
+    // No other TypeScript edits are required — the PDF renderer will
+    // automatically reflect the new detector in the expected-detector rows.
+    //
+    // ID vocabulary is permanent (stored in SQLite schema v6 detectors_run
+    // column). Do not rename IDs without a database migration.
     let mut detectors_run_list: Vec<&'static str> = Vec::new();
     if exif_analysis.is_some() {
         detectors_run_list.push("exif_anomaly");

@@ -10,6 +10,17 @@ rust-version = "1.88"
 name = "jura_trace_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
+# ── Codegen binary ────────────────────────────────────────────────────────
+# Generates ui/src/lib/generated/expectedDetectors.ts from the Rust
+# MODE_MATRIX constant — the single source of truth for expected detectors
+# per (mode × content-type) combination.  Run via:
+#   cargo run --bin gen-detectors -- <repo-root>
+# or let `npm run predev` / `npm run prebuild` invoke it automatically.
+[[bin]]
+name = "gen-detectors"
+path = "src/bin/gen_detectors.rs"
+required-features = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

@@ -7,60 +7,20 @@ import { jsPDF } from 'jspdf';
 import type { VerificationResult, VerifyMode } from './types';
 import { getTrustLevel } from './types';
 import { DETECTOR_ID_LABELS } from './detectorLabels';
-
-// ── Expected detector IDs per (mode, content-type) combination ───────
-//
-// Used to label rows as "Not run in this analysis" when a detector is
-// expected for the mode/content-type but absent from result.detectorsRun.
-// On-demand detectors (npr, shadow_consistency, splice_boundary) are never
-// in the automatic pipeline, so they are not listed here.
-//
-// `quick` is a legacy alias for the minimal set; the UI no longer exposes
-// it but the backend still accepts it.
-type ContentCategory = 'image' | 'video' | 'audio' | 'document' | 'other';
-
-const EXPECTED_DETECTORS_BY_MODE: Record<
-  VerifyMode | 'quick',
-  Partial<Record<ContentCategory, string[]>>
-> = {
-  quick: {
-    image:    ['exif_anomaly', 'c2pa'],
-    video:    ['exif_anomaly', 'c2pa'],
-    audio:    ['exif_anomaly', 'c2pa'],
-    document: ['exif_anomaly', 'c2pa'],
-    other:    ['exif_anomaly', 'c2pa'],
-  },
-  standard: {
-    image:    ['exif_anomaly', 'c2pa', 'ela', 'deepfake', 'clip', 'watermark'],
-    video:    ['exif_anomaly', 'c2pa', 'video_deepfake', 'transcription'],
-    audio:    ['exif_anomaly', 'c2pa', 'transcription'],
-    document: ['exif_anomaly', 'c2pa'],
-    other:    ['exif_anomaly', 'c2pa'],
-  },
-  deep: {
-    image:    ['exif_anomaly', 'c2pa', 'ela', 'noise', 'copy_move', 'deepfake',
-               'jpeg_ghost', 'segmented_ela', 'colour_temperature', 'clip', 'watermark'],
-    video:    ['exif_anomaly', 'c2pa', 'video_deepfake', 'transcription'],
-    audio:    ['exif_anomaly', 'c2pa', 'transcription'],
-    document: ['exif_anomaly', 'c2pa'],
-    other:    ['exif_anomaly', 'c2pa'],
-  },
-  archival: {
-    image:    ['exif_anomaly', 'c2pa', 'ela', 'noise', 'copy_move', 'deepfake',
-               'jpeg_ghost', 'segmented_ela', 'colour_temperature', 'clip', 'watermark'],
-    video:    ['exif_anomaly', 'c2pa', 'video_deepfake', 'transcription'],
-    audio:    ['exif_anomaly', 'c2pa', 'transcription'],
-    document: ['exif_anomaly', 'c2pa'],
-    other:    ['exif_anomaly', 'c2pa'],
-  },
-};
+// ── Single source of truth for the expected-detector matrix ──────────────
+// Generated from src-tauri/src/bin/gen_detectors.rs (MODE_MATRIX const).
+// DO NOT edit this import or the file it points to by hand — run:
+//   cargo run --bin gen-detectors -- <repo-root>
+// or let `npm run predev` / `npm run prebuild` regenerate it automatically.
+import { EXPECTED_DETECTORS_BY_MODE } from './generated/expectedDetectors';
+import type { ContentCategory } from './generated/expectedDetectors';
 
 /**
  * Resolve the expected detector IDs for a given mode and content-type string.
  * Returns an empty array when the combination is unrecognised.
  */
 function expectedDetectors(mode: string | undefined, contentType: string | undefined): string[] {
-  const m = (mode ?? 'standard') as VerifyMode | 'quick';
+  const m = (mode ?? 'standard') as keyof typeof EXPECTED_DETECTORS_BY_MODE;
   const modeMap = EXPECTED_DETECTORS_BY_MODE[m] ?? EXPECTED_DETECTORS_BY_MODE.standard;
   const ct = (contentType ?? 'other') as ContentCategory;
   const key: ContentCategory = ['image', 'video', 'audio', 'document'].includes(ct) ? ct : 'other';
