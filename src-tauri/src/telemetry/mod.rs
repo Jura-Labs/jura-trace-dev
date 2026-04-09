@@ -219,7 +219,10 @@ pub fn telemetry_enabled() -> bool {
 /// this function.
 pub fn upload_report(report: &FpTelemetryReport) -> Result<(), String> {
     if !telemetry_enabled() {
-        log::debug!("Telemetry disabled — FP report {} not uploaded", report.report_id);
+        log::debug!(
+            "Telemetry disabled — FP report {} not uploaded",
+            report.report_id
+        );
         return Ok(());
     }
 
