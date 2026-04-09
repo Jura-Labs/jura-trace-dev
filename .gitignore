@@ -104,3 +104,9 @@ ui/bundle-stats.html
 .playwright-mcp/
 /*.png
 corpus/
+
+# ===== Generated calibration corpora (local only, never commit) =====
+# Splice test sets are generated locally from CC-BY sources.
+# They are large (~150 JPEG files) and fully reproducible via build_splice_corpus.py.
+models/splice_calibration_150/
+models/splice_calibration_*/
