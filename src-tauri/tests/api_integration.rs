@@ -38,6 +38,7 @@ fn build_test_state() -> (Arc<Mutex<AppState>>, tempfile::TempDir) {
         sidecar_process: None,
         classifier_model_hash: None,
         ai_description_enabled: None,
+        scheduler_handle: None,
     };
 
     (Arc::new(Mutex::new(state)), dir)
