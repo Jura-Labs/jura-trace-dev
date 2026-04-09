@@ -314,44 +314,57 @@
     </p>
 
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
-      The reference is divided into two groups. The twelve <strong class="text-text-light dark:text-quartz font-medium">automatic detectors</strong>
+      The reference is divided into three groups. The twelve <strong class="text-text-light dark:text-quartz font-medium">automatic detectors</strong>
       run on every verification at the mode indicated in each entry's
       <em>Active in modes</em> line — their findings feed into the numeric trust
-      score. Below them, a visually distinct panel lists the three
+      score. Below them, a lapis-tinted block lists the
+      <strong class="text-text-light dark:text-quartz font-medium">knowledge base retrieval aid</strong>:
+      an advisory tool that runs automatically on audio and video content but
+      does not contribute to the trust score. Finally, an amber-tinted panel
+      lists the three
       <strong class="text-text-light dark:text-quartz font-medium">on-demand investigation tools</strong>:
       these are available in Expert View and can be triggered manually when the
       automatic signals are ambiguous or when a specific question needs a targeted
-      probe. On-demand tools do <strong class="text-text-light dark:text-quartz font-medium">not</strong>
-      contribute to the numeric trust score.
+      probe. Neither the knowledge base aid nor the on-demand tools contribute to
+      the numeric trust score.
     </p>
 
     <!--
-      Detector lineup after Sprint 28 tech-debt audit (April 2026):
+      Detector lineup after Sprint 28 tech-debt audit (April 2026) and the
+      S28 follow-up Option 2 reconciliation (April 2026):
 
-      Automatic (in trust scoring) — renumbered consecutively S28-FU7:
+      Automatic (in trust scoring) — 12 detectors, matching the Rust
+      detectors_run writer vocabulary in src-tauri/src/lib.rs and the
+      TypeScript DETECTOR_ID_LABELS map in ui/src/lib/detectorLabels.ts
+      (modulo `transcription` which is preprocessing infrastructure, not
+      a forensic detector, and so lives only in detectorLabels for DB
+      recording purposes):
         1. EXIF Anomaly
         2. C2PA Provenance
         3. ELA
         4. Noise Analysis
         5. Copy-Move
         6. AI Generation (GBM v4 + UnivFD v8 ensemble)
-        7. JPEG Ghost (0.5× weight — S28-4; was #9 before CA removal)
-        8. Segmented ELA (was #10)
-        9. Colour Temperature (was #12)
-        10. CLIP Detection (optional, blends into ensemble; was #14)
-        11. RAG Claim Checker / Knowledge Base Retrieval (was #15)
-        12. Video Deepfake (video only; was #16)
+        7. JPEG Ghost (0.5× weight — S28-4)
+        8. Segmented ELA
+        9. Colour Temperature
+        10. CLIP Detection (blends into the AI ensemble)
+        11. Watermark Extraction (AI-generator + Jura Trace protective)
+        12. Video Deepfake (video only)
+
+      Knowledge base retrieval aid (advisory, NOT in trust scoring):
+        Claim checker — formerly RAG Claim Checker, reframed in
+        commit 4e4af0d. Moved out of the automatic detectors list
+        in the S28 follow-up because it is a retrieval-match
+        assessment, not a forensic signal.
 
       On-demand investigation tools (NOT in trust scoring):
-        7. NPR — demoted S28-3 (April 2026)
-        11. Shadow Consistency — demoted April 2026
-        13. Splice Boundary — demoted April 2026
-
-      Investigative aid (separate category, not a forensic detector):
-        15. Knowledge Base Retrieval (formerly RAG Claim Checker)
+        NPR — demoted S28-3 (April 2026)
+        Shadow Consistency — demoted April 2026
+        Splice Boundary — demoted April 2026
 
       Removed entirely:
-        8. Chromatic Aberration — S28-1 (April 2026), audit 1/5 accuracy
+        Chromatic Aberration — S28-1 (April 2026), audit 1/5 accuracy
         Diffusion artefacts — S28-2 (April 2026), superseded by UnivFD v8
         Seasonal indicators — Sprint 27 April 2026, pseudoscience
         Weather cross-reference — Sprint 27 April 2026, was browser-mock
@@ -916,7 +929,7 @@
         </div>
       </details>
 
-      <!-- 11. RAG Claim Checker -->
+      <!-- 11. Watermark Extraction -->
       <details class="group rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite">
         <summary
           class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none
@@ -924,10 +937,7 @@
         >
           <span class="flex items-center gap-3">
             <span class="text-xs font-mono tabular-nums text-flint dark:text-flint-light w-5 flex-shrink-0" aria-hidden="true">11</span>
-            <span class="font-medium text-sm text-text-light dark:text-quartz">
-              RAG Claim Checker
-              <span class="ml-1.5 text-xs font-normal text-flint dark:text-flint-light">(optional — requires Ollama)</span>
-            </span>
+            <span class="font-medium text-sm text-text-light dark:text-quartz">Watermark Extraction</span>
           </span>
           <span class="flex-shrink-0 text-xs text-flint dark:text-flint-light select-none">
             <span class="hidden group-open:inline">Close</span>
@@ -939,35 +949,35 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Factual claims made in audio or video content, checked against a local knowledge base. This detector does not assess visual authenticity — it assesses whether speech content is consistent with verifiable facts.
+                The presence of invisible frequency-domain watermarks embedded in an image — either AI-generator fingerprints (Stable Diffusion, SDXL, Google Imagen) or Jura Trace protective watermarks added by the Protect workflow to track institutional content.
               </dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Audio tracks are transcribed locally via the faster-whisper model. Discrete factual claims are extracted from the transcript. Each claim is evaluated against a local knowledge base using TF-IDF retrieval (no web access), and a Qwen2.5 language model running via Ollama produces a verdict: supported, disputed, unverified, or unavailable. All processing occurs entirely on-device.
+                For each supported watermark scheme, the detector reads the relevant frequency-domain coefficients and attempts to recover the embedded bit pattern. A successful extraction produces a payload (or opaque signature) and a confidence score. Jura Trace watermarks use a DWT-DCT-SVD scheme and survive JPEG Q70+ recompression, resize, and 30% cropping. AI-generator watermarks are matched against known signature banks for each supported model family.
               </dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What a positive finding means</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                One or more claims in the audio content conflict with material in the local knowledge base. A disputed finding does not prove the claim is false — the knowledge base may be incomplete on the topic in question.
+                A known AI-generator watermark is one of the strongest possible indicators of synthetic content — these schemes are deliberately embedded by the generator and typically only removable by heavy post-processing. A Jura Trace watermark is positive confirmation that the image was processed by an institution using this tool and has not been substantially altered since protection.
               </dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                The local knowledge base is a small preliminary corpus covering a limited domain. Claims about topics not represented in the corpus return <em>insufficient context</em> &mdash; the tool does not reason from its training data about claims the corpus cannot support. This is a retrieval match, not a fact-check; see the <a href="/help/model-cards#kb-retrieval" class="text-lapis dark:text-lapis-light underline hover:no-underline">model card</a> for scope, limitations, and the explicit non-warranty. Transcription errors may also lead to incorrect claim extraction.
+                Frequency-domain noise in heavily-compressed or noisy images can occasionally produce byte patterns that resemble watermark payloads. The confidence check requires printable character ratios and byte diversity above empirical thresholds to reduce this. Non-supported AI generators cannot be detected; absence of a watermark is not evidence of authenticity.
               </dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint dark:text-flint-light">Deep &#183; Archival — only when Ollama is running and faster-whisper is installed</dd>
+              <dd class="text-flint dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Requires Ollama running locally with a Qwen2.5 model downloaded. Knowledge base is limited to ~150 passages across 6 documents — claims outside this domain cannot be verified. Accuracy depends on transcription quality (faster-whisper). Not a replacement for professional fact-checking — results indicate consistency with the local knowledge base only.
+                Only detects watermark schemes for which Jura Trace has an extractor. New generator families are added in quarterly updates. Aggressive cropping (&gt;30% by area), strong blurring, or re-encoding through lossy formats other than JPEG (e.g. heavy AVIF quantisation) can destroy the watermark signal.
               </dd>
             </div>
           </dl>
@@ -1028,6 +1038,98 @@
           </dl>
         </div>
       </details>
+
+      <!--
+        Knowledge base retrieval aid — advisory block, not a forensic detector.
+
+        Reframed from the original RAG Claim Checker in commit 4e4af0d.
+        Moved out of the automatic detectors list in the Sprint 28 follow-up
+        reconciliation: this is not a forensic signal and does not contribute
+        to the numeric trust score. It runs automatically on audio/video
+        content in Deep and Archival modes when Ollama and faster-whisper are
+        present, but its output is rendered separately from the detector
+        verdicts and has an explicit non-warranty statement on the model
+        card. Visually distinct from the on-demand panel below (lapis-tinted,
+        advisory) versus the amber-tinted on-demand block which gates manual
+        investigation tools.
+      -->
+      <div
+        class="mt-8 rounded-lg border border-lapis/30 dark:border-lapis/25 bg-lapis/[0.04] dark:bg-lapis/[0.06] p-4"
+        aria-labelledby="kb-aid-heading"
+      >
+        <h3
+          id="kb-aid-heading"
+          class="font-heading text-lg text-text-light dark:text-quartz mb-1 tracking-heading"
+        >
+          Knowledge base retrieval aid
+        </h3>
+
+        <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
+          An advisory tool that runs automatically on audio and video content
+          in Deep and Archival modes when Ollama and faster-whisper are
+          installed. It is
+          <strong class="font-medium text-text-light dark:text-quartz">not a forensic detector</strong>
+          and does
+          <strong class="font-medium text-text-light dark:text-quartz">not</strong>
+          contribute to the numeric trust score. Its output is displayed
+          separately from the verdict summary under its own &ldquo;Knowledge Base
+          Match&rdquo; panel.
+        </p>
+
+        <details class="group rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite">
+          <summary
+            class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis rounded"
+          >
+            <span class="flex items-center gap-3">
+              <span class="font-medium text-sm text-text-light dark:text-quartz">
+                Claim checker
+                <span class="ml-1.5 text-xs font-normal text-flint dark:text-flint-light">(requires Ollama + faster-whisper)</span>
+              </span>
+            </span>
+            <span class="flex-shrink-0 text-xs text-flint dark:text-flint-light select-none">
+              <span class="hidden group-open:inline">Close</span>
+              <span class="group-open:hidden">Details</span>
+            </span>
+          </summary>
+          <div class="px-4 pb-4 pt-3 border-t border-border-light dark:border-border-dark">
+            <dl class="space-y-3 text-sm">
+              <div>
+                <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
+                <dd class="text-flint dark:text-flint-light leading-relaxed">
+                  Whether factual claims made in audio or video content are consistent with a local knowledge base. It does not assess visual authenticity and it does not prove or disprove individual claims — it only reports retrieval matches against a small preliminary corpus.
+                </dd>
+              </div>
+              <div>
+                <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
+                <dd class="text-flint dark:text-flint-light leading-relaxed">
+                  Audio tracks are transcribed locally via faster-whisper. Discrete factual claims are extracted from the transcript. Each claim is evaluated against a local knowledge base using TF-IDF retrieval (no web access), and a Qwen2.5 language model running via Ollama produces a verdict in the vocabulary <em>consistent with KB</em> / <em>inconsistent with KB</em> / <em>insufficient context in KB</em>. All processing occurs entirely on-device.
+                </dd>
+              </div>
+              <div>
+                <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What the output means</dt>
+                <dd class="text-flint dark:text-flint-light leading-relaxed">
+                  A <em>consistent</em> match means the claim appears supported by passages already in the knowledge base. An <em>inconsistent</em> match means the claim directly contradicts material in the knowledge base. <em>Insufficient context</em> means the knowledge base does not cover the topic — the tool does not reason from the language model's training data. This is a retrieval assessment, not a fact-check.
+                </dd>
+              </div>
+              <div>
+                <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Non-warranty</dt>
+                <dd class="text-flint dark:text-flint-light leading-relaxed">
+                  The local knowledge base is a small preliminary corpus (~150 passages across 6 documents in the current build). It is
+                  <strong class="font-medium text-text-light dark:text-quartz">not</strong>
+                  a replacement for professional fact-checking. See the
+                  <a href="/help/model-cards#kb-retrieval" class="text-lapis dark:text-lapis-light underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">model card</a>
+                  for scope, limitations, and the explicit non-warranty. Transcription errors may also lead to incorrect claim extraction.
+                </dd>
+              </div>
+              <div>
+                <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
+                <dd class="text-flint dark:text-flint-light">Deep &#183; Archival — only when Ollama is running and faster-whisper is installed</dd>
+              </div>
+            </dl>
+          </div>
+        </details>
+      </div>
 
       <!-- On-demand investigation tools — visually distinct block -->
       <div
