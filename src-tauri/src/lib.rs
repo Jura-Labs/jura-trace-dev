@@ -16,6 +16,7 @@ mod metadata;
 mod monitor_scheduler;
 pub mod sidecar;
 mod sun_position;
+pub mod telemetry;
 mod watermark;
 
 #[cfg(feature = "api")]
