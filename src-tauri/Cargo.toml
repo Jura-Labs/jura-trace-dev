@@ -5,6 +5,12 @@ description = "Local-first content verification and protection. In a world of sy
 authors = ["Juralabs CIC"]
 edition = "2021"
 rust-version = "1.88"
+# With the introduction of the `gen-detectors` codegen binary (commit
+# 485856a), `cargo run` without a `--bin` flag can no longer pick a
+# default. Pin it to the main Tauri binary so `cargo tauri dev`,
+# `cargo run`, and the Makefile's `make dev-tauri` target all keep
+# working without needing to pass `--bin jura-trace` explicitly.
+default-run = "jura-trace"
 
 [lib]
 name = "jura_trace_lib"
