@@ -28,14 +28,24 @@
       });
     }
 
-    if (!quality.isJpeg && quality.resolutionCategory !== 'n/a') {
+    if (quality.isModernLossyCodec) {
+      w.push({
+        id: 'modern-lossy-codec',
+        text: 'This file uses a modern lossy codec (AVIF or WebP) that destroys the compression artefacts forensic detectors rely on. ELA, noise analysis, copy-move detection, and JPEG ghost are significantly degraded. If possible, obtain the original JPEG for a more reliable analysis.',
+      });
+    } else if (!quality.isJpeg && quality.resolutionCategory !== 'n/a') {
       w.push({
         id: 'non-jpeg',
         text: 'JPEG ghost analysis is not applicable to this file format.',
       });
     }
 
-    if (!quality.hasGps || !quality.hasTimestamp) {
+    if (quality.metadataCompletelyAbsent) {
+      w.push({
+        id: 'no-metadata',
+        text: 'No metadata found. Camera identification, timestamp verification, and provenance checks are unavailable. This is common for files downloaded from social media or converted between formats. If possible, obtain the original file with metadata intact.',
+      });
+    } else if (!quality.hasGps || !quality.hasTimestamp) {
       w.push({
         id: 'no-geo',
         text: 'No GPS coordinates or timestamp found in metadata. Sun position, weather cross-reference, and shadow time estimation are unavailable.',

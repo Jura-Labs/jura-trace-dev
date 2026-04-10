@@ -94,6 +94,16 @@ pub struct InputQualityAssessment {
     /// Whether EXIF GPS and timestamp data are present.
     pub has_gps: bool,
     pub has_timestamp: bool,
+    /// Whether the file uses a modern lossy codec (AVIF, WebP) that destroys
+    /// JPEG-specific compression artefacts and typically strips metadata in
+    /// web delivery pipelines. When true, ELA, noise analysis, copy-move
+    /// detection, and JPEG ghost are significantly degraded.
+    pub is_modern_lossy_codec: bool,
+    /// Whether the file contains no EXIF data AND no XMP data.
+    /// A strong indicator of metadata stripping via social media, CDN
+    /// processing, or format conversion (e.g. AVIF downloaded from the web).
+    /// When true, all provenance-based checks are unavailable.
+    pub metadata_completely_absent: bool,
     /// List of detector names with reduced reliability for this input.
     pub degraded_detectors: Vec<String>,
 }
@@ -922,17 +932,27 @@ fn detect_screenshot(
 ///
 /// Runs before detector dispatch — adds <5 ms to the pipeline. Returns an
 /// `InputQualityAssessment` containing the resolution category, JPEG quality
-/// estimate, screenshot likelihood, and a list of detectors whose results
-/// should be treated with reduced confidence for this input.
+/// estimate, screenshot likelihood, modern-codec flag, and a list of detectors
+/// whose results should be treated with reduced confidence for this input.
+///
+/// `raw_meta` is the raw EXIF/XMP extraction result — passed through so that
+/// the XMP packet can be inspected for the `metadata_completely_absent` check
+/// even when kamadak-exif found no EXIF fields.
 fn assess_input_quality(
     path: &std::path::Path,
     info: &format_router::FormatInfo,
     exif: &Option<exif_anomaly::ExifAnalysis>,
+    raw_meta: Option<&metadata::ImageMetadata>,
     width: Option<u32>,
     height: Option<u32>,
 ) -> InputQualityAssessment {
     let is_jpeg = info.mime_type == "image/jpeg";
     let is_image = info.content_type == format_router::ContentType::Image;
+
+    // Modern lossy codec detection — AVIF (AV1 intra-frame) and WebP (VP8/VP8L)
+    // re-quantise uniformly on encode, destroying differential ELA/noise signal.
+    // Both formats aggressively strip metadata in typical web delivery pipelines.
+    let is_modern_lossy_codec = matches!(info.mime_type.as_str(), "image/avif" | "image/webp");
 
     // JPEG quality estimation from file size heuristic
     let jpeg_quality_estimate = if is_jpeg {
@@ -963,10 +983,17 @@ fn assess_input_quality(
     };
 
     // EXIF GPS/timestamp presence
+    let has_exif = exif.as_ref().is_some_and(|e| e.has_exif);
     let has_gps = exif
         .as_ref()
         .is_some_and(|e| e.gps_latitude.is_some() && e.gps_longitude.is_some());
-    let has_timestamp = exif.as_ref().is_some_and(|e| e.has_exif);
+    let has_timestamp = has_exif;
+
+    // Metadata-completely-absent: no EXIF AND no XMP data.
+    // Delegates to exif_anomaly for XMP emptiness logic.
+    let metadata_completely_absent =
+        exif_anomaly::check_metadata_completely_absent(has_exif, raw_meta.map(|m| &m.xmp))
+            .is_some();
 
     // Build degraded detectors list
     let mut degraded = Vec::new();
@@ -994,6 +1021,13 @@ fn assess_input_quality(
         degraded.push("JPEG Ghost".to_string());
     }
 
+    if is_modern_lossy_codec {
+        degraded.push("ELA".to_string());
+        degraded.push("Noise Analysis".to_string());
+        degraded.push("Copy-Move Detection".to_string());
+        degraded.push("JPEG Ghost".to_string());
+    }
+
     if !has_gps || !has_timestamp {
         degraded.push("Sun Position".to_string());
         degraded.push("Shadow Time Estimation".to_string());
@@ -1012,6 +1046,8 @@ fn assess_input_quality(
         is_jpeg,
         has_gps,
         has_timestamp,
+        is_modern_lossy_codec,
+        metadata_completely_absent,
         degraded_detectors: degraded,
     }
 }
@@ -1110,12 +1146,18 @@ fn verify_content_inner(
 
     // ── EXIF metadata extraction ─────────────────────────────────────────
     let t_exif = std::time::Instant::now();
+    // Hoist raw metadata out of the analysis block so it can be passed to
+    // assess_input_quality for XMP-presence checking (metadata_completely_absent).
+    let raw_exif_meta: Option<metadata::ImageMetadata> =
+        if info.content_type == format_router::ContentType::Image {
+            metadata::extract_exif(&path)
+        } else {
+            None
+        };
+
     // EXIF analysis (images only)
     let exif_analysis = if info.content_type == format_router::ContentType::Image {
-        let meta = metadata::extract_exif(&path);
-        let actual_w = img_w;
-        let actual_h = img_h;
-        let mut analysis = exif_anomaly::analyse(meta.as_ref(), actual_w, actual_h);
+        let mut analysis = exif_anomaly::analyse(raw_exif_meta.as_ref(), img_w, img_h);
 
         // Reduce missing-EXIF penalty for modern web codecs (AVIF, WebP, HEIC).
         // These formats routinely have EXIF stripped by CMS/CDN pipelines for
@@ -1146,6 +1188,22 @@ fn verify_content_inner(
             }
         }
 
+        // Inject metadata_completely_absent finding when applicable.
+        // This fires when both EXIF and XMP are absent — a stronger signal
+        // than the individual no_exif_data finding which fires on EXIF alone.
+        if let Some(absent_finding) = exif_anomaly::check_metadata_completely_absent(
+            analysis.has_exif,
+            raw_exif_meta.as_ref().map(|m| &m.xmp),
+        ) {
+            analysis.trust_score =
+                (analysis.trust_score - absent_finding.severity.deduction()).max(0.0);
+            analysis.findings.push(absent_finding);
+            // Re-sort: Critical first
+            analysis
+                .findings
+                .sort_by(|a, b| b.severity.cmp(&a.severity));
+        }
+
         Some(analysis)
     } else {
         None
@@ -1157,12 +1215,21 @@ fn verify_content_inner(
     // can reference EXIF presence. The assessment itself is pure computation
     // on already-cached data and adds <5 ms to the pipeline.
     let input_quality: Option<InputQualityAssessment> = if is_image {
-        let q = assess_input_quality(&path, &info, &exif_analysis, img_w, img_h);
+        let q = assess_input_quality(
+            &path,
+            &info,
+            &exif_analysis,
+            raw_exif_meta.as_ref(),
+            img_w,
+            img_h,
+        );
         log::info!(
-            "Input quality: resolution={}, jpeg_q={:?}, screenshot={}, degraded={:?}",
+            "Input quality: resolution={}, jpeg_q={:?}, screenshot={}, codec={}, meta_absent={}, degraded={:?}",
             q.resolution_category,
             q.jpeg_quality_estimate,
             q.is_screenshot_likely,
+            q.is_modern_lossy_codec,
+            q.metadata_completely_absent,
             q.degraded_detectors
         );
         Some(q)
@@ -5545,5 +5612,159 @@ mod tests {
         };
         assert!(!at_boundary.mismatch);
         assert!(over_boundary.mismatch);
+    }
+
+    // ── assess_input_quality — is_modern_lossy_codec ─────────────────────
+
+    /// AVIF files must set `is_modern_lossy_codec = true` and add the four
+    /// codec-degraded detectors to `degraded_detectors`.
+    #[test]
+    fn input_quality_avif_sets_modern_lossy_codec() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        // A minimal placeholder file — assess_input_quality only reads the
+        // MIME type from FormatInfo, not the actual file bytes.
+        let fake_avif = tmp.path().join("test.avif");
+        std::fs::write(&fake_avif, b"fake avif bytes for size heuristic only")
+            .expect("write fake avif");
+
+        let info = format_router::FormatInfo {
+            mime_type: "image/avif".to_string(),
+            content_type: format_router::ContentType::Image,
+        };
+        let exif: Option<exif_anomaly::ExifAnalysis> = None;
+        let quality = assess_input_quality(&fake_avif, &info, &exif, None, Some(1000), Some(800));
+
+        assert!(
+            quality.is_modern_lossy_codec,
+            "AVIF must set is_modern_lossy_codec = true"
+        );
+        assert!(
+            quality.degraded_detectors.contains(&"ELA".to_string()),
+            "ELA must be degraded for AVIF"
+        );
+        assert!(
+            quality
+                .degraded_detectors
+                .contains(&"JPEG Ghost".to_string()),
+            "JPEG Ghost must be degraded for AVIF"
+        );
+    }
+
+    /// JPEG files must NOT set `is_modern_lossy_codec`.
+    #[test]
+    fn input_quality_jpeg_not_modern_lossy_codec() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let fake_jpeg = tmp.path().join("test.jpg");
+        std::fs::write(&fake_jpeg, b"fake jpeg bytes for size heuristic only")
+            .expect("write fake jpeg");
+
+        let info = format_router::FormatInfo {
+            mime_type: "image/jpeg".to_string(),
+            content_type: format_router::ContentType::Image,
+        };
+        let exif: Option<exif_anomaly::ExifAnalysis> = None;
+        let quality = assess_input_quality(&fake_jpeg, &info, &exif, None, Some(2000), Some(1500));
+
+        assert!(
+            !quality.is_modern_lossy_codec,
+            "JPEG must not set is_modern_lossy_codec"
+        );
+    }
+
+    /// WebP files must also set `is_modern_lossy_codec = true`.
+    #[test]
+    fn input_quality_webp_sets_modern_lossy_codec() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let fake_webp = tmp.path().join("test.webp");
+        std::fs::write(&fake_webp, b"RIFF\x00\x00\x00\x00WEBPVP8 ").expect("write fake webp");
+
+        let info = format_router::FormatInfo {
+            mime_type: "image/webp".to_string(),
+            content_type: format_router::ContentType::Image,
+        };
+        let exif: Option<exif_anomaly::ExifAnalysis> = None;
+        let quality = assess_input_quality(&fake_webp, &info, &exif, None, Some(800), Some(600));
+
+        assert!(
+            quality.is_modern_lossy_codec,
+            "WebP must set is_modern_lossy_codec = true"
+        );
+    }
+
+    // ── assess_input_quality — metadata_completely_absent ────────────────
+
+    /// When has_exif = false and no raw_meta is provided, metadata_completely_absent
+    /// must be true.
+    #[test]
+    fn input_quality_metadata_absent_when_no_exif_no_raw_meta() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let fake_avif = tmp.path().join("stripped.avif");
+        std::fs::write(&fake_avif, b"fake avif content").expect("write");
+
+        let info = format_router::FormatInfo {
+            mime_type: "image/avif".to_string(),
+            content_type: format_router::ContentType::Image,
+        };
+        // has_exif = false (ExifAnalysis.has_exif driven by has_exif field)
+        let exif_analysis = Some(exif_anomaly::ExifAnalysis {
+            findings: vec![],
+            trust_score: 0.8,
+            fields_populated: 0,
+            fields_total: 16,
+            has_exif: false,
+            gps_latitude: None,
+            gps_longitude: None,
+            camera_authenticity_bonus: 0.0,
+        });
+        // No raw_meta → XMP treated as absent
+        let quality = assess_input_quality(
+            &fake_avif,
+            &info,
+            &exif_analysis,
+            None,
+            Some(800),
+            Some(600),
+        );
+
+        assert!(
+            quality.metadata_completely_absent,
+            "metadata_completely_absent must be true when EXIF and XMP are both absent"
+        );
+    }
+
+    /// When EXIF is present, metadata_completely_absent must be false.
+    #[test]
+    fn input_quality_metadata_not_absent_when_exif_present() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let fake_jpeg = tmp.path().join("with_exif.jpg");
+        std::fs::write(&fake_jpeg, b"fake jpeg content").expect("write");
+
+        let info = format_router::FormatInfo {
+            mime_type: "image/jpeg".to_string(),
+            content_type: format_router::ContentType::Image,
+        };
+        let exif_analysis = Some(exif_anomaly::ExifAnalysis {
+            findings: vec![],
+            trust_score: 0.9,
+            fields_populated: 12,
+            fields_total: 16,
+            has_exif: true,
+            gps_latitude: Some(51.5),
+            gps_longitude: Some(-0.1),
+            camera_authenticity_bonus: 0.8,
+        });
+        let quality = assess_input_quality(
+            &fake_jpeg,
+            &info,
+            &exif_analysis,
+            None,
+            Some(4000),
+            Some(3000),
+        );
+
+        assert!(
+            !quality.metadata_completely_absent,
+            "metadata_completely_absent must be false when EXIF is present"
+        );
     }
 }

@@ -380,6 +380,21 @@ export interface InputQualityAssessment {
   hasGps: boolean;
   /** Whether EXIF timestamp is present. */
   hasTimestamp: boolean;
+  /**
+   * Whether the file uses a modern lossy codec (AVIF or WebP) that destroys
+   * JPEG-specific compression artefacts relied upon by ELA, noise analysis,
+   * copy-move detection, and JPEG ghost. Both formats also aggressively strip
+   * metadata in typical web delivery pipelines.
+   */
+  isModernLossyCodec: boolean;
+  /**
+   * Whether the file contains no EXIF data AND no XMP data.
+   * A strong indicator of metadata stripping via social media, CDN processing,
+   * or format conversion (e.g. AVIF downloaded from the web). When true, all
+   * provenance-based checks (camera identification, timestamp verification,
+   * AI-provenance declaration) are unavailable.
+   */
+  metadataCompletelyAbsent: boolean;
   /** Detector names with reduced reliability for this input. */
   degradedDetectors: string[];
 }

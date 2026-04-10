@@ -146,6 +146,58 @@ pub fn analyse(
     }
 }
 
+/// Check whether the file contains no EXIF data AND no XMP data.
+///
+/// Returns `Some(AnomalyFinding)` when the file is fully metadata-free —
+/// a strong indicator of metadata stripping (social media upload, CDN
+/// processing, or aggressive format conversion such as AVIF/WebP re-encoding).
+/// Returns `None` when either EXIF or XMP data is present.
+///
+/// The finding severity is **Medium** rather than High: legitimate reasons
+/// for total metadata absence exist (screenshots, format conversions, and
+/// privacy-conscious sharing). The Medium level prevents this from
+/// dominating the trust score in borderline cases.
+///
+/// Callers should inject the returned finding into an existing
+/// `ExifAnalysis.findings` vec and recalculate `trust_score` if required,
+/// or simply surface it as an additional limitation warning.
+pub fn check_metadata_completely_absent(
+    has_exif: bool,
+    xmp: Option<&crate::metadata::XmpMetadata>,
+) -> Option<AnomalyFinding> {
+    if has_exif {
+        return None;
+    }
+
+    // XMP is considered empty when all tracked scalar fields are None
+    // and the edit-history stack is empty.
+    let xmp_empty = xmp.is_none_or(|x| {
+        x.digital_source_type.is_none()
+            && x.creator_tool.is_none()
+            && x.credit.is_none()
+            && x.creator.is_none()
+            && x.history.is_empty()
+    });
+
+    if !xmp_empty {
+        return None;
+    }
+
+    Some(AnomalyFinding {
+        check_id: "metadata_completely_absent".into(),
+        title: "No metadata found".into(),
+        description: "This file contains no EXIF metadata and no XMP metadata. All \
+                      provenance-based checks (camera identification, timestamp \
+                      verification, edit-history detection, AI-provenance declaration) \
+                      are unavailable. This pattern is common in files downloaded \
+                      from social media, converted between formats, or processed by \
+                      metadata-stripping tools."
+            .into(),
+        severity: Severity::Medium,
+        category: "provenance".into(),
+    })
+}
+
 /// Check whether the image carries an authentic camera MakerNote signature.
 ///
 /// MakerNotes are vendor-proprietary binary blobs embedded by camera firmware.
@@ -2185,6 +2237,57 @@ mod tests {
         assert_eq!(
             xmp.history[2].when.as_deref(),
             Some("2024-03-10T16:20:00+00:00")
+        );
+    }
+
+    // ── check_metadata_completely_absent ──────────────────────────────────
+
+    #[test]
+    fn metadata_completely_absent_fires_when_no_exif_and_no_xmp() {
+        // has_exif = false, xmp = None → finding must be returned
+        let finding = check_metadata_completely_absent(false, None);
+        assert!(
+            finding.is_some(),
+            "Finding must fire when EXIF absent and XMP is None"
+        );
+        let f = finding.unwrap();
+        assert_eq!(f.check_id, "metadata_completely_absent");
+        assert_eq!(f.severity, Severity::Medium);
+        assert_eq!(f.category, "provenance");
+    }
+
+    #[test]
+    fn metadata_completely_absent_fires_when_no_exif_and_empty_xmp() {
+        // has_exif = false, xmp = all-None struct → finding must be returned
+        let xmp = crate::metadata::XmpMetadata::default();
+        let finding = check_metadata_completely_absent(false, Some(&xmp));
+        assert!(
+            finding.is_some(),
+            "Finding must fire when EXIF absent and XMP struct is fully empty"
+        );
+    }
+
+    #[test]
+    fn metadata_completely_absent_suppressed_when_exif_present() {
+        // has_exif = true → finding must NOT fire regardless of XMP state
+        let finding = check_metadata_completely_absent(true, None);
+        assert!(
+            finding.is_none(),
+            "Finding must not fire when EXIF is present"
+        );
+    }
+
+    #[test]
+    fn metadata_completely_absent_suppressed_when_xmp_has_data() {
+        // has_exif = false but XMP has a creator_tool → finding must NOT fire
+        let xmp = crate::metadata::XmpMetadata {
+            creator_tool: Some("Adobe Firefly".into()),
+            ..Default::default()
+        };
+        let finding = check_metadata_completely_absent(false, Some(&xmp));
+        assert!(
+            finding.is_none(),
+            "Finding must not fire when XMP contains creator_tool data"
         );
     }
 
