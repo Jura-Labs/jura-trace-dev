@@ -769,7 +769,7 @@
       </p>
       <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
         Checks whether Ollama is running and whether the vision model (LLaVA) and text
-        model (Qwen2.5) are installed. These models are optional — all 16+ forensic
+        model (Qwen2.5) are installed. These models are optional — all 12 forensic
         detectors work without them. If Ollama is unavailable, the wizard confirms which
         features will be skipped.
       </p>
@@ -895,7 +895,7 @@
       </p>
       <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
         Includes all core verification and protection features: C2PA signing and verification,
-        perceptual fingerprinting, EXIF anomaly detection, the full set of 16+ forensic
+        perceptual fingerprinting, EXIF anomaly detection, the full set of 12 forensic
         detectors, PDF trust reports, and ZIP case exports. Community is the default tier for
         all pilot users.
       </p>

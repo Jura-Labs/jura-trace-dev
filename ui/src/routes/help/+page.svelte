@@ -65,7 +65,7 @@
     Documentation and Guidance
   </h1>
   <p class="text-base text-flint dark:text-flint-light leading-relaxed max-w-2xl">
-    Jura Trace runs 16+ forensic detectors to verify content authenticity and embeds
+    Jura Trace runs 12 forensic detectors to verify content authenticity and embeds
     tamper-evident credentials to protect your digital assets. These guides explain how
     each feature works, the methodology behind our analysis, and practical workflows for
     different use cases.

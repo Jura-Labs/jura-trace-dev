@@ -496,7 +496,7 @@
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
       The tool does <em>not</em> contribute to the forensic verdict or the numeric
       trust score. It is a distinct investigative aid displayed alongside the
-      forensic detectors, not one of the 16 forensic signals that make up the
+      forensic detectors, not one of the 12 forensic signals that make up the
       detection ensemble.
     </p>
 

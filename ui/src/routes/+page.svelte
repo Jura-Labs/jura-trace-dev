@@ -28,7 +28,7 @@
 
   <!-- Hero -->
   <section class="text-center py-16 pb-12">
-    <p class="text-xs text-flint dark:text-[#A09D95] uppercase tracking-widest mb-5">16+ forensic detectors. Everything stays on your device.</p>
+    <p class="text-xs text-flint dark:text-[#A09D95] uppercase tracking-widest mb-5">12 forensic detectors. Everything stays on your device.</p>
     <h1
       class="text-4xl font-heading text-text-light dark:text-quartz mb-5 font-normal"
       style="letter-spacing: -0.01em; line-height: 1.3;"
@@ -36,7 +36,7 @@
       Know What's Real
     </h1>
     <p class="text-base text-flint dark:text-[#9B9890] max-w-md mx-auto mb-3 leading-relaxed">
-      AI-generated content has made verification essential. Jura Trace gives you 16+ forensic detectors, C2PA provenance credentials, and invisible watermarking — all running locally, with no cloud and no accounts.
+      AI-generated content has made verification essential. Jura Trace gives you 12 forensic detectors, C2PA provenance verification, and invisible watermarking — all running locally, with no cloud and no accounts.
     </p>
   </section>
 
