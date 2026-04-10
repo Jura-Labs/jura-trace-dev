@@ -74,7 +74,7 @@ except ImportError:
 
 def perform_copy_move_detection(
     image_bytes: bytes,
-    max_features: int = 5000,
+    max_features: int = 12000,
     min_distance: float = 40.0,
     match_threshold: float = 0.75,
 ) -> CopyMoveResponse:
@@ -208,31 +208,61 @@ def perform_copy_move_detection(
 def _verify_geometric_consistency(
     pairs: list[tuple[cv2.KeyPoint, cv2.KeyPoint]],
     min_inliers: int = 8,
+    max_iterations: int = 10,
 ) -> list[tuple[cv2.KeyPoint, cv2.KeyPoint]]:
-    """Filter matched pairs to only those forming a geometrically consistent transform.
+    """Filter matched pairs using iterative (sequential) RANSAC.
 
-    Uses RANSAC to find an affine transformation between source and target
-    points. Only inlier pairs (consistent with a single geometric transform)
-    are retained. This eliminates spurious matches from repetitive textures
-    and codec artefacts.
+    A single RANSAC pass fits ONE global affine transform — it works when
+    there is one cloned region but fails on multi-clone forgeries where each
+    clone has a different spatial transform (e.g. three boats copy-pasted to
+    different positions). Iterative RANSAC fixes this:
+
+    1. Run RANSAC on the full pool → extract inliers for the best transform.
+    2. Remove those inliers from the pool.
+    3. Repeat on the remainder until no group of ≥ min_inliers is found or
+       max_iterations is reached.
+    4. Return ALL inliers from ALL iterations.
+
+    This is the standard "sequential RANSAC" / "multi-model RANSAC" approach
+    for scenes with multiple independent transformations. It was added after
+    the 'twins.avif' boats case study (April 2026) showed that the original
+    single-pass RANSAC found only 3 inliers despite 44 good descriptor
+    matches because no single clone dominated the pool.
     """
     if len(pairs) < min_inliers:
         return pairs
 
-    src_pts = np.float32([kp1.pt for kp1, _ in pairs]).reshape(-1, 1, 2)
-    dst_pts = np.float32([kp2.pt for _, kp2 in pairs]).reshape(-1, 1, 2)
+    all_verified: list[tuple[cv2.KeyPoint, cv2.KeyPoint]] = []
+    remaining = list(pairs)
 
-    _, inlier_mask = cv2.estimateAffinePartial2D(
-        src_pts, dst_pts,
-        method=cv2.RANSAC,
-        ransacReprojThreshold=5.0,
-    )
+    for _ in range(max_iterations):
+        if len(remaining) < min_inliers:
+            break
 
-    if inlier_mask is None:
-        return []
+        src_pts = np.float32([kp1.pt for kp1, _ in remaining]).reshape(-1, 1, 2)
+        dst_pts = np.float32([kp2.pt for _, kp2 in remaining]).reshape(-1, 1, 2)
 
-    verified = [p for p, m in zip(pairs, inlier_mask.flatten()) if m]
-    return verified if len(verified) >= min_inliers else []
+        _, inlier_mask = cv2.estimateAffinePartial2D(
+            src_pts, dst_pts,
+            method=cv2.RANSAC,
+            ransacReprojThreshold=5.0,
+        )
+
+        if inlier_mask is None:
+            break
+
+        inliers = [p for p, m in zip(remaining, inlier_mask.flatten()) if m]
+        if len(inliers) < min_inliers:
+            break
+
+        all_verified.extend(inliers)
+
+        # Remove inliers from the pool so the next iteration finds a
+        # different transform group.
+        inlier_set = set(id(p) for p in inliers)
+        remaining = [p for p in remaining if id(p) not in inlier_set]
+
+    return all_verified
 
 
 def _cluster_matches(
