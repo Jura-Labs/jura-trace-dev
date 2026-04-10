@@ -556,6 +556,28 @@ export interface AppStats {
   c2paSignedCount: number;
 }
 
+/** A single edit event from the XMP edit-history stack (xmpMM:History). */
+export interface XmpHistoryEvent {
+  /** The action performed: "created", "saved", "converted", etc. */
+  action: string;
+  /** The software agent (e.g. "Adobe Photoshop 25.0 (Macintosh)"). */
+  softwareAgent: string;
+  /** ISO 8601 timestamp of the action, if present. */
+  when?: string | null;
+  /** Additional parameters (e.g. "converted from image/jpeg to image/jpeg"). */
+  parameters?: string | null;
+}
+
+/** Parsed XMP metadata from an image */
+export interface XmpMetadata {
+  digitalSourceType?: string | null;
+  creatorTool?: string | null;
+  credit?: string | null;
+  creator?: string | null;
+  /** Parsed xmpMM:History edit-history stack. */
+  history: XmpHistoryEvent[];
+}
+
 /** Parsed EXIF metadata from an image */
 export interface ImageMetadata {
   cameraMake?: string;
@@ -576,6 +598,8 @@ export interface ImageMetadata {
   artist?: string;
   description?: string;
   orientation?: number;
+  /** Parsed XMP metadata including edit-history stack. */
+  xmp?: XmpMetadata;
 }
 
 /** C2PA manifest information read from a file */

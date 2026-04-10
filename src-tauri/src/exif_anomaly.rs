@@ -1,10 +1,12 @@
 //! EXIF anomaly detection — analyse image metadata for manipulation indicators.
 //!
-//! Performs seven categories of checks: software detection, missing EXIF,
+//! Performs eight categories of checks: software detection, missing EXIF,
 //! timestamp validation, dimension consistency, GPS plausibility, field
-//! completeness, and metadata-injection heuristics (templated timestamps,
+//! completeness, metadata-injection heuristics (templated timestamps,
 //! integer-degree GPS, pipeline-library software fields, compound MakerNote
-//! absence on mandatory-vendor cameras, and iPhone-sRGB colour-space mismatch).
+//! absence on mandatory-vendor cameras, and iPhone-sRGB colour-space mismatch),
+//! and XMP edit-history stack analysis (manipulation tool signatures and
+//! multi-save compound signals on phone captures).
 //! Returns a trust score (0.0–1.0) with findings.
 //!
 //! See `docs/design/exif-injection-detection.md` for the injection-detection
@@ -102,6 +104,8 @@ pub fn analyse(
                 check_xmp_ai_digital_source(meta, &mut findings);
                 check_xmp_ai_creator_tool(meta, &mut findings);
                 check_editor_on_phone_capture(meta, &mut findings);
+                check_xmp_history_manipulation_tool(meta, &mut findings);
+                check_xmp_history_multi_save_phone(meta, &mut findings);
                 let (fp, ft) = compute_completeness(meta);
                 (fp, ft, meta.gps_latitude, meta.gps_longitude, bonus)
             }
@@ -945,6 +949,157 @@ fn check_editor_on_phone_capture(meta: &ImageMetadata, findings: &mut Vec<Anomal
              been post-processed and re-saved by a desktop editor."
         ),
         severity: Severity::High,
+        category: "provenance".into(),
+    });
+}
+
+// ===== XMP history checks (Class H / H-alt) =====
+
+/// Tool-level manipulation signatures. Standard `xmpMM:History` uses
+/// XMP-defined action verbs (created, saved, converted, derived) and records
+/// the application name in `stEvt:softwareAgent` — NOT individual tool names.
+/// However, some pipelines and older Photoshop versions (pre-CS6) wrote
+/// tool-level detail into `stEvt:parameters` or custom history fields. When
+/// present, these are high-confidence manipulation indicators.
+///
+/// Case-insensitive substring matching is used against both `software_agent`
+/// and `parameters` fields.
+const MANIPULATION_TOOL_SIGNATURES: &[&str] = &[
+    "clone stamp",
+    "healing brush",
+    "spot healing",
+    "content-aware fill",
+    "content aware fill",
+    "patch tool",
+    "vanishing point",
+    "liquify",
+    "puppet warp",
+    "generative fill",
+    "generative expand",
+    "remove tool",
+];
+
+/// Class H — XMP history contains manipulation tool signatures.
+///
+/// Fires High severity when any `XmpHistoryEvent` in the history stack has
+/// a `software_agent` or `parameters` field that case-insensitively contains
+/// one of [`MANIPULATION_TOOL_SIGNATURES`]. Standard Photoshop `xmpMM:History`
+/// does NOT write tool names (it writes action verbs and the application name),
+/// so this check fires mainly on custom pipelines or older Photoshop versions
+/// that logged tool-level detail. When it does fire, the signal is very strong.
+fn check_xmp_history_manipulation_tool(meta: &ImageMetadata, findings: &mut Vec<AnomalyFinding>) {
+    if meta.xmp.history.is_empty() {
+        return;
+    }
+    for event in &meta.xmp.history {
+        let agent_lower = event.software_agent.to_lowercase();
+        let params_lower = event
+            .parameters
+            .as_deref()
+            .map(str::to_lowercase)
+            .unwrap_or_default();
+
+        for sig in MANIPULATION_TOOL_SIGNATURES {
+            if agent_lower.contains(sig) || params_lower.contains(sig) {
+                let source = if agent_lower.contains(sig) {
+                    format!("softwareAgent '{}'", event.software_agent)
+                } else {
+                    format!("parameters '{}'", event.parameters.as_deref().unwrap_or(""))
+                };
+                findings.push(AnomalyFinding {
+                    check_id: "xmp_history_manipulation_tool".into(),
+                    title: "XMP history names a manipulation tool".into(),
+                    description: format!(
+                        "The file's XMP edit-history stack contains an entry whose {source} \
+                         matches the manipulation tool signature '{sig}'. This is direct evidence \
+                         of content-altering edits (cloning, healing, or AI-assisted fill/removal)."
+                    ),
+                    severity: Severity::High,
+                    category: "provenance".into(),
+                });
+                return; // One finding is enough — avoid duplicates.
+            }
+        }
+    }
+}
+
+/// Class H-alt — XMP history shows multiple saves from a desktop editor
+/// after phone capture.
+///
+/// Fires Medium severity when:
+/// - The history has ≥3 `stEvt:action="saved"` entries (indicating multiple
+///   editing rounds, not a single auto-save)
+/// - AND at least one `stEvt:softwareAgent` names a known editor from
+///   [`KNOWN_EDITORS`]
+/// - AND the EXIF Make field matches a phone vendor from [`KNOWN_PHONE_VENDORS`]
+///
+/// This is a weaker but more reliable signal than Class H — it catches
+/// "phone photo edited many times in a desktop editor" without relying on
+/// Photoshop logging individual tool names, which standard `xmpMM:History`
+/// does not do.
+///
+/// DSLR + desktop editor is a normal RAW workflow and does NOT trigger this
+/// check.
+fn check_xmp_history_multi_save_phone(meta: &ImageMetadata, findings: &mut Vec<AnomalyFinding>) {
+    if meta.xmp.history.is_empty() {
+        return;
+    }
+
+    // Require phone vendor in EXIF Make.
+    let Some(make) = meta.camera_make.as_deref() else {
+        return;
+    };
+    let make_lower = make.to_lowercase();
+    let is_phone = KNOWN_PHONE_VENDORS.iter().any(|v| make_lower.contains(v));
+    if !is_phone {
+        return;
+    }
+
+    // Count "saved" actions.
+    let save_count = meta
+        .xmp
+        .history
+        .iter()
+        .filter(|e| e.action.eq_ignore_ascii_case("saved"))
+        .count();
+    if save_count < 3 {
+        return;
+    }
+
+    // Require at least one known desktop editor in a softwareAgent field.
+    let has_editor = meta.xmp.history.iter().any(|e| {
+        let agent_lower = e.software_agent.to_lowercase();
+        KNOWN_EDITORS.iter().any(|ed| agent_lower.contains(ed))
+    });
+    if !has_editor {
+        return;
+    }
+
+    // Extract the editor name for the finding description.
+    let editor_name = meta
+        .xmp
+        .history
+        .iter()
+        .find_map(|e| {
+            let agent_lower = e.software_agent.to_lowercase();
+            if KNOWN_EDITORS.iter().any(|ed| agent_lower.contains(ed)) {
+                Some(e.software_agent.clone())
+            } else {
+                None
+            }
+        })
+        .unwrap_or_default();
+
+    findings.push(AnomalyFinding {
+        check_id: "xmp_history_multi_save_phone".into(),
+        title: "Phone capture with multiple desktop editor saves".into(),
+        description: format!(
+            "The EXIF Make field claims a {make} phone capture, but the XMP edit-history \
+             stack contains {save_count} save actions from '{editor_name}'. Multiple \
+             editing rounds in a desktop editor on a phone capture suggests substantial \
+             post-processing beyond normal adjustments."
+        ),
+        severity: Severity::Medium,
         category: "provenance".into(),
     });
 }
@@ -1813,5 +1968,263 @@ mod tests {
             .findings
             .iter()
             .any(|f| f.check_id == "software_editor_on_phone"));
+    }
+
+    // ── XMP history: manipulation tool detection (Class H) ──────────
+
+    #[test]
+    fn xmp_history_clone_stamp_in_software_agent_flagged_high() {
+        let mut meta = empty_meta();
+        meta.xmp.history = vec![crate::metadata::XmpHistoryEvent {
+            action: "saved".into(),
+            software_agent: "Clone Stamp Tool v3".into(),
+            when: Some("2024-03-10T15:45:00+00:00".into()),
+            parameters: None,
+        }];
+        let result = analyse(Some(&meta), None, None);
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "xmp_history_manipulation_tool");
+        assert!(
+            finding.is_some(),
+            "Expected xmp_history_manipulation_tool finding for Clone Stamp in softwareAgent"
+        );
+        assert_eq!(finding.unwrap().severity, Severity::High);
+        assert_eq!(finding.unwrap().category, "provenance");
+    }
+
+    #[test]
+    fn xmp_history_content_aware_fill_in_parameters_flagged_high() {
+        let mut meta = empty_meta();
+        meta.xmp.history = vec![
+            crate::metadata::XmpHistoryEvent {
+                action: "created".into(),
+                software_agent: "Adobe Photoshop 25.0 (Macintosh)".into(),
+                when: Some("2024-03-10T14:30:00+00:00".into()),
+                parameters: None,
+            },
+            crate::metadata::XmpHistoryEvent {
+                action: "saved".into(),
+                software_agent: "Adobe Photoshop 25.0 (Macintosh)".into(),
+                when: Some("2024-03-10T15:45:00+00:00".into()),
+                parameters: Some("applied content-aware fill to selection".into()),
+            },
+        ];
+        let result = analyse(Some(&meta), None, None);
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "xmp_history_manipulation_tool");
+        assert!(
+            finding.is_some(),
+            "Expected finding for content-aware fill in parameters"
+        );
+        assert_eq!(finding.unwrap().severity, Severity::High);
+    }
+
+    // ── XMP history: multi-save phone compound (Class H-alt) ────────
+
+    #[test]
+    fn xmp_history_multi_save_phone_apple_photoshop_flagged_medium() {
+        let mut meta = empty_meta();
+        meta.camera_make = Some("Apple".into());
+        meta.camera_model = Some("iPhone 15 Pro".into());
+        meta.xmp.history = vec![
+            crate::metadata::XmpHistoryEvent {
+                action: "created".into(),
+                software_agent: "Adobe Photoshop 25.0".into(),
+                when: Some("2024-03-10T14:30:00+00:00".into()),
+                parameters: None,
+            },
+            crate::metadata::XmpHistoryEvent {
+                action: "saved".into(),
+                software_agent: "Adobe Photoshop 25.0".into(),
+                when: Some("2024-03-10T15:00:00+00:00".into()),
+                parameters: None,
+            },
+            crate::metadata::XmpHistoryEvent {
+                action: "saved".into(),
+                software_agent: "Adobe Photoshop 25.0".into(),
+                when: Some("2024-03-10T15:30:00+00:00".into()),
+                parameters: None,
+            },
+            crate::metadata::XmpHistoryEvent {
+                action: "saved".into(),
+                software_agent: "Adobe Photoshop 25.0".into(),
+                when: Some("2024-03-10T16:00:00+00:00".into()),
+                parameters: None,
+            },
+        ];
+        let result = analyse(Some(&meta), None, None);
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "xmp_history_multi_save_phone");
+        assert!(
+            finding.is_some(),
+            "Expected xmp_history_multi_save_phone finding for iPhone + 4 Photoshop saves"
+        );
+        assert_eq!(finding.unwrap().severity, Severity::Medium);
+    }
+
+    #[test]
+    fn xmp_history_multi_save_canon_photoshop_not_flagged() {
+        // DSLR + Photoshop is a normal workflow — must NOT trigger H-alt.
+        let mut meta = camera_meta(); // Canon EOS R5
+        meta.xmp.history = vec![
+            crate::metadata::XmpHistoryEvent {
+                action: "created".into(),
+                software_agent: "Adobe Photoshop 25.0".into(),
+                when: None,
+                parameters: None,
+            },
+            crate::metadata::XmpHistoryEvent {
+                action: "saved".into(),
+                software_agent: "Adobe Photoshop 25.0".into(),
+                when: None,
+                parameters: None,
+            },
+            crate::metadata::XmpHistoryEvent {
+                action: "saved".into(),
+                software_agent: "Adobe Photoshop 25.0".into(),
+                when: None,
+                parameters: None,
+            },
+            crate::metadata::XmpHistoryEvent {
+                action: "saved".into(),
+                software_agent: "Adobe Photoshop 25.0".into(),
+                when: None,
+                parameters: None,
+            },
+        ];
+        let result = analyse(Some(&meta), Some(8192), Some(5464));
+        assert!(
+            !result
+                .findings
+                .iter()
+                .any(|f| f.check_id == "xmp_history_multi_save_phone"),
+            "Canon + Photoshop must not trigger the phone compound check"
+        );
+    }
+
+    #[test]
+    fn xmp_history_only_created_and_saved_no_manipulation_finding() {
+        // Normal history: created + one save, no manipulation tool mentioned.
+        let mut meta = empty_meta();
+        meta.xmp.history = vec![
+            crate::metadata::XmpHistoryEvent {
+                action: "created".into(),
+                software_agent: "Adobe Photoshop 25.0 (Macintosh)".into(),
+                when: Some("2024-03-10T14:30:00+00:00".into()),
+                parameters: None,
+            },
+            crate::metadata::XmpHistoryEvent {
+                action: "saved".into(),
+                software_agent: "Adobe Photoshop 25.0 (Macintosh)".into(),
+                when: Some("2024-03-10T15:45:00+00:00".into()),
+                parameters: Some("/".into()),
+            },
+        ];
+        let result = analyse(Some(&meta), None, None);
+        assert!(
+            !result
+                .findings
+                .iter()
+                .any(|f| f.check_id == "xmp_history_manipulation_tool"),
+            "Normal created+saved history must not trigger Class H"
+        );
+    }
+
+    // ── XMP history parser (metadata::parse_xmp_packet integration) ──
+
+    #[test]
+    fn xmp_history_parser_extracts_three_events() {
+        let packet = br#"<?xml version="1.0"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/"
+           xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+           xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/"
+           xmlns:stEvt="http://ns.adobe.com/xap/1.0/sType/ResourceEvent#">
+  <rdf:RDF>
+    <rdf:Description rdf:about="">
+      <xmpMM:History>
+        <rdf:Seq>
+          <rdf:li stEvt:action="created"
+                  stEvt:softwareAgent="Adobe Photoshop 25.0 (Macintosh)"
+                  stEvt:when="2024-03-10T14:30:00+00:00"/>
+          <rdf:li stEvt:action="saved"
+                  stEvt:softwareAgent="Adobe Photoshop 25.0 (Macintosh)"
+                  stEvt:when="2024-03-10T15:45:00+00:00"
+                  stEvt:changed="/"/>
+          <rdf:li stEvt:action="saved"
+                  stEvt:softwareAgent="Adobe Photoshop 25.0 (Macintosh)"
+                  stEvt:when="2024-03-10T16:20:00+00:00"
+                  stEvt:changed="/"/>
+        </rdf:Seq>
+      </xmpMM:History>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>"#;
+        let xmp = crate::metadata::parse_xmp_packet(packet).expect("packet parses");
+        assert_eq!(xmp.history.len(), 3, "Expected 3 history events");
+        assert_eq!(xmp.history[0].action, "created");
+        assert_eq!(
+            xmp.history[0].software_agent,
+            "Adobe Photoshop 25.0 (Macintosh)"
+        );
+        assert_eq!(
+            xmp.history[0].when.as_deref(),
+            Some("2024-03-10T14:30:00+00:00")
+        );
+        assert_eq!(xmp.history[1].action, "saved");
+        assert_eq!(
+            xmp.history[1].when.as_deref(),
+            Some("2024-03-10T15:45:00+00:00")
+        );
+        assert_eq!(xmp.history[2].action, "saved");
+        assert_eq!(
+            xmp.history[2].when.as_deref(),
+            Some("2024-03-10T16:20:00+00:00")
+        );
+    }
+
+    #[test]
+    fn xmp_history_parser_handles_element_form() {
+        // Some XMP emitters write stEvt fields as child elements instead of
+        // attributes. The parser must handle both forms.
+        let packet = br#"<?xml version="1.0"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/"
+           xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+           xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/"
+           xmlns:stEvt="http://ns.adobe.com/xap/1.0/sType/ResourceEvent#">
+  <rdf:RDF>
+    <rdf:Description rdf:about="">
+      <xmpMM:History>
+        <rdf:Seq>
+          <rdf:li rdf:parseType="Resource">
+            <stEvt:action>created</stEvt:action>
+            <stEvt:softwareAgent>GIMP 2.10</stEvt:softwareAgent>
+            <stEvt:when>2024-05-01T10:00:00Z</stEvt:when>
+          </rdf:li>
+          <rdf:li rdf:parseType="Resource">
+            <stEvt:action>saved</stEvt:action>
+            <stEvt:softwareAgent>GIMP 2.10</stEvt:softwareAgent>
+            <stEvt:when>2024-05-01T10:30:00Z</stEvt:when>
+            <stEvt:parameters>applied clone stamp to region</stEvt:parameters>
+          </rdf:li>
+        </rdf:Seq>
+      </xmpMM:History>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>"#;
+        let xmp = crate::metadata::parse_xmp_packet(packet).expect("packet parses");
+        assert_eq!(xmp.history.len(), 2, "Expected 2 history events");
+        assert_eq!(xmp.history[0].action, "created");
+        assert_eq!(xmp.history[0].software_agent, "GIMP 2.10");
+        assert_eq!(xmp.history[1].action, "saved");
+        assert_eq!(
+            xmp.history[1].parameters.as_deref(),
+            Some("applied clone stamp to region")
+        );
     }
 }

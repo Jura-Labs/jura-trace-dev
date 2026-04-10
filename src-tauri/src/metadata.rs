@@ -15,6 +15,30 @@ use std::path::Path;
 /// is absent, malformed, or the specific field is missing. The parser is
 /// deliberately tolerant — it locates the `<x:xmpmeta>` envelope by byte
 /// search and extracts named fields via element / attribute matching.
+/// A single edit event from the XMP edit-history stack (`xmpMM:History`).
+///
+/// Adobe Photoshop and other editors write a sequence of `stEvt:` entries
+/// inside an `rdf:Seq` under `xmpMM:History`. Each entry records an action
+/// (created, saved, converted, etc.), the software agent, an ISO 8601
+/// timestamp, and optional parameters. Standard `xmpMM:History` actions
+/// use XMP-defined verbs (created, saved, converted, derived, printed) —
+/// individual tool names (Clone Stamp, Content-Aware Fill) are NOT part of
+/// the standard vocabulary but may appear in `stEvt:parameters` or in
+/// custom pipelines.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XmpHistoryEvent {
+    /// The action performed: "created", "saved", "converted", etc.
+    pub action: String,
+    /// The software agent that performed the action (e.g. "Adobe Photoshop 25.0 (Macintosh)").
+    pub software_agent: String,
+    /// ISO 8601 timestamp of the action, if present.
+    pub when: Option<String>,
+    /// Additional parameters (e.g. "converted from image/jpeg to image/jpeg",
+    /// or occasionally tool-level detail like "content-aware fill").
+    pub parameters: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct XmpMetadata {
@@ -37,6 +61,11 @@ pub struct XmpMetadata {
     /// `dc:creator` — author claim. When the source XMP stores this as an
     /// `rdf:Seq` / `rdf:Bag`, the first `<rdf:li>` value is captured.
     pub creator: Option<String>,
+    /// Parsed `xmpMM:History` edit-history stack. Each entry records one
+    /// action (created, saved, converted, etc.) with software agent and
+    /// timestamp. Empty when no history block is present.
+    #[serde(default)]
+    pub history: Vec<XmpHistoryEvent>,
 }
 
 /// Extracted metadata from an image file.
@@ -214,12 +243,14 @@ pub fn parse_xmp_packet(bytes: &[u8]) -> Option<XmpMetadata> {
         .or_else(|| extract_xmp_field(packet, "tiff:Software"));
     let credit = extract_xmp_field(packet, "photoshop:Credit");
     let creator = extract_dc_creator(packet);
+    let history = extract_xmp_history(packet);
 
     Some(XmpMetadata {
         digital_source_type,
         creator_tool,
         credit,
         creator,
+        history,
     })
 }
 
@@ -303,6 +334,122 @@ fn extract_dc_creator(packet: &str) -> Option<String> {
     } else {
         Some(value)
     }
+}
+
+/// Extract the `xmpMM:History` edit-history stack as a list of
+/// [`XmpHistoryEvent`] entries.
+///
+/// The history block is an `rdf:Seq` of `rdf:li` entries, each carrying
+/// `stEvt:action`, `stEvt:softwareAgent`, `stEvt:when`, `stEvt:parameters`,
+/// and optionally `stEvt:changed`. Fields appear as either XML attributes
+/// on the `<rdf:li>` element or as child elements — both forms are handled.
+fn extract_xmp_history(packet: &str) -> Vec<XmpHistoryEvent> {
+    // Locate the xmpMM:History block.
+    let history_start = match packet.find("<xmpMM:History") {
+        Some(pos) => pos,
+        None => return Vec::new(),
+    };
+    let history_end = match packet[history_start..].find("</xmpMM:History>") {
+        Some(pos) => history_start + pos,
+        None => {
+            // Try self-closing or truncated — no usable data.
+            return Vec::new();
+        }
+    };
+    let section = &packet[history_start..history_end];
+
+    let mut events = Vec::new();
+    let mut search_from = 0;
+
+    while let Some(li_start) = section[search_from..].find("<rdf:li") {
+        let abs_li_start = search_from + li_start;
+
+        // Find the end of this rdf:li — either self-closing or paired close.
+        let after_li = &section[abs_li_start..];
+        let (li_content, li_end_offset) = if let Some(sc) = find_self_close_or_close(after_li) {
+            sc
+        } else {
+            break;
+        };
+
+        let action = extract_stevt_field(li_content, "stEvt:action");
+        let software_agent = extract_stevt_field(li_content, "stEvt:softwareAgent");
+        let when = extract_stevt_field(li_content, "stEvt:when");
+        let parameters = extract_stevt_field(li_content, "stEvt:parameters");
+
+        events.push(XmpHistoryEvent {
+            action: action.unwrap_or_default(),
+            software_agent: software_agent.unwrap_or_default(),
+            when,
+            parameters,
+        });
+
+        search_from = abs_li_start + li_end_offset;
+    }
+
+    events
+}
+
+/// Find the extent of an `<rdf:li ...>` element — handles both self-closing
+/// (`/>`) and paired (`</rdf:li>`) forms. Returns `(content_slice, end_offset)`
+/// where `content_slice` is everything from the opening `<rdf:li` to the
+/// closing delimiter, and `end_offset` is the byte position just past the
+/// closing delimiter relative to the input.
+fn find_self_close_or_close(s: &str) -> Option<(&str, usize)> {
+    // Find the first `>` or `/>` after the tag name.
+    let mut pos = 0;
+    while pos < s.len() {
+        if s[pos..].starts_with("/>") {
+            // Self-closing: content is everything up to and including `/>`.
+            let end = pos + 2;
+            return Some((&s[..end], end));
+        } else if s[pos..].starts_with('>') {
+            // Paired element — look for `</rdf:li>`.
+            if let Some(close) = s[pos..].find("</rdf:li>") {
+                let end = pos + close + "</rdf:li>".len();
+                return Some((&s[..end], end));
+            } else {
+                // Malformed — no closing tag.
+                return None;
+            }
+        }
+        pos += 1;
+    }
+    None
+}
+
+/// Extract a single `stEvt:*` field from an `rdf:li` element's content.
+/// Handles both the attribute form (`stEvt:action="created"`) and the
+/// child-element form (`<stEvt:action>created</stEvt:action>`).
+fn extract_stevt_field(li_content: &str, qualified_name: &str) -> Option<String> {
+    // Attribute form: stEvt:action="value"
+    let attr_key = format!("{qualified_name}=\"");
+    if let Some(start) = li_content.find(&attr_key) {
+        let after = &li_content[start + attr_key.len()..];
+        if let Some(end) = after.find('"') {
+            let value = decode_xml_entities(after[..end].trim());
+            if !value.is_empty() {
+                return Some(value);
+            }
+        }
+    }
+    // Child-element form: <stEvt:action>value</stEvt:action>
+    let open_tag = format!("<{qualified_name}");
+    if let Some(start) = li_content.find(&open_tag) {
+        let after_open = &li_content[start + open_tag.len()..];
+        if let Some(gt) = after_open.find('>') {
+            let value_start = gt + 1;
+            let close_tag = format!("</{qualified_name}>");
+            if let Some(close) = after_open[value_start..].find(&close_tag) {
+                let raw = &after_open[value_start..value_start + close];
+                let value = decode_xml_entities(raw.trim());
+                if !value.is_empty() {
+                    return Some(value);
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Minimal XML entity decoder for the five predefined entities. XMP fields
