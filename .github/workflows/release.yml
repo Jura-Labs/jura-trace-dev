@@ -99,19 +99,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS Apple Silicon (M1/M2/M3)
-          - label: macOS (Apple Silicon)
-            runner: macos-latest
-            target: aarch64-apple-darwin
-            sidecar_name: jura-sidecar-aarch64-apple-darwin
-
-          # macOS Intel is intentionally removed from this matrix.
-          # GitHub is deprecating the macos-13 Intel runner (EOL Q3 2026) and
-          # it was causing intermittent cancellations. Intel Mac users can run
-          # the Apple Silicon build under Rosetta 2 without any user action.
-          # Universal binaries (x86_64 + aarch64 merged into one .app) are
-          # planned for Phase A (Sprint 19). Re-add this entry then by building
-          # with --target universal-apple-darwin via cargo-zigbuild or lipo.
+          # macOS Apple Silicon (M1/M2/M3) — paused for rc.18+
+          # Re-enable when Apple Developer ID certificate is configured.
+          # - label: macOS (Apple Silicon)
+          #   runner: macos-latest
+          #   target: aarch64-apple-darwin
+          #   sidecar_name: jura-sidecar-aarch64-apple-darwin
 
           # Windows x64 — produces both MSI and NSIS installers
           - label: Windows (x64)
@@ -121,9 +114,6 @@ jobs:
             sidecar_name: jura-sidecar-x86_64-pc-windows-msvc.exe
 
           # Linux x64 — paused (not under active testing, re-enable post-v1.0)
-          # ubuntu-22.04 is pinned (not ubuntu-latest) because Tauri's AppImage
-          # must link against the oldest available glibc to run on downstream
-          # distros; ubuntu-latest may bump glibc sooner than expected.
           # - label: Linux (x64)
           #   runner: ubuntu-22.04
           #   target: x86_64-unknown-linux-gnu

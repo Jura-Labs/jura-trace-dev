@@ -5,7 +5,7 @@
   "scripts": {
     "predev": "cargo run --manifest-path=../src-tauri/Cargo.toml --bin gen-detectors -- ..",
     "dev": "vite dev",
-    "prebuild": "cargo run --manifest-path=../src-tauri/Cargo.toml --bin gen-detectors -- ..",
+    "prebuild": "node -e \"const fs=require('fs'); if(!fs.existsSync('src/lib/generated/expectedDetectors.ts')){process.exit(1)}\" || cargo run --manifest-path=../src-tauri/Cargo.toml --bin gen-detectors -- ..",
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
