@@ -97,7 +97,15 @@ MANIFEST_VERSION = "1.0"
 # ---------------------------------------------------------------------------
 
 def collect_sources(source_root: Path, subdirs: list[str]) -> list[Path]:
-    """Recursively collect image files from the specified subdirectories."""
+    """Recursively collect image files from the specified subdirectories.
+
+    Filters out macOS AppleDouble resource-fork files (filenames prefixed
+    with '._'). These are sidecar files that macOS writes alongside real
+    images on non-HFS+ volumes (including the USB exFAT drive the training
+    corpus lives on). They have the same extension as real images but
+    cannot be opened by PIL. Earlier runs treated them as sources and
+    logged 455 false-positive errors per full corpus pass.
+    """
     images: list[Path] = []
     for subdir in subdirs:
         d = source_root / subdir
@@ -106,7 +114,9 @@ def collect_sources(source_root: Path, subdirs: list[str]) -> list[Path]:
             continue
         found = sorted(
             f for f in d.rglob("*")
-            if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
+            if f.is_file()
+            and f.suffix.lower() in IMAGE_EXTENSIONS
+            and not f.name.startswith("._")  # skip AppleDouble sidecars
         )
         images.extend(found)
         print(f"  {subdir}: {len(found)} images")
@@ -432,12 +442,26 @@ def main():
         print(f"  Limiting to pilot set: {len(all_sources)} images")
 
     # --- Disk space estimate ---
+    # Empirical multiplier calibrated from the 2026-04-11 full-corpus run:
+    # 11,573 source images × 3 variants produced 4.32 GB of output, against
+    # source files averaging ~3.9 MB each. Real variant-to-source ratio
+    # observed: ~0.07, not the 0.6 the original estimator used. The earlier
+    # 0.6 was copied from a rule-of-thumb for single-pass JPEG re-save and
+    # did not account for the 4:2:0 chroma subsampling + Q=75-85 target
+    # quality levels this pipeline uses.
     # Heuristic: augmented JPEGs typically 40-70% of source size after recompression.
     # Use 0.6 × source total × 3 variants as a conservative estimate.
     # We sample the first 20 source file sizes to estimate average.
     sample_sizes = [p.stat().st_size for p in all_sources[:20] if p.exists()]
     avg_source_bytes = sum(sample_sizes) / max(len(sample_sizes), 1)
-    estimated_bytes = int(avg_source_bytes * 0.6 * len(all_sources) * len(VARIANTS))
+    # Variant-to-source size ratio. Empirically calibrated from the
+    # 2026-04-11 full-corpus run (11,573 sources × 3 variants = 4.32 GB
+    # output vs ~3.9 MB avg source → observed ratio ~0.07). Using 0.10
+    # here as a defensive but realistic value — 0.6 was the legacy
+    # ballpark for single-pass JPEG re-save at unspecified quality and
+    # consistently overestimated by ~8x.
+    variant_size_ratio = 0.10
+    estimated_bytes = int(avg_source_bytes * variant_size_ratio * len(all_sources) * len(VARIANTS))
     safety_margin = int(estimated_bytes * 1.25)  # 25% headroom
 
     print(f"\n  Estimated disk usage: {estimated_bytes / (1024**3):.2f} GB")

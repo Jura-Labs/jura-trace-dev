@@ -65,13 +65,24 @@ TEST_FRACTION = 0.10
 # ---------------------------------------------------------------------------
 
 def collect_images(directory: str | Path) -> list[Path]:
+    """Collect image files, skipping macOS AppleDouble sidecars (._*).
+
+    The training corpus lives on an exFAT USB drive where macOS writes
+    AppleDouble resource-fork files alongside every real image. These
+    share the same file extension as real images but cannot be opened
+    by PIL. Filtering them at the collection stage eliminates a large
+    tail of FAILED messages in the CLIP extraction log without affecting
+    the training set size (they were never valid training inputs).
+    """
     d = Path(directory)
     if not d.exists():
         print(f"  WARNING: directory not found: {d}")
         return []
     return sorted(
         f for f in d.rglob("*")
-        if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
+        if f.is_file()
+        and f.suffix.lower() in IMAGE_EXTENSIONS
+        and not f.name.startswith("._")  # AppleDouble sidecars
     )
 
 
