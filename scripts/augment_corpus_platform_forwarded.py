@@ -355,7 +355,32 @@ def main():
         action="store_true",
         help="Skip disk space pre-flight check (use with caution)",
     )
+    parser.add_argument(
+        "--variants",
+        default=",".join(VARIANTS.keys()),
+        help=(
+            "Comma-separated variant subset to generate (default: all). "
+            "Choose from: plt75, plt85, plt2x. Use to cut disk usage when "
+            "the output volume cannot hold all three variants."
+        ),
+    )
     args = parser.parse_args()
+
+    # Filter VARIANTS to the requested subset. Mutates the module-level dict
+    # so all downstream consumers (estimator, worker pool, manifest writer)
+    # see the same subset consistently.
+    requested = {v.strip() for v in args.variants.split(",") if v.strip()}
+    unknown = requested - set(VARIANTS.keys())
+    if unknown:
+        print(f"\nERROR: Unknown variant tags: {sorted(unknown)}")
+        print(f"  Valid tags: {sorted(VARIANTS.keys())}")
+        sys.exit(1)
+    for tag in list(VARIANTS.keys()):
+        if tag not in requested:
+            del VARIANTS[tag]
+    if not VARIANTS:
+        print("\nERROR: No variants selected. Aborting.")
+        sys.exit(1)
 
     source_root = Path(args.source_root)
     output_root = Path(args.output_root)

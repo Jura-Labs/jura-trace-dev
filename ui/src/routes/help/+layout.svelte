@@ -36,11 +36,12 @@
   >
     <ul role="list" class="flex gap-1 min-w-max">
       {#each [
-        { href: '/help',             label: 'Getting Started' },
-        { href: '/help/protect',     label: 'Protect' },
-        { href: '/help/verify',      label: 'Verify' },
-        { href: '/help/monitor',     label: 'Monitor' },
-        { href: '/help/settings',    label: 'Settings' },
+        { href: '/help',                 label: 'Getting Started' },
+        { href: '/help/protect',         label: 'Protect' },
+        { href: '/help/bedrock-signing', label: 'Signing Modes' },
+        { href: '/help/verify',          label: 'Verify' },
+        { href: '/help/monitor',         label: 'Monitor' },
+        { href: '/help/settings',        label: 'Settings' },
         { href: '/help/methodology',        label: 'How Analysis Works' },
         { href: '/help/model-cards',        label: 'Model Cards' },
         { href: '/help/glossary',            label: 'Glossary' },
