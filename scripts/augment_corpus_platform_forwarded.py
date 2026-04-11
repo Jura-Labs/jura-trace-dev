@@ -150,17 +150,26 @@ def _augment_one(args_tuple) -> dict:
     Returns a dict with keys:
         source_path, source_hash, outputs (list of output records),
         skipped (bool), skip_reason (str|None), error (str|None)
+
+    Takes an explicit `variants_subset` so that child workers honour the
+    --variants filter. Child processes are spawned (macOS default), which
+    re-imports this module and resets the module-level VARIANTS dict, so
+    relying on a parent-side del on VARIANTS does not propagate. The
+    active subset must be passed through the worker payload explicitly.
     """
     (
         source_path_str,
         output_root_str,
         source_root_str,
         existing_hashes,   # dict variant_path_str -> source_hash for idempotency
+        variants_subset,   # list of variant tags to generate this run
     ) = args_tuple
 
     source_path = Path(source_path_str)
     output_root = Path(output_root_str)
     source_root = Path(source_root_str)
+    # Filter VARIANTS locally inside the worker using the passed subset.
+    active_variants = {tag: VARIANTS[tag] for tag in variants_subset if tag in VARIANTS}
 
     result = {
         "source_path": source_path_str,
@@ -216,7 +225,7 @@ def _augment_one(args_tuple) -> dict:
     parent_rel = rel.parent  # preserves subdir (e.g. authentic/coco/)
 
     outputs = []
-    for variant_tag, spec in VARIANTS.items():
+    for variant_tag, spec in active_variants.items():
         out_name = f"{stem}_{variant_tag}.jpg"
         out_path = output_root / parent_rel / out_name
         out_path_str = str(out_path)
@@ -452,8 +461,12 @@ def main():
     print(f"  Known completed variants: {len(existing_hashes)}")
 
     # --- Build worker arg tuples ---
+    # Pass the active variants_subset explicitly so child workers honour
+    # the --variants filter. Relying on the parent-side del on VARIANTS
+    # does not propagate through multiprocessing spawn (macOS default).
+    active_variants_list = list(VARIANTS.keys())
     worker_args = [
-        (str(src), str(output_root), str(source_root), existing_hashes)
+        (str(src), str(output_root), str(source_root), existing_hashes, active_variants_list)
         for src in all_sources
     ]
 
