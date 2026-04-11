@@ -662,10 +662,17 @@ fn compute_trust(
     // composite signal for single-JPEG-resave attacks that the UnivFD v8
     // probe (CLIP semantic) cannot see and the GBM v4 classifier only
     // partially catches via blocking_strength / dct_benford_div. Wired in
-    // at 0.5 weight (half of ELA/noise/copy-move) as a capped contribution.
-    // Parameter is positional-last to keep signature growth backwards-
+    // at 0.5 base weight (half of ELA/noise/copy-move) as a capped
+    // contribution; the effective weight is adjusted downward for
+    // heavily-compressed inputs — see backlog #15 and
+    // docs/calibration/s28-jpeg-ghost-weight.md §6.3.
+    // Parameters are positional-last to keep signature growth backwards-
     // compatible for tests that don't exercise JPEG Ghost scoring.
     jpeg_ghost_score: Option<f64>,
+    // Estimated JPEG quality factor (1–100). Used to compute the
+    // quality-adaptive effective weight for JPEG Ghost scoring.
+    // `None` for non-JPEG inputs — falls back to the 0.5 base weight.
+    jpeg_quality_estimate: Option<u8>,
 ) -> f64 {
     // C2PA that honestly declares AI generation should penalise trust — the
     // content's own provenance record confirms it is synthetic.  A valid
@@ -705,7 +712,26 @@ fn compute_trust(
         manipulation_signals.push((1.0 - s, 1.0));
     }
     if let Some(s) = jpeg_ghost_score {
-        manipulation_signals.push((1.0 - s, 0.5));
+        // Quality-adaptive weight for JPEG Ghost (backlog #15).
+        // Formula: 0.5 × (q / 100).max(0.3), where q is the estimated JPEG
+        // quality factor from the input quality assessment.
+        //
+        // Rationale (v3 corpus evidence, 2026-04-11):
+        //   • Q ≈ 95 (direct upload from camera): weight ≈ 0.475 — near full
+        //   • Q ≈ 75 (Twitter / WhatsApp re-encode): weight ≈ 0.375 — reduced
+        //   • Q ≤ 60 (heavy compression): weight = 0.30 (floor) — heavily
+        //     attenuated because platform re-encoding wipes differential ghost
+        //     signatures; p95 score for authentic heavily-compressed images
+        //     (0.349) exceeds many spliced subtypes, making the signal unreliable
+        //   • Non-JPEG / unknown quality: weight = 0.5 (no penalty — cannot judge)
+        //
+        // The 0.5 base constant is unchanged; only the quality factor scales it.
+        // See docs/calibration/s28-jpeg-ghost-weight.md §6.3.
+        let quality_factor = jpeg_quality_estimate
+            .map(|q| (f64::from(q) / 100.0).max(0.3))
+            .unwrap_or(1.0); // non-JPEG: full base weight (0.5 × 1.0 = 0.5)
+        let effective_weight = 0.5 * quality_factor;
+        manipulation_signals.push((1.0 - s, effective_weight));
     }
 
     let manipulation_trust = if manipulation_signals.is_empty() {
@@ -1968,6 +1994,7 @@ fn verify_content_inner(
             splice_boundary_score,
             ai_declared_by_c2pa,
             jpeg_ghost_score,
+            input_quality.as_ref().and_then(|q| q.jpeg_quality_estimate),
         )
     };
     log::info!("PERF: trust score computation took {:?}", t_trust.elapsed());
@@ -4330,6 +4357,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(trust > 0.85, "Expected >0.85, got {trust:.3}");
     }
@@ -4352,6 +4380,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(trust < 0.5, "Expected <0.5, got {trust:.3}");
     }
@@ -4374,6 +4403,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(trust > 0.50, "Expected >0.50, got {trust:.3}");
     }
@@ -4396,6 +4426,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(trust < 0.55, "Expected <0.55, got {trust:.3}");
     }
@@ -4418,6 +4449,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(
             trust_weighted > 0.55,
@@ -4442,6 +4474,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         let trust_with = compute_trust(
             Some(0.1),
@@ -4458,6 +4491,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(
             trust_with > trust_without,
@@ -4469,6 +4503,7 @@ mod tests {
     fn trust_no_forensics_falls_back_to_exif() {
         let trust = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false, None,
+            None,
         );
         assert!((trust - 0.8).abs() < 0.01, "Expected ~0.8, got {trust:.3}");
     }
@@ -4490,6 +4525,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(
             trust > 0.65,
@@ -4515,6 +4551,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(trust <= 1.0, "Trust exceeded 1.0: {trust:.3}");
     }
@@ -4540,6 +4577,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(
             trust <= 0.55,
@@ -4568,6 +4606,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(
             trust <= 0.25,
@@ -4593,6 +4632,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(
             trust <= 0.45,
@@ -4617,6 +4657,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(
             trust > 0.85,
@@ -4642,6 +4683,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(
             trust > 0.70,
@@ -4787,6 +4829,7 @@ mod tests {
             None, // no regional detectors
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(
             trust <= 0.55,
@@ -4866,6 +4909,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         let trust_without = compute_trust(
             Some(0.05),
@@ -4882,6 +4926,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(
             trust_with < trust_without,
@@ -4907,6 +4952,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(
             trust <= 0.55,
@@ -4934,6 +4980,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(
             trust <= 0.55,
@@ -4959,6 +5006,7 @@ mod tests {
             None,      // splice boundary — absent
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(
             trust > 0.55,
@@ -4984,6 +5032,7 @@ mod tests {
             Some(0.03),
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         let trust_no_regional = compute_trust(
             Some(0.04),
@@ -5000,6 +5049,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         // With all regional detectors clean the trust should be close to the
         // no-regional baseline (regional scores ≈ 0 contribute ~1.0 trust).
@@ -5029,6 +5079,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(
             trust <= 0.55,
@@ -5036,6 +5087,240 @@ mod tests {
         );
     }
 
+    // ── JPEG Ghost quality-adaptive weight tests (backlog #15) ───────────
+    // Validates the effective_weight = 0.5 × (q/100).max(0.3) formula.
+    // See docs/calibration/s28-jpeg-ghost-weight.md §6.3.
+    //
+    // IMPORTANT: the weight only affects trust when JPEG Ghost is combined
+    // with other manipulation signals (ELA / noise / copy-move) — the weighted
+    // average only fires when manipulation_signals.len() > 1. Tests that
+    // exercise the weight effect therefore include at least one other signal.
+
+    #[test]
+    fn trust_jpeg_ghost_quality_95_near_full_weight() {
+        // Q=95: quality_factor=0.95, effective_weight=0.475 vs base 0.5.
+        // With ELA also present (multi-signal path), the ghost weight matters.
+        // Expect trust at Q=95 to be very close to base (within 3pp).
+        let trust_q95 = compute_trust(
+            Some(0.1), // ELA clean — provides second signal so weighted-avg fires
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            Some(0.6), // JPEG Ghost suspicious
+            Some(95),  // jpeg_quality_estimate → effective_weight=0.475
+        );
+        let trust_base = compute_trust(
+            Some(0.1), // same ELA
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            Some(0.6), // same ghost score
+            None,      // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+        );
+        // At Q=95, effective_weight=0.475 vs base=0.5 — small difference (< 3pp)
+        assert!(
+            (trust_q95 - trust_base).abs() < 0.03,
+            "Q=95 weight (0.475) should be near base 0.5 weight: q95={trust_q95:.3} base={trust_base:.3}"
+        );
+    }
+
+    #[test]
+    fn trust_jpeg_ghost_quality_75_reduced_weight() {
+        // Q=75 (Twitter/WhatsApp re-encode): quality_factor=0.75, effective_weight=0.375.
+        // With ELA also present, ghost at Q=75 pulls less on the weighted average.
+        // Trust should be higher than base (quality_factor=1.0) case.
+        let trust_q75 = compute_trust(
+            Some(0.1), // ELA clean — second signal so weighted-avg fires
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            Some(0.9), // JPEG Ghost very suspicious
+            Some(75),  // jpeg_quality_estimate → effective_weight=0.375
+        );
+        let trust_base = compute_trust(
+            Some(0.1), // same ELA
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            Some(0.9), // same ghost score
+            None,      // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+        );
+        // Q=75 → effective_weight=0.375 < 0.5 → ghost penalises less → higher trust
+        assert!(
+            trust_q75 > trust_base,
+            "Q=75 should produce higher trust (attenuated weight) than base: q75={trust_q75:.3} base={trust_base:.3}"
+        );
+    }
+
+    #[test]
+    fn trust_jpeg_ghost_quality_floor_at_30() {
+        // Floor: quality_factor = (q/100).max(0.3).
+        // Q=30 → 30/100 = 0.30, max(0.30, 0.30) = 0.30 → floor exactly engaged.
+        // Q=20 → 20/100 = 0.20, max(0.20, 0.30) = 0.30 → floor also engaged.
+        // Both produce identical effective_weight (0.15) → identical trust.
+        let trust_q30 = compute_trust(
+            Some(0.1), // ELA clean — second signal so weighted-avg fires
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            Some(0.8), // JPEG Ghost suspicious
+            Some(30),  // jpeg_quality_estimate — floor exactly engaged
+        );
+        let trust_q20 = compute_trust(
+            Some(0.1), // same ELA
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            Some(0.8), // same ghost score
+            Some(20),  // jpeg_quality_estimate — floor also engaged
+        );
+        // Both floor at quality_factor=0.30 → effective_weight=0.15 → same trust
+        assert!(
+            (trust_q30 - trust_q20).abs() < 0.001,
+            "Q=30 and Q=20 both floor at quality_factor=0.30 → same trust: q30={trust_q30:.3} q20={trust_q20:.3}"
+        );
+    }
+
+    #[test]
+    fn trust_jpeg_ghost_quality_none_uses_full_base_weight() {
+        // Non-JPEG input (PNG, AVIF): jpeg_quality_estimate=None.
+        // quality_factor=1.0 → effective_weight=0.5 — unchanged from pre-#15 behaviour.
+        // Verify ghost still lowers trust vs no ghost (weight is active).
+        let trust_with_ghost = compute_trust(
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            Some(0.7), // JPEG Ghost suspicious
+            None,      // jpeg_quality_estimate: None → quality_factor=1.0
+        );
+        let trust_no_ghost = compute_trust(
+            None, None, None, None, None, None, 0.8, None, None, None, None, None, false,
+            None, // no JPEG Ghost score at all
+            None, // jpeg_quality_estimate: None uses 0.5 base weight
+        );
+        assert!(
+            trust_with_ghost < trust_no_ghost,
+            "Unknown quality should still apply 0.5 weight (ghost lowers trust):              with={trust_with_ghost:.3} without={trust_no_ghost:.3}"
+        );
+    }
+
+    #[test]
+    fn trust_jpeg_ghost_higher_quality_lower_penalty() {
+        // Snapshot: same ghost score at Q=95 vs Q=20 (floor engaged).
+        // Q=95: effective_weight=0.475. Q=20: effective_weight=0.15 (floor).
+        // With ELA present, the weight difference is visible in the trust score.
+        // Q=20 (less penalty) → higher trust than Q=95.
+        // Demonstrates Elena Vasquez's direct-upload (Q≈95) images receive near-full
+        // JPEG Ghost signal; platform-forwarded (Q≤30) images are heavily attenuated.
+        let trust_high_q = compute_trust(
+            Some(0.1), // ELA clean — multi-signal path
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            Some(0.9), // highly suspicious ghost
+            Some(95),  // direct camera upload → effective_weight=0.475
+        );
+        let trust_low_q = compute_trust(
+            Some(0.1), // same ELA
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            Some(0.9), // same ghost score
+            Some(20),  // heavy compression → effective_weight=0.15 (floor at q/100=0.30)
+        );
+        assert!(
+            trust_low_q > trust_high_q,
+            "Heavy-compression input should receive less JPEG Ghost penalty:              q20={trust_low_q:.3} q95={trust_high_q:.3}"
+        );
+        // Difference should be noticeable — Q=20 weight=0.15 vs Q=95 weight=0.475
+        assert!(
+            trust_low_q - trust_high_q > 0.02,
+            "Quality-adaptive weight difference should be noticeable (>2pp): delta={:.3}",
+            trust_low_q - trust_high_q
+        );
+    }
     // ── Database path resolution tests ─────────────────────────────────
 
     #[test]
@@ -5180,6 +5465,7 @@ mod tests {
             None,
             true, // AI declared
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         let trust_no_ai = compute_trust(
             Some(0.1),
@@ -5196,6 +5482,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         assert!(
             trust_ai_declared < trust_no_ai,
@@ -5223,9 +5510,11 @@ mod tests {
             None,
             true,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         let trust_none = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false, None,
+            None,
         );
         assert!(
             trust_ai < trust_none,
@@ -5252,6 +5541,7 @@ mod tests {
             None,
             false,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         let trust_ai = compute_trust(
             None,
@@ -5268,6 +5558,7 @@ mod tests {
             None,
             true,
             None,
+            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
         );
         // valid: 1.0 + 0.10 capped at 1.0 = 1.0
         assert!(
