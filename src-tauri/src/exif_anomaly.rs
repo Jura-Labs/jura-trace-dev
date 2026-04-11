@@ -859,15 +859,44 @@ const KNOWN_EDITORS: &[&str] = &[
 /// normal RAW workflow; a phone + desktop editor is not.
 ///
 /// Sony is included despite also making mirrorless cameras (α-series).
-/// The overlap is accepted: if a Sony mirrorless owner hands their RAW
-/// to Photoshop the compound check will fire a High-severity finding,
-/// which is a known false positive. Mitigation deferred — the Kate
-/// Middleton case pattern (iPhone/Samsung/Pixel claim on a Photoshop
-/// export) is considered the higher-value signal.
+/// The overlap is gated by an additional Model-field check in
+/// [`check_editor_on_phone_capture`] — Sony only fires when the Model
+/// field names an Xperia phone. A Sony α7 RAW round-tripped through
+/// Photoshop will not fire this detector because the Model field reads
+/// `ILCE-7M4` (or similar α-series designator) rather than `Xperia`.
+/// See backlog #14.
 const KNOWN_PHONE_VENDORS: &[&str] = &[
     "apple", "samsung", "google", "huawei", "xiaomi", "oneplus", "oppo", "vivo", "realme",
     "motorola", "nokia", "sony",
 ];
+
+/// Sony-specific disambiguation. Sony makes both phones (Xperia line) and
+/// professional mirrorless cameras (α-series, designated in EXIF Model as
+/// `ILCE-*`, `DSC-*`, `NEX-*`, or similar). When `Make` is Sony, we only
+/// want [`check_editor_on_phone_capture`] to fire on the phone side — a
+/// Sony α7 RAW round-tripped through Photoshop is a perfectly normal
+/// professional workflow, not a misrepresented phone capture.
+///
+/// The phone side is identifiable by the EXIF Model field: Xperia handsets
+/// write model names containing "Xperia" (e.g. `Xperia 1 V`) or starting
+/// with the Xperia short-code prefix `SO-` (Japan market) or `G` (some
+/// international models, though this is less reliable). We use the
+/// case-insensitive `xperia` substring as the primary discriminator, which
+/// covers all modern Xperia releases.
+///
+/// Returns true if the Make+Model pair looks like a Sony phone, false if
+/// it looks like a Sony camera or the Model field is missing.
+fn is_sony_phone(model: Option<&str>) -> bool {
+    let Some(model) = model else {
+        // Model absent on a Sony capture: err on the side of not firing.
+        // Sony α-series bodies always write a Model field; Xperia phones
+        // write one too. An absent Model is more likely to be a stripped
+        // export than a genuine phone capture.
+        return false;
+    };
+    let lower = model.to_lowercase();
+    lower.contains("xperia")
+}
 
 /// Class F — XMP packet declares AI generation via
 /// `Iptc4xmpExt:DigitalSourceType`.
@@ -962,6 +991,15 @@ fn check_editor_on_phone_capture(meta: &ImageMetadata, findings: &mut Vec<Anomal
     let Some(vendor) = vendor else {
         return;
     };
+
+    // Sony disambiguation (backlog #14): Sony makes both Xperia phones
+    // and α-series mirrorless cameras. Only fire this detector on Sony
+    // when the Model field identifies an Xperia handset — a Sony α7
+    // RAW round-tripped through Photoshop is a normal professional
+    // workflow, not a misrepresented phone capture.
+    if *vendor == "sony" && !is_sony_phone(meta.camera_model.as_deref()) {
+        return;
+    }
 
     // Look for a desktop editor in either the EXIF Software field or the
     // XMP CreatorTool. Either hit is enough.
@@ -1988,6 +2026,98 @@ mod tests {
         meta.software = Some("Adobe Photoshop 25.0".into());
         let result = analyse(Some(&meta), Some(8192), Some(5464));
         assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "software_editor_on_phone"));
+    }
+
+    // ── Sony disambiguation (backlog #14) ──────────────────────────────
+    // Sony makes both Xperia phones and α-series mirrorless cameras. The
+    // compound check must fire on Sony Xperia + Photoshop (genuine phone
+    // misrepresentation) but stay silent on Sony α7 + Photoshop (normal
+    // professional RAW workflow).
+
+    #[test]
+    fn sony_xperia_with_photoshop_fires_compound_check() {
+        let mut meta = empty_meta();
+        meta.camera_make = Some("Sony".into());
+        meta.camera_model = Some("Xperia 1 V".into());
+        meta.software = Some("Adobe Photoshop 25.0 (Macintosh)".into());
+        let result = analyse(Some(&meta), None, None);
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.check_id == "software_editor_on_phone");
+        assert!(
+            finding.is_some(),
+            "Expected Xperia + Photoshop to fire the compound check"
+        );
+        assert_eq!(finding.unwrap().severity, Severity::High);
+    }
+
+    #[test]
+    fn sony_alpha_ilce_with_photoshop_does_not_fire_compound_check() {
+        // Sony α7 IV RAW round-tripped through Photoshop is a normal
+        // professional workflow. The Model field reads ILCE-7M4, not
+        // Xperia, so the Sony-specific gate must suppress the finding.
+        let mut meta = empty_meta();
+        meta.camera_make = Some("Sony".into());
+        meta.camera_model = Some("ILCE-7M4".into());
+        meta.software = Some("Adobe Photoshop 25.0 (Macintosh)".into());
+        let result = analyse(Some(&meta), None, None);
+        assert!(
+            !result
+                .findings
+                .iter()
+                .any(|f| f.check_id == "software_editor_on_phone"),
+            "Sony α-series + Photoshop must NOT fire the phone-capture compound check"
+        );
+    }
+
+    #[test]
+    fn sony_dsc_rx_with_photoshop_does_not_fire_compound_check() {
+        // Sony RX-series compact cameras (DSC-RX100, etc.) also fall
+        // outside the phone class — the Sony gate must cover them too.
+        let mut meta = empty_meta();
+        meta.camera_make = Some("Sony".into());
+        meta.camera_model = Some("DSC-RX100M7".into());
+        meta.software = Some("Adobe Photoshop 25.0".into());
+        let result = analyse(Some(&meta), None, None);
+        assert!(
+            !result
+                .findings
+                .iter()
+                .any(|f| f.check_id == "software_editor_on_phone"),
+            "Sony DSC compact + Photoshop must NOT fire the phone-capture compound check"
+        );
+    }
+
+    #[test]
+    fn sony_with_missing_model_does_not_fire_compound_check() {
+        // A Sony capture with Model stripped defaults to NOT firing —
+        // better to miss a misrepresented Xperia than to false-positive
+        // on a Sony α export. See is_sony_phone() docstring.
+        let mut meta = empty_meta();
+        meta.camera_make = Some("Sony".into());
+        meta.camera_model = None;
+        meta.software = Some("Adobe Photoshop 25.0".into());
+        let result = analyse(Some(&meta), None, None);
+        assert!(!result
+            .findings
+            .iter()
+            .any(|f| f.check_id == "software_editor_on_phone"));
+    }
+
+    #[test]
+    fn sony_xperia_case_insensitive_match() {
+        // Model field may be written in various cases across firmware
+        // versions. Match should be case-insensitive.
+        let mut meta = empty_meta();
+        meta.camera_make = Some("sony".into());
+        meta.camera_model = Some("XPERIA 10 V".into()); // upper-case
+        meta.software = Some("Adobe Photoshop 25.0".into());
+        let result = analyse(Some(&meta), None, None);
+        assert!(result
             .findings
             .iter()
             .any(|f| f.check_id == "software_editor_on_phone"));
