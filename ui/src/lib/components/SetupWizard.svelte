@@ -45,6 +45,10 @@
   const isFirstStep = $derived(currentStep === 0);
   const isLastStep = $derived(currentStep === TOTAL_STEPS - 1);
 
+  // ── FFmpeg auto-install state ─────────────────────────────────────
+  let ffmpegInstalling = $state(false);
+  let ffmpegInstallError = $state<string | null>(null);
+
   // ── Platform detection ─────────────────────────────────────────────
   // navigator.platform is deprecated but still functional for this purpose;
   // we only need a coarse OS hint for the FFmpeg install hint text.
@@ -57,6 +61,73 @@
   }
 
   const platform = detectPlatform();
+
+  // ── FFmpeg auto-install ────────────────────────────────────────────
+  /**
+   * Attempt to install FFmpeg automatically using the platform's package
+   * manager (winget on Windows, Homebrew on macOS).
+   *
+   * Uses the Tauri shell plugin's Command API to run the package manager
+   * as a child process.  Falls back gracefully when:
+   *   – the package manager is not found (winget unavailable on older Windows);
+   *   – we're running in a browser (no Tauri).
+   *
+   * After a successful install, refreshes sidecar health so the green
+   * checkmark appears immediately.
+   */
+  async function installFfmpeg() {
+    ffmpegInstalling = true;
+    ffmpegInstallError = null;
+
+    try {
+      if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
+        throw new Error('Auto-install is only available in the desktop application.');
+      }
+
+      const { Command } = await import('@tauri-apps/plugin-shell');
+
+      if (platform === 'windows') {
+        // First check winget is available
+        try {
+          const versionResult = await Command.create('winget', ['--version']).execute();
+          if (versionResult.code !== 0) throw new Error('winget not found');
+        } catch {
+          throw new Error(
+            'winget is not available on this machine. Please install FFmpeg manually using the command shown below, or download it from ffmpeg.org.'
+          );
+        }
+        const result = await Command.create('winget', [
+          'install',
+          'Gyan.FFmpeg',
+          '--accept-package-agreements',
+          '--accept-source-agreements',
+          '--silent',
+        ]).execute();
+        if (result.code !== 0) {
+          const detail = result.stderr?.trim() || `Exit code ${result.code}`;
+          throw new Error(`winget install failed: ${detail}`);
+        }
+      } else if (platform === 'mac') {
+        const result = await Command.create('brew', ['install', 'ffmpeg']).execute();
+        if (result.code !== 0) {
+          const detail = result.stderr?.trim() || `Exit code ${result.code}`;
+          throw new Error(`Homebrew install failed: ${detail}`);
+        }
+      } else {
+        throw new Error(
+          'Auto-install is not supported on Linux. Please install FFmpeg using your distribution\'s package manager (e.g. sudo apt install ffmpeg).'
+        );
+      }
+
+      // Re-check health so the FFmpeg status updates immediately
+      await refreshHealth();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      ffmpegInstallError = msg;
+    } finally {
+      ffmpegInstalling = false;
+    }
+  }
 
   // ── Navigation ─────────────────────────────────────────────────────
 
@@ -524,12 +595,68 @@
                 <path stroke="currentColor" stroke-linecap="round" stroke-width="1.75" d="M10 9v4" />
                 <circle cx="10" cy="15" r="0.5" fill="currentColor" stroke="none" />
               </svg>
-              <div>
-                <p class="text-sm font-medium text-amber-light">FFmpeg not installed</p>
-                <p class="text-xs text-flint-light mt-1 mb-2 leading-relaxed">
-                  Video and audio analysis will be unavailable. You can install it now or later.
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-amber-light">FFmpeg needed for video and audio</p>
+                <p class="text-xs text-flint-light mt-1 mb-3 leading-relaxed">
+                  {#if platform === 'windows' || platform === 'mac'}
+                    Click below to install it automatically, or install it manually later from Settings.
+                  {:else}
+                    Install FFmpeg using your package manager, or skip this step and do it later.
+                  {/if}
                 </p>
-                <div class="flex items-center gap-2 mt-2">
+
+                <!-- Auto-install button (Windows + macOS only) -->
+                {#if platform === 'windows' || platform === 'mac'}
+                  <button
+                    onclick={installFfmpeg}
+                    disabled={ffmpegInstalling || healthChecking}
+                    class="min-h-[44px] flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
+                           bg-lapis hover:bg-lapis-dark text-white transition-colors duration-150 mb-3
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                           focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Install FFmpeg automatically using {platform === 'windows' ? 'winget' : 'Homebrew'}"
+                  >
+                    {#if ffmpegInstalling}
+                      <!-- Spinner -->
+                      <svg
+                        class="w-4 h-4 motion-safe:animate-spin"
+                        fill="none" viewBox="0 0 16 16" aria-hidden="true"
+                      >
+                        <circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="2" stroke-dasharray="14 14" />
+                      </svg>
+                      Installing FFmpeg…
+                    {:else}
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 3v7M5 7l3 3 3-3" />
+                        <path stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M3 13h10" />
+                      </svg>
+                      Install FFmpeg automatically
+                    {/if}
+                  </button>
+
+                  <!-- Install error -->
+                  {#if ffmpegInstallError}
+                    <div
+                      class="flex items-start gap-2 rounded-md px-3 py-2.5 mb-3"
+                      style="background: rgba(180,60,60,0.08); border: 1px solid rgba(180,60,60,0.25);"
+                      role="alert"
+                      aria-live="assertive"
+                    >
+                      <svg class="flex-shrink-0 w-4 h-4 text-cinnabar-light mt-0.5" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 2L1 13h14L8 2z" />
+                        <path stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M8 7v3" />
+                        <circle cx="8" cy="12" r="0.5" fill="currentColor" stroke="none" />
+                      </svg>
+                      <p class="text-xs text-cinnabar-light leading-relaxed">{ffmpegInstallError}</p>
+                    </div>
+                  {/if}
+
+                  <p class="text-xs text-flint-light mb-2">Or install manually:</p>
+                {/if}
+
+                <!-- Manual command -->
+                <div class="flex items-center gap-2 flex-wrap">
                   <code
                     class="inline-block text-xs font-mono px-2.5 py-1 rounded"
                     style="background: rgba(30,33,40,0.8); color: #EDEAE4; border: 1px solid rgba(122,119,112,0.2);"
@@ -544,7 +671,7 @@
                   </code>
                   <button
                     onclick={refreshHealth}
-                    disabled={healthChecking}
+                    disabled={healthChecking || ffmpegInstalling}
                     class="text-xs px-2.5 py-1 rounded border border-lapis/40 text-lapis-light hover:bg-lapis/10 transition-colors
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
                            disabled:opacity-50"
@@ -552,16 +679,6 @@
                     {healthChecking ? 'Checking…' : 'Re-check'}
                   </button>
                 </div>
-                {#if platform === 'windows'}
-                  <p class="text-xs text-flint-light mt-2">
-                    Or download from
-                    <button
-                      onclick={() => openOllamaDownload()}
-                      class="text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-                    >ffmpeg.org</button>
-                    and add to your system PATH.
-                  </p>
-                {/if}
                 <p class="text-xs text-flint-light mt-2">
                   This is optional — image verification works without FFmpeg. You can install it later from Settings.
                 </p>
@@ -625,16 +742,17 @@
               role="status"
               aria-live="polite"
             >
-              <svg class="flex-shrink-0 w-5 h-5 text-lapis-light mt-0.5" fill="none" viewBox="0 0 20 20" aria-hidden="true">
+              <!-- Clock icon — communicates "this happens later", not "something is wrong" -->
+              <svg class="flex-shrink-0 w-5 h-5 text-flint-light mt-0.5" fill="none" viewBox="0 0 20 20" aria-hidden="true">
                 <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.75" />
-                <path stroke="currentColor" stroke-linecap="round" stroke-width="1.75" d="M10 7v4" />
-                <circle cx="10" cy="14" r="0.5" fill="currentColor" stroke="none" />
+                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M10 7v3.5l2 2" />
               </svg>
               <div>
-                <p class="text-sm font-medium text-quartz">Speech transcription model not loaded</p>
+                <p class="text-sm font-medium text-quartz">Speech transcription — ready to use</p>
                 <p class="text-xs text-flint-light mt-1 leading-relaxed">
-                  The Whisper model (approximately 150 MB) downloads automatically on first use.
-                  No action is needed now.
+                  The transcription model (approximately 150 MB) will download automatically the first time
+                  you analyse a video or audio file. This is a one-time download and takes about a minute.
+                  No action is needed now — continue to the next step.
                 </p>
               </div>
             </div>
@@ -779,15 +897,31 @@
                     <code class="font-mono">llava:7b</code>
                     <span class="ml-1.5 text-xs font-normal text-flint-light">~4.7 GB</span>
                   </p>
-                  <p class="text-xs text-flint-light mt-0.5">
-                    {#if llavaInstalled}
-                      Installed — image descriptions enabled
-                    {:else if pullingModel === 'llava:7b'}
-                      Downloading… this may take 5–10 minutes
-                    {:else}
-                      Not installed — required for image descriptions
+                  {#if llavaInstalled}
+                    <p class="text-xs text-flint-light mt-0.5">Installed — image descriptions enabled</p>
+                  {:else if pullingModel === 'llava:7b'}
+                    <p class="text-xs text-lapis-light mt-0.5" aria-live="polite">
+                      {pullProgress ?? 'Downloading…'}{pullPercent !== null ? ` (${pullPercent}%)` : ''}
+                    </p>
+                    {#if pullPercent !== null}
+                      <div
+                        class="mt-1.5 h-1 rounded-full overflow-hidden"
+                        style="background: rgba(55,99,153,0.2);"
+                        role="progressbar"
+                        aria-label="Download progress"
+                        aria-valuenow={pullPercent}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                      >
+                        <div
+                          class="h-full bg-lapis-light transition-all duration-300"
+                          style="width: {pullPercent}%;"
+                        ></div>
+                      </div>
                     {/if}
-                  </p>
+                  {:else}
+                    <p class="text-xs text-flint-light mt-0.5">Not installed — required for image descriptions</p>
+                  {/if}
                 </div>
 
                 <!-- Download button (only when not installed and not already pulling this model) -->
@@ -840,15 +974,31 @@
                     <code class="font-mono">qwen2.5:7b-instruct</code>
                     <span class="ml-1.5 text-xs font-normal text-flint-light">~4.7 GB</span>
                   </p>
-                  <p class="text-xs text-flint-light mt-0.5">
-                    {#if qwenInstalled}
-                      Installed — claim verification enabled
-                    {:else if pullingModel === 'qwen2.5:7b-instruct'}
-                      Downloading… this may take 5–10 minutes
-                    {:else}
-                      Not installed — required for claim verification
+                  {#if qwenInstalled}
+                    <p class="text-xs text-flint-light mt-0.5">Installed — claim verification enabled</p>
+                  {:else if pullingModel === 'qwen2.5:7b-instruct'}
+                    <p class="text-xs text-lapis-light mt-0.5" aria-live="polite">
+                      {pullProgress ?? 'Downloading…'}{pullPercent !== null ? ` (${pullPercent}%)` : ''}
+                    </p>
+                    {#if pullPercent !== null}
+                      <div
+                        class="mt-1.5 h-1 rounded-full overflow-hidden"
+                        style="background: rgba(55,99,153,0.2);"
+                        role="progressbar"
+                        aria-label="Download progress"
+                        aria-valuenow={pullPercent}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                      >
+                        <div
+                          class="h-full bg-lapis-light transition-all duration-300"
+                          style="width: {pullPercent}%;"
+                        ></div>
+                      </div>
                     {/if}
-                  </p>
+                  {:else}
+                    <p class="text-xs text-flint-light mt-0.5">Not installed — required for claim verification</p>
+                  {/if}
                 </div>
 
                 {#if !qwenInstalled && pullingModel !== 'qwen2.5:7b-instruct'}
