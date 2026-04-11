@@ -188,7 +188,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 - Track 4 validation set samples from training corpus — not a true held-out set.
 - `demosaic_inter_channel_coherence` feature has DC-dominated sampling, needs iteration.
 - Composite border detector: 21 candidates flagged on full corpus, HTML preview pending user review.
-- **JPEG Ghost 0.5× weight is not yet empirically calibrated** — plan at `docs/calibration/s28-jpeg-ghost-weight.md`; blocked on splice corpus sourcing (three options documented, synthetic CC-BY COCO/Flickr30k generator recommended).
+- **JPEG Ghost 0.5× weight calibration closed 2026-04-07** — Option 3 (synthetic CC-BY generator) executed; weight retained at 0.5, no code change. CASIA v2 **rejected 2026-04-11** as non-commercial-licensed and unusable for Jura Trace (commercial product); a commercial-cleared splice benchmark remains an open future need per `docs/calibration/s28-jpeg-ghost-weight.md` Section 6.
 
 **Test counts**: 334 Rust lib tests, 375+ Python (47 sidecar deepfake), 164 Playwright e2e, 233 SvelteKit files with 0 svelte-check errors, clippy + fmt clean. Pre-commit hook now runs `cargo fmt`, `cargo check --all-targets`, `cargo clippy --all-targets -- -D warnings`, and `svelte-check` — hardened in commit `0912b14` after two Sprint 30 test-fixture regressions slipped past the lighter `cargo check` alone.
 

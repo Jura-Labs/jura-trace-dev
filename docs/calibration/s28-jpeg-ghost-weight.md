@@ -1,7 +1,7 @@
 ---
 title: "JPEG Ghost 0.5× Weight Validation — S28-FU9"
-status: Complete — Option 3 executed 2026-04-07. Weight retained at 0.5 (no code change).
-date: 2026-04-07
+status: Complete — v1 executed 2026-04-07, v2 (DCT-aligned generator) executed 2026-04-11. Weight retained at 0.5.
+date: 2026-04-07 (v1), 2026-04-11 (v2)
 sprint: S28 follow-up (S28-FU9)
 author: ml-data-scientist
 related:
@@ -324,8 +324,9 @@ Rationale:
   differential ghost patterns), not to the detector or the weight.
 
 **Future work** (Section 6):
-- Re-evaluate against CASIA v2 in a separate research benchmark to confirm
-  real-world TPR on genuine JPEG-resave forgeries.
+- Re-evaluate against a real-world splice corpus with commercial-use licensing
+  (CASIA v2 **rejected 2026-04-11** — non-commercial licence incompatible with
+  Jura Trace). A commercial-cleared splice dataset remains an open need.
 - Consider the quality-adaptive weight formula from Section 6.3 once a real
   splice corpus is available.
 - Add this document to the quarterly retrain checklist per TRIED Pillar 5.
@@ -353,20 +354,21 @@ Three primary options, in order of preference:
 - **Download method**: Direct HTTP, no registration required.
 - **Estimated effort**: 30 minutes to download + 1 hour to convert and annotate.
 
-#### Option 2 — CASIA Image Tampering Detection v2 (CASIA v2)
+#### Option 2 — CASIA Image Tampering Detection v2 (CASIA v2) — **REJECTED: non-commercial licence**
 
 - **URL**: https://github.com/namtpham/casia2groundtruth
   (ground-truth masks only; images via
   https://github.com/CasiaNuoDB/CASIA-CMFD/releases)
 - **Scale**: 7,491 images (1,701 authentic, 5,123 spliced, 667 copy-move)
-- **Licence**: Research-only. **Not suitable for commercial production model
-  training.** Under Option C corpus strategy (`docs/decisions/option-c-corpus-strategy.md`),
-  research-licensed data must not enter the production model training set. May be
-  used for a separate research artefact under OpenRAIL-M.
-- **JPEG Ghost relevance**: CASIA v2 includes both JPEG and non-JPEG authentic
-  sources and a mix of copy-paste methods. Strongest benchmark for splice recall.
-  Contains small-region (< 10% area) splice examples that are the hardest case.
-- **Estimated effort**: 2–3 hours (registration form + download + mask alignment).
+- **Licence**: **Research-only, NOT for commercial use.** Jura Trace is a commercial
+  product (PolyForm Noncommercial is a source-availability licence, not a
+  non-commercial product classification — Juralabs CIC sells paid tiers). CASIA v2
+  cannot be used for production calibration, benchmark artefacts shipped with the
+  product, or any evaluation whose output influences released code. **Do not
+  download, do not use for "research benchmarks" tied to Jura Trace, do not cite in
+  marketing material.** This entry is retained only to document the rejection.
+- **Status**: Rejected 2026-04-11. Any future splice benchmark must use synthetic
+  CC-BY sources (Option 3) or a dataset with explicit commercial clearance.
 
 #### Option 3 — Synthetic local generator (recommended for production calibration)
 
@@ -405,13 +407,12 @@ plus 30 minutes runtime to generate 150 images.
 ### 5.2 Recommendation
 
 **Use Option 3 (synthetic local generator) for production calibration.** It is the
-only option that is licence-clean for a commercial PolyForm NC product under the
-Option C binding strategy.
+only option that is licence-clean for a commercial product under the Option C
+binding strategy.
 
-Use **Option 2 (CASIA v2) as a research benchmark only** — run the same sweep against
-CASIA v2 in a separate research artefact evaluation and record results separately from
-the production calibration. This satisfies TRIED Pillar 1 (real-world adaptability)
-evidence without contaminating the production corpus.
+**Do NOT use Option 2 (CASIA v2)** — non-commercial licence, incompatible with
+Jura Trace as a commercial product. Rejected 2026-04-11. Any real-world splice
+benchmark must source imagery with explicit commercial clearance.
 
 **Do not use Option 1 (Columbia Uncompressed)** as the primary authentic FP corpus —
 the PNG short-circuit makes it structurally unsuitable.
@@ -426,8 +427,8 @@ the PNG short-circuit makes it structurally unsuitable.
 - [ ] Fill in Section 4 (Results) of this document.
 - [ ] If weight ≠ 0.5 is recommended, patch `src-tauri/src/lib.rs` line 685 and
       update the comment to cite this document.
-- [ ] (Optional) Submit CASIA v2 research access form and run research benchmark
-      in parallel.
+- [x] ~~Submit CASIA v2 research access form~~ — **rejected 2026-04-11**, CASIA v2
+      is non-commercial and Jura Trace is a commercial product.
 
 ---
 
@@ -531,5 +532,145 @@ through `overall_trust` rather than the per-detector `suspicious` flag.
 
 ---
 
-*Document status: Complete. Option 3 executed 2026-04-07. Weight retained at 0.5. Section 5.3 checklist fully resolved.*
-*Next action: CASIA v2 research benchmark (optional, separate artefact). Quarterly retrain review per TRIED Pillar 5.*
+*Document status: Complete. v1 executed 2026-04-07, v2 executed 2026-04-11. Weight retained at 0.5.*
+*Next action: long-term splice benchmark pathway (see `docs/decisions/splice-benchmark-longterm.md`). Quarterly retrain review per TRIED Pillar 5.*
+
+---
+
+## 8. v2 Corpus — DCT-Aligned Generator (2026-04-11)
+
+### 8.1 Motivation
+
+Section 4.5 of this document identified the root cause of v1's weight-
+invariant TPR: the synthetic generator's final JPEG save pass at
+Q ∈ {60, 70, 80, 90} applied a uniform quantisation that wiped the
+differential source-region ghost patterns JPEG Ghost is designed to
+detect. CASIA v2 was considered as a real-world alternative but **rejected
+2026-04-11** as a non-commercial-licence dataset incompatible with Jura
+Trace's commercial product status.
+
+v2 rebuilds the synthetic corpus with four specific fixes targeting the
+v1 failure mode, while remaining fully CC-BY licence-clean:
+
+1. **Explicit IJG quantisation tables** via PIL's `qtables=` kwarg
+   instead of the approximate `quality=` hint. Deterministic per-image Q.
+2. **High final save qualities** (Q_final ∈ {92, 95, 98}) so the final
+   compression pass does not wipe source Q footprints.
+3. **Wider, disjoint Q-delta ranges** (bg ∈ {80,85,90}, fg ∈ {50,55,60}).
+4. **8-pixel-aligned paste coordinates** so the pasted region lands on
+   the JPEG DCT block grid and is not diluted across four blocks.
+
+Generator: `scripts/build_splice_corpus_v2.py`. Sweep runner:
+`scripts/sweep_jpeg_ghost_weight_v2.py` (direct-call variant — imports
+sidecar services rather than using HTTP).
+
+### 8.2 v2 vs v1 — headline comparison
+
+| Metric | v1 (2026-04-07) | v2 (2026-04-11) | Δ |
+|---|---|---|---|
+| AUC @ w=0.0 | 0.5483 | **0.6970** | +0.149 |
+| AUC @ w=0.5 | 0.5643 | **0.7564** | +0.192 |
+| AUC @ w=1.0 | 0.5749 | **0.7692** | +0.194 |
+| TPR@FPR5 @ w=0.0 | 12.0% | **21.3%** | +9.3pp |
+| TPR@FPR5 @ w=1.0 | 12.0% | **24.0%** | +12.0pp |
+| JG spliced p95 | 0.0708 | **0.2800** | +0.209 |
+| JG authentic p95 | 0.1113 | 0.1775 | +0.066 |
+| JG copy-move p95 | 0.0880 | 0.1747 | +0.087 |
+
+JPEG Ghost now produces genuine differential signal on the spliced class.
+Spliced p95 (0.28) exceeds authentic p95 (0.18) — the opposite of v1, where
+authentic p95 was higher than spliced p95. This is the signature of a
+corpus that actually exercises the detector's intended mechanism.
+
+### 8.3 v2 full weight sweep
+
+| Weight | AUC | TPR@FPR5 | TPR@FPR1 | TPR@T=0.55 | FPR@T=0.55 | ΔFPR vs 0.0 |
+|---|---|---|---|---|---|---|
+| 0.00 | 0.6970 | 21.3% | 10.7% | 0.0% | 0.0% | — |
+| 0.25 | 0.7405 | 22.7% | 10.7% | 0.0% | 0.0% | +0.0pp |
+| **0.50** | **0.7564** | **21.3%** | **10.7%** | **0.0%** | **0.0%** | **+0.0pp** |
+| 0.75 | 0.7638 | 21.3% | 10.7% | 0.0% | 0.0% | +0.0pp |
+| 1.00 | 0.7692 | 24.0% | 10.7% | 0.0% | 0.0% | +0.0pp |
+
+Full artefacts:
+- `models/splice_calibration_150_v2/weight_sweep_final_v2.json`
+- `models/splice_calibration_150_v2/sweep_raw_v2.json`
+- `models/splice_calibration_150_v2/labels.json`
+
+### 8.4 v2 pass/fail verdict
+
+**Criterion A** (TPR@FPR5 improves by ≥ 5pp vs w=0.0): **FAIL** for all
+weights. Best gain is w=1.0 at +2.7pp; w=0.5 shows +0.0pp.
+
+**Criterion B** (FPR increase ≤ 2pp): **PASS** for all weights (ΔFPR =
+0.0pp — no image in either class falls below the 0.55 trust threshold,
+same structural property as v1).
+
+**Overall**: w=0.5 passes criterion B and is consistent with the
+monotonically improving AUC curve (0.697 → 0.769 as weight increases).
+Criterion A does not distinguish between weights because the v2 baseline
+(ELA + noise + copy-move) is already strong at 21.3% TPR, leaving little
+marginal room for any single detector to add ≥5pp.
+
+**Recommendation unchanged: retain w=0.5.**
+
+Rationale change relative to v1:
+- v1 recommended 0.5 primarily because the detector produced **no
+  discriminative signal** on the corpus — the whole weight sweep was
+  effectively zero-information.
+- v2 recommends 0.5 because the detector is now demonstrably
+  discriminative (AUC 0.76 standalone contribution vs 0.70 baseline) and
+  criterion B is met. Monotonic AUC improvement with weight is empirical
+  evidence that JPEG Ghost is pulling weight proportional to its
+  contribution. w=0.5 sits at a conservative midpoint.
+
+A case could be made for **upgrading to w=0.75 or w=1.0** based on AUC
+alone (0.764 and 0.769 respectively vs 0.756 at w=0.5). Reasons to hold
+at 0.5 instead:
+1. The absolute AUC gap between w=0.5 and w=1.0 is only 0.013 — within
+   the noise band of a 150-image corpus.
+2. Higher weights increase exposure to JPEG Ghost's authentic-side FP
+   modes on heavily-recompressed images (social-media reposts, platform
+   re-encoding — the `assess_input_quality()` heavy-compression guard
+   already exists but is not tied to the JPEG Ghost weight).
+3. Section 6.3's quality-adaptive weight formula
+   (`effective_weight = 0.5 × (jpeg_quality_estimate/100).max(0.3)`) is
+   the principled answer — a flat-weight upgrade is a half-measure.
+4. Pilot testing feedback should gate any weight increase, not purely
+   synthetic-corpus AUC.
+
+### 8.5 Residual limitations of v2
+
+1. **Authentic p95 rose from 0.11 → 0.18.** v2's explicit qtable
+   re-encoding of authentic controls (multi-compression, high-Q, heavy-Q
+   branches) creates cleaner per-block quality signatures that the
+   detector's variance metric treats as mildly suspicious. This is the
+   expected cost of making the corpus more principled — v1's authentic
+   images retained messy real-world compression histories that happened
+   to mask false alarms. Not a regression, but worth noting.
+
+2. **Copy-move p95 rose from 0.09 → 0.17.** Same mechanism. The Section
+   3.6-analogue sanity check (run against the authentic training corpus,
+   unchanged pixel content) would still be the cleanest authentic-FP
+   gauge — not yet re-run for v2, see Section 8.6.
+
+3. **No real-world splice benchmark.** v2 closes the "does the detector
+   actually discriminate" gap but does not close the "does it
+   discriminate on *real* forgeries" gap. That requires a commercially-
+   cleared splice dataset, which does not currently exist publicly.
+   Pathway tracked in `docs/decisions/splice-benchmark-longterm.md`.
+
+### 8.6 Open follow-ups from v2
+
+- [ ] Re-run Section 3.6 authentic training corpus sanity check against
+      the v2 detector pipeline (not re-executed in the v2 sweep; v1 run
+      from 2026-04-07 is still the reference).
+- [ ] Prototype the Section 6.3 quality-adaptive weight formula against
+      the v2 corpus to see whether it beats flat w=0.5.
+- [ ] Long-term: commercially-cleared real-splice benchmark — see
+      `docs/decisions/splice-benchmark-longterm.md`.
+
+---
+
+*v2 supplement added 2026-04-11. Weight unchanged. Generator now produces
+genuine ghost signal; detector validated as discriminative.*

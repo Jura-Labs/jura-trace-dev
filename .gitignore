@@ -110,3 +110,7 @@ corpus/
 # They are large (~150 JPEG files) and fully reproducible via build_splice_corpus.py.
 models/splice_calibration_150/
 models/splice_calibration_*/
+# Wikimedia Commons mined corpus (89 MB of CC-BY/CC0/PD JPEGs, reproducible
+# via scripts/mine_wikimedia_composites.py). Manifest is also ignored — it
+# contains absolute filesystem paths and is regenerated on each run.
+models/splice_wikimedia_v1/
