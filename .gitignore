@@ -114,3 +114,7 @@ models/splice_calibration_*/
 # via scripts/mine_wikimedia_composites.py). Manifest is also ignored — it
 # contains absolute filesystem paths and is regenerated on each run.
 models/splice_wikimedia_v1/
+# Platform-forwarded augmentation corpus (backlog #16, ~3-6 GB on USB drive).
+# Fully reproducible via scripts/augment_corpus_platform_forwarded.py.
+# Lives on external USB, not in the repo. Manifest is version-controlled.
+training_platform_forwarded/
