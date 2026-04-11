@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, getFingerprints, findSimilar, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames } from '$lib/api';
+  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames } from '$lib/api';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import { createBlobTracker } from '$lib/blob';
   import {
@@ -10,14 +10,11 @@
     type VideoMetadataResult,
     type AudioMetadataResult,
     type VideoFramesResult,
-    type Fingerprint,
-    type SimilarAsset,
     type MetadataSigningWarning,
     type WatermarkEmbedResult,
     parseMetadata,
     formatFileSize,
     CONTENT_TYPE_LABELS,
-    HASH_TYPE_LABELS,
   } from '$lib/types';
 
   const blobs = createBlobTracker();
@@ -93,11 +90,6 @@
   let metadataWarningLoading = $state(false);
   let lastSignedAssetId: string | null = $state(null); // tracks which asset was most recently signed
 
-  // ── Fingerprint state ─────────────────────────────────────────────
-  let showFingerprintsFor: string | null = $state(null);
-  let fingerprints: Fingerprint[] = $state([]);
-  let similarAssets: SimilarAsset[] = $state([]);
-  let loadingFingerprints = $state(false);
 
   // ── Watermark state ───────────────────────────────────────────────
   let watermarkAssetId: string | null = $state(null);
@@ -167,10 +159,9 @@
       : filterStatus === 'unsigned'
         ? false
         : undefined;
-    const fingerprintedFilter = filterStatus === 'fingerprinted' ? true : undefined;
     const query = searchDebounced.trim() || undefined;
 
-    getFilteredAssets(contentType, c2paSigned, query, fingerprintedFilter).then((result) => {
+    getFilteredAssets(contentType, c2paSigned, query).then((result) => {
       assets = result;
     });
   });
@@ -180,6 +171,7 @@
     [...assets]
       .filter(a => {
         if (filterStatus === 'watermarked') return a.watermarked;
+        if (filterStatus === 'unprotected') return !a.c2paSigned && !a.watermarked;
         return true;
       })
       .sort((a, b) => {
@@ -282,7 +274,6 @@
     } else {
       selectedAsset = asset;
       // Close any open panels when switching rows
-      showFingerprintsFor = null;
       signingAssetId = null;
       watermarkAssetId = null;
       watermarkResult = null;
@@ -415,7 +406,6 @@
       'Height',
       'C2PA Signed',
       'Watermarked',
-      'Fingerprinted',
       'File Path',
       'Created',
     ];
@@ -438,7 +428,6 @@
       escapeCsv(a.height ?? ''),
       escapeCsv(a.c2paSigned ? 'Yes' : 'No'),
       escapeCsv(a.watermarked ? 'Yes' : 'No'),
-      escapeCsv(a.fingerprinted ? 'Yes' : 'No'),
       escapeCsv(a.filePath),
       escapeCsv(new Date(a.createdAt).toISOString()),
     ].join(','));
@@ -670,6 +659,11 @@
   // ── Tauri environment detection ───────────────────────────────────
   const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
+  // Platform detection for reveal-in-folder label
+  const isWindows = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('win');
+  const isLinux   = typeof navigator !== 'undefined' && !isWindows && navigator.platform.toLowerCase().includes('linux');
+  const revealLabel = isWindows ? 'Show in Explorer' : isLinux ? 'Open folder' : 'Reveal in Finder';
+
   // ── Path utilities ────────────────────────────────────────────────
   let copyPathFeedback = $state<string | null>(null);
   let copyPathTimer: ReturnType<typeof setTimeout> | null = null;
@@ -688,13 +682,19 @@
   async function openInFinder(filePath: string) {
     if (!inTauri) return;
     try {
-      const { open } = await import('@tauri-apps/plugin-shell');
-      // Extract the containing directory (works for both / and \ separators)
-      const sep = filePath.includes('\\') ? '\\' : '/';
-      const dir = filePath.substring(0, filePath.lastIndexOf(sep)) || filePath;
-      await open(dir);
-    } catch {
-      // Shell plugin unavailable — silently fail
+      const { Command } = await import('@tauri-apps/plugin-shell');
+      if (isWindows) {
+        // /select highlights the specific file in Explorer
+        await Command.create('explorer', ['/select,', filePath]).execute();
+      } else if (isLinux) {
+        const dir = filePath.substring(0, filePath.lastIndexOf('/')) || filePath;
+        await Command.create('xdg-open', [dir]).execute();
+      } else {
+        // macOS: -R reveals the file in Finder
+        await Command.create('open', ['-R', filePath]).execute();
+      }
+    } catch (e) {
+      console.warn('Reveal in file manager failed:', e);
     }
   }
 
@@ -844,7 +844,7 @@
         <option value="signed">C2PA Signed</option>
         <option value="unsigned">Not Signed</option>
         <option value="watermarked">Watermarked</option>
-        <option value="fingerprinted">Fingerprinted</option>
+        <option value="unprotected">Unprotected</option>
       </select>
     </div>
 
@@ -1708,9 +1708,6 @@
             {#if asset.watermarked}
               <span class="text-xs px-1.5 py-0.5 rounded bg-lapis/15 text-lapis dark:text-lapis-light flex-shrink-0">Watermarked</span>
             {/if}
-            {#if asset.fingerprinted}
-              <span class="text-xs px-1.5 py-0.5 rounded bg-gray-200 dark:bg-graphite-light text-flint dark:text-flint-light flex-shrink-0">Fingerprinted</span>
-            {/if}
           </div>
           <div class="flex items-center gap-3 mt-1.5 text-xs text-flint dark:text-flint-light">
             <span>{asset.mimeType}</span>
@@ -1771,10 +1768,7 @@
             {#if asset.watermarked}
               <span class="text-[10px] px-1.5 py-0.5 rounded bg-lapis/15 text-lapis dark:text-lapis-light leading-tight">Watermarked</span>
             {/if}
-            {#if asset.fingerprinted}
-              <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 dark:bg-graphite-light text-flint dark:text-flint-light leading-tight">Fingerprinted</span>
-            {/if}
-            {#if !asset.c2paSigned && !asset.watermarked && !asset.fingerprinted}
+            {#if !asset.c2paSigned && !asset.watermarked}
               <span class="text-[10px] text-flint/60 dark:text-flint-light/50 italic">Unprotected</span>
             {/if}
           </div>
@@ -1841,8 +1835,8 @@
                       onclick={() => openInFinder(asset.filePath)}
                       class="flex-shrink-0 p-1 rounded text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:bg-gray-100 dark:hover:bg-graphite-light transition-colors
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
-                      aria-label="Reveal file in Finder"
-                      title="Reveal in Finder"
+                      aria-label="{revealLabel} — {asset.fileName}"
+                      title={revealLabel}
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -2068,11 +2062,6 @@
                 >
                   {asset.watermarked ? 'Watermarked' : 'No Watermark'}
                 </span>
-                {#if asset.fingerprinted}
-                  <span class="text-xs px-2 py-0.5 rounded bg-lapis/15 text-lapis dark:text-lapis-light">
-                    Fingerprinted
-                  </span>
-                {/if}
               </div>
 
               <!-- C2PA signing form -->
@@ -2349,85 +2338,10 @@
                       watermarkResult = null;
                       // Close other panels
                       signingAssetId = null;
-                      showFingerprintsFor = null;
                     }}
                     aria-label="Embed invisible watermark in {asset.fileName}"
                   >
                     Watermark
-                  </button>
-                {/if}
-              {/if}
-
-              <!-- Fingerprint viewer -->
-              {#if asset.contentType === 'image'}
-                {#if showFingerprintsFor === asset.assetId}
-                  <div class="col-span-full mt-3 p-3 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark">
-                    <div class="flex items-center justify-between mb-2">
-                      <p class="text-sm text-text-light dark:text-quartz">Perceptual Fingerprints</p>
-                      <button
-                        class="text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
-                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite rounded"
-                        onclick={() => showFingerprintsFor = null}
-                        aria-label="Close fingerprint panel"
-                      >
-                        Close
-                      </button>
-                    </div>
-                    {#if loadingFingerprints}
-                      <div class="flex items-center gap-2">
-                        <div
-                          class="w-3.5 h-3.5 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
-                          aria-hidden="true"
-                        ></div>
-                        <p class="text-xs text-flint dark:text-flint-light">Loading...</p>
-                      </div>
-                    {:else if fingerprints.length === 0}
-                      <p class="text-xs text-flint dark:text-flint-light">No fingerprints found.</p>
-                    {:else}
-                      <div class="grid grid-cols-1 gap-2">
-                        {#each fingerprints as fp}
-                          <div class="flex items-center justify-between text-xs">
-                            <span class="text-flint dark:text-flint-light uppercase tracking-wide w-32">
-                              {HASH_TYPE_LABELS[fp.hashType] || fp.hashType}
-                            </span>
-                            <code class="text-text-light dark:text-quartz font-mono bg-gray-100 dark:bg-obsidian-dark/50 px-2 py-0.5 rounded">
-                              {fp.hashValue}
-                            </code>
-                          </div>
-                        {/each}
-                      </div>
-
-                      {#if similarAssets.length > 0}
-                        <div class="mt-3 pt-3 border-t border-border-light dark:border-graphite-light">
-                          <p class="text-xs text-amber dark:text-amber-light mb-2">
-                            {similarAssets.length} similar asset{similarAssets.length !== 1 ? 's' : ''} found
-                          </p>
-                          {#each similarAssets as match}
-                            <div class="flex items-center justify-between text-xs py-1">
-                              <span class="text-text-light dark:text-quartz">{match.fileName}</span>
-                              <span class="text-flint dark:text-flint-light">
-                                {Math.round(match.similarity * 100)}% similar ({HASH_TYPE_LABELS[match.hashType] || match.hashType})
-                              </span>
-                            </div>
-                          {/each}
-                        </div>
-                      {/if}
-                    {/if}
-                  </div>
-                {:else}
-                  <button
-                    class="col-span-full mt-2 px-4 py-2.5 min-h-[44px] inline-flex items-center text-sm border border-lapis/50 text-lapis dark:text-lapis-light rounded
-                           hover:bg-lapis/10 transition-colors
-                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
-                    onclick={async () => {
-                      showFingerprintsFor = asset.assetId;
-                      loadingFingerprints = true;
-                      fingerprints = await getFingerprints(asset.assetId);
-                      similarAssets = await findSimilar(asset.assetId);
-                      loadingFingerprints = false;
-                    }}
-                  >
-                    View Fingerprints
                   </button>
                 {/if}
               {/if}
