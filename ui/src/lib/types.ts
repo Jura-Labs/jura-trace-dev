@@ -1026,6 +1026,50 @@ export interface AnnotationData {
   strokeWidth: number;
 }
 
+// ===== Conformant Signing (BYOC) Types =====
+
+/**
+ * C2PA signing mode.
+ *
+ * `bedrock` — per-install local CA chain (offline-first, default).
+ *   Produces manifests that show signingCredential.untrusted in external
+ *   validators. This is intentional — the Jura Labs offline-first USP.
+ *
+ * `conformant` — institution-imported certificate from a CA on the C2PA
+ *   trust list. Produces manifests that validate in Adobe Inspect and
+ *   any conformant C2PA validator. Requires cert import via Settings.
+ */
+export type SigningMode = 'bedrock' | 'conformant';
+
+/**
+ * Metadata about an imported conformant certificate.
+ *
+ * Mirrors the Rust `ConformantCertificateInfo` struct in `src-tauri/src/c2pa.rs`.
+ * All timestamps are ISO 8601 UTC strings.
+ */
+export interface ConformantCertificateInfo {
+  /** Common Name of the end-entity certificate subject. */
+  subjectCn: string;
+  /** Common Name of the issuing CA (informational — see full chain for detail). */
+  issuerCn: string;
+  /** ISO 8601 not-before timestamp (certificate valid from). */
+  notBefore: string;
+  /** ISO 8601 not-after timestamp (certificate expiry). */
+  notAfter: string;
+  /** SHA-256 fingerprint of the end-entity DER, colon-separated lowercase hex pairs. */
+  fingerprintSha256: string;
+  /** Signing algorithm (e.g. `"ECDSA-P256-SHA256"`). */
+  signingAlgorithm: string;
+  /** Key usage flags present on the certificate (e.g. `["DigitalSignature"]`). */
+  keyUsage: string[];
+  /** Extended key usage friendly names (e.g. `["emailProtection"]`). */
+  extendedKeyUsage: string[];
+  /** Whether the certificate is currently valid (not expired, not yet-valid). */
+  isCurrentlyValid: boolean;
+  /** ISO 8601 timestamp when the certificate was imported into Jura Trace. */
+  importedAt: string;
+}
+
 /** Supported file extensions by content type */
 export const SUPPORTED_EXTENSIONS: Record<ContentType, string[]> = {
   image: ['.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.heic', '.heif', '.bmp', '.gif', '.svg', '.avif', '.ico'],

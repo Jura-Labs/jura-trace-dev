@@ -2321,23 +2321,21 @@ fn sign_asset(
         log::error!("Failed to resolve app data dir: {e}");
         AppError::Internal("Failed to resolve application data directory".into())
     })?;
-    let (cert, key) = c2pa::ensure_certificate(&data_dir).map_err(|e| {
-        log::error!("C2PA certificate error for asset {asset_id}: {e}");
-        AppError::C2pa("Content credential operation failed".into())
-    })?;
 
-    log::info!("Signing asset {asset_id}");
+    log::info!(
+        "Signing asset {asset_id} with {:?} mode",
+        c2pa::get_active_signing_mode(&data_dir)
+    );
 
-    let _manifest_info = c2pa::sign_file(
+    let _manifest_info = c2pa::sign_file_with_active_mode(
         &source,
         &output,
         &creator_name,
         license.as_deref(),
-        &cert,
-        &key,
+        &data_dir,
     )
     .map_err(|e| {
-        log::error!("C2PA sign_file failed for asset {asset_id}: {e}");
+        log::error!("C2PA sign_file_with_active_mode failed for asset {asset_id}: {e}");
         AppError::C2pa("Content credential operation failed".into())
     })?;
 
@@ -3409,6 +3407,109 @@ fn revoke_api_key(key_id: String, state: State<'_, Arc<Mutex<AppState>>>) -> Res
         .map_err(|e| format!("Failed to revoke API key: {e}"))
 }
 
+// ===== Conformant Signing (BYOC) Commands =====
+
+/// Import an institution-provided conformant certificate for C2PA signing.
+///
+/// Validates the cert chain (profile checks via c2pa-rs), verifies that the
+/// private key matches the end-entity cert, copies both files to the app data
+/// directory with appropriate permissions, and returns display metadata.
+///
+/// Does NOT automatically activate Conformant signing mode — the user must
+/// call `set_signing_mode` to switch. This allows inspection of the cert before
+/// committing to it.
+#[tauri::command]
+async fn import_conformant_certificate(
+    cert_path: String,
+    key_path: String,
+    app_handle: tauri::AppHandle,
+) -> Result<c2pa::ConformantCertificateInfo, AppError> {
+    // SECURITY: Reject paths containing null bytes.
+    if cert_path.contains('\0') || key_path.contains('\0') {
+        return Err(AppError::Validation("Invalid file path".into()));
+    }
+    let cert_pb = PathBuf::from(&cert_path);
+    let key_pb = PathBuf::from(&key_path);
+    if !cert_pb.exists() {
+        return Err(AppError::Validation(
+            "Certificate file not found".to_string(),
+        ));
+    }
+    if !key_pb.exists() {
+        return Err(AppError::Validation("Key file not found".to_string()));
+    }
+    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
+        log::error!("Failed to resolve app data dir: {e}");
+        AppError::Internal("Failed to resolve application data directory".into())
+    })?;
+    c2pa::import_conformant_certificate(&cert_pb, &key_pb, &data_dir).map_err(|e| {
+        log::error!("Conformant cert import failed: {e}");
+        AppError::C2pa("Content credential operation failed".into())
+    })
+}
+
+/// Return the currently active signing mode (`bedrock` or `conformant`).
+#[tauri::command]
+async fn get_signing_mode(app_handle: tauri::AppHandle) -> Result<c2pa::SigningMode, AppError> {
+    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
+        log::error!("Failed to resolve app data dir: {e}");
+        AppError::Internal("Failed to resolve application data directory".into())
+    })?;
+    Ok(c2pa::get_active_signing_mode(&data_dir))
+}
+
+/// Set the active signing mode.
+///
+/// Returns an error if `conformant` is requested but no certificate has been
+/// imported. Does not return an error if the current mode is already the
+/// requested mode (idempotent).
+#[tauri::command]
+async fn set_signing_mode(
+    mode: c2pa::SigningMode,
+    app_handle: tauri::AppHandle,
+) -> Result<(), AppError> {
+    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
+        log::error!("Failed to resolve app data dir: {e}");
+        AppError::Internal("Failed to resolve application data directory".into())
+    })?;
+    c2pa::set_active_signing_mode(&data_dir, mode).map_err(|e| {
+        log::warn!("set_signing_mode failed: {e}");
+        AppError::Validation(e)
+    })
+}
+
+/// Return metadata about the currently imported conformant certificate.
+///
+/// Returns `null` (serialised as JSON `null`) if no certificate has been imported.
+#[tauri::command]
+async fn get_conformant_cert_info(
+    app_handle: tauri::AppHandle,
+) -> Result<Option<c2pa::ConformantCertificateInfo>, AppError> {
+    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
+        log::error!("Failed to resolve app data dir: {e}");
+        AppError::Internal("Failed to resolve application data directory".into())
+    })?;
+    c2pa::get_conformant_certificate_info(&data_dir).map_err(|e| {
+        log::error!("get_conformant_cert_info failed: {e}");
+        AppError::C2pa("Content credential operation failed".into())
+    })
+}
+
+/// Delete the imported conformant certificate and revert signing mode to Bedrock.
+///
+/// No-op if no certificate is currently imported (returns `Ok(())`).
+#[tauri::command]
+async fn clear_conformant_cert(app_handle: tauri::AppHandle) -> Result<(), AppError> {
+    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
+        log::error!("Failed to resolve app data dir: {e}");
+        AppError::Internal("Failed to resolve application data directory".into())
+    })?;
+    c2pa::clear_conformant_certificate(&data_dir).map_err(|e| {
+        log::error!("clear_conformant_cert failed: {e}");
+        AppError::C2pa("Content credential operation failed".into())
+    })
+}
+
 // ===== Solar Position Calculator =====
 
 /// Calculate the solar azimuth and elevation for a given location and UTC time.
@@ -4309,6 +4410,11 @@ pub fn run() {
             create_api_key,
             list_api_keys,
             revoke_api_key,
+            import_conformant_certificate,
+            get_signing_mode,
+            set_signing_mode,
+            get_conformant_cert_info,
+            clear_conformant_cert,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Jura Trace")

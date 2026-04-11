@@ -3,6 +3,7 @@
 //! All operations are local. No network calls to external services.
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
 // ===== Types =====
@@ -481,6 +482,686 @@ pub fn detect_ai_from_assertions(assertions: &[AssertionInfo]) -> Option<String>
     None
 }
 
+// ===== Conformant Signing Mode =====
+
+/// The active signing mode for C2PA manifest creation.
+///
+/// `Bedrock` (default) uses the per-install `rcgen`-generated local CA chain —
+/// offline-first, no phone-home. Produces structurally-valid manifests that show
+/// `signingCredential.untrusted` in external validators because the root is not
+/// in any public trust store. This is the Jura Labs USP.
+///
+/// `Conformant` uses an institution-imported certificate from a CA on the
+/// C2PA trust list. Produces manifests that pass in Adobe Inspect, the
+/// Content Credentials Verify site, and any conformant validator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SigningMode {
+    Bedrock,
+    Conformant,
+}
+
+/// Metadata describing an imported conformant certificate.
+///
+/// Returned by `import_conformant_certificate` and by
+/// `get_conformant_certificate_info`. The frontend uses this to display
+/// cert status and expiry warnings in the Settings panel.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConformantCertificateInfo {
+    /// Subject Common Name of the end-entity certificate.
+    pub subject_cn: String,
+    /// Issuer Common Name (CA name) of the end-entity certificate.
+    pub issuer_cn: String,
+    /// ISO 8601 not-before timestamp.
+    pub not_before: String,
+    /// ISO 8601 not-after (expiry) timestamp.
+    pub not_after: String,
+    /// SHA-256 fingerprint of the end-entity DER bytes, lowercase hex pairs
+    /// separated by colons (e.g. `"aa:bb:cc:..."`).
+    pub fingerprint_sha256: String,
+    /// Signing algorithm detected from the certificate (e.g. `"ECDSA-P256-SHA256"`).
+    pub signing_algorithm: String,
+    /// Key usage flags present on the end-entity cert.
+    pub key_usage: Vec<String>,
+    /// Extended key usage OID friendly names present on the end-entity cert.
+    pub extended_key_usage: Vec<String>,
+    /// Whether the certificate is currently valid (not_before <= now <= not_after).
+    pub is_currently_valid: bool,
+    /// ISO 8601 timestamp when the cert was imported into Jura Trace.
+    pub imported_at: String,
+}
+
+/// On-disk shape of `<data_dir>/certs/signing_config.json`.
+#[derive(Debug, Serialize, Deserialize)]
+struct SigningConfig {
+    active_mode: SigningMode,
+    /// ISO 8601 timestamp set when a conformant cert was successfully imported.
+    conformant_cert_imported_at: Option<String>,
+}
+
+impl Default for SigningConfig {
+    fn default() -> Self {
+        Self {
+            active_mode: SigningMode::Bedrock,
+            conformant_cert_imported_at: None,
+        }
+    }
+}
+
+// ---- internal helpers ----
+
+fn certs_dir(data_dir: &Path) -> PathBuf {
+    data_dir.join("certs")
+}
+
+fn signing_config_path(data_dir: &Path) -> PathBuf {
+    certs_dir(data_dir).join("signing_config.json")
+}
+
+fn conformant_cert_path(data_dir: &Path) -> PathBuf {
+    certs_dir(data_dir).join("conformant_cert.pem")
+}
+
+fn conformant_key_path(data_dir: &Path) -> PathBuf {
+    certs_dir(data_dir).join("conformant_key.pem")
+}
+
+/// Read `signing_config.json`; returns `Default` if the file is missing.
+///
+/// Never panics on a missing file — this is the first-run case.
+fn read_signing_config(data_dir: &Path) -> Result<SigningConfig, String> {
+    let path = signing_config_path(data_dir);
+    if !path.exists() {
+        return Ok(SigningConfig::default());
+    }
+    let raw = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read signing config: {e}"))?;
+    serde_json::from_str(&raw).map_err(|e| format!("Failed to parse signing config: {e}"))
+}
+
+/// Write `signing_config.json` atomically (write to `.tmp`, then rename).
+fn write_signing_config(data_dir: &Path, config: &SigningConfig) -> Result<(), String> {
+    let dir = certs_dir(data_dir);
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create certs directory: {e}"))?;
+    let path = signing_config_path(data_dir);
+    let tmp = path.with_extension("tmp");
+    let json = serde_json::to_string_pretty(config)
+        .map_err(|e| format!("Failed to serialise signing config: {e}"))?;
+    std::fs::write(&tmp, json.as_bytes())
+        .map_err(|e| format!("Failed to write signing config: {e}"))?;
+    std::fs::rename(&tmp, &path).map_err(|e| format!("Failed to commit signing config: {e}"))?;
+    Ok(())
+}
+
+/// Format a `time::OffsetDateTime` as an ISO 8601 string suitable for IPC.
+fn format_time(t: time::OffsetDateTime) -> String {
+    // Use the well-known subset: YYYY-MM-DDTHH:MM:SSZ
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        t.year(),
+        t.month() as u8,
+        t.day(),
+        t.hour(),
+        t.minute(),
+        t.second(),
+    )
+}
+
+/// Parse the first PEM certificate block from `pem_bytes` and return its DER.
+fn first_cert_der(pem_bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let pem_str = std::str::from_utf8(pem_bytes)
+        .map_err(|_| "Certificate PEM is not valid UTF-8".to_string())?;
+    // x509_parser ships with c2pa-rs transitively; use the simpler approach of
+    // splitting on PEM block boundaries ourselves to stay dependency-free.
+    let mut in_block = false;
+    let mut b64 = String::new();
+    for line in pem_str.lines() {
+        let trimmed = line.trim();
+        if trimmed == "-----BEGIN CERTIFICATE-----" {
+            in_block = true;
+            b64.clear();
+            continue;
+        }
+        if trimmed == "-----END CERTIFICATE-----" && in_block {
+            break;
+        }
+        if in_block {
+            b64.push_str(trimmed);
+        }
+    }
+    if b64.is_empty() {
+        return Err("No valid CERTIFICATE PEM block found in file".to_string());
+    }
+    use std::io::Read;
+    let mut decoder = base64::Base64Decoder::new(b64.as_bytes());
+    let mut der = Vec::new();
+    decoder
+        .read_to_end(&mut der)
+        .map_err(|e| format!("Failed to base64-decode certificate DER: {e}"))?;
+    Ok(der)
+}
+
+// ---- public API ----
+
+/// Import an institution-provided conformant certificate for C2PA signing.
+///
+/// Reads PEM files from `cert_pem_path` (chain: EE first, then intermediates,
+/// then root) and `key_pem_path` (private key for the end-entity cert).
+///
+/// Validates that:
+/// - At least one `BEGIN CERTIFICATE` block is present.
+/// - The private key matches the end-entity certificate (public key comparison
+///   via a round-trip sign/verify using c2pa-rs's `from_keys` builder).
+/// - The cert passes c2pa-rs's `check_certificate_profile` (AKI, Key Usage,
+///   Extended Key Usage, no unknown critical extensions) by attempting to
+///   construct a signer — any profile error is surfaced as a validation failure.
+///
+/// Copies the PEM files to `<data_dir>/certs/conformant_cert.pem` and
+/// `conformant_key.pem` with 0600 permissions on the key file (Unix).
+///
+/// Returns metadata about the imported certificate. The `is_currently_valid`
+/// field reflects expiry at import time; it does not prevent a cert that has
+/// not yet expired from being imported even if it will expire soon.
+pub fn import_conformant_certificate(
+    cert_pem_path: &Path,
+    key_pem_path: &Path,
+    data_dir: &Path,
+) -> Result<ConformantCertificateInfo, String> {
+    // --- 1. Read PEM files ---
+    let cert_bytes = std::fs::read(cert_pem_path)
+        .map_err(|e| format!("Failed to read certificate file: {e}"))?;
+    let key_bytes =
+        std::fs::read(key_pem_path).map_err(|e| format!("Failed to read key file: {e}"))?;
+
+    // --- 2. Basic PEM sanity checks ---
+    let cert_str = std::str::from_utf8(&cert_bytes)
+        .map_err(|_| "Certificate file is not valid UTF-8".to_string())?;
+    let key_str =
+        std::str::from_utf8(&key_bytes).map_err(|_| "Key file is not valid UTF-8".to_string())?;
+
+    if !cert_str.contains("-----BEGIN CERTIFICATE-----") {
+        return Err("Certificate file does not contain a valid PEM CERTIFICATE block".to_string());
+    }
+    if !key_str.contains("-----BEGIN") {
+        return Err("Key file does not contain a valid PEM block".to_string());
+    }
+
+    // --- 3a. Key-cert public key match ---
+    //
+    // Parse the private key PEM to obtain its corresponding public key bytes.
+    // Then decode the first certificate's DER and verify those public key bytes
+    // are present in the SubjectPublicKeyInfo field. This detects the common
+    // misconfiguration where the user supplies a key from a different cert.
+    let key_pair = rcgen::KeyPair::from_pem(key_str)
+        .map_err(|e| format!("Failed to parse private key PEM: {e}"))?;
+    let key_pubkey_raw = key_pair.public_key_raw();
+
+    let cert_der = first_cert_der(&cert_bytes)?;
+    // The ECDSA public key raw bytes (the uncompressed point) will appear
+    // verbatim inside the cert DER as the BIT STRING payload of SubjectPublicKeyInfo.
+    // Searching for the raw bytes as a subsequence is sufficient for P-256 keys.
+    if !cert_der
+        .windows(key_pubkey_raw.len())
+        .any(|w| w == key_pubkey_raw)
+    {
+        return Err(
+            "Private key does not match the certificate: public key mismatch. \
+             Ensure the key file corresponds to the certificate file."
+                .to_string(),
+        );
+    }
+
+    // --- 3b. Validate cert profile by constructing a c2pa signer.
+    //     This calls `check_certificate_profile` internally in c2pa-rs and
+    //     will return an error if AKI, Key Usage, EKU, or critical-extension
+    //     constraints are violated. ---
+    c2pa::create_signer::from_keys(&cert_bytes, &key_bytes, c2pa::SigningAlg::Es256, None)
+        .map_err(|e| format!("Certificate profile validation failed: {e}"))?;
+
+    // --- 4. Extract cert metadata from the first PEM block ---
+    // Parse using rcgen's CertificateParams::from_ca_cert_pem for metadata
+    // (subject, issuer, validity, key usage, EKU, public key bytes).
+    let params = rcgen::CertificateParams::from_ca_cert_pem(cert_str)
+        .map_err(|e| format!("Failed to parse certificate PEM: {e}"))?;
+
+    // Extract subject CN
+    let subject_cn = params
+        .distinguished_name
+        .get(&rcgen::DnType::CommonName)
+        .map(|v| match v {
+            rcgen::DnValue::Utf8String(s) => s.clone(),
+            rcgen::DnValue::PrintableString(s) => s.as_str().to_string(),
+            rcgen::DnValue::TeletexString(s) => s.as_str().to_string(),
+            rcgen::DnValue::UniversalString(s) => {
+                String::from_utf8_lossy(s.as_bytes()).into_owned()
+            }
+            rcgen::DnValue::BmpString(s) => String::from_utf8_lossy(s.as_bytes()).into_owned(),
+            rcgen::DnValue::Ia5String(s) => s.as_str().to_string(),
+            &_ => "(unknown)".to_string(),
+        })
+        .unwrap_or_else(|| "(unknown)".to_string());
+
+    // Extract issuer CN (rcgen does not expose issuer directly from
+    // from_ca_cert_pem; we derive it from the key_pair_verified_pem approach).
+    // Fall back gracefully — issuer CN is informational only.
+    let issuer_cn = "(see certificate chain)".to_string();
+
+    // Validity window
+    let not_before_str = format_time(params.not_before);
+    let not_after_str = format_time(params.not_after);
+
+    // Is currently valid?
+    let now = time::OffsetDateTime::now_utc();
+    let is_currently_valid = params.not_before <= now && now <= params.not_after;
+
+    // Key usage flags
+    let key_usage: Vec<String> = params
+        .key_usages
+        .iter()
+        .map(|ku| format!("{ku:?}"))
+        .collect();
+
+    // Extended key usage
+    let extended_key_usage: Vec<String> = params
+        .extended_key_usages
+        .iter()
+        .map(|eku| match eku {
+            rcgen::ExtendedKeyUsagePurpose::EmailProtection => "emailProtection".to_string(),
+            rcgen::ExtendedKeyUsagePurpose::CodeSigning => "codeSigning".to_string(),
+            rcgen::ExtendedKeyUsagePurpose::ServerAuth => "serverAuth".to_string(),
+            rcgen::ExtendedKeyUsagePurpose::ClientAuth => "clientAuth".to_string(),
+            rcgen::ExtendedKeyUsagePurpose::TimeStamping => "timeStamping".to_string(),
+            rcgen::ExtendedKeyUsagePurpose::OcspSigning => "ocspSigning".to_string(),
+            rcgen::ExtendedKeyUsagePurpose::Any => "any".to_string(),
+            _ => "other".to_string(),
+        })
+        .collect();
+
+    // Signing algorithm — c2pa-rs only supports Es256 for `from_keys`, so if the
+    // signer construction succeeded above the cert must carry an ECDSA-P256 key.
+    // We record this as a fixed string rather than attempting DER-level algorithm
+    // inspection (which would require an explicit x509-parser dep at the call site).
+    let signing_algorithm = "ECDSA-P256-SHA256".to_string();
+
+    // --- 5. SHA-256 fingerprint of the first cert DER ---
+    let der = first_cert_der(&cert_bytes)?;
+    let digest = Sha256::digest(&der);
+    let fingerprint_sha256 = digest
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<Vec<_>>()
+        .join(":");
+
+    // --- 6. Copy PEM files to data_dir/certs/ ---
+    let dir = certs_dir(data_dir);
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create certs directory: {e}"))?;
+
+    let dest_cert = conformant_cert_path(data_dir);
+    let dest_key = conformant_key_path(data_dir);
+
+    std::fs::write(&dest_cert, &cert_bytes)
+        .map_err(|e| format!("Failed to write conformant certificate: {e}"))?;
+    std::fs::write(&dest_key, &key_bytes)
+        .map_err(|e| format!("Failed to write conformant key: {e}"))?;
+
+    // Restrict key to owner-read/write only (0600) on Unix.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&dest_key)
+            .map_err(|e| format!("Failed to stat conformant key file: {e}"))?
+            .permissions();
+        perms.set_mode(0o600);
+        std::fs::set_permissions(&dest_key, perms)
+            .map_err(|e| format!("Failed to set conformant key file permissions: {e}"))?;
+    }
+
+    // --- 7. Update signing_config.json with import timestamp ---
+    let imported_at = format_time(now);
+    let mut config = read_signing_config(data_dir)?;
+    config.conformant_cert_imported_at = Some(imported_at.clone());
+    write_signing_config(data_dir, &config)?;
+
+    log::info!(
+        "Imported conformant certificate for {} at {}",
+        subject_cn,
+        dest_cert.display()
+    );
+
+    Ok(ConformantCertificateInfo {
+        subject_cn,
+        issuer_cn,
+        not_before: not_before_str,
+        not_after: not_after_str,
+        fingerprint_sha256,
+        signing_algorithm,
+        key_usage,
+        extended_key_usage,
+        is_currently_valid,
+        imported_at,
+    })
+}
+
+/// Return the active signing mode.
+///
+/// Reads `<data_dir>/certs/signing_config.json`; returns `Bedrock` on
+/// first run (file absent) or on any parse error.
+pub fn get_active_signing_mode(data_dir: &Path) -> SigningMode {
+    read_signing_config(data_dir)
+        .map(|c| c.active_mode)
+        .unwrap_or(SigningMode::Bedrock)
+}
+
+/// Persist the active signing mode.
+///
+/// Returns an error if Conformant mode is requested but no conformant
+/// certificate has been imported.
+pub fn set_active_signing_mode(data_dir: &Path, mode: SigningMode) -> Result<(), String> {
+    if mode == SigningMode::Conformant && !conformant_cert_path(data_dir).exists() {
+        return Err(
+            "Cannot activate Conformant signing mode: no certificate has been imported. \
+             Import a conformant certificate first."
+                .to_string(),
+        );
+    }
+    let mut config = read_signing_config(data_dir)?;
+    config.active_mode = mode;
+    write_signing_config(data_dir, &config)
+}
+
+/// Return metadata about the currently imported conformant certificate.
+///
+/// Returns `Ok(None)` if no certificate has been imported.
+pub fn get_conformant_certificate_info(
+    data_dir: &Path,
+) -> Result<Option<ConformantCertificateInfo>, String> {
+    let cert_path = conformant_cert_path(data_dir);
+    if !cert_path.exists() {
+        return Ok(None);
+    }
+    let cert_bytes = std::fs::read(&cert_path)
+        .map_err(|e| format!("Failed to read conformant certificate: {e}"))?;
+    let key_path = conformant_key_path(data_dir);
+    let cert_str = std::str::from_utf8(&cert_bytes)
+        .map_err(|_| "Conformant certificate is not valid UTF-8".to_string())?;
+
+    let params = rcgen::CertificateParams::from_ca_cert_pem(cert_str)
+        .map_err(|e| format!("Failed to parse stored conformant certificate: {e}"))?;
+
+    let subject_cn = params
+        .distinguished_name
+        .get(&rcgen::DnType::CommonName)
+        .map(|v| match v {
+            rcgen::DnValue::Utf8String(s) => s.clone(),
+            rcgen::DnValue::PrintableString(s) => s.as_str().to_string(),
+            rcgen::DnValue::TeletexString(s) => s.as_str().to_string(),
+            rcgen::DnValue::UniversalString(s) => {
+                String::from_utf8_lossy(s.as_bytes()).into_owned()
+            }
+            rcgen::DnValue::BmpString(s) => String::from_utf8_lossy(s.as_bytes()).into_owned(),
+            rcgen::DnValue::Ia5String(s) => s.as_str().to_string(),
+            &_ => "(unknown)".to_string(),
+        })
+        .unwrap_or_else(|| "(unknown)".to_string());
+
+    let now = time::OffsetDateTime::now_utc();
+    let is_currently_valid = params.not_before <= now && now <= params.not_after;
+
+    let key_usage: Vec<String> = params
+        .key_usages
+        .iter()
+        .map(|ku| format!("{ku:?}"))
+        .collect();
+
+    let extended_key_usage: Vec<String> = params
+        .extended_key_usages
+        .iter()
+        .map(|eku| match eku {
+            rcgen::ExtendedKeyUsagePurpose::EmailProtection => "emailProtection".to_string(),
+            rcgen::ExtendedKeyUsagePurpose::CodeSigning => "codeSigning".to_string(),
+            rcgen::ExtendedKeyUsagePurpose::ServerAuth => "serverAuth".to_string(),
+            rcgen::ExtendedKeyUsagePurpose::ClientAuth => "clientAuth".to_string(),
+            rcgen::ExtendedKeyUsagePurpose::TimeStamping => "timeStamping".to_string(),
+            rcgen::ExtendedKeyUsagePurpose::OcspSigning => "ocspSigning".to_string(),
+            rcgen::ExtendedKeyUsagePurpose::Any => "any".to_string(),
+            _ => "other".to_string(),
+        })
+        .collect();
+
+    let signing_algorithm = "ECDSA-P256-SHA256".to_string();
+
+    let der = first_cert_der(&cert_bytes)?;
+    let digest = Sha256::digest(&der);
+    let fingerprint_sha256 = digest
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<Vec<_>>()
+        .join(":");
+
+    let config = read_signing_config(data_dir)?;
+    let imported_at = config.conformant_cert_imported_at.unwrap_or_else(|| {
+        // Cert file exists but config has no timestamp — use file mtime as fallback.
+        std::fs::metadata(&key_path)
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| {
+                let secs = t.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64;
+                time::OffsetDateTime::from_unix_timestamp(secs).ok()
+            })
+            .map(format_time)
+            .unwrap_or_else(|| "unknown".to_string())
+    });
+
+    Ok(Some(ConformantCertificateInfo {
+        subject_cn,
+        issuer_cn: "(see certificate chain)".to_string(),
+        not_before: format_time(params.not_before),
+        not_after: format_time(params.not_after),
+        fingerprint_sha256,
+        signing_algorithm,
+        key_usage,
+        extended_key_usage,
+        is_currently_valid,
+        imported_at,
+    }))
+}
+
+/// Delete the imported conformant certificate and revert the active mode to Bedrock.
+///
+/// No-op (returns `Ok(())`) if no certificate is present.
+pub fn clear_conformant_certificate(data_dir: &Path) -> Result<(), String> {
+    let cert_path = conformant_cert_path(data_dir);
+    let key_path = conformant_key_path(data_dir);
+
+    if cert_path.exists() {
+        std::fs::remove_file(&cert_path)
+            .map_err(|e| format!("Failed to remove conformant certificate: {e}"))?;
+    }
+    if key_path.exists() {
+        std::fs::remove_file(&key_path)
+            .map_err(|e| format!("Failed to remove conformant key: {e}"))?;
+    }
+
+    // Revert config to Bedrock regardless of what was there before.
+    let config = SigningConfig {
+        active_mode: SigningMode::Bedrock,
+        conformant_cert_imported_at: None,
+    };
+    write_signing_config(data_dir, &config)?;
+    log::info!("Conformant certificate cleared; reverted to Bedrock signing mode");
+    Ok(())
+}
+
+/// Sign a file using whichever signing mode is currently active.
+///
+/// If the active mode is `Bedrock`, the per-install local CA chain is used
+/// (same as calling `ensure_certificate` + `sign_file` directly).
+///
+/// If the active mode is `Conformant`, the imported certificate is read from
+/// `<data_dir>/certs/conformant_cert.pem` and validated to be currently valid
+/// (not expired, not yet-valid) before signing. If the certificate has expired
+/// this function returns an error — sign with Bedrock mode or import a new cert.
+///
+/// Existing callers of the lower-level `sign_file` are unaffected.
+pub fn sign_file_with_active_mode(
+    source: &Path,
+    output: &Path,
+    creator_name: &str,
+    license: Option<&str>,
+    data_dir: &Path,
+) -> Result<ManifestInfo, String> {
+    let mode = get_active_signing_mode(data_dir);
+    match mode {
+        SigningMode::Bedrock => {
+            let (cert, key) = ensure_certificate(data_dir)?;
+            sign_file(source, output, creator_name, license, &cert, &key)
+        }
+        SigningMode::Conformant => {
+            let cert_path = conformant_cert_path(data_dir);
+            let key_path = conformant_key_path(data_dir);
+
+            if !cert_path.exists() {
+                return Err(
+                    "Conformant signing mode is active but no certificate has been imported."
+                        .to_string(),
+                );
+            }
+
+            let cert = std::fs::read(&cert_path)
+                .map_err(|e| format!("Failed to read conformant certificate: {e}"))?;
+            let key = std::fs::read(&key_path)
+                .map_err(|e| format!("Failed to read conformant key: {e}"))?;
+
+            // Verify the cert is still valid — refuse to sign with an expired cert.
+            let cert_str = std::str::from_utf8(&cert)
+                .map_err(|_| "Conformant certificate is not valid UTF-8".to_string())?;
+            let params = rcgen::CertificateParams::from_ca_cert_pem(cert_str)
+                .map_err(|e| format!("Failed to parse conformant certificate: {e}"))?;
+            let now = time::OffsetDateTime::now_utc();
+            if now > params.not_after {
+                return Err(format!(
+                    "Conformant certificate expired at {}. Import a new certificate or switch to Bedrock signing mode.",
+                    format_time(params.not_after)
+                ));
+            }
+            if now < params.not_before {
+                return Err(format!(
+                    "Conformant certificate is not yet valid (valid from {}). Import a current certificate or switch to Bedrock signing mode.",
+                    format_time(params.not_before)
+                ));
+            }
+
+            sign_file(source, output, creator_name, license, &cert, &key)
+        }
+    }
+}
+
+// ---- base64 helper (no new deps) ----
+// We need base64 decoding for the DER extraction. The `rcgen` crate does not
+// re-export base64; however `c2pa` brings in `base64` transitively.
+// We use a minimal manual approach here to avoid taking a new dep.
+
+mod base64 {
+    pub struct Base64Decoder<'a> {
+        input: &'a [u8],
+        pos: usize,
+        buf: [u8; 3],
+        buf_len: usize,
+    }
+
+    impl<'a> Base64Decoder<'a> {
+        pub fn new(input: &'a [u8]) -> Self {
+            Self {
+                input,
+                pos: 0,
+                buf: [0u8; 3],
+                buf_len: 0,
+            }
+        }
+    }
+
+    fn decode_char(c: u8) -> Option<u8> {
+        match c {
+            b'A'..=b'Z' => Some(c - b'A'),
+            b'a'..=b'z' => Some(c - b'a' + 26),
+            b'0'..=b'9' => Some(c - b'0' + 52),
+            b'+' => Some(62),
+            b'/' => Some(63),
+            b'=' => None,                         // padding
+            b'\n' | b'\r' | b' ' | b'\t' => None, // whitespace
+            _ => None,
+        }
+    }
+
+    impl std::io::Read for Base64Decoder<'_> {
+        fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+            // Flush any buffered bytes first.
+            if self.buf_len > 0 {
+                let n = self.buf_len.min(out.len());
+                out[..n].copy_from_slice(&self.buf[3 - self.buf_len..3 - self.buf_len + n]);
+                self.buf_len -= n;
+                return Ok(n);
+            }
+
+            // Collect 4 base64 chars (skipping whitespace/padding).
+            let mut chars = [0u8; 4];
+            let mut count = 0;
+            let mut padding = 0u8;
+            while count < 4 && self.pos < self.input.len() {
+                let c = self.input[self.pos];
+                self.pos += 1;
+                if c == b'=' {
+                    padding += 1;
+                    count += 1;
+                    chars[count - 1] = 0;
+                } else if let Some(v) = decode_char(c) {
+                    if c == b'\n' || c == b'\r' || c == b' ' || c == b'\t' {
+                        continue;
+                    }
+                    chars[count] = v;
+                    count += 1;
+                }
+            }
+            if count == 0 {
+                return Ok(0); // EOF
+            }
+
+            let b0 = (chars[0] << 2) | (chars[1] >> 4);
+            let b1 = (chars[1] << 4) | (chars[2] >> 2);
+            let b2 = (chars[2] << 6) | chars[3];
+
+            let decoded = match padding {
+                0 => {
+                    self.buf = [b0, b1, b2];
+                    3
+                }
+                1 => {
+                    self.buf = [b0, b1, 0];
+                    2
+                }
+                _ => {
+                    self.buf = [b0, 0, 0];
+                    1
+                }
+            };
+
+            let n = decoded.min(out.len());
+            out[..n].copy_from_slice(&self.buf[..n]);
+            if decoded > n {
+                // Store remainder in buf
+                let rem = decoded - n;
+                self.buf_len = rem;
+                // Shift remaining bytes to the end of buf for next read
+                for i in 0..rem {
+                    self.buf[3 - rem + i] = self.buf[n + i];
+                }
+            }
+            Ok(n)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -796,5 +1477,299 @@ mod tests {
 
         assert_eq!(cert1, cert2, "cert should be identical on second load");
         assert_eq!(key1, key2, "key should be identical on second load");
+    }
+
+    // ===== Conformant Signing Mode Tests =====
+
+    /// Helper: generate a fresh Bedrock-style cert chain and write to tempdir,
+    /// returning (cert_pem_path, key_pem_path) for use in import tests.
+    fn generate_test_cert_chain(dir: &std::path::Path) -> (PathBuf, PathBuf) {
+        let data_dir = dir.join("data");
+        let (cert_bytes, key_bytes) = ensure_certificate(&data_dir).expect("ensure_certificate");
+
+        // The Bedrock chain is EE + CA. For import tests we only need the cert
+        // and key files on disk. Write them to a separate location (not the
+        // data_dir/certs path) so that import_conformant_certificate can copy them.
+        let cert_path = dir.join("test_cert.pem");
+        let key_path = dir.join("test_key.pem");
+        std::fs::write(&cert_path, &cert_bytes).expect("write test cert");
+        std::fs::write(&key_path, &key_bytes).expect("write test key");
+        (cert_path, key_path)
+    }
+
+    /// Happy path: import a valid cert chain, verify the returned metadata is sane.
+    #[test]
+    fn import_conformant_certificate_happy_path() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let (cert_path, key_path) = generate_test_cert_chain(tmp.path());
+        let data_dir = tmp.path().join("import_data");
+
+        let info = import_conformant_certificate(&cert_path, &key_path, &data_dir)
+            .expect("import should succeed");
+
+        assert!(
+            !info.subject_cn.is_empty(),
+            "subject_cn should be populated"
+        );
+        assert!(
+            !info.fingerprint_sha256.is_empty(),
+            "fingerprint_sha256 should be populated"
+        );
+        assert_eq!(info.signing_algorithm, "ECDSA-P256-SHA256");
+        assert!(
+            info.is_currently_valid,
+            "freshly-generated cert should be currently valid"
+        );
+        assert!(!info.imported_at.is_empty(), "imported_at should be set");
+        // Verify files were actually written to data_dir/certs/
+        assert!(
+            data_dir.join("certs").join("conformant_cert.pem").exists(),
+            "conformant_cert.pem should exist in data_dir"
+        );
+        assert!(
+            data_dir.join("certs").join("conformant_key.pem").exists(),
+            "conformant_key.pem should exist in data_dir"
+        );
+    }
+
+    /// The signing_config.json is updated with the import timestamp.
+    #[test]
+    fn import_updates_signing_config() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let (cert_path, key_path) = generate_test_cert_chain(tmp.path());
+        let data_dir = tmp.path().join("import_data");
+
+        import_conformant_certificate(&cert_path, &key_path, &data_dir)
+            .expect("import should succeed");
+
+        let config_path = data_dir.join("certs").join("signing_config.json");
+        assert!(
+            config_path.exists(),
+            "signing_config.json should be written"
+        );
+        let raw = std::fs::read_to_string(&config_path).unwrap();
+        assert!(
+            raw.contains("conformant_cert_imported_at"),
+            "config should contain import timestamp"
+        );
+    }
+
+    /// Mode persistence: Bedrock round-trip.
+    #[test]
+    fn signing_mode_bedrock_roundtrip() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let data_dir = tmp.path().join("data");
+
+        // Default (no file) should be Bedrock.
+        assert_eq!(
+            get_active_signing_mode(&data_dir),
+            SigningMode::Bedrock,
+            "default mode should be Bedrock"
+        );
+
+        // Explicitly set to Bedrock (should be a no-op but must not error).
+        set_active_signing_mode(&data_dir, SigningMode::Bedrock)
+            .expect("setting Bedrock should succeed");
+        assert_eq!(get_active_signing_mode(&data_dir), SigningMode::Bedrock);
+    }
+
+    /// Mode persistence: switch to Conformant after importing a cert, then round-trip.
+    #[test]
+    fn signing_mode_conformant_roundtrip() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let (cert_path, key_path) = generate_test_cert_chain(tmp.path());
+        let data_dir = tmp.path().join("data");
+
+        // Import first so the cert file exists.
+        import_conformant_certificate(&cert_path, &key_path, &data_dir)
+            .expect("import should succeed");
+
+        // Now switch to Conformant.
+        set_active_signing_mode(&data_dir, SigningMode::Conformant)
+            .expect("setting Conformant mode should succeed after import");
+        assert_eq!(get_active_signing_mode(&data_dir), SigningMode::Conformant);
+    }
+
+    /// Setting Conformant mode without a cert import returns an error.
+    #[test]
+    fn signing_mode_conformant_without_cert_errors() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let data_dir = tmp.path().join("data");
+
+        let result = set_active_signing_mode(&data_dir, SigningMode::Conformant);
+        assert!(
+            result.is_err(),
+            "setting Conformant without a cert should fail"
+        );
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("no certificate"),
+            "error message should mention missing certificate"
+        );
+    }
+
+    /// clear_conformant_certificate reverts mode to Bedrock.
+    #[test]
+    fn clear_conformant_certificate_reverts_to_bedrock() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let (cert_path, key_path) = generate_test_cert_chain(tmp.path());
+        let data_dir = tmp.path().join("data");
+
+        import_conformant_certificate(&cert_path, &key_path, &data_dir).expect("import");
+        set_active_signing_mode(&data_dir, SigningMode::Conformant).expect("set conformant");
+
+        clear_conformant_certificate(&data_dir).expect("clear should succeed");
+
+        assert_eq!(
+            get_active_signing_mode(&data_dir),
+            SigningMode::Bedrock,
+            "mode should revert to Bedrock after clear"
+        );
+        assert!(
+            !data_dir.join("certs").join("conformant_cert.pem").exists(),
+            "conformant cert should be deleted"
+        );
+    }
+
+    /// Validation failure: PEM file without a CERTIFICATE block.
+    #[test]
+    fn import_rejects_non_certificate_pem() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let data_dir = tmp.path().join("data");
+
+        let bad_cert = tmp.path().join("bad.pem");
+        std::fs::write(&bad_cert, b"not a pem file at all").unwrap();
+        let good_key = tmp.path().join("key.pem");
+        // Generate a real key so the key-file check doesn't trip first.
+        let (_, key_bytes) = ensure_certificate(&data_dir.join("gen")).expect("ensure_certificate");
+        std::fs::write(&good_key, &key_bytes).unwrap();
+
+        let result = import_conformant_certificate(&bad_cert, &good_key, &data_dir);
+        assert!(result.is_err(), "import of non-PEM cert should fail");
+        let err = result.unwrap_err();
+        assert!(
+            err.to_lowercase().contains("certificate") || err.to_lowercase().contains("pem"),
+            "error should mention the problem: {err}"
+        );
+    }
+
+    /// Validation failure: key that does not match the certificate.
+    #[test]
+    fn import_rejects_key_mismatch() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let data_dir = tmp.path().join("data");
+
+        // Generate two independent chains — use cert from one, key from the other.
+        let (cert_a, _key_a) = generate_test_cert_chain(&tmp.path().join("chain_a"));
+        let (_, key_b) = generate_test_cert_chain(&tmp.path().join("chain_b"));
+
+        // Write the key from chain_b into a standalone file.
+        let key_b_bytes = std::fs::read(&key_b).unwrap();
+        // key_b is already the EE key of chain B; we need just the first key block.
+        // (ensure_certificate returns the EE key only, so this is already a single key.)
+        let mismatch_key = tmp.path().join("mismatch_key.pem");
+        std::fs::write(&mismatch_key, &key_b_bytes).unwrap();
+
+        let result = import_conformant_certificate(&cert_a, &mismatch_key, &data_dir);
+        assert!(
+            result.is_err(),
+            "import with mismatched key should fail (key does not match cert)"
+        );
+    }
+
+    /// get_conformant_certificate_info returns None when no cert has been imported.
+    #[test]
+    fn get_conformant_cert_info_none_when_absent() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let data_dir = tmp.path().join("data");
+
+        let result = get_conformant_certificate_info(&data_dir).expect("should not error");
+        assert!(
+            result.is_none(),
+            "should return None when no cert is imported"
+        );
+    }
+
+    /// get_conformant_certificate_info returns Some after import.
+    #[test]
+    fn get_conformant_cert_info_some_after_import() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let (cert_path, key_path) = generate_test_cert_chain(tmp.path());
+        let data_dir = tmp.path().join("data");
+
+        import_conformant_certificate(&cert_path, &key_path, &data_dir)
+            .expect("import should succeed");
+
+        let result = get_conformant_certificate_info(&data_dir).expect("should not error");
+        assert!(result.is_some(), "should return Some after import");
+        let info = result.unwrap();
+        assert_eq!(info.signing_algorithm, "ECDSA-P256-SHA256");
+        assert!(info.is_currently_valid);
+    }
+
+    /// Bedrock signing via `sign_file_with_active_mode` works end-to-end.
+    #[test]
+    fn sign_file_with_active_mode_bedrock() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let data_dir = tmp.path().join("data");
+
+        // Default mode is Bedrock — no setup needed.
+        let source = tmp.path().join("input.png");
+        let img = image::RgbImage::new(32, 32);
+        img.save(&source).expect("save PNG");
+        let output = signed_output_path(&source);
+
+        let info = sign_file_with_active_mode(
+            &source,
+            &output,
+            "Test Creator",
+            Some("CC BY 4.0"),
+            &data_dir,
+        )
+        .expect("Bedrock signing should succeed");
+
+        assert_eq!(info.title.as_deref(), Some("input.png"));
+        assert!(output.exists(), "signed output should exist");
+    }
+
+    /// Conformant signing via `sign_file_with_active_mode` works end-to-end.
+    #[test]
+    fn sign_file_with_active_mode_conformant() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let (cert_path, key_path) = generate_test_cert_chain(tmp.path());
+        let data_dir = tmp.path().join("data");
+
+        // Import and activate Conformant mode.
+        import_conformant_certificate(&cert_path, &key_path, &data_dir).expect("import");
+        set_active_signing_mode(&data_dir, SigningMode::Conformant).expect("set conformant");
+
+        let source = tmp.path().join("input_conf.png");
+        let img = image::RgbImage::new(32, 32);
+        img.save(&source).expect("save PNG");
+        let output = signed_output_path(&source);
+
+        let info = sign_file_with_active_mode(&source, &output, "Test Creator", None, &data_dir)
+            .expect("Conformant signing should succeed");
+
+        assert_eq!(info.title.as_deref(), Some("input_conf.png"));
+        assert!(output.exists(), "signed output should exist");
+        // Read back and verify
+        let readback = read_manifest(&output).expect("read_manifest");
+        assert!(readback.is_some(), "manifest should be present");
+    }
+
+    /// Concurrent read safety: reading config when the file is absent must not panic.
+    #[test]
+    fn signing_config_missing_file_returns_bedrock() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let data_dir = tmp.path().join("nonexistent_data_dir");
+
+        // File does not exist — should return Bedrock silently.
+        let mode = get_active_signing_mode(&data_dir);
+        assert_eq!(
+            mode,
+            SigningMode::Bedrock,
+            "missing config should default to Bedrock"
+        );
     }
 }

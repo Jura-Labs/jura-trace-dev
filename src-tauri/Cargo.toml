@@ -58,8 +58,11 @@ image = "0.25"
 # C2PA provenance manifests (Phase 1, Weeks 7-8)
 c2pa = { version = "0.76", features = ["file_io"] }
 
-# Certificate generation for C2PA signing
-rcgen = "0.13"
+# Certificate generation for C2PA signing.
+# x509-parser feature enables CertificateParams::from_ca_cert_pem, required for
+# conformant cert import metadata extraction. x509-parser is already compiled as
+# a transitive dependency of c2pa; enabling this feature adds no new crate.
+rcgen = { version = "0.13", features = ["x509-parser"] }
 # time is a direct dependency of rcgen; we use OffsetDateTime for cert validity
 time = { version = "0.3", features = ["std"] }
 

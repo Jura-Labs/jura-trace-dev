@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getVersion, checkSidecarHealth, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, createApiKey, listApiKeys, revokeApiKey } from '$lib/api';
+  import { getVersion, checkSidecarHealth, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert } from '$lib/api';
   import type { ApiKeyInfo, CreateKeyResult } from '$lib/api';
-  import type { LicenceTier, SidecarHealth, TierInfo } from '$lib/types';
+  import type { ConformantCertificateInfo, LicenceTier, SidecarHealth, SigningMode, TierInfo } from '$lib/types';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import {
     type DeploymentProfile,
@@ -189,6 +189,17 @@
     currentTier = await getLicenceTier();
     aiDescPref = await getAiDescriptionEnabled();
     await loadApiKeys();
+    // Load signing mode + conformant cert (BYOC)
+    try {
+      signingMode = await getSigningMode();
+    } catch {
+      signingMode = 'bedrock';
+    }
+    try {
+      conformantCert = await getConformantCertInfo();
+    } catch {
+      conformantCert = null;
+    }
   });
 
   function handleRerunWizard() {
@@ -462,6 +473,200 @@
 
   function handleDismissNewKey() {
     newlyCreatedKey = null;
+  }
+
+  // ── Signing Mode (BYOC) ───────────────────────────────────────────────────
+  // Bedrock = per-install local CA (default, offline-first).
+  // Conformant = user-imported C2PA-trust-list cert for cross-tool interoperability.
+
+  let signingMode = $state<SigningMode>('bedrock');
+  let conformantCert = $state<ConformantCertificateInfo | null>(null);
+  let signingModeLoading = $state(false);
+
+  // Cert import flow
+  let showCertImport = $state(false);
+  let certPath = $state('');
+  let keyPath = $state('');
+  let importLoading = $state(false);
+  let importError = $state<string | null>(null);
+
+  // Post-import mode-switch offer
+  let offerModeSwitch = $state(false);
+  let modeSwitchLoading = $state(false);
+  let modeSwitchError = $state<string | null>(null);
+
+  // Clear cert confirmation
+  let pendingClearCert = $state(false);
+  let clearCertLoading = $state(false);
+
+  // Fingerprint copy feedback
+  let fingerprintCopied = $state(false);
+  let fingerprintCopyTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const canImport = $derived(certPath.trim().length > 0 && keyPath.trim().length > 0);
+
+  async function handlePickCertFile() {
+    if (!isTauri()) return;
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const selected = await open({
+      title: 'Select Certificate Chain (PEM)',
+      filters: [{ name: 'Certificate', extensions: ['pem', 'crt', 'cer'] }],
+    });
+    if (selected && typeof selected === 'string') {
+      certPath = selected;
+    }
+  }
+
+  async function handlePickKeyFile() {
+    if (!isTauri()) return;
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const selected = await open({
+      title: 'Select Private Key (PEM)',
+      filters: [{ name: 'Private key', extensions: ['pem', 'key'] }],
+    });
+    if (selected && typeof selected === 'string') {
+      keyPath = selected;
+    }
+  }
+
+  async function handleImportCert() {
+    if (!canImport) return;
+    importLoading = true;
+    importError = null;
+    try {
+      const info = await importConformantCertificate(certPath.trim(), keyPath.trim());
+      conformantCert = info;
+      showCertImport = false;
+      certPath = '';
+      keyPath = '';
+      // Offer to switch mode if currently on Bedrock
+      if (signingMode === 'bedrock') {
+        offerModeSwitch = true;
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // AppError objects from Tauri come as { code, message }
+      if (err !== null && typeof err === 'object' && 'message' in err) {
+        importError = (err as { message: string }).message;
+      } else {
+        importError = msg;
+      }
+    } finally {
+      importLoading = false;
+    }
+  }
+
+  async function handleSwitchToConformant() {
+    modeSwitchLoading = true;
+    modeSwitchError = null;
+    try {
+      await setSigningMode('conformant');
+      signingMode = 'conformant';
+      offerModeSwitch = false;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      modeSwitchError = msg;
+    } finally {
+      modeSwitchLoading = false;
+    }
+  }
+
+  async function handleSwitchToBedrock() {
+    signingModeLoading = true;
+    try {
+      await setSigningMode('bedrock');
+      signingMode = 'bedrock';
+    } catch {
+      // Switching to Bedrock cannot fail (no cert required)
+    } finally {
+      signingModeLoading = false;
+    }
+  }
+
+  function handleRequestClearCert() {
+    pendingClearCert = true;
+  }
+
+  function handleCancelClearCert() {
+    pendingClearCert = false;
+  }
+
+  async function handleConfirmClearCert() {
+    clearCertLoading = true;
+    try {
+      await clearConformantCert();
+      conformantCert = null;
+      signingMode = 'bedrock';
+      pendingClearCert = false;
+    } catch {
+      // Idempotent — treat any error as a no-op
+      pendingClearCert = false;
+    } finally {
+      clearCertLoading = false;
+    }
+  }
+
+  async function handleCopyFingerprint() {
+    if (!conformantCert) return;
+    await navigator.clipboard.writeText(conformantCert.fingerprintSha256);
+    fingerprintCopied = true;
+    if (fingerprintCopyTimer !== null) clearTimeout(fingerprintCopyTimer);
+    fingerprintCopyTimer = setTimeout(() => { fingerprintCopied = false; }, 2000);
+  }
+
+  function handleCancelImport() {
+    showCertImport = false;
+    certPath = '';
+    keyPath = '';
+    importError = null;
+  }
+
+  /** Format an ISO 8601 date as a short absolute date. */
+  function formatAbsoluteDate(iso: string): string {
+    try {
+      return new Date(iso).toLocaleDateString('en-GB', {
+        day: 'numeric', month: 'short', year: 'numeric',
+      });
+    } catch {
+      return iso;
+    }
+  }
+
+  /** Return a human-friendly relative distance from now. */
+  function humaniseDistance(iso: string): string {
+    try {
+      const ms = new Date(iso).getTime() - Date.now();
+      const abs = Math.abs(ms);
+      const past = ms < 0;
+      const days = Math.round(abs / 86_400_000);
+      const months = Math.round(days / 30.4);
+      const years = Math.round(days / 365);
+      let label: string;
+      if (days < 1) label = 'today';
+      else if (days < 2) label = '1 day';
+      else if (days < 60) label = `${days} days`;
+      else if (months < 24) label = `${months} month${months === 1 ? '' : 's'}`;
+      else label = `${years} year${years === 1 ? '' : 's'}`;
+      if (label === 'today') return past ? 'expired today' : 'valid until today';
+      return past ? `expired ${label} ago` : `expires in ${label}`;
+    } catch {
+      return '';
+    }
+  }
+
+  /** Format an ISO date as "X days/months ago" (for importedAt). */
+  function humaniseAgo(iso: string): string {
+    try {
+      const ms = Date.now() - new Date(iso).getTime();
+      const days = Math.round(ms / 86_400_000);
+      if (days < 1) return 'today';
+      if (days < 2) return '1 day ago';
+      if (days < 60) return `${days} days ago`;
+      const months = Math.round(days / 30.4);
+      return `${months} month${months === 1 ? '' : 's'} ago`;
+    } catch {
+      return '';
+    }
   }
 </script>
 
@@ -1215,6 +1420,482 @@
       >
         {aiDescFeedback.message}
       </p>
+    {/if}
+  </section>
+
+  <!-- Signing Mode (BYOC) -->
+  <section
+    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
+    aria-labelledby="signing-mode-heading"
+  >
+    <div class="flex items-center gap-1.5 mb-1">
+      <h2 id="signing-mode-heading" class="text-lg font-heading text-text-light dark:text-quartz">Signing Mode</h2>
+      <ContextualHelpLink href="/help/bedrock-signing" label="Learn about Bedrock and Conformant signing" />
+    </div>
+    <p class="text-xs text-flint dark:text-flint-light mb-5">
+      Controls which certificate Jura Trace uses when embedding C2PA manifests into protected assets.
+    </p>
+
+    <!-- Mode cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5" role="group" aria-label="Signing mode selection">
+
+      <!-- Bedrock card -->
+      <div
+        class="relative flex flex-col rounded-lg border-2 p-5 transition-colors
+               {signingMode === 'bedrock'
+                 ? 'border-lapis bg-lapis/5 dark:bg-lapis/5'
+                 : 'border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40'}"
+        aria-current={signingMode === 'bedrock' ? 'true' : undefined}
+      >
+        {#if signingMode === 'bedrock'}
+          <span
+            class="absolute top-3 right-3 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30"
+            aria-label="Currently active"
+          >
+            Active
+          </span>
+        {/if}
+
+        <div class="mb-3">
+          <p class="text-sm font-semibold text-text-light dark:text-quartz">Bedrock Signing</p>
+          <p class="text-xs text-flint dark:text-flint-light mt-0.5">Local-first default</p>
+        </div>
+
+        <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-3">
+          Uses a per-install certificate authority generated on first launch. Works offline.
+          No account, no phone-home, no dependency on external services. Air-gapped deployments
+          and hostile-environment use cases are the primary target.
+        </p>
+
+        <p class="text-xs text-flint/70 dark:text-flint-light/60 leading-relaxed mt-auto pt-3 border-t border-border-light dark:border-border-dark">
+          Signed files carry this device's unique certificate. External validators (Adobe Inspect,
+          contentcredentials.org) will mark manifests as "untrusted" — this is expected behaviour,
+          not a defect.
+        </p>
+
+        {#if signingMode === 'conformant'}
+          <button
+            onclick={handleSwitchToBedrock}
+            disabled={signingModeLoading}
+            class="mt-4 self-start px-4 py-2 min-h-[44px] text-sm font-medium rounded border border-lapis/60 text-lapis dark:text-lapis-light
+                   hover:bg-lapis/10 hover:border-lapis transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                   focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite
+                   disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-busy={signingModeLoading}
+          >
+            {#if signingModeLoading}
+              <span class="flex items-center gap-1.5">
+                <span class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin" aria-hidden="true"></span>
+                Switching...
+              </span>
+            {:else}
+              Switch to Bedrock
+            {/if}
+          </button>
+        {/if}
+      </div>
+
+      <!-- Conformant card -->
+      <div
+        class="relative flex flex-col rounded-lg border-2 p-5 transition-colors
+               {signingMode === 'conformant'
+                 ? 'border-lapis bg-lapis/5 dark:bg-lapis/5'
+                 : 'border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40'}"
+        aria-current={signingMode === 'conformant' ? 'true' : undefined}
+      >
+        {#if signingMode === 'conformant'}
+          <span
+            class="absolute top-3 right-3 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30"
+            aria-label="Currently active"
+          >
+            Active
+          </span>
+        {/if}
+
+        <div class="mb-3">
+          <p class="text-sm font-semibold text-text-light dark:text-quartz">Conformant Signing</p>
+          <p class="text-xs text-flint dark:text-flint-light mt-0.5">Trust-list certificate (optional)</p>
+        </div>
+
+        <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-3">
+          Uses an institution-supplied certificate from a C2PA-approved certificate authority.
+          Manifests signed with this certificate validate cleanly in any conformant C2PA tool,
+          including Adobe Inspect and enterprise procurement gates. Requires an annual certificate
+          from a C2PA-approved CA (typically £200–£1,500).
+        </p>
+
+        {#if conformantCert === null}
+          <!-- No cert — offer import -->
+          <button
+            onclick={() => { showCertImport = true; offerModeSwitch = false; }}
+            class="mt-auto self-start px-4 py-2.5 min-h-[44px] text-sm font-medium rounded bg-lapis text-white
+                   hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                   focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+          >
+            Import certificate
+          </button>
+        {:else}
+          <!-- Cert present — show summary -->
+          <div class="mt-auto pt-3 border-t border-border-light dark:border-border-dark space-y-2">
+
+            <!-- Validity warning -->
+            {#if !conformantCert.isCurrentlyValid}
+              <p
+                class="text-xs px-3 py-2 rounded border border-cinnabar/30 bg-cinnabar/5 text-cinnabar dark:text-cinnabar-light"
+                role="alert"
+              >
+                This certificate is expired or not yet valid. Signing with it will fail.
+              </p>
+            {/if}
+
+            <p class="text-sm font-medium text-text-light dark:text-quartz truncate" title={conformantCert.subjectCn}>
+              {conformantCert.subjectCn}
+            </p>
+            <p class="text-xs text-flint dark:text-flint-light">
+              {formatAbsoluteDate(conformantCert.notBefore)} — {formatAbsoluteDate(conformantCert.notAfter)}
+              <span
+                class="ml-1 {conformantCert.isCurrentlyValid ? 'text-malachite dark:text-malachite-light' : 'text-cinnabar dark:text-cinnabar-light'}"
+              >
+                ({humaniseDistance(conformantCert.notAfter)})
+              </span>
+            </p>
+            <p class="text-xs text-flint dark:text-flint-light">Imported {humaniseAgo(conformantCert.importedAt)}</p>
+
+            <!-- Action row -->
+            <div class="flex flex-wrap items-center gap-2 pt-1">
+              {#if signingMode !== 'conformant'}
+                <button
+                  onclick={handleSwitchToConformant}
+                  disabled={modeSwitchLoading || !conformantCert.isCurrentlyValid}
+                  class="px-3 py-1.5 text-xs font-medium rounded bg-lapis text-white hover:bg-lapis-dark dark:hover:bg-lapis-light
+                         transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-busy={modeSwitchLoading}
+                >
+                  {#if modeSwitchLoading}
+                    <span class="flex items-center gap-1">
+                      <span class="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full motion-safe:animate-spin" aria-hidden="true"></span>
+                      Activating...
+                    </span>
+                  {:else}
+                    Activate
+                  {/if}
+                </button>
+              {/if}
+              <button
+                onclick={() => { showCertImport = true; importError = null; }}
+                class="px-3 py-1.5 text-xs font-medium rounded border border-lapis/50 text-lapis dark:text-lapis-light
+                       hover:bg-lapis/10 hover:border-lapis transition-colors
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+              >
+                Replace
+              </button>
+              {#if !pendingClearCert}
+                <button
+                  onclick={handleRequestClearCert}
+                  class="px-3 py-1.5 text-xs font-medium rounded border border-cinnabar/30 text-cinnabar dark:text-cinnabar-light
+                         hover:bg-cinnabar/10 hover:border-cinnabar/60 transition-colors
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar"
+                >
+                  Remove
+                </button>
+              {:else}
+                <span class="flex items-center gap-2 text-xs text-cinnabar dark:text-cinnabar-light">
+                  Remove certificate?
+                  <button
+                    onclick={handleConfirmClearCert}
+                    disabled={clearCertLoading}
+                    class="font-medium underline underline-offset-2 disabled:opacity-50
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar rounded"
+                    aria-busy={clearCertLoading}
+                  >
+                    {clearCertLoading ? 'Removing...' : 'Confirm'}
+                  </button>
+                  <button
+                    onclick={handleCancelClearCert}
+                    class="text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                  >
+                    Cancel
+                  </button>
+                </span>
+              {/if}
+            </div>
+
+            {#if modeSwitchError !== null}
+              <p class="text-xs text-cinnabar dark:text-cinnabar-light" role="alert" aria-live="assertive">
+                {modeSwitchError}
+              </p>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    <!-- Post-import mode-switch offer -->
+    {#if offerModeSwitch}
+      <div
+        class="mb-4 p-4 rounded-lg border border-lapis/30 bg-lapis/5"
+        role="status"
+        aria-live="polite"
+      >
+        <p class="text-sm text-text-light dark:text-quartz mb-3">
+          Certificate imported. Switch active signing mode to Conformant now?
+        </p>
+        <div class="flex items-center gap-3">
+          <button
+            onclick={handleSwitchToConformant}
+            disabled={modeSwitchLoading}
+            class="px-4 py-2 min-h-[44px] text-sm font-medium rounded bg-lapis text-white hover:bg-lapis-dark dark:hover:bg-lapis-light
+                   transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                   focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite
+                   disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-busy={modeSwitchLoading}
+          >
+            {modeSwitchLoading ? 'Switching...' : 'Yes, switch now'}
+          </button>
+          <button
+            onclick={() => { offerModeSwitch = false; }}
+            class="px-4 py-2 min-h-[44px] text-sm font-medium rounded border border-border-light dark:border-border-dark text-flint dark:text-flint-light
+                   hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                   focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+          >
+            Not now
+          </button>
+        </div>
+        {#if modeSwitchError !== null}
+          <p class="mt-2 text-xs text-cinnabar dark:text-cinnabar-light" role="alert" aria-live="assertive">
+            {modeSwitchError}
+          </p>
+        {/if}
+      </div>
+    {/if}
+
+    <!-- Cert import form -->
+    {#if showCertImport}
+      <div
+        class="p-5 rounded-lg border border-lapis/30 bg-gray-50 dark:bg-obsidian/40"
+        role="region"
+        aria-label="Import conformant certificate"
+      >
+        <h3 class="text-sm font-medium text-text-light dark:text-quartz mb-4">Import certificate</h3>
+
+        <!-- Certificate chain picker -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-text-light dark:text-quartz mb-1" for="cert-path-display">
+            Certificate chain (PEM)
+          </label>
+          <div class="flex items-center gap-2">
+            <input
+              id="cert-path-display"
+              type="text"
+              readonly
+              value={certPath || 'No file selected'}
+              aria-label="Selected certificate chain path"
+              class="flex-1 min-w-0 px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian
+                     text-text-light dark:text-quartz text-sm font-mono truncate cursor-not-allowed opacity-80"
+            />
+            <button
+              type="button"
+              onclick={handlePickCertFile}
+              class="shrink-0 px-4 py-2 min-h-[44px] text-sm font-medium rounded border border-lapis/60 text-lapis dark:text-lapis-light
+                     hover:bg-lapis/10 hover:border-lapis transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                     focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+              aria-label="Browse for certificate chain file"
+            >
+              Browse…
+            </button>
+          </div>
+          <p class="text-xs text-flint dark:text-flint-light mt-1">Accepted formats: .pem, .crt, .cer</p>
+        </div>
+
+        <!-- Private key picker -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-text-light dark:text-quartz mb-1" for="key-path-display">
+            Private key (PEM)
+          </label>
+          <div class="flex items-center gap-2">
+            <input
+              id="key-path-display"
+              type="text"
+              readonly
+              value={keyPath || 'No file selected'}
+              aria-label="Selected private key path"
+              class="flex-1 min-w-0 px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian
+                     text-text-light dark:text-quartz text-sm font-mono truncate cursor-not-allowed opacity-80"
+            />
+            <button
+              type="button"
+              onclick={handlePickKeyFile}
+              class="shrink-0 px-4 py-2 min-h-[44px] text-sm font-medium rounded border border-lapis/60 text-lapis dark:text-lapis-light
+                     hover:bg-lapis/10 hover:border-lapis transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                     focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+              aria-label="Browse for private key file"
+            >
+              Browse…
+            </button>
+          </div>
+          <p class="text-xs text-flint dark:text-flint-light mt-1">Accepted formats: .pem, .key</p>
+        </div>
+
+        <!-- Help text -->
+        <div class="mb-4 p-3 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/30 text-xs text-flint dark:text-flint-light leading-relaxed space-y-1.5">
+          <p>
+            The <strong class="text-text-light dark:text-quartz">certificate chain</strong> is a PEM file containing your end-entity certificate followed by any intermediate CA certificates. Your institution's IT security team or the CA that issued the certificate will have provided this file.
+          </p>
+          <p>
+            The <strong class="text-text-light dark:text-quartz">private key</strong> is the PEM file generated alongside the certificate signing request (CSR). It never leaves this device — Jura Trace stores it in the application data directory with restricted permissions.
+          </p>
+          <p>
+            Certificates must be issued by a C2PA-approved certificate authority and carry the correct key usage and extended key usage extensions.
+            <a
+              href="/help/bedrock-signing"
+              class="text-lapis dark:text-lapis-light hover:underline underline-offset-2
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            >
+              Learn more about conformant signing
+            </a>.
+          </p>
+        </div>
+
+        <!-- Import error -->
+        {#if importError !== null}
+          <div
+            class="mb-4 px-3 py-2 rounded border border-cinnabar/30 bg-cinnabar/5"
+            role="alert"
+            aria-live="assertive"
+          >
+            <p class="text-xs text-cinnabar dark:text-cinnabar-light">{importError}</p>
+          </div>
+        {/if}
+
+        <!-- Action row -->
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            onclick={handleImportCert}
+            disabled={!canImport || importLoading}
+            class="px-5 py-2.5 min-h-[44px] text-sm font-medium rounded bg-lapis text-white
+                   hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                   focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                   disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-busy={importLoading}
+          >
+            {#if importLoading}
+              <span class="flex items-center gap-1.5">
+                <span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full motion-safe:animate-spin" aria-hidden="true"></span>
+                Importing...
+              </span>
+            {:else}
+              Import
+            {/if}
+          </button>
+          <button
+            type="button"
+            onclick={handleCancelImport}
+            disabled={importLoading}
+            class="px-4 py-2.5 min-h-[44px] text-sm font-medium rounded border border-border-light dark:border-border-dark
+                   text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50
+                   transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                   focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Cert detail panel (when cert present and import form closed) -->
+    {#if conformantCert !== null && !showCertImport}
+      <details class="group mt-4">
+        <summary
+          class="list-none flex items-center gap-2 cursor-pointer text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          aria-label="Certificate details"
+        >
+          <svg
+            class="w-3.5 h-3.5 motion-safe:group-open:rotate-90 transition-transform duration-200"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M6 3.5L11 8l-5 4.5V3.5z"/>
+          </svg>
+          Certificate details
+        </summary>
+
+        <div class="mt-3 p-4 rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 space-y-3">
+
+          <!-- Fingerprint -->
+          <div>
+            <p class="text-xs font-medium text-text-light dark:text-quartz mb-1">SHA-256 fingerprint</p>
+            <div class="flex items-center gap-2">
+              <code
+                class="flex-1 min-w-0 px-2 py-1.5 rounded bg-white dark:bg-obsidian border border-border-light dark:border-border-dark
+                       text-[11px] font-mono text-text-light dark:text-quartz break-all select-all"
+                title="Full fingerprint — click to select all"
+              >
+                {conformantCert.fingerprintSha256.slice(0, 48)}…
+              </code>
+              <button
+                onclick={handleCopyFingerprint}
+                class="shrink-0 px-2.5 py-1.5 text-xs font-medium rounded border border-lapis/50 text-lapis dark:text-lapis-light
+                       hover:bg-lapis/10 transition-colors
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+                aria-label="Copy full SHA-256 fingerprint"
+              >
+                {fingerprintCopied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+          </div>
+
+          <!-- Issuer -->
+          <div>
+            <p class="text-xs font-medium text-text-light dark:text-quartz mb-0.5">Issuer</p>
+            <p class="text-xs text-flint dark:text-flint-light">{conformantCert.issuerCn}</p>
+          </div>
+
+          <!-- Algorithm -->
+          <div>
+            <p class="text-xs font-medium text-text-light dark:text-quartz mb-0.5">Algorithm</p>
+            <p class="text-xs text-flint dark:text-flint-light font-mono">{conformantCert.signingAlgorithm}</p>
+          </div>
+
+          <!-- Key usage chips -->
+          {#if conformantCert.keyUsage.length > 0}
+            <div>
+              <p class="text-xs font-medium text-text-light dark:text-quartz mb-1.5">Key usage</p>
+              <div class="flex flex-wrap gap-1.5" aria-label="Key usage flags">
+                {#each conformantCert.keyUsage as usage}
+                  <span class="px-2 py-0.5 rounded text-[11px] bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border border-border-light dark:border-graphite-light">
+                    {usage}
+                  </span>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          <!-- Extended key usage chips -->
+          {#if conformantCert.extendedKeyUsage.length > 0}
+            <div>
+              <p class="text-xs font-medium text-text-light dark:text-quartz mb-1.5">Extended key usage</p>
+              <div class="flex flex-wrap gap-1.5" aria-label="Extended key usage flags">
+                {#each conformantCert.extendedKeyUsage as eku}
+                  <span class="px-2 py-0.5 rounded text-[11px] bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border border-border-light dark:border-graphite-light">
+                    {eku}
+                  </span>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        </div>
+      </details>
     {/if}
   </section>
 

@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, RoiAnalysisResult, SidecarHealth, SimilarAsset, SolarPosition, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
+import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, ConformantCertificateInfo, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, RoiAnalysisResult, SidecarHealth, SigningMode, SimilarAsset, SolarPosition, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -1072,6 +1072,72 @@ export async function getAnnotations(
 export async function deleteAnnotationApi(annotationId: string): Promise<void> {
   if (isTauri) {
     return invoke<void>('delete_annotation', { annotationId });
+  }
+  // Browser mock — no-op
+}
+
+// ── BYOC Signing Mode ──────────────────────────────────────────────────────
+
+/**
+ * Returns the active C2PA signing mode for this installation.
+ * Defaults to 'bedrock' on first run (before signing_config.json is written).
+ */
+export async function getSigningMode(): Promise<SigningMode> {
+  if (isTauri) {
+    return invoke<SigningMode>('get_signing_mode');
+  }
+  return 'bedrock';
+}
+
+/**
+ * Switches the active C2PA signing mode.
+ * Throws if caller tries to set 'conformant' while no cert is imported.
+ */
+export async function setSigningMode(mode: SigningMode): Promise<void> {
+  if (isTauri) {
+    return invoke<void>('set_signing_mode', { mode });
+  }
+  // Browser mock — no-op
+}
+
+/**
+ * Returns metadata for the currently imported conformant certificate,
+ * or null if no certificate has been imported.
+ */
+export async function getConformantCertInfo(): Promise<ConformantCertificateInfo | null> {
+  if (isTauri) {
+    return invoke<ConformantCertificateInfo | null>('get_conformant_cert_info');
+  }
+  return null;
+}
+
+/**
+ * Imports a user-provided PEM certificate chain and private key.
+ * Validates against the C2PA conformance profile (AKI, SKI, Key Usage, EKU),
+ * verifies the key matches the cert, and persists both to the app data directory.
+ *
+ * @param certPath  Absolute path to the PEM certificate chain file.
+ * @param keyPath   Absolute path to the PEM private key file.
+ * @returns Metadata for the imported certificate.
+ * @throws AppError with a descriptive message if validation fails.
+ */
+export async function importConformantCertificate(
+  certPath: string,
+  keyPath: string,
+): Promise<ConformantCertificateInfo> {
+  if (isTauri) {
+    return invoke<ConformantCertificateInfo>('import_conformant_certificate', { certPath, keyPath });
+  }
+  throw new Error('Certificate import is only available in the desktop application.');
+}
+
+/**
+ * Deletes the stored conformant certificate files and reverts the active
+ * signing mode to Bedrock. Idempotent — safe to call when no cert is imported.
+ */
+export async function clearConformantCert(): Promise<void> {
+  if (isTauri) {
+    return invoke<void>('clear_conformant_cert');
   }
   // Browser mock — no-op
 }
