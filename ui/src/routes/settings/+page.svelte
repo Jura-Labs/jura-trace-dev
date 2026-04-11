@@ -1855,12 +1855,10 @@
             </div>
           </div>
 
-          <!-- Issuer — suppressed when the Rust side returns the placeholder.
-               rcgen does not expose the issuer DN through its public API, so
-               the current backend returns "(see certificate chain)". Hiding
-               the row avoids confusing institutional IT leads who expect a
-               real CA name. Unsuppresses automatically once a DER parser
-               for the issuer field lands in c2pa.rs. -->
+          <!-- Issuer CN. The Rust side extracts this via x509-parser from
+               the tbsCertificate.issuer field. Hidden when the extraction
+               fails and returns an empty string, or when an older install
+               returns the legacy "(see certificate chain)" placeholder. -->
           {#if conformantCert.issuerCn && !conformantCert.issuerCn.startsWith('(see')}
             <div>
               <p class="text-xs font-medium text-text-light dark:text-quartz mb-0.5">Issuer</p>

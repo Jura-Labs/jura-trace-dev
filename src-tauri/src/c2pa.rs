@@ -742,10 +742,14 @@ pub fn import_conformant_certificate(
         })
         .unwrap_or_else(|| "(unknown)".to_string());
 
-    // Extract issuer CN (rcgen does not expose issuer directly from
-    // from_ca_cert_pem; we derive it from the key_pair_verified_pem approach).
-    // Fall back gracefully — issuer CN is informational only.
-    let issuer_cn = "(see certificate chain)".to_string();
+    // Extract issuer CN by parsing the DER directly via x509-parser.
+    // rcgen's CertificateParams::from_ca_cert_pem exposes the subject DN
+    // but not the issuer DN — for that we read the tbsCertificate.issuer
+    // field directly. On a self-signed CA cert this equals the subject;
+    // on a chain-issued EE cert it names the issuing CA. Falls back to
+    // an empty string if parsing fails, which the UI treats as "hide the
+    // issuer row" rather than showing an error.
+    let issuer_cn = extract_issuer_cn_from_pem(cert_str).unwrap_or_default();
 
     // Validity window
     let not_before_str = format_time(params.not_before);
@@ -953,9 +957,15 @@ pub fn get_conformant_certificate_info(
             .unwrap_or_else(|| "unknown".to_string())
     });
 
+    // Issuer CN via direct DER parsing — see import_conformant_certificate
+    // for the rationale. We read the raw PEM here rather than relying on
+    // rcgen's CertificateParams which only exposes the subject.
+    let pem_str = std::str::from_utf8(&cert_bytes).unwrap_or("");
+    let issuer_cn = extract_issuer_cn_from_pem(pem_str).unwrap_or_default();
+
     Ok(Some(ConformantCertificateInfo {
         subject_cn,
-        issuer_cn: "(see certificate chain)".to_string(),
+        issuer_cn,
         not_before: format_time(params.not_before),
         not_after: format_time(params.not_after),
         fingerprint_sha256,
@@ -965,6 +975,36 @@ pub fn get_conformant_certificate_info(
         is_currently_valid,
         imported_at,
     }))
+}
+
+/// Extract the Common Name from the `issuer` field of the first certificate
+/// in a PEM chain. Uses x509-parser to walk the tbsCertificate.issuer RDN
+/// sequence and pick out the attribute type OID 2.5.4.3 (commonName).
+///
+/// Returns `None` if the PEM cannot be parsed, the cert has no issuer CN
+/// (pathological — every conforming X.509 issuer must have a CN), or the
+/// CN value is not a valid string. Callers should treat `None` as "hide
+/// the issuer row" rather than an error.
+fn extract_issuer_cn_from_pem(pem_str: &str) -> Option<String> {
+    use x509_parser::pem::Pem;
+    use x509_parser::prelude::FromDer;
+
+    // x509-parser provides its own PEM reader that decodes the base64
+    // body and yields one `Pem` per BEGIN CERTIFICATE block. We only
+    // need the first (end-entity) block for issuer extraction.
+    let mut reader = std::io::Cursor::new(pem_str.as_bytes());
+    let (pem, _) = Pem::read(&mut reader).ok()?;
+    let (_, cert) = x509_parser::certificate::X509Certificate::from_der(&pem.contents).ok()?;
+
+    // Iterate the issuer's CommonName attributes. The attribute value is
+    // an ASN.1 DirectoryString; x509-parser decodes the common variants
+    // (Utf8String, PrintableString, TeletexString) via `as_str()`.
+    for rdn in cert.issuer().iter_common_name() {
+        if let Ok(s) = rdn.as_str() {
+            return Some(s.to_string());
+        }
+    }
+    None
 }
 
 /// Delete the imported conformant certificate and revert the active mode to Bedrock.
@@ -1530,6 +1570,55 @@ mod tests {
             data_dir.join("certs").join("conformant_key.pem").exists(),
             "conformant_key.pem should exist in data_dir"
         );
+    }
+
+    /// Issuer CN extraction: the imported cert is a Bedrock-style chain
+    /// where the end-entity cert's issuer is the per-install CA. The
+    /// returned ConformantCertificateInfo.issuer_cn must name the CA,
+    /// not the placeholder that earlier versions returned.
+    #[test]
+    fn import_conformant_certificate_populates_issuer_cn() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let (cert_path, key_path) = generate_test_cert_chain(tmp.path());
+        let data_dir = tmp.path().join("import_data");
+
+        let info = import_conformant_certificate(&cert_path, &key_path, &data_dir)
+            .expect("import should succeed");
+
+        // Bedrock ensure_certificate writes CA CN = "Jura Trace Local CA"
+        // and EE CN = "Jura Trace Signing Certificate". The EE cert's issuer
+        // (what this test asserts) is therefore the CA's subject.
+        assert_eq!(
+            info.issuer_cn, "Jura Trace Local CA",
+            "issuer_cn must be extracted from the CA that signed the EE cert"
+        );
+        assert_eq!(
+            info.subject_cn, "Jura Trace Signing Certificate",
+            "subject_cn should name the EE cert"
+        );
+        assert_ne!(
+            info.issuer_cn, info.subject_cn,
+            "issuer and subject must differ on an EE cert (not a self-signed root)"
+        );
+    }
+
+    /// get_conformant_certificate_info returns the same issuer CN on read-back.
+    /// Confirms both code paths (import and get_info) use the same extractor.
+    #[test]
+    fn get_conformant_cert_info_returns_issuer_cn_on_readback() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let (cert_path, key_path) = generate_test_cert_chain(tmp.path());
+        let data_dir = tmp.path().join("import_data");
+
+        import_conformant_certificate(&cert_path, &key_path, &data_dir)
+            .expect("import should succeed");
+
+        let info = get_conformant_certificate_info(&data_dir)
+            .expect("get_conformant_certificate_info should not error")
+            .expect("info should be Some after import");
+
+        assert_eq!(info.issuer_cn, "Jura Trace Local CA");
+        assert_eq!(info.subject_cn, "Jura Trace Signing Certificate");
     }
 
     /// The signing_config.json is updated with the import timestamp.
