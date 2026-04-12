@@ -43,6 +43,31 @@ MODELS_DIR: str = _resolve_models_dir()
 _STAGE1_PROBE_FILENAME = "audio_deepfake_stage1.joblib"
 _STAGE2_PROBE_FILENAME = "audio_deepfake_stage2.joblib"
 
+# Integrity hashes — verified before joblib.load() to prevent pickle RCE
+# via a substituted model file. Update these when retraining.
+_STAGE1_PROBE_SHA256 = "2f8e4a8a461096940f83a66c564dea06db7b576fd29b4022d183a5b5f0b9ef1e"
+_STAGE2_PROBE_SHA256 = "5200893734571220efabd379671749c1833e34084f59fbc43ccc9698e0b264c8"
+
+
+def _verify_probe_hash(path: str, expected_sha: str) -> bool:
+    """Verify a model file's SHA-256 matches the expected hash."""
+    import hashlib
+    h = hashlib.sha256()
+    try:
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        if h.hexdigest() != expected_sha:
+            logger.error(
+                "Audio probe integrity check FAILED for %s: expected %s, got %s",
+                path, expected_sha[:16], h.hexdigest()[:16],
+            )
+            return False
+        return True
+    except OSError as exc:
+        logger.error("Cannot read audio probe %s: %s", path, exc)
+        return False
+
 # ── Singleton Wav2Vec2 state ───────────────────────────────────────────────────
 
 _wav2vec2_processor = None
@@ -235,7 +260,7 @@ def score_audio_deepfake(
     mfcc_ok = False
     stages_available: list[str] = []
 
-    if stage1_available:
+    if stage1_available and _verify_probe_hash(stage1_probe_path, _STAGE1_PROBE_SHA256):
         mfcc_vec = extract_mfcc_features(audio_path)
         if mfcc_vec is not None:
             mfcc_ok = True
@@ -253,7 +278,7 @@ def score_audio_deepfake(
     stage2_score: float | None = None
     wav2vec2_ok = False
 
-    if stage2_available:
+    if stage2_available and _verify_probe_hash(stage2_probe_path, _STAGE2_PROBE_SHA256):
         emb = extract_wav2vec2_embedding(audio_path)
         if emb is not None:
             wav2vec2_ok = True
@@ -323,6 +348,7 @@ def _load_audio(audio_path: str, target_sr: int = _TARGET_SR) -> tuple[np.ndarra
 
     ffmpeg_bin = shutil.which("ffmpeg")
     if ffmpeg_bin:
+        tmp_path = None
         try:
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
                 tmp_path = tmp.name
@@ -347,7 +373,7 @@ def _load_audio(audio_path: str, target_sr: int = _TARGET_SR) -> tuple[np.ndarra
             raise
         finally:
             import os
-            if os.path.exists(tmp_path):
+            if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
 
     # Last resort: scipy.io.wavfile direct read (WAV only)

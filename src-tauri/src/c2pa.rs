@@ -834,9 +834,12 @@ pub fn import_conformant_certificate(
     config.conformant_cert_imported_at = Some(imported_at.clone());
     write_signing_config(data_dir, &config)?;
 
+    // Sanitise subject_cn before logging to prevent log injection via
+    // crafted certificate CN fields containing newlines or ANSI codes.
+    let safe_cn = subject_cn.replace(['\n', '\r', '\x00'], "?");
     log::info!(
         "Imported conformant certificate for {} at {}",
-        subject_cn,
+        safe_cn,
         dest_cert.display()
     );
 
