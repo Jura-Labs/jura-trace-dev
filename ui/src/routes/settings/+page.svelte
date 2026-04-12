@@ -1013,7 +1013,7 @@
             {sidecarOnline ? 'Online' : 'Offline'}
           </span>
         </div>
-        <p class="text-xs text-flint dark:text-flint-light mb-2">http://127.0.0.1:8200</p>
+        <!-- P0-7: raw URL removed — meaningless to non-technical pilots -->
 
         {#if sidecarOnline && sidecarHealth}
           <p class="text-xs text-flint dark:text-flint-light mb-2">Version: <span class="text-text-light dark:text-quartz">{sidecarHealth.version}</span></p>
@@ -1025,7 +1025,12 @@
                          ? 'bg-malachite/10 text-malachite-light border border-malachite/20'
                          : 'bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border border-border-light dark:border-graphite-light'}"
               >
-                {cap}
+                {cap === 'videoMetadata' ? 'Video analysis'
+                  : cap === 'transcription' ? 'Speech transcription'
+                  : cap === 'clipDetect' ? 'AI detection'
+                  : cap === 'rag' ? 'Knowledge base'
+                  : cap === 'audioDeepfake' ? 'Voice clone detection'
+                  : cap}
               </span>
             {/each}
           </div>
@@ -1035,14 +1040,11 @@
               Analysis Engine — Offline
             </p>
             <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
-              Core features work without the engine. For full 21-signal forensic
-              analysis, the engine starts automatically with the application.
-              If it remains offline, restart Jura Trace.
+              Core checks (provenance and metadata) work without it. For full
+              forensic analysis including AI detection, restart Jura Trace. If
+              the engine remains offline after restarting, visit the Help
+              section or contact support.
             </p>
-            <p class="text-xs text-flint dark:text-flint-light mt-3 mb-1">Start manually in development with:</p>
-            <code class="block font-mono text-xs bg-gray-100 dark:bg-obsidian px-2 py-1 rounded text-text-light dark:text-quartz">
-              cd sidecar && uvicorn main:app --host 127.0.0.1 --port 8200
-            </code>
           </div>
         {/if}
       </div>

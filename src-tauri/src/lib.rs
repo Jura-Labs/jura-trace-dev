@@ -3428,15 +3428,26 @@ async fn import_conformant_certificate(
     if cert_path.contains('\0') || key_path.contains('\0') {
         return Err(AppError::Validation("Invalid file path".into()));
     }
-    let cert_pb = PathBuf::from(&cert_path);
-    let key_pb = PathBuf::from(&key_path);
-    if !cert_pb.exists() {
-        return Err(AppError::Validation(
-            "Certificate file not found".to_string(),
-        ));
-    }
-    if !key_pb.exists() {
-        return Err(AppError::Validation("Key file not found".to_string()));
+    // SECURITY: Canonicalise paths to resolve symlinks and '..' traversal,
+    // then reject paths under sensitive directories. Without this, a
+    // compromised webview could read arbitrary files via symlink-following
+    // (e.g. ~/.ssh/id_rsa passed as a "certificate" path).
+    let cert_pb = PathBuf::from(&cert_path)
+        .canonicalize()
+        .map_err(|_| AppError::Validation("Certificate file not found or inaccessible".into()))?;
+    let key_pb = PathBuf::from(&key_path)
+        .canonicalize()
+        .map_err(|_| AppError::Validation("Key file not found or inaccessible".into()))?;
+    if let Ok(home) = std::env::var("HOME") {
+        let home_path = PathBuf::from(&home);
+        for sensitive in &[".ssh", ".gnupg", ".aws", ".config/gcloud", ".kube"] {
+            let blocked = home_path.join(sensitive);
+            if cert_pb.starts_with(&blocked) || key_pb.starts_with(&blocked) {
+                return Err(AppError::Validation(
+                    "Path not permitted — cannot import from sensitive directories".into(),
+                ));
+            }
+        }
     }
     let data_dir = app_handle.path().app_data_dir().map_err(|e| {
         log::error!("Failed to resolve app data dir: {e}");

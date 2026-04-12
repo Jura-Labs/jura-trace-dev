@@ -434,6 +434,7 @@ export interface VerificationResult {
   videoFramesResult?: VideoFramesResult | null;
   videoDeepfakeResult?: VideoDeepfakeResult | null;
   transcriptionResult?: TranscriptionResult | null;
+  audioDeepfakeResult?: AudioDeepfakeResult | null;
   claimCheckResult?: ClaimCheckResult | null;
   /** AI-generated natural-language description via Ollama LLaVA. Only present
    * for image content when Ollama is running with llava:7b pulled. */
