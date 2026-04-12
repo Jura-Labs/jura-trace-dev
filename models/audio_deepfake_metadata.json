@@ -1,0 +1,40 @@
+{
+  "trained_at": "2026-04-12T16:29:48.733149+00:00",
+  "n_authentic": 15720,
+  "n_synthetic": 5000,
+  "test_split": 0.1,
+  "ensemble_weights": {
+    "stage1": 0.3,
+    "stage2": 0.7
+  },
+  "stages": {
+    "stage1": {
+      "stage": "stage1",
+      "auc_roc": 1.0,
+      "accuracy": 0.999,
+      "precision": 0.998,
+      "recall": 0.998,
+      "f1": 0.998,
+      "n_test": 2067,
+      "n_synthetic_test": 494,
+      "n_authentic_test": 1573,
+      "feature_dim": 160,
+      "output_file": "models/audio_deepfake_stage1.joblib",
+      "sha256": "2f8e4a8a461096940f83a66c564dea06db7b576fd29b4022d183a5b5f0b9ef1e"
+    },
+    "stage2": {
+      "stage": "stage2",
+      "auc_roc": 1.0,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "n_test": 2067,
+      "n_synthetic_test": 494,
+      "n_authentic_test": 1573,
+      "feature_dim": 768,
+      "output_file": "models/audio_deepfake_stage2.joblib",
+      "sha256": "5200893734571220efabd379671749c1833e34084f59fbc43ccc9698e0b264c8"
+    }
+  }
+}
