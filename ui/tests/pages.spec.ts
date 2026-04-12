@@ -153,4 +153,11 @@ test.describe('Page smoke tests', () => {
       await expect(ollamaHeading).toHaveText('Ollama Configuration');
     });
   });
+
+  test.describe('Help: Bedrock Signing (/help/bedrock-signing)', () => {
+    test('bedrock-signing help page loads', async ({ page }) => {
+      await page.goto('/help/bedrock-signing');
+      await expect(page.locator('h1')).toContainText('Bedrock');
+    });
+  });
 });

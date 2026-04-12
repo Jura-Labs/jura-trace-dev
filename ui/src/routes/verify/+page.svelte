@@ -3559,7 +3559,7 @@
           <!-- AI description — shown beneath the card when available -->
           {#if result.aiDescription}
             <div class="mt-4 rounded-lg border border-lapis/20 bg-lapis/5 px-4 py-3">
-              <p class="text-xs font-medium text-lapis dark:text-lapis-light mb-1">AI Description (via Ollama)</p>
+              <p class="text-xs font-medium text-lapis dark:text-lapis-light mb-1">AI-generated description</p>
               <p class="text-sm text-text-light dark:text-quartz italic leading-relaxed break-words">
                 "{result.aiDescription}"
               </p>

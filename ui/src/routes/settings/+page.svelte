@@ -774,7 +774,7 @@
       <div>
         <h2 id="profiles-heading" class="text-lg font-heading text-text-light dark:text-quartz">Deployment Profiles</h2>
         <p class="text-xs text-flint dark:text-flint-light mt-0.5">
-          Save the current Ollama settings as a named profile to switch between environments quickly.
+          Save your current AI settings as a named profile so you can quickly switch between different configurations.
         </p>
       </div>
 
@@ -1286,7 +1286,7 @@
       <ContextualHelpLink href="/help/settings#your-plan" label="Learn about licence plans and features" />
     </div>
     <p class="text-xs text-flint dark:text-flint-light mb-4">
-      Pilot mode — tier selection is manual. In production, this will reflect your licence agreement.
+      During the pilot, you can explore different plans by selecting them here. In the full release, your plan will reflect your licence agreement.
     </p>
 
     <!-- Current tier badge + description -->
@@ -1300,9 +1300,6 @@
       <div class="min-w-0">
         <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
           {currentTierInfo.description}
-        </p>
-        <p class="text-xs text-flint/60 dark:text-flint-light/60 mt-1">
-          Internal codename: {currentTierInfo.codename}
         </p>
       </div>
     </div>
@@ -1465,7 +1462,7 @@
 
         <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-3">
           Uses a per-install certificate authority generated on first launch. Works offline.
-          No account, no phone-home, no dependency on external services. Air-gapped deployments
+          No account, no external connections required, no dependency on external services. Air-gapped deployments
           and hostile-environment use cases are the primary target.
         </p>
 
@@ -1950,7 +1947,7 @@
             </button>
           </div>
           <div class="flex items-center justify-between text-xs text-flint dark:text-flint-light">
-            <span>Name: <strong>{newlyCreatedKey.name}</strong> &middot; Rate limit: {newlyCreatedKey.rateLimit}/min</span>
+            <span>Name: <strong>{newlyCreatedKey.name}</strong> &middot; Rate limit: {newlyCreatedKey.rateLimit} requests per minute</span>
             <button
               onclick={handleDismissNewKey}
               class="text-xs text-flint hover:text-text-light dark:hover:text-quartz transition-colors
@@ -2058,7 +2055,7 @@
                   <td class="py-2.5 pr-4">
                     <code class="text-xs text-flint dark:text-flint-light">{key.keyId.slice(0, 8)}...</code>
                   </td>
-                  <td class="py-2.5 pr-4 text-flint dark:text-flint-light">{key.rateLimit}/min</td>
+                  <td class="py-2.5 pr-4 text-flint dark:text-flint-light">{key.rateLimit} requests per minute</td>
                   <td class="py-2.5 pr-4">
                     {#if key.revoked}
                       <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light border border-cinnabar/20">

@@ -126,7 +126,21 @@
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Feature vector</dt>
-          <dd class="text-flint dark:text-flint-light">84 features extracted from: ELA (mean, std, max, entropy), noise analysis, copy-move detection, frequency domain, JPEG ghost, NPR, segmented ELA, shadow consistency, colour temperature, splice boundary, plus 4 camera-discrimination features (demosaic peak count, inter-channel coherence, blocking strength variance, MakerNote authenticity)</dd>
+          <dd class="text-flint dark:text-flint-light">84 features extracted from:
+            <ul class="list-disc pl-4 mt-1 space-y-0.5">
+              <li>ELA (mean, std, max, entropy)</li>
+              <li>Noise analysis</li>
+              <li>Copy-move detection</li>
+              <li>Frequency domain</li>
+              <li>JPEG ghost</li>
+              <li>NPR (neighbouring pixel relationship)</li>
+              <li>Segmented ELA</li>
+              <li>Shadow consistency</li>
+              <li>Colour temperature</li>
+              <li>Splice boundary</li>
+              <li>Camera discrimination: demosaic peak count, inter-channel coherence, blocking strength variance, MakerNote authenticity</li>
+            </ul>
+          </dd>
         </div>
       </dl>
     </div>

@@ -26,7 +26,7 @@
     <p class="text-base text-flint dark:text-flint-light leading-relaxed max-w-2xl">
       Jura Trace signs C2PA provenance manifests in one of two modes. The default
       — <strong>Bedrock Signing</strong> — works entirely offline, on your device,
-      with no account, no phone-home, and no dependency on any external service.
+      with no account, no data sent to Juralabs, and no dependency on any external service.
       The optional <strong>Conformant Signing</strong> mode accepts a certificate
       from a C2PA-approved authority for institutions that need cross-tool
       interoperability with Adobe, BBC, and other conformant validators.
