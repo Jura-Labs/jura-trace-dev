@@ -678,7 +678,7 @@
     class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="ollama-heading"
   >
-    <h2 id="ollama-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4">Ollama Configuration</h2>
+    <h2 id="ollama-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4">AI Assistant (Ollama)</h2>
     <div class="space-y-4">
 
       <div>
@@ -705,7 +705,7 @@
 
       <div>
         <label for="vision-model" class="block text-sm font-medium text-text-light dark:text-quartz mb-1">
-          Vision Model
+          Image description model
         </label>
         <input
           id="vision-model"
@@ -724,7 +724,7 @@
 
       <div>
         <label for="text-model" class="block text-sm font-medium text-text-light dark:text-quartz mb-1">
-          Text Model
+          Claim checking model
         </label>
         <input
           id="text-model"

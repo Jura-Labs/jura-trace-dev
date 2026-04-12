@@ -43,7 +43,7 @@ You do not need any technical background to take part. This guide walks you thro
 
 Jura Trace is a desktop application that helps you verify whether images, videos, and documents are authentic or AI-generated. It also helps you protect your own content by embedding cryptographic records and invisible watermarks.
 
-In a world of synthetic media, knowing what is real matters. Jura Trace gives you a bedrock of trust to work from — 21 independent forensic signals that run entirely on your own computer. No images are sent to any server. No accounts are required. Nothing leaves your machine.
+In a world of synthetic media, knowing what is real matters. Jura Trace gives you a bedrock of trust to work from — 12 automatic forensic detectors, plus 3 on-demand investigation tools, that run entirely on your own computer. No images are sent to any server. No accounts are required. Nothing leaves your machine.
 
 The application is built by **Juralabs Community Interest Company (UK)**, a social enterprise based in the United Kingdom. It is free for non-commercial use — for journalists, educators, museum staff, researchers, and NGOs. Paid tiers are available for commercial use, but you do not need them for this pilot.
 
@@ -315,7 +315,7 @@ This is the most important thing to try. Verifying an image takes less than a mi
      - **Inconclusive** (shown in amber) — the signals are mixed; the image may be authentic or modified
      - **Synthetic** (shown in red) — multiple signals indicate AI generation or significant manipulation
    - **Trust Score** — a number from 0 to 100. A higher score means more signals point towards authentic content.
-   - **Detector results** — expandable sections showing what each of the 21 forensic checks found
+   - **Detector results** — expandable sections showing what each forensic detector found
 
    [Screenshot: Verify results panel showing the Verdict label, Trust Score, and the list of collapsed detector sections]
 
@@ -407,7 +407,7 @@ Ollama is a free tool that runs AI models locally on your computer. Jura Trace u
 - **Image descriptions** — automatically generates a description of what is in an image (useful for cataloguing)
 - **Claim verification** — checks factual claims in transcribed speech against a knowledge base
 
-**You do not need Ollama for core verification.** The 21 forensic detectors work without it. But if you would like to try the AI features, follow these steps.
+**You do not need Ollama for core verification.** The 12 automatic forensic detectors work without it. But if you would like to try the AI features, follow these steps.
 
 ### Step 1: Install Ollama
 
@@ -473,7 +473,7 @@ The default Ollama settings in Jura Trace are:
 | Vision Model | `llava:7b` | Model for image descriptions |
 | Text Model | `qwen2.5:7b-instruct` | Model for claim verification |
 
-You can change these in **Settings** → **Ollama Configuration** if needed, but the defaults are correct for most people.
+You can change these in **Settings** → **AI Assistant (Ollama)** if needed, but the defaults are correct for most people.
 
 ---
 
@@ -503,7 +503,7 @@ The Help section contains these pages:
 
 | Page | What it covers |
 |---|---|
-| How Analysis Works | All 21 forensic detectors, in plain language, with their strengths and limitations |
+| How Analysis Works | All 12 automatic forensic detectors plus 3 on-demand investigation tools, in plain language, with their strengths and limitations |
 | Glossary | Definitions of technical terms (C2PA, ELA, perceptual hash, and more) |
 | Usage Guides | Practical workflows for different roles — museum archivists, journalists, researchers |
 | IT and Compliance | A summary of how Jura Trace handles data, for IT teams and data protection officers |

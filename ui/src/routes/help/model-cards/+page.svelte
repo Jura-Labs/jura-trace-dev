@@ -126,7 +126,7 @@
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Feature vector</dt>
-          <dd class="text-flint dark:text-flint-light">80 features extracted from: ELA (mean, std, max, entropy), noise analysis, copy-move detection, frequency domain, JPEG ghost, NPR, segmented ELA, shadow consistency, colour temperature, splice boundary</dd>
+          <dd class="text-flint dark:text-flint-light">84 features extracted from: ELA (mean, std, max, entropy), noise analysis, copy-move detection, frequency domain, JPEG ghost, NPR, segmented ELA, shadow consistency, colour temperature, splice boundary, plus 4 camera-discrimination features (demosaic peak count, inter-channel coherence, blocking strength variance, MakerNote authenticity)</dd>
         </div>
       </dl>
     </div>
@@ -255,11 +255,11 @@
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Last trained</dt>
-          <dd class="text-flint dark:text-flint-light">7 April 2026</dd>
+          <dd class="text-flint dark:text-flint-light">12 April 2026</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Version</dt>
-          <dd class="text-flint dark:text-flint-light">8.0</dd>
+          <dd class="text-flint dark:text-flint-light">9.0</dd>
         </div>
       </dl>
     </div>
@@ -282,7 +282,7 @@
       <dl class="space-y-3 text-sm">
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Total images</dt>
-          <dd class="text-flint dark:text-flint-light">10,712 (5,727 authentic + 4,985 AI-generated)</dd>
+          <dd class="text-flint dark:text-flint-light">39,016 (10,712 original + 28,304 platform-forwarded augmentation)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Authentic sources</dt>
@@ -294,7 +294,7 @@
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Regularisation</dt>
-          <dd class="text-flint dark:text-flint-light">C=1.0 (L2), class_weight=balanced, solver=lbfgs, max_iter=1000</dd>
+          <dd class="text-flint dark:text-flint-light">C=0.5 (L2), class_weight=balanced, solver=lbfgs, max_iter=1000</dd>
         </div>
       </dl>
     </div>
@@ -312,15 +312,15 @@
         <tbody class="text-flint dark:text-flint-light">
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">AUC-ROC (5-fold cross-validation)</td>
-            <td class="py-2 pr-4 font-mono">0.9911</td>
+            <td class="py-2 pr-4 font-mono">0.9933</td>
           </tr>
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">Authentic false positive rate</td>
-            <td class="py-2 pr-4 font-mono">5.01%</td>
+            <td class="py-2 pr-4 font-mono">4.12%</td>
           </tr>
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">AI detection rate (recall)</td>
-            <td class="py-2 pr-4 font-mono">96.01%</td>
+            <td class="py-2 pr-4 font-mono">95.70%</td>
           </tr>
           <tr>
             <td class="py-2 pr-4">Cross-validation folds</td>
@@ -338,14 +338,14 @@
       <li><strong>Wildlife and macro photography:</strong> The <code>wikimedia_photos</code> subset (wildlife, insect macro) is the top FP source. Sprint 29 Track 2 is expanding the authentic corpus with iNaturalist photographs to address this.</li>
       <li><strong>High-end camera photos:</strong> Images from DJI drones and Sony DSC cameras with very clean noise profiles are occasionally flagged. MakerNote EXIF data provides a partial mitigation at inference time.</li>
       <li><strong>Generator coverage:</strong> Trained on 14 generator families up to April 2026. New generators may produce outputs that fall outside the learned decision boundary. Quarterly retraining planned.</li>
-      <li><strong>Demographic bias:</strong> Not yet audited for demographic performance disparities. A demographic bias evaluation is planned (Sprint 29 of the TRIED compliance roadmap).</li>
+      <li><strong>Demographic bias:</strong> CLIP-proxy demographic audit completed April 2026. Dark-skin proxy group FP rate 7.8% vs 4.1% overall (1.9&times; ratio &mdash; below the 2&times; failure threshold but notable). Light-skin FP 5.0%. No-people FP 3.1%. Full results in the fairness documentation. Audit uses CLIP text-image similarity as a computational proxy, not human-annotated ground truth.</li>
     </ul>
 
     <!-- Improvement history -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Improvement History</h3>
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
-      The probe's false positive rate was reduced from 28.7% to 5.01% through iterative corpus
-      expansion and curation across 3&ndash;7 April 2026:
+      The probe's false positive rate was reduced from 28.7% to 4.12% through iterative corpus
+      expansion and curation across 3&ndash;12 April 2026:
     </p>
     <div class="overflow-x-auto mb-6">
       <table class="w-full text-sm border-collapse">
@@ -388,11 +388,17 @@
             <td class="py-2 pr-4 font-mono">4.91%</td>
             <td class="py-2 pr-4 font-mono">10,724</td>
           </tr>
-          <tr>
+          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">Wikimedia re-audit, v8 production</td>
             <td class="py-2 pr-4 font-mono">0.9911</td>
             <td class="py-2 pr-4 font-mono">5.01%</td>
             <td class="py-2 pr-4 font-mono">10,712</td>
+          </tr>
+          <tr>
+            <td class="py-2 pr-4">Platform-forwarded augmentation, v9 production</td>
+            <td class="py-2 pr-4 font-mono">0.9933</td>
+            <td class="py-2 pr-4 font-mono">4.12%</td>
+            <td class="py-2 pr-4 font-mono">39,016</td>
           </tr>
         </tbody>
       </table>
@@ -430,10 +436,15 @@
             <td class="py-2 pr-4">7 April 2026</td>
             <td class="py-2 pr-4">Corpus expanded to 10,724 images (full 10K target). AUC 0.9909, FP 4.91%, recall 96.03%.</td>
           </tr>
-          <tr>
+          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4 font-mono">8.0</td>
             <td class="py-2 pr-4">7 April 2026</td>
             <td class="py-2 pr-4">Corpus to 10,712 after Wikimedia re-audit. AUC 0.9911, FP 5.01%, recall 96.01%.</td>
+          </tr>
+          <tr>
+            <td class="py-2 pr-4 font-mono">9.0</td>
+            <td class="py-2 pr-4">12 April 2026</td>
+            <td class="py-2 pr-4">Platform-forwarded augmentation expanded corpus to 39,016 samples. Regularisation tuned to C=0.5. AUC 0.9933, FP 4.12%, recall 95.70%. DiffusionDB recall improved from 67.6% to 97.3%; Flux Dev recall 88.9%, SDXL Turbo recall 91.1% (both reduced from previous version due to augmentation retraining trade-off). Demographic proxy audit completed.</td>
           </tr>
         </tbody>
       </table>

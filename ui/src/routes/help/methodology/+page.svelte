@@ -288,9 +288,7 @@
 
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       Regional detectors (Segmented ELA, Shadow Consistency, Colour Temperature,
-      Splice Boundary) are only active in Deep and Archival modes. Standard mode
-      returns <code class="font-mono text-xs bg-graphite/10 dark:bg-graphite/60 px-1 rounded">null</code>
-      for those fields.
+      Splice Boundary) are only active in Deep and Archival modes. Standard mode leaves those sections blank.
     </p>
 
   </section>
@@ -344,7 +342,7 @@
         3. ELA
         4. Noise Analysis
         5. Copy-Move
-        6. AI Generation (GBM v4 + UnivFD v8 ensemble)
+        6. AI Generation (GBM v4 + UnivFD v9 ensemble)
         7. JPEG Ghost (0.5× weight — S28-4)
         8. Segmented ELA
         9. Colour Temperature
@@ -699,7 +697,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                GBM v4 trained on 10,709 images across 14 generator families; UnivFD v9 trained on 39,016 samples (including platform-forwarded augmentation). May underperform on outputs from generators not represented in the training corpus. Both models are retrained on a quarterly cadence as new generator families are identified. Minimum image size: 128&#215;128 pixels. See the <a href="/help/model-cards#gbm-classifier" class="text-lapis dark:text-lapis-light underline hover:no-underline">GBM model card</a> for full training data documentation.
+                GBM v4 trained on 10,709 images across 14 generator families; UnivFD v9 trained on 39,016 samples (including platform-forwarded augmentation). May underperform on outputs from generators not represented in the training corpus. Both models are retrained on a quarterly cadence as new generator families are identified. Minimum image size: 128&#215;128 pixels. Per-generator recall varies with model version. As of v9 (April 2026): Flux Dev recall 88.9% and SDXL Turbo recall 91.1% &mdash; both reduced from the previous version due to the platform-forwarded augmentation retraining trade-off. DiffusionDB recall improved from 67.6% to 97.3%. Full per-generator breakdown in the <a href="/help/model-cards#univfd-probe" class="text-lapis dark:text-lapis-light underline hover:no-underline">model card</a>. See also the <a href="/help/model-cards#gbm-classifier" class="text-lapis dark:text-lapis-light underline hover:no-underline">GBM model card</a> for full training data documentation.
               </dd>
             </div>
           </dl>

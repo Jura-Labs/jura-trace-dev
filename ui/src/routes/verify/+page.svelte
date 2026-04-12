@@ -708,7 +708,7 @@
       indicators.push({ id: 'section-exif', name: 'EXIF Metadata', shortName: 'EXIF', flagged: highFindings.length > 0, available: true });
     }
     if (result.nprResult) {
-      indicators.push({ id: 'section-npr', name: 'Neighbouring Pixel Relationship', shortName: 'NPR', flagged: result.nprResult.suspicious, available: true });
+      indicators.push({ id: 'section-npr', name: 'Neighbouring Pixel Relationship', shortName: 'Pixel Pattern', flagged: result.nprResult.suspicious, available: true });
     }
     if (result.jpegGhostResult) {
       indicators.push({ id: 'section-jpegGhost', name: 'JPEG Ghost', shortName: 'JPEG Ghost', flagged: result.jpegGhostResult.suspicious, available: true });
@@ -1427,9 +1427,9 @@
 
     // C2PA
     if (r.c2paValid === true)
-      signals.push({ text: 'C2PA provenance manifest is present and valid', weight: 0 });
+      signals.push({ text: 'Provenance record attached and verified — origin is documented', weight: 0 });
     else if (r.c2paValid === false)
-      signals.push({ text: 'C2PA provenance manifest is present but failed validation', weight: 3 });
+      signals.push({ text: 'Provenance record attached but the signature does not match — the record may have been altered', weight: 3 });
 
     // EXIF anomalies
     if (r.exifAnalysis) {
@@ -2023,12 +2023,12 @@
             {
               mode: 'deep' as VerifyMode,
               label: 'Deep',
-              description: 'Extended analysis with regional and frequency-domain detectors',
+              description: 'Extended analysis with checks for compositing and region-level inconsistencies',
             },
             {
               mode: 'archival' as VerifyMode,
               label: 'Archival',
-              description: 'Full analysis with scanner-calibrated tolerances for digitised collections',
+              description: 'Full analysis tuned for digitised archive material — takes around 90 seconds',
             },
           ] as opt}
             <button
@@ -3629,8 +3629,8 @@
                            ? 'bg-amber/15 text-amber dark:text-amber-light border-amber/30'
                            : 'bg-gray-100 dark:bg-graphite text-flint dark:text-flint-light border-border-light dark:border-border-dark'}"
             >
-              {normalised === 'consistent' ? 'Consistent with KB'
-                : normalised === 'inconsistent' ? 'Inconsistent with KB'
+              {normalised === 'consistent' ? 'Matches reference material'
+                : normalised === 'inconsistent' ? 'Conflicts with reference material'
                 : normalised === 'mixed' ? 'Mixed KB match'
                 : normalised === 'unavailable' ? 'Unavailable'
                 : 'Insufficient KB context'}
@@ -6261,8 +6261,8 @@
                normOverall === 'inconsistent' ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light' :
                normOverall === 'mixed' ? 'bg-amber/10 text-amber dark:text-amber-light' :
                'bg-gray-100 dark:bg-graphite/20 text-flint dark:text-flint-light'}">
-              {normOverall === 'consistent' ? 'Consistent with KB'
-                : normOverall === 'inconsistent' ? 'Inconsistent with KB'
+              {normOverall === 'consistent' ? 'Matches reference material'
+                : normOverall === 'inconsistent' ? 'Conflicts with reference material'
                 : normOverall === 'mixed' ? 'Mixed KB match'
                 : normOverall === 'unavailable' ? 'Unavailable'
                 : 'Insufficient KB context'}

@@ -215,7 +215,7 @@ pub fn sign_file(
                 "data": {
                     "actions": [{
                         "action": "c2pa.created",
-                        "softwareAgent": "Jura Trace 0.1.0",
+                        "softwareAgent": "Jura Trace 0.9.0",
                         "parameters": {
                             "name": creator_name
                         }
@@ -227,6 +227,13 @@ pub fn sign_file(
                 "data": {
                     "rights": license_value,
                     "ai_training": "notAllowed"
+                }
+            },
+            {
+                "label": "stds.iptc",
+                "data": {
+                    "Iptc4xmpExt:DigitalSourceType": "",
+                    "plus:DataMining": "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-EXCEPTSEARCHENGINEINDEXING"
                 }
             }
         ]
