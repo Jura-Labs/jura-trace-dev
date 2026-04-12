@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Jura Labs Ecosystem
 
-Jura Trace is one of two products built by **Jura Labs** (UK Social Enterprise — CIC registration pending). The full technology stack, infrastructure, and strategic context are documented in:
+Jura Trace is one of two products built by **Jura Labs** (UK Community Interest Company — Companies House 17117467, registered 25 March 2026). The full technology stack, infrastructure, and strategic context are documented in:
 
 - **Tech stack reference**: `../jura-labs-docs/JURA-LABS-TECH-STACK-UPDATED.md`
 - **Project management**: [Plane workspace](https://app.plane.so/jura-labs/) — connected to Claude Code via MCP (user scope)
@@ -153,7 +153,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 - **Main UI**: `ui/src/routes/verify/+page.svelte`, `ui/src/routes/protect/+page.svelte`, `ui/src/routes/+layout.svelte`
 - **Models** (on external USB; paths are where sidecar loads them from):
   - `models/deepfake_classifier.joblib` — GBM v4, 84 features, AUC 0.9868, FP 4.54%
-  - `models/univfd_probe.joblib` — UnivFD v8, LogReg on CLIP ViT-B/32, AUC 0.9911, FP 5.01%
+  - `models/univfd_probe.joblib` — UnivFD v9, LogReg on CLIP ViT-B/32, AUC 0.9933, FP 4.12%
 - **Training scripts**: `scripts/train_classifier.py`, `scripts/train_univfd_probe.py` (`--C` for regularisation), `scripts/agents/` (corpus crawl/protect/verify/validate pipeline)
 - **CI/CD**: `.github/workflows/` — CI (Rust + Python + Frontend with pip-audit), Release (4-platform matrix, workflow_dispatch enabled, Linux paused), Dependabot
 - **macOS entitlements**: `src-tauri/Entitlements.plist`
@@ -175,7 +175,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 
 **Models in production** (as of 7 April 2026):
 - **GBM Deepfake Classifier v4** — 10,709 images (5,724 authentic + 4,985 AI), 84-feature vector, AUC-ROC 0.9868, authentic FP 4.54%, AI recall 92.52%, threshold 0.49. SHA-256 `2931f197cba6f376e85b1cbcfd584e6802f36e4fbf68ff00c83d61d4d655db18`.
-- **UnivFD probe v8** — LogisticRegression on CLIP ViT-B/32 embeddings, 10,712 images, AUC-ROC 0.9911, FP 5.01%, recall 96.01%. SHA-256 `d16fb22baf3981d62888e2458733c1a4c0743a5895470d82e9de76766f776908`.
+- **UnivFD probe v9** — LogisticRegression on CLIP ViT-B/32 embeddings, 39,016 training samples (10,712 original + 32,142 platform-forwarded augmentation via Q=75/85/2× re-saves), AUC-ROC 0.9933, FP 4.12%, recall 95.70%. Platform-forwarded-specific AUC: plt75 0.9947, plt85 0.9949, plt2x 0.9937. DiffusionDB recall 67.6% → 97.3%, Civitai SFW 75.8% → 98.7%. Known trade-off: flux_dev 88.9% (−11.1 pp), sdxl_turbo 91.1% (−8.9 pp). SHA-256 `ed691b45cbe2903a7e0530fd0ec78ab91eef9f15133af4c1a5c8cf172086dacd`. Promoted 2026-04-12 from candidate trained 2026-04-11. Full validation in `docs/calibration/univfd-v9-platform-augmentation.md`.
 - Training corpus: 6,571 authentic + 5,005 AI = 11,576 images total (stored on external USB).
 - Camera FP after MakerNote authenticity bonus + `KNOWN_CAMERA_VENDORS` (36 vendors, 11 Global Majority brands): consumer (Pixel/iPhone) 8.81%, high-end (DJI/DSC) 10.32%. All AI generator families pass 100% recall except DALL-E 3 (91.4%), Civitai SFW (75.8%), DiffusionDB (67.6% — weakest, older SD).
 

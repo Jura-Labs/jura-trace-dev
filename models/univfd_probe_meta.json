@@ -1,44 +1,158 @@
 {
-  "trained_at": "2026-04-07T14:29:54.838469",
-  "approach": "UnivFD-style linear probe on CLIP ViT-B/32 embeddings",
+  "model_version": "v9",
+  "trained_at": "2026-04-11T15:34:27.468352+00:00",
+  "approach": "UnivFD-style linear probe on CLIP ViT-B/32 embeddings (platform-forwarded augmentation)",
+  "training_task": "backlog_item_16_platform_forwarded_augmentation",
   "clip_model": "ViT-B-32",
   "clip_pretrained": "laion2b_s34b_b79k",
   "embedding_dim": 512,
-  "n_samples": 10712,
-  "n_authentic": 5727,
-  "n_ai_generated": 4985,
-  "cv_folds": 5,
-  "cv_auc_roc": 0.9911,
+  "random_seed": 42,
   "probe_params": {
-    "C": 0.1,
+    "C": 0.5,
     "max_iter": 1000,
-    "solver": "lbfgs"
+    "solver": "lbfgs",
+    "class_weight": "balanced"
   },
-  "cv_classification_report": {
-    "authentic": {
-      "precision": 0.9647100549742862,
-      "recall": 0.9498865025318666,
-      "f1-score": 0.9572408938940701,
-      "support": 5727.0
-    },
-    "ai_generated": {
-      "precision": 0.9434259806820422,
-      "recall": 0.9600802407221665,
-      "f1-score": 0.9516802545237621,
-      "support": 4985.0
-    },
-    "accuracy": 0.9546303211351755,
-    "macro avg": {
-      "precision": 0.9540680178281642,
-      "recall": 0.9549833716270165,
-      "f1-score": 0.9544605742089161,
-      "support": 10712.0
-    },
-    "weighted avg": {
-      "precision": 0.9548051716334688,
-      "recall": 0.9546303211351755,
-      "f1-score": 0.9546531617001769,
-      "support": 10712.0
+  "training_corpus": {
+    "original_authentic": "/Volumes/Samsung USB/Training Data/corpus/training/authentic",
+    "original_ai": "/Volumes/Samsung USB/Training Data/corpus/training/ai_generated",
+    "aug_authentic": "/Volumes/Samsung USB/Training Data/corpus/training_platform_forwarded/authentic",
+    "aug_ai": "/Volumes/Samsung USB/Training Data/corpus/training_platform_forwarded/ai_generated",
+    "n_train": 39016,
+    "n_test": 4334,
+    "n_train_authentic": 21481,
+    "n_train_ai": 17535
+  },
+  "evaluation": {
+    "held_out_set": "10% stratified by subdir+variant",
+    "split_json": "models/univfd_v9_split.json",
+    "threshold": 0.5,
+    "auc_roc": 0.9933,
+    "fp_rate": 0.0412,
+    "ai_recall": 0.957,
+    "tn": 2281,
+    "fp": 98,
+    "fn": 84,
+    "tp": 1871,
+    "classification_report": {
+      "authentic": {
+        "precision": 0.9644820295983086,
+        "recall": 0.9588062211013031,
+        "f1-score": 0.9616357504215851,
+        "support": 2379.0
+      },
+      "ai_generated": {
+        "precision": 0.9502285424073134,
+        "recall": 0.9570332480818414,
+        "f1-score": 0.95361875637105,
+        "support": 1955.0
+      },
+      "accuracy": 0.9580064605445316,
+      "macro avg": {
+        "precision": 0.957355286002811,
+        "recall": 0.9579197345915722,
+        "f1-score": 0.9576272533963175,
+        "support": 4334.0
+      },
+      "weighted avg": {
+        "precision": 0.9580525031888957,
+        "recall": 0.9580064605445316,
+        "f1-score": 0.9580194090813,
+        "support": 4334.0
+      }
     }
-  }
+  },
+  "per_variant_auc": {
+    "original": {
+      "auc_roc": 0.99,
+      "n": 1112
+    },
+    "plt2x": {
+      "auc_roc": 0.9937,
+      "n": 1074
+    },
+    "plt75": {
+      "auc_roc": 0.9947,
+      "n": 1074
+    },
+    "plt85": {
+      "auc_roc": 0.9949,
+      "n": 1074
+    }
+  },
+  "per_generator_recall": {
+    "__root__": {
+      "recall": 0.8194,
+      "n": 72
+    },
+    "__unknown__": {
+      "recall": 0.954,
+      "n": 500
+    },
+    "artbench": {
+      "recall": 0.9667,
+      "n": 60
+    },
+    "civitai_sfw": {
+      "recall": 0.9867,
+      "n": 150
+    },
+    "dalle3": {
+      "recall": 0.9867,
+      "n": 150
+    },
+    "diffusiondb": {
+      "recall": 0.9733,
+      "n": 150
+    },
+    "elsa": {
+      "recall": 0.959,
+      "n": 390
+    },
+    "flux_dev": {
+      "recall": 0.8889,
+      "n": 81
+    },
+    "gemini": {
+      "recall": 0.7333,
+      "n": 15
+    },
+    "grok_aurora": {
+      "recall": 1.0,
+      "n": 150
+    },
+    "midjourney_v6": {
+      "recall": 1.0,
+      "n": 45
+    },
+    "sd15": {
+      "recall": 1.0,
+      "n": 3
+    },
+    "sdxl_turbo": {
+      "recall": 0.9111,
+      "n": 90
+    },
+    "synthetic_faces": {
+      "recall": 0.9889,
+      "n": 90
+    },
+    "user_ai": {
+      "recall": 1.0,
+      "n": 6
+    },
+    "wikimedia_ai": {
+      "recall": 1.0,
+      "n": 3
+    }
+  },
+  "v8_baseline": {
+    "auc_roc": 0.9911,
+    "fp_rate": 0.0501,
+    "ai_recall": 0.9601,
+    "n_samples": 10712,
+    "trained_at": "2026-04-07T14:29:54"
+  },
+  "sha256": "ed691b45cbe2903a7e0530fd0ec78ab91eef9f15133af4c1a5c8cf172086dacd",
+  "model_path": "models/univfd_probe_v9.joblib"
 }
