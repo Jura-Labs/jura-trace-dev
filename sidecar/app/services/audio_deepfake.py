@@ -312,18 +312,54 @@ def _load_audio(audio_path: str, target_sr: int = _TARGET_SR) -> tuple[np.ndarra
     except ImportError:
         pass
 
-    # scipy fallback (WAV only)
+    # FFmpeg fallback: convert any audio format to 16-bit PCM WAV in a temp
+    # file, then read with scipy. FFmpeg is already a runtime dependency for
+    # the audio_metadata service and faster-whisper transcription. This path
+    # handles MP3, FLAC, OGG, AAC, M4A, OPUS, AIFF — everything FFmpeg can
+    # decode — without adding librosa as a dependency.
+    import shutil
+    import subprocess
+    import tempfile
+
+    ffmpeg_bin = shutil.which("ffmpeg")
+    if ffmpeg_bin:
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp_path = tmp.name
+            subprocess.run(
+                [
+                    ffmpeg_bin, "-y", "-i", audio_path,
+                    "-ac", "1",                    # mono
+                    "-ar", str(target_sr),          # target sample rate
+                    "-sample_fmt", "s16",           # 16-bit PCM
+                    "-f", "wav",                    # WAV output
+                    tmp_path,
+                ],
+                capture_output=True, timeout=30, check=True,
+            )
+            from scipy.io import wavfile as _wavfile  # type: ignore[import-untyped]
+            _, data = _wavfile.read(tmp_path)
+            if data.ndim > 1:
+                data = data.mean(axis=1)
+            data = data.astype(np.float32) / (2 ** 15)
+            return data, target_sr
+        except Exception:
+            raise
+        finally:
+            import os
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    # Last resort: scipy.io.wavfile direct read (WAV only)
     try:
         from scipy.io import wavfile as _wavfile  # type: ignore[import-untyped]
         native_sr, data = _wavfile.read(audio_path)
         if data.ndim > 1:
             data = data.mean(axis=1)
         data = data.astype(np.float32)
-        # Normalise int pcm to [-1, 1]
         if data.max() > 1.0:
             data = data / (2 ** 15)
         if native_sr != target_sr:
-            # Simple linear resampling — good enough for skeleton
             new_length = int(len(data) * target_sr / native_sr)
             data = np.interp(
                 np.linspace(0, len(data) - 1, new_length),
