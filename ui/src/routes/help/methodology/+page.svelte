@@ -424,7 +424,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Limited to metadata embedded at capture time. Cannot detect modifications to the image content itself — only inconsistencies in the surrounding metadata. Files stripped of all metadata produce no signal.
+                Limited to metadata embedded at capture time. Cannot detect modifications to the image content itself — only inconsistencies in the surrounding metadata. Files stripped of all metadata produce no signal. The injection-detection sub-checks (programmatic library, template timestamp, integer GPS, MakerNote absence, iPhone sRGB) fire only on JPEG files with EXIF metadata present; stripped metadata produces no injection signal. XMP AI-provenance checks rely on self-declared metadata — a file can assert <code class="text-xs">digitalCapture</code> in XMP even if the pixels were generated, and an AI-generated file whose XMP has been stripped will never trigger the XMP checks. The <code class="text-xs">xmpMM:History</code> edit-history parser reads standard Photoshop history entries, which record application-level saves but do not record tool-level detail; Class H fires on non-standard history entries that do carry manipulation tool names.
               </dd>
             </div>
           </dl>
@@ -677,7 +677,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Extracts an 84-feature vector covering noise statistics (LSB randomness, LSB entropy, LF/HF ratio, anisotropy), spectral decay patterns, Local Binary Pattern (LBP) texture descriptors, Grey-Level Co-occurrence Matrix (GLCM) contrast measures, and demosaic inter-channel coherence. A GradientBoosting classifier (GBM v4 — trained on 10,709 images from 14 generator families, cross-validation AUC&#8209;ROC 0.9868, authentic false-positive rate 4.54%, calibrated threshold 0.49) assigns a probability score. This is combined with the UnivFD v8 probe (a LogisticRegression classifier on CLIP ViT-B/32 embeddings, trained on 10,712 images, AUC&#8209;ROC 0.9911, recall 96.01%) into a ensemble score. The pipeline also checks for invisible watermarks from known AI generators.
+                Extracts an 84-feature vector covering noise statistics (LSB randomness, LSB entropy, LF/HF ratio, anisotropy), spectral decay patterns, Local Binary Pattern (LBP) texture descriptors, Grey-Level Co-occurrence Matrix (GLCM) contrast measures, and demosaic inter-channel coherence. A GradientBoosting classifier (GBM v4 — trained on 10,709 images from 14 generator families, cross-validation AUC&#8209;ROC 0.9868, authentic false-positive rate 4.54%, calibrated threshold 0.49) assigns a probability score. This is combined with the UnivFD v9 probe (a LogisticRegression classifier on CLIP ViT-B/32 embeddings, trained on 39,016 samples including platform-forwarded augmentation, AUC&#8209;ROC 0.9933, authentic FP rate 4.12%, recall 95.70%) into an ensemble score. The pipeline also checks for invisible watermarks from known AI generators.
               </dd>
             </div>
             <div>
@@ -689,7 +689,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Heavily processed photographs, CGI renders, composite illustrations, and images that have undergone multiple rounds of compression may exhibit AI-like statistical properties. The trained false positive rate on authentic press photos is approximately 14% — human review is always warranted.
+                Heavily processed photographs, CGI renders, composite illustrations, and images that have undergone multiple rounds of compression may exhibit AI-like statistical properties. The ensemble authentic false positive rate is 4.54% (GBM v4) and 4.12% (UnivFD v9) on the held-out test set — human review is always warranted.
               </dd>
             </div>
             <div>
@@ -699,7 +699,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Trained on 709 images from generators available before April 2026. May underperform on outputs from newer generators. Minimum image size: 128&#215;128 pixels. See the <a href="/help/model-cards#gbm-classifier" class="text-lapis dark:text-lapis-light underline hover:no-underline">GBM model card</a> for full training data documentation.
+                GBM v4 trained on 10,709 images across 14 generator families; UnivFD v9 trained on 39,016 samples (including platform-forwarded augmentation). May underperform on outputs from generators not represented in the training corpus. Both models are retrained on a quarterly cadence as new generator families are identified. Minimum image size: 128&#215;128 pixels. See the <a href="/help/model-cards#gbm-classifier" class="text-lapis dark:text-lapis-light underline hover:no-underline">GBM model card</a> for full training data documentation.
               </dd>
             </div>
           </dl>
@@ -754,7 +754,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                Only applicable to JPEG files. Produces no signal on PNG, WebP, TIFF, or other non-JPEG formats. The detector section is greyed out for non-JPEG inputs.
+                Only applicable to JPEG files. Produces no signal on PNG, WebP, TIFF, or other non-JPEG formats. The detector section is greyed out for non-JPEG inputs. Quality-adaptive weight applied: the effective trust-score contribution scales with the estimated JPEG quality factor — <code class="text-xs">effective_weight = 0.5 × max(jpeg_quality / 100, 0.3)</code> — to mitigate a structural blind spot on platform-forwarded content (Twitter/WhatsApp re-encoding wipes differential ghost signatures entirely, making the signal indistinguishable from authentic content at those quality levels).
               </dd>
             </div>
             <div id="jpeg-ghost-calibration">
@@ -929,7 +929,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint dark:text-flint-light leading-relaxed">
-                2.7% false positive rate on authentic images. Non-photographic content (paintings, digital illustrations) may still trigger false positives. Requires the optional CLIP ViT&#8209;B/32 model (~350 MB). See the <a href="/help/model-cards#univfd-probe" class="text-lapis dark:text-lapis-light underline hover:no-underline">UnivFD model card</a> for full documentation.
+                UnivFD v9 authentic false positive rate: 4.12% (down from 5.01% in v8 and 28.7% in v7). Platform-forwarded augmentation training improved robustness on Twitter/WhatsApp-compressed images. Non-photographic content (paintings, digital illustrations) may still trigger false positives. Requires the optional CLIP ViT&#8209;B/32 model (~350 MB). See the <a href="/help/model-cards#univfd-probe" class="text-lapis dark:text-lapis-light underline hover:no-underline">UnivFD model card</a> for full documentation.
               </dd>
             </div>
             <div id="clip-detection">
@@ -1493,13 +1493,13 @@
           </tr>
           <tr>
             <td class="py-2.5 pr-6 text-text-light dark:text-quartz">Shadow Consistency</td>
-            <td class="py-2.5 pr-6 tabular-nums font-medium text-text-light dark:text-quartz">1.0</td>
-            <td class="py-2.5 text-flint dark:text-flint-light">Standard weight; higher false positive rate in complex lighting</td>
+            <td class="py-2.5 pr-6 tabular-nums text-flint dark:text-flint-light italic">On-demand</td>
+            <td class="py-2.5 text-flint dark:text-flint-light">Demoted Sprint 28 — on-demand investigation tool only, does not contribute to trust score</td>
           </tr>
           <tr>
             <td class="py-2.5 pr-6 text-text-light dark:text-quartz">Splice Boundary</td>
-            <td class="py-2.5 pr-6 tabular-nums font-medium text-text-light dark:text-quartz">1.0</td>
-            <td class="py-2.5 text-flint dark:text-flint-light">Most meaningful when corroborated by Segmented ELA</td>
+            <td class="py-2.5 pr-6 tabular-nums text-flint dark:text-flint-light italic">On-demand</td>
+            <td class="py-2.5 text-flint dark:text-flint-light">Demoted Sprint 28 — on-demand investigation tool only, does not contribute to trust score</td>
           </tr>
           <tr>
             <td class="py-2.5 pr-6 text-text-light dark:text-quartz">AI Generation Detection</td>
