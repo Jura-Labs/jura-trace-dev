@@ -415,6 +415,44 @@ class CapabilitiesResponse(BaseModel):
     video_frames: bool = False
     video_deepfake: bool = False
     transcription: bool = False
+    audio_deepfake: bool = False
+
+
+class AudioDeepfakeResponse(BaseModel):
+    """Audio deepfake detection result (Sprint 35 two-stage ensemble)."""
+
+    score: float | None = None
+    """Ensemble score 0-1 (0 = authentic, 1 = synthetic).  None when no probe is loaded."""
+
+    verdict: str = "model_not_loaded"
+    """One of: ``authentic``, ``inconclusive``, ``likely_synthetic``, ``model_not_loaded``."""
+
+    stage1_score: float | None = None
+    """Stage 1 score from MFCC + GradientBoostingClassifier.  None when unavailable."""
+
+    stage2_score: float | None = None
+    """Stage 2 score from Wav2Vec2-Base + LogisticRegression.  None when unavailable."""
+
+    stages_available: list[str] = []
+    """Which stages actually ran, e.g. ``["stage1"]`` or ``["stage1", "stage2"]``."""
+
+    model_loaded: bool = False
+    """False until trained probe files are deployed to ``models/``."""
+
+    duration_seconds: float | None = None
+    """Audio duration in seconds, if the file could be loaded."""
+
+    sample_rate: int | None = None
+    """Sample rate after resampling (always 16 000 Hz when librosa is available)."""
+
+    mfcc_features_extracted: bool = False
+    """True when a 160-dim MFCC feature vector was successfully extracted."""
+
+    wav2vec2_embedding_extracted: bool = False
+    """True when a 768-dim Wav2Vec2 embedding was successfully extracted."""
+
+    processing_time_ms: float | None = None
+    """Wall-clock time for the full ensemble call in milliseconds."""
 
 
 class HealthResponse(BaseModel):

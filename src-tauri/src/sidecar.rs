@@ -556,6 +556,47 @@ pub struct TranscriptionResult {
     pub message: String,
 }
 
+/// Audio deepfake detection result from the two-stage ensemble (Sprint 35).
+///
+/// While no trained probe files are deployed the sidecar returns
+/// `model_loaded: false` and `verdict: "model_not_loaded"`.  All other
+/// fields may still be populated from feature extraction.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioDeepfakeResult {
+    /// Ensemble score 0–1 (0 = authentic, 1 = synthetic). `None` when no probe is loaded.
+    pub score: Option<f64>,
+    /// One of: `"authentic"`, `"inconclusive"`, `"likely_synthetic"`, `"model_not_loaded"`.
+    pub verdict: String,
+    /// Stage 1 score from MFCC + GradientBoostingClassifier. `None` when unavailable.
+    #[serde(default, alias = "stage1_score")]
+    pub stage1_score: Option<f64>,
+    /// Stage 2 score from Wav2Vec2-Base + LogisticRegression. `None` when unavailable.
+    #[serde(default, alias = "stage2_score")]
+    pub stage2_score: Option<f64>,
+    /// Which stages actually ran, e.g. `["stage1"]` or `["stage1", "stage2"]`.
+    #[serde(default, alias = "stages_available")]
+    pub stages_available: Vec<String>,
+    /// `false` until trained probe files are deployed.
+    #[serde(default, alias = "model_loaded")]
+    pub model_loaded: bool,
+    /// Audio duration in seconds (if the file could be loaded).
+    #[serde(default, alias = "duration_seconds")]
+    pub duration_seconds: Option<f64>,
+    /// Sample rate after resampling (16 000 Hz when librosa is available).
+    #[serde(default, alias = "sample_rate")]
+    pub sample_rate: Option<u32>,
+    /// `true` when a 160-dim MFCC feature vector was successfully extracted.
+    #[serde(default, alias = "mfcc_features_extracted")]
+    pub mfcc_features_extracted: bool,
+    /// `true` when a 768-dim Wav2Vec2 embedding was successfully extracted.
+    #[serde(default, alias = "wav2vec2_embedding_extracted")]
+    pub wav2vec2_embedding_extracted: bool,
+    /// Wall-clock time for the full ensemble call in milliseconds.
+    #[serde(default, alias = "processing_time_ms")]
+    pub processing_time_ms: Option<f64>,
+}
+
 /// A single claim verdict from the RAG claim checker.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1134,6 +1175,38 @@ impl SidecarClient {
 
         resp.json::<TranscriptionResult>()
             .map_err(|e| format!("Failed to parse transcription response: {e}"))
+    }
+
+    /// Detect AI-generated speech, voice cloning, and TTS in an audio file.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/audio/deepfake`.
+    /// Uses a 60-second timeout (MFCC extraction ~20 ms; Wav2Vec2 ~150 ms;
+    /// extra headroom for slow HDD read and sidecar startup).
+    ///
+    /// Returns an `AudioDeepfakeResult`.  When no trained probe files are
+    /// deployed yet the sidecar returns `model_loaded: false` and
+    /// `verdict: "model_not_loaded"` — this is **not** an error; the
+    /// caller should surface "Audio deepfake detection available after model
+    /// training" rather than a failure banner.
+    pub fn detect_audio_deepfake(&self, audio_path: &Path) -> Result<AudioDeepfakeResult, String> {
+        let form = self.build_image_form(audio_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/audio/deepfake", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(60))
+            .send()
+            .map_err(|e| format!("Sidecar audio deepfake request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!("Sidecar audio deepfake returned {status}: {body}"));
+        }
+
+        resp.json::<AudioDeepfakeResult>()
+            .map_err(|e| format!("Failed to parse audio deepfake response: {e}"))
     }
 
     /// Check claims against the RAG knowledge base via the sidecar.
@@ -2216,5 +2289,87 @@ mod tests {
         let result: ClaimCheckResult = serde_json::from_str(json).unwrap();
         assert_eq!(result.overall_verdict, "supported");
         assert_eq!(result.claims[0].verdict, "supported");
+    }
+
+    // ── AudioDeepfakeResult ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_audio_deepfake_result_model_not_loaded() {
+        // Typical response before trained probes are deployed — model_not_loaded path.
+        let json = r#"{
+            "score": null,
+            "verdict": "model_not_loaded",
+            "stage1_score": null,
+            "stage2_score": null,
+            "stages_available": [],
+            "model_loaded": false,
+            "duration_seconds": 3.712,
+            "sample_rate": 16000,
+            "mfcc_features_extracted": true,
+            "wav2vec2_embedding_extracted": false,
+            "processing_time_ms": 42.3
+        }"#;
+        let result: AudioDeepfakeResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.verdict, "model_not_loaded");
+        assert!(!result.model_loaded);
+        assert!(result.score.is_none());
+        assert!(result.stage1_score.is_none());
+        assert!(result.stages_available.is_empty());
+        assert!(result.mfcc_features_extracted);
+        assert!(!result.wav2vec2_embedding_extracted);
+        assert!((result.duration_seconds.unwrap() - 3.712).abs() < 0.001);
+        assert_eq!(result.sample_rate, Some(16_000));
+        assert!((result.processing_time_ms.unwrap() - 42.3).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_audio_deepfake_result_snake_case_aliases() {
+        // Sidecar sends snake_case; camelCase rename_all must still accept it via alias.
+        let json = r#"{
+            "score": 0.78,
+            "verdict": "likely_synthetic",
+            "stage1_score": 0.65,
+            "stage2_score": 0.83,
+            "stages_available": ["stage1", "stage2"],
+            "model_loaded": true,
+            "duration_seconds": 5.0,
+            "sample_rate": 16000,
+            "mfcc_features_extracted": true,
+            "wav2vec2_embedding_extracted": true,
+            "processing_time_ms": 175.0
+        }"#;
+        let result: AudioDeepfakeResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.verdict, "likely_synthetic");
+        assert!(result.model_loaded);
+        assert!((result.score.unwrap() - 0.78).abs() < 0.001);
+        assert!((result.stage1_score.unwrap() - 0.65).abs() < 0.001);
+        assert!((result.stage2_score.unwrap() - 0.83).abs() < 0.001);
+        assert_eq!(result.stages_available, vec!["stage1", "stage2"]);
+        assert!(result.mfcc_features_extracted);
+        assert!(result.wav2vec2_embedding_extracted);
+    }
+
+    #[test]
+    fn test_audio_deepfake_result_stage1_only() {
+        // Only Stage 1 ran (Wav2Vec2 model not downloaded yet).
+        let json = r#"{
+            "score": 0.31,
+            "verdict": "authentic",
+            "stage1_score": 0.31,
+            "stage2_score": null,
+            "stages_available": ["stage1"],
+            "model_loaded": true,
+            "duration_seconds": 2.5,
+            "sample_rate": 16000,
+            "mfcc_features_extracted": true,
+            "wav2vec2_embedding_extracted": false,
+            "processing_time_ms": 22.1
+        }"#;
+        let result: AudioDeepfakeResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.verdict, "authentic");
+        assert!(result.model_loaded);
+        assert!(result.stage2_score.is_none());
+        assert_eq!(result.stages_available, vec!["stage1"]);
+        assert!(!result.wav2vec2_embedding_extracted);
     }
 }

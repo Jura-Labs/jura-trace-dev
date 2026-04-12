@@ -847,6 +847,39 @@ export interface VideoDeepfakeResult {
   message: string;
 }
 
+// ── Audio deepfake detection ──────────────────────────────────────
+
+/**
+ * Result from the two-stage audio deepfake ensemble (Sprint 35).
+ * `modelLoaded` is false until trained probe files are deployed; the
+ * UI should render "Audio deepfake detection available after model training"
+ * rather than a failure indicator in that state.
+ */
+export interface AudioDeepfakeResult {
+  /** Ensemble score 0–1 (0 = authentic, 1 = synthetic). Null when no probe is loaded. */
+  score: number | null;
+  /** "authentic" | "inconclusive" | "likely_synthetic" | "model_not_loaded" */
+  verdict: string;
+  /** Stage 1 score from MFCC + GradientBoostingClassifier. */
+  stage1Score: number | null;
+  /** Stage 2 score from Wav2Vec2-Base + LogisticRegression. */
+  stage2Score: number | null;
+  /** Which stages actually ran, e.g. ["stage1"] or ["stage1", "stage2"]. */
+  stagesAvailable: string[];
+  /** False until trained probe files are deployed to models/. */
+  modelLoaded: boolean;
+  /** Audio duration in seconds if the file could be loaded. */
+  durationSeconds: number | null;
+  /** Sample rate after resampling (16 000 Hz when librosa is available). */
+  sampleRate: number | null;
+  /** True when a 160-dim MFCC feature vector was successfully extracted. */
+  mfccFeaturesExtracted: boolean;
+  /** True when a 768-dim Wav2Vec2 embedding was successfully extracted. */
+  wav2vec2EmbeddingExtracted: boolean;
+  /** Wall-clock time for the full ensemble call in milliseconds. */
+  processingTimeMs: number | null;
+}
+
 // ── Watermarking ──────────────────────────────────────────────────
 
 /** Result from embedding an invisible watermark into an asset */

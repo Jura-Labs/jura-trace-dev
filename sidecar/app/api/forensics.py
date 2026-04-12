@@ -2,10 +2,15 @@
 Jura Trace Sidecar — Forensics endpoints.
 """
 
+import os
+import tempfile
+from pathlib import Path
+
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from app.config import settings
 from app.models.schemas import (
+    AudioDeepfakeResponse,
     AudioMetadataResponse,
     ClaimCheckResponse,
     ClipDetectionResponse,
@@ -52,6 +57,7 @@ from app.services.video_frames import perform_frame_extraction
 from app.services.video_metadata import perform_video_metadata
 from app.services.roi_analysis import analyse_roi
 from app.services.gan_fingerprint import visualise_gan_fingerprint
+from app.services.audio_deepfake import score_audio_deepfake
 from app.services.watermark import perform_watermark_embed, perform_watermark_extract
 
 router = APIRouter()
@@ -742,3 +748,48 @@ async def gan_fingerprint(file: UploadFile = File(...)):
         return visualise_gan_fingerprint(image_bytes)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+# ── Audio deepfake detection ───────────────────────────────────────────────────
+
+_AUDIO_EXTENSIONS = {
+    ".wav", ".mp3", ".flac", ".ogg", ".aac", ".m4a", ".aiff", ".opus",
+}
+
+
+@router.post("/audio/deepfake", response_model=AudioDeepfakeResponse)
+async def audio_deepfake(file: UploadFile = File(...)) -> AudioDeepfakeResponse:
+    """Detect AI-generated speech, voice cloning, and TTS in audio files.
+
+    Runs the two-stage ensemble (MFCC + GradientBoostingClassifier as Stage 1,
+    Wav2Vec2-Base + LogisticRegression as Stage 2).
+
+    **Sprint 35 skeleton**: while no trained probe files are deployed the
+    endpoint returns HTTP 200 with ``model_loaded=false`` and
+    ``verdict="model_not_loaded"``.  MFCC feature extraction is still
+    performed so callers can verify the audio pipeline is working.
+
+    Accepted formats: WAV, MP3, FLAC, OGG, AAC, M4A, AIFF, OPUS.
+    Maximum file size: 100 MB.
+    """
+    contents = await _read_media(file, _MAX_AUDIO_SIZE, "audio")
+
+    suffix = Path(file.filename or "audio.wav").suffix.lower()
+    if suffix not in _AUDIO_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported audio format '{suffix}'. "
+                   f"Accepted: {', '.join(sorted(_AUDIO_EXTENSIONS))}",
+        )
+
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(contents)
+        tmp_path = tmp.name
+
+    try:
+        return score_audio_deepfake(tmp_path)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
