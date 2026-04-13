@@ -21,11 +21,11 @@
       id="bedrock-heading"
       class="font-heading text-3xl text-text-light dark:text-quartz mb-4 leading-tight tracking-heading"
     >
-      Bedrock and Conformant Signing
+      Local and Conformant Signing
     </h1>
     <p class="text-base text-flint dark:text-flint-light leading-relaxed max-w-2xl">
       Jura Trace signs C2PA provenance manifests in one of two modes. The default
-      — <strong>Bedrock Signing</strong> — works entirely offline, on your device,
+      — <strong>Local Signing</strong> — works entirely offline, on your device,
       with no account, no data sent to Juralabs, and no dependency on any external service.
       The optional <strong>Conformant Signing</strong> mode accepts a certificate
       from a C2PA-approved authority for institutions that need cross-tool
@@ -40,7 +40,7 @@
       On this page
     </p>
     <ol class="space-y-1 text-sm">
-      <li><a href="#bedrock" class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">What Bedrock Signing does</a></li>
+      <li><a href="#bedrock" class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">What Local Signing does</a></li>
       <li><a href="#conformant" class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">When to use Conformant Signing</a></li>
       <li><a href="#untrusted" class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">The &ldquo;untrusted&rdquo; warning explained</a></li>
       <li><a href="#obtaining-cert" class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">Obtaining a Conformant certificate</a></li>
@@ -55,7 +55,7 @@
       id="bedrock-overview-heading"
       class="font-heading text-2xl text-text-light dark:text-quartz mb-6 leading-tight tracking-heading"
     >
-      What Bedrock Signing does
+      What Local Signing does
     </h2>
 
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
@@ -67,7 +67,7 @@
     </p>
 
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
-      Bedrock Signing was designed around four institutional concerns that
+      Local Signing was designed around four institutional concerns that
       cloud-based provenance services cannot answer:
     </p>
 
@@ -98,7 +98,7 @@
       <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
         <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">No telemetry, no enrolment</h3>
         <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
-          Bedrock does not transmit the certificate, the signing events, or any
+          Local Signing does not transmit the certificate, the signing events, or any
           metadata about what you are protecting. The cryptographic keys live on
           your device only. There is no account to create, no support portal to
           register with, and nothing to reach out to Juralabs about unless you
@@ -109,7 +109,7 @@
       <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
         <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Technically sound C2PA manifests</h3>
         <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
-          Bedrock-signed files carry a fully valid C2PA manifest that matches the
+          Locally signed files carry a fully valid C2PA manifest that matches the
           structural requirements of the C2PA specification version 2.x. The
           manifest can be read and parsed by any C2PA-compatible tool worldwide,
           including Adobe Inspect, the public
@@ -133,11 +133,11 @@
     </h2>
 
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
-      Conformant Signing is the optional second mode. Instead of using the local
-      certificate authority, Jura Trace signs files with a certificate issued to
-      your institution by a C2PA-approved certification authority on the official
-      trust list. Manifests produced this way validate cleanly, with no warnings,
-      in every C2PA validator worldwide.
+      Conformant Signing is the optional second mode. Instead of using the
+      per-install local certificate authority, Jura Trace signs files with a
+      certificate issued to your institution by a C2PA-approved certification
+      authority on the official trust list. Manifests produced this way validate
+      cleanly, with no warnings, in every C2PA validator worldwide.
     </p>
 
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
@@ -159,7 +159,7 @@
 
     <div class="bg-lapis/5 dark:bg-lapis/10 border border-lapis/20 dark:border-lapis/30 rounded-lg p-5 mb-4">
       <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-        <strong>Bedrock and Conformant produce structurally identical manifests.</strong>
+        <strong>Local and Conformant produce structurally identical manifests.</strong>
         The only difference is the root of trust — whether the signing certificate
         chains back to a public trust list or to the per-install local authority.
         You can switch modes at any time in Settings. Existing signed files retain
@@ -180,7 +180,7 @@
     </h2>
 
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
-      When you open a Bedrock-signed file in an external C2PA validator — Adobe
+      When you open a locally signed file in an external C2PA validator — Adobe
       Inspect, contentcredentials.org/verify, or a desktop tool from another
       vendor — you will see a warning that the signing credential is
       &ldquo;untrusted&rdquo;. This warning is expected, and understanding why it
@@ -190,7 +190,7 @@
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
       External validators maintain a curated list of certificate authorities whose
       certificates they will accept without a warning. This list is called the
-      <strong>C2PA trust list</strong>. Bedrock's local certificate authority is not
+      <strong>C2PA trust list</strong>. The per-install local certificate authority is not
       on that list — and cannot be, because the authority was generated on your
       device and is unique to your install. There is no mechanism by which a
       public trust list could include millions of per-install local authorities.
@@ -209,7 +209,7 @@
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
       For use cases where this warning is acceptable (institutional archives,
       internal workflows, Jura Trace-to-Jura Trace verification, evidence chains
-      whose audit trail is separate from the cryptographic signature), Bedrock is
+      whose audit trail is separate from the cryptographic signature), Local Signing is
       the right choice. For use cases where the warning is not acceptable
       (cross-vendor interoperability, public-facing provenance display, enterprise
       procurement gates), switch to Conformant Signing.
@@ -260,7 +260,7 @@
         through the official programme. Generator conformance, which would cover
         the signing side of the dual-mode architecture under Conformant, is a
         subsequent step in the same programme. Neither badge is required for
-        Bedrock Signing, which operates entirely outside the conformance
+        Local Signing, which operates entirely outside the conformance
         programme's trust model by design.
       </p>
     </div>
@@ -285,16 +285,16 @@
     </p>
 
     <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
-      <li><strong>Bedrock → Conformant:</strong> import a valid certificate and
+      <li><strong>Local → Conformant:</strong> import a valid certificate and
         key via the Import Certificate button. After successful validation, Jura
         Trace offers to switch the active mode in a single click.</li>
-      <li><strong>Conformant → Bedrock:</strong> click the Switch to Bedrock
-        button in the Bedrock card. Your imported Conformant certificate is
+      <li><strong>Conformant → Local:</strong> click the Switch to Local Signing
+        button in the Local Signing card. Your imported Conformant certificate is
         retained — switching back to Conformant later does not require
         re-importing.</li>
       <li><strong>Removing the Conformant certificate:</strong> click Remove in
         the Conformant card. The certificate and key files are deleted from the
-        device and the active mode reverts to Bedrock.</li>
+        device and the active mode reverts to Local Signing.</li>
     </ul>
 
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
@@ -325,7 +325,7 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
 
       <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-        <h3 class="font-medium text-base text-text-light dark:text-quartz mb-3">Bedrock fits when</h3>
+        <h3 class="font-medium text-base text-text-light dark:text-quartz mb-3">Local Signing fits when</h3>
         <ul class="list-disc pl-4 space-y-1.5 text-sm text-flint dark:text-flint-light leading-relaxed">
           <li>Your work is catalogued and verified inside your institution</li>
           <li>Your files are stored in an air-gapped archive or processed offline</li>
@@ -351,7 +351,7 @@
     </div>
 
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
-      If you are unsure, start with Bedrock — it is the default for a reason,
+      If you are unsure, start with Local Signing — it is the default for a reason,
       and switching to Conformant later is a single-step import. You do not need
       to re-protect existing files when you switch modes; the existing signed
       files remain valid under their original signing mode.

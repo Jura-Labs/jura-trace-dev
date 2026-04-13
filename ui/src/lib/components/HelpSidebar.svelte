@@ -14,7 +14,7 @@
       groupLabel: 'Features',
       items: [
         { href: '/help/protect',         label: 'Protect',             title: 'Safeguard digital assets' },
-        { href: '/help/bedrock-signing', label: 'Signing Modes',       title: 'Bedrock and Conformant C2PA signing modes' },
+        { href: '/help/bedrock-signing', label: 'Signing Modes',       title: 'Local and Conformant C2PA signing modes' },
         { href: '/help/verify',          label: 'Verify',              title: 'Forensic analysis and trust scores' },
         { href: '/help/monitor',         label: 'Monitor',             title: 'Activity log and trust landscape' },
         { href: '/help/settings',        label: 'Settings',            title: 'Configuration and deployment' },

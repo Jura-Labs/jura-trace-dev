@@ -154,10 +154,10 @@ test.describe('Page smoke tests', () => {
     });
   });
 
-  test.describe('Help: Bedrock Signing (/help/bedrock-signing)', () => {
-    test('bedrock-signing help page loads', async ({ page }) => {
+  test.describe('Help: Signing Modes (/help/bedrock-signing)', () => {
+    test('signing modes help page loads', async ({ page }) => {
       await page.goto('/help/bedrock-signing');
-      await expect(page.locator('h1')).toContainText('Bedrock');
+      await expect(page.locator('h1')).toContainText('Local and Conformant Signing');
     });
   });
 });

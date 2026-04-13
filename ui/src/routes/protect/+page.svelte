@@ -2068,14 +2068,18 @@
               {#if !asset.c2paSigned && canSignC2pa(asset)}
                 {#if signingAssetId === asset.assetId}
                   <div class="col-span-full mt-3 p-3 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark">
-                    <div class="flex items-center gap-1.5 mb-3">
+                    <div class="flex items-center gap-1.5 mb-2">
                       <p class="text-sm text-text-light dark:text-quartz">Sign with C2PA provenance</p>
                       <ContextualHelpLink href="/help/protect#c2pa-signing" label="Learn about C2PA provenance signing" />
                     </div>
 
+                    <p class="text-xs text-malachite dark:text-malachite-light mb-2 leading-relaxed">
+                      No data leaves your device. This creates a fully valid C2PA provenance record embedded in your file.
+                    </p>
+
                     <p class="text-xs text-flint dark:text-flint-light mb-3 leading-relaxed">
-                      Jura Trace signs with a local certificate. Third-party verifiers may show this as an unrecognised signer.
-                      Organisations with their own C2PA Trust List certificate can supply it in a future release.
+                      Third-party tools will confirm this file's integrity. Your identity as signer will show as
+                      unverified until you supply a trust-list certificate — this is expected in Local Signing mode.
                     </p>
 
                     {#if metadataWarningLoading}
@@ -2115,7 +2119,7 @@
                           bind:value={creatorName}
                           class="w-full mt-1 px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm
                                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
-                          placeholder="Your name or organisation"
+                          placeholder="e.g. Jane Smith / National Archive UK"
                         />
                       </div>
                       <div>

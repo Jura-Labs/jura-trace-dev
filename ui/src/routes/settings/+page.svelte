@@ -499,6 +499,9 @@
   let pendingClearCert = $state(false);
   let clearCertLoading = $state(false);
 
+  // Local Signing certificate details toggle
+  let showLocalCertDetails = $state(false);
+
   // Fingerprint copy feedback
   let fingerprintCopied = $state(false);
   let fingerprintCopyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1429,7 +1432,7 @@
   >
     <div class="flex items-center gap-1.5 mb-1">
       <h2 id="signing-mode-heading" class="text-lg font-heading text-text-light dark:text-quartz">Signing Mode</h2>
-      <ContextualHelpLink href="/help/bedrock-signing" label="Learn about Bedrock and Conformant signing" />
+      <ContextualHelpLink href="/help/bedrock-signing" label="Learn about Local and Conformant signing modes" />
     </div>
     <p class="text-xs text-flint dark:text-flint-light mb-5">
       Controls which certificate Jura Trace uses when embedding C2PA manifests into protected assets.
@@ -1456,21 +1459,67 @@
         {/if}
 
         <div class="mb-3">
-          <p class="text-sm font-semibold text-text-light dark:text-quartz">Bedrock Signing</p>
-          <p class="text-xs text-flint dark:text-flint-light mt-0.5">Local-first default</p>
+          <p class="text-sm font-semibold text-text-light dark:text-quartz">Local Signing</p>
+          <p class="text-xs text-flint dark:text-flint-light mt-0.5">Offline-first default</p>
         </div>
 
         <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-3">
-          Uses a per-install certificate authority generated on first launch. Works offline.
-          No account, no external connections required, no dependency on external services. Air-gapped deployments
-          and hostile-environment use cases are the primary target.
+          Uses a per-install certificate authority generated on first launch. Fully offline —
+          no account, no external connections, no dependency on external services. Produces
+          fully valid C2PA v2.x manifests readable by any C2PA-capable tool worldwide.
         </p>
 
-        <p class="text-xs text-flint/70 dark:text-flint-light/60 leading-relaxed mt-auto pt-3 border-t border-border-light dark:border-border-dark">
-          Signed files carry this device's unique certificate. External validators (Adobe Inspect,
-          contentcredentials.org) will mark manifests as "untrusted" — this is expected behaviour,
-          not a defect.
+        <p class="text-xs text-flint/70 dark:text-flint-light/60 leading-relaxed pt-3 border-t border-border-light dark:border-border-dark">
+          Third-party tools will confirm this file's integrity. Your identity as signer will show
+          as unverified in external validators — this is expected in Local Signing mode and does
+          not affect the validity of the manifest.
         </p>
+
+        <!-- Certificate Details expandable -->
+        <div class="mt-3">
+          <button
+            onclick={() => showLocalCertDetails = !showLocalCertDetails}
+            class="text-xs text-lapis dark:text-lapis-light hover:underline underline-offset-2 transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded flex items-center gap-1"
+            aria-expanded={showLocalCertDetails}
+            aria-controls="local-cert-details"
+          >
+            <svg
+              class="w-3 h-3 transition-transform {showLocalCertDetails ? 'rotate-90' : ''}"
+              fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+            Certificate details
+          </button>
+          {#if showLocalCertDetails}
+            <div
+              id="local-cert-details"
+              class="mt-2 p-3 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/30 text-xs text-flint dark:text-flint-light leading-relaxed space-y-2"
+            >
+              <div>
+                <span class="font-medium text-text-light dark:text-quartz">Algorithm:</span>
+                ECDSA P-256 (industry-standard elliptic curve)
+              </div>
+              <div>
+                <span class="font-medium text-text-light dark:text-quartz">Key storage:</span>
+                Private key stored only on this device, in the application data directory with restricted file permissions. Never transmitted.
+              </div>
+              <div>
+                <span class="font-medium text-text-light dark:text-quartz">Scope:</span>
+                Unique to this installation. Each device generates its own certificate authority on first launch.
+              </div>
+              <div>
+                <span class="font-medium text-text-light dark:text-quartz">If reinstalled:</span>
+                A new certificate authority is generated. Files signed previously remain fully valid C2PA manifests — the signature and assertions are intact regardless of whether the original certificate still exists.
+              </div>
+              <div>
+                <span class="font-medium text-text-light dark:text-quartz">Backup:</span>
+                Not required. The certificate proves <em>which device</em> signed a file, not <em>whether</em> the file is authentic. Verification works without the original signing device.
+              </div>
+            </div>
+          {/if}
+        </div>
 
         {#if signingMode === 'conformant'}
           <button
@@ -1489,7 +1538,7 @@
                 Switching...
               </span>
             {:else}
-              Switch to Bedrock
+              Switch to Local Signing
             {/if}
           </button>
         {/if}
@@ -1757,7 +1806,7 @@
               class="text-lapis dark:text-lapis-light hover:underline underline-offset-2
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
             >
-              Learn more about conformant signing
+              Learn more about signing modes
             </a>.
           </p>
         </div>
