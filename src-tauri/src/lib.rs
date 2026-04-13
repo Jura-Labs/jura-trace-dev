@@ -1119,6 +1119,326 @@ fn assess_input_quality(
     }
 }
 
+/// Run the standard sidecar parallel group: ELA + deepfake + watermark extract + CLIP.
+///
+/// All four detectors are independent and each takes 1–5 s. Running them via
+/// `std::thread::scope` cuts standard-mode wall time from ~10 s sequential to the
+/// slowest single detector (~5 s).
+///
+/// The caller is responsible for caching file bytes on the sidecar client before
+/// invoking this function and clearing the cache afterwards.
+///
+/// Returns `(ela_score, ela_result, deepfake_score, deepfake_result,
+///           watermark_extract_result, clip_result)`.
+#[allow(clippy::type_complexity)]
+pub(crate) fn run_standard_sidecar_group(
+    path: &std::path::Path,
+    sidecar: &sidecar::SidecarClient,
+    mime: &str,
+    has_camera_exif: bool,
+    camera_authenticity_bonus: f64,
+) -> (
+    Option<f64>,
+    Option<sidecar::ElaResult>,
+    Option<f64>,
+    Option<sidecar::DeepfakeResult>,
+    Option<sidecar::WatermarkExtractResult>,
+    Option<sidecar::ClipDetectionResult>,
+) {
+    let t_standard = std::time::Instant::now();
+
+    let ela_path = path.to_path_buf();
+    let df_path = path.to_path_buf();
+    let wm_path = path.to_path_buf();
+    let clip_path = path.to_path_buf();
+    let ela_client = sidecar.clone();
+    let df_client = sidecar.clone();
+    let wm_client = sidecar.clone();
+    let clip_client = sidecar.clone();
+    let mime_owned = mime.to_string();
+
+    let (ela_out, df_out, wm_out, clip_out) = std::thread::scope(|s| {
+        let ela_h = s.spawn(move || {
+            let t = std::time::Instant::now();
+            let r = ela_client.analyse_ela(&ela_path);
+            log::info!("PERF: ELA took {:?}", t.elapsed());
+            r
+        });
+        let df_h = s.spawn(move || {
+            let t = std::time::Instant::now();
+            let r = df_client.detect_deepfake(
+                &df_path,
+                &mime_owned,
+                has_camera_exif,
+                camera_authenticity_bonus,
+            );
+            log::info!("PERF: deepfake took {:?}", t.elapsed());
+            r
+        });
+        let wm_h = s.spawn(move || {
+            let t = std::time::Instant::now();
+            let r = wm_client.check_watermark_extract(&wm_path);
+            log::info!("PERF: watermark extraction took {:?}", t.elapsed());
+            r
+        });
+        let clip_h = s.spawn(move || {
+            let t = std::time::Instant::now();
+            let r = clip_client.detect_clip(&clip_path);
+            log::info!("PERF: CLIP detection took {:?}", t.elapsed());
+            r
+        });
+        (ela_h.join(), df_h.join(), wm_h.join(), clip_h.join())
+    });
+
+    log::info!(
+        "PERF: standard group (ELA + deepfake + watermark + CLIP, parallel) took {:?}",
+        t_standard.elapsed()
+    );
+
+    let (ela_score, ela_result) = match ela_out {
+        Ok(Ok(r)) => {
+            let score = r.score;
+            (Some(score), Some(r))
+        }
+        Ok(Err(e)) => {
+            log::warn!("Sidecar ELA failed: {e}");
+            (None, None)
+        }
+        Err(_) => {
+            log::warn!("Sidecar ELA thread panicked");
+            (None, None)
+        }
+    };
+    let (deepfake_score, deepfake_result) = match df_out {
+        Ok(Ok(r)) => {
+            let score = r.score;
+            (Some(score), Some(r))
+        }
+        Ok(Err(e)) => {
+            log::warn!("Sidecar deepfake detection failed: {e}");
+            (None, None)
+        }
+        Err(_) => {
+            log::warn!("Sidecar deepfake thread panicked");
+            (None, None)
+        }
+    };
+    let watermark_extract_result = match wm_out {
+        Ok(Ok(r)) => Some(r),
+        Ok(Err(e)) => {
+            log::warn!("Sidecar watermark extraction failed: {e}");
+            None
+        }
+        Err(_) => {
+            log::warn!("Sidecar watermark extract thread panicked");
+            None
+        }
+    };
+    // CLIP detection — gracefully degrade if the optional model is missing.
+    // The endpoint always returns HTTP 200 with model_available=false in
+    // that case, so a parse error here means something else went wrong.
+    let clip_result = match clip_out {
+        Ok(Ok(r)) => {
+            if r.model_available {
+                Some(r)
+            } else {
+                log::info!("CLIP detection: model not installed (graceful skip)");
+                None
+            }
+        }
+        Ok(Err(e)) => {
+            log::warn!("Sidecar CLIP detection failed: {e}");
+            None
+        }
+        Err(_) => {
+            log::warn!("Sidecar CLIP thread panicked");
+            None
+        }
+    };
+
+    (
+        ela_score,
+        ela_result,
+        deepfake_score,
+        deepfake_result,
+        watermark_extract_result,
+        clip_result,
+    )
+}
+
+/// Run the deep sidecar parallel group: noise + copy-move + JPEG ghost + segmented ELA
+/// + colour temperature.
+///
+/// All five detectors are independent. Running them via `std::thread::scope` cuts
+/// deep-mode wall time from ~15–20 s sequential to the slowest single detector (~5 s).
+///
+/// NPR, shadow consistency, and splice boundary are **not** included here — they were
+/// demoted to on-demand investigation tools in Sprint 28 (April 2026) and are returned
+/// as `None`.
+///
+/// Returns `(noise_score, noise_result, copy_move_score, copy_move_result, npr_result,
+///           jpeg_ghost_result, segmented_ela_result, shadow_consistency_result,
+///           colour_temperature_result, splice_boundary_result)`.
+#[allow(clippy::type_complexity)]
+pub(crate) fn run_deep_sidecar_group(
+    path: &std::path::Path,
+    sidecar: &sidecar::SidecarClient,
+) -> (
+    Option<f64>,
+    Option<sidecar::NoiseResult>,
+    Option<f64>,
+    Option<sidecar::CopyMoveResult>,
+    Option<sidecar::NprResult>,
+    Option<sidecar::JpegGhostResult>,
+    Option<sidecar::SegmentedElaResult>,
+    Option<sidecar::ShadowConsistencyResult>,
+    Option<sidecar::ColourTemperatureResult>,
+    Option<sidecar::SpliceBoundaryResult>,
+) {
+    let t_deep = std::time::Instant::now();
+
+    // Demoted/removed from the deep parallel block:
+    //   - Shadow consistency + splice boundary: demoted to on-demand in
+    //     April 2026 (see compute_trust comment). Fields remain as Option<T>
+    //     None for backwards-compatible serde.
+    //   - Chromatic aberration: removed entirely in Sprint 28 (April 2026) —
+    //     forensic audit rated accuracy 1/5, long-term viability 1/5.
+    //   - NPR: demoted to on-demand in Sprint 28 (S28-3, April 2026).
+    //     Option<NprResult> field kept on VerificationResult for the
+    //     on-demand endpoint.
+    // JPEG Ghost remains pending S28-4 weight calibration.
+    let noise_path = path.to_path_buf();
+    let cm_path = path.to_path_buf();
+    let jg_path = path.to_path_buf();
+    let seg_path = path.to_path_buf();
+    let ct_path = path.to_path_buf();
+
+    let noise_client = sidecar.clone();
+    let cm_client = sidecar.clone();
+    let jg_client = sidecar.clone();
+    let seg_client = sidecar.clone();
+    let ct_client = sidecar.clone();
+
+    let (noise_out, cm_out, jg_out, seg_out, ct_out) = std::thread::scope(|s| {
+        let noise_h = s.spawn(move || {
+            let t = std::time::Instant::now();
+            let r = noise_client.analyse_noise(&noise_path);
+            log::info!("PERF: noise analysis took {:?}", t.elapsed());
+            r
+        });
+        let cm_h = s.spawn(move || {
+            let t = std::time::Instant::now();
+            let r = cm_client.detect_copy_move(&cm_path);
+            log::info!("PERF: copy-move detection took {:?}", t.elapsed());
+            r
+        });
+        let jg_h = s.spawn(move || {
+            let t = std::time::Instant::now();
+            let r = jg_client.detect_jpeg_ghost(&jg_path);
+            log::info!("PERF: JPEG ghost detection took {:?}", t.elapsed());
+            r
+        });
+        let seg_h = s.spawn(move || {
+            let t = std::time::Instant::now();
+            let r = seg_client.check_segmented_ela(&seg_path);
+            log::info!("PERF: segmented ELA took {:?}", t.elapsed());
+            r
+        });
+        let ct_h = s.spawn(move || {
+            let t = std::time::Instant::now();
+            let r = ct_client.check_colour_temperature(&ct_path);
+            log::info!("PERF: colour temperature took {:?}", t.elapsed());
+            r
+        });
+        (
+            noise_h.join(),
+            cm_h.join(),
+            jg_h.join(),
+            seg_h.join(),
+            ct_h.join(),
+        )
+    });
+
+    log::info!("PERF: deep group (noise + copy-move + JPEG ghost + segmented ELA + colour-temp, parallel) took {:?}", t_deep.elapsed());
+
+    let (noise_score, noise_result) = match noise_out {
+        Ok(Ok(r)) => (Some(r.score), Some(r)),
+        Ok(Err(e)) => {
+            log::warn!("Sidecar noise analysis failed: {e}");
+            (None, None)
+        }
+        Err(_) => {
+            log::warn!("Sidecar noise thread panicked");
+            (None, None)
+        }
+    };
+    let (copy_move_score, copy_move_result) = match cm_out {
+        Ok(Ok(r)) => (Some(r.score), Some(r)),
+        Ok(Err(e)) => {
+            log::warn!("Sidecar copy-move detection failed: {e}");
+            (None, None)
+        }
+        Err(_) => {
+            log::warn!("Sidecar copy-move thread panicked");
+            (None, None)
+        }
+    };
+    let jpeg_ghost_result = match jg_out {
+        Ok(Ok(r)) => Some(r),
+        Ok(Err(e)) => {
+            log::warn!("Sidecar JPEG ghost detection failed: {e}");
+            None
+        }
+        Err(_) => {
+            log::warn!("Sidecar JPEG ghost thread panicked");
+            None
+        }
+    };
+    let segmented_ela_result = match seg_out {
+        Ok(Ok(r)) => Some(r),
+        Ok(Err(e)) => {
+            log::warn!("Sidecar segmented ELA analysis failed: {e}");
+            None
+        }
+        Err(_) => {
+            log::warn!("Sidecar segmented ELA thread panicked");
+            None
+        }
+    };
+    let colour_temperature_result = match ct_out {
+        Ok(Ok(r)) => Some(r),
+        Ok(Err(e)) => {
+            log::warn!("Sidecar colour temperature analysis failed: {e}");
+            None
+        }
+        Err(_) => {
+            log::warn!("Sidecar colour temperature thread panicked");
+            None
+        }
+    };
+
+    // NPR, shadow consistency, and splice boundary no longer auto-run
+    // in the deep group — see doc comment above. The Option fields remain
+    // on VerificationResult for backwards-compatible serialisation and for
+    // the on-demand endpoints.
+    let npr_result: Option<sidecar::NprResult> = None;
+    let shadow_consistency_result: Option<sidecar::ShadowConsistencyResult> = None;
+    let splice_boundary_result: Option<sidecar::SpliceBoundaryResult> = None;
+
+    (
+        noise_score,
+        noise_result,
+        copy_move_score,
+        copy_move_result,
+        npr_result,
+        jpeg_ghost_result,
+        segmented_ela_result,
+        shadow_consistency_result,
+        colour_temperature_result,
+        splice_boundary_result,
+    )
+}
+
 /// Inner verification logic shared by `verify_content` and `verify_url`.
 ///
 /// `mode` controls which pipeline stages run:
@@ -1440,6 +1760,17 @@ fn verify_content_inner(
     // and avoids the overhead of a separate thread pool. Each thread
     // receives a cheap `SidecarClient::clone()` (Arc-based connection pool)
     // and an owned `PathBuf`.
+    // PERF: read the file once and cache in the sidecar client before the
+    // standard group. All parallel sidecar calls (4 standard + 5 deep) will
+    // use the cached bytes instead of re-reading from disk, saving 4–9×
+    // file_size in redundant I/O and peak RAM. The cache is cleared after
+    // the deep group (see `app.sidecar.clear_file_cache()` below).
+    if sidecar_up {
+        if let Ok(file_bytes) = std::fs::read(&path) {
+            app.sidecar.cache_file_bytes(&path, file_bytes);
+        }
+    }
+
     let (
         ela_score,
         ela_result,
@@ -1448,132 +1779,12 @@ fn verify_content_inner(
         watermark_extract_result,
         clip_result,
     ) = if sidecar_up {
-        // PERF: read the file once and cache in the sidecar client. All
-        // parallel sidecar calls (4 standard + 5 deep) will use the cached
-        // bytes instead of re-reading from disk, saving 4–9× file_size in
-        // redundant I/O and peak RAM.
-        if let Ok(file_bytes) = std::fs::read(&path) {
-            app.sidecar.cache_file_bytes(&path, file_bytes);
-        }
-
-        let t_standard = std::time::Instant::now();
-
-        let ela_path = path.to_path_buf();
-        let df_path = path.to_path_buf();
-        let wm_path = path.to_path_buf();
-        let clip_path = path.to_path_buf();
-        let ela_client = app.sidecar.clone();
-        let df_client = app.sidecar.clone();
-        let wm_client = app.sidecar.clone();
-        let clip_client = app.sidecar.clone();
-        let mime = info.mime_type.clone();
-
-        let (ela_out, df_out, wm_out, clip_out) = std::thread::scope(|s| {
-            let ela_h = s.spawn(move || {
-                let t = std::time::Instant::now();
-                let r = ela_client.analyse_ela(&ela_path);
-                log::info!("PERF: ELA took {:?}", t.elapsed());
-                r
-            });
-            let df_h = s.spawn(move || {
-                let t = std::time::Instant::now();
-                let r = df_client.detect_deepfake(
-                    &df_path,
-                    &mime,
-                    has_camera_exif,
-                    camera_authenticity_bonus,
-                );
-                log::info!("PERF: deepfake took {:?}", t.elapsed());
-                r
-            });
-            let wm_h = s.spawn(move || {
-                let t = std::time::Instant::now();
-                let r = wm_client.check_watermark_extract(&wm_path);
-                log::info!("PERF: watermark extraction took {:?}", t.elapsed());
-                r
-            });
-            let clip_h = s.spawn(move || {
-                let t = std::time::Instant::now();
-                let r = clip_client.detect_clip(&clip_path);
-                log::info!("PERF: CLIP detection took {:?}", t.elapsed());
-                r
-            });
-            (ela_h.join(), df_h.join(), wm_h.join(), clip_h.join())
-        });
-
-        log::info!(
-            "PERF: standard group (ELA + deepfake + watermark + CLIP, parallel) took {:?}",
-            t_standard.elapsed()
-        );
-
-        let (ela_score, ela_result) = match ela_out {
-            Ok(Ok(r)) => {
-                let score = r.score;
-                (Some(score), Some(r))
-            }
-            Ok(Err(e)) => {
-                log::warn!("Sidecar ELA failed: {e}");
-                (None, None)
-            }
-            Err(_) => {
-                log::warn!("Sidecar ELA thread panicked");
-                (None, None)
-            }
-        };
-        let (deepfake_score, deepfake_result) = match df_out {
-            Ok(Ok(r)) => {
-                let score = r.score;
-                (Some(score), Some(r))
-            }
-            Ok(Err(e)) => {
-                log::warn!("Sidecar deepfake detection failed: {e}");
-                (None, None)
-            }
-            Err(_) => {
-                log::warn!("Sidecar deepfake thread panicked");
-                (None, None)
-            }
-        };
-        let watermark_extract_result = match wm_out {
-            Ok(Ok(r)) => Some(r),
-            Ok(Err(e)) => {
-                log::warn!("Sidecar watermark extraction failed: {e}");
-                None
-            }
-            Err(_) => {
-                log::warn!("Sidecar watermark extract thread panicked");
-                None
-            }
-        };
-        // CLIP detection — gracefully degrade if the optional model is missing.
-        // The endpoint always returns HTTP 200 with model_available=false in
-        // that case, so a parse error here means something else went wrong.
-        let clip_result = match clip_out {
-            Ok(Ok(r)) => {
-                if r.model_available {
-                    Some(r)
-                } else {
-                    log::info!("CLIP detection: model not installed (graceful skip)");
-                    None
-                }
-            }
-            Ok(Err(e)) => {
-                log::warn!("Sidecar CLIP detection failed: {e}");
-                None
-            }
-            Err(_) => {
-                log::warn!("Sidecar CLIP thread panicked");
-                None
-            }
-        };
-
-        (
-            ela_score,
-            ela_result,
-            deepfake_score,
-            deepfake_result,
-            watermark_extract_result,
-            clip_result,
+        run_standard_sidecar_group(
+            &path,
+            &app.sidecar,
+            &info.mime_type,
+            has_camera_exif,
+            camera_authenticity_bonus,
         )
     } else {
         (None, None, None, None, None, None)
@@ -1596,156 +1807,7 @@ fn verify_content_inner(
         colour_temperature_result,
         splice_boundary_result,
     ) = if sidecar_up && is_deep {
-        let t_deep = std::time::Instant::now();
-
-        // Demoted/removed from the deep parallel block:
-        //   - Shadow consistency + splice boundary: demoted to on-demand in
-        //     April 2026 (see compute_trust comment near line 683). Fields
-        //     remain as Option<T> None for backwards-compatible serde.
-        //   - Chromatic aberration: removed entirely in Sprint 28 (April
-        //     2026) — forensic audit rated accuracy 1/5, long-term viability
-        //     1/5; phone cameras and modern processing defeat radial CA
-        //     detection; AI generators produce CA-free output.
-        //   - NPR: demoted to on-demand in Sprint 28 (S28-3, April 2026).
-        //     Content-authenticity-expert cross-review: Tan et al. AAAI 2024
-        //     uses NPR features as input to a learned classifier, not a
-        //     standalone threshold; a hand-tuned NPR statistic is partially
-        //     redundant with the UnivFD v8 probe (which encodes upsampling
-        //     artefacts at a higher level of abstraction via CLIP features).
-        //     Option<NprResult> field kept on VerificationResult for the
-        //     on-demand endpoint.
-        // JPEG Ghost remains in this block pending S28-4 (wire into
-        // compute_trust at 0.5× weight per the tech-debt audit reversal).
-        let noise_path = path.to_path_buf();
-        let cm_path = path.to_path_buf();
-        let jg_path = path.to_path_buf();
-        let seg_path = path.to_path_buf();
-        let ct_path = path.to_path_buf();
-
-        let noise_client = app.sidecar.clone();
-        let cm_client = app.sidecar.clone();
-        let jg_client = app.sidecar.clone();
-        let seg_client = app.sidecar.clone();
-        let ct_client = app.sidecar.clone();
-
-        let (noise_out, cm_out, jg_out, seg_out, ct_out) = std::thread::scope(|s| {
-            let noise_h = s.spawn(move || {
-                let t = std::time::Instant::now();
-                let r = noise_client.analyse_noise(&noise_path);
-                log::info!("PERF: noise analysis took {:?}", t.elapsed());
-                r
-            });
-            let cm_h = s.spawn(move || {
-                let t = std::time::Instant::now();
-                let r = cm_client.detect_copy_move(&cm_path);
-                log::info!("PERF: copy-move detection took {:?}", t.elapsed());
-                r
-            });
-            let jg_h = s.spawn(move || {
-                let t = std::time::Instant::now();
-                let r = jg_client.detect_jpeg_ghost(&jg_path);
-                log::info!("PERF: JPEG ghost detection took {:?}", t.elapsed());
-                r
-            });
-            let seg_h = s.spawn(move || {
-                let t = std::time::Instant::now();
-                let r = seg_client.check_segmented_ela(&seg_path);
-                log::info!("PERF: segmented ELA took {:?}", t.elapsed());
-                r
-            });
-            let ct_h = s.spawn(move || {
-                let t = std::time::Instant::now();
-                let r = ct_client.check_colour_temperature(&ct_path);
-                log::info!("PERF: colour temperature took {:?}", t.elapsed());
-                r
-            });
-            (
-                noise_h.join(),
-                cm_h.join(),
-                jg_h.join(),
-                seg_h.join(),
-                ct_h.join(),
-            )
-        });
-
-        log::info!("PERF: deep group (noise + copy-move + JPEG ghost + segmented ELA + colour-temp, parallel) took {:?}", t_deep.elapsed());
-
-        let (noise_score, noise_result) = match noise_out {
-            Ok(Ok(r)) => (Some(r.score), Some(r)),
-            Ok(Err(e)) => {
-                log::warn!("Sidecar noise analysis failed: {e}");
-                (None, None)
-            }
-            Err(_) => {
-                log::warn!("Sidecar noise thread panicked");
-                (None, None)
-            }
-        };
-        let (copy_move_score, copy_move_result) = match cm_out {
-            Ok(Ok(r)) => (Some(r.score), Some(r)),
-            Ok(Err(e)) => {
-                log::warn!("Sidecar copy-move detection failed: {e}");
-                (None, None)
-            }
-            Err(_) => {
-                log::warn!("Sidecar copy-move thread panicked");
-                (None, None)
-            }
-        };
-        let jpeg_ghost_result = match jg_out {
-            Ok(Ok(r)) => Some(r),
-            Ok(Err(e)) => {
-                log::warn!("Sidecar JPEG ghost detection failed: {e}");
-                None
-            }
-            Err(_) => {
-                log::warn!("Sidecar JPEG ghost thread panicked");
-                None
-            }
-        };
-        let segmented_ela_result = match seg_out {
-            Ok(Ok(r)) => Some(r),
-            Ok(Err(e)) => {
-                log::warn!("Sidecar segmented ELA analysis failed: {e}");
-                None
-            }
-            Err(_) => {
-                log::warn!("Sidecar segmented ELA thread panicked");
-                None
-            }
-        };
-        let colour_temperature_result = match ct_out {
-            Ok(Ok(r)) => Some(r),
-            Ok(Err(e)) => {
-                log::warn!("Sidecar colour temperature analysis failed: {e}");
-                None
-            }
-            Err(_) => {
-                log::warn!("Sidecar colour temperature thread panicked");
-                None
-            }
-        };
-
-        // NPR, shadow consistency, and splice boundary no longer auto-run
-        // in the deep group — see comment at the top of this block. The
-        // Option fields remain on VerificationResult for backwards-
-        // compatible serialisation and for the on-demand endpoints.
-        let npr_result: Option<sidecar::NprResult> = None;
-        let shadow_consistency_result: Option<sidecar::ShadowConsistencyResult> = None;
-        let splice_boundary_result: Option<sidecar::SpliceBoundaryResult> = None;
-
-        (
-            noise_score,
-            noise_result,
-            copy_move_score,
-            copy_move_result,
-            npr_result,
-            jpeg_ghost_result,
-            segmented_ela_result,
-            shadow_consistency_result,
-            colour_temperature_result,
-            splice_boundary_result,
-        )
+        run_deep_sidecar_group(&path, &app.sidecar)
     } else {
         (None, None, None, None, None, None, None, None, None, None)
     };
