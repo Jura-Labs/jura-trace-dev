@@ -24,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https://asset.localhost; connect-src ipc: http://ipc.localhost http://127.0.0.1:8200 http://127.0.0.1:11434; object-src 'none'; base-uri 'self'; frame-ancestors 'none';",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https://asset.localhost; connect-src ipc: http://ipc.localhost http://127.0.0.1:8200 http://127.0.0.1:11434; object-src 'none'; frame-src 'none'; base-uri 'self'; frame-ancestors 'none';",
       "assetProtocol": {
         "enable": true,
         "scope": {
@@ -40,7 +40,7 @@
         "https://github.com/juralabs/jura-trace/releases/latest/download/latest.json"
       ],
       "dialog": true,
-      "pubkey": ""
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI0MDNBQTY3QzZGODM0NjAKUldSZ05QakdaNm9ESkhhdU14eWtFLzZsa0RwNFBJTEl4QjJrUGxueTg4TVRud0xFdUZVVkN3MXIK"
     }
   },
   "bundle": {

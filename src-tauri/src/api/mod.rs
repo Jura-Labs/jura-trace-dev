@@ -34,7 +34,7 @@ use axum::{
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use tower_http::{
-    cors::{Any, CorsLayer},
+    cors::CorsLayer,
     limit::RequestBodyLimitLayer,
     trace::TraceLayer,
 };
@@ -183,7 +183,10 @@ pub fn build_router(state: Arc<Mutex<AppState>>) -> Router {
             axum::http::Method::DELETE,
             axum::http::Method::OPTIONS,
         ])
-        .allow_headers(Any);
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+        ]);
 
     // Request body size limit: 200 MB (matches the import pipeline).
     let body_limit = RequestBodyLimitLayer::new(200 * 1024 * 1024);

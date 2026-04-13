@@ -12,13 +12,13 @@
       "identifier": "fs:allow-read",
       "allow": [
         { "path": "$APPDATA/**" },
-        { "path": "$HOME/**" },
         { "path": "$DESKTOP/**" },
         { "path": "$DOCUMENT/**" },
         { "path": "$DOWNLOAD/**" },
         { "path": "$PICTURE/**" },
         { "path": "$VIDEO/**" },
-        { "path": "$AUDIO/**" }
+        { "path": "$AUDIO/**" },
+        { "path": "$TEMP/**" }
       ]
     },
     {

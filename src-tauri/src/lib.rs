@@ -24,6 +24,28 @@ pub mod api;
 
 use error::AppError;
 
+// ===== SSRF host validation =====
+
+/// Returns `true` if the given hostname resolves to a loopback, private (RFC 1918),
+/// or link-local address. Used by both `verify_url` (Tauri IPC) and `verify_url_inner`
+/// (REST API) to block SSRF — including post-redirect validation.
+fn is_private_or_loopback_host(host: &str) -> bool {
+    let h = host.to_lowercase();
+    h == "localhost"
+        || h == "127.0.0.1"
+        || h == "::1"
+        || h == "0.0.0.0"
+        || h.starts_with("10.")
+        || h.starts_with("192.168.")
+        || h.starts_with("169.254.")
+        || (h.starts_with("172.")
+            && h[4..]
+                .split('.')
+                .next()
+                .and_then(|s| s.parse::<u8>().ok())
+                .is_some_and(|n| (16..=31).contains(&n)))
+}
+
 // ===== Types =====
 
 /// Asset record stored in the local database.
@@ -491,12 +513,25 @@ fn import_files(
         // 4. Compute SHA-256 of the file contents.
         // Performed before building the asset record so the hash can be stored
         // in the database and returned to the frontend for chain-of-custody
-        // verification.  On read failure we store `None` rather than aborting
-        // the import — the asset is still catalogued, just without a hash.
-        let sha256_hash: Option<String> = match std::fs::read(&path) {
-            Ok(bytes) => {
+        // verification.  Uses 64 KB streaming reads to avoid loading the entire
+        // file into memory — critical for large video imports (up to 200 MB).
+        // On read failure we store `None` rather than aborting the import.
+        let sha256_hash: Option<String> = match std::fs::File::open(&path) {
+            Ok(f) => {
                 let mut hasher = Sha256::new();
-                hasher.update(&bytes);
+                let mut reader = std::io::BufReader::with_capacity(65_536, f);
+                let mut buf = [0u8; 65_536];
+                loop {
+                    use std::io::Read;
+                    match reader.read(&mut buf) {
+                        Ok(0) => break,
+                        Ok(n) => hasher.update(&buf[..n]),
+                        Err(e) => {
+                            log::warn!("SHA-256 read error for {}: {e}", path.display());
+                            break;
+                        }
+                    }
+                }
                 Some(format!("{:x}", hasher.finalize()))
             }
             Err(e) => {
@@ -1130,12 +1165,27 @@ fn verify_content_inner(
 
     // ── SHA-256 of the input file ────────────────────────────────────────
     // Computed early so the hash is available to the caller regardless of
-    // which pipeline branches execute.  Uses streaming-style read to avoid
-    // holding a second copy of large video/audio files in memory.
-    let input_sha256: Option<String> = match std::fs::read(&path) {
-        Ok(bytes) => {
+    // which pipeline branches execute.  Uses 64 KB streaming reads to avoid
+    // loading the entire file into memory (critical for large video/audio).
+    let input_sha256: Option<String> = match std::fs::File::open(&path) {
+        Ok(f) => {
             let mut hasher = Sha256::new();
-            hasher.update(&bytes);
+            let mut reader = std::io::BufReader::with_capacity(65_536, f);
+            let mut buf = [0u8; 65_536];
+            loop {
+                use std::io::Read;
+                match reader.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => hasher.update(&buf[..n]),
+                    Err(e) => {
+                        log::warn!(
+                            "SHA-256 read error in verify pipeline for {}: {e}",
+                            path.display()
+                        );
+                        break;
+                    }
+                }
+            }
             Some(format!("{:x}", hasher.finalize()))
         }
         Err(e) => {
@@ -2231,24 +2281,31 @@ pub(crate) fn verify_url_inner(
             "Only http and https URLs are supported".to_string(),
         ));
     }
-    // SECURITY: block loopback/private ranges except our own sidecar
+    // SECURITY: block loopback/private ranges
     if let Some(host) = parsed.host_str() {
-        let is_loopback = host == "localhost"
-            || host == "127.0.0.1"
-            || host == "::1"
-            || host.starts_with("192.168.")
-            || host.starts_with("10.")
-            || host.starts_with("172.");
-        if is_loopback {
+        if is_private_or_loopback_host(host) {
             return Err(AppError::Validation(
                 "URL targets a local or private address".to_string(),
             ));
         }
     }
 
-    // Download to a temp file then verify
+    // Download to a temp file then verify.
+    // SECURITY: custom redirect policy re-validates each hop against the SSRF blocklist
+    // to prevent open-redirect attacks that bounce through a public host to a private one.
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 5 {
+                return attempt.error("too many redirects");
+            }
+            if let Some(host) = attempt.url().host_str() {
+                if is_private_or_loopback_host(host) {
+                    return attempt.error("redirect to private address blocked");
+                }
+            }
+            attempt.follow()
+        }))
         .build()
         .map_err(|e| AppError::Internal(format!("Failed to build HTTP client: {e}")))?;
     let resp = client
@@ -2599,22 +2656,7 @@ fn verify_url(
 
     // Block requests to loopback, private, and link-local addresses
     if let Some(host) = parsed.host_str() {
-        let host_lower = host.to_lowercase();
-        if host_lower == "localhost"
-            || host_lower == "127.0.0.1"
-            || host_lower == "::1"
-            || host_lower == "0.0.0.0"
-            || host_lower.starts_with("10.")
-            || host_lower.starts_with("192.168.")
-            || host_lower.starts_with("169.254.")
-            || (host_lower.starts_with("172.") && {
-                host_lower[4..]
-                    .split('.')
-                    .next()
-                    .and_then(|s| s.parse::<u8>().ok())
-                    .is_some_and(|n| (16..=31).contains(&n))
-            })
-        {
+        if is_private_or_loopback_host(host) {
             return Err(AppError::Validation(
                 "Cannot verify URLs pointing to local or private network addresses.".to_string(),
             ));
@@ -2625,9 +2667,23 @@ fn verify_url(
         ));
     }
 
-    let response = reqwest::blocking::Client::new()
-        .get(&url)
+    // SECURITY: custom redirect policy re-validates each hop against the SSRF blocklist
+    let response = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 5 {
+                return attempt.error("too many redirects");
+            }
+            if let Some(host) = attempt.url().host_str() {
+                if is_private_or_loopback_host(host) {
+                    return attempt.error("redirect to private address blocked");
+                }
+            }
+            attempt.follow()
+        }))
+        .build()
+        .map_err(|e| AppError::Internal(format!("Failed to build HTTP client: {e}")))?
+        .get(&url)
         .send()
         .map_err(|e| {
             log::error!("HTTP request failed for URL {}: {}", log_url, e);
