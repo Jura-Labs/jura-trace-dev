@@ -365,9 +365,9 @@ fn compute_file_sha256(path: &std::path::Path) -> Option<String> {
 
 /// Get application statistics for the dashboard.
 #[tauri::command]
-fn get_stats(state: State<'_, Arc<Mutex<AppState>>>) -> Result<AppStats, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
-    app.db.get_stats().map_err(|e| e.to_string())
+fn get_stats(state: State<'_, Arc<Mutex<AppState>>>) -> Result<AppStats, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    app.db.get_stats().map_err(Into::into)
 }
 
 /// Maximum file size accepted by the import pipeline (200 MB).
@@ -651,9 +651,15 @@ fn import_files(
 
 /// Get all assets from the local database.
 #[tauri::command]
-fn get_assets(state: State<'_, Arc<Mutex<AppState>>>) -> Result<Vec<Asset>, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
-    app.db.get_all_assets().map_err(|e| e.to_string())
+fn get_assets(
+    limit: Option<u32>,
+    offset: Option<u32>,
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<Vec<Asset>, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    app.db
+        .get_all_assets(limit.unwrap_or(200), offset.unwrap_or(0))
+        .map_err(Into::into)
 }
 
 /// Compute overall trust from individual forensic scores.
@@ -2586,24 +2592,28 @@ fn get_filtered_assets(
     c2pa_signed: Option<bool>,
     fingerprinted: Option<bool>,
     search_query: Option<String>,
+    limit: Option<u32>,
+    offset: Option<u32>,
     state: State<'_, Arc<Mutex<AppState>>>,
-) -> Result<Vec<Asset>, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
+) -> Result<Vec<Asset>, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .get_filtered_assets(
             content_type.as_deref(),
             c2pa_signed,
             fingerprinted,
             search_query.as_deref(),
+            limit.unwrap_or(200),
+            offset.unwrap_or(0),
         )
-        .map_err(|e| e.to_string())
+        .map_err(Into::into)
 }
 
 /// Delete an asset by ID.
 #[tauri::command]
-fn delete_asset(asset_id: String, state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
-    app.db.delete_asset(&asset_id).map_err(|e| e.to_string())?;
+fn delete_asset(asset_id: String, state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    app.db.delete_asset(&asset_id)?;
     let _ = app
         .db
         .log_action("delete", "asset", &asset_id, None, None, None);
@@ -2616,11 +2626,11 @@ fn delete_asset(asset_id: String, state: State<'_, Arc<Mutex<AppState>>>) -> Res
 fn get_recent_assets(
     limit: Option<u32>,
     state: State<'_, Arc<Mutex<AppState>>>,
-) -> Result<Vec<Asset>, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
+) -> Result<Vec<Asset>, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .get_recent_assets(limit.unwrap_or(5))
-        .map_err(|e| e.to_string())
+        .map_err(Into::into)
 }
 
 /// Verify content from a URL.
@@ -2768,9 +2778,9 @@ fn verify_url(
 #[tauri::command]
 fn check_sidecar_health(
     state: State<'_, Arc<Mutex<AppState>>>,
-) -> Result<sidecar::SidecarHealth, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
-    app.sidecar.check_health()
+) -> Result<sidecar::SidecarHealth, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    app.sidecar.check_health().map_err(AppError::Sidecar)
 }
 
 /// Analyse a video file for AI-generated or manipulated frames.
@@ -2787,28 +2797,30 @@ fn analyse_video_deepfake(
     file_path: String,
     mode: String,
     state: State<'_, Arc<Mutex<AppState>>>,
-) -> Result<sidecar::VideoDeepfakeResult, String> {
+) -> Result<sidecar::VideoDeepfakeResult, AppError> {
     if file_path.contains('\0') {
-        return Err("Invalid file path".to_string());
+        return Err(AppError::Validation("Invalid file path".into()));
     }
     let path = std::path::PathBuf::from(&file_path)
         .canonicalize()
-        .map_err(|_| "File not found or inaccessible".to_string())?;
+        .map_err(|_| AppError::Validation("File not found or inaccessible".into()))?;
 
     let valid_modes = ["standard", "deep", "archival"];
     if !valid_modes.contains(&mode.as_str()) {
-        return Err(format!(
+        return Err(AppError::Validation(format!(
             "Invalid mode '{}'. Must be one of: standard, deep, archival",
             mode
-        ));
+        )));
     }
 
-    let app = state.lock().map_err(|e| e.to_string())?;
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     if !app.sidecar.is_available() {
-        return Err("ML sidecar is not available".to_string());
+        return Err(AppError::Sidecar("ML sidecar is not available".into()));
     }
 
-    app.sidecar.analyse_video_deepfake(&path, &mode)
+    app.sidecar
+        .analyse_video_deepfake(&path, &mode)
+        .map_err(AppError::Sidecar)
 }
 
 /// Extract and transcribe all visible text from an image using Ollama LLaVA.
@@ -2830,27 +2842,30 @@ fn analyse_video_deepfake(
 fn extract_text_from_image(
     file_path: String,
     state: State<'_, Arc<Mutex<AppState>>>,
-) -> Result<String, String> {
+) -> Result<String, AppError> {
     if file_path.contains('\0') {
-        return Err("Invalid file path".to_string());
+        return Err(AppError::Validation("Invalid file path".into()));
     }
     let path = std::path::PathBuf::from(&file_path)
         .canonicalize()
-        .map_err(|_| "File not found or inaccessible".to_string())?;
+        .map_err(|_| AppError::Validation("File not found or inaccessible".into()))?;
 
-    let app = state.lock().map_err(|e| e.to_string())?;
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     if !app.sidecar.is_available() {
-        return Err("ML sidecar is not available".to_string());
+        return Err(AppError::Sidecar("ML sidecar is not available".into()));
     }
 
-    let result = app.sidecar.extract_text(&path)?;
+    let result = app
+        .sidecar
+        .extract_text(&path)
+        .map_err(AppError::Sidecar)?;
 
     if result.success {
         result
             .description
-            .ok_or_else(|| "Text extraction returned no content".to_string())
+            .ok_or_else(|| AppError::Sidecar("Text extraction returned no content".into()))
     } else {
-        Err(result.message)
+        Err(AppError::Sidecar(result.message))
     }
 }
 
@@ -2876,13 +2891,12 @@ pub struct MetadataSigningWarning {
 fn check_metadata_before_sign(
     asset_id: String,
     state: State<'_, Arc<Mutex<AppState>>>,
-) -> Result<MetadataSigningWarning, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
+) -> Result<MetadataSigningWarning, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     let asset = app
         .db
-        .get_asset_by_id(&asset_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Asset not found: {asset_id}"))?;
+        .get_asset_by_id(&asset_id)?
+        .ok_or_else(|| AppError::Validation(format!("Asset not found: {asset_id}")))?;
 
     let path = PathBuf::from(&asset.file_path);
 
@@ -2951,25 +2965,27 @@ fn embed_watermark_asset(
     payload_hex: String,
     strength: Option<u32>,
     state: State<'_, Arc<Mutex<AppState>>>,
-) -> Result<watermark::WatermarkResult, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
+) -> Result<watermark::WatermarkResult, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
 
     let asset = app
         .db
-        .get_asset_by_id(&asset_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Asset not found: {asset_id}"))?;
+        .get_asset_by_id(&asset_id)?
+        .ok_or_else(|| AppError::Validation(format!("Asset not found: {asset_id}")))?;
 
     if !watermark::supports_watermarking(&asset.mime_type) {
-        return Err(format!(
+        return Err(AppError::Validation(format!(
             "Watermarking not supported for {} ({})",
             asset.content_type, asset.mime_type
-        ));
+        )));
     }
 
     let source = PathBuf::from(&asset.file_path);
     if !source.exists() {
-        return Err(format!("Source file not found: {}", asset.file_path));
+        return Err(AppError::Validation(format!(
+            "Source file not found: {}",
+            asset.file_path
+        )));
     }
 
     let output = watermark::watermark_output_path(&source);
@@ -2987,13 +3003,12 @@ fn embed_watermark_asset(
         strength
     );
 
-    let result = watermark::embed_watermark(&source, &output, &options)?;
+    let result = watermark::embed_watermark(&source, &output, &options)
+        .map_err(AppError::FileSystem)?;
 
     // Update the asset record in the database
     let output_str = output.to_string_lossy().to_string();
-    app.db
-        .set_watermarked(&asset_id, &output_str)
-        .map_err(|e| e.to_string())?;
+    app.db.set_watermarked(&asset_id, &output_str)?;
 
     // Audit log
     let algo_meta = serde_json::json!({
@@ -3040,16 +3055,17 @@ fn extract_watermark_from_path(
     path: String,
     payload_len_bytes: Option<usize>,
     reference_hex: Option<String>,
-) -> Result<watermark::ExtractResult, String> {
+) -> Result<watermark::ExtractResult, AppError> {
     if path.contains('\0') {
-        return Err("Invalid file path".to_string());
+        return Err(AppError::Validation("Invalid file path".into()));
     }
     let file_path = PathBuf::from(&path)
         .canonicalize()
-        .map_err(|_| "File not found or inaccessible".to_string())?;
+        .map_err(|_| AppError::Validation("File not found or inaccessible".into()))?;
 
     let len = payload_len_bytes.unwrap_or(16);
     watermark::extract_watermark(&file_path, len, reference_hex.as_deref())
+        .map_err(AppError::FileSystem)
 }
 
 /// Record a false-positive report for a verification result.
@@ -3066,11 +3082,11 @@ fn mark_false_positive(
     deepfake_verdict: Option<String>,
     signal_scores_json: Option<String>,
     state: State<'_, Arc<Mutex<AppState>>>,
-) -> Result<String, String> {
+) -> Result<String, AppError> {
     let report_id = uuid::Uuid::new_v4().to_string();
     let created_at = chrono::Utc::now().to_rfc3339();
 
-    let app = state.lock().map_err(|e| e.to_string())?;
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .insert_false_positive(
             &report_id,
@@ -3084,7 +3100,7 @@ fn mark_false_positive(
             signal_scores_json.as_deref(),
             &created_at,
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Database(e.to_string()))?;
 
     let details = serde_json::json!({
         "reason_code": reason_code,
@@ -3109,9 +3125,11 @@ fn mark_false_positive(
 ///
 /// Intended for the Settings page to surface calibration data to the user.
 #[tauri::command]
-fn get_false_positive_stats(state: State<'_, Arc<Mutex<AppState>>>) -> Result<u64, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
-    app.db.get_false_positive_count().map_err(|e| e.to_string())
+fn get_false_positive_stats(state: State<'_, Arc<Mutex<AppState>>>) -> Result<u64, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    app.db
+        .get_false_positive_count()
+        .map_err(|e| AppError::Database(e.to_string()))
 }
 
 /// Verify the integrity of the audit log hash chain.
@@ -3125,9 +3143,9 @@ fn get_false_positive_stats(state: State<'_, Arc<Mutex<AppState>>>) -> Result<u6
 /// `prev_hash`/`entry_hash` columns) are skipped; only entries with hash
 /// columns are verified.
 #[tauri::command]
-fn verify_audit_integrity(state: State<'_, Arc<Mutex<AppState>>>) -> Result<bool, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
-    app.db.verify_audit_chain().map_err(|e| e.to_string())
+fn verify_audit_integrity(state: State<'_, Arc<Mutex<AppState>>>) -> Result<bool, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    app.db.verify_audit_chain().map_err(Into::into)
 }
 
 // ===== Monitor Commands =====
@@ -3143,8 +3161,8 @@ fn add_monitor_url(
     label: Option<String>,
     asset_id: Option<String>,
     frequency: Option<String>,
-) -> Result<db::MonitorUrl, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
+) -> Result<db::MonitorUrl, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .add_monitor_url(
             &url,
@@ -3152,7 +3170,7 @@ fn add_monitor_url(
             asset_id.as_deref(),
             frequency.as_deref().unwrap_or("daily"),
         )
-        .map_err(|e| e.to_string())
+        .map_err(Into::into)
 }
 
 /// Remove a monitored URL and all its events (CASCADE).
@@ -3160,11 +3178,9 @@ fn add_monitor_url(
 fn remove_monitor_url(
     state: State<'_, Arc<Mutex<AppState>>>,
     url_id: String,
-) -> Result<(), String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
-    app.db
-        .remove_monitor_url(&url_id)
-        .map_err(|e| e.to_string())
+) -> Result<(), AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    app.db.remove_monitor_url(&url_id).map_err(Into::into)
 }
 
 /// List all monitored URLs, optionally restricted to enabled entries only.
@@ -3175,11 +3191,11 @@ fn remove_monitor_url(
 fn list_monitor_urls(
     state: State<'_, Arc<Mutex<AppState>>>,
     enabled_only: Option<bool>,
-) -> Result<Vec<db::MonitorUrl>, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
+) -> Result<Vec<db::MonitorUrl>, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .list_monitor_urls(enabled_only.unwrap_or(false))
-        .map_err(|e| e.to_string())
+        .map_err(Into::into)
 }
 
 /// Return the most recent events for a given monitored URL, newest first.
@@ -3190,11 +3206,11 @@ fn get_monitor_events(
     state: State<'_, Arc<Mutex<AppState>>>,
     url_id: String,
     limit: Option<u32>,
-) -> Result<Vec<db::MonitorEvent>, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
+) -> Result<Vec<db::MonitorEvent>, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .get_monitor_events(&url_id, limit.unwrap_or(50))
-        .map_err(|e| e.to_string())
+        .map_err(Into::into)
 }
 
 /// Update the case management status and optional notes on a monitor event.
@@ -3230,15 +3246,12 @@ fn update_monitor_case_status(
 /// Assembles protection statistics, trust distribution, the 20 most recent
 /// audit log entries, and a 30-day activity timeline.
 #[tauri::command]
-fn get_monitor_overview(state: State<'_, Arc<Mutex<AppState>>>) -> Result<MonitorOverview, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
-    let protection = app.db.get_protection_summary().map_err(|e| e.to_string())?;
-    let trust = app.db.get_trust_distribution().map_err(|e| e.to_string())?;
-    let recent_activity = app.db.get_audit_log(20, None).map_err(|e| e.to_string())?;
-    let activity_days = app
-        .db
-        .get_activity_timeline(30)
-        .map_err(|e| e.to_string())?;
+fn get_monitor_overview(state: State<'_, Arc<Mutex<AppState>>>) -> Result<MonitorOverview, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let protection = app.db.get_protection_summary()?;
+    let trust = app.db.get_trust_distribution()?;
+    let recent_activity = app.db.get_audit_log(20, None)?;
+    let activity_days = app.db.get_activity_timeline(30)?;
     Ok(MonitorOverview {
         protection,
         trust,
@@ -3256,11 +3269,11 @@ fn get_audit_log(
     state: State<'_, Arc<Mutex<AppState>>>,
     limit: Option<u32>,
     action_filter: Option<String>,
-) -> Result<Vec<AuditLogEntry>, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
+) -> Result<Vec<AuditLogEntry>, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .get_audit_log(limit.unwrap_or(50), action_filter.as_deref())
-        .map_err(|e| e.to_string())
+        .map_err(Into::into)
 }
 
 /// Fetch paginated verification history summaries.
@@ -3271,11 +3284,11 @@ fn get_verification_history(
     state: State<'_, Arc<Mutex<AppState>>>,
     limit: Option<u32>,
     offset: Option<u32>,
-) -> Result<Vec<VerificationSummary>, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
+) -> Result<Vec<VerificationSummary>, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .get_verification_history(limit.unwrap_or(20), offset.unwrap_or(0))
-        .map_err(|e| e.to_string())
+        .map_err(Into::into)
 }
 
 // ===== Licence Tier =====
@@ -3305,8 +3318,8 @@ pub enum LicenceTier {
 /// `Community`. This command is intended for the Settings page and for
 /// pilot demonstrations; it does not enforce feature gates.
 #[tauri::command]
-fn get_licence_tier(state: State<'_, Arc<Mutex<AppState>>>) -> Result<LicenceTier, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
+fn get_licence_tier(state: State<'_, Arc<Mutex<AppState>>>) -> Result<LicenceTier, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     Ok(app.licence_tier)
 }
 
@@ -3320,19 +3333,19 @@ fn set_licence_tier(
     app_handle: tauri::AppHandle,
     state: State<'_, Arc<Mutex<AppState>>>,
     tier: LicenceTier,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let data_dir = app_handle
         .path()
         .app_data_dir()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Internal(e.to_string()))?;
 
     // Read the current config, update the tier, and write back.
     let mut config = read_app_config(&data_dir);
     config.licence_tier = tier;
-    write_app_config(&data_dir, &config)?;
+    write_app_config(&data_dir, &config).map_err(AppError::FileSystem)?;
 
     // Update the live state so subsequent get_licence_tier calls reflect the change.
-    let mut app = state.lock().map_err(|e| e.to_string())?;
+    let mut app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.licence_tier = tier;
 
     log::info!("Licence tier updated to {:?}", tier);
@@ -3350,8 +3363,8 @@ fn set_licence_tier(
 #[tauri::command]
 fn get_ai_description_enabled(
     state: State<'_, Arc<Mutex<AppState>>>,
-) -> Result<Option<bool>, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
+) -> Result<Option<bool>, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     Ok(app.ai_description_enabled)
 }
 
@@ -3363,17 +3376,17 @@ fn set_ai_description_enabled(
     app_handle: tauri::AppHandle,
     state: State<'_, Arc<Mutex<AppState>>>,
     enabled: Option<bool>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let data_dir = app_handle
         .path()
         .app_data_dir()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Internal(e.to_string()))?;
 
     let mut config = read_app_config(&data_dir);
     config.ai_description_enabled = enabled;
-    write_app_config(&data_dir, &config)?;
+    write_app_config(&data_dir, &config).map_err(AppError::FileSystem)?;
 
-    let mut app = state.lock().map_err(|e| e.to_string())?;
+    let mut app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.ai_description_enabled = enabled;
 
     log::info!("AI image description preference updated to {:?}", enabled);
@@ -3392,11 +3405,11 @@ fn set_ai_description_enabled(
 /// a config change is immediately reflected without restarting the app.
 /// Defaults to `false` when the field is absent (backward-compatible).
 #[tauri::command]
-fn get_skip_wizard(app_handle: tauri::AppHandle) -> Result<bool, String> {
+fn get_skip_wizard(app_handle: tauri::AppHandle) -> Result<bool, AppError> {
     let data_dir = app_handle
         .path()
         .app_data_dir()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Internal(e.to_string()))?;
     let config = read_app_config(&data_dir);
     Ok(config.skip_setup_wizard)
 }
@@ -3421,8 +3434,8 @@ fn create_api_key(
     name: String,
     rate_limit: Option<i64>,
     state: State<'_, Arc<Mutex<AppState>>>,
-) -> Result<serde_json::Value, String> {
-    let guard = state.lock().map_err(|e| e.to_string())?;
+) -> Result<serde_json::Value, AppError> {
+    let guard = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     let key_id = uuid::Uuid::new_v4().to_string();
     let raw_key = format!("jt_{}", uuid::Uuid::new_v4().simple());
     let key_hash = crate::api::auth::hash_key(&raw_key);
@@ -3430,7 +3443,7 @@ fn create_api_key(
     guard
         .db
         .create_api_key(&key_id, &name, &key_hash, rl)
-        .map_err(|e| format!("Failed to create API key: {e}"))?;
+        .map_err(|e| AppError::Database(e.to_string()))?;
     Ok(serde_json::json!({
         "keyId": key_id,
         "key": raw_key,
@@ -3441,12 +3454,12 @@ fn create_api_key(
 
 /// List all API keys (active and revoked).
 #[tauri::command]
-fn list_api_keys(state: State<'_, Arc<Mutex<AppState>>>) -> Result<Vec<ApiKeyInfo>, String> {
-    let guard = state.lock().map_err(|e| e.to_string())?;
+fn list_api_keys(state: State<'_, Arc<Mutex<AppState>>>) -> Result<Vec<ApiKeyInfo>, AppError> {
+    let guard = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     let records = guard
         .db
         .list_api_keys()
-        .map_err(|e| format!("Failed to list API keys: {e}"))?;
+        .map_err(|e| AppError::Database(e.to_string()))?;
     Ok(records
         .into_iter()
         .map(|r| ApiKeyInfo {
@@ -3461,12 +3474,9 @@ fn list_api_keys(state: State<'_, Arc<Mutex<AppState>>>) -> Result<Vec<ApiKeyInf
 
 /// Revoke an API key by ID.
 #[tauri::command]
-fn revoke_api_key(key_id: String, state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), String> {
-    let guard = state.lock().map_err(|e| e.to_string())?;
-    guard
-        .db
-        .revoke_api_key(&key_id)
-        .map_err(|e| format!("Failed to revoke API key: {e}"))
+fn revoke_api_key(key_id: String, state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), AppError> {
+    let guard = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    guard.db.revoke_api_key(&key_id).map_err(Into::into)
 }
 
 // ===== Conformant Signing (BYOC) Commands =====
@@ -3597,12 +3607,16 @@ fn calculate_sun_position(
     month: u32,
     day: u32,
     hour_utc: f64,
-) -> Result<sun_position::SolarPosition, String> {
+) -> Result<sun_position::SolarPosition, AppError> {
     if !(-90.0..=90.0).contains(&latitude) {
-        return Err("Latitude must be between -90 and 90".to_string());
+        return Err(AppError::Validation(
+            "Latitude must be between -90 and 90".into(),
+        ));
     }
     if !(-180.0..=180.0).contains(&longitude) {
-        return Err("Longitude must be between -180 and 180".to_string());
+        return Err(AppError::Validation(
+            "Longitude must be between -180 and 180".into(),
+        ));
     }
     Ok(sun_position::calculate_solar_position(
         latitude, longitude, year, month, day, hour_utc,
@@ -3624,12 +3638,16 @@ fn estimate_shadow_time(
     month: u32,
     day: u32,
     shadow_azimuth: f64,
-) -> Result<Vec<sun_position::TimeEstimate>, String> {
+) -> Result<Vec<sun_position::TimeEstimate>, AppError> {
     if !(-90.0..=90.0).contains(&latitude) {
-        return Err("Latitude must be between -90 and 90".to_string());
+        return Err(AppError::Validation(
+            "Latitude must be between -90 and 90".into(),
+        ));
     }
     if !(-180.0..=180.0).contains(&longitude) {
-        return Err("Longitude must be between -180 and 180".to_string());
+        return Err(AppError::Validation(
+            "Longitude must be between -180 and 180".into(),
+        ));
     }
     Ok(sun_position::estimate_time_from_shadow(
         latitude,
@@ -3766,8 +3784,8 @@ fn resolve_db_path(app: &tauri::App) -> PathBuf {
 
 /// Return the current database file path as a string.
 #[tauri::command]
-async fn get_db_path(state: State<'_, Arc<Mutex<AppState>>>) -> Result<String, String> {
-    let app = state.lock().map_err(|e| e.to_string())?;
+async fn get_db_path(state: State<'_, Arc<Mutex<AppState>>>) -> Result<String, AppError> {
+    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
     Ok(app.db_path.clone())
 }
 
@@ -3782,10 +3800,10 @@ async fn set_db_path(
     app_handle: tauri::AppHandle,
     state: State<'_, Arc<Mutex<AppState>>>,
     new_path: String,
-) -> Result<String, String> {
+) -> Result<String, AppError> {
     // SECURITY: Guard against null-byte injection in the path.
     if new_path.contains('\0') {
-        return Err("Invalid database path".to_string());
+        return Err(AppError::Validation("Invalid database path".into()));
     }
 
     let new_db_path = PathBuf::from(&new_path);
@@ -3798,7 +3816,9 @@ async fn set_db_path(
         .and_then(|e| e.to_str())
         .unwrap_or("");
     if !matches!(ext.to_lowercase().as_str(), "db" | "sqlite" | "sqlite3") {
-        return Err("Database path must use a .db, .sqlite, or .sqlite3 extension".to_string());
+        return Err(AppError::Validation(
+            "Database path must use a .db, .sqlite, or .sqlite3 extension".into(),
+        ));
     }
 
     // SECURITY: Reject symlinks in the target path to prevent symlink-based
@@ -3807,25 +3827,27 @@ async fn set_db_path(
     // symlink" (the file will be created by the copy step below).
     if let Ok(meta) = std::fs::symlink_metadata(&new_db_path) {
         if meta.file_type().is_symlink() {
-            return Err("Database path must not be a symbolic link".to_string());
+            return Err(AppError::Validation(
+                "Database path must not be a symbolic link".into(),
+            ));
         }
     }
 
     // Validate: parent directory must exist and be writable
     let parent = new_db_path
         .parent()
-        .ok_or_else(|| "New database path has no parent directory".to_string())?;
+        .ok_or_else(|| AppError::Validation("New database path has no parent directory".into()))?;
 
     if !dir_is_writable(parent) {
-        return Err(format!(
+        return Err(AppError::Validation(format!(
             "Directory '{}' does not exist or is not writable",
             parent.display()
-        ));
+        )));
     }
 
     // Get current DB path from shared state
     let current_path = {
-        let app = state.lock().map_err(|e| e.to_string())?;
+        let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
         PathBuf::from(&app.db_path)
     };
 
@@ -3840,49 +3862,50 @@ async fn set_db_path(
     ));
 
     // Copy current DB to temp location
-    std::fs::copy(&current_path, &tmp_path)
-        .map_err(|e| format!("Failed to copy database to '{}': {}", tmp_path.display(), e))?;
+    std::fs::copy(&current_path, &tmp_path).map_err(|e| {
+        log::error!("Failed to copy database to '{}': {e}", tmp_path.display());
+        AppError::FileSystem("Failed to copy database to new location".into())
+    })?;
 
     // Verify the copy opens cleanly with SQLite
     {
         let verify_conn = rusqlite::Connection::open(&tmp_path).map_err(|e| {
             let _ = std::fs::remove_file(&tmp_path);
-            format!("Copied database failed SQLite verification: {}", e)
+            log::error!("Copied database failed SQLite verification: {e}");
+            AppError::Database("Copied database failed SQLite verification".into())
         })?;
         // Quick integrity check
         verify_conn
             .query_row("PRAGMA integrity_check", [], |row| row.get::<_, String>(0))
             .map_err(|e| {
                 let _ = std::fs::remove_file(&tmp_path);
-                format!("Database integrity check failed: {}", e)
+                log::error!("Database integrity check failed: {e}");
+                AppError::Database("Database integrity check failed".into())
             })?;
     }
 
     // Rename temp file to final destination
     std::fs::rename(&tmp_path, &new_db_path).map_err(|e| {
         let _ = std::fs::remove_file(&tmp_path);
-        format!(
-            "Failed to move database to '{}': {}",
-            new_db_path.display(),
-            e
-        )
+        log::error!("Failed to move database to '{}': {e}", new_db_path.display());
+        AppError::FileSystem("Failed to move database to new location".into())
     })?;
 
     // Persist the new path in config.json
     let data_dir = app_handle
         .path()
         .app_data_dir()
-        .map_err(|e| format!("Failed to resolve app data directory: {}", e))?;
+        .map_err(|e| AppError::Internal(e.to_string()))?;
 
     // Read the current config so we preserve the licence_tier (and any future
     // fields), then update only db_path.
     let mut config = read_app_config(&data_dir);
     config.db_path = Some(new_path.clone());
-    write_app_config(&data_dir, &config)?;
+    write_app_config(&data_dir, &config).map_err(AppError::FileSystem)?;
 
     // Update the shared state so get_db_path reflects the change immediately.
     {
-        let mut app = state.lock().map_err(|e| e.to_string())?;
+        let mut app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
         app.db_path.clone_from(&new_path);
     }
 

@@ -159,12 +159,15 @@ export async function getAssets(): Promise<Asset[]> {
   }
 }
 
-/** Get filtered assets with optional content type, signed status, fingerprint status, and search. */
+/** Get filtered assets with optional content type, signed status, fingerprint status, and search.
+ *  Results are paginated — `limit` defaults to 200, `offset` to 0. */
 export async function getFilteredAssets(
   contentType?: string,
   c2paSigned?: boolean,
   searchQuery?: string,
   fingerprinted?: boolean,
+  limit?: number,
+  offset?: number,
 ): Promise<Asset[]> {
   try {
     return await invoke<Asset[]>('get_filtered_assets', {
@@ -172,6 +175,8 @@ export async function getFilteredAssets(
       c2paSigned: c2paSigned ?? null,
       fingerprinted: fingerprinted ?? null,
       searchQuery: searchQuery ?? null,
+      limit: limit ?? null,
+      offset: offset ?? null,
     });
   } catch {
     return [];

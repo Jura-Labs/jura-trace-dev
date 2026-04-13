@@ -384,18 +384,23 @@ impl Database {
     }
 
     /// Get all assets, most recent first.
-    pub fn get_all_assets(&self) -> SqliteResult<Vec<Asset>> {
+    /// Fetch assets with pagination.  `metadata_json` is excluded from the
+    /// listing query — it can be 2–5 KB per row and is only needed when a
+    /// single asset is selected for detail view.  Returns at most `limit`
+    /// rows starting from `offset`.
+    pub fn get_all_assets(&self, limit: u32, offset: u32) -> SqliteResult<Vec<Asset>> {
         let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT a.asset_id, a.file_path, a.file_name, a.content_type, a.mime_type,
                     a.file_size, a.width, a.height, a.ai_description, a.ai_tags,
-                    a.metadata_json, a.c2pa_signed, a.watermarked, a.sha256_hash,
+                    a.c2pa_signed, a.watermarked, a.sha256_hash,
                     a.created_at,
                     (EXISTS (SELECT 1 FROM fingerprints WHERE asset_id = a.asset_id)) AS fingerprinted
-             FROM assets a ORDER BY a.created_at DESC",
+             FROM assets a ORDER BY a.created_at DESC
+             LIMIT ?1 OFFSET ?2",
         )?;
 
-        let rows = stmt.query_map([], |row| {
+        let rows = stmt.query_map(rusqlite::params![limit, offset], |row| {
             let tags_json: Option<String> = row.get(9)?;
             let ai_tags: Option<Vec<String>> = tags_json
                 .as_deref()
@@ -412,12 +417,12 @@ impl Database {
                 height: row.get(7)?,
                 ai_description: row.get(8)?,
                 ai_tags,
-                metadata_json: row.get(10)?,
-                c2pa_signed: row.get::<_, i32>(11)? != 0,
-                watermarked: row.get::<_, i32>(12)? != 0,
-                sha256_hash: row.get(13)?,
-                created_at: row.get(14)?,
-                fingerprinted: row.get::<_, i32>(15)? != 0,
+                metadata_json: None, // excluded from listing — fetch via get_asset_by_id
+                c2pa_signed: row.get::<_, i32>(10)? != 0,
+                watermarked: row.get::<_, i32>(11)? != 0,
+                sha256_hash: row.get(12)?,
+                created_at: row.get(13)?,
+                fingerprinted: row.get::<_, i32>(14)? != 0,
             })
         })?;
 
@@ -657,6 +662,8 @@ impl Database {
         c2pa_signed: Option<bool>,
         fingerprinted: Option<bool>,
         search_query: Option<&str>,
+        limit: u32,
+        offset: u32,
     ) -> SqliteResult<Vec<Asset>> {
         let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
@@ -708,13 +715,20 @@ impl Database {
             format!(" WHERE {}", conditions.join(" AND "))
         };
 
+        // LIMIT and OFFSET are appended as the last two positional parameters.
+        let limit_idx = param_values.len() + 1;
+        let offset_idx = param_values.len() + 2;
+        param_values.push(Box::new(limit));
+        param_values.push(Box::new(offset));
+
         let sql = format!(
             "SELECT a.asset_id, a.file_path, a.file_name, a.content_type, a.mime_type,
                     a.file_size, a.width, a.height, a.ai_description, a.ai_tags,
-                    a.metadata_json, a.c2pa_signed, a.watermarked, a.sha256_hash,
+                    a.c2pa_signed, a.watermarked, a.sha256_hash,
                     a.created_at,
                     (EXISTS (SELECT 1 FROM fingerprints WHERE asset_id = a.asset_id)) AS fingerprinted
-             FROM assets a{where_clause} ORDER BY a.created_at DESC"
+             FROM assets a{where_clause} ORDER BY a.created_at DESC
+             LIMIT ?{limit_idx} OFFSET ?{offset_idx}"
         );
 
         let mut stmt = conn.prepare(&sql)?;
@@ -738,12 +752,12 @@ impl Database {
                 height: row.get(7)?,
                 ai_description: row.get(8)?,
                 ai_tags,
-                metadata_json: row.get(10)?,
-                c2pa_signed: row.get::<_, i32>(11)? != 0,
-                watermarked: row.get::<_, i32>(12)? != 0,
-                sha256_hash: row.get(13)?,
-                created_at: row.get(14)?,
-                fingerprinted: row.get::<_, i32>(15)? != 0,
+                metadata_json: None, // excluded from listing — fetch via get_asset_by_id
+                c2pa_signed: row.get::<_, i32>(10)? != 0,
+                watermarked: row.get::<_, i32>(11)? != 0,
+                sha256_hash: row.get(12)?,
+                created_at: row.get(13)?,
+                fingerprinted: row.get::<_, i32>(14)? != 0,
             })
         })?;
 
@@ -1948,7 +1962,7 @@ mod tests {
         let row = make_asset("a1", "photo.jpg", "2026-01-01T00:00:00Z");
         db.insert_asset(&row).unwrap();
 
-        let assets = db.get_all_assets().unwrap();
+        let assets = db.get_all_assets(1000, 0).unwrap();
         assert_eq!(assets.len(), 1);
         assert_eq!(assets[0].asset_id, "a1");
         assert_eq!(assets[0].file_name, "photo.jpg");
@@ -1963,7 +1977,7 @@ mod tests {
         db.insert_asset(&make_asset("newer", "new.jpg", "2026-06-01T00:00:00Z"))
             .unwrap();
 
-        let assets = db.get_all_assets().unwrap();
+        let assets = db.get_all_assets(1000, 0).unwrap();
         assert_eq!(assets.len(), 2);
         assert_eq!(assets[0].asset_id, "newer");
         assert_eq!(assets[1].asset_id, "older");
@@ -2231,13 +2245,13 @@ mod tests {
         db.insert_asset(&doc).unwrap();
 
         let images = db
-            .get_filtered_assets(Some("image"), None, None, None)
+            .get_filtered_assets(Some("image"), None, None, None, 1000, 0)
             .unwrap();
         assert_eq!(images.len(), 1);
         assert_eq!(images[0].asset_id, "a1");
 
         let docs = db
-            .get_filtered_assets(Some("document"), None, None, None)
+            .get_filtered_assets(Some("document"), None, None, None, 1000, 0)
             .unwrap();
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].asset_id, "a2");
@@ -2253,13 +2267,13 @@ mod tests {
         db.set_c2pa_signed("a2", "/tmp/other_c2pa.jpg").unwrap();
 
         let signed = db
-            .get_filtered_assets(None, Some(true), None, None)
+            .get_filtered_assets(None, Some(true), None, None, 1000, 0)
             .unwrap();
         assert_eq!(signed.len(), 1);
         assert_eq!(signed[0].asset_id, "a2");
 
         let unsigned = db
-            .get_filtered_assets(None, Some(false), None, None)
+            .get_filtered_assets(None, Some(false), None, None, 1000, 0)
             .unwrap();
         assert_eq!(unsigned.len(), 1);
         assert_eq!(unsigned[0].asset_id, "a1");
@@ -2282,12 +2296,12 @@ mod tests {
         .unwrap();
 
         let results = db
-            .get_filtered_assets(None, None, None, Some("sunset"))
+            .get_filtered_assets(None, None, None, Some("sunset"), 1000, 0)
             .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].asset_id, "a1");
 
-        let all = db.get_filtered_assets(None, None, None, Some("")).unwrap();
+        let all = db.get_filtered_assets(None, None, None, Some(""), 1000, 0).unwrap();
         assert_eq!(all.len(), 2);
     }
 
@@ -2303,21 +2317,21 @@ mod tests {
             .unwrap();
 
         let fp_only = db
-            .get_filtered_assets(None, None, Some(true), None)
+            .get_filtered_assets(None, None, Some(true), None, 1000, 0)
             .unwrap();
         assert_eq!(fp_only.len(), 1);
         assert_eq!(fp_only[0].asset_id, "a1");
         assert!(fp_only[0].fingerprinted);
 
         let no_fp = db
-            .get_filtered_assets(None, None, Some(false), None)
+            .get_filtered_assets(None, None, Some(false), None, 1000, 0)
             .unwrap();
         assert_eq!(no_fp.len(), 1);
         assert_eq!(no_fp[0].asset_id, "a2");
         assert!(!no_fp[0].fingerprinted);
 
         // No filter — both returned, fingerprinted field reflects reality
-        let all = db.get_filtered_assets(None, None, None, None).unwrap();
+        let all = db.get_filtered_assets(None, None, None, None, 1000, 0).unwrap();
         assert_eq!(all.len(), 2);
         let a1 = all.iter().find(|a| a.asset_id == "a1").unwrap();
         let a2 = all.iter().find(|a| a.asset_id == "a2").unwrap();
@@ -3134,7 +3148,7 @@ mod tests {
         row.sha256_hash = Some(expected.clone());
         db.insert_asset(&row).unwrap();
 
-        let assets = db.get_all_assets().unwrap();
+        let assets = db.get_all_assets(1000, 0).unwrap();
         assert_eq!(assets.len(), 1);
         assert_eq!(assets[0].sha256_hash, Some(expected));
     }
@@ -3146,7 +3160,7 @@ mod tests {
         db.insert_asset(&make_asset("a2", "doc.pdf", "2026-01-01T00:00:00Z"))
             .unwrap();
 
-        let assets = db.get_all_assets().unwrap();
+        let assets = db.get_all_assets(1000, 0).unwrap();
         assert_eq!(assets.len(), 1);
         assert_eq!(assets[0].sha256_hash, None);
     }
