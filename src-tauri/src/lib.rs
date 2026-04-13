@@ -4405,7 +4405,14 @@ pub fn run() {
                     if let Ok(mut guard) = api_state.lock() {
                         match guard.db.ensure_bootstrap_api_key() {
                             Ok(Some(key)) => {
-                                log::info!("API server bootstrap key (store securely): jt_{}", key);
+                                // SECURITY: log only a redacted prefix — full key
+                                // is shown once in the Settings → API Keys panel.
+                                let prefix = &key[..key.len().min(8)];
+                                log::info!(
+                                    "API server bootstrap key created (jt_{}...). \
+                                     Retrieve the full key from Settings → API Keys.",
+                                    prefix
+                                );
                             }
                             Ok(None) => {
                                 log::info!(

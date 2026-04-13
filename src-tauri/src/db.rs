@@ -30,7 +30,7 @@ impl Database {
     }
 
     /// Schema version — increment when adding migrations.
-    const SCHEMA_VERSION: i32 = 6;
+    const SCHEMA_VERSION: i32 = 7;
 
     /// Create tables if they do not already exist, and run any pending migrations.
     ///
@@ -156,6 +156,18 @@ impl Database {
             );
             conn.pragma_update(None, "user_version", 6)?;
             log::info!("Database migrated to schema version 6 (detectors_run column)");
+        }
+
+        // v7: audit log hash chain now includes operator_id and algorithm_metadata.
+        // New column `hash_version` distinguishes v1 (old formula) from v2 (new)
+        // so verify_audit_chain can apply the correct computation per row.
+        if current_version < 7 {
+            let _ = conn.execute(
+                "ALTER TABLE audit_log ADD COLUMN hash_version INTEGER NOT NULL DEFAULT 1",
+                [],
+            );
+            conn.pragma_update(None, "user_version", 7)?;
+            log::info!("Database migrated to schema version 7 (audit log hash_version column)");
         }
 
         Ok(())
@@ -1122,7 +1134,10 @@ impl Database {
             )
             .unwrap_or_else(|_| "genesis".to_string());
 
-        // SHA-256(prev_hash || action || target_type || target_id || details || created_at)
+        // Hash v2: SHA-256(prev_hash || action || target_type || target_id ||
+        //                  details || operator_id || algorithm_metadata || created_at)
+        // Includes operator_id and algorithm_metadata so both are tamper-evident.
+        let algo_meta = algorithm_metadata.unwrap_or("");
         let mut hasher = Sha256::new();
         hasher.update(prev_hash.as_bytes());
         hasher.update(b"|");
@@ -1134,12 +1149,16 @@ impl Database {
         hasher.update(b"|");
         hasher.update(details.unwrap_or("").as_bytes());
         hasher.update(b"|");
+        hasher.update(op.as_bytes());
+        hasher.update(b"|");
+        hasher.update(algo_meta.as_bytes());
+        hasher.update(b"|");
         hasher.update(now.as_bytes());
         let entry_hash = format!("{:x}", hasher.finalize());
 
         conn.execute(
-            "INSERT INTO audit_log (log_id, action, target_type, target_id, details, operator_id, algorithm_metadata, created_at, prev_hash, entry_hash)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            "INSERT INTO audit_log (log_id, action, target_type, target_id, details, operator_id, algorithm_metadata, created_at, prev_hash, entry_hash, hash_version)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 2)",
             params![log_id, action, target_type, target_id, details, op, algorithm_metadata, now, prev_hash, entry_hash],
         )?;
         Ok(())
@@ -1155,19 +1174,24 @@ impl Database {
         let conn = self.conn.lock().unwrap();
 
         let mut stmt = conn.prepare(
-            "SELECT action, target_type, target_id, details, created_at, prev_hash, entry_hash
+            "SELECT action, target_type, target_id, details, created_at,
+                    prev_hash, entry_hash, operator_id, algorithm_metadata,
+                    COALESCE(hash_version, 1)
              FROM audit_log
              ORDER BY rowid ASC",
         )?;
 
         type AuditRow = (
-            String,
-            String,
-            String,
-            Option<String>,
-            String,
-            Option<String>,
-            Option<String>,
+            String,         // action
+            String,         // target_type
+            String,         // target_id
+            Option<String>, // details
+            String,         // created_at
+            Option<String>, // prev_hash
+            Option<String>, // entry_hash
+            Option<String>, // operator_id
+            Option<String>, // algorithm_metadata
+            i32,            // hash_version
         );
         let rows: Vec<AuditRow> = stmt
             .query_map([], |row| {
@@ -1179,13 +1203,16 @@ impl Database {
                     row.get::<_, String>(4)?,
                     row.get::<_, Option<String>>(5)?,
                     row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, i32>(9)?,
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
         let mut expected_prev = "genesis".to_string();
 
-        for (action, target_type, target_id, details, created_at, prev_hash, entry_hash) in rows {
+        for (action, target_type, target_id, details, created_at, prev_hash, entry_hash, operator_id, algorithm_metadata, hash_version) in rows {
             // Entries without hash columns are pre-migration rows; treat as
             // unverifiable and skip rather than failing the whole chain.
             let (Some(stored_prev), Some(stored_hash)) = (prev_hash, entry_hash) else {
@@ -1206,6 +1233,13 @@ impl Database {
             hasher.update(target_id.as_bytes());
             hasher.update(b"|");
             hasher.update(details.as_deref().unwrap_or("").as_bytes());
+            // v2 hashes include operator_id and algorithm_metadata
+            if hash_version >= 2 {
+                hasher.update(b"|");
+                hasher.update(operator_id.as_deref().unwrap_or("local_user").as_bytes());
+                hasher.update(b"|");
+                hasher.update(algorithm_metadata.as_deref().unwrap_or("").as_bytes());
+            }
             hasher.update(b"|");
             hasher.update(created_at.as_bytes());
             let computed = format!("{:x}", hasher.finalize());
