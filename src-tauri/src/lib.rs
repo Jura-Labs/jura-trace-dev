@@ -6267,4 +6267,108 @@ mod tests {
             "metadata_completely_absent must be false when EXIF is present"
         );
     }
+
+    // ===== is_private_or_loopback_host =====
+
+    #[test]
+    fn loopback_localhost() {
+        assert!(is_private_or_loopback_host("localhost"));
+    }
+
+    #[test]
+    fn loopback_127() {
+        assert!(is_private_or_loopback_host("127.0.0.1"));
+    }
+
+    #[test]
+    fn loopback_ipv6() {
+        assert!(is_private_or_loopback_host("::1"));
+    }
+
+    #[test]
+    fn loopback_zero() {
+        assert!(is_private_or_loopback_host("0.0.0.0"));
+    }
+
+    #[test]
+    fn rfc1918_10_low() {
+        assert!(is_private_or_loopback_host("10.0.0.1"));
+    }
+
+    #[test]
+    fn rfc1918_10_high() {
+        assert!(is_private_or_loopback_host("10.255.255.255"));
+    }
+
+    #[test]
+    fn rfc1918_192168_low() {
+        assert!(is_private_or_loopback_host("192.168.0.1"));
+    }
+
+    #[test]
+    fn rfc1918_192168_high() {
+        assert!(is_private_or_loopback_host("192.168.255.255"));
+    }
+
+    #[test]
+    fn link_local_low() {
+        assert!(is_private_or_loopback_host("169.254.0.1"));
+    }
+
+    #[test]
+    fn link_local_high() {
+        assert!(is_private_or_loopback_host("169.254.255.255"));
+    }
+
+    // 172.x boundary: second octet 16–31 is private, outside is public.
+
+    #[test]
+    fn rfc1918_172_below_boundary_is_public() {
+        assert!(!is_private_or_loopback_host("172.15.255.255"));
+    }
+
+    #[test]
+    fn rfc1918_172_lower_bound() {
+        assert!(is_private_or_loopback_host("172.16.0.1"));
+    }
+
+    #[test]
+    fn rfc1918_172_upper_bound() {
+        assert!(is_private_or_loopback_host("172.31.255.255"));
+    }
+
+    #[test]
+    fn rfc1918_172_above_boundary_is_public() {
+        assert!(!is_private_or_loopback_host("172.32.0.1"));
+    }
+
+    #[test]
+    fn public_example_com() {
+        assert!(!is_private_or_loopback_host("example.com"));
+    }
+
+    #[test]
+    fn public_google_dns() {
+        assert!(!is_private_or_loopback_host("8.8.8.8"));
+    }
+
+    #[test]
+    fn public_cloudflare_dns() {
+        assert!(!is_private_or_loopback_host("1.1.1.1"));
+    }
+
+    #[test]
+    fn case_insensitive_upper() {
+        assert!(is_private_or_loopback_host("LOCALHOST"));
+    }
+
+    #[test]
+    fn case_insensitive_mixed() {
+        assert!(is_private_or_loopback_host("Localhost"));
+    }
+
+    #[test]
+    fn empty_string_is_public() {
+        assert!(!is_private_or_loopback_host(""));
+    }
 }

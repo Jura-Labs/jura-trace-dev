@@ -2417,4 +2417,125 @@ mod tests {
         assert_eq!(result.stages_available, vec!["stage1"]);
         assert!(!result.wav2vec2_embedding_extracted);
     }
+
+    // ── File cache ──────────────────────────────────────────────────
+
+    /// Cache stores bytes and clear_file_cache resets it without panicking.
+    #[test]
+    fn file_cache_stores_and_clears() {
+        let client = SidecarClient::new("http://localhost:0", "");
+        let path = std::path::PathBuf::from("/tmp/test_image.png");
+        let bytes = vec![0u8, 1, 2, 3, 4, 5];
+
+        // Store bytes in cache
+        client.cache_file_bytes(&path, bytes.clone());
+
+        // Verify the cache is populated
+        {
+            let guard = client.file_cache.lock().unwrap();
+            assert!(guard.is_some(), "cache should be populated after cache_file_bytes");
+            let (cached_path, cached_bytes) = guard.as_ref().unwrap();
+            assert_eq!(cached_path, &path);
+            assert_eq!(cached_bytes, &bytes);
+        }
+
+        // Clear the cache — must not panic
+        client.clear_file_cache();
+
+        // Verify the cache is now empty
+        let guard = client.file_cache.lock().unwrap();
+        assert!(guard.is_none(), "cache should be None after clear_file_cache");
+    }
+
+    /// Cloned clients share the same Arc, so clearing on one clears the other.
+    #[test]
+    fn file_cache_clone_shares_arc() {
+        let client = SidecarClient::new("http://localhost:0", "");
+        let path = std::path::PathBuf::from("/tmp/shared_cache.png");
+        let bytes = vec![10u8, 20, 30];
+
+        client.cache_file_bytes(&path, bytes.clone());
+
+        // Clone shares the same Arc<Mutex<...>>
+        let cloned = client.clone();
+
+        // Verify clone sees the cached data
+        {
+            let guard = cloned.file_cache.lock().unwrap();
+            assert!(guard.is_some(), "clone should see cached bytes");
+            let (_, cached_bytes) = guard.as_ref().unwrap();
+            assert_eq!(cached_bytes, &bytes);
+        }
+
+        // Clear on the clone
+        cloned.clear_file_cache();
+
+        // Original client's cache must also be cleared (same Arc)
+        let guard = client.file_cache.lock().unwrap();
+        assert!(
+            guard.is_none(),
+            "original client cache must be None after clearing on clone"
+        );
+    }
+
+    /// build_image_form uses cached bytes when the path matches.
+    #[test]
+    fn build_image_form_uses_cache_on_hit() {
+        // Write a small PNG to a temp file so build_image_form has a valid path
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("cached.png");
+        let img = image::RgbImage::from_fn(4, 4, |_, _| image::Rgb([255u8, 0, 0]));
+        img.save(&file_path).unwrap();
+
+        // Read its bytes, then cache a different (distinctive) payload under the same path
+        let sentinel_bytes = vec![0xDE, 0xAD, 0xBE, 0xEF];
+        let client = SidecarClient::new("http://localhost:0", "");
+        client.cache_file_bytes(&file_path, sentinel_bytes.clone());
+
+        // build_image_form should return Ok (it constructs the multipart from the
+        // cached bytes, so no disk read failure possible here)
+        let result = client.build_image_form(&file_path);
+        assert!(
+            result.is_ok(),
+            "build_image_form with cache hit should succeed: {:?}",
+            result.err()
+        );
+
+        // After clearing the cache, it falls back to disk and should still succeed
+        client.clear_file_cache();
+        let result_after_clear = client.build_image_form(&file_path);
+        assert!(
+            result_after_clear.is_ok(),
+            "build_image_form fallback to disk should succeed: {:?}",
+            result_after_clear.err()
+        );
+    }
+
+    /// build_image_form reads from disk when the cached path does not match.
+    #[test]
+    fn build_image_form_falls_back_to_disk_on_cache_miss() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Path A — cached but NOT the path we call build_image_form with
+        let path_a = dir.path().join("path_a.png");
+        let img_a = image::RgbImage::from_fn(4, 4, |_, _| image::Rgb([0u8, 255, 0]));
+        img_a.save(&path_a).unwrap();
+
+        // Path B — a real file on disk, not in the cache
+        let path_b = dir.path().join("path_b.png");
+        let img_b = image::RgbImage::from_fn(4, 4, |_, _| image::Rgb([0u8, 0, 255]));
+        img_b.save(&path_b).unwrap();
+
+        let client = SidecarClient::new("http://localhost:0", "");
+        // Cache bytes for path A only
+        client.cache_file_bytes(&path_a, vec![1u8, 2, 3]);
+
+        // Request form for path B — must fall back to disk, not use path A's cache
+        let result = client.build_image_form(&path_b);
+        assert!(
+            result.is_ok(),
+            "build_image_form should read path_b from disk on cache miss: {:?}",
+            result.err()
+        );
+    }
 }

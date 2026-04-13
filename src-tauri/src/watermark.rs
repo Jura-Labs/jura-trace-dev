@@ -364,6 +364,69 @@ pub fn extract_watermark(
 mod tests {
     use super::*;
 
+    // ── Test helpers ────────────────────────────────────────────────
+
+    /// Build a minimal but structurally valid PNG with the given `width` and
+    /// `height` in its IHDR chunk.  The pixel data is empty (a single
+    /// zero-length IDAT chunk), so the image cannot actually be decoded, but
+    /// `image::ImageReader::into_dimensions()` only reads the IHDR and will
+    /// return the dimensions correctly.
+    ///
+    /// PNG layout: signature (8 bytes) + IHDR chunk + IDAT chunk + IEND chunk.
+    /// Each chunk: 4-byte length + 4-byte type + data + 4-byte CRC.
+    fn build_minimal_png(width: u32, height: u32) -> Vec<u8> {
+        use std::io::Write;
+
+        fn crc32(data: &[u8]) -> u32 {
+            // Simple CRC-32 using the PNG polynomial (ISO 3309).
+            let mut crc: u32 = 0xFFFF_FFFF;
+            for &byte in data {
+                let mut val = byte as u32;
+                for _ in 0..8 {
+                    let mixed = (crc ^ val) & 1;
+                    crc >>= 1;
+                    if mixed != 0 {
+                        crc ^= 0xEDB8_8320;
+                    }
+                    val >>= 1;
+                }
+            }
+            crc ^ 0xFFFF_FFFF
+        }
+
+        fn write_chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+            let len = data.len() as u32;
+            out.extend_from_slice(&len.to_be_bytes());
+            out.extend_from_slice(kind);
+            out.extend_from_slice(data);
+            let mut crc_input = Vec::with_capacity(4 + data.len());
+            crc_input.extend_from_slice(kind);
+            crc_input.extend_from_slice(data);
+            out.extend_from_slice(&crc32(&crc_input).to_be_bytes());
+        }
+
+        let mut out = Vec::new();
+
+        // PNG signature
+        out.extend_from_slice(&[137, 80, 78, 71, 13, 10, 26, 10]);
+
+        // IHDR: width (4) + height (4) + bit depth (1) + colour type (1)
+        //       + compression (1) + filter (1) + interlace (1) = 13 bytes
+        let mut ihdr = Vec::new();
+        ihdr.write_all(&width.to_be_bytes()).unwrap();
+        ihdr.write_all(&height.to_be_bytes()).unwrap();
+        ihdr.extend_from_slice(&[8u8, 2, 0, 0, 0]); // 8-bit, RGB, no compression/filter/interlace
+        write_chunk(&mut out, b"IHDR", &ihdr);
+
+        // IDAT: empty (the image crate stops reading after IHDR for dimensions)
+        write_chunk(&mut out, b"IDAT", &[]);
+
+        // IEND
+        write_chunk(&mut out, b"IEND", &[]);
+
+        out
+    }
+
     // ── Format support ──────────────────────────────────────────────
 
     #[test]
@@ -548,6 +611,98 @@ mod tests {
         let result = extract_watermark(&input, 0, None);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("greater than 0"));
+    }
+
+    // ── Dimension guard ────────────────────────────────────────────
+
+    /// A 256×256 image (65 536 pixels) must pass the 20 MP guard and
+    /// proceed into the watermark pipeline.  We use `catch_unwind` because the
+    /// `blind_watermark` crate may panic internally on synthetic test images
+    /// (e.g. insufficient frequency blocks); what matters is that the guard
+    /// itself does NOT reject the image with the size-guard error message.
+    #[test]
+    fn embed_watermark_small_image_passes_dimension_guard() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("guard_check.png");
+        let output = dir.path().join("guard_check_wm.png");
+
+        // 256×256 — 65 536 pixels, well under the 20 MP limit.
+        // Use varied pixels so the DWT has meaningful frequency content.
+        let img = image::RgbImage::from_fn(256, 256, |x, y| {
+            image::Rgb([
+                ((x.wrapping_add(y)) % 256) as u8,
+                ((x.wrapping_mul(2).wrapping_add(y)) % 256) as u8,
+                ((y.wrapping_mul(3)) % 256) as u8,
+            ])
+        });
+        img.save(&input).unwrap();
+
+        // Capture the result, catching any internal panic from blind_watermark.
+        let input_clone = input.clone();
+        let output_clone = output.clone();
+        let outcome = std::panic::catch_unwind(move || {
+            embed_watermark(
+                &input_clone,
+                &output_clone,
+                &WatermarkOptions {
+                    payload_hex: "550e8400e29b41d4a71644665544000f".to_string(),
+                    strength: Some(2),
+                },
+            )
+        });
+
+        match outcome {
+            // The crate panicked — not caused by our guard; acceptable in a unit test.
+            Err(_panic) => {}
+            // Returned an Err — must NOT be the size-guard message.
+            Ok(Err(ref msg)) => {
+                assert!(
+                    !msg.contains("too large for watermark embedding"),
+                    "256×256 image should not be rejected by the size guard; got: {msg}"
+                );
+            }
+            // Succeeded — guard passed and embed worked.
+            Ok(Ok(_)) => {}
+        }
+    }
+
+    /// Craft a minimal PNG whose IHDR claims 10 000×2 100 = 21 MP dimensions.
+    /// The `image` crate's `into_dimensions()` reads only the IHDR chunk, so
+    /// we don't need valid pixel data — just a syntactically correct header.
+    /// The embed call must return an error whose message contains the exact
+    /// phrase used in the guard.
+    #[test]
+    fn embed_watermark_rejects_image_over_20mp() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("oversized.png");
+        let output = dir.path().join("oversized_wm.png");
+
+        // Build a minimal PNG: signature + IHDR + IDAT (empty) + IEND.
+        // Width = 10 000 (0x00002710), Height = 2 100 (0x00000834) → 21 MP.
+        // The image crate only needs the IHDR to call into_dimensions().
+        let png = build_minimal_png(10_000, 2_100);
+        std::fs::write(&input, &png).unwrap();
+
+        let result = embed_watermark(
+            &input,
+            &output,
+            &WatermarkOptions {
+                payload_hex: "550e8400e29b41d4a71644665544000f".to_string(),
+                strength: Some(1),
+            },
+        );
+
+        assert!(result.is_err(), "embed should fail for a 21 MP image");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("too large for watermark embedding"),
+            "error message should contain 'too large for watermark embedding'; got: {msg}"
+        );
+        // Also verify the message includes the MP count so callers get a useful message.
+        assert!(
+            msg.contains("21 MP") || msg.contains("20 MP"),
+            "error message should mention pixel count; got: {msg}"
+        );
     }
 
     // ── Embed-extract round-trip ────────────────────────────────────

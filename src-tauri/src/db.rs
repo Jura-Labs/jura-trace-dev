@@ -2590,6 +2590,174 @@ mod tests {
         assert_eq!(entry_hash.unwrap().len(), 64);
     }
 
+    // ── Hash chain v1 / v2 migration tests ─────────────────────────
+
+    /// Helper: compute a v1 (6-field) SHA-256 hash in the same format as the
+    /// legacy `log_action` used before schema v7.
+    ///
+    /// Formula: SHA-256(prev_hash | action | target_type | target_id | details | created_at)
+    fn compute_v1_hash(
+        prev_hash: &str,
+        action: &str,
+        target_type: &str,
+        target_id: &str,
+        details: &str,
+        created_at: &str,
+    ) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(prev_hash.as_bytes());
+        hasher.update(b"|");
+        hasher.update(action.as_bytes());
+        hasher.update(b"|");
+        hasher.update(target_type.as_bytes());
+        hasher.update(b"|");
+        hasher.update(target_id.as_bytes());
+        hasher.update(b"|");
+        hasher.update(details.as_bytes());
+        hasher.update(b"|");
+        hasher.update(created_at.as_bytes());
+        format!("{:x}", hasher.finalize())
+    }
+
+    #[test]
+    fn audit_chain_v2_integrity_three_entries() {
+        let db = open_temp_db();
+
+        db.log_action("import", "asset", "b1", Some("first"), None, None)
+            .unwrap();
+        db.log_action("verify", "asset", "b1", Some("second"), Some("alice"), None)
+            .unwrap();
+        db.log_action(
+            "sign",
+            "asset",
+            "b1",
+            Some("third"),
+            Some("alice"),
+            Some(r#"{"algorithm":"dwt-dct-svd"}"#),
+        )
+        .unwrap();
+
+        assert!(db.verify_audit_chain().unwrap());
+    }
+
+    #[test]
+    fn audit_chain_v2_detects_operator_id_tampering() {
+        let db = open_temp_db();
+
+        db.log_action("import", "asset", "c1", None, Some("alice"), None)
+            .unwrap();
+
+        // Silently alter operator_id — must break the hash.
+        {
+            let conn = db.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            conn.execute(
+                "UPDATE audit_log SET operator_id = 'eve' WHERE target_id = 'c1'",
+                [],
+            )
+            .unwrap();
+        }
+
+        assert!(!db.verify_audit_chain().unwrap());
+    }
+
+    #[test]
+    fn audit_chain_v2_detects_algorithm_metadata_tampering() {
+        let db = open_temp_db();
+        let original_meta = r#"{"algorithm":"phash","version":"1.0"}"#;
+
+        db.log_action("fingerprint", "asset", "d1", None, None, Some(original_meta))
+            .unwrap();
+
+        // Alter algorithm_metadata — must break the hash.
+        {
+            let conn = db.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            conn.execute(
+                "UPDATE audit_log SET algorithm_metadata = '{\"algorithm\":\"ahash\"}' WHERE target_id = 'd1'",
+                [],
+            )
+            .unwrap();
+        }
+
+        assert!(!db.verify_audit_chain().unwrap());
+    }
+
+    #[test]
+    fn audit_chain_mixed_v1_then_v2() {
+        // Insert a v1-format row manually (simulating a pre-schema-v7 entry),
+        // then append a v2 entry via log_action. verify_audit_chain must accept
+        // the mixed chain because verify_audit_chain uses COALESCE(hash_version,1)
+        // and applies the correct formula per row.
+
+        let db = open_temp_db();
+
+        // Build the v1 hash for the first entry (genesis predecessor).
+        let prev = "genesis";
+        let action = "import";
+        let ttype = "asset";
+        let tid = "e1";
+        let details = "legacy entry";
+        // Use a fixed timestamp so the hash is deterministic.
+        let created_at = "2026-01-01T00:00:00.000Z";
+        let v1_hash = compute_v1_hash(prev, action, ttype, tid, details, created_at);
+
+        let log_id_v1 = "log-v1-fixed";
+        {
+            let conn = db.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            // Insert with hash_version=1 and without algorithm_metadata.
+            conn.execute(
+                "INSERT INTO audit_log
+                 (log_id, action, target_type, target_id, details, operator_id,
+                  algorithm_metadata, created_at, prev_hash, entry_hash, hash_version)
+                 VALUES (?1, ?2, ?3, ?4, ?5, 'local_user', NULL, ?6, ?7, ?8, 1)",
+                params![log_id_v1, action, ttype, tid, details, created_at, prev, v1_hash],
+            )
+            .unwrap();
+        }
+
+        // Now log a v2 entry — log_action reads the latest entry_hash as prev_hash.
+        db.log_action("verify", "asset", "e2", Some("v2 entry"), None, None)
+            .unwrap();
+
+        // The chain should be intact: v1 row verified with the 6-field formula,
+        // v2 row verified with the 8-field formula.
+        assert!(db.verify_audit_chain().unwrap());
+    }
+
+    #[test]
+    fn asset_pagination_correctness() {
+        let db = open_temp_db();
+
+        // Insert 4 assets with distinct timestamps so ordering is deterministic.
+        db.insert_asset(&make_asset("p1", "photo1.jpg", "2026-01-01T00:00:00Z"))
+            .unwrap();
+        db.insert_asset(&make_asset("p2", "photo2.jpg", "2026-01-02T00:00:00Z"))
+            .unwrap();
+        db.insert_asset(&make_asset("p3", "photo3.jpg", "2026-01-03T00:00:00Z"))
+            .unwrap();
+        db.insert_asset(&make_asset("p4", "photo4.jpg", "2026-01-04T00:00:00Z"))
+            .unwrap();
+
+        // Page 1: limit 2, offset 0 — most-recent-first means p4, p3.
+        let page1 = db.get_all_assets(2, 0).unwrap();
+        assert_eq!(page1.len(), 2, "page 1 should contain exactly 2 assets");
+        assert_eq!(page1[0].asset_id, "p4");
+        assert_eq!(page1[1].asset_id, "p3");
+
+        // Page 2: limit 2, offset 2 — should return p2, p1.
+        let page2 = db.get_all_assets(2, 2).unwrap();
+        assert_eq!(page2.len(), 2, "page 2 should contain exactly 2 assets");
+        assert_eq!(page2[0].asset_id, "p2");
+        assert_eq!(page2[1].asset_id, "p1");
+
+        // metadata_json is always None in listing results (fetched only via get_asset_by_id).
+        for asset in page1.iter().chain(page2.iter()) {
+            assert!(
+                asset.metadata_json.is_none(),
+                "metadata_json should be None in listing results"
+            );
+        }
+    }
+
     #[test]
     fn get_verification_history_returns_summaries() {
         let db = open_temp_db();

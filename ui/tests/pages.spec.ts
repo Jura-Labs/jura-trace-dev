@@ -150,7 +150,7 @@ test.describe('Page smoke tests', () => {
       await page.goto('/settings');
       const ollamaHeading = page.locator('#ollama-heading');
       await expect(ollamaHeading).toBeVisible();
-      await expect(ollamaHeading).toHaveText('Ollama Configuration');
+      await expect(ollamaHeading).toHaveText('AI Assistant (Ollama)');
     });
   });
 
