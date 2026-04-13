@@ -1447,6 +1447,14 @@ fn verify_content_inner(
         watermark_extract_result,
         clip_result,
     ) = if sidecar_up {
+        // PERF: read the file once and cache in the sidecar client. All
+        // parallel sidecar calls (4 standard + 5 deep) will use the cached
+        // bytes instead of re-reading from disk, saving 4–9× file_size in
+        // redundant I/O and peak RAM.
+        if let Ok(file_bytes) = std::fs::read(&path) {
+            app.sidecar.cache_file_bytes(&path, file_bytes);
+        }
+
         let t_standard = std::time::Instant::now();
 
         let ela_path = path.to_path_buf();
@@ -1740,6 +1748,9 @@ fn verify_content_inner(
     } else {
         (None, None, None, None, None, None, None, None, None, None)
     };
+
+    // PERF: release the cached file bytes — image sidecar calls are done.
+    app.sidecar.clear_file_cache();
 
     // ── Video parallel group ─────────────────────────────────────────────
     // Video metadata, video deepfake analysis, and transcription are all

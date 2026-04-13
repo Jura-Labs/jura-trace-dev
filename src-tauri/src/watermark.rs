@@ -202,6 +202,24 @@ pub fn embed_watermark(
         .build()
         .map_err(|e| format!("Failed to build watermark config: {e}"))?;
 
+    // Pre-flight dimension check — RGBA32F uses 16 bytes/pixel. A 20 MP image
+    // would allocate ~305 MB of pixel data; larger images risk exhausting RAM
+    // during the DWT-DCT-SVD pipeline.
+    const MAX_WATERMARK_PIXELS: u64 = 20_000_000; // 20 megapixels
+    let reader = image::ImageReader::open(input_path)
+        .map_err(|e| format!("Cannot open input image '{}': {e}", input_path.display()))?;
+    if let Ok((w, h)) = reader.into_dimensions() {
+        let pixels = u64::from(w) * u64::from(h);
+        if pixels > MAX_WATERMARK_PIXELS {
+            return Err(format!(
+                "Image is too large for watermark embedding ({w}x{h} = {} MP, max {} MP). \
+                 Resize the image before embedding.",
+                pixels / 1_000_000,
+                MAX_WATERMARK_PIXELS / 1_000_000,
+            ));
+        }
+    }
+
     // Load image and embed
     let img = image::ImageReader::open(input_path)
         .map_err(|e| format!("Cannot open input image '{}': {e}", input_path.display()))?

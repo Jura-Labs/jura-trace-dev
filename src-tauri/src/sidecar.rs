@@ -644,6 +644,12 @@ pub struct ImageDescribeResult {
 pub struct SidecarClient {
     base_url: String,
     client: reqwest::blocking::Client,
+    /// Optional file cache: when set, `build_image_form` uses these bytes
+    /// instead of re-reading from disk when the path matches.  Set via
+    /// `cache_file_bytes` / `clear_file_cache` in the verify pipeline.
+    /// Wrapped in `Arc` so cloned clients share the same cache.
+    #[allow(clippy::type_complexity)]
+    file_cache: std::sync::Arc<std::sync::Mutex<Option<(std::path::PathBuf, Vec<u8>)>>>,
 }
 
 impl SidecarClient {
@@ -677,6 +683,23 @@ impl SidecarClient {
         Self {
             base_url: base_url.trim_end_matches('/').to_string(),
             client,
+            file_cache: std::sync::Arc::new(std::sync::Mutex::new(None)),
+        }
+    }
+
+    /// Cache file bytes for the given path.  Subsequent `build_image_form`
+    /// calls for this path will use the cached bytes instead of re-reading
+    /// from disk.  Call `clear_file_cache` when done.
+    pub fn cache_file_bytes(&self, path: &Path, bytes: Vec<u8>) {
+        if let Ok(mut guard) = self.file_cache.lock() {
+            *guard = Some((path.to_path_buf(), bytes));
+        }
+    }
+
+    /// Clear the file cache, releasing the memory.
+    pub fn clear_file_cache(&self) {
+        if let Ok(mut guard) = self.file_cache.lock() {
+            *guard = None;
         }
     }
 
@@ -1292,19 +1315,41 @@ impl SidecarClient {
     }
 
     /// Build a multipart form with an image file.
+    ///
+    /// Checks the internal file cache first — if the path matches, uses
+    /// cached bytes instead of re-reading from disk.  The verify pipeline
+    /// calls `cache_file_bytes` once before the parallel sidecar group,
+    /// avoiding 4–9 redundant disk reads per image.
     fn build_image_form(
         &self,
         image_path: &Path,
     ) -> Result<reqwest::blocking::multipart::Form, String> {
-        let file_bytes = std::fs::read(image_path)
-            .map_err(|e| format!("Failed to read image {}: {e}", image_path.display()))?;
-
         let file_name = image_path
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| "image.bin".to_string());
 
-        let part = reqwest::blocking::multipart::Part::bytes(file_bytes)
+        // Check the cache first — avoid re-reading the file from disk.
+        let bytes = if let Ok(guard) = self.file_cache.lock() {
+            if let Some((cached_path, cached_bytes)) = guard.as_ref() {
+                if cached_path == image_path {
+                    cached_bytes.clone()
+                } else {
+                    drop(guard);
+                    std::fs::read(image_path)
+                        .map_err(|e| format!("Failed to read image {}: {e}", image_path.display()))?
+                }
+            } else {
+                drop(guard);
+                std::fs::read(image_path)
+                    .map_err(|e| format!("Failed to read image {}: {e}", image_path.display()))?
+            }
+        } else {
+            std::fs::read(image_path)
+                .map_err(|e| format!("Failed to read image {}: {e}", image_path.display()))?
+        };
+
+        let part = reqwest::blocking::multipart::Part::bytes(bytes)
             .file_name(file_name)
             .mime_str("application/octet-stream")
             .map_err(|e| format!("Failed to create multipart part: {e}"))?;

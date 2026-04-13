@@ -820,6 +820,9 @@
 
   async function runFileVerification(path: string, name: string) {
     clearVerifySession();
+    // PERF: revoke any blob URLs from a previous verify in this session
+    // to release GPU texture memory held by WKWebView for heatmap images.
+    blobs.revokeAll();
     filePath = path;
     fileName = name;
     result = null;
