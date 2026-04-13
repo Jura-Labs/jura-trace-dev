@@ -5746,7 +5746,7 @@
 
           <!-- Frame timeline with score badges -->
           {#if vd.frameResults.length > 0}
-            {@const frames = result.videoFramesResult?.frames ?? []}
+            <!-- Frame thumbnails removed — videoFramesResult not populated by backend -->
             <div
               class="grid gap-2 mb-3"
               style="grid-template-columns: repeat({Math.min(vd.frameResults.length, 6)}, 1fr);"
@@ -5771,19 +5771,9 @@
                     aria-controls="frame-detail-{i}"
                     onclick={() => { expandedFrameIndex = isExpanded ? null : i; }}
                   >
-                    {#if frames[i]}
-                      <div class="aspect-video">
-                        <img
-                          src={blobs.url(frames[i], 'image/jpeg')}
-                          alt="Frame {i + 1}: {fr.verdictLevel} (score {(fr.score * 100).toFixed(0)}%)"
-                          class="w-full h-full object-cover"
-                        />
-                      </div>
-                    {:else}
-                      <div class="aspect-video flex items-center justify-center">
-                        <span class="text-xs text-flint dark:text-flint-light">F{i + 1}</span>
-                      </div>
-                    {/if}
+                    <div class="aspect-video flex items-center justify-center">
+                      <span class="text-xs text-flint dark:text-flint-light">F{i + 1}</span>
+                    </div>
 
                     <!-- Score badge -->
                     <span
@@ -5898,55 +5888,6 @@
         </section>
       {/if}
 
-      <!-- ── Video Frame Thumbnails (when no deepfake analysis) ────── -->
-      {#if !result.videoDeepfakeResult && result.videoFramesResult?.success && result.videoFramesResult.frames.length > 0}
-        {@const vf = result.videoFramesResult}
-        <section
-          class="px-5 py-4 border-t border-border-light dark:border-border-dark"
-          aria-labelledby="video-frames-heading"
-        >
-          <div class="flex items-center gap-3 mb-3">
-            <h2
-              id="video-frames-heading"
-              class="text-sm font-medium text-text-light dark:text-quartz"
-            >
-              Video Frame Samples
-            </h2>
-            <span class="text-xs text-flint dark:text-flint-light">
-              {vf.count} frame{vf.count !== 1 ? 's' : ''}
-              {#if vf.duration != null}
-                &middot; {Math.floor(vf.duration / 60)}:{String(Math.round(vf.duration % 60)).padStart(2, '0')} duration
-              {/if}
-            </span>
-          </div>
-
-          <div
-            class="grid gap-2"
-            style="grid-template-columns: repeat({Math.min(vf.frames.length, 4)}, 1fr);"
-            role="list"
-            aria-label="Representative video frame thumbnails"
-          >
-            {#each vf.frames as frame, i (i)}
-              <div
-                class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian aspect-video"
-                role="listitem"
-              >
-                <img
-                  src={blobs.url(frame, 'image/jpeg')}
-                  alt="Frame {i + 1} of {vf.frames.length} from video"
-                  class="w-full h-full object-cover"
-                />
-              </div>
-            {/each}
-          </div>
-
-          <p class="mt-2 text-xs text-flint dark:text-flint-light leading-relaxed">
-            Representative frames sampled evenly across the video duration. Inspect for visual
-            discontinuities, splice artefacts, or temporal inconsistencies.
-          </p>
-        </section>
-      {/if}
-
       <!-- ── Transcription ──────────────────────────────────────────── -->
       {#if result.transcriptionResult?.success}
         {@const tr = result.transcriptionResult}
@@ -6019,213 +5960,6 @@
           <p class="text-xs text-flint dark:text-flint-light">
             Speech transcription model not available. Install <code class="bg-gray-100 dark:bg-obsidian px-1 rounded">faster-whisper</code> in the Analysis Engine to enable audio transcription.
           </p>
-        </section>
-      {/if}
-
-      <!-- ── Audio Deepfake Detection ───────────────────────────────── -->
-      {#if (result.contentType === 'audio' || result.contentType === 'video') && result.audioDeepfakeResult}
-        {@const ad = result.audioDeepfakeResult}
-        <section
-          class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5"
-          aria-labelledby="audio-deepfake-heading"
-        >
-          {#if !ad.modelLoaded}
-            <!-- Model not yet deployed — informational notice only -->
-            <div
-              class="rounded-lg border border-lapis/30 bg-lapis/10 px-4 py-3 flex gap-3"
-              role="note"
-              aria-label="Voice authenticity analysis notice"
-            >
-              <svg
-                class="w-4 h-4 flex-shrink-0 mt-0.5 text-lapis dark:text-lapis-light"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <p class="text-xs font-medium text-lapis dark:text-lapis-light mb-0.5">
-                  Voice Authenticity Analysis
-                </p>
-                <p class="text-xs text-text-light dark:text-quartz">
-                  Voice authenticity analysis is not yet available on this installation.
-                  The audio deepfake model will be enabled in a future update.
-                </p>
-              </div>
-            </div>
-          {:else}
-            <!-- Model loaded — full result display -->
-            {@const verdictLabel =
-              ad.verdict === 'authentic' ? 'Likely authentic speech' :
-              ad.verdict === 'likely_synthetic' ? 'Likely synthetic speech' :
-              'Inconclusive'}
-            {@const verdictColour =
-              ad.verdict === 'authentic'
-                ? 'bg-malachite/10 text-malachite dark:text-malachite-light border-malachite/30'
-                : ad.verdict === 'likely_synthetic'
-                  ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light border-cinnabar/30'
-                  : 'bg-amber/10 text-amber dark:text-amber-light border-amber/30'}
-            {@const scoreBarColour =
-              ad.verdict === 'authentic'
-                ? 'bg-malachite dark:bg-malachite-light'
-                : ad.verdict === 'likely_synthetic'
-                  ? 'bg-cinnabar dark:bg-cinnabar-light'
-                  : 'bg-amber dark:bg-amber-light'}
-
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-3">
-                <h3
-                  id="audio-deepfake-heading"
-                  class="font-serif text-base font-semibold text-obsidian dark:text-white"
-                >
-                  Voice Authenticity
-                </h3>
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border {verdictColour}">
-                  {verdictLabel}
-                </span>
-              </div>
-              {#if ad.score !== null}
-                <span
-                  class="text-sm tabular-nums font-medium
-                    {ad.verdict === 'authentic' ? 'text-malachite dark:text-malachite-light' :
-                     ad.verdict === 'likely_synthetic' ? 'text-cinnabar dark:text-cinnabar-light' :
-                     'text-amber dark:text-amber-light'}"
-                  aria-label="Voice authenticity score {(ad.score * 100).toFixed(1)} per cent synthetic"
-                >
-                  {(ad.score * 100).toFixed(1)}%
-                </span>
-              {/if}
-            </div>
-
-            <!-- Score bar (0 = authentic end, 1 = synthetic end) -->
-            {#if ad.score !== null}
-              <div class="mb-4">
-                <div
-                  class="h-2 w-full rounded-full overflow-hidden bg-gray-200 dark:bg-graphite-light"
-                  role="img"
-                  aria-label="Voice authenticity score bar: {(ad.score * 100).toFixed(0)}% towards synthetic"
-                >
-                  <div
-                    class="h-full rounded-full transition-all duration-300 {scoreBarColour}"
-                    style="width: {Math.max(2, ad.score * 100)}%;"
-                  ></div>
-                </div>
-                <div class="flex justify-between text-xs text-flint dark:text-flint-light mt-1" aria-hidden="true">
-                  <span>Authentic</span>
-                  <span>Synthetic</span>
-                </div>
-              </div>
-            {/if}
-
-            <!-- Audio metadata (always shown) -->
-            {#if ad.durationSeconds !== null || ad.sampleRate !== null}
-              <div class="flex flex-wrap gap-4 mb-3">
-                {#if ad.durationSeconds !== null}
-                  <div class="text-xs text-flint dark:text-flint-light">
-                    Duration:
-                    <span class="text-text-light dark:text-quartz tabular-nums">
-                      {ad.durationSeconds < 60
-                        ? `${ad.durationSeconds.toFixed(1)}s`
-                        : `${Math.floor(ad.durationSeconds / 60)}:${String(Math.round(ad.durationSeconds % 60)).padStart(2, '0')}`}
-                    </span>
-                  </div>
-                {/if}
-                {#if ad.sampleRate !== null}
-                  <div class="text-xs text-flint dark:text-flint-light">
-                    Sample rate:
-                    <span class="text-text-light dark:text-quartz tabular-nums">
-                      {(ad.sampleRate / 1000).toFixed(1)} kHz
-                    </span>
-                  </div>
-                {/if}
-              </div>
-            {/if}
-
-            <!-- Stage breakdown + processing time (Expert View only) -->
-            {#if viewMode === 'expert'}
-              <details class="group mt-2">
-                <summary
-                  class="list-none flex items-center gap-2 cursor-pointer text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors duration-150 select-none"
-                  aria-label="Stage breakdown"
-                >
-                  <svg
-                    class="w-3.5 h-3.5 flex-shrink-0 motion-safe:transition-transform motion-safe:duration-200 group-open:rotate-90"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                  </svg>
-                  Stage breakdown
-                </summary>
-
-                <div class="mt-2 pl-5 space-y-2">
-                  <!-- Stage 1: MFCC -->
-                  <div class="flex items-center justify-between text-xs">
-                    <span class="text-text-light dark:text-quartz">
-                      Stage 1 — audio pattern analysis
-                      <span class="sr-only">(MFCC GradientBoosting classifier)</span>
-                    </span>
-                    <span class="tabular-nums text-flint dark:text-flint-light font-mono">
-                      {#if ad.stagesAvailable.includes('stage1') && ad.stage1Score !== null}
-                        {(ad.stage1Score * 100).toFixed(1)}%
-                      {:else}
-                        <span class="text-gray-400 dark:text-flint" aria-label="Not run">—</span>
-                      {/if}
-                    </span>
-                  </div>
-
-                  <!-- Stage 2: Wav2Vec2 -->
-                  <div class="flex items-center justify-between text-xs">
-                    <span class="text-text-light dark:text-quartz">
-                      Stage 2 — speech model analysis
-                      <span class="sr-only">(Wav2Vec2-Base logistic regression)</span>
-                    </span>
-                    <span class="tabular-nums text-flint dark:text-flint-light font-mono">
-                      {#if ad.stagesAvailable.includes('stage2') && ad.stage2Score !== null}
-                        {(ad.stage2Score * 100).toFixed(1)}%
-                      {:else}
-                        <span class="text-gray-400 dark:text-flint" aria-label="Not run">—</span>
-                      {/if}
-                    </span>
-                  </div>
-
-                  <!-- Feature extraction flags -->
-                  <div class="pt-1 border-t border-border-light dark:border-border-dark text-xs text-flint dark:text-flint-light space-y-1">
-                    <div class="flex items-center gap-2">
-                      <span
-                        class="w-1.5 h-1.5 rounded-full flex-shrink-0
-                          {ad.mfccFeaturesExtracted ? 'bg-malachite dark:bg-malachite-light' : 'bg-gray-400 dark:bg-flint'}"
-                        aria-hidden="true"
-                      ></span>
-                      Audio pattern features
-                      {ad.mfccFeaturesExtracted ? 'extracted' : 'not extracted'}
-                      <span class="sr-only">(MFCC — 160-dimensional feature vector)</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <span
-                        class="w-1.5 h-1.5 rounded-full flex-shrink-0
-                          {ad.wav2vec2EmbeddingExtracted ? 'bg-malachite dark:bg-malachite-light' : 'bg-gray-400 dark:bg-flint'}"
-                        aria-hidden="true"
-                      ></span>
-                      Speech model embedding
-                      {ad.wav2vec2EmbeddingExtracted ? 'extracted' : 'not extracted'}
-                      <span class="sr-only">(Wav2Vec2 — 768-dimensional embedding)</span>
-                    </div>
-                    {#if ad.processingTimeMs !== null}
-                      <div class="pt-1 tabular-nums">
-                        Processing time: {ad.processingTimeMs.toFixed(0)} ms
-                      </div>
-                    {/if}
-                  </div>
-                </div>
-              </details>
-            {/if}
-          {/if}
         </section>
       {/if}
 

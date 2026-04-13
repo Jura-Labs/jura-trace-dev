@@ -38,7 +38,7 @@ impl Database {
     /// installed. On first run, all tables are created and version is set to
     /// `SCHEMA_VERSION`. On subsequent runs, migrations are applied incrementally.
     fn init_schema(&self) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
         let current_version: i32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
@@ -358,7 +358,7 @@ impl Database {
 
     /// Insert a new asset record.
     pub fn insert_asset(&self, asset: &AssetRow) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         conn.execute(
             "INSERT INTO assets (asset_id, file_path, file_name, content_type, mime_type,
                                  file_size, width, height, metadata_json, c2pa_signed,
@@ -385,7 +385,7 @@ impl Database {
 
     /// Get all assets, most recent first.
     pub fn get_all_assets(&self) -> SqliteResult<Vec<Asset>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT a.asset_id, a.file_path, a.file_name, a.content_type, a.mime_type,
                     a.file_size, a.width, a.height, a.ai_description, a.ai_tags,
@@ -426,7 +426,7 @@ impl Database {
 
     /// Get dashboard statistics.
     pub fn get_stats(&self) -> SqliteResult<AppStats> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
         let total_assets: u64 = conn.query_row("SELECT COUNT(*) FROM assets", [], |r| r.get(0))?;
 
@@ -460,7 +460,7 @@ impl Database {
         hash_type: &str,
         hash_value: &str,
     ) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
             "INSERT INTO fingerprints (fingerprint_id, asset_id, hash_type, hash_value, created_at)
@@ -472,7 +472,7 @@ impl Database {
 
     /// Get all fingerprints for a given asset.
     pub fn get_fingerprints_for_asset(&self, asset_id: &str) -> SqliteResult<Vec<FingerprintRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT fingerprint_id, asset_id, hash_type, hash_value, created_at
              FROM fingerprints WHERE asset_id = ?1",
@@ -494,7 +494,7 @@ impl Database {
         &self,
         hash_type: &str,
     ) -> SqliteResult<Vec<FingerprintRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT fingerprint_id, asset_id, hash_type, hash_value, created_at
              FROM fingerprints WHERE hash_type = ?1",
@@ -515,7 +515,7 @@ impl Database {
 
     /// Get a single asset by its ID.
     pub fn get_asset_by_id(&self, asset_id: &str) -> SqliteResult<Option<Asset>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT a.asset_id, a.file_path, a.file_name, a.content_type, a.mime_type,
                     a.file_size, a.width, a.height, a.ai_description, a.ai_tags,
@@ -560,7 +560,7 @@ impl Database {
 
     /// Mark an asset as C2PA-signed and update its file path to the signed copy.
     pub fn set_c2pa_signed(&self, asset_id: &str, file_path: &str) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         conn.execute(
             "UPDATE assets SET c2pa_signed = 1, file_path = ?1 WHERE asset_id = ?2",
             params![file_path, asset_id],
@@ -571,7 +571,7 @@ impl Database {
     /// Mark an asset as watermarked and update its stored file path to the
     /// watermarked output file.
     pub fn set_watermarked(&self, asset_id: &str, file_path: &str) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         conn.execute(
             "UPDATE assets SET watermarked = 1, file_path = ?1 WHERE asset_id = ?2",
             params![file_path, asset_id],
@@ -608,7 +608,7 @@ impl Database {
         analysis_mode: Option<&str>,
         detectors_run: Option<&str>,
     ) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let now = chrono::Utc::now().to_rfc3339();
         let flags_json = serde_json::to_string(metadata_flags).unwrap_or_default();
         conn.execute(
@@ -641,7 +641,7 @@ impl Database {
 
     /// Delete an asset and its associated fingerprints.
     pub fn delete_asset(&self, asset_id: &str) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         conn.execute(
             "DELETE FROM fingerprints WHERE asset_id = ?1",
             params![asset_id],
@@ -658,7 +658,7 @@ impl Database {
         fingerprinted: Option<bool>,
         search_query: Option<&str>,
     ) -> SqliteResult<Vec<Asset>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
         let mut conditions = Vec::new();
         let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
@@ -752,7 +752,7 @@ impl Database {
 
     /// Get the N most recently imported assets.
     pub fn get_recent_assets(&self, limit: u32) -> SqliteResult<Vec<Asset>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT a.asset_id, a.file_path, a.file_name, a.content_type, a.mime_type,
                     a.file_size, a.width, a.height, a.ai_description, a.ai_tags,
@@ -813,7 +813,7 @@ impl Database {
         signal_scores_json: Option<&str>,
         created_at: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         conn.execute(
             "INSERT INTO false_positive_reports
              (id, verification_id, file_hash, reason_code, reason_note,
@@ -837,7 +837,7 @@ impl Database {
 
     /// Return the total number of false-positive reports stored.
     pub fn get_false_positive_count(&self) -> Result<u64, Box<dyn std::error::Error>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let count: u64 =
             conn.query_row("SELECT COUNT(*) FROM false_positive_reports", [], |r| {
                 r.get(0)
@@ -849,7 +849,7 @@ impl Database {
     pub fn get_false_positive_reports(
         &self,
     ) -> Result<Vec<FalsePositiveReport>, Box<dyn std::error::Error>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT id, verification_id, reason_code, reason_note, mime_type,
                     deepfake_score, deepfake_verdict, created_at
@@ -884,7 +884,7 @@ impl Database {
         limit: u32,
         action_filter: Option<&str>,
     ) -> SqliteResult<Vec<AuditLogEntry>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
         // Use a single parameterised query path.  When no filter is needed we
         // supply a wildcard that matches every action value via LIKE '%%',
@@ -918,7 +918,7 @@ impl Database {
         limit: u32,
         offset: u32,
     ) -> SqliteResult<Vec<VerificationSummary>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT verification_id, source_type, content_type,
                     ela_score, deepfake_score, c2pa_valid,
@@ -956,7 +956,7 @@ impl Database {
     ///
     /// Thresholds: high >= 0.7, medium 0.4–0.7 (exclusive), low < 0.4.
     pub fn get_trust_distribution(&self) -> SqliteResult<TrustDistribution> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
         let total: u64 = conn.query_row("SELECT COUNT(*) FROM verifications", [], |r| r.get(0))?;
 
@@ -1000,7 +1000,7 @@ impl Database {
     /// number of distinct assets that have at least one fingerprint record.
     /// Also builds a per-`content_type` count map.
     pub fn get_protection_summary(&self) -> SqliteResult<ProtectionSummary> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
         let total_assets: u64 = conn.query_row("SELECT COUNT(*) FROM assets", [], |r| r.get(0))?;
 
@@ -1059,7 +1059,7 @@ impl Database {
     /// Each entry aggregates how many audit log entries of each action type
     /// occurred on that UTC date. Days with no activity are omitted.
     pub fn get_activity_timeline(&self, days: u32) -> SqliteResult<Vec<ActivityDay>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
         // Collect all relevant rows: (date_str, action)
         // SQLite's substr gives YYYY-MM-DD from an ISO-8601 timestamp.
@@ -1116,7 +1116,7 @@ impl Database {
         operator_id: Option<&str>,
         algorithm_metadata: Option<&str>,
     ) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let log_id = uuid::Uuid::new_v4().to_string();
         // Use millisecond precision to reduce the probability of two entries
         // sharing the same `created_at` value (which would make the chain
@@ -1171,7 +1171,7 @@ impl Database {
     /// `Ok(false)` if any entry has been modified, deleted, or reordered, or
     /// if any entry is missing its hash (legacy rows pre-migration).
     pub fn verify_audit_chain(&self) -> SqliteResult<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
         let mut stmt = conn.prepare(
             "SELECT action, target_type, target_id, details, created_at,
@@ -1267,7 +1267,7 @@ impl Database {
         asset_id: Option<&str>,
         frequency: &str,
     ) -> SqliteResult<MonitorUrl> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let url_id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
@@ -1295,7 +1295,7 @@ impl Database {
 
     /// Delete a monitored URL and all its events (CASCADE).
     pub fn remove_monitor_url(&self, url_id: &str) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         conn.execute(
             "DELETE FROM monitor_urls WHERE url_id = ?1",
             params![url_id],
@@ -1308,7 +1308,7 @@ impl Database {
     /// Results are ordered by `created_at` descending so the most recently
     /// added URLs appear first.
     pub fn list_monitor_urls(&self, enabled_only: bool) -> SqliteResult<Vec<MonitorUrl>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let sql = "SELECT url_id, asset_id, url, label, check_frequency,
                           last_checked_at, last_status, last_content_hash,
                           last_c2pa_valid, last_watermark_match, enabled,
@@ -1339,7 +1339,7 @@ impl Database {
 
     /// Return the most recent events for a given URL, newest first.
     pub fn get_monitor_events(&self, url_id: &str, limit: u32) -> SqliteResult<Vec<MonitorEvent>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT event_id, url_id, event_type, checked_at,
                     content_hash, c2pa_valid, watermark_uuid, watermark_confidence,
@@ -1374,7 +1374,7 @@ impl Database {
 
     /// Insert a new annotation record.
     pub fn insert_annotation(&self, ann: &Annotation) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         conn.execute(
             "INSERT INTO annotations
              (annotation_id, verification_id, asset_id, annotation_type, data_json, created_at)
@@ -1393,7 +1393,7 @@ impl Database {
 
     /// Retrieve all annotations associated with a given asset, newest first.
     pub fn get_annotations_for_asset(&self, asset_id: &str) -> SqliteResult<Vec<Annotation>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT annotation_id, verification_id, asset_id, annotation_type,
                     data_json, created_at
@@ -1419,7 +1419,7 @@ impl Database {
         &self,
         verification_id: &str,
     ) -> SqliteResult<Vec<Annotation>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT annotation_id, verification_id, asset_id, annotation_type,
                     data_json, created_at
@@ -1442,7 +1442,7 @@ impl Database {
 
     /// Delete a single annotation by its ID.
     pub fn delete_annotation(&self, annotation_id: &str) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         conn.execute(
             "DELETE FROM annotations WHERE annotation_id = ?1",
             params![annotation_id],
@@ -1452,7 +1452,7 @@ impl Database {
 
     /// Delete all annotations for a given asset.
     pub fn delete_annotations_for_asset(&self, asset_id: &str) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         conn.execute(
             "DELETE FROM annotations WHERE asset_id = ?1",
             params![asset_id],
@@ -1485,7 +1485,7 @@ impl Database {
         response_time_ms: Option<i32>,
         detail_json: Option<&str>,
     ) -> SqliteResult<MonitorEvent> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let event_id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
@@ -1535,7 +1535,7 @@ impl Database {
         c2pa_valid: Option<bool>,
         watermark_match: Option<bool>,
     ) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         conn.execute(
             "UPDATE monitor_urls
              SET last_checked_at    = datetime('now'),
@@ -1561,7 +1561,7 @@ impl Database {
     /// Used by the scheduler to compute the elapsed time since the last check
     /// without loading the full event list.
     pub fn get_latest_monitor_event(&self, url_id: &str) -> SqliteResult<Option<MonitorEvent>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT event_id, url_id, event_type, checked_at,
                     content_hash, c2pa_valid, watermark_uuid, watermark_confidence,
@@ -1613,7 +1613,7 @@ impl Database {
                 )));
             }
         }
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         conn.execute(
             "UPDATE monitor_events
              SET case_status = ?1, case_notes = ?2, case_updated_at = datetime('now')
@@ -1792,7 +1792,7 @@ impl Database {
         key_hash: &str,
         rate_limit: i64,
     ) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
             "INSERT INTO api_keys (key_id, name, key_hash, rate_limit, revoked, created_at)
@@ -1806,7 +1806,7 @@ impl Database {
     ///
     /// Returns `None` when the hash is not found or the key has been revoked.
     pub fn verify_api_key(&self, key_hash: &str) -> SqliteResult<Option<ApiKeyRecord>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT key_id, name, key_hash, rate_limit, revoked, created_at
              FROM api_keys
@@ -1828,7 +1828,7 @@ impl Database {
 
     /// Return all API keys (including revoked), ordered by creation time descending.
     pub fn list_api_keys(&self) -> SqliteResult<Vec<ApiKeyRecord>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT key_id, name, key_hash, rate_limit, revoked, created_at
              FROM api_keys
@@ -1851,7 +1851,7 @@ impl Database {
     ///
     /// Revoking a non-existent key is a no-op and returns `Ok(())`.
     pub fn revoke_api_key(&self, key_id: &str) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         conn.execute(
             "UPDATE api_keys SET revoked = 1 WHERE key_id = ?1",
             params![key_id],
@@ -1861,7 +1861,7 @@ impl Database {
 
     /// Return `true` if there is at least one non-revoked API key in the database.
     pub fn has_active_api_keys(&self) -> SqliteResult<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let count: i64 = conn.query_row(
             "SELECT COUNT(*) FROM api_keys WHERE revoked = 0",
             [],
@@ -1999,7 +1999,7 @@ mod tests {
         db.log_action("import", "asset", "a1", Some("test details"), None, None)
             .unwrap();
 
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let operator: String = conn
             .query_row(
                 "SELECT operator_id FROM audit_log WHERE target_id = 'a1'",
@@ -2016,7 +2016,7 @@ mod tests {
         db.log_action("verify", "asset", "a2", None, Some("museum_admin"), None)
             .unwrap();
 
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let operator: String = conn
             .query_row(
                 "SELECT operator_id FROM audit_log WHERE target_id = 'a2'",
@@ -2427,7 +2427,7 @@ mod tests {
         db.log_action("fingerprint", "asset", "a3", None, None, Some(meta))
             .unwrap();
 
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let stored: Option<String> = conn
             .query_row(
                 "SELECT algorithm_metadata FROM audit_log WHERE target_id = 'a3'",
@@ -2543,7 +2543,7 @@ mod tests {
 
         // Directly corrupt the entry_hash of the first row to simulate tampering.
         {
-            let conn = db.conn.lock().unwrap();
+            let conn = db.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
             conn.execute(
                 "UPDATE audit_log SET entry_hash = 'deadbeef' WHERE target_id = 'a1'",
                 [],
@@ -2560,7 +2560,7 @@ mod tests {
         db.log_action("import", "asset", "x1", Some("details"), None, None)
             .unwrap();
 
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let (prev_hash, entry_hash): (Option<String>, Option<String>) = conn
             .query_row(
                 "SELECT prev_hash, entry_hash FROM audit_log WHERE target_id = 'x1'",
@@ -2883,7 +2883,7 @@ mod tests {
 
         // All within the last 30 days
         let now = chrono::Utc::now().to_rfc3339();
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         // Insert directly to control timestamps precisely
         conn.execute(
             "INSERT INTO audit_log (log_id, action, target_type, target_id, details, operator_id, created_at)
@@ -2934,7 +2934,7 @@ mod tests {
         // One recent, one old (beyond the window)
         let recent = chrono::Utc::now().to_rfc3339();
         let old = "2020-01-01T00:00:00Z";
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         conn.execute(
             "INSERT INTO audit_log (log_id, action, target_type, target_id, details, operator_id, created_at)
              VALUES ('r1', 'import', 'asset', 'a1', NULL, 'local_user', ?1)",
@@ -3004,7 +3004,7 @@ mod tests {
 
         // Insert an event directly via raw SQL to simulate a check having been run
         {
-            let conn = db.conn.lock().unwrap();
+            let conn = db.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
             let event_id = uuid::Uuid::new_v4().to_string();
             conn.execute(
                 "INSERT INTO monitor_events
@@ -3043,7 +3043,7 @@ mod tests {
         // Insert an event directly
         let event_id = uuid::Uuid::new_v4().to_string();
         {
-            let conn = db.conn.lock().unwrap();
+            let conn = db.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
             conn.execute(
                 "INSERT INTO monitor_events
                  (event_id, url_id, event_type, checked_at, case_status)
@@ -3098,7 +3098,7 @@ mod tests {
             )
             .unwrap();
         {
-            let conn = db.conn.lock().unwrap();
+            let conn = db.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
             conn.execute(
                 "UPDATE monitor_urls SET enabled = 0 WHERE url_id = ?1",
                 params![disabled.url_id],

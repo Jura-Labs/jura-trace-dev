@@ -1328,14 +1328,9 @@ fn verify_content_inner(
             }),
             Some(bytes) => {
                 let thumb_hash = fingerprint::compute_phash_from_bytes(&bytes);
-                // Compute main image pHash from file (reuse existing hashes if
-                // fingerprinting is running anyway, but this is a verify path
-                // so we compute it inline — it is cheap, ~1 ms for a 2 MP image).
-                let main_hashes = fingerprint::compute_hashes(&path);
-                let main_phash = main_hashes
-                    .iter()
-                    .find(|h| h.algorithm == fingerprint::HashAlgorithm::PHash)
-                    .map(|h| h.hash_hex.clone());
+                // Compute only a pHash of the main image — we only need
+                // pHash for the thumbnail mismatch check (not aHash/dHash).
+                let main_phash = fingerprint::compute_phash(&path);
 
                 match (thumb_hash, main_phash) {
                     (Some(th), Some(mh)) => {

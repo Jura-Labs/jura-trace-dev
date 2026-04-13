@@ -652,67 +652,9 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
     y += SECTION_GAP;
   }
 
-  // ── Video Frame Analysis ────────────────────────────────────
-  const frames = result.videoFramesResult?.frames;
-  if (frames && frames.length > 0 && result.videoFramesResult?.success) {
-    heading('Video Frame Analysis');
-
-    const frameCount = Math.min(frames.length, 6);
-    const duration = result.videoFramesResult.duration;
-    if (duration != null) {
-      row('Video Duration', `${duration.toFixed(1)} s`);
-    }
-    row('Frames Sampled', `${frameCount} of ${frames.length}`);
-
-    y += 2;
-
-    // Render frames in a 3-column grid (3 columns × 2 rows = up to 6 frames)
-    // Each frame thumbnail: ~57 mm wide, ~43 mm tall, 3 mm gutter
-    const frameW = 57;
-    const frameH = 43;
-    const gutterX = 3;
-    const cols = 3;
-
-    for (let i = 0; i < frameCount; i++) {
-      const col = i % cols;
-      const rowIdx = Math.floor(i / cols);
-
-      if (col === 0) {
-        // Start of a new grid row — check we have space for a full row height
-        checkPage(frameH + 12);
-      }
-
-      const xPos = MARGIN + col * (frameW + gutterX);
-      const yPos = y + rowIdx * (frameH + 10);
-
-      // Calculate timestamp from total duration if available
-      const timestampLabel = duration != null && frames.length > 1
-        ? `${((i / (frames.length - 1)) * duration).toFixed(1)} s`
-        : `Frame ${i + 1}`;
-
-      try {
-        doc.addImage(`data:image/jpeg;base64,${frames[i]}`, 'JPEG', xPos, yPos, frameW, frameH);
-      } catch {
-        // Embed failed — draw a placeholder rectangle
-        doc.setDrawColor(180);
-        doc.setFillColor(240, 240, 240);
-        doc.rect(xPos, yPos, frameW, frameH, 'FD');
-        doc.setFontSize(7);
-        doc.setTextColor(120);
-        doc.text('Frame unavailable', xPos + 2, yPos + frameH / 2);
-      }
-
-      // Timestamp label beneath each frame
-      doc.setFontSize(7);
-      doc.setTextColor(100);
-      doc.text(timestampLabel, xPos + frameW / 2, yPos + frameH + 4, { align: 'center' });
-    }
-
-    // Advance y past the grid rows
-    const gridRows = Math.ceil(frameCount / cols);
-    y += gridRows * (frameH + 10);
-    y += SECTION_GAP;
-  }
+  // Video Frame Analysis section removed — videoFramesResult not
+  // populated by backend. Video deepfake per-frame scores still render
+  // in the Video Deepfake section above.
 
   // Compute once here — used both in the signal-scores section below
   // and in the Methodology block further down.

@@ -98,6 +98,28 @@ pub fn compute_hashes(path: &Path) -> Vec<HashResult> {
         .collect()
 }
 
+/// Compute only a pHash for a file on disk.
+///
+/// Lighter than `compute_hashes` when only the pHash is needed (e.g.
+/// thumbnail mismatch check in the verify pipeline). Still requires a
+/// full image decode but skips the aHash and dHash computations.
+pub fn compute_phash(path: &Path) -> Option<String> {
+    let img = match image::open(path) {
+        Ok(img) => img,
+        Err(e) => {
+            log::warn!("Cannot compute pHash for {}: {e}", path.display());
+            return None;
+        }
+    };
+    let hasher = HasherConfig::new()
+        .hash_alg(HashAlg::DoubleGradient)
+        .hash_size(8, 8)
+        .to_hasher();
+    let hash = hasher.hash_image(&img);
+    let raw_hex: String = hash.as_bytes().iter().map(|b| format!("{b:02x}")).collect();
+    Some(format!("{raw_hex:0>16}"))
+}
+
 /// Compute a pHash from raw image bytes (e.g. an in-memory JPEG thumbnail).
 ///
 /// Decodes the bytes using the `image` crate and computes a pHash

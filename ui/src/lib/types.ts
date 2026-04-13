@@ -431,10 +431,8 @@ export interface VerificationResult {
   spliceBoundaryResult?: SpliceBoundaryResult | null;
   aiGenerator?: string;
   watermarkExtractResult?: WatermarkExtractResult | null;
-  videoFramesResult?: VideoFramesResult | null;
   videoDeepfakeResult?: VideoDeepfakeResult | null;
   transcriptionResult?: TranscriptionResult | null;
-  audioDeepfakeResult?: AudioDeepfakeResult | null;
   claimCheckResult?: ClaimCheckResult | null;
   /** AI-generated natural-language description via Ollama LLaVA. Only present
    * for image content when Ollama is running with llava:7b pulled. */
