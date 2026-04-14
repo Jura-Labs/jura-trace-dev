@@ -190,6 +190,14 @@ pub struct VerificationResult {
     pub methodology: Option<MethodologyRecord>,
     /// Input quality assessment — identifies conditions that degrade detector reliability.
     pub input_quality: Option<InputQualityAssessment>,
+    /// Semantic content-type classification from the sidecar.
+    ///
+    /// Populated for image content when the sidecar is available.  When
+    /// `ai_detection_suitable` is `false` (e.g. category is `"screenshot"` or
+    /// `"document"`), the deepfake and CLIP AI-detection contributions are
+    /// neutralised to 0.5 in trust scoring.  `None` when the sidecar is
+    /// offline or the content type is not an image.
+    pub content_type_result: Option<sidecar::ContentTypeResult>,
     /// Stable string identifiers for every detector that produced a result
     /// for this verification. Consumers (PDF / ZIP renderers, Expert View
     /// badges) use this as an authoritative list of what ran, so that
@@ -714,7 +722,49 @@ fn compute_trust(
     // quality-adaptive effective weight for JPEG Ghost scoring.
     // `None` for non-JPEG inputs — falls back to the 0.5 base weight.
     jpeg_quality_estimate: Option<u8>,
+    // Content-type category from the sidecar classifier.
+    // When `None` or `Some("photograph")` | `Some("artwork")`, AI-detection
+    // signals are used normally.  When the category indicates AI models are
+    // unreliable (`"screenshot"`, `"document"`, `"unknown"` with
+    // ai_detection_suitable=false), deepfake and CLIP contributions are
+    // neutralised to 0.5 (mid-scale) so they do not inflate or deflate the
+    // trust score.
+    //
+    // The `ai_detection_suitable` flag is the authoritative gate; callers
+    // that pass `Some("screenshot")` directly should also pass `false` for
+    // `ai_detection_suitable` — the two are always consistent.
+    content_type_category: Option<&str>,
+    ai_detection_suitable: bool,
 ) -> f64 {
+    // ── AI-detection suppression ─────────────────────────────────────
+    // Screenshots and documents cause systematic false positives in the
+    // deepfake GBM and CLIP probe because both models were trained
+    // exclusively on photographic content.  When the content-type
+    // classifier marks a file as unsuitable for AI detection, we pin those
+    // signals to 0.5 (neutral — no opinion) so they contribute neither
+    // positively nor negatively to the trust score.
+    let effective_deepfake_score = if !ai_detection_suitable {
+        log::info!(
+            "Content type: {} (ai_detection_suitable=false), suppressing AI detection contribution",
+            content_type_category.unwrap_or("unknown")
+        );
+        deepfake_score.map(|_| 0.5) // neutral
+    } else {
+        deepfake_score
+    };
+    // The effective deepfake verdict and confidence should also be suppressed
+    // so the verdict ceiling in compute_trust is not triggered.
+    let effective_deepfake_confidence = if ai_detection_suitable {
+        deepfake_confidence
+    } else {
+        None
+    };
+    let effective_deepfake_verdict = if ai_detection_suitable {
+        deepfake_verdict
+    } else {
+        None
+    };
+
     // C2PA that honestly declares AI generation should penalise trust — the
     // content's own provenance record confirms it is synthetic.  A valid
     // manifest without an AI declaration is still a positive provenance signal.
@@ -726,11 +776,14 @@ fn compute_trust(
         0.0
     };
 
-    // Use the raw deepfake score for forensic trust. Confidence is expressed
-    // via the verdict ceiling below, not by scaling the score down. The old
-    // confidence_weight multiplier (low=0.3) nearly eliminated the signal,
-    // causing a fake image to show 92% "High Trust" alongside "Inconclusive".
-    let deepfake_trust = deepfake_score.map(|s| 1.0 - s);
+    // Use the effective deepfake score for forensic trust. When AI-detection
+    // has been suppressed (e.g. screenshot/document), effective_deepfake_score
+    // is pinned to Some(0.5) which yields a neutral deepfake_trust of 0.5.
+    // Confidence is expressed via the verdict ceiling below, not by scaling
+    // the score down. The old confidence_weight multiplier (low=0.3) nearly
+    // eliminated the signal, causing a fake image to show 92% "High Trust"
+    // alongside "Inconclusive".
+    let deepfake_trust = effective_deepfake_score.map(|s| 1.0 - s);
 
     // Weighted manipulation signals: ELA, noise, and copy-move at weight 1.0.
     // ELA was previously 2.0 but forensic audit found it generates too many
@@ -887,8 +940,11 @@ fn compute_trust(
     // the image is authentic — trust must reflect that epistemic gap.
     // A "synthetic" verdict with low confidence is semantically equivalent
     // to "inconclusive" — cap in the medium range.
-    let verdict_ceiling = match deepfake_verdict {
-        Some("synthetic") => match deepfake_confidence {
+    // Use effective_deepfake_verdict / effective_deepfake_confidence here so
+    // that suppressed AI-detection (screenshot/document) does not trigger the
+    // verdict ceiling (both will be None when ai_detection_suitable=false).
+    let verdict_ceiling = match effective_deepfake_verdict {
+        Some("synthetic") => match effective_deepfake_confidence {
             Some("high") => 0.25,
             Some("medium") => 0.35,
             _ => 0.45, // low confidence synthetic ≈ inconclusive
@@ -1751,6 +1807,45 @@ fn verify_content_inner(
         .map(|a| a.camera_authenticity_bonus)
         .unwrap_or(0.0);
 
+    // ── Content-type classification (screenshot/document guard) ─────────────
+    // Run before the standard parallel group so the result is available to
+    // suppress AI-detection signals in trust scoring when the classifier
+    // reports the content is unsuitable (e.g. screenshot, document).
+    //
+    // The endpoint is fast (<500 ms p95) and does not block the parallel group —
+    // it runs synchronously here because it is cheap and its result must be
+    // known before the standard group fires.
+    let content_type_result: Option<sidecar::ContentTypeResult> = if is_image && sidecar_up {
+        match app.sidecar.classify_content_type(&path) {
+            Ok(ct) => {
+                log::info!(
+                    "Content-type classification: category={}, confidence={:.2}, ai_detection_suitable={}",
+                    ct.category,
+                    ct.confidence,
+                    ct.ai_detection_suitable
+                );
+                Some(ct)
+            }
+            Err(e) => {
+                log::warn!("Sidecar content-type classification failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // Derive suppression flags from the content-type result.
+    // Default: ai_detection_suitable=true (no suppression) so that pipelines
+    // where the sidecar is offline or the file is not an image behave as before.
+    let ai_detection_suitable = content_type_result
+        .as_ref()
+        .map(|ct| ct.ai_detection_suitable)
+        .unwrap_or(true);
+    let content_type_category: Option<&str> = content_type_result
+        .as_ref()
+        .map(|ct| ct.category.as_str());
+
     // ── Standard parallel group ──────────────────────────────────────────
     // ELA + deepfake + watermark extraction are independent and each takes
     // 1-5 s. Running them concurrently cuts standard-mode wall time from
@@ -2079,10 +2174,18 @@ fn verify_content_inner(
     };
 
     // Build metadata flags from findings
-    let metadata_flags: Vec<String> = exif_analysis
+    let mut metadata_flags: Vec<String> = exif_analysis
         .as_ref()
         .map(|a| a.findings.iter().map(|f| f.title.clone()).collect())
         .unwrap_or_default();
+    // Append a content-type suppression notice when AI-detection signals have
+    // been neutralised so the UI can surface a clear, non-alarmist explanation.
+    if !ai_detection_suitable {
+        let category = content_type_category.unwrap_or("unknown");
+        metadata_flags.push(format!(
+            "Screenshot — AI detection disabled: content classified as \"{category}\"; deepfake and AI-origin scores are not reliable for this content type and have been excluded from the trust score."
+        ));
+    }
 
     // ── Trust score computation ───────────────────────────────────────────
     let t_trust = std::time::Instant::now();
@@ -2119,6 +2222,8 @@ fn verify_content_inner(
             ai_declared_by_c2pa,
             jpeg_ghost_score,
             input_quality.as_ref().and_then(|q| q.jpeg_quality_estimate),
+            content_type_category,
+            ai_detection_suitable,
         )
     };
     log::info!("PERF: trust score computation took {:?}", t_trust.elapsed());
@@ -2312,6 +2417,7 @@ fn verify_content_inner(
         input_sha256,
         methodology,
         input_quality,
+        content_type_result,
         detectors_run: detectors_run_list.iter().map(|s| s.to_string()).collect(),
     })
 }
@@ -4629,6 +4735,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(trust > 0.85, "Expected >0.85, got {trust:.3}");
     }
@@ -4652,6 +4760,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(trust < 0.5, "Expected <0.5, got {trust:.3}");
     }
@@ -4675,6 +4785,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(trust > 0.50, "Expected >0.50, got {trust:.3}");
     }
@@ -4698,6 +4810,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(trust < 0.55, "Expected <0.55, got {trust:.3}");
     }
@@ -4721,6 +4835,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust_weighted > 0.55,
@@ -4746,6 +4862,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         let trust_with = compute_trust(
             Some(0.1),
@@ -4763,6 +4881,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust_with > trust_without,
@@ -4775,6 +4895,8 @@ mod tests {
         let trust = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false, None,
             None,
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!((trust - 0.8).abs() < 0.01, "Expected ~0.8, got {trust:.3}");
     }
@@ -4797,6 +4919,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust > 0.65,
@@ -4823,6 +4947,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(trust <= 1.0, "Trust exceeded 1.0: {trust:.3}");
     }
@@ -4849,6 +4975,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust <= 0.55,
@@ -4878,6 +5006,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust <= 0.25,
@@ -4904,6 +5034,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust <= 0.45,
@@ -4929,6 +5061,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust > 0.85,
@@ -4955,6 +5089,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust > 0.70,
@@ -5101,6 +5237,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust <= 0.55,
@@ -5151,6 +5289,7 @@ mod tests {
             input_sha256: None,
             methodology: None,
             input_quality: None,
+            content_type_result: None,
             detectors_run: Vec::new(),
         };
         let json = serde_json::to_string(&result).unwrap();
@@ -5181,6 +5320,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         let trust_without = compute_trust(
             Some(0.05),
@@ -5198,6 +5339,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust_with < trust_without,
@@ -5224,6 +5367,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust <= 0.55,
@@ -5252,6 +5397,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust <= 0.55,
@@ -5278,6 +5425,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust > 0.55,
@@ -5304,6 +5453,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         let trust_no_regional = compute_trust(
             Some(0.04),
@@ -5321,6 +5472,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         // With all regional detectors clean the trust should be close to the
         // no-regional baseline (regional scores ≈ 0 contribute ~1.0 trust).
@@ -5351,6 +5504,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust <= 0.55,
@@ -5388,6 +5543,8 @@ mod tests {
             false,
             Some(0.6), // JPEG Ghost suspicious
             Some(95),  // jpeg_quality_estimate → effective_weight=0.475
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         let trust_base = compute_trust(
             Some(0.1), // same ELA
@@ -5405,6 +5562,8 @@ mod tests {
             false,
             Some(0.6), // same ghost score
             None,      // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         // At Q=95, effective_weight=0.475 vs base=0.5 — small difference (< 3pp)
         assert!(
@@ -5434,6 +5593,8 @@ mod tests {
             false,
             Some(0.9), // JPEG Ghost very suspicious
             Some(75),  // jpeg_quality_estimate → effective_weight=0.375
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         let trust_base = compute_trust(
             Some(0.1), // same ELA
@@ -5451,6 +5612,8 @@ mod tests {
             false,
             Some(0.9), // same ghost score
             None,      // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         // Q=75 → effective_weight=0.375 < 0.5 → ghost penalises less → higher trust
         assert!(
@@ -5481,6 +5644,8 @@ mod tests {
             false,
             Some(0.8), // JPEG Ghost suspicious
             Some(30),  // jpeg_quality_estimate — floor exactly engaged
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         let trust_q20 = compute_trust(
             Some(0.1), // same ELA
@@ -5498,6 +5663,8 @@ mod tests {
             false,
             Some(0.8), // same ghost score
             Some(20),  // jpeg_quality_estimate — floor also engaged
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         // Both floor at quality_factor=0.30 → effective_weight=0.15 → same trust
         assert!(
@@ -5527,11 +5694,15 @@ mod tests {
             false,
             Some(0.7), // JPEG Ghost suspicious
             None,      // jpeg_quality_estimate: None → quality_factor=1.0
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         let trust_no_ghost = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false,
             None, // no JPEG Ghost score at all
             None, // jpeg_quality_estimate: None uses 0.5 base weight
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust_with_ghost < trust_no_ghost,
@@ -5563,6 +5734,8 @@ mod tests {
             false,
             Some(0.9), // highly suspicious ghost
             Some(95),  // direct camera upload → effective_weight=0.475
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         let trust_low_q = compute_trust(
             Some(0.1), // same ELA
@@ -5580,6 +5753,8 @@ mod tests {
             false,
             Some(0.9), // same ghost score
             Some(20),  // heavy compression → effective_weight=0.15 (floor at q/100=0.30)
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust_low_q > trust_high_q,
@@ -5737,6 +5912,8 @@ mod tests {
             true, // AI declared
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         let trust_no_ai = compute_trust(
             Some(0.1),
@@ -5754,6 +5931,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust_ai_declared < trust_no_ai,
@@ -5782,10 +5961,14 @@ mod tests {
             true,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         let trust_none = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false, None,
             None,
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust_ai < trust_none,
@@ -5813,6 +5996,8 @@ mod tests {
             false,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         let trust_ai = compute_trust(
             None,
@@ -5830,6 +6015,8 @@ mod tests {
             true,
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None, // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
         );
         // valid: 1.0 + 0.10 capped at 1.0 = 1.0
         assert!(

@@ -4,7 +4,7 @@
   import { verifyFile, verifyUrl, checkSidecarHealth, openBatchFileDialog, markFalsePositive, parseAppError, getLicenceTier, extractTextFromImage, calculateSunPosition, estimateShadowTime, analyseRoi, saveAnnotation, getAnnotations, deleteAnnotationApi } from '$lib/api';
   import { getTrustLevel, SEVERITY_CONFIG, formatFileSize, formatDuration } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
-  import type { Annotation, AnnotationData, InputQualityAssessment, LicenceTier, VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult, SolarPosition, TimeEstimate, RoiAnalysisResult } from '$lib/types';
+  import type { Annotation, AnnotationData, ContentTypeResult, InputQualityAssessment, LicenceTier, VerificationResult, AnomalyFinding, SidecarHealth, VerifyMode, BatchItem, SegmentedElaResult, ShadowConsistencyResult, ColourTemperatureResult, SpliceBoundaryResult, ClipDetectionResult, RagClaimResult, VideoDeepfakeResult, FrameDeepfakeResult, TranscriptionResult, ClaimCheckResult, SolarPosition, TimeEstimate, RoiAnalysisResult } from '$lib/types';
   import VerdictSummary from '$lib/components/VerdictSummary.svelte';
   import SimpleVerdict from '$lib/components/SimpleVerdict.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
@@ -110,6 +110,17 @@
   /** Set to true when the user cancels mid-analysis; causes the result to be discarded. */
   let cancelled = $state(false);
 
+  /**
+   * True when the content-type classifier has marked AI detection as
+   * unsuitable for this image (screenshot, document, or low-confidence
+   * unknown). Drives the amber suppression banner and the "Suppressed"
+   * badge on the deepfake and CLIP panels.
+   */
+  const aiDetectionSuppressed = $derived(
+    result?.contentTypeResult != null &&
+    result.contentTypeResult.aiDetectionSuitable === false
+  );
+
   /** Analysis mode label shown during progress. */
   const estimatedTime = $derived(
     verifyMode === 'archival' ? 'Running archival analysis…'
@@ -119,6 +130,8 @@
   let showTechnicalDetails = $state(false);
   let showInvestigatePanel = $state(false);
   let showSignalAgreement = $state(false);
+  /** Whether the content-type "Why?" expandable is open. */
+  let showContentTypeWhy = $state(false);
   let showRegionAnalysis = $state(false);
   let expandedFrameIndex = $state<number | null>(null);
 
@@ -3511,6 +3524,94 @@
         </nav>
       {/if}
 
+      <!-- ── Content-type suppression banner snippet ────────────────
+           Reused in both simple view (after SimpleVerdict) and expert
+           view (after VerdictSummary). Amber — informational, not error.
+      ──────────────────────────────────────────────────────────────── -->
+      {#snippet contentTypeBanner(ct: ContentTypeResult)}
+        {@const bannerText =
+          ct.category === 'screenshot'
+            ? 'Screenshot detected — AI detection has been suppressed. Screenshots of AI images should be verified against the original source where possible.'
+            : ct.category === 'document'
+              ? 'Document detected — AI detection has been suppressed. Document verification uses different methods; consider the source rather than the image itself.'
+              : 'Content type not recognised — AI detection may be unreliable for this type of image.'}
+        {@const categoryLabel =
+          ct.category === 'screenshot' ? 'screenshot'
+          : ct.category === 'document' ? 'document'
+          : 'unrecognised content'}
+        <div
+          class="mt-3 rounded-lg border border-amber/30 bg-amber/10 px-4 py-3"
+          role="note"
+          aria-label="AI detection suppressed — content type: {categoryLabel}"
+          aria-live="polite"
+        >
+          <div class="flex items-start gap-3">
+            <!-- Info icon -->
+            <svg
+              class="flex-shrink-0 w-4 h-4 mt-0.5 text-amber dark:text-amber-light"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+
+            <div class="flex-1 min-w-0">
+              <p class="text-xs leading-relaxed text-amber dark:text-amber-light">
+                {bannerText}
+              </p>
+
+              <!-- "Why?" expandable -->
+              <details class="group mt-2">
+                <summary
+                  class="text-xs text-amber/80 dark:text-amber-light/80 cursor-pointer list-none
+                         flex items-center gap-1.5 hover:text-amber dark:hover:text-amber-light
+                         transition-colors focus-visible:outline-none focus-visible:ring-2
+                         focus-visible:ring-amber focus-visible:ring-offset-1
+                         focus-visible:ring-offset-amber/10 rounded min-h-[24px]"
+                  aria-label="Why was AI detection suppressed? Expand for reasoning"
+                >
+                  <svg
+                    class="w-3 h-3 flex-shrink-0 transition-transform duration-200 motion-safe:group-open:rotate-90"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                  Why?
+                </summary>
+
+                <div class="mt-2 space-y-2 text-xs text-amber/70 dark:text-amber-light/70">
+                  <p class="leading-relaxed">{ct.reasoning}</p>
+
+                  <!-- Key signals -->
+                  {#if Object.keys(ct.signals).length > 0}
+                    <ul class="space-y-0.5" role="list" aria-label="Classification signals">
+                      {#each Object.entries(ct.signals).slice(0, 5) as [key, val] (key)}
+                        <li class="font-mono">
+                          <span class="text-amber/50 dark:text-amber-light/50">{key}:</span>
+                          <span class="ml-1">
+                            {typeof val === 'number'
+                              ? (val as number) < 1 ? `${Math.round((val as number) * 100)}%` : String(val)
+                              : String(val)}
+                          </span>
+                        </li>
+                      {/each}
+                    </ul>
+                  {/if}
+
+                  <p class="text-amber/50 dark:text-amber-light/50 italic">
+                    Confidence: {Math.round(ct.confidence * 100)}%
+                  </p>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+      {/snippet}
+
       <!-- ── Simple view ───────────────────────────────────────────── -->
       {#if viewMode === 'simple'}
 
@@ -3521,6 +3622,11 @@
             {sidecarHealth}
             onViewExpert={() => { viewMode = 'expert'; }}
           />
+
+          <!-- ── Content-type suppression banner (simple view) ────── -->
+          {#if aiDetectionSuppressed && result.contentTypeResult}
+            {@render contentTypeBanner(result.contentTypeResult)}
+          {/if}
 
           <!-- Action buttons — export and report -->
           <div class="mt-4 flex flex-wrap items-center gap-3">
@@ -3716,6 +3822,13 @@
           {/if}
         </p>
       </div>
+
+      <!-- ── Content-type suppression banner (expert view) ────────── -->
+      {#if aiDetectionSuppressed && result.contentTypeResult}
+        <div class="px-5 py-3 border-b border-border-light dark:border-border-dark">
+          {@render contentTypeBanner(result.contentTypeResult)}
+        </div>
+      {/if}
 
       <!-- ── AI Origin Detection ─────────────────────────────────── -->
       {#if result.aiGenerator !== undefined || result.deepfakeResult !== undefined || result.watermarkExtractResult !== undefined}
@@ -5052,11 +5165,26 @@
                 helpHref="/help/methodology#clip-detection"
                 ariaLabel="Experimental feature: CLIP zero-shot classification outputs near-uniform probabilities due to a known softmax temperature issue. See methodology for details."
               />
+              {#if aiDetectionSuppressed}
+                <span
+                  class="text-xs font-medium px-2 py-0.5 rounded border bg-gray-100 dark:bg-graphite-light text-gray-600 dark:text-flint-light border-gray-300 dark:border-border-dark"
+                  title="Score excluded from trust calculation — content type is {result.contentTypeResult?.category ?? 'non-photograph'}"
+                >
+                  Suppressed
+                </span>
+              {/if}
             </div>
             <span class="text-xs tabular-nums {forensicScoreClass(clip.score)}">
               Score: {(clip.score * 100).toFixed(1)}%
             </span>
           </div>
+
+          <!-- Suppression note — shown when content type makes AI detection unreliable -->
+          {#if aiDetectionSuppressed && result.contentTypeResult}
+            <p class="mb-3 text-xs text-gray-500 dark:text-flint-light italic">
+              Score excluded from trust calculation — content type is {result.contentTypeResult.category}.
+            </p>
+          {/if}
 
           <div class="grid grid-cols-2 gap-4 text-xs mb-3">
             <div>
@@ -5140,6 +5268,14 @@
                 {df.confidence} confidence
               </span>
               {@render applicabilityBadge(getDetectorApplicability('Deepfake Detection', result?.inputQuality, !!result?.deepfakeResult, sidecarAvailable))}
+              {#if aiDetectionSuppressed}
+                <span
+                  class="text-xs font-medium px-2 py-0.5 rounded border bg-gray-100 dark:bg-graphite-light text-gray-600 dark:text-flint-light border-gray-300 dark:border-border-dark"
+                  title="Score excluded from trust calculation — content type is {result.contentTypeResult?.category ?? 'non-photograph'}"
+                >
+                  Suppressed
+                </span>
+              {/if}
             </div>
             <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(df.score)}">
               <span>{(df.score * 100).toFixed(1)}%</span>
@@ -5150,6 +5286,13 @@
               {/if}
             </div>
           </div>
+
+          <!-- Suppression note — shown when content type makes AI detection unreliable -->
+          {#if aiDetectionSuppressed && result.contentTypeResult}
+            <p class="mb-3 text-xs text-gray-500 dark:text-flint-light italic">
+              Score excluded from trust calculation — content type is {result.contentTypeResult.category}.
+            </p>
+          {/if}
 
           <!-- Frequency spectrum heatmap — side-by-side with original when preview is available -->
           {#if df.heatmapBase64}

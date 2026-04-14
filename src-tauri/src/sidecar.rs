@@ -634,6 +634,30 @@ pub struct ImageDescribeResult {
     pub message: String,
 }
 
+/// Content-type classification result from the sidecar.
+///
+/// The sidecar endpoint `/forensics/content-type` classifies an image into
+/// a semantic category that the Rust pipeline uses to suppress AI-detection
+/// signals on content types where the models are not reliable (e.g.
+/// screenshots, documents).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentTypeResult {
+    /// Semantic category: `"photograph"`, `"screenshot"`, `"document"`,
+    /// `"artwork"`, or `"unknown"`.
+    pub category: String,
+    /// Classifier confidence in `[0.0, 1.0]`.
+    pub confidence: f64,
+    /// When `false`, AI-detection models (deepfake GBM + CLIP probe) are
+    /// unreliable for this content type and their scores must be suppressed
+    /// in trust scoring.
+    pub ai_detection_suitable: bool,
+    /// Raw classification signals returned by the sidecar (passthrough dict).
+    pub signals: serde_json::Value,
+    /// Human-readable reasoning string from the classifier.
+    pub reasoning: String,
+}
+
 /// HTTP client for the Python ML sidecar.
 ///
 /// Cheaply cloneable — the inner `reqwest::blocking::Client` uses an `Arc`
@@ -728,6 +752,35 @@ impl SidecarClient {
 
         resp.json::<SidecarHealth>()
             .map_err(|e| format!("Failed to parse sidecar health response: {e}"))
+    }
+
+    /// Classify the semantic content type of an image.
+    ///
+    /// POSTs the image as a multipart upload to `POST /forensics/content-type`.
+    /// The endpoint is fast (<500 ms p95) so a 15-second timeout is used.
+    ///
+    /// The returned [`ContentTypeResult::ai_detection_suitable`] flag should be
+    /// checked by callers before trusting deepfake / CLIP scores — when `false`,
+    /// AI-detection signals should be neutralised in trust scoring.
+    pub fn classify_content_type(&self, image_path: &Path) -> Result<ContentTypeResult, String> {
+        let form = self.build_image_form(image_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/content-type", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(15))
+            .send()
+            .map_err(|e| format!("Sidecar content-type request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!("Sidecar content-type returned {status}: {body}"));
+        }
+
+        resp.json::<ContentTypeResult>()
+            .map_err(|e| format!("Failed to parse content-type response: {e}"))
     }
 
     /// Run Error Level Analysis on an image file.

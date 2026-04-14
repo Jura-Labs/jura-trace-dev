@@ -399,6 +399,30 @@ export interface InputQualityAssessment {
   degradedDetectors: string[];
 }
 
+/**
+ * Semantic content-type classification from the ML sidecar.
+ *
+ * When `aiDetectionSuitable` is `false`, the deepfake and CLIP scores have been
+ * neutralised in trust scoring — consumers should surface a notice to the user
+ * explaining why AI-detection results are not shown.
+ */
+export interface ContentTypeResult {
+  /** Semantic category returned by the sidecar classifier. */
+  category: 'photograph' | 'screenshot' | 'document' | 'artwork' | 'unknown';
+  /** Classifier confidence in [0.0, 1.0]. */
+  confidence: number;
+  /**
+   * `false` when AI-detection models (deepfake GBM + CLIP probe) are not
+   * reliable for this content type. The Rust pipeline neutralises those
+   * signals to 0.5 (neutral) when this flag is false.
+   */
+  aiDetectionSuitable: boolean;
+  /** Raw classification signals returned by the sidecar (passthrough dict). */
+  signals: Record<string, unknown>;
+  /** Human-readable reasoning string from the classifier. */
+  reasoning: string;
+}
+
 /** Verification result from the VERIFY pipeline */
 export interface VerificationResult {
   /** Investigation mode used: 'standard' | 'deep' | 'archival' */
@@ -443,6 +467,13 @@ export interface VerificationResult {
   methodology?: MethodologyRecord | null;
   /** Input quality assessment — conditions that degrade detector reliability. */
   inputQuality?: InputQualityAssessment | null;
+  /**
+   * Semantic content-type classification from the sidecar.
+   * Present for image content when the sidecar is available.
+   * When `aiDetectionSuitable` is `false`, the deepfake and CLIP contributions
+   * have been neutralised in trust scoring.
+   */
+  contentTypeResult?: ContentTypeResult | null;
   /**
    * Stable string identifiers for every detector that actually produced a
    * result for this verification. Added in Sprint 28 (S28-FU1) alongside the
