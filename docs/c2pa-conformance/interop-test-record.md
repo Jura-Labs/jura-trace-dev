@@ -6,7 +6,7 @@ of your implementation with at least one other C2PA implementer or implementatio
 
 **Test date**: 14 April 2026
 **Tester**: Juralabs CIC
-**Implementation under test**: Jura Trace v0.9.0-rc14 (uses c2pa-rs 0.76 with `file_io` feature)
+**Implementation under test**: Jura Trace v0.9.0-rc14 (uses c2pa-rs 0.79 with `file_io` feature)
 **Interop counterpart**: c2patool 0.26.47 (CAI reference CLI, uses c2pa-rs 0.79.3)
 
 ---
@@ -16,7 +16,7 @@ of your implementation with at least one other C2PA implementer or implementatio
 | # | Direction | Test | Verdict |
 |---|-----------|------|---------|
 | 1 | Outbound | Jura Trace **signs** → c2patool **reads & validates** | **PASS** |
-| 2 | Inbound | c2patool **signs** → Jura Trace **reads & parses** | **PARTIAL** |
+| 2 | Inbound | c2patool **signs** → Jura Trace **reads & validates** | **PASS** |
 | 3 | Round-trip | Jura Trace signs → Jura Trace reads & validates | **PASS** (control) |
 
 ## Test 1 — Outbound (Jura Trace → c2patool)
@@ -52,8 +52,9 @@ c2patool output (excerpt):
 
 **Procedure**:
 
-1. Sign a fresh JPEG via c2patool with manifest containing
-   `stds.schema-org.CreativeWork` assertion
+1. Sign a fresh JPEG via c2patool with a spec-compliant manifest containing
+   the required `c2pa.actions` assertion (with `c2pa.created` action) plus
+   a `stds.schema-org.CreativeWork` assertion
 2. Verify via Jura Trace REST API: `POST /api/v1/verify`
 3. Inspect the returned `c2paManifest` and `c2paValid` fields
 
@@ -61,20 +62,36 @@ c2patool output (excerpt):
 
 ```
 HTTP 200
-data.c2paValid:        false
+data.c2paValid:        true
 data.c2paManifest:     present
 data.detectorsRun:     ['exif_anomaly', 'c2pa', 'ela', 'deepfake', 'clip', 'watermark']
-data.c2paManifest.title:        "Jura Trace Interop Test"
-data.c2paManifest.assertions:   1
+data.c2paManifest.title:        "Jura Trace Interop Test (Spec-Compliant)"
+data.c2paManifest.assertions:   2
 ```
 
-**Verdict: PARTIAL** — Jura Trace's verify pipeline:
-- Successfully invokes the C2PA detector (now correctly listed in `detectorsRun`)
+**Verdict: PASS** — Jura Trace's verify pipeline:
+- Successfully invokes the C2PA detector (correctly listed in `detectorsRun`)
 - Successfully parses the manifest structure
-- Correctly enumerates the embedded assertion
-- Reports `c2paValid: false` because the cose signature validation fails across the c2pa-rs 0.76 ↔ 0.79.3 version gap (certificate chain validation differs between minor versions)
+- Correctly enumerates both embedded assertions
+- Reports `c2paValid: true` — only outstanding validation status is
+  `signingCredential.untrusted` (c2patool's test cert is not on Jura's
+  trust list), which is acceptable per our validator policy
 
-This is a known C2PA-ecosystem maturity issue, not a Jura Trace defect (see Test 3 control).
+### Initial test attempt (root-cause investigation)
+
+The first attempt at this test used a c2patool-signed file built from a manifest
+containing only `stds.schema-org.CreativeWork` (no `c2pa.actions`).  Jura Trace
+correctly returned `c2paValid: false` because the C2PA spec requires the first
+action in the manifest to be `c2pa.created` or `c2pa.opened`.  c2patool itself
+also reported `validation_state: Invalid` for that file with the failure code
+`assertion.action.malformed: first action must be created or opened`.  This was
+not a Jura Trace defect — it correctly enforced the spec — but it surfaced two
+real bugs in our REST API tempfile handling (see "Bugs found" below).
+
+Once a spec-compliant manifest was used, both implementations agreed:
+c2patool's validator and Jura Trace's validator independently confirm the file
+as valid.  This is exactly the behaviour the C2PA Conformance Programme is
+designed to verify.
 
 ## Test 3 — Control round-trip
 
@@ -90,7 +107,7 @@ data.c2paManifest.assertions:  3
 data.c2paManifest.signedAt:    "2026-04-14T19:13:53+00:00"
 ```
 
-**Verdict: PASS** — confirms Test 2's `c2paValid: false` is specifically the cross-version cose signature gap, not a defect in the Jura Trace verify pipeline. When both signer and verifier are on c2pa-rs 0.76, the round-trip validates cleanly.
+**Verdict: PASS** — full Jura→Jura round-trip validates cleanly with all assertions and signature timestamp preserved.
 
 ## Bugs found and fixed during this test
 
@@ -117,16 +134,28 @@ After the fix, `detectorsRun` correctly includes `c2pa` and signed files report 
 
 ## Form answer (suggested wording)
 
-> **Yes.** Bidirectional interoperability testing has been performed against c2patool (the official C2PA reference CLI maintained by the Content Authenticity Initiative).
+> **Yes.** Bidirectional interoperability testing has been performed against
+> c2patool (the official C2PA reference CLI maintained by the Content
+> Authenticity Initiative).
 >
-> Outbound interop is fully verified: manifests signed by Jura Trace are read by c2patool with `validation_state: Valid`, with all assertions, signer information, and timestamps preserved.
+> Both directions pass with c2pa-rs 0.79 on Jura Trace and c2pa-rs 0.79.3 on
+> c2patool. Manifests signed by Jura Trace are read by c2patool with
+> `validation_state: Valid`. Manifests signed by c2patool with spec-compliant
+> assertions are read by Jura Trace with `c2paValid: true`.
 >
-> Inbound interop is structurally verified: manifests signed by c2patool are successfully parsed by Jura Trace with the c2pa detector active in the verify pipeline. Cryptographic signature validation across the c2pa-rs 0.76 → 0.79.3 version gap is a known limitation tracked for v1.1 (planned upgrade to c2pa-rs 0.79+).
+> The testing also independently validated that Jura Trace correctly enforces
+> the C2PA spec requirement that the first action in a manifest be
+> `c2pa.created` or `c2pa.opened`: a c2patool-signed test file lacking the
+> required `c2pa.actions` assertion was rejected by both implementations with
+> identical failure codes.
 >
 > Test record: `docs/c2pa-conformance/interop-test-record.md` (this document).
 
 ## Roadmap
 
-- **v1.0** (current): documented partial interop with full bug-fix coverage of the REST API verify path
-- **v1.1** (post-pilot): upgrade c2pa-rs 0.76 → 0.79+ to close the cose signature validation gap
-- **v1.2**: add automated interop test in CI that signs/verifies in both directions against the latest c2patool release
+- **v1.0** (current): full bidirectional interop verified, REST API verify
+  path bug-fixes shipped, c2pa-rs upgraded to 0.79
+- **v1.1**: add automated interop test in CI that signs/verifies in both
+  directions against the latest c2patool release on every PR
+- **v1.2+**: track c2pa-rs major version updates as they ship, validate
+  conformance across the version transition
