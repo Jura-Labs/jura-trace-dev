@@ -2023,6 +2023,14 @@
       </div>
     </div>
     <div class="flex items-center gap-3">
+      <!-- v2 preview link -->
+      <a
+        href="/verify/v2"
+        class="text-xs text-flint dark:text-flint-light hover:text-lapis-light dark:hover:text-lapis-light transition-colors underline underline-offset-2 whitespace-nowrap
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
+        aria-label="Try the new hybrid layout (preview)"
+      >Try new layout</a>
+
       <!-- Mode toggle -->
       <div class="flex items-center gap-1.5">
         <div
