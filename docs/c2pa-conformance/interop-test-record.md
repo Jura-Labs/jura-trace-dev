@@ -159,3 +159,28 @@ After the fix, `detectorsRun` correctly includes `c2pa` and signed files report 
   directions against the latest c2patool release on every PR
 - **v1.2+**: track c2pa-rs major version updates as they ship, validate
   conformance across the version transition
+
+## Application status (2026-04-14)
+
+- 2026-04-11: Expression of Interest submitted (Validator track only)
+- 2026-04-14: Full Validator intake form completed and submitted
+- Awaiting C2PA staff response (typical 5-15 working days)
+- Earliest public disclosure date declared: 2026-06-01
+
+## Generator-track expansion plan
+
+Generator-track conformance is **deferred to a separate later application**
+once the dual-mode signing architecture (Local Signing default + Conformant
+Signing optional) has been pilot-tested in v1.0.
+
+Trigger conditions for filing the Generator-track EOI:
+1. Validator badge issued (or staff confirmation that it will be)
+2. v1.1 ships with Conformant Signing fully tested in pilot
+3. A C2PA trust-list certificate has been obtained from an approved CA
+4. Product Security Architecture Template drafted
+
+The Generator badge will apply to **Conformant Signing mode only** —
+Local Signing is intentionally outside the Generator conformance scope
+(per-install CA, not on the trust list, by design).
+
+Target: Generator badge by Q4 2026, ahead of EMIF Phase B.
