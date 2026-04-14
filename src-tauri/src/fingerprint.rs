@@ -211,7 +211,7 @@ mod tests {
         assert!(!supports_fingerprinting("document"));
         assert!(!supports_fingerprinting("video"));
         assert!(!supports_fingerprinting("audio"));
-        assert!(!supports_fingerprinting("3d"));
+        assert!(!supports_fingerprinting("unknown"));
         assert!(!supports_fingerprinting("unknown"));
     }
 

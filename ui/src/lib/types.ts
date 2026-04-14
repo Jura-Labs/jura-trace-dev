@@ -79,7 +79,7 @@ export interface Asset {
 }
 
 /** Supported content types */
-export type ContentType = 'image' | 'document' | 'video' | 'audio' | '3d' | 'web' | 'unknown';
+export type ContentType = 'image' | 'document' | 'video' | 'audio' | 'unknown';
 
 /** Error Level Analysis result from the ML sidecar */
 export interface ElaResult {
@@ -763,8 +763,6 @@ export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
   document: 'Document',
   video: 'Video',
   audio: 'Audio',
-  '3d': '3D Model',
-  web: 'Web',
   unknown: 'Unknown',
 };
 
@@ -1139,7 +1137,5 @@ export const SUPPORTED_EXTENSIONS: Record<ContentType, string[]> = {
   document: ['.pdf', '.docx', '.odt', '.epub', '.txt', '.rtf', '.html', '.md', '.csv', '.xlsx'],
   video: ['.mp4', '.mov', '.webm', '.avi', '.mkv', '.m4v'],
   audio: ['.wav', '.mp3', '.flac', '.ogg', '.aac', '.m4a', '.aiff', '.opus'],
-  '3d': ['.stl', '.obj', '.gltf', '.glb', '.fbx', '.ply', '.usdz', '.3mf', '.dae'],
-  web: ['.html'],
   unknown: [],
 };

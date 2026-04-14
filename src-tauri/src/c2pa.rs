@@ -1311,7 +1311,7 @@ mod tests {
         assert!(!supports_signing("document", "application/pdf"));
         assert!(!supports_signing("image", "image/gif"));
         assert!(!supports_signing("image", "image/bmp"));
-        assert!(!supports_signing("3d", "model/stl"));
+        assert!(!supports_signing("unknown", "model/stl"));
     }
 
     #[test]

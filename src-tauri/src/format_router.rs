@@ -7,8 +7,6 @@ pub enum ContentType {
     Document,
     Video,
     Audio,
-    ThreeD,
-    Web,
     Unknown,
 }
 
@@ -20,8 +18,6 @@ impl ContentType {
             Self::Document => "document",
             Self::Video => "video",
             Self::Audio => "audio",
-            Self::ThreeD => "3d",
-            Self::Web => "web",
             Self::Unknown => "unknown",
         }
     }
@@ -80,14 +76,6 @@ fn classify_mime(mime: &str) -> ContentType {
         || mime == "application/vnd.oasis.opendocument.text"
     {
         ContentType::Document
-    } else if mime == "text/html" || mime == "application/xhtml+xml" {
-        ContentType::Web
-    } else if mime == "model/gltf+json"
-        || mime == "model/gltf-binary"
-        || mime == "model/stl"
-        || mime == "model/obj"
-    {
-        ContentType::ThreeD
     } else {
         ContentType::Unknown
     }
@@ -145,23 +133,6 @@ fn classify_extension(ext: &str) -> (ContentType, &'static str) {
         "aiff" | "aif" => (ContentType::Audio, "audio/aiff"),
         "opus" => (ContentType::Audio, "audio/opus"),
 
-        // 3D
-        "stl" => (ContentType::ThreeD, "model/stl"),
-        "obj" => (ContentType::ThreeD, "model/obj"),
-        "gltf" => (ContentType::ThreeD, "model/gltf+json"),
-        "glb" => (ContentType::ThreeD, "model/gltf-binary"),
-        "fbx" => (ContentType::ThreeD, "application/octet-stream"),
-        "ply" => (ContentType::ThreeD, "application/octet-stream"),
-        "usdz" => (ContentType::ThreeD, "model/vnd.usdz+zip"),
-        "3mf" => (
-            ContentType::ThreeD,
-            "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
-        ),
-        "dae" => (ContentType::ThreeD, "model/vnd.collada+xml"),
-
-        // Web
-        "html" | "htm" => (ContentType::Web, "text/html"),
-
         _ => (ContentType::Unknown, "application/octet-stream"),
     }
 }
@@ -179,8 +150,6 @@ mod tests {
         assert_eq!(ContentType::Document.as_str(), "document");
         assert_eq!(ContentType::Video.as_str(), "video");
         assert_eq!(ContentType::Audio.as_str(), "audio");
-        assert_eq!(ContentType::ThreeD.as_str(), "3d");
-        assert_eq!(ContentType::Web.as_str(), "web");
         assert_eq!(ContentType::Unknown.as_str(), "unknown");
     }
 
@@ -229,20 +198,14 @@ mod tests {
     }
 
     #[test]
-    fn classify_extension_3d() {
+    fn classify_extension_3d_and_web_fall_to_unknown() {
+        // 3D and web extensions are no longer supported — they fall through to Unknown
         for ext in &[
             "stl", "obj", "gltf", "glb", "fbx", "ply", "usdz", "3mf", "dae",
+            "html", "htm",
         ] {
             let (ct, _) = classify_extension(ext);
-            assert_eq!(ct, ContentType::ThreeD, "extension {ext} should be ThreeD");
-        }
-    }
-
-    #[test]
-    fn classify_extension_web() {
-        for ext in &["html", "htm"] {
-            let (ct, _) = classify_extension(ext);
-            assert_eq!(ct, ContentType::Web, "extension {ext} should be Web");
+            assert_eq!(ct, ContentType::Unknown, "extension {ext} should be Unknown");
         }
     }
 
@@ -289,15 +252,12 @@ mod tests {
     }
 
     #[test]
-    fn classify_mime_web() {
-        assert_eq!(classify_mime("text/html"), ContentType::Web);
-        assert_eq!(classify_mime("application/xhtml+xml"), ContentType::Web);
-    }
-
-    #[test]
-    fn classify_mime_3d() {
-        assert_eq!(classify_mime("model/gltf+json"), ContentType::ThreeD);
-        assert_eq!(classify_mime("model/gltf-binary"), ContentType::ThreeD);
+    fn classify_mime_web_and_3d_fall_to_unknown() {
+        // 3D and web MIME types are no longer supported — they route to Unknown
+        assert_eq!(classify_mime("text/html"), ContentType::Unknown);
+        assert_eq!(classify_mime("application/xhtml+xml"), ContentType::Unknown);
+        assert_eq!(classify_mime("model/gltf+json"), ContentType::Unknown);
+        assert_eq!(classify_mime("model/gltf-binary"), ContentType::Unknown);
     }
 
     #[test]

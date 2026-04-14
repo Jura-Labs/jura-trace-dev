@@ -153,12 +153,8 @@
   // ── Re-fetch when filters change ─────────────────────────────────
   $effect(() => {
     const contentType = filterContentType || undefined;
-    // 'watermarked' is applied client-side (no backend column); others go to backend
-    const c2paSigned  = filterStatus === 'signed'
-      ? true
-      : filterStatus === 'unsigned'
-        ? false
-        : undefined;
+    // 'watermarked' and 'unprotected' are applied client-side; 'signed' goes to backend
+    const c2paSigned  = filterStatus === 'signed' ? true : undefined;
     const query = searchDebounced.trim() || undefined;
 
     getFilteredAssets(contentType, c2paSigned, query).then((result) => {
@@ -190,7 +186,7 @@
 
   // ── Images eligible for batch watermarking ───────────────────────
   const unwatermarkedImages = $derived(
-    assets.filter(a => a.contentType === 'image' && !a.watermarked)
+    assets.filter(a => !a.watermarked && canWatermark(a))
   );
 
   // ── Assets eligible for batch C2PA signing ────────────────────────
@@ -316,6 +312,12 @@
   function canSignC2pa(asset: Asset): boolean {
     if (asset.contentType !== 'image') return false;
     return ['image/jpeg', 'image/png', 'image/tiff', 'image/webp', 'image/avif', 'image/heic', 'image/heif'].includes(asset.mimeType);
+  }
+
+  /** Mirror of Rust `supports_watermarking` — raster bitmaps only (DWT-DCT-SVD). */
+  function canWatermark(asset: Asset): boolean {
+    if (asset.contentType !== 'image') return false;
+    return ['image/jpeg', 'image/png', 'image/tiff', 'image/webp', 'image/bmp', 'image/avif'].includes(asset.mimeType);
   }
 
   // ── C2PA signing ─────────────────────────────────────────────────
@@ -644,8 +646,6 @@
       case 'document': return 'DOC';
       case 'video':    return 'VID';
       case 'audio':    return 'AUD';
-      case '3d':       return '3D';
-      case 'web':      return 'WEB';
       default:         return 'FILE';
     }
   }
@@ -825,8 +825,6 @@
         <option value="document">{CONTENT_TYPE_LABELS['document']}</option>
         <option value="video">{CONTENT_TYPE_LABELS['video']}</option>
         <option value="audio">{CONTENT_TYPE_LABELS['audio']}</option>
-        <option value="3d">{CONTENT_TYPE_LABELS['3d']}</option>
-        <option value="web">{CONTENT_TYPE_LABELS['web']}</option>
       </select>
     </div>
 
@@ -841,8 +839,7 @@
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
       >
         <option value="">All Status</option>
-        <option value="signed">C2PA Signed</option>
-        <option value="unsigned">Not Signed</option>
+        <option value="signed">Signed</option>
         <option value="watermarked">Watermarked</option>
         <option value="unprotected">Unprotected</option>
       </select>
@@ -920,13 +917,13 @@
       <button
         class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian flex-shrink-0"
         onclick={openBatchSign}
-        aria-label="Sign all unsigned assets with C2PA ({unsignedAssets.length} eligible)"
+        aria-label="Add credentials to all unsigned assets ({unsignedAssets.length} eligible)"
       >
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
             d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        Sign All
+        Add Credentials to All
         <span class="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-lapis/20 text-lapis dark:text-lapis-light text-[10px] font-medium px-1">
           {unsignedAssets.length}
         </span>
@@ -999,13 +996,13 @@
     <div
       class="bg-white dark:bg-graphite rounded-lg border border-lapis/30 dark:border-lapis/20 shadow-sm overflow-hidden"
       role="region"
-      aria-label="Batch C2PA signing panel"
+      aria-label="Batch content credential signing panel"
       aria-live="polite"
     >
       <!-- Panel header -->
       <div class="px-5 py-4 border-b border-border-light dark:border-graphite-light/50 flex items-center justify-between gap-4">
         <h2 class="text-base text-text-light dark:text-quartz">
-          Sign All with C2PA
+          Add Credentials to All
         </h2>
         {#if !batchSignRunning}
           <button
@@ -1028,7 +1025,7 @@
             <!-- Eligible asset count -->
             <p class="text-sm text-flint dark:text-flint-light">
               <span class="font-medium text-text-light dark:text-quartz">{unsignedAssets.length}</span>
-              {unsignedAssets.length === 1 ? 'image' : 'images'} eligible &mdash; not yet signed with C2PA.
+              {unsignedAssets.length === 1 ? 'image' : 'images'} eligible &mdash; not yet signed.
             </p>
 
             <!-- Creator name input -->
@@ -1051,7 +1048,7 @@
                 aria-describedby="batch-sign-creator-hint"
               />
               <p id="batch-sign-creator-hint" class="mt-1 text-xs text-flint dark:text-flint-light">
-                Embedded in the C2PA content credential for each signed file.
+                Embedded in the content credential for each signed file.
               </p>
             </div>
 
@@ -1086,7 +1083,7 @@
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                 onclick={handleBatchSign}
                 disabled={!batchSignCreatorName.trim() || unsignedAssets.length === 0}
-                aria-label="Begin signing {unsignedAssets.length} {unsignedAssets.length === 1 ? 'image' : 'images'} with C2PA"
+                aria-label="Begin adding credentials to {unsignedAssets.length} {unsignedAssets.length === 1 ? 'image' : 'images'}"
               >
                 Begin Signing
               </button>
@@ -1265,9 +1262,9 @@
               </legend>
               <div class="flex gap-2">
                 {#each [
-                  { value: 1, label: 'Low', hint: 'Minimal quality impact, lower robustness' },
-                  { value: 2, label: 'Medium', hint: 'Balanced quality and robustness' },
-                  { value: 3, label: 'High', hint: 'Maximum robustness, slight quality reduction' },
+                  { value: 1, label: 'Low' },
+                  { value: 2, label: 'Medium' },
+                  { value: 3, label: 'High' },
                 ] as opt (opt.value)}
                   <button
                     type="button"
@@ -1278,12 +1275,65 @@
                              : 'border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:border-lapis/50 hover:text-text-light dark:hover:text-quartz'}"
                     onclick={() => batchStrength = opt.value}
                     aria-pressed={batchStrength === opt.value}
-                    title={opt.hint}
                   >
                     {opt.label}
                   </button>
                 {/each}
               </div>
+
+              <!-- Live explainer — updates to match the selected strength -->
+              <p
+                class="mt-2 text-xs text-flint dark:text-flint-light leading-relaxed"
+                aria-live="polite"
+              >
+                {#if batchStrength === 1}
+                  <strong class="text-text-light dark:text-quartz">Low:</strong>
+                  near-invisible. Fragile — may not survive JPEG re-compression or social media
+                  re-encoding. Use for archival originals that will not be redistributed.
+                {:else if batchStrength === 2}
+                  <strong class="text-text-light dark:text-quartz">Medium (recommended):</strong>
+                  balanced. Survives most JPEG re-saves at quality 75+ and typical platform
+                  processing. Minimal visible impact.
+                {:else}
+                  <strong class="text-text-light dark:text-quartz">High:</strong>
+                  most robust. Survives heavier re-compression, forwarding through multiple
+                  platforms, and some cropping. Slight sharpness reduction may be noticeable
+                  on close inspection.
+                {/if}
+              </p>
+
+              <!-- Expandable trade-off explanation -->
+              <details class="mt-2 group">
+                <summary class="text-xs text-lapis dark:text-lapis-light cursor-pointer inline-flex items-center gap-1 hover:underline underline-offset-2
+                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-1 list-none">
+                  <svg class="w-3 h-3 transition-transform group-open:rotate-90"
+                       fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                  What's the trade-off?
+                </summary>
+                <div class="mt-2 p-3 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/30 text-xs text-flint dark:text-flint-light leading-relaxed space-y-1.5">
+                  <p>
+                    Watermark strength controls how deeply the invisible payload is embedded
+                    into the image's frequency data using DWT-DCT-SVD.
+                  </p>
+                  <p>
+                    <strong class="text-text-light dark:text-quartz">Higher strength =</strong>
+                    more robust to re-encoding, screenshots, and compression — but slightly
+                    more detectable to the human eye on smooth gradients.
+                  </p>
+                  <p>
+                    <strong class="text-text-light dark:text-quartz">Lower strength =</strong>
+                    truly invisible even on magnified inspection — but more easily destroyed
+                    when the image is saved at low JPEG quality, screenshotted, or put through
+                    aggressive social-media compression.
+                  </p>
+                  <p>
+                    If the batch contains originals that will be redistributed, use Medium or
+                    High. For archival masters that stay in your own storage, Low is sufficient.
+                  </p>
+                </div>
+              </details>
             </fieldset>
 
             <!-- Action buttons -->
@@ -1466,7 +1516,7 @@
           <div class="earth-line mb-5" aria-hidden="true"></div>
           <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed mb-2">
             Import images, documents, or media files to begin protecting
-            your content with C2PA credentials and invisible watermarks.
+            your content with content credentials and invisible watermarks.
           </p>
           <p class="text-sm text-flint/70 dark:text-flint leading-relaxed mb-5">
             Drop files above or click to browse.
@@ -1528,8 +1578,8 @@
                 {#if asset.c2paSigned}
                   <span
                     class="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-malachite/90 flex items-center justify-center"
-                    title="C2PA Signed"
-                    aria-label="C2PA Signed"
+                    title="Signed"
+                    aria-label="Content credential signed"
                   >
                     <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
@@ -1568,12 +1618,12 @@
                       class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
                       onclick={() => openSigningPanel(asset.assetId, getMetadata(asset)?.artist ?? null)}
-                      aria-label="Sign {asset.fileName} with C2PA"
+                      aria-label="Add content credential to {asset.fileName}"
                     >
                       Sign
                     </button>
                   {/if}
-                  {#if !asset.watermarked && canSignC2pa(asset)}
+                  {#if !asset.watermarked && canWatermark(asset)}
                     <button
                       class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:border-lapis/50 hover:text-lapis dark:hover:text-lapis-light transition-colors
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
@@ -2053,7 +2103,7 @@
                     ? 'bg-malachite/15 text-malachite dark:text-malachite-light'
                     : 'bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light'}"
                 >
-                  {asset.c2paSigned ? 'C2PA Signed' : 'Not Signed'}
+                  {asset.c2paSigned ? 'Signed' : 'Unsigned'}
                 </span>
                 <span
                   class="text-xs px-2 py-0.5 rounded {asset.watermarked
@@ -2069,12 +2119,12 @@
                 {#if signingAssetId === asset.assetId}
                   <div class="col-span-full mt-3 p-3 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark">
                     <div class="flex items-center gap-1.5 mb-2">
-                      <p class="text-sm text-text-light dark:text-quartz">Sign with C2PA provenance</p>
-                      <ContextualHelpLink href="/help/protect#c2pa-signing" label="Learn about C2PA provenance signing" />
+                      <p class="text-sm text-text-light dark:text-quartz">Add Content Credential</p>
+                      <ContextualHelpLink href="/help/protect#c2pa-signing" label="Learn about content credentials" />
                     </div>
 
                     <p class="text-xs text-malachite dark:text-malachite-light mb-2 leading-relaxed">
-                      No data leaves your device. This creates a fully valid C2PA provenance record embedded in your file.
+                      No data leaves your device. This creates a fully valid content credential embedded in your file.
                     </p>
 
                     <p class="text-xs text-flint dark:text-flint-light mb-3 leading-relaxed">
@@ -2100,7 +2150,7 @@
                         <span class="font-medium">Note:</span>
                         {metadataWarning.warningMessage}
                         {#if metadataWarning.hasExistingC2pa}
-                          The new C2PA signing will be added as an additional assertion layer.
+                          The new content credential will be added as an additional assertion layer.
                         {/if}
                       </div>
                     {/if}
@@ -2170,7 +2220,7 @@
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
                     onclick={() => openSigningPanel(asset.assetId, meta?.artist ?? null)}
                   >
-                    Sign with C2PA
+                    Add Content Credential
                   </button>
                 {/if}
               {/if}
@@ -2194,15 +2244,15 @@
                       <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
                     </svg>
                     <div class="text-xs text-malachite dark:text-malachite-light leading-relaxed">
-                      <p class="font-semibold mb-1">C2PA provenance manifest signed successfully</p>
-                      <p>Existing file metadata (EXIF, IPTC, XMP) has been preserved. The C2PA manifest was added alongside your existing metadata — no fields were removed or overwritten.</p>
+                      <p class="font-semibold mb-1">Content credential added successfully</p>
+                      <p>Existing file metadata (EXIF, IPTC, XMP) has been preserved. The content credential was added alongside your existing metadata — no fields were removed or overwritten.</p>
                     </div>
                   </div>
                 </div>
               {/if}
 
               <!-- Watermark embedding -->
-              {#if canSignC2pa(asset)}
+              {#if canWatermark(asset)}
                 {#if watermarkAssetId === asset.assetId}
                   <!-- Watermark form -->
                   <div
@@ -2278,9 +2328,9 @@
                           aria-label="Embedding strength"
                         >
                           {#each [
-                            { value: 1, label: 'Low', hint: 'Minimal quality impact, lower robustness' },
-                            { value: 2, label: 'Medium', hint: 'Balanced quality and robustness' },
-                            { value: 3, label: 'High', hint: 'Maximum robustness, slight quality reduction' },
+                            { value: 1, label: 'Low' },
+                            { value: 2, label: 'Medium' },
+                            { value: 3, label: 'High' },
                           ] as opt (opt.value)}
                             <button
                               type="button"
@@ -2291,12 +2341,67 @@
                                        : 'border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:border-lapis/50 hover:text-text-light dark:hover:text-quartz'}"
                               onclick={() => watermarkStrength = opt.value}
                               aria-pressed={watermarkStrength === opt.value}
-                              title={opt.hint}
                             >
                               {opt.label}
                             </button>
                           {/each}
                         </div>
+
+                        <!-- Live explainer — updates to match the selected strength -->
+                        <p
+                          class="mt-2 text-xs text-flint dark:text-flint-light leading-relaxed"
+                          aria-live="polite"
+                        >
+                          {#if watermarkStrength === 1}
+                            <strong class="text-text-light dark:text-quartz">Low:</strong>
+                            near-invisible to the eye. Fragile — may not survive JPEG re-compression,
+                            social media re-encoding, or cropping. Use for archival originals that
+                            will not be redistributed.
+                          {:else if watermarkStrength === 2}
+                            <strong class="text-text-light dark:text-quartz">Medium (recommended):</strong>
+                            balanced option. Survives most JPEG re-saves at quality 75+ and
+                            typical platform processing. Minimal visible impact.
+                          {:else}
+                            <strong class="text-text-light dark:text-quartz">High:</strong>
+                            most robust. Survives heavier re-compression, forwarding through
+                            multiple platforms, and some cropping. Slight reduction in image
+                            sharpness may be noticeable on close inspection.
+                          {/if}
+                        </p>
+
+                        <!-- Expandable trade-off explanation -->
+                        <details class="mt-2 group">
+                          <summary class="text-xs text-lapis dark:text-lapis-light cursor-pointer inline-flex items-center gap-1 hover:underline underline-offset-2
+                                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-1 list-none">
+                            <svg class="w-3 h-3 transition-transform group-open:rotate-90"
+                                 fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                            What's the trade-off?
+                          </summary>
+                          <div class="mt-2 p-3 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/30 text-xs text-flint dark:text-flint-light leading-relaxed space-y-1.5">
+                            <p>
+                              Watermark strength controls how deeply the invisible payload is
+                              embedded into the image's frequency data using DWT-DCT-SVD.
+                            </p>
+                            <p>
+                              <strong class="text-text-light dark:text-quartz">Higher strength =</strong>
+                              more robust to re-encoding, screenshots, and compression — but
+                              slightly more detectable to the human eye on smooth gradients.
+                            </p>
+                            <p>
+                              <strong class="text-text-light dark:text-quartz">Lower strength =</strong>
+                              truly invisible even on magnified inspection — but more easily
+                              destroyed when the image is saved at low JPEG quality, screenshotted,
+                              or put through aggressive social-media compression.
+                            </p>
+                            <p>
+                              If you are protecting originals that will be redistributed, use Medium
+                              or High. If you are protecting archival masters that stay in your
+                              own storage, Low is sufficient.
+                            </p>
+                          </div>
+                        </details>
                       </fieldset>
                     </div>
 
