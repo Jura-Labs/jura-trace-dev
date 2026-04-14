@@ -62,7 +62,10 @@
     ],
     "macOS": {
       "entitlements": "Entitlements.plist",
-      "minimumSystemVersion": "13.0"
+      "minimumSystemVersion": "13.0",
+      "signingIdentity": "Developer ID Application: Jura Labs CIC (Y82C4P9L7F)",
+      "providerShortName": "Y82C4P9L7F",
+      "hardenedRuntime": true
     },
     "linux": {
       "deb": {

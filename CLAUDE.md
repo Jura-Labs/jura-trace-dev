@@ -21,6 +21,7 @@ Jura Trace is one of two products built by **Jura Labs** (UK Community Interest 
 **Source repo**: `juralabs/jura-archive` (private)
 **Release repo**: `juralabs/jura-trace` (public — installers only, no source)
 **Windows signing**: Azure Trusted Signing (certificate ID a7e35def-628b-4980-8785-2e535f709418)
+**macOS signing**: Apple Developer ID Application — Jura Labs CIC (Team ID `Y82C4P9L7F`), G2 Sub-CA, valid through 15 April 2031. Cert installed in login keychain. See `docs/install-guides/macos-signing-setup.md` for full setup, notarisation, and CI integration.
 
 ## Core Architecture
 
