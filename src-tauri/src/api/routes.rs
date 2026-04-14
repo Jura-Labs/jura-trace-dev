@@ -138,11 +138,21 @@ pub async fn verify_file(
         return Err(ApiError::bad_request("Uploaded file is empty"));
     }
 
-    // Write to a named temp file so the verify pipeline can access it by path.
+    // Derive extension from magic bytes — verify pipeline (format_router)
+    // classifies content type from the file extension. A tempfile with no
+    // suffix is classified as Unknown, which skips C2PA + image detectors
+    // entirely. Match the protect/sign path's behaviour.
+    let ext = infer_extension(&bytes);
+    let suffix = format!(".{ext}");
+
+    // Write to a named temp file with the correct extension so the verify
+    // pipeline can route it through the right detectors.
     let tmp_path = tokio::task::spawn_blocking({
         let bytes = bytes.clone();
         move || -> Result<std::path::PathBuf, ApiError> {
-            let mut tmp = tempfile::NamedTempFile::new()
+            let mut tmp = tempfile::Builder::new()
+                .suffix(&suffix)
+                .tempfile()
                 .map_err(|e| ApiError::internal(format!("Failed to create temp file: {e}")))?;
             tmp.write_all(&bytes)
                 .map_err(|e| ApiError::internal(format!("Failed to write temp file: {e}")))?;
@@ -301,10 +311,16 @@ pub async fn protect_sign(
     // Derive a safe extension from the first few magic bytes.
     let ext = infer_extension(&bytes);
     let filename_hint = original_filename.as_deref().unwrap_or("upload").to_string();
+    let ext_for_tempfile = ext.clone();
 
     let signed_bytes = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, ApiError> {
-        // Write source file to a temp file.
-        let mut src_tmp = tempfile::NamedTempFile::new()
+        // Write source file to a temp file with the correct extension —
+        // c2pa-rs infers format from the file extension, so a generic
+        // tempfile (no suffix) yields "type is unsupported".
+        let suffix = format!(".{ext_for_tempfile}");
+        let mut src_tmp = tempfile::Builder::new()
+            .suffix(&suffix)
+            .tempfile()
             .map_err(|e| ApiError::internal(format!("Failed to create temp file: {e}")))?;
         src_tmp
             .write_all(&bytes)
@@ -312,9 +328,18 @@ pub async fn protect_sign(
         let src_path = src_tmp.path().to_path_buf();
 
         // Output path for the signed file.
-        let out_tmp = tempfile::NamedTempFile::new()
+        // c2pa-rs Builder.sign_file refuses to overwrite an existing destination,
+        // so we get a tempfile path then immediately remove the file, leaving
+        // only the path reservation for c2pa to write to. The output suffix
+        // must match the input format for c2pa-rs to write the right wrapper.
+        let out_tmp = tempfile::Builder::new()
+            .suffix(&suffix)
+            .tempfile()
             .map_err(|e| ApiError::internal(format!("Failed to create output temp: {e}")))?;
-        let out_path = out_tmp.path().to_path_buf();
+        let out_path = out_tmp.into_temp_path();
+        std::fs::remove_file(&out_path)
+            .map_err(|e| ApiError::internal(format!("Failed to remove output temp: {e}")))?;
+        let out_path = out_path.to_path_buf();
 
         // Acquire state to get the data directory for certificate storage.
         let guard = state
@@ -990,8 +1015,11 @@ pub async fn verify_batch(
         let mode_clone = mode.clone();
 
         let item = tokio::task::spawn_blocking(move || {
-            // Write to temp file
-            let tmp = match tempfile::NamedTempFile::new() {
+            // Write to temp file with the correct extension so format_router
+            // classifies it correctly (otherwise C2PA + image detectors are skipped).
+            let ext = infer_extension(&bytes);
+            let suffix = format!(".{ext}");
+            let tmp = match tempfile::Builder::new().suffix(&suffix).tempfile() {
                 Ok(mut f) => {
                     if let Err(e) = f.write_all(&bytes) {
                         return BatchVerifyItem {
