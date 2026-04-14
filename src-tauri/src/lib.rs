@@ -4693,18 +4693,26 @@ pub fn run() {
             if let tauri::RunEvent::Exit = event {
                 // Kill the sidecar process when the app exits so it does not
                 // linger in the background consuming system resources.
-                if let Ok(mut state) = app.state::<Mutex<AppState>>().lock() {
-                    // Cancel the background URL watchlist scheduler.
-                    if let Some(handle) = state.scheduler_handle.take() {
-                        handle.cancel();
-                        log::info!("Monitor scheduler cancelled on app exit");
-                    }
+                //
+                // The managed type is `Arc<Mutex<AppState>>` (see `app.manage`
+                // above), so we request that exact type.  Use `try_state` to
+                // avoid panicking if setup failed before state was registered
+                // (a crash loop during `cargo tauri dev` hot-reload can trigger
+                // Exit without a completed setup).
+                if let Some(state) = app.try_state::<Arc<Mutex<AppState>>>() {
+                    if let Ok(mut guard) = state.lock() {
+                        // Cancel the background URL watchlist scheduler.
+                        if let Some(handle) = guard.scheduler_handle.take() {
+                            handle.cancel();
+                            log::info!("Monitor scheduler cancelled on app exit");
+                        }
 
-                    if let Some(child) = state.sidecar_process.take() {
-                        if let Err(e) = child.kill() {
-                            log::warn!("Failed to kill sidecar on exit: {e}");
-                        } else {
-                            log::info!("Sidecar process terminated on app exit");
+                        if let Some(child) = guard.sidecar_process.take() {
+                            if let Err(e) = child.kill() {
+                                log::warn!("Failed to kill sidecar on exit: {e}");
+                            } else {
+                                log::info!("Sidecar process terminated on app exit");
+                            }
                         }
                     }
                 }
