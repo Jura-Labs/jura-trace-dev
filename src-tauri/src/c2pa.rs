@@ -17,6 +17,12 @@ pub struct ManifestInfo {
     pub claim_generator: Option<String>,
     pub assertions: Vec<AssertionInfo>,
     pub is_valid: bool,
+    /// True when the signing certificate has expired but a trusted timestamp
+    /// and a cryptographically valid claim signature prove the signature was
+    /// valid at signing time. Common for short-lived credentials such as
+    /// Google Pixel Camera.
+    #[serde(default)]
+    pub valid_at_signing: bool,
     pub signed_at: Option<String>,
 }
 
@@ -258,6 +264,65 @@ pub fn sign_file(
     read_manifest(output)?.ok_or_else(|| "Signed file but could not read back manifest".to_string())
 }
 
+// ===== Validity derivation =====
+
+/// Derive `(is_valid, valid_at_signing)` from the JSON returned by `c2pa::Reader::json()`.
+///
+/// Fully valid: no failures, or failures only contain `signingCredential.untrusted`
+/// (self-signed cert — manifest is structurally sound, cert just isn't in a trust list).
+///
+/// Valid at signing: failures are only cert-soft (`untrusted` and/or `expired`) AND the
+/// active manifest success list includes a validated timestamp plus a cryptographically
+/// valid claim signature. Short-lived signing certs (e.g. Google Pixel Camera) rely on
+/// this — the trusted timestamp proves the signature was issued while the cert was still
+/// in its original validity window.
+fn derive_validity(json: &serde_json::Value) -> (bool, bool) {
+    let active_results = json
+        .get("validation_results")
+        .and_then(|vr| vr.get("activeManifest"));
+    let codes_of = |key: &str| -> Vec<String> {
+        active_results
+            .and_then(|am| am.get(key))
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|s| s.get("code").and_then(|c| c.as_str()).map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let failure_codes = codes_of("failure");
+    let success_codes = codes_of("success");
+
+    let only_cert_soft_failures = !failure_codes.is_empty()
+        && failure_codes
+            .iter()
+            .all(|c| c == "signingCredential.untrusted" || c == "signingCredential.expired");
+    let has_expired = failure_codes
+        .iter()
+        .any(|c| c == "signingCredential.expired");
+    let has_validated_timestamp = success_codes
+        .iter()
+        .any(|c| c == "timeStamp.validated" || c == "timeStamp.trusted");
+    let has_valid_claim_sig = success_codes
+        .iter()
+        .any(|c| c == "claimSignature.validated");
+
+    if failure_codes.is_empty() {
+        (true, false)
+    } else if only_cert_soft_failures && !has_expired {
+        (true, false)
+    } else if only_cert_soft_failures
+        && has_expired
+        && has_validated_timestamp
+        && has_valid_claim_sig
+    {
+        (true, true)
+    } else {
+        (false, false)
+    }
+}
+
 // ===== Reading =====
 
 /// Read a C2PA manifest from a file.
@@ -325,15 +390,7 @@ pub fn read_manifest(path: &Path) -> Result<Option<ManifestInfo>, String> {
         }
     }
 
-    // validation_status: None or empty = fully valid.
-    // For self-signed certificates, c2pa-rs always reports signingCredential.untrusted.
-    // We treat that as valid because the manifest itself is structurally sound — the
-    // cert simply isn't in any external trust store.
-    let is_valid = reader.validation_status().is_none_or(|statuses| {
-        statuses
-            .iter()
-            .all(|s| s.code() == "signingCredential.untrusted")
-    });
+    let (is_valid, valid_at_signing) = derive_validity(&json);
 
     let signed_at = manifest
         .get("signature_info")
@@ -347,6 +404,7 @@ pub fn read_manifest(path: &Path) -> Result<Option<ManifestInfo>, String> {
         claim_generator,
         assertions,
         is_valid,
+        valid_at_signing,
         signed_at,
     }))
 }
@@ -1227,13 +1285,96 @@ mod tests {
                 value: "{}".to_string(),
             }],
             is_valid: true,
+            valid_at_signing: false,
             signed_at: Some("2026-01-01T00:00:00Z".to_string()),
         };
         let json = serde_json::to_string(&info).unwrap();
         assert!(json.contains("\"isValid\""));
         assert!(json.contains("\"claimGenerator\""));
         assert!(json.contains("\"signedAt\""));
+        assert!(json.contains("\"validAtSigning\""));
         assert!(!json.contains("\"is_valid\""));
+    }
+
+    #[test]
+    fn validity_fully_valid_when_no_failures() {
+        let json = serde_json::json!({
+            "validation_results": { "activeManifest": { "success": [], "failure": [] } }
+        });
+        assert_eq!(derive_validity(&json), (true, false));
+    }
+
+    #[test]
+    fn validity_self_signed_untrusted_only_is_valid() {
+        let json = serde_json::json!({
+            "validation_results": {
+                "activeManifest": {
+                    "failure": [{ "code": "signingCredential.untrusted" }]
+                }
+            }
+        });
+        assert_eq!(derive_validity(&json), (true, false));
+    }
+
+    #[test]
+    fn validity_pixel_expired_with_trusted_timestamp_is_valid_at_signing() {
+        let json = serde_json::json!({
+            "validation_results": {
+                "activeManifest": {
+                    "success": [
+                        { "code": "timeStamp.validated" },
+                        { "code": "claimSignature.validated" }
+                    ],
+                    "failure": [
+                        { "code": "signingCredential.expired" },
+                        { "code": "signingCredential.untrusted" }
+                    ]
+                }
+            }
+        });
+        assert_eq!(derive_validity(&json), (true, true));
+    }
+
+    #[test]
+    fn validity_expired_without_timestamp_is_invalid() {
+        let json = serde_json::json!({
+            "validation_results": {
+                "activeManifest": {
+                    "success": [{ "code": "claimSignature.validated" }],
+                    "failure": [{ "code": "signingCredential.expired" }]
+                }
+            }
+        });
+        assert_eq!(derive_validity(&json), (false, false));
+    }
+
+    #[test]
+    fn validity_expired_without_claim_signature_is_invalid() {
+        let json = serde_json::json!({
+            "validation_results": {
+                "activeManifest": {
+                    "success": [{ "code": "timeStamp.validated" }],
+                    "failure": [{ "code": "signingCredential.expired" }]
+                }
+            }
+        });
+        assert_eq!(derive_validity(&json), (false, false));
+    }
+
+    #[test]
+    fn validity_hash_mismatch_is_invalid() {
+        let json = serde_json::json!({
+            "validation_results": {
+                "activeManifest": {
+                    "success": [
+                        { "code": "timeStamp.trusted" },
+                        { "code": "claimSignature.validated" }
+                    ],
+                    "failure": [{ "code": "assertion.dataHash.mismatch" }]
+                }
+            }
+        });
+        assert_eq!(derive_validity(&json), (false, false));
     }
 
     #[test]

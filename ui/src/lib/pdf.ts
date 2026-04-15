@@ -511,7 +511,14 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
   heading('C2PA Provenance');
   if (result.c2paManifest) {
     const m = result.c2paManifest;
-    row('Status', m.isValid ? 'Valid' : 'Invalid');
+    row(
+      'Status',
+      m.isValid && m.validAtSigning
+        ? 'Valid at signing (certificate expired; trusted timestamp intact)'
+        : m.isValid
+          ? 'Valid'
+          : 'Invalid'
+    );
     if (m.claimGenerator) row('Claim Generator', m.claimGenerator);
     if (m.format) row('Format', m.format);
     if (m.title) row('Title', m.title);

@@ -654,6 +654,9 @@ export interface ManifestInfo {
   claimGenerator?: string;
   assertions: AssertionInfo[];
   isValid: boolean;
+  /** Cert expired but trusted timestamp + valid claim signature prove the signature
+   *  was valid when issued (common for short-lived certs like Google Pixel Camera). */
+  validAtSigning?: boolean;
   signedAt?: string;
 }
 

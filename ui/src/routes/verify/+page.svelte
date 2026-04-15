@@ -5613,12 +5613,17 @@
             <ContextualHelpLink href="/help/verify#provenance" label="Learn about C2PA provenance" />
             <span
               class="text-xs font-medium px-2 py-0.5 rounded
-                     {manifest.isValid
+                     {manifest.isValid && manifest.validAtSigning
+                       ? 'bg-amber/15 text-amber border border-amber/30'
+                       : manifest.isValid
                        ? 'bg-malachite/15 text-malachite-light border border-malachite/20'
                        : 'bg-cinnabar/15 text-cinnabar-light border border-cinnabar/20'}"
-              aria-label="C2PA signature is {manifest.isValid ? 'valid' : 'invalid'}"
+              aria-label="C2PA signature is {manifest.isValid && manifest.validAtSigning ? 'valid at signing (certificate expired)' : manifest.isValid ? 'valid' : 'invalid'}"
+              title={manifest.isValid && manifest.validAtSigning
+                ? 'Signing certificate has expired, but a trusted timestamp and valid claim signature prove the signature was issued while the certificate was still valid. Common for short-lived credentials such as Google Pixel Camera.'
+                : undefined}
             >
-              {manifest.isValid ? 'Valid' : 'Invalid'}
+              {manifest.isValid && manifest.validAtSigning ? 'Valid at signing' : manifest.isValid ? 'Valid' : 'Invalid'}
             </span>
             {#if result.aiGenerator}
               <span
@@ -5714,7 +5719,9 @@
                 <!-- Dot -->
                 <span
                   class="absolute left-0 top-1 w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center
-                         {manifest.isValid
+                         {manifest.isValid && manifest.validAtSigning
+                           ? 'border-amber bg-amber/15'
+                           : manifest.isValid
                            ? 'border-malachite bg-malachite/15'
                            : 'border-cinnabar bg-cinnabar/15'}"
                   aria-hidden="true"
@@ -5723,7 +5730,9 @@
                 <div class="bg-gray-50 dark:bg-obsidian/30 rounded-md border border-border-light dark:border-border-dark px-3 py-2">
                   <p class="text-xs font-semibold text-text-light dark:text-quartz mb-0.5">
                     Signed
-                    {#if manifest.isValid}
+                    {#if manifest.isValid && manifest.validAtSigning}
+                      <span class="text-amber font-medium">(valid at signing — certificate has since expired)</span>
+                    {:else if manifest.isValid}
                       <span class="text-malachite dark:text-malachite-light font-medium">(valid)</span>
                     {:else}
                       <span class="text-cinnabar dark:text-cinnabar-light font-medium">(invalid)</span>

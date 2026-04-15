@@ -6,6 +6,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 15 April 2026 — C2PA "Valid at signing" tri-state
+
+Real-world Google Pixel Camera photos were rendering as **Invalid** in the Verify panel despite carrying a cryptographically sound Google-issued C2PA manifest. Root cause: Pixel uses short-lived signing certificates paired with a trusted timestamp — the standard C2PA pattern for camera-capture credentials. c2pa-rs correctly reports `signingCredential.expired`, but our manifest reader treated any non-`signingCredential.untrusted` failure as outright invalid, collapsing the legitimate "signature was valid at signing time" case into the invalid bucket alongside tamper and hash-mismatch failures.
+
+### Added
+
+- **`ManifestInfo.valid_at_signing: bool`** (`src-tauri/src/c2pa.rs`). True when (a) all failures are cert-soft — `signingCredential.expired` and/or `signingCredential.untrusted`; (b) active-manifest success list contains `timeStamp.validated` or `timeStamp.trusted`; (c) `claimSignature.validated` is present. Serialised as `validAtSigning` in the IPC payload.
+- **Amber "Valid at signing" badge** in the Verify C2PA Credentials panel with tooltip explaining short-lived credentials (e.g. Google Pixel Camera). Provenance timeline node renders in amber with the "(valid at signing — certificate has since expired)" label.
+- **PDF export** Status row now reads "Valid at signing (certificate expired; trusted timestamp intact)" where applicable.
+- **6 new unit tests** covering the derivation: fully valid, self-signed-untrusted-only, Pixel expired+trusted-timestamp, expired-without-timestamp, expired-without-claim-signature, hash-mismatch (419/419 Rust lib tests pass).
+
+### Changed
+
+- `is_valid` is now true for both the fully-valid and valid-at-signing cases; `valid_at_signing` discriminates the two for display. `SimpleVerdict`, `VerdictSummary`, `SignalAgreement`, and other downstream components that already key off `isValid === true` automatically begin treating Pixel-style manifests as valid provenance — no changes needed in those paths.
+- Validity derivation extracted into a pure `derive_validity(&json)` function for testability; old inline logic in `read_manifest` removed.
+
+### Why this matters
+
+C2PA's short-lived-cert pattern is the dominant camera-capture model (Pixel Camera, Leica M11-P, Sony α-series firmware). Treating these as outright invalid would have shipped a major false-negative on the single strongest authenticity signal in the product. Fix landed before v1.0 pilot handout.
+
+### Backlog additions
+
+- **Capture Source panel** (deferred) — consolidate C2PA `signature_info.common_name` + `issuer`, EXIF `Make`/`Model` + MakerNote authenticity, and `claim_generator_info[0].name` into a single tiered "Capture Source" output above the forensics stack. Surfaced during Pixel testing when the current UI showed no source attribution despite the manifest carrying `common_name: "Pixel Camera"` (v2 schema uses `claim_generator_info[]` rather than the v1 `claim_generator` string our reader was pulling).
+- **Physiological video deepfake signals (rPPG + blink/gaze)** — added as backlog item #18 per Ramanaharan et al. (2025) systematic review finding that spatial + temporal + physiological multimodal fusion is the strongest generalisation path.
+
+---
+
 ## 8 April 2026 — Sprint 28 Tech-Debt Sweep (Post-v1.0 Cleanup)
 
 Pre-v1.0 tech-debt audit executed across two days. The audit itself was cross-reviewed by 12 specialist agents (tech-debt-analyst, api-engineer, rust-backend-engineer, ml-data-scientist, content-authenticity-expert, legal-compliance-advisor, project-manager, persona-testing, grant-writer, security-auditor, ux-frontend-designer, rag-ollama-engineer); the cross-review reversed two of the original audit recommendations (kept JPEG Ghost in deep mode at 0.5× weight, kept seasonal/diffusion deletion confirmed) and surfaced one critical release blocker (`.backup` file pickle EoP vector) plus a TRIED Pillar 2 failure in the WITNESS capability brief (line 95 "no cloud calls" claim was already false due to weather cross-reference and reverse image search).
