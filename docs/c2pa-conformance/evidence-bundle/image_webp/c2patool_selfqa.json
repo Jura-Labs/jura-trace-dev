@@ -1,10 +1,10 @@
 {
-  "status": "ok",
-  "note": "Internal QA only \u2014 the C2PA Conformance reviewer is expected to run their own validator.",
+  "note": "Internal QA only \u2014 the C2PA Conformance Programme reviewer is expected to run their own validator.",
+  "c2patool_version": "0.26.47",
   "c2patool_raw_output": {
-    "active_manifest": "urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae",
+    "active_manifest": "urn:c2pa:71735b11-0c78-48cd-a17d-4a9a73556aa5",
     "manifests": {
-      "urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae": {
+      "urn:c2pa:71735b11-0c78-48cd-a17d-4a9a73556aa5": {
         "claim_generator_info": [
           {
             "name": "c2pa-rs",
@@ -12,8 +12,8 @@
             "org.contentauth.c2pa_rs": "0.79.3"
           }
         ],
-        "title": ".tmp9tw12Z.webp",
-        "instance_id": "xmp:iid:ea5de761-662e-43d8-880b-b4eaa9a71c42",
+        "title": ".tmp2hKhBF.webp",
+        "instance_id": "xmp:iid:f76fd406-3dd1-4e08-90e5-882040195feb",
         "assertions": [
           {
             "label": "c2pa.actions.v2",
@@ -49,16 +49,16 @@
           "issuer": "Juralabs CIC",
           "common_name": "Jura Trace Signing Certificate",
           "cert_serial_number": "362997406494286190230837912821252507342518624822",
-          "time": "2026-04-15T10:59:02+00:00"
+          "time": "2026-04-15T11:47:49+00:00"
         },
-        "label": "urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae",
+        "label": "urn:c2pa:71735b11-0c78-48cd-a17d-4a9a73556aa5",
         "claim_version": 2
       }
     },
     "validation_status": [
       {
         "code": "signingCredential.untrusted",
-        "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.signature",
+        "url": "self#jumbf=/c2pa/urn:c2pa:71735b11-0c78-48cd-a17d-4a9a73556aa5/c2pa.signature",
         "explanation": "signing certificate untrusted"
       }
     ],
@@ -67,56 +67,56 @@
         "success": [
           {
             "code": "timeStamp.validated",
-            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.signature",
+            "url": "self#jumbf=/c2pa/urn:c2pa:71735b11-0c78-48cd-a17d-4a9a73556aa5/c2pa.signature",
             "explanation": "timestamp message digest matched: DigiCert SHA256 RSA4096 Timestamp Responder 2025 1"
           },
           {
             "code": "claimSignature.insideValidity",
-            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.signature",
+            "url": "self#jumbf=/c2pa/urn:c2pa:71735b11-0c78-48cd-a17d-4a9a73556aa5/c2pa.signature",
             "explanation": "claim signature valid"
           },
           {
             "code": "claimSignature.validated",
-            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.signature",
+            "url": "self#jumbf=/c2pa/urn:c2pa:71735b11-0c78-48cd-a17d-4a9a73556aa5/c2pa.signature",
             "explanation": "claim signature valid"
           },
           {
             "code": "assertion.hashedURI.match",
-            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.assertions/c2pa.hash.data",
+            "url": "self#jumbf=/c2pa/urn:c2pa:71735b11-0c78-48cd-a17d-4a9a73556aa5/c2pa.assertions/c2pa.hash.data",
             "explanation": "hashed uri matched: self#jumbf=c2pa.assertions/c2pa.hash.data"
           },
           {
             "code": "assertion.hashedURI.match",
-            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.assertions/c2pa.actions.v2",
+            "url": "self#jumbf=/c2pa/urn:c2pa:71735b11-0c78-48cd-a17d-4a9a73556aa5/c2pa.assertions/c2pa.actions.v2",
             "explanation": "hashed uri matched: self#jumbf=c2pa.assertions/c2pa.actions.v2"
           },
           {
             "code": "assertion.hashedURI.match",
-            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.assertions/c2pa.rights",
+            "url": "self#jumbf=/c2pa/urn:c2pa:71735b11-0c78-48cd-a17d-4a9a73556aa5/c2pa.assertions/c2pa.rights",
             "explanation": "hashed uri matched: self#jumbf=c2pa.assertions/c2pa.rights"
           },
           {
             "code": "assertion.hashedURI.match",
-            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.assertions/stds.iptc",
+            "url": "self#jumbf=/c2pa/urn:c2pa:71735b11-0c78-48cd-a17d-4a9a73556aa5/c2pa.assertions/stds.iptc",
             "explanation": "hashed uri matched: self#jumbf=c2pa.assertions/stds.iptc"
           },
           {
             "code": "assertion.dataHash.match",
-            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.assertions/c2pa.hash.data",
+            "url": "self#jumbf=/c2pa/urn:c2pa:71735b11-0c78-48cd-a17d-4a9a73556aa5/c2pa.assertions/c2pa.hash.data",
             "explanation": "data hash valid"
           }
         ],
         "informational": [
           {
             "code": "timeStamp.untrusted",
-            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.signature",
+            "url": "self#jumbf=/c2pa/urn:c2pa:71735b11-0c78-48cd-a17d-4a9a73556aa5/c2pa.signature",
             "explanation": "timestamp cert untrusted: DigiCert SHA256 RSA4096 Timestamp Responder 2025 1"
           }
         ],
         "failure": [
           {
             "code": "signingCredential.untrusted",
-            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.signature",
+            "url": "self#jumbf=/c2pa/urn:c2pa:71735b11-0c78-48cd-a17d-4a9a73556aa5/c2pa.signature",
             "explanation": "signing certificate untrusted"
           }
         ]

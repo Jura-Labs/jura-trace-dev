@@ -1,26 +1,26 @@
 {
   "mime_type": "image/tiff",
   "source_file": "source.tiff",
+  "source_bytes": 1800662,
   "signed_file": "jura_signed.tiff",
-  "primary_evidence": {
-    "file": "jura_trace_verify_response.json",
-    "description": "Full JSON response from Jura Trace's REST API verify endpoint (POST /api/v1/verify). Schema is distinctly Jura Trace's (camelCase keys, detectorsRun array, c2paManifest object, deepfakeResult, clipResult, etc.) \u2014 provably not c2patool output.",
-    "headline_values": {
-      "c2paValid": true,
-      "c2paManifest_present": true,
-      "assertion_count": 3,
-      "detectors_run": [
-        "exif_anomaly",
-        "c2pa"
-      ],
-      "manifest_title": ".tmpfFK8Xv.tiff",
-      "signed_at": "2026-04-15T10:58:57+00:00"
-    }
+  "signed_bytes": 1814304,
+  "source_dimensions": "max 1024px longest side",
+  "primary_evidence": "jura_trace_verify_response.json",
+  "primary_evidence_note": "Unedited HTTP response body from POST /api/v1/verify, filtered to C2PA-relevant fields only. Full unfiltered response (including ML detector heatmap base64 data) is available from the endpoint \u2014 stripped here to keep the bundle size reasonable.",
+  "headline_values": {
+    "c2paValid": true,
+    "c2paManifest_present": true,
+    "assertion_count": 3,
+    "detectors_run": [
+      "exif_anomaly",
+      "c2pa",
+      "ela",
+      "deepfake",
+      "clip",
+      "watermark"
+    ],
+    "manifest_title": ".tmpv49lNj.tiff",
+    "signed_at": "2026-04-15T11:47:47+00:00"
   },
-  "sign_result": {
-    "http_status": 200,
-    "signed_bytes": 40175300
-  },
-  "internal_qa_note": "c2patool_selfqa.json contains an internal cross-check we ran with c2patool 0.26.47 for our own QA. The C2PA Conformance Programme reviewer is expected to run their own validator against jura_signed.{ext} \u2014 this file is included only for reproducibility.",
-  "timestamp_utc": "2026-04-15T10:58:59Z"
+  "timestamp_utc": "2026-04-15T11:47:49Z"
 }

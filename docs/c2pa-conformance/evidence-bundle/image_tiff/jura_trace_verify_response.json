@@ -1,38 +1,22 @@
 {
+  "status": null,
   "data": {
+    "mode": "standard",
     "sourceType": "upload",
     "contentType": "image",
-    "mode": "standard",
-    "elaScore": null,
-    "noiseScore": null,
-    "copyMoveScore": null,
-    "deepfakeScore": null,
-    "c2paValid": true,
-    "metadataFlags": [
-      "No camera information"
+    "detectorsRun": [
+      "exif_anomaly",
+      "c2pa",
+      "ela",
+      "deepfake",
+      "clip",
+      "watermark"
     ],
-    "claimVerdict": null,
-    "overallTrust": 1.0,
-    "exifAnalysis": {
-      "findings": [
-        {
-          "checkId": "no_camera_info",
-          "title": "No camera information",
-          "description": "No camera make, model, or exposure settings found. This may indicate AI generation, screenshot capture, or metadata stripping.",
-          "severity": "medium",
-          "category": "completeness"
-        }
-      ],
-      "trustScore": 0.9,
-      "fieldsPopulated": 2,
-      "fieldsTotal": 16,
-      "hasExif": true,
-      "gpsLatitude": null,
-      "gpsLongitude": null,
-      "cameraAuthenticityBonus": 0.0
-    },
+    "overallTrust": 0.92072,
+    "c2paSigned": null,
+    "c2paValid": true,
     "c2paManifest": {
-      "title": ".tmpfFK8Xv.tiff",
+      "title": ".tmpv49lNj.tiff",
       "format": null,
       "claimGenerator": null,
       "assertions": [
@@ -50,63 +34,16 @@
         }
       ],
       "isValid": true,
-      "signedAt": "2026-04-15T10:58:57+00:00"
+      "signedAt": "2026-04-15T11:47:47+00:00"
     },
-    "elaResult": null,
-    "noiseResult": null,
-    "copyMoveResult": null,
-    "deepfakeResult": null,
-    "clipResult": null,
-    "nprResult": null,
-    "jpegGhostResult": null,
-    "segmentedElaResult": null,
-    "shadowConsistencyResult": null,
-    "colourTemperatureResult": null,
-    "spliceBoundaryResult": null,
     "aiGenerator": null,
-    "watermarkExtractResult": null,
-    "videoMetadata": null,
-    "audioMetadata": null,
-    "videoDeepfakeResult": null,
-    "transcriptionResult": null,
-    "claimCheckResult": null,
-    "aiDescription": null,
-    "thumbnailCheck": {
-      "hasThumbnail": false,
-      "hammingDistance": null,
-      "mismatch": false
-    },
-    "inputSha256": "1a700c27d8efdf6c465c68d17eb61bf93af11d277f74bc9c887cab3dd16c3514",
+    "inputSha256": "db508ee28452623d1e87c43e711cda2d0017be8a598a0f169ff9fc8011a1579a",
     "methodology": {
       "pipelineVersion": "0.9.0",
       "sidecarVersion": "0.2.0",
       "classifierModelHash": "3a02785ad72d19fe4bedb13bfec4a85901323600ef3199919bb983186da20161",
       "analysisMode": "standard",
-      "analysedAt": "2026-04-15T10:58:59.264298+00:00"
-    },
-    "inputQuality": {
-      "jpegQualityEstimate": null,
-      "resolutionCategory": "high",
-      "width": 5312,
-      "height": 2988,
-      "isScreenshotLikely": false,
-      "isJpeg": false,
-      "hasGps": false,
-      "hasTimestamp": true,
-      "isModernLossyCodec": false,
-      "metadataCompletelyAbsent": false,
-      "degradedDetectors": [
-        "JPEG Ghost",
-        "Shadow Time Estimation",
-        "Sun Position"
-      ]
-    },
-    "contentTypeResult": null,
-    "detectorsRun": [
-      "exif_anomaly",
-      "c2pa"
-    ]
-  },
-  "apiVersion": "1.0",
-  "degraded": true
+      "analysedAt": "2026-04-15T11:47:48.840817+00:00"
+    }
+  }
 }

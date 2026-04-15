@@ -1,30 +1,26 @@
 {
   "mime_type": "image/webp",
   "source_file": "source.webp",
+  "source_bytes": 125876,
   "signed_file": "jura_signed.webp",
-  "primary_evidence": {
-    "file": "jura_trace_verify_response.json",
-    "description": "Full JSON response from Jura Trace's REST API verify endpoint (POST /api/v1/verify). Schema is distinctly Jura Trace's (camelCase keys, detectorsRun array, c2paManifest object, deepfakeResult, clipResult, etc.) \u2014 provably not c2patool output.",
-    "headline_values": {
-      "c2paValid": true,
-      "c2paManifest_present": true,
-      "assertion_count": 3,
-      "detectors_run": [
-        "exif_anomaly",
-        "c2pa",
-        "ela",
-        "deepfake",
-        "clip",
-        "watermark"
-      ],
-      "manifest_title": ".tmp9tw12Z.webp",
-      "signed_at": "2026-04-15T10:59:02+00:00"
-    }
+  "signed_bytes": 139486,
+  "source_dimensions": "max 1024px longest side",
+  "primary_evidence": "jura_trace_verify_response.json",
+  "primary_evidence_note": "Unedited HTTP response body from POST /api/v1/verify, filtered to C2PA-relevant fields only. Full unfiltered response (including ML detector heatmap base64 data) is available from the endpoint \u2014 stripped here to keep the bundle size reasonable.",
+  "headline_values": {
+    "c2paValid": true,
+    "c2paManifest_present": true,
+    "assertion_count": 3,
+    "detectors_run": [
+      "exif_anomaly",
+      "c2pa",
+      "ela",
+      "deepfake",
+      "clip",
+      "watermark"
+    ],
+    "manifest_title": ".tmp2hKhBF.webp",
+    "signed_at": "2026-04-15T11:47:49+00:00"
   },
-  "sign_result": {
-    "http_status": 200,
-    "signed_bytes": 1432642
-  },
-  "internal_qa_note": "c2patool_selfqa.json contains an internal cross-check we ran with c2patool 0.26.47 for our own QA. The C2PA Conformance Programme reviewer is expected to run their own validator against jura_signed.{ext} \u2014 this file is included only for reproducibility.",
-  "timestamp_utc": "2026-04-15T10:59:12Z"
+  "timestamp_utc": "2026-04-15T11:47:52Z"
 }
