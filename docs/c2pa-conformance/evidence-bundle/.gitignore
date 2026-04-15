@@ -1,0 +1,12 @@
+# Large binary evidence files — excluded from git.
+# Regenerate locally via build_evidence_bundle.py, or request the zip
+# bundle for the C2PA Conformance Programme submission.
+*.jpg
+*.jpeg
+*.png
+*.tiff
+*.tif
+*.webp
+*.heic
+*.heif
+*.avif

@@ -362,7 +362,7 @@ Three primary options, in order of preference:
 - **Scale**: 7,491 images (1,701 authentic, 5,123 spliced, 667 copy-move)
 - **Licence**: **Research-only, NOT for commercial use.** Jura Trace is a commercial
   product (PolyForm Noncommercial is a source-availability licence, not a
-  non-commercial product classification — Juralabs CIC sells paid tiers). CASIA v2
+  non-commercial product classification — Jura Labs CIC sells paid tiers). CASIA v2
   cannot be used for production calibration, benchmark artefacts shipped with the
   product, or any evaluation whose output influences released code. **Do not
   download, do not use for "research benchmarks" tied to Jura Trace, do not cite in

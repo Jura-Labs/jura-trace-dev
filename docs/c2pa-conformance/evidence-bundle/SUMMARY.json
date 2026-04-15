@@ -1,0 +1,29 @@
+{
+  "generated": "2026-04-15T10:39:49Z",
+  "applicant": "Jura Labs CIC",
+  "product": "Jura Trace",
+  "record_id": "019d8d83-ed1c-787c-920c-8fad67b55cbe",
+  "c2pa_rs_version": "0.79",
+  "c2patool_version": "0.26.47",
+  "claimed_mime_types_with_full_evidence": [
+    "image/jpeg",
+    "image/png",
+    "image/tiff",
+    "image/webp"
+  ],
+  "mime_types_pending_reference_samples": [
+    "image/heic",
+    "image/heif",
+    "image/avif"
+  ],
+  "pending_reason": "c2pa-rs 0.79 does not yet support signing these formats and the CAI Interoperability Testing Files folder contains only JPEG samples. Request signed reference samples from the programme or amend declared types.",
+  "bundle_contents": {
+    "image_jpeg/": "Jura Trace signed + Jura verified + c2patool verified",
+    "image_png/": "Jura Trace signed + Jura verified + c2patool verified",
+    "image_tiff/": "Jura Trace signed + Jura verified + c2patool verified",
+    "image_webp/": "Jura Trace signed + Jura verified + c2patool verified",
+    "external_samples/": "Externally-signed files validated by Jura Trace with cross-validator agreement",
+    "build_evidence_bundle.py": "Reproduction script",
+    "README.md": "Full bundle documentation"
+  }
+}

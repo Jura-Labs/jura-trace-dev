@@ -6,7 +6,7 @@
 **Tagline**: "Know What's Real"
 **Positioning**: "In a world of synthetic media, verification matters."
 **Philosophy**: "Keep people at the heart of every decision. Use technology to support and guide, not to take over."
-**Parent Organisation**: Juralabs CIC
+**Parent Organisation**: Jura Labs CIC
 
 ## Logo
 

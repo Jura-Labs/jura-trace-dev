@@ -293,7 +293,7 @@ Note: data that has already been included in a quarterly retrain batch (incorpor
 
 The telemetry feature is an investigative aid for model improvement, not a statement about the user's specific use case. Consistent with the pattern established in `sidecar/app/services/claim_checker.py`:
 
-> False positive reports submitted via Jura Trace are used solely for the purpose of improving detection models in future releases. Submission of a report does not constitute a warranty, guarantee, or representation by Juralabs CIC that the submitted analysis result was incorrect. Reports are reviewed in aggregate; individual reports are not evaluated, acted upon, or responded to.
+> False positive reports submitted via Jura Trace are used solely for the purpose of improving detection models in future releases. Submission of a report does not constitute a warranty, guarantee, or representation by Jura Labs CIC that the submitted analysis result was incorrect. Reports are reviewed in aggregate; individual reports are not evaluated, acted upon, or responded to.
 
 This statement should appear in:
 - The consent notice (condensed).
@@ -307,7 +307,7 @@ Juralabs must add a new entry to its Article 30 records-of-processing register f
 | Field | Value |
 |---|---|
 | Processing activity | Voluntary FP telemetry upload |
-| Controller | Juralabs CIC |
+| Controller | Jura Labs CIC |
 | Data categories | Pseudonymous diagnostic data (install UUID, feature vector, reason code, app version, report date) |
 | Lawful basis | Consent (Article 6(1)(a)) |
 | Purpose | Training data improvement for AI detection models |
@@ -513,7 +513,7 @@ Phase A is the permanent state until the Phase B gate is passed.
 **Phase A → B gate**: All of the following must be true:
 
 1. Jura Trace v1.0 has shipped (pilot testing complete, public release).
-2. The privacy notice at `juralabs.org/privacy` has been updated to cover telemetry and reviewed by a solicitor (or at minimum by the Juralabs CIC board).
+2. The privacy notice at `juralabs.org/privacy` has been updated to cover telemetry and reviewed by a solicitor (or at minimum by the Jura Labs CIC board).
 3. The DPIA supplement has been appended to `docs/compliance/dpia-template.md`.
 4. The Fly.io server binary is deployed to a staging environment with a distinct URL (`https://telemetry-staging.juralabs.org`).
 5. At least one pilot user has provided informed consent in a test session.

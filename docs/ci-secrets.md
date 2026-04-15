@@ -28,7 +28,7 @@ Secrets required in GitHub repository Settings → Secrets and variables → Act
 |---|---|---|
 | `APPLE_CERTIFICATE` | Base64-encoded .p12 certificate | Export from Keychain Access after Developer ID enrolment |
 | `APPLE_CERTIFICATE_PASSWORD` | Password for the .p12 file | Set during export |
-| `APPLE_SIGNING_IDENTITY` | e.g. `Developer ID Application: Juralabs CIC (TEAMID)` | From Keychain after cert install |
+| `APPLE_SIGNING_IDENTITY` | e.g. `Developer ID Application: Jura Labs CIC (TEAMID)` | From Keychain after cert install |
 | `APPLE_ID` | Apple ID email used for notarisation | Your Apple Developer account email |
 | `APPLE_PASSWORD` | App-specific password | Generate at appleid.apple.com → Security → App-Specific Passwords |
 | `APPLE_TEAM_ID` | 10-character team identifier | From developer.apple.com → Membership |
@@ -95,7 +95,7 @@ az resource create \
 1. In Azure Portal → Trusted Signing → your account → Identity validation
 2. Select "Public" identity validation type
 3. Enter organisation details:
-   - Organisation name: Juralabs CIC
+   - Organisation name: Jura Labs CIC
    - Street address, city, country
    - Companies House number
    - Website: juralabs.org

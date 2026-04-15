@@ -1175,7 +1175,7 @@
           target="_blank"
           rel="noopener noreferrer"
           class="text-lapis dark:text-lapis-light hover:text-lapis-dark dark:hover:text-lapis-light underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-        >Juralabs CIC<span class="sr-only"> (opens in new tab)</span></a>
+        >Jura Labs CIC<span class="sr-only"> (opens in new tab)</span></a>
       </dd>
     </dl>
 

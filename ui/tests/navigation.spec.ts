@@ -37,9 +37,9 @@ test.describe('Navigation and layout', () => {
     expect(focusedBox!.height).toBeGreaterThan(1);
   });
 
-  test('footer contains Juralabs CIC link', async ({ page }) => {
+  test('footer contains Jura Labs CIC link', async ({ page }) => {
     const footer = page.locator('footer');
-    const juralabsLink = footer.getByRole('link', { name: 'Juralabs CIC' });
+    const juralabsLink = footer.getByRole('link', { name: 'Jura Labs CIC' });
     await expect(juralabsLink).toBeVisible();
     await expect(juralabsLink).toHaveAttribute('href', 'https://juralabs.org');
   });

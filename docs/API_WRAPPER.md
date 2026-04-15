@@ -363,7 +363,7 @@ Content-Type: multipart/form-data
 Authorization: Bearer jt_...
 
 file: (binary, required)
-creator_name: "Juralabs CIC"                    (string, required)
+creator_name: "Jura Labs CIC"                    (string, required)
 license: "CC BY 4.0"                            (string, required)
 rights_statement: "All rights reserved"         (string, optional)
 contact_url: "https://juralabs.org"             (string, optional)

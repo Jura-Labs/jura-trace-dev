@@ -25,7 +25,7 @@ however well-engineered, cannot close the "does it work on actual
 forgeries" question. The existing public splice datasets (CASIA v1/v2,
 Columbia Uncompressed, CoMoFoD, MICC-F220, IMD2020, DEFACTO, Carvalho
 DSO-1, NIST Nimble) are all **research-only** and **not licensed for
-commercial use**. Jura Trace is a commercial product (Juralabs CIC sells
+commercial use**. Jura Trace is a commercial product (Jura Labs CIC sells
 paid tiers under PolyForm Noncommercial, which is a source-availability
 licence, not a commercial-use prohibition). Using research-only datasets
 for production calibration, shipped benchmark artefacts, or any evaluation

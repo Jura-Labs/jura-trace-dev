@@ -2,7 +2,7 @@
 name = "jura-trace"
 version = "0.9.0"
 description = "Local-first content verification and protection. In a world of synthetic media, verification matters."
-authors = ["Juralabs CIC"]
+authors = ["Jura Labs CIC"]
 edition = "2021"
 rust-version = "1.88"
 # With the introduction of the `gen-detectors` codegen binary (commit

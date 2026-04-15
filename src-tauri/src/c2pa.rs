@@ -83,7 +83,7 @@ pub fn ensure_certificate(data_dir: &Path) -> Result<(Vec<u8>, Vec<u8>), String>
     );
     ca_params.distinguished_name.push(
         rcgen::DnType::OrganizationName,
-        rcgen::DnValue::Utf8String("Juralabs CIC".to_string()),
+        rcgen::DnValue::Utf8String("Jura Labs CIC".to_string()),
     );
     // CA needs keyCertSign so it can sign end-entity certs.
     ca_params.key_usages = vec![
@@ -129,7 +129,7 @@ pub fn ensure_certificate(data_dir: &Path) -> Result<(Vec<u8>, Vec<u8>), String>
     );
     ee_params.distinguished_name.push(
         rcgen::DnType::OrganizationName,
-        rcgen::DnValue::Utf8String("Juralabs CIC".to_string()),
+        rcgen::DnValue::Utf8String("Jura Labs CIC".to_string()),
     );
     ee_params.key_usages = vec![rcgen::KeyUsagePurpose::DigitalSignature];
     ee_params.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::EmailProtection];

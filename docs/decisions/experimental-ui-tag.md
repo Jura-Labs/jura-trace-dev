@@ -3,7 +3,7 @@ title: "Decision: Experimental UI Tag Pattern for In-Development Features"
 decision-id: DEC-2026-04-09-001
 date: 9 April 2026
 status: ADOPTED
-decided-by: Paul Griffiths (Director, Juralabs CIC)
+decided-by: Paul Griffiths (Director, Jura Labs CIC)
 decision-type: UI / Product
 related-documents:
   - ui/src/routes/verify/v2/+page.svelte (existing usage)

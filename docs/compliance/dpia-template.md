@@ -143,7 +143,7 @@ Potential categories include:
 
 | Recipient | Data shared | Legal basis |
 |---|---|---|
-| Juralabs CIC | None (no telemetry, no crash reports, no usage data) | N/A |
+| Jura Labs CIC | None (no telemetry, no crash reports, no usage data) | N/A |
 | Third-party AI API provider (Enterprise only, optional, disabled by default) | Extracted text claims only (no media content) | Organisation's legitimate interest; explicit operator consent at point of use |
 | Recipients of exported PDF reports or ZIP case files | Analysis results, metadata summaries, trust scores, verdict | Determined by organisation's own sharing policies |
 
@@ -171,7 +171,7 @@ Potential categories include:
 
 ### 3.1 Vendor consultation
 
-Juralabs CIC provides this DPIA template, the accompanying Information Security Summary document, and the application's security audit report (available on request to Enterprise and Grant-Subsidised Access tier licensees). Juralabs' pre-release security penetration test (25 March 2026) identified 0 critical, 4 high, 5 medium, 6 low, and 4 informational findings. All high-severity findings were remediated on the date of identification. The full report is available under NDA.
+Jura Labs CIC provides this DPIA template, the accompanying Information Security Summary document, and the application's security audit report (available on request to Enterprise and Grant-Subsidised Access tier licensees). Juralabs' pre-release security penetration test (25 March 2026) identified 0 critical, 4 high, 5 medium, 6 low, and 4 informational findings. All high-severity findings were remediated on the date of identification. The full report is available under NDA.
 
 No systemic data protection concerns have been identified by the vendor. The local-first architecture was selected specifically to minimise data protection risk.
 
@@ -283,7 +283,7 @@ This design mitigates the accuracy risk inherent in any AI-assisted analysis sys
 
 ### 5.1 Pre-assessed risks
 
-The following risks have been identified and assessed by Juralabs CIC based on the application's architecture and security posture.
+The following risks have been identified and assessed by Jura Labs CIC based on the application's architecture and security posture.
 
 | # | Risk | Likelihood | Severity | Risk Level | Mitigation (built-in) | Additional mitigation (organisation) |
 |---|---|---|---|---|---|---|
@@ -463,7 +463,7 @@ This DPIA is relevant to all tiers of Jura Trace. The core data processing descr
 
 | Version | Date | Author | Changes |
 |---|---|---|---|
-| 1.0 | 25 March 2026 | Juralabs CIC | Initial template |
+| 1.0 | 25 March 2026 | Jura Labs CIC | Initial template |
 
 ---
 
@@ -474,7 +474,7 @@ This DPIA is relevant to all tiers of Jura Trace. The core data processing descr
 **Product**: Jura Trace v0.9.0-rc.1
 **Licence**: PolyForm Noncommercial 1.0.0 (Community tier) / Commercial licence (paid tiers)
 
-For questions about this DPIA template or the data processing described herein, contact Juralabs CIC via the website above.
+For questions about this DPIA template or the data processing described herein, contact Jura Labs CIC via the website above.
 
 ---
 

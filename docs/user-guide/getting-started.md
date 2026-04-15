@@ -1,6 +1,6 @@
 ---
 title: "Getting Started with Jura Trace"
-description: "Download, install, and run your first verification and protection in Jura Trace — the local-first content verification and protection tool from Juralabs CIC."
+description: "Download, install, and run your first verification and protection in Jura Trace — the local-first content verification and protection tool from Jura Labs CIC."
 last-updated: 25 March 2026
 status: published
 ---

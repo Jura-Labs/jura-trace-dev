@@ -125,7 +125,7 @@ deepfake detectors). It is stored under `corpus/training/benchmark/` in
 strict segregation from the production (`corpus/training/production/`)
 and research (`corpus/training/research/`) training corpora.
 
-Under Juralabs CIC decision DEC-2026-04-07-001 (Option C corpus
+Under Jura Labs CIC decision DEC-2026-04-07-001 (Option C corpus
 strategy), a training-script firewall refuses to include any file from
 this directory in any training run, regardless of model variant.
 
@@ -139,7 +139,7 @@ SENTINEL_TEXT = """\
 Benchmark-only corpus directory.
 
 Files under this path MUST NOT be used in any training corpus (production
-or research artefact) under Juralabs CIC decision DEC-2026-04-07-001
+or research artefact) under Jura Labs CIC decision DEC-2026-04-07-001
 (Option C corpus strategy).
 
 The training-script firewall enforces this by refusing to enumerate any

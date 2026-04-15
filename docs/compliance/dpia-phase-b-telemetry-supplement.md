@@ -7,7 +7,7 @@ parent: docs/compliance/dpia-template.md
 related:
   - docs/design/fp-telemetry-endpoint.md
   - docs/legal/fp-telemetry-solicitor-response-2026-04-09.md
-owner: Paul Griffiths (Director, Juralabs CIC)
+owner: Paul Griffiths (Director, Jura Labs CIC)
 ---
 
 # DPIA Phase B Supplement — FP Telemetry
@@ -51,7 +51,7 @@ The Phase B pilot introduces a single outbound data flow to the otherwise local-
 
 ### 2.3 Context of processing
 
-The wider relationship is that of a desktop software vendor (Juralabs CIC) and voluntary pilot participants who have installed Jura Trace and elected to help improve its AI detection models. Jura Trace is marketed as "local-first"; the Phase B feature is a narrow, opt-in exception to that posture, and user expectations must be managed accordingly. This informs the decision (captured in the design document, Part C.2, and confirmed by the solicitor's initial response) to rely on **consent** (Article 6(1)(a) UK GDPR) rather than legitimate interests (Article 6(1)(f)), even though legitimate interests would likely be defensible.
+The wider relationship is that of a desktop software vendor (Jura Labs CIC) and voluntary pilot participants who have installed Jura Trace and elected to help improve its AI detection models. Jura Trace is marketed as "local-first"; the Phase B feature is a narrow, opt-in exception to that posture, and user expectations must be managed accordingly. This informs the decision (captured in the design document, Part C.2, and confirmed by the solicitor's initial response) to rely on **consent** (Article 6(1)(a) UK GDPR) rather than legitimate interests (Article 6(1)(f)), even though legitimate interests would likely be defensible.
 
 ### 2.4 Purposes of processing
 
@@ -150,7 +150,7 @@ Residual exposure is limited by the 18-month raw-data retention window: after th
 |---|---|---|
 | API Engineer agent | Endpoint and server design | Authored `docs/design/fp-telemetry-endpoint.md` |
 | ml-data-scientist agent | Reconstruction-feasibility assessment | Engaged; assessment due at `docs/design/fp-telemetry-feature-vector-privacy.md` (follow-up item — flagged as dependency for bundle completeness) |
-| Data controller (Paul Griffiths, Director, Juralabs CIC) | Final decision authority | Reviewed and approved Phase A scaffold; supplement awaiting sign-off (§7) |
+| Data controller (Paul Griffiths, Director, Jura Labs CIC) | Final decision authority | Reviewed and approved Phase A scaffold; supplement awaiting sign-off (§7) |
 
 ### 4.2 External consultation
 
@@ -209,7 +209,7 @@ The risk assessment uses the ICO's qualitative approach: each risk is described,
 | DPIA review cycle | Annual review of this supplement and the parent template by the data controller; formal review by external solicitor before Phase C |
 | Solicitor engagement at each Phase gate | Phase B bundle submitted to solicitor before Phase B user sessions; Phase C bundle submitted before production launch |
 | Privacy notice transparency | Plain-English consent notice presented in the setup wizard and Settings; full privacy notice at `juralabs.org/privacy` (to be published before Phase B user sessions) |
-| Rights contact | The data controller (Director, Juralabs CIC) is the single point of contact for all UK GDPR rights requests; contact details published in the privacy notice |
+| Rights contact | The data controller (Director, Jura Labs CIC) is the single point of contact for all UK GDPR rights requests; contact details published in the privacy notice |
 | Data Processing Agreement | Fly.io standard DPA reviewed by solicitor and countersigned by the data controller before any Phase B user data is collected |
 | Article 30 records | Juralabs' Article 30 records-of-processing register is updated with the entry shown in Part C.6 of the design document |
 | Non-warranty disclosure | Consent notice and privacy notice will state that individual reports are not evaluated, acted upon, or responded to |
@@ -277,4 +277,4 @@ The Phase B pilot is explicitly **not** a substitute for the formal DPIA review 
 
 | Version | Date | Author | Changes |
 |---|---|---|---|
-| 0.1 (DRAFT) | 9 April 2026 | Legal Compliance Advisor (on behalf of Juralabs CIC) | Initial draft for solicitor review as part of Phase B review bundle |
+| 0.1 (DRAFT) | 9 April 2026 | Legal Compliance Advisor (on behalf of Jura Labs CIC) | Initial draft for solicitor review as part of Phase B review bundle |

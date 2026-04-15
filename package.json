@@ -11,6 +11,6 @@
     "tauri:dev": "cd src-tauri && cargo tauri dev",
     "tauri:build": "cd src-tauri && cargo tauri build"
   },
-  "author": "Juralabs CIC",
+  "author": "Jura Labs CIC",
   "license": "SEE LICENSE"
 }

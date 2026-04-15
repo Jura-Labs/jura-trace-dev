@@ -5,7 +5,7 @@
 of your implementation with at least one other C2PA implementer or implementation?"
 
 **Test date**: 14 April 2026
-**Tester**: Juralabs CIC
+**Tester**: Jura Labs CIC
 **Implementation under test**: Jura Trace v0.9.0-rc14 (uses c2pa-rs 0.79 with `file_io` feature)
 **Interop counterpart**: c2patool 0.26.47 (CAI reference CLI, uses c2pa-rs 0.79.3)
 
@@ -38,7 +38,7 @@ c2patool output (excerpt):
   validation_state: Valid
   claim_generator:  c2pa-rs
   signature_info:
-    issuer:         Juralabs CIC
+    issuer:         Jura Labs CIC
     time:           2026-04-14T19:13:53+00:00
   assertions:       3
     - c2pa.actions.v2

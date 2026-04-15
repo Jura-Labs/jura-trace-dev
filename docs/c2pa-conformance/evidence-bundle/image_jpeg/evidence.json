@@ -1,0 +1,43 @@
+{
+  "mime_type": "image/jpeg",
+  "extension": "jpg",
+  "pillow_format": "JPEG",
+  "source_file": "source.jpg",
+  "signed_file": "jura_signed.jpg",
+  "sign_result": {
+    "status": "ok",
+    "bytes": 2189374,
+    "http": 200
+  },
+  "jura_verify_result": {
+    "status": "ok",
+    "c2paValid": true,
+    "manifest_present": true,
+    "detectors_run": [
+      "exif_anomaly",
+      "c2pa",
+      "ela",
+      "deepfake",
+      "clip",
+      "watermark"
+    ],
+    "title": ".tmp5GDmtn.jpg",
+    "claim_generator": null,
+    "assertions_count": 3,
+    "signed_at": "2026-04-15T10:32:17+00:00"
+  },
+  "c2patool_verify_result": {
+    "status": "ok",
+    "validation_state": "Valid",
+    "active_manifest": "urn:c2pa:3edf38b8-36e2-46bf-8d3e-8f8ba2a2cd49",
+    "issuer": "Juralabs CIC",
+    "time": "2026-04-15T10:32:17+00:00",
+    "assertions_count": 3,
+    "assertion_labels": [
+      "c2pa.actions.v2",
+      "c2pa.rights",
+      "stds.iptc"
+    ]
+  },
+  "timestamp_utc": "2026-04-15T10:32:45Z"
+}

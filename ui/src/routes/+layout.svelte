@@ -371,7 +371,7 @@
             rel="noopener noreferrer"
             class="hover:text-lapis dark:hover:text-lapis-light transition-colors underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
-            Juralabs CIC
+            Jura Labs CIC
             <span class="sr-only">(opens in new tab)</span>
           </a>
           <a

@@ -372,7 +372,7 @@
     <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed">
       <li><a href="/help/protect" class="text-lapis dark:text-lapis-light underline hover:no-underline">Protect workflow</a> — the full Protect page covering C2PA signing, watermarking, and fingerprinting.</li>
       <li><a href="/help/settings" class="text-lapis dark:text-lapis-light underline hover:no-underline">Settings</a> — where the Signing Mode toggle lives, alongside other Jura Trace configuration.</li>
-      <li><a href="/help/continuity" class="text-lapis dark:text-lapis-light underline hover:no-underline">Continuity Promise</a> — what happens to your signed content if Juralabs CIC ever ceases operations.</li>
+      <li><a href="/help/continuity" class="text-lapis dark:text-lapis-light underline hover:no-underline">Continuity Promise</a> — what happens to your signed content if Jura Labs CIC ever ceases operations.</li>
       <li><a href="/help/glossary" class="text-lapis dark:text-lapis-light underline hover:no-underline">Glossary</a> — definitions of C2PA, trust list, certificate authority, and other terms used on this page.</li>
     </ul>
   </section>

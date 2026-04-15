@@ -54,4 +54,4 @@ PolyForm Noncommercial 1.0.0 — Free for museums, archives, journalists, educat
 
 ## Credits
 
-Developed by [Juralabs CIC](https://juralabs.org) — building ethical, local-first AI tools for social good.
+Developed by [Jura Labs CIC](https://juralabs.org) — building ethical, local-first AI tools for social good.

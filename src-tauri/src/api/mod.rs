@@ -54,7 +54,7 @@ use rate_limit::RateLimiter;
                        Binds to 127.0.0.1:8300. All endpoints except /api/v1/health \
                        require Bearer authentication.",
         version = env!("CARGO_PKG_VERSION"),
-        contact(name = "Juralabs CIC", url = "https://juralabs.org"),
+        contact(name = "Jura Labs CIC", url = "https://juralabs.org"),
         license(
             name = "PolyForm Noncommercial 1.0.0",
             url = "https://polyformproject.org/licenses/noncommercial/1.0.0/"
@@ -191,6 +191,13 @@ pub fn build_router(state: Arc<Mutex<AppState>>) -> Router {
     // Request body size limit: 200 MB (matches the import pipeline).
     let body_limit = RequestBodyLimitLayer::new(200 * 1024 * 1024);
 
+    // Per-extractor body limit for Multipart. Axum's Multipart extractor has its
+    // own 2 MB default limit that IS NOT overridden by RequestBodyLimitLayer.
+    // Without this, any upload >2 MB (most photos) fails with
+    // "Error parsing `multipart/form-data` request". Set to 200 MB to match
+    // the outer limit.
+    let multipart_limit = axum::extract::DefaultBodyLimit::max(200 * 1024 * 1024);
+
     // Shared rate limiter — one instance per server lifetime.
     let limiter = RateLimiter::new();
 
@@ -237,6 +244,7 @@ pub fn build_router(state: Arc<Mutex<AppState>>) -> Router {
         .merge(openapi_routes)
         .layer(cors)
         .layer(body_limit)
+        .layer(multipart_limit)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
