@@ -1,29 +1,28 @@
 {
-  "generated": "2026-04-15T10:39:49Z",
+  "generated": "2026-04-15T10:59:12Z",
   "applicant": "Jura Labs CIC",
   "product": "Jura Trace",
   "record_id": "019d8d83-ed1c-787c-920c-8fad67b55cbe",
-  "c2pa_rs_version": "0.79",
-  "c2patool_version": "0.26.47",
+  "product_implementation": {
+    "library": "c2pa-rs 0.79 (the CAI reference implementation)",
+    "feature_flags": [
+      "file_io"
+    ],
+    "hosting_product": "Jura Trace v0.9.0-rc14 (Tauri desktop app, Rust)",
+    "api_endpoint_under_test": "POST /api/v1/verify (local REST API, port 8300)"
+  },
   "claimed_mime_types_with_full_evidence": [
     "image/jpeg",
     "image/png",
     "image/tiff",
     "image/webp"
   ],
-  "mime_types_pending_reference_samples": [
-    "image/heic",
-    "image/heif",
-    "image/avif"
-  ],
-  "pending_reason": "c2pa-rs 0.79 does not yet support signing these formats and the CAI Interoperability Testing Files folder contains only JPEG samples. Request signed reference samples from the programme or amend declared types.",
-  "bundle_contents": {
-    "image_jpeg/": "Jura Trace signed + Jura verified + c2patool verified",
-    "image_png/": "Jura Trace signed + Jura verified + c2patool verified",
-    "image_tiff/": "Jura Trace signed + Jura verified + c2patool verified",
-    "image_webp/": "Jura Trace signed + Jura verified + c2patool verified",
-    "external_samples/": "Externally-signed files validated by Jura Trace with cross-validator agreement",
-    "build_evidence_bundle.py": "Reproduction script",
-    "README.md": "Full bundle documentation"
-  }
+  "per_format_evidence_structure": {
+    "jura_trace_verify_response.json": "PRIMARY \u2014 full raw JSON response from Jura Trace's verify endpoint, showing the validator ran end-to-end and read the manifest correctly.",
+    "jura_signed.<ext>": "The file Jura Trace produced. Submit this to your own validator for independent review.",
+    "source.<ext>": "Unsigned source image used for each format conversion.",
+    "c2patool_selfqa.json": "Internal QA only \u2014 our own cross-check. Not intended as programme evidence.",
+    "index.json": "Per-format summary with headline values."
+  },
+  "explicit_note_for_programme_reviewer": "The primary evidence for validator conformance is the jura_trace_verify_response.json files \u2014 each is the unedited HTTP response body from Jura Trace's REST API verify endpoint, with a schema distinct from c2patool's (camelCase, detectorsRun, deepfakeResult, etc.). Please run your own validator against the jura_signed.<ext> files; the c2patool_selfqa.json files are included only as internal reproducibility artefacts and not as substitutes for programme-side validation."
 }

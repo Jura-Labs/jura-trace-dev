@@ -1,0 +1,127 @@
+{
+  "status": "ok",
+  "note": "Internal QA only \u2014 the C2PA Conformance reviewer is expected to run their own validator.",
+  "c2patool_raw_output": {
+    "active_manifest": "urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae",
+    "manifests": {
+      "urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae": {
+        "claim_generator_info": [
+          {
+            "name": "c2pa-rs",
+            "version": "0.79.3",
+            "org.contentauth.c2pa_rs": "0.79.3"
+          }
+        ],
+        "title": ".tmp9tw12Z.webp",
+        "instance_id": "xmp:iid:ea5de761-662e-43d8-880b-b4eaa9a71c42",
+        "assertions": [
+          {
+            "label": "c2pa.actions.v2",
+            "data": {
+              "actions": [
+                {
+                  "action": "c2pa.created",
+                  "softwareAgent": "Jura Trace 0.9.0",
+                  "parameters": {
+                    "name": "Jura Labs CIC"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "label": "c2pa.rights",
+            "data": {
+              "ai_training": "notAllowed",
+              "rights": "CC-BY-4.0"
+            }
+          },
+          {
+            "label": "stds.iptc",
+            "data": {
+              "Iptc4xmpExt:DigitalSourceType": "",
+              "plus:DataMining": "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-EXCEPTSEARCHENGINEINDEXING"
+            }
+          }
+        ],
+        "signature_info": {
+          "alg": "Es256",
+          "issuer": "Juralabs CIC",
+          "common_name": "Jura Trace Signing Certificate",
+          "cert_serial_number": "362997406494286190230837912821252507342518624822",
+          "time": "2026-04-15T10:59:02+00:00"
+        },
+        "label": "urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae",
+        "claim_version": 2
+      }
+    },
+    "validation_status": [
+      {
+        "code": "signingCredential.untrusted",
+        "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.signature",
+        "explanation": "signing certificate untrusted"
+      }
+    ],
+    "validation_results": {
+      "activeManifest": {
+        "success": [
+          {
+            "code": "timeStamp.validated",
+            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.signature",
+            "explanation": "timestamp message digest matched: DigiCert SHA256 RSA4096 Timestamp Responder 2025 1"
+          },
+          {
+            "code": "claimSignature.insideValidity",
+            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.signature",
+            "explanation": "claim signature valid"
+          },
+          {
+            "code": "claimSignature.validated",
+            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.signature",
+            "explanation": "claim signature valid"
+          },
+          {
+            "code": "assertion.hashedURI.match",
+            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.assertions/c2pa.hash.data",
+            "explanation": "hashed uri matched: self#jumbf=c2pa.assertions/c2pa.hash.data"
+          },
+          {
+            "code": "assertion.hashedURI.match",
+            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.assertions/c2pa.actions.v2",
+            "explanation": "hashed uri matched: self#jumbf=c2pa.assertions/c2pa.actions.v2"
+          },
+          {
+            "code": "assertion.hashedURI.match",
+            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.assertions/c2pa.rights",
+            "explanation": "hashed uri matched: self#jumbf=c2pa.assertions/c2pa.rights"
+          },
+          {
+            "code": "assertion.hashedURI.match",
+            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.assertions/stds.iptc",
+            "explanation": "hashed uri matched: self#jumbf=c2pa.assertions/stds.iptc"
+          },
+          {
+            "code": "assertion.dataHash.match",
+            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.assertions/c2pa.hash.data",
+            "explanation": "data hash valid"
+          }
+        ],
+        "informational": [
+          {
+            "code": "timeStamp.untrusted",
+            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.signature",
+            "explanation": "timestamp cert untrusted: DigiCert SHA256 RSA4096 Timestamp Responder 2025 1"
+          }
+        ],
+        "failure": [
+          {
+            "code": "signingCredential.untrusted",
+            "url": "self#jumbf=/c2pa/urn:c2pa:766c0bc2-a490-4ab6-a848-815ec6aeb0ae/c2pa.signature",
+            "explanation": "signing certificate untrusted"
+          }
+        ]
+      }
+    },
+    "validation_state": "Valid"
+  }
+}

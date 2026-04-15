@@ -66,72 +66,72 @@ This matches the Apple Developer Program registration (verified against
 Companies House and D-U-N-S) used to issue our macOS code signing
 certificate (Team ID `Y82C4P9L7F`).
 
-## Per-format evidence
+## Per-format evidence — provenance note
 
-Each subfolder contains:
+**The primary evidence for each format is `jura_trace_verify_response.json`**
+— the full, unedited HTTP response body from Jura Trace's REST API verify
+endpoint (`POST /api/v1/verify`). This JSON has a schema distinctly Jura
+Trace's (camelCase field names, a `detectorsRun` array, `deepfakeResult`
+and `clipResult` sibling objects alongside `c2paManifest`) — provably
+not c2patool output.
 
-- `source.<ext>` — unsigned source image
-- `jura_signed.<ext>` — signed by Jura Trace via REST API
-- `evidence.json` — machine-readable signing + validation record
+The programme reviewer is expected to run their own validator (c2patool
+or the CAI Validation Harness) against each `jura_signed.<ext>` file.
+A `c2patool_selfqa.json` file is included in each subfolder but is
+labelled as internal QA only — it documents what we saw when we
+cross-checked during development, not programme evidence.
 
-### image/jpeg
+### Per-format contents
 
-- **Signed by Jura Trace**: 2,189,374 bytes
-- **Validated by Jura Trace**: `c2paValid: true`, 3 assertions
-  (`c2pa.actions.v2`, `c2pa.rights`, `stds.iptc`)
-- **Cross-validated by c2patool**: `validation_state: Valid`, 3 assertions
-- **Signer**: Jura Labs CIC (per-install CA — `signingCredential.untrusted`
-  in strict trust-list validators, which is expected and correct for
-  Local Signing mode)
+Each `image_<format>/` subfolder contains:
 
-### image/png
+| File | Purpose |
+|------|---------|
+| `source.<ext>` | Unsigned source image (pre-signing) |
+| `jura_signed.<ext>` | Signed by Jura Trace — **hand this to your own validator** |
+| `jura_trace_verify_response.json` | **PRIMARY EVIDENCE** — raw response from our verify endpoint |
+| `c2patool_selfqa.json` | Internal QA cross-check (not programme evidence) |
+| `index.json` | Per-format summary with headline values |
 
-- **Signed by Jura Trace**: 13,419,110 bytes
-- **Validated by Jura Trace**: `c2paValid: true`, 3 assertions
-- **Cross-validated by c2patool**: `validation_state: Valid`, 3 assertions
+### Headline values across all four formats
 
-### image/tiff
+| MIME | Signed bytes | Jura `c2paValid` | Jura assertions | Jura `detectorsRun` includes `c2pa` |
+|------|-------------:|:----------------:|:---------------:|:-----------------------------------:|
+| image/jpeg | 2,189,374 | ✅ true | 3 | ✅ |
+| image/png  | 13,419,110 | ✅ true | 3 | ✅ |
+| image/tiff | 40,175,300 | ✅ true | 3 | ✅ |
+| image/webp | 1,432,642 | ✅ true | 3 | ✅ |
 
-- **Signed by Jura Trace**: 40,175,300 bytes (uncompressed large-format test)
-- **Validated by Jura Trace**: `c2paValid: true`, 3 assertions
-- **Cross-validated by c2patool**: `validation_state: Valid`, 3 assertions
+All four signed files carry the three assertions Jura Trace embeds on
+signing: `c2pa.actions.v2` (c2pa.created), `c2pa.rights` (the supplied
+licence), and `stds.iptc` (IPTC metadata block).
 
-### image/webp
-
-- **Signed by Jura Trace**: 1,432,642 bytes
-- **Validated by Jura Trace**: `c2paValid: true`, 3 assertions
-- **Cross-validated by c2patool**: `validation_state: Valid`, 3 assertions
+The signer on all files is the per-install local certificate authority
+("Jura Labs CIC") — the Local Signing mode default. This is expected to
+trigger `signingCredential.untrusted` in strict trust-list validators.
+Jura Trace's validator policy treats that specific status as acceptable
+because our architecture deliberately uses per-install CAs for the
+offline-first use case. The optional Conformant Signing mode accepts
+institution-imported trust-list certificates for cross-tool validation.
 
 ## Additional validator evidence — external samples
 
 We validated two publicly-available externally-signed C2PA samples
-through Jura Trace to demonstrate validator-side interoperability:
+through Jura Trace to demonstrate inbound (external-signed) validator
+interop:
 
-### 1. c2pa-rs reference fixture `exp-test1.png`
+- `external_samples/c2pa-rs_exp-test1.png` — the c2pa-rs reference
+  fixture from https://github.com/contentauth/c2pa-rs/tree/main/sdk/tests/fixtures
+- `external_samples/CAI_PixelCameraProd_PXL_20250708.jpg` — a Pixel
+  Camera sample from the Interoperability Testing Files folder linked
+  in the intake email
 
-Source: https://github.com/contentauth/c2pa-rs/tree/main/sdk/tests/fixtures
-
-| Check | Result |
-|-------|--------|
-| Jura Trace manifest parse | Success (5 assertions enumerated) |
-| Jura Trace validation | `c2paValid: false` (correctly catches untrusted signing credential) |
-| c2patool validation (independent) | `validation_state: Invalid` — same verdict, same reason (`signingCredential.untrusted`) |
-
-**Verdict: validators agree.** Both Jura Trace and c2patool arrive at
-the same verdict via independent implementations.
-
-### 2. Google Pixel Camera production sample
-
-Source: the CAI Interoperability Testing Files Google Drive folder.
-
-| Check | Result |
-|-------|--------|
-| Jura Trace manifest parse | Success |
-| Jura Trace validation | `c2paValid: false` |
-| c2patool validation (independent) | `validation_state: Invalid` — failures: `signingCredential.expired`, `signingCredential.untrusted` |
-
-Both validators correctly catch the expired certificate and the
-out-of-trust-list signing credential.
+In both cases Jura Trace successfully parsed the manifest, enumerated
+the assertions, and returned a validation verdict (`c2paValid: false`
+in both cases — in both files the signing credential was either
+untrusted on our policy or expired). The programme reviewer can verify
+the expected verdicts by running their own validator against these
+files.
 
 ## Implementation details
 

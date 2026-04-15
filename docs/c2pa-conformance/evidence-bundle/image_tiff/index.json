@@ -1,0 +1,26 @@
+{
+  "mime_type": "image/tiff",
+  "source_file": "source.tiff",
+  "signed_file": "jura_signed.tiff",
+  "primary_evidence": {
+    "file": "jura_trace_verify_response.json",
+    "description": "Full JSON response from Jura Trace's REST API verify endpoint (POST /api/v1/verify). Schema is distinctly Jura Trace's (camelCase keys, detectorsRun array, c2paManifest object, deepfakeResult, clipResult, etc.) \u2014 provably not c2patool output.",
+    "headline_values": {
+      "c2paValid": true,
+      "c2paManifest_present": true,
+      "assertion_count": 3,
+      "detectors_run": [
+        "exif_anomaly",
+        "c2pa"
+      ],
+      "manifest_title": ".tmpfFK8Xv.tiff",
+      "signed_at": "2026-04-15T10:58:57+00:00"
+    }
+  },
+  "sign_result": {
+    "http_status": 200,
+    "signed_bytes": 40175300
+  },
+  "internal_qa_note": "c2patool_selfqa.json contains an internal cross-check we ran with c2patool 0.26.47 for our own QA. The C2PA Conformance Programme reviewer is expected to run their own validator against jura_signed.{ext} \u2014 this file is included only for reproducibility.",
+  "timestamp_utc": "2026-04-15T10:58:59Z"
+}
