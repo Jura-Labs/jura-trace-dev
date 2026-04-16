@@ -2152,11 +2152,9 @@
                         </p>
                       {/if}
 
-                      {#if c2paValidAtSigning}
-                        <p class="text-xs text-amber dark:text-amber-light mt-1 leading-relaxed">
-                          Certificate expired; signature verified via trusted timestamp.
-                        </p>
-                      {/if}
+                      <!-- Certificate expiry detail deferred to L3 validation summary
+                           per C2PA UX Rec v1.4: timestamped credentials are Valid, not a separate state.
+                           Adobe's verify.contentauthenticity.org shows no caveat for this case. -->
                     {:else if result.c2paValid === false}
                       <p class="text-xs text-cinnabar dark:text-cinnabar-light leading-relaxed">
                         Content Credential unavailable or invalid — the record may have been altered.
