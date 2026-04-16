@@ -658,6 +658,19 @@ export interface ManifestInfo {
    *  was valid when issued (common for short-lived certs like Google Pixel Camera). */
   validAtSigning?: boolean;
   signedAt?: string;
+  /** Signer common name from signature_info (e.g. "Pixel Camera"). */
+  signedBy?: string;
+  /** Signer issuer from signature_info (e.g. "Google LLC"). */
+  signedByIssuer?: string;
+  /** Individual validation checks from c2pa-rs, grouped by outcome. */
+  validationChecks?: ValidationCheck[];
+}
+
+/** A single C2PA validation check result. */
+export interface ValidationCheck {
+  code: string;
+  outcome: 'pass' | 'info' | 'fail';
+  explanation?: string;
 }
 
 /** A single assertion within a C2PA manifest */

@@ -7,7 +7,7 @@
 
 ## Executive summary
 
-Jura Trace validates C2PA manifests in **four image formats** with full
+Jura Trace validates C2PA manifests in **two image formats** with full
 bidirectional interoperability against the CAI `c2patool` reference CLI
 (c2patool 0.26.47 / c2pa-rs 0.79.3) and Jura Trace (c2pa-rs 0.79):
 
@@ -15,11 +15,10 @@ bidirectional interoperability against the CAI `c2patool` reference CLI
 |-----------|------------------|----------|
 | **image/jpeg** | ✅ PASS | `image_jpeg/` subfolder |
 | **image/png**  | ✅ PASS | `image_png/` subfolder |
-| **image/tiff** | ✅ PASS | `image_tiff/` subfolder |
-| **image/webp** | ✅ PASS | `image_webp/` subfolder |
-| image/heic | N/A — see "Format limitations" below | — |
-| image/heif | N/A — see "Format limitations" below | — |
-| image/avif | N/A — see "Format limitations" below | — |
+
+Additional formats (TIFF, WebP) are supported by the implementation
+but excluded from this submission pending full conformance evidence.
+HEIC, HEIF, and AVIF are not yet supported by c2pa-rs 0.79 for signing.
 
 ## Format limitations — HEIC, HEIF, AVIF
 
@@ -104,8 +103,6 @@ container structure).
 |------|-------------:|:----------------:|:---------------:|:-----------------------------------:|
 | image/jpeg | 176,641 | ✅ true | 3 | ✅ |
 | image/png  | 932,192 | ✅ true | 3 | ✅ |
-| image/tiff | 1,814,304 | ✅ true | 3 | ✅ |
-| image/webp | 139,486 | ✅ true | 3 | ✅ |
 
 **Note on `jura_trace_verify_response.json`**: the response has been
 filtered to C2PA-relevant fields only (`c2paManifest`, `c2paValid`,
@@ -153,11 +150,17 @@ files.
   implementation)
 - **Signing feature**: `file_io` only (we do not use `fetch_remote_manifests`;
   all processing is local-first per our product design)
-- **Validation policy**: Jura Trace's `is_valid` flag returns `true` when
-  `reader.validation_status()` returns `None` or all statuses have the
-  code `signingCredential.untrusted`. Any other validation status (expired
-  certificate, malformed assertion, data-hash mismatch, etc.) produces
-  `is_valid: false`.
+- **Validation policy**: Jura Trace derives a tri-state validity from the
+  c2pa-rs `Reader::json()` validation results:
+  - **Valid** — no failures, or failures only contain `signingCredential.untrusted`
+    (expected for self-signed / per-install CA certificates).
+  - **Valid at signing** — failures are cert-soft only (`signingCredential.expired`
+    and/or `signingCredential.untrusted`) AND active-manifest success list
+    includes `timeStamp.validated` or `timeStamp.trusted` AND `claimSignature.validated`.
+    This handles short-lived signing certificates (e.g. Google Pixel Camera)
+    where the trusted timestamp proves the signature was issued during cert validity.
+  - **Invalid** — any other failure (data hash mismatch, claim signature invalid,
+    expired cert without trusted timestamp, etc.).
 - **Supported outputs**: every validation result returns the active
   manifest ID, claim generator, assertion list with JSON bodies, signature
   timestamp, AI-content declaration extraction from `c2pa.actions`

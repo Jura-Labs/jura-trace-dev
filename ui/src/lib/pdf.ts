@@ -519,10 +519,33 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
           ? 'Valid'
           : 'Invalid'
     );
+    if (m.signedBy) row('Signed By', m.signedBy + (m.signedByIssuer ? ` (${m.signedByIssuer})` : ''));
     if (m.claimGenerator) row('Claim Generator', m.claimGenerator);
     if (m.format) row('Format', m.format);
     if (m.title) row('Title', m.title);
     if (m.signedAt) row('Signed At', new Date(m.signedAt).toLocaleString('en-GB'));
+    if (m.validationChecks && m.validationChecks.length > 0) {
+      y += 2;
+      doc.setFontSize(8);
+      doc.setTextColor(80);
+      doc.text(`Validation Checks (${m.validationChecks.length}):`, MARGIN, y);
+      y += LINE_HEIGHT;
+      for (const c of m.validationChecks) {
+        checkPage(LINE_HEIGHT);
+        doc.setFontSize(7);
+        const icon = c.outcome === 'pass' ? '\u2713' : c.outcome === 'fail' ? '\u2717' : '\u26A0';
+        if (c.outcome === 'pass') doc.setTextColor(91, 138, 95);
+        else if (c.outcome === 'fail') doc.setTextColor(205, 92, 92);
+        else doc.setTextColor(180, 140, 50);
+        doc.text(`${icon} ${c.code}`, MARGIN + 2, y);
+        if (c.explanation) {
+          doc.setTextColor(100);
+          const explLines = doc.splitTextToSize(c.explanation, CONTENT_WIDTH - 50);
+          doc.text(explLines, MARGIN + 50, y);
+        }
+        y += LINE_HEIGHT;
+      }
+    }
     if (m.assertions.length > 0) {
       y += 2;
       doc.setFontSize(8);

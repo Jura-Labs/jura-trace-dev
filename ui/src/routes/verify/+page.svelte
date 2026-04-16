@@ -5655,6 +5655,12 @@
           {/if}
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm mb-4">
+            {#if manifest.signedBy}
+              <div>
+                <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Signed By</span>
+                <p class="text-text-light dark:text-quartz mt-0.5 break-words">{manifest.signedBy}{#if manifest.signedByIssuer} <span class="text-flint dark:text-flint-light">({manifest.signedByIssuer})</span>{/if}</p>
+              </div>
+            {/if}
             {#if manifest.claimGenerator}
               <div>
                 <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Claim Generator</span>
@@ -5692,6 +5698,39 @@
                   <div class="bg-gray-100 dark:bg-obsidian/50 rounded-md p-3" role="listitem">
                     <p class="text-xs font-mono text-lapis dark:text-lapis-light mb-1 break-all">{assertion.label}</p>
                     <pre class="text-xs text-flint dark:text-flint-light whitespace-pre-wrap break-words leading-relaxed">{assertion.value}</pre>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          <!-- ── Validation Checks ──────────────────────────────────── -->
+          {#if manifest.validationChecks && manifest.validationChecks.length > 0}
+            <div class="mt-4">
+              <h3 class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-2">
+                Validation Checks
+                <span class="normal-case ml-1 text-flint/70 dark:text-flint-light/70">({manifest.validationChecks.length})</span>
+              </h3>
+              <div class="space-y-1" role="list" aria-label="C2PA validation checks">
+                {#each manifest.validationChecks as check (check.code + check.outcome)}
+                  <div
+                    class="flex items-start gap-2 px-3 py-1.5 rounded text-xs
+                           {check.outcome === 'pass'
+                             ? 'bg-malachite/10 text-malachite dark:text-malachite-light'
+                             : check.outcome === 'fail'
+                             ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light'
+                             : 'bg-amber/10 text-amber dark:text-amber-light'}"
+                    role="listitem"
+                  >
+                    <span class="font-medium shrink-0 mt-px" aria-hidden="true">
+                      {check.outcome === 'pass' ? '\u2713' : check.outcome === 'fail' ? '\u2717' : '\u26A0'}
+                    </span>
+                    <div>
+                      <span class="font-mono">{check.code}</span>
+                      {#if check.explanation}
+                        <span class="text-flint dark:text-flint-light ml-1">— {check.explanation}</span>
+                      {/if}
+                    </div>
                   </div>
                 {/each}
               </div>

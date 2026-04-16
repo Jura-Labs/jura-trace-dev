@@ -24,6 +24,25 @@ pub struct ManifestInfo {
     #[serde(default)]
     pub valid_at_signing: bool,
     pub signed_at: Option<String>,
+    /// Signer common name from `signature_info.common_name` (e.g. "Pixel Camera").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signed_by: Option<String>,
+    /// Signer issuer from `signature_info.issuer` (e.g. "Google LLC").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signed_by_issuer: Option<String>,
+    /// Individual validation checks from c2pa-rs, grouped by outcome.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub validation_checks: Vec<ValidationCheck>,
+}
+
+/// A single C2PA validation check result.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ValidationCheck {
+    pub code: String,
+    pub outcome: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub explanation: Option<String>,
 }
 
 /// A single assertion within a C2PA manifest.
@@ -323,6 +342,40 @@ fn derive_validity(json: &serde_json::Value) -> (bool, bool) {
     }
 }
 
+/// Extract individual validation checks from the c2pa-rs JSON for display.
+fn extract_validation_checks(json: &serde_json::Value) -> Vec<ValidationCheck> {
+    let mut checks = Vec::new();
+    let active = json
+        .get("validation_results")
+        .and_then(|vr| vr.get("activeManifest"));
+
+    let Some(am) = active else {
+        return checks;
+    };
+
+    for (outcome, key) in [("pass", "success"), ("info", "informational"), ("fail", "failure")] {
+        if let Some(arr) = am.get(key).and_then(|v| v.as_array()) {
+            for entry in arr {
+                let code = entry
+                    .get("code")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                let explanation = entry
+                    .get("explanation")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                checks.push(ValidationCheck {
+                    code,
+                    outcome: outcome.to_string(),
+                    explanation,
+                });
+            }
+        }
+    }
+    checks
+}
+
 // ===== Reading =====
 
 /// Read a C2PA manifest from a file.
@@ -392,11 +445,32 @@ pub fn read_manifest(path: &Path) -> Result<Option<ManifestInfo>, String> {
 
     let (is_valid, valid_at_signing) = derive_validity(&json);
 
-    let signed_at = manifest
-        .get("signature_info")
+    let sig_info = manifest.get("signature_info");
+    let signed_at = sig_info
         .and_then(|si| si.get("time"))
         .and_then(|v| v.as_str())
         .map(String::from);
+    let signed_by = sig_info
+        .and_then(|si| si.get("common_name"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let signed_by_issuer = sig_info
+        .and_then(|si| si.get("issuer"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    // Also try claim_generator_info[0].name as fallback for v2 manifests
+    let claim_generator = claim_generator.or_else(|| {
+        manifest
+            .get("claim_generator_info")
+            .and_then(|v| v.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|entry| entry.get("name"))
+            .and_then(|v| v.as_str())
+            .map(String::from)
+    });
+
+    let validation_checks = extract_validation_checks(&json);
 
     Ok(Some(ManifestInfo {
         title,
@@ -406,6 +480,9 @@ pub fn read_manifest(path: &Path) -> Result<Option<ManifestInfo>, String> {
         is_valid,
         valid_at_signing,
         signed_at,
+        signed_by,
+        signed_by_issuer,
+        validation_checks,
     }))
 }
 
@@ -1287,6 +1364,9 @@ mod tests {
             is_valid: true,
             valid_at_signing: false,
             signed_at: Some("2026-01-01T00:00:00Z".to_string()),
+            signed_by: None,
+            signed_by_issuer: None,
+            validation_checks: vec![],
         };
         let json = serde_json::to_string(&info).unwrap();
         assert!(json.contains("\"isValid\""));
