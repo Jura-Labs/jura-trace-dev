@@ -1259,18 +1259,6 @@
 
     {#if checked && result}
       <button
-        class="ml-auto text-xs px-2.5 py-1.5 min-h-[36px] rounded border transition-colors
-               {showRawScores
-                 ? 'border-lapis bg-lapis/10 text-lapis-light'
-                 : 'border-border-dark text-flint dark:text-flint-light hover:text-quartz'}
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
-        onclick={() => { showRawScores = !showRawScores; localStorage.setItem('jura-raw-scores-default', String(showRawScores)); }}
-        aria-pressed={showRawScores}
-        title={showRawScores ? 'Showing raw numerical scores — click to switch to summary view' : 'Click to show raw numerical scores for each detector'}
-      >
-        {showRawScores ? 'Technical View' : 'Summary View'}
-      </button>
-      <button
         class="text-xs text-flint dark:text-flint-light hover:text-quartz transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded px-2 py-1"
         onclick={reset}
         aria-label="Clear result and verify a new file"
