@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, ConformantCertificateInfo, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, RoiAnalysisResult, SidecarHealth, SigningMode, SimilarAsset, SolarPosition, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
+import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, ConformantCertificateInfo, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, NetworkMode, RoiAnalysisResult, SidecarHealth, SigningMode, SimilarAsset, SolarPosition, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -1145,4 +1145,44 @@ export async function clearConformantCert(): Promise<void> {
     return invoke<void>('clear_conformant_cert');
   }
   // Browser mock — no-op
+}
+
+// ── Network Access Mode ────────────────────────────────────────────
+
+/**
+ * Returns the current network access mode for this installation.
+ *
+ * - `standard` (default): fully local, no outbound network connections.
+ *   Certificate revocation checks are skipped.
+ * - `enhanced`: enables online verification features including OCSP/CRL
+ *   revocation checks and remote Content Credentials retrieval.
+ *
+ * Defaults to 'standard' when the command is unavailable (browser context).
+ */
+export async function getNetworkMode(): Promise<NetworkMode> {
+  if (isTauri) {
+    try {
+      return await invoke<NetworkMode>('get_network_mode');
+    } catch {
+      // Command not yet registered — fall through to default
+    }
+  }
+  return 'standard';
+}
+
+/**
+ * Persist a network access mode change.
+ *
+ * @param mode  'standard' for fully local; 'enhanced' for online verification features.
+ * @returns     The resolved mode on success.
+ */
+export async function setNetworkMode(mode: NetworkMode): Promise<NetworkMode> {
+  if (isTauri) {
+    try {
+      return await invoke<NetworkMode>('set_network_mode', { mode });
+    } catch {
+      // Command not yet registered — return the requested mode as a no-op mock
+    }
+  }
+  return mode;
 }

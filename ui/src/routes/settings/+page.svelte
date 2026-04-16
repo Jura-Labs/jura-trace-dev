@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getVersion, checkSidecarHealth, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert } from '$lib/api';
+  import { getVersion, checkSidecarHealth, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert, getNetworkMode, setNetworkMode } from '$lib/api';
   import type { ApiKeyInfo, CreateKeyResult } from '$lib/api';
-  import type { ConformantCertificateInfo, LicenceTier, SidecarHealth, SigningMode, TierInfo } from '$lib/types';
+  import type { ConformantCertificateInfo, LicenceTier, NetworkMode, SidecarHealth, SigningMode, TierInfo } from '$lib/types';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import {
     type DeploymentProfile,
@@ -200,6 +200,8 @@
     } catch {
       conformantCert = null;
     }
+    // Load network access mode
+    networkMode = await getNetworkMode();
   });
 
   function handleRerunWizard() {
@@ -669,6 +671,39 @@
       return `${months} month${months === 1 ? '' : 's'} ago`;
     } catch {
       return '';
+    }
+  }
+
+  // ── Network Access Mode ──────────────────────────────────────────────────
+  // Controls whether Jura Trace makes outbound network connections during
+  // verification. Standard = fully local (default). Enhanced = OCSP/CRL checks
+  // and remote Content Credentials retrieval during verification.
+
+  let networkMode = $state<NetworkMode>('standard');
+  let networkModeChanging = $state(false);
+  let networkModeFeedback = $state<{ ok: boolean; message: string } | null>(null);
+  let networkModeFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  async function handleNetworkModeChange(mode: NetworkMode) {
+    if (mode === networkMode) return;
+    networkModeChanging = true;
+    networkModeFeedback = null;
+    try {
+      const resolved = await setNetworkMode(mode);
+      networkMode = resolved;
+      networkModeFeedback = {
+        ok: true,
+        message: mode === 'standard'
+          ? 'Network mode set to Standard. No outbound connections will be made.'
+          : 'Network mode set to Enhanced. Online verification features are now active.',
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      networkModeFeedback = { ok: false, message: `Failed to update network mode: ${msg}` };
+    } finally {
+      networkModeChanging = false;
+      if (networkModeFeedbackTimer !== null) clearTimeout(networkModeFeedbackTimer);
+      networkModeFeedbackTimer = setTimeout(() => { networkModeFeedback = null; }, 5000);
     }
   }
 </script>
@@ -2158,6 +2193,138 @@
           {activeKeyCount} active key{activeKeyCount === 1 ? '' : 's'} &middot; {apiKeys.length} total
         </p>
       {/if}
+    {/if}
+  </section>
+
+  <!-- Network Access -->
+  <section
+    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
+    aria-labelledby="network-access-heading"
+  >
+    <h2 id="network-access-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-1">Network Access</h2>
+    <p class="text-xs text-flint dark:text-flint-light mb-5">
+      Controls whether Jura Trace makes outbound network connections. Standard mode is fully local with no external calls. Enhanced mode enables online certificate verification and remote Content Credentials retrieval.
+    </p>
+
+    <!-- Mode cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4" role="group" aria-label="Network access mode selection">
+
+      <!-- Standard card -->
+      <div
+        class="relative flex flex-col rounded-lg border-2 p-5 transition-colors
+               {networkMode === 'standard'
+                 ? 'border-lapis bg-lapis/5 dark:bg-lapis/5'
+                 : 'border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40'}"
+        aria-current={networkMode === 'standard' ? 'true' : undefined}
+      >
+        {#if networkMode === 'standard'}
+          <span
+            class="absolute top-3 right-3 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30"
+            aria-label="Currently active"
+          >
+            Active
+          </span>
+        {/if}
+
+        <h3 class="text-sm font-semibold text-text-light dark:text-quartz mb-1 pr-14">Standard</h3>
+        <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-4">
+          Fully local — no outbound network connections. Certificate revocation checks are skipped. Recommended for air-gapped environments.
+        </p>
+
+        {#if networkMode !== 'standard'}
+          <button
+            type="button"
+            onclick={() => handleNetworkModeChange('standard')}
+            disabled={networkModeChanging}
+            class="mt-auto self-start px-4 py-2 min-h-[44px] text-sm font-medium rounded border border-lapis/60 text-lapis dark:text-lapis-light
+                   hover:bg-lapis/10 hover:border-lapis transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                   focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite
+                   disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-busy={networkModeChanging}
+          >
+            {#if networkModeChanging}
+              <span class="flex items-center gap-1.5">
+                <span class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin" aria-hidden="true"></span>
+                Switching...
+              </span>
+            {:else}
+              Switch to Standard
+            {/if}
+          </button>
+        {/if}
+      </div>
+
+      <!-- Enhanced card -->
+      <div
+        class="relative flex flex-col rounded-lg border-2 p-5 transition-colors
+               {networkMode === 'enhanced'
+                 ? 'border-amber bg-amber/5 dark:bg-amber/5'
+                 : 'border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40'}"
+        aria-current={networkMode === 'enhanced' ? 'true' : undefined}
+      >
+        {#if networkMode === 'enhanced'}
+          <span
+            class="absolute top-3 right-3 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber/15 text-amber dark:text-amber-light border border-amber/30"
+            aria-label="Currently active"
+          >
+            Active
+          </span>
+        {/if}
+
+        <h3 class="text-sm font-semibold text-text-light dark:text-quartz mb-1 pr-14">Enhanced</h3>
+        <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-4">
+          Enables online verification features including certificate revocation checks (OCSP/CRL) and remote Content Credentials retrieval. Network calls are made only during verification.
+        </p>
+
+        {#if networkMode !== 'enhanced'}
+          <button
+            type="button"
+            onclick={() => handleNetworkModeChange('enhanced')}
+            disabled={networkModeChanging}
+            class="mt-auto self-start px-4 py-2 min-h-[44px] text-sm font-medium rounded border border-amber/60 text-amber dark:text-amber-light
+                   hover:bg-amber/10 hover:border-amber transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber focus-visible:ring-offset-2
+                   focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite
+                   disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-busy={networkModeChanging}
+          >
+            {#if networkModeChanging}
+              <span class="flex items-center gap-1.5">
+                <span class="w-3 h-3 border-2 border-amber border-t-transparent rounded-full motion-safe:animate-spin" aria-hidden="true"></span>
+                Switching...
+              </span>
+            {:else}
+              Switch to Enhanced
+            {/if}
+          </button>
+        {/if}
+      </div>
+    </div>
+
+    <!-- Current mode note -->
+    <p
+      class="text-xs px-3 py-2 rounded border inline-flex items-center gap-1.5
+             {networkMode === 'standard'
+               ? 'text-lapis dark:text-lapis-light border-lapis/20 bg-lapis/5'
+               : 'text-amber dark:text-amber-light border-amber/20 bg-amber/5'}"
+      aria-live="polite"
+    >
+      <span class="font-medium">Current mode:</span>
+      {networkMode === 'standard' ? 'Standard' : 'Enhanced'}
+    </p>
+
+    {#if networkModeFeedback !== null}
+      <p
+        class="mt-3 text-sm px-3 py-2 rounded border
+               {networkModeFeedback.ok
+                 ? 'text-malachite dark:text-malachite-light border-malachite/20 bg-malachite/5'
+                 : 'text-cinnabar dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
+        role="status"
+        aria-live="polite"
+      >
+        {networkModeFeedback.message}
+      </p>
     {/if}
   </section>
 </div>

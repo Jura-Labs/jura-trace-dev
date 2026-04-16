@@ -9,7 +9,7 @@
   import { createBlobTracker } from '$lib/blob';
   import type {
     VerificationResult, SidecarHealth, VerifyMode, LicenceTier,
-    AnomalyFinding, InputQualityAssessment,
+    AnomalyFinding, InputQualityAssessment, ManifestInfo,
   } from '$lib/types';
   import LimitationBanner from '$lib/components/LimitationBanner.svelte';
   import ExperimentalPill from '$lib/components/ExperimentalPill.svelte';
@@ -171,6 +171,47 @@
   // Expand/collapse state for L2 and L3 disclosure panels.
   let c2paShowL2 = $state(false);
   let c2paShowL3 = $state(false);
+
+  // Provenance chain timeline expand state (§5.4 collapse when >= 4 manifests).
+  let c2paChainExpanded = $state(false);
+
+  /** Format a ManifestInfo signer name for chain timeline display. */
+  function chainSignerName(manifest: ManifestInfo): string {
+    return manifest.signedBy || manifest.claimGenerator || 'Unknown';
+  }
+
+  /** Format a ManifestInfo date for chain timeline display (en-GB locale). */
+  function chainSignedDate(manifest: ManifestInfo): string | null {
+    const raw = manifest.signedAt;
+    if (!raw) return null;
+    try {
+      return new Date(raw).toLocaleDateString('en-GB', {
+        day: 'numeric', month: 'short', year: 'numeric',
+      });
+    } catch {
+      return raw;
+    }
+  }
+
+  /**
+   * Parse the first action label from a ManifestInfo's c2pa.actions assertion.
+   * Returns a short one-line summary suitable for chain timeline display.
+   */
+  function chainActionSummary(manifest: ManifestInfo): string | null {
+    const actionsAssertion = manifest.assertions.find(
+      (a) => a.label === 'c2pa.actions' || a.label === 'c2pa.actions.v2'
+    );
+    if (!actionsAssertion) return null;
+    try {
+      const parsed = JSON.parse(actionsAssertion.value);
+      const actions: { action: string }[] = parsed?.actions ?? parsed ?? [];
+      if (actions.length === 0) return null;
+      const first = C2PA_ACTION_LABELS[actions[0].action] ?? actions[0].action;
+      return actions.length > 1 ? `${first} +${actions.length - 1} more` : first;
+    } catch {
+      return null;
+    }
+  }
 
   // Map C2PA action URIs to C2PA UX Rec v1.4 recommended labels.
   const C2PA_ACTION_LABELS: Record<string, string> = {
@@ -1533,6 +1574,121 @@
                             <div>
                               <p class="text-[10px] text-flint uppercase tracking-wider mb-0.5">Digital source type</p>
                               <p class="text-xs text-quartz">{c2paDigitalSourceType()}</p>
+                            </div>
+                          {/if}
+
+                          <!-- ── Provenance chain timeline (C2PA UX Rec v1.4 §5.4) ── -->
+                          {#if result.c2paChain && result.c2paChain.ingredients.length > 0}
+                            {@const chain = result.c2paChain}
+                            {@const originManifest = chain.ingredients[chain.ingredients.length - 1]}
+                            {@const middleIngredients = chain.ingredients.slice(0, -1)}
+                            {@const shouldCollapse = chain.manifestCount >= 4}
+                            <div class="mt-1 pt-3 border-t border-border-dark/40">
+                              <p class="text-[10px] text-flint uppercase tracking-wider mb-2">Provenance chain</p>
+                              <ol
+                                class="relative ml-1.5"
+                                aria-label="Content Credentials provenance chain"
+                              >
+
+                                <!-- Active manifest node -->
+                                <li class="relative pl-5 pb-3">
+                                  <span
+                                    class="absolute left-0 top-1.5 w-2.5 h-2.5 rounded-full bg-malachite border-2 border-malachite/30"
+                                    aria-hidden="true"
+                                  ></span>
+                                  <!-- Connector line down to next node -->
+                                  <span
+                                    class="absolute left-[4.5px] top-4 bottom-0 w-px bg-malachite/40"
+                                    aria-hidden="true"
+                                  ></span>
+                                  <p class="text-[10px] font-semibold text-flint uppercase tracking-wider leading-none mb-0.5">Active</p>
+                                  <p class="text-xs text-quartz leading-snug">{chainSignerName(chain.active)}</p>
+                                  {#if chainSignedDate(chain.active)}
+                                    <p class="text-[11px] text-flint dark:text-flint-light">{chainSignedDate(chain.active)}</p>
+                                  {/if}
+                                  {#if chainActionSummary(chain.active)}
+                                    <p class="text-[11px] text-flint dark:text-flint-light italic">{chainActionSummary(chain.active)}</p>
+                                  {/if}
+                                </li>
+
+                                <!-- Middle ingredients (collapsed when >= 4 manifests) -->
+                                {#if shouldCollapse && !c2paChainExpanded && middleIngredients.length > 0}
+                                  <!-- Collapsed pill -->
+                                  <li class="relative pl-5 pb-3">
+                                    <span
+                                      class="absolute left-[4.5px] top-0 bottom-0 w-px bg-malachite/40"
+                                      aria-hidden="true"
+                                    ></span>
+                                    <button
+                                      type="button"
+                                      onclick={() => { c2paChainExpanded = true; }}
+                                      class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium
+                                             bg-graphite-light dark:bg-obsidian border border-border-dark text-flint dark:text-flint-light
+                                             hover:text-quartz hover:border-lapis/50 transition-colors
+                                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 dark:focus-visible:ring-offset-obsidian"
+                                      aria-label="Show {middleIngredients.length} additional manifest{middleIngredients.length === 1 ? '' : 's'} in chain"
+                                    >
+                                      {middleIngredients.length} additional manifest{middleIngredients.length === 1 ? '' : 's'}
+                                      <svg class="w-3 h-3" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                                        <path d="M6 3.5L11 8l-5 4.5V3.5z"/>
+                                      </svg>
+                                    </button>
+                                  </li>
+                                {:else}
+                                  {#each middleIngredients as ingredient, idx}
+                                    <li class="relative pl-5 pb-3">
+                                      <span
+                                        class="absolute left-0 top-1.5 w-2 h-2 rounded-full bg-malachite/50 border border-malachite/50"
+                                        aria-hidden="true"
+                                      ></span>
+                                      <span
+                                        class="absolute left-[4.5px] top-3.5 bottom-0 w-px bg-malachite/40"
+                                        aria-hidden="true"
+                                      ></span>
+                                      <p class="text-xs text-quartz leading-snug">{chainSignerName(ingredient)}</p>
+                                      {#if chainSignedDate(ingredient)}
+                                        <p class="text-[11px] text-flint dark:text-flint-light">{chainSignedDate(ingredient)}</p>
+                                      {/if}
+                                      {#if chainActionSummary(ingredient)}
+                                        <p class="text-[11px] text-flint dark:text-flint-light italic">{chainActionSummary(ingredient)}</p>
+                                      {/if}
+                                    </li>
+                                  {/each}
+                                  {#if shouldCollapse && c2paChainExpanded}
+                                    <!-- Collapse button after revealed items -->
+                                    <li class="relative pl-5 pb-1">
+                                      <span
+                                        class="absolute left-[4.5px] top-0 bottom-0 w-px bg-malachite/40"
+                                        aria-hidden="true"
+                                      ></span>
+                                      <button
+                                        type="button"
+                                        onclick={() => { c2paChainExpanded = false; }}
+                                        class="text-[11px] text-lapis dark:text-lapis-light hover:no-underline underline underline-offset-2
+                                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                                      >
+                                        Show fewer
+                                      </button>
+                                    </li>
+                                  {/if}
+                                {/if}
+
+                                <!-- Origin node (last ingredient) -->
+                                <li class="relative pl-5">
+                                  <span
+                                    class="absolute left-0 top-1.5 w-2.5 h-2.5 rounded-full border-2 border-malachite bg-obsidian dark:bg-obsidian"
+                                    aria-hidden="true"
+                                  ></span>
+                                  <p class="text-[10px] font-semibold text-flint uppercase tracking-wider leading-none mb-0.5">Origin</p>
+                                  <p class="text-xs text-quartz leading-snug">{chainSignerName(originManifest)}</p>
+                                  {#if chainSignedDate(originManifest)}
+                                    <p class="text-[11px] text-flint dark:text-flint-light">{chainSignedDate(originManifest)}</p>
+                                  {/if}
+                                  {#if chainActionSummary(originManifest)}
+                                    <p class="text-[11px] text-flint dark:text-flint-light italic">{chainActionSummary(originManifest)}</p>
+                                  {/if}
+                                </li>
+                              </ol>
                             </div>
                           {/if}
 

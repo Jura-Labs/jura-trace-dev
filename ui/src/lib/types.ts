@@ -442,6 +442,7 @@ export interface VerificationResult {
   overallTrust: number;
   exifAnalysis?: ExifAnalysis;
   c2paManifest?: ManifestInfo;
+  c2paChain?: ManifestChain;
   elaResult?: ElaResult;
   noiseResult?: NoiseResult;
   copyMoveResult?: CopyMoveResult;
@@ -646,6 +647,19 @@ export interface ImageMetadata {
   /** Parsed XMP metadata including edit-history stack. */
   xmp?: XmpMetadata;
 }
+
+/** A complete C2PA provenance chain extracted from a file. */
+export interface ManifestChain {
+  /** The active (most recent) manifest. */
+  active: ManifestInfo;
+  /** Ingredient manifests in chain order: active's parent first → origin last. */
+  ingredients: ManifestInfo[];
+  /** Total manifest count in the store. */
+  manifestCount: number;
+}
+
+/** Product-wide network access control. */
+export type NetworkMode = 'standard' | 'enhanced';
 
 /** C2PA manifest information read from a file */
 export interface ManifestInfo {
