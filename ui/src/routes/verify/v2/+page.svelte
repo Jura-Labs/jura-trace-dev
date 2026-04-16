@@ -13,6 +13,7 @@
   } from '$lib/types';
   import LimitationBanner from '$lib/components/LimitationBanner.svelte';
   import ExperimentalPill from '$lib/components/ExperimentalPill.svelte';
+  import ContentCredentialsSeal from '$lib/components/ContentCredentialsSeal.svelte';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import { generateTrustReport } from '$lib/pdf';
   import type { ReportContext, ReportFormat } from '$lib/pdf';
@@ -130,6 +131,116 @@
 
   const sidecarAvailable = $derived(sidecarHealth?.status === 'ok');
 
+  // ── Content Credentials (C2PA) derived state ───────────────────────
+  // sealState drives the ContentCredentialsSeal icon colour.
+  const c2paSealState = $derived(() => {
+    if (!result) return 'none' as const;
+    if (result.c2paValid === true)  return 'valid' as const;
+    if (result.c2paValid === false) return 'invalid' as const;
+    return 'none' as const;
+  });
+
+  // validAtSigning: certificate may have expired but the timestamp proves the
+  // signature was valid when made — spec requires a malachite seal + amber note.
+  const c2paValidAtSigning = $derived(
+    result?.c2paManifest?.validAtSigning === true
+  );
+
+  // Signer display name: prefer signedBy (human-readable org), fall back to
+  // claimGenerator (tool identifier). Both are permitted by the spec; signedBy
+  // is the "Issued by" field per C2PA UX Rec v1.4 §4.2.
+  const c2paSignerName = $derived(
+    result?.c2paManifest?.signedBy ||
+    result?.c2paManifest?.claimGenerator ||
+    null
+  );
+
+  // Parse the signed date into a locale string for display.
+  const c2paSignedDate = $derived(() => {
+    const raw = result?.c2paManifest?.signedAt;
+    if (!raw) return null;
+    try {
+      return new Date(raw).toLocaleDateString('en-GB', {
+        day: 'numeric', month: 'long', year: 'numeric',
+      });
+    } catch {
+      return raw;
+    }
+  });
+
+  // Expand/collapse state for L2 and L3 disclosure panels.
+  let c2paShowL2 = $state(false);
+  let c2paShowL3 = $state(false);
+
+  // Map C2PA action URIs to C2PA UX Rec v1.4 recommended labels.
+  const C2PA_ACTION_LABELS: Record<string, string> = {
+    'c2pa.created':           'Created',
+    'c2pa.edited':            'Other edits',
+    'c2pa.cropped':           'Cropped',
+    'c2pa.filtered':          'Filter or style edits',
+    'c2pa.resized':           'Resized',
+    'c2pa.published':         'Published',
+    'c2pa.opened':            'Opened',
+    'c2pa.placed':            'Imported',
+    'c2pa.orientation':       'Changed orientation',
+    'c2pa.color_adjustments': 'Colour or exposure edits',
+    'c2pa.drawing':           'Drawing edits',
+    'c2pa.converted':         'Converted',
+    'c2pa.transcoded':        'Transcoded',
+    'c2pa.removed':           'Removed',
+    'c2pa.repackaged':        'Repackaged',
+    'c2pa.unknown':           'Unknown edits or activity',
+  };
+
+  // Parse actions from the c2pa.actions.v2 assertion.
+  const c2paActions = $derived(() => {
+    const assertions = result?.c2paManifest?.assertions ?? [];
+    const actionsAssertion = assertions.find(
+      (a) => a.label === 'c2pa.actions' || a.label === 'c2pa.actions.v2'
+    );
+    if (!actionsAssertion) return [];
+    try {
+      const parsed = JSON.parse(actionsAssertion.value);
+      const actions: { action: string }[] = parsed?.actions ?? parsed ?? [];
+      return actions.map((a) => ({
+        raw: a.action,
+        label: C2PA_ACTION_LABELS[a.action] ?? a.action,
+      }));
+    } catch {
+      return [];
+    }
+  });
+
+  // Map digitalSourceType URIs to human-readable labels.
+  function humaniseDigitalSourceType(raw: string): string {
+    const MAP: Record<string, string> = {
+      'computationalCapture':                 'Computational capture',
+      'digitalCapture':                       'Digital capture',
+      'filmCapture':                          'Film capture',
+      'humanEdited':                          'Human edited',
+      'algorithmicMedia':                     'Algorithmic media',
+      'compositeCapture':                     'Composite capture',
+      'compositeWithTrainedAlgorithmicMedia': 'Composite with trained algorithmic media',
+      'trainedAlgorithmicMedia':              'Trained algorithmic media',
+    };
+    // Strip any URI prefix and look up the local name.
+    const localName = raw.replace(/^.*[/#]/, '');
+    return MAP[localName] ?? localName;
+  }
+
+  // Extract digitalSourceType from the c2pa.claim.v2 or stds.schema-org.CreativeWork assertion.
+  const c2paDigitalSourceType = $derived(() => {
+    const assertions = result?.c2paManifest?.assertions ?? [];
+    for (const a of assertions) {
+      try {
+        const parsed = JSON.parse(a.value);
+        const dst = parsed?.digitalSourceType ?? parsed?.schema_org?.digitalSourceType;
+        if (dst && typeof dst === 'string') return humaniseDigitalSourceType(dst);
+      } catch { /* skip */ }
+    }
+    return null;
+  });
+
   // ── SVG ring animation ─────────────────────────────────────────────
   // circumference for r=47: 2π×47 ≈ 295.3
   const RING_CIRC = 295.3;
@@ -163,11 +274,11 @@
           ariaDetail: exifSuspicious ? `${exifHighFindings.length} high-severity anomal${exifHighFindings.length === 1 ? 'y' : 'ies'}` : 'No critical anomalies',
         },
         {
-          id: 'card-provenance', label: 'C2PA',
+          id: 'card-provenance', label: 'Content Credentials',
           state: result.c2paValid === false ? 'suspicious' as DotState
                : result.c2paValid === true  ? 'pass' as DotState
                : 'not-run' as DotState,
-          ariaDetail: result.c2paValid === true ? 'Valid' : result.c2paValid === false ? 'Invalid signature' : 'Not signed',
+          ariaDetail: result.c2paValid === true ? 'Valid' : result.c2paValid === false ? 'Invalid signature' : 'Not attached',
         },
       ],
       integrity: [
@@ -329,7 +440,7 @@
       switch (code) {
         case 'Sidecar':
           errorType = 'sidecar';
-          error = 'The Analysis Engine is not running. Core checks (C2PA, EXIF) are still available.';
+          error = 'The Analysis Engine is not running. Core checks (Content Credentials, EXIF) are still available.';
           break;
         case 'Validation':
           errorType = 'format';
@@ -1121,9 +1232,9 @@
             {/if}
             <div role="separator" aria-hidden="true" class="w-px h-6 bg-border-dark"></div>
             <div role="listitem" class="flex flex-col gap-0.5">
-              <span class="text-[10px] text-flint uppercase tracking-wider">C2PA</span>
+              <span class="text-[10px] text-flint uppercase tracking-wider">Content Credentials</span>
               <span class="text-sm font-medium {result.c2paValid === true ? 'text-malachite dark:text-malachite-light' : result.c2paValid === false ? 'text-cinnabar dark:text-cinnabar-light' : 'text-flint dark:text-flint-light'}">
-                {result.c2paValid === true ? 'Signed & valid' : result.c2paValid === false ? 'Invalid' : 'Not signed'}
+                {result.c2paValid === true ? 'Signed & valid' : result.c2paValid === false ? 'Invalid' : 'Not attached'}
               </span>
             </div>
           </div>
@@ -1310,35 +1421,211 @@
                 </div>
               </li>
 
-              <!-- C2PA -->
-              <li class="px-5 py-4">
+              <!-- Content Credentials (C2PA) — 3-tier progressive disclosure
+                   per C2PA UX Recommendations v1.4. Internal identifiers
+                   (c2paManifest, c2paValid, card-provenance) are unchanged.
+              -->
+              <li
+                id="section-c2pa"
+                class="px-5 py-4 {result.c2paValid === false ? 'bg-cinnabar/[0.03]' : ''}"
+                aria-label="Content Credentials"
+              >
+
+                <!-- ── L1: Seal + one-line summary (always visible) ── -->
                 <div class="flex items-start gap-3">
-                  <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {result.c2paValid === true ? 'text-malachite dark:text-malachite-light' : result.c2paValid === false ? 'text-cinnabar dark:text-cinnabar-light' : 'text-flint dark:text-flint-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    {#if result.c2paValid === true}
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                    {:else if result.c2paValid === false}
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                      <line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
-                    {:else}
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                    {/if}
-                  </svg>
+                  <div class="mt-0.5 flex-shrink-0"
+                       aria-label="{result.c2paValid === true ? 'Content Credentials valid' : result.c2paValid === false ? 'Content Credentials invalid' : 'No Content Credentials'}">
+                    <ContentCredentialsSeal state={c2paSealState()} size="md" />
+                  </div>
+
                   <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-1">
-                      <span class="text-sm font-medium text-quartz">C2PA Content Credentials</span>
+                    <div class="flex items-center gap-2 mb-1 flex-wrap">
+                      <span class="text-sm font-medium text-quartz">Content Credentials</span>
                     </div>
+
+                    <!-- L1 one-line summary -->
                     {#if result.c2paValid === true && result.c2paManifest}
-                      <p class="text-xs text-malachite dark:text-malachite-light">Provenance record attached and verified.</p>
-                      {#if result.c2paManifest.claimGenerator}
-                        <p class="text-xs text-flint dark:text-flint-light mt-0.5">Signed by: {result.c2paManifest.claimGenerator}</p>
+                      <p class="text-xs text-malachite dark:text-malachite-light leading-relaxed">
+                        {#if c2paSignerName && c2paSignedDate()}
+                          Issued by {c2paSignerName} on {c2paSignedDate()}
+                        {:else if c2paSignerName}
+                          Issued by {c2paSignerName}
+                        {:else if c2paSignedDate()}
+                          Signed on {c2paSignedDate()}
+                        {:else}
+                          Provenance record attached and verified.
+                        {/if}
+                      </p>
+                      {#if c2paValidAtSigning}
+                        <p class="text-xs text-amber dark:text-amber-light mt-1 leading-relaxed">
+                          Certificate expired; signature verified via trusted timestamp.
+                        </p>
                       {/if}
                     {:else if result.c2paValid === false}
-                      <p class="text-xs text-cinnabar dark:text-cinnabar-light">Provenance record present but signature is invalid — the record may have been altered.</p>
+                      <p class="text-xs text-cinnabar dark:text-cinnabar-light leading-relaxed">
+                        Content Credential unavailable or invalid — the record may have been altered.
+                      </p>
                     {:else}
-                      <p class="text-xs text-flint dark:text-flint-light">No C2PA content credentials attached. This is normal for most images.</p>
+                      <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
+                        No Content Credentials attached. This is normal for most images.
+                      </p>
                     {/if}
+
+                    <!-- L2 / L3 triggers — only shown when manifest is valid -->
+                    {#if result.c2paValid === true && result.c2paManifest}
+                      <div class="mt-2 flex items-center gap-3 flex-wrap">
+                        <button
+                          class="text-xs text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline
+                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1
+                                 dark:focus-visible:ring-offset-obsidian rounded min-h-[32px] px-0"
+                          aria-expanded={c2paShowL2}
+                          aria-controls="c2pa-l2"
+                          onclick={() => { c2paShowL2 = !c2paShowL2; if (!c2paShowL2) c2paShowL3 = false; }}
+                        >
+                          {c2paShowL2 ? 'Hide details' : 'View more'}
+                        </button>
+                      </div>
+
+                      <!-- ── L2: Issued by, Edits, Digital source type ── -->
+                      {#if c2paShowL2}
+                        <div id="c2pa-l2" class="mt-3 space-y-3 border-t border-border-dark/40 pt-3">
+
+                          <!-- Issued by — mandatory per C2PA UX Rec v1.4 §4.2 -->
+                          <div>
+                            <p class="text-[10px] text-flint uppercase tracking-wider mb-0.5">Issued by</p>
+                            <p class="text-xs text-quartz">
+                              {c2paSignerName ?? 'Unknown'}
+                            </p>
+                            {#if result.c2paManifest.signedByIssuer}
+                              <p class="text-[11px] text-flint dark:text-flint-light mt-0.5">
+                                via {result.c2paManifest.signedByIssuer}
+                              </p>
+                            {/if}
+                          </div>
+
+                          <!-- Signed date -->
+                          {#if c2paSignedDate()}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider mb-0.5">Date</p>
+                              <p class="text-xs text-quartz">{c2paSignedDate()}</p>
+                            </div>
+                          {/if}
+
+                          <!-- Edits and activity — per C2PA UX Rec v1.4 §4.3 -->
+                          {#if c2paActions().length > 0}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider mb-1">Edits and activity</p>
+                              <ul class="flex flex-wrap gap-1.5" aria-label="Recorded edits and activity">
+                                {#each c2paActions() as action}
+                                  <li>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px]
+                                                 bg-graphite-light border border-border-dark text-quartz">
+                                      {action.label}
+                                    </span>
+                                  </li>
+                                {/each}
+                              </ul>
+                            </div>
+                          {/if}
+
+                          <!-- Digital source type — per C2PA UX Rec v1.4 §4.4 -->
+                          {#if c2paDigitalSourceType()}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider mb-0.5">Digital source type</p>
+                              <p class="text-xs text-quartz">{c2paDigitalSourceType()}</p>
+                            </div>
+                          {/if}
+
+                          <!-- L3 trigger -->
+                          <button
+                            class="text-xs text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1
+                                   dark:focus-visible:ring-offset-obsidian rounded min-h-[32px] px-0"
+                            aria-expanded={c2paShowL3}
+                            aria-controls="c2pa-l3"
+                            onclick={() => c2paShowL3 = !c2paShowL3}
+                          >
+                            {c2paShowL3 ? 'Hide full details' : 'View full details'}
+                          </button>
+
+                          <!-- ── L3: Validation checks, assertions, format ── -->
+                          {#if c2paShowL3}
+                            <div id="c2pa-l3" class="space-y-3 border-t border-border-dark/40 pt-3">
+
+                              <!-- Validation checks -->
+                              {#if result.c2paManifest.validationChecks && result.c2paManifest.validationChecks.length > 0}
+                                <div>
+                                  <p class="text-[10px] text-flint uppercase tracking-wider mb-1.5">Validation checks</p>
+                                  <ul class="space-y-1" aria-label="C2PA validation checks">
+                                    {#each result.c2paManifest.validationChecks as check}
+                                      <li class="flex items-start gap-2">
+                                        <span
+                                          class="flex-shrink-0 w-1.5 h-1.5 rounded-full mt-1.5
+                                                 {check.outcome === 'pass' ? 'bg-malachite dark:bg-malachite-light'
+                                                  : check.outcome === 'fail' ? 'bg-cinnabar dark:bg-cinnabar-light'
+                                                  : 'bg-flint dark:bg-flint-light'}"
+                                          aria-hidden="true"
+                                        ></span>
+                                        <div>
+                                          <span class="text-[11px] font-mono text-flint dark:text-flint-light">{check.code}</span>
+                                          {#if check.explanation}
+                                            <p class="text-[11px] text-quartz mt-0.5">{check.explanation}</p>
+                                          {/if}
+                                        </div>
+                                        <span class="sr-only">{check.outcome}</span>
+                                      </li>
+                                    {/each}
+                                  </ul>
+                                </div>
+                              {/if}
+
+                              <!-- All assertions -->
+                              {#if result.c2paManifest.assertions.length > 0}
+                                <div>
+                                  <p class="text-[10px] text-flint uppercase tracking-wider mb-1.5">Assertions</p>
+                                  <ul class="space-y-1" aria-label="Manifest assertions">
+                                    {#each result.c2paManifest.assertions as assertion}
+                                      <li class="text-[11px]">
+                                        <span class="font-mono text-flint dark:text-flint-light">{assertion.label}</span>
+                                      </li>
+                                    {/each}
+                                  </ul>
+                                </div>
+                              {/if}
+
+                              <!-- Format / title -->
+                              {#if result.c2paManifest.format || result.c2paManifest.title}
+                                <div class="flex gap-4 flex-wrap">
+                                  {#if result.c2paManifest.title}
+                                    <div>
+                                      <p class="text-[10px] text-flint uppercase tracking-wider mb-0.5">Title</p>
+                                      <p class="text-xs text-quartz">{result.c2paManifest.title}</p>
+                                    </div>
+                                  {/if}
+                                  {#if result.c2paManifest.format}
+                                    <div>
+                                      <p class="text-[10px] text-flint uppercase tracking-wider mb-0.5">Format</p>
+                                      <p class="text-xs text-quartz font-mono">{result.c2paManifest.format}</p>
+                                    </div>
+                                  {/if}
+                                </div>
+                              {/if}
+
+                            </div>
+                          {/if}
+                          <!-- /L3 -->
+
+                        </div>
+                      {/if}
+                      <!-- /L2 -->
+                    {/if}
+                    <!-- /valid manifest gate -->
+
                   </div>
+                  <!-- /flex-1 -->
                 </div>
+                <!-- /L1 -->
+
               </li>
 
             </ul>
@@ -1710,7 +1997,7 @@
             {#if !hasClaimsData}
               <p class="text-sm text-flint dark:text-flint-light">
                 Transcription and claim checking are only applicable to audio and video files.
-                For images, use the EXIF and C2PA sections above to assess provenance claims.
+                For images, use the EXIF and Content Credentials sections above to assess provenance claims.
               </p>
             {/if}
           </div>
