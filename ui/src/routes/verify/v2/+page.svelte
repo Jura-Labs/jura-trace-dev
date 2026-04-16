@@ -243,7 +243,7 @@
     'c2pa.unknown':           'Unknown edits or activity',
   };
 
-  // Parse actions from the c2pa.actions.v2 assertion.
+  // Parse actions from the c2pa.actions.v2 assertion with full detail.
   const c2paActions = $derived(() => {
     const assertions = result?.c2paManifest?.assertions ?? [];
     const actionsAssertion = assertions.find(
@@ -252,10 +252,13 @@
     if (!actionsAssertion) return [];
     try {
       const parsed = JSON.parse(actionsAssertion.value);
-      const actions: { action: string }[] = parsed?.actions ?? parsed ?? [];
+      const actions: { action: string; description?: string; digitalSourceType?: string; softwareAgent?: string }[] = parsed?.actions ?? parsed ?? [];
       return actions.map((a) => ({
         raw: a.action,
         label: C2PA_ACTION_LABELS[a.action] ?? a.action,
+        description: a.description ?? null,
+        sourceType: a.digitalSourceType ? humaniseDigitalSourceType(a.digitalSourceType) : null,
+        softwareAgent: a.softwareAgent ?? null,
       }));
     } catch {
       return [];
@@ -1565,14 +1568,32 @@
                           <!-- Edits and activity — per C2PA UX Rec v1.4 §4.3 -->
                           {#if c2paActions().length > 0}
                             <div>
-                              <p class="text-[10px] text-flint uppercase tracking-wider mb-1">Edits and activity</p>
-                              <ul class="flex flex-wrap gap-1.5" aria-label="Recorded edits and activity">
+                              <p class="text-[10px] text-flint uppercase tracking-wider mb-1.5">Edits and activity</p>
+                              <ul class="space-y-2" aria-label="Recorded edits and activity">
                                 {#each c2paActions() as action}
-                                  <li>
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px]
+                                  <li class="flex items-start gap-2">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] shrink-0
                                                  bg-graphite-light border border-border-dark text-quartz">
                                       {action.label}
                                     </span>
+                                    <div class="text-[11px] leading-snug">
+                                      {#if action.description}
+                                        <p class="text-quartz">{action.description}</p>
+                                      {/if}
+                                      {#if action.sourceType}
+                                        <p class="text-flint dark:text-flint-light">
+                                          Source: {action.sourceType}
+                                        </p>
+                                      {/if}
+                                      {#if action.softwareAgent}
+                                        <p class="text-flint dark:text-flint-light">
+                                          Tool: {action.softwareAgent}
+                                        </p>
+                                      {/if}
+                                      {#if !action.description && !action.sourceType && !action.softwareAgent}
+                                        <p class="text-flint/60 italic">No additional detail recorded</p>
+                                      {/if}
+                                    </div>
                                   </li>
                                 {/each}
                               </ul>
@@ -1775,30 +1796,75 @@
                                     </div>
                                   {/if}
 
-                                  <!-- Validation checks -->
+                                  <!-- L3: Validation summary (human-readable) -->
                                   {#if sm && sm.validationChecks && sm.validationChecks.length > 0}
+                                    {@const checks = sm.validationChecks}
+                                    {@const sigValid = checks.some(c => c.code === 'claimSignature.validated' && c.outcome === 'pass')}
+                                    {@const dataValid = checks.some(c => c.code === 'assertion.dataHash.match' && c.outcome === 'pass')}
+                                    {@const tsValid = checks.some(c => (c.code === 'timeStamp.validated' || c.code === 'timeStamp.trusted') && c.outcome === 'pass')}
+                                    {@const certExpired = checks.some(c => c.code === 'signingCredential.expired' && c.outcome === 'fail')}
+                                    {@const certUntrusted = checks.some(c => c.code === 'signingCredential.untrusted' && c.outcome === 'fail')}
+                                    {@const hashFail = checks.some(c => c.code.includes('dataHash.mismatch') && c.outcome === 'fail')}
+                                    {@const passCount = checks.filter(c => c.outcome === 'pass').length}
+                                    {@const failCount = checks.filter(c => c.outcome === 'fail').length}
+                                    {@const infoCount = checks.filter(c => c.outcome === 'info').length}
                                     <div>
-                                      <p class="text-[10px] text-flint uppercase tracking-wider mb-1.5">Validation checks</p>
-                                      <ul class="space-y-1" aria-label="C2PA validation checks">
-                                        {#each sm.validationChecks as check}
-                                          <li class="flex items-start gap-2">
-                                            <span
-                                              class="flex-shrink-0 w-1.5 h-1.5 rounded-full mt-1.5
-                                                     {check.outcome === 'pass' ? 'bg-malachite dark:bg-malachite-light'
-                                                      : check.outcome === 'fail' ? 'bg-cinnabar dark:bg-cinnabar-light'
-                                                      : 'bg-flint dark:bg-flint-light'}"
-                                              aria-hidden="true"
-                                            ></span>
-                                            <div>
-                                              <span class="text-[11px] font-mono text-flint dark:text-flint-light">{check.code}</span>
-                                              {#if check.explanation}
-                                                <p class="text-[11px] text-quartz mt-0.5">{check.explanation}</p>
-                                              {/if}
-                                            </div>
-                                            <span class="sr-only">{check.outcome}</span>
-                                          </li>
-                                        {/each}
-                                      </ul>
+                                      <p class="text-[10px] text-flint uppercase tracking-wider mb-2">Validation summary</p>
+                                      <div class="space-y-1.5">
+                                        <div class="flex items-center gap-2 text-xs">
+                                          <span class="w-4 text-center {sigValid ? 'text-malachite' : 'text-cinnabar'}">{sigValid ? '\u2713' : '\u2717'}</span>
+                                          <span class="text-quartz">Claim signature {sigValid ? 'verified' : 'failed'}</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 text-xs">
+                                          <span class="w-4 text-center {dataValid ? 'text-malachite' : hashFail ? 'text-cinnabar' : 'text-flint'}">{dataValid ? '\u2713' : hashFail ? '\u2717' : '\u2014'}</span>
+                                          <span class="text-quartz">{dataValid ? 'Data integrity confirmed — file has not been modified' : hashFail ? 'Data integrity failed — file has been modified since signing' : 'Data hash not checked'}</span>
+                                        </div>
+                                        {#if tsValid}
+                                          <div class="flex items-center gap-2 text-xs">
+                                            <span class="w-4 text-center text-malachite">{'\u2713'}</span>
+                                            <span class="text-quartz">Timestamp verified{certExpired ? ' — signature was valid at signing time' : ''}</span>
+                                          </div>
+                                        {/if}
+                                        {#if certExpired}
+                                          <div class="flex items-center gap-2 text-xs">
+                                            <span class="w-4 text-center text-amber">{'\u26A0'}</span>
+                                            <span class="text-quartz">Signing certificate has expired{tsValid ? ' (mitigated by trusted timestamp)' : ''}</span>
+                                          </div>
+                                        {/if}
+                                        {#if certUntrusted}
+                                          <div class="flex items-center gap-2 text-xs">
+                                            <span class="w-4 text-center text-flint">{'\u26A0'}</span>
+                                            <span class="text-quartz">Signing certificate not on a public trust list</span>
+                                          </div>
+                                        {/if}
+                                        <p class="text-[11px] text-flint mt-1">{passCount} passed, {failCount} failed, {infoCount} informational</p>
+                                      </div>
+
+                                      <!-- L4: Raw validation codes (collapsible) -->
+                                      <details class="mt-2">
+                                        <summary class="text-[11px] text-lapis cursor-pointer hover:text-lapis-light">
+                                          Show raw validation codes
+                                        </summary>
+                                        <ul class="mt-1.5 space-y-1 ml-1" aria-label="Raw C2PA validation codes">
+                                          {#each checks as check}
+                                            <li class="flex items-start gap-2">
+                                              <span
+                                                class="flex-shrink-0 w-1.5 h-1.5 rounded-full mt-1.5
+                                                       {check.outcome === 'pass' ? 'bg-malachite dark:bg-malachite-light'
+                                                        : check.outcome === 'fail' ? 'bg-cinnabar dark:bg-cinnabar-light'
+                                                        : 'bg-flint dark:bg-flint-light'}"
+                                                aria-hidden="true"
+                                              ></span>
+                                              <div>
+                                                <span class="text-[11px] font-mono text-flint dark:text-flint-light">{check.code}</span>
+                                                {#if check.explanation}
+                                                  <p class="text-[11px] text-quartz/70 mt-0.5">{check.explanation}</p>
+                                                {/if}
+                                              </div>
+                                            </li>
+                                          {/each}
+                                        </ul>
+                                      </details>
                                     </div>
                                   {/if}
 
