@@ -1504,8 +1504,9 @@ impl SidecarClient {
                     cached_bytes.clone()
                 } else {
                     drop(guard);
-                    std::fs::read(image_path)
-                        .map_err(|e| format!("Failed to read image {}: {e}", image_path.display()))?
+                    std::fs::read(image_path).map_err(|e| {
+                        format!("Failed to read image {}: {e}", image_path.display())
+                    })?
                 }
             } else {
                 drop(guard);
@@ -2601,7 +2602,10 @@ mod tests {
         // Verify the cache is populated
         {
             let guard = client.file_cache.lock().unwrap();
-            assert!(guard.is_some(), "cache should be populated after cache_file_bytes");
+            assert!(
+                guard.is_some(),
+                "cache should be populated after cache_file_bytes"
+            );
             let (cached_path, cached_bytes) = guard.as_ref().unwrap();
             assert_eq!(cached_path, &path);
             assert_eq!(cached_bytes, &bytes);
@@ -2612,7 +2616,10 @@ mod tests {
 
         // Verify the cache is now empty
         let guard = client.file_cache.lock().unwrap();
-        assert!(guard.is_none(), "cache should be None after clear_file_cache");
+        assert!(
+            guard.is_none(),
+            "cache should be None after clear_file_cache"
+        );
     }
 
     /// Cloned clients share the same Arc, so clearing on one clears the other.

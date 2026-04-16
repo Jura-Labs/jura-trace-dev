@@ -81,6 +81,9 @@ url = "2"
 # Temp files for URL verification
 tempfile = "3"
 
+# PDF internal provenance parsing (Feature 4)
+lopdf = "0.34"
+
 # Frequency-domain invisible watermarking (DWT-DCT-SVD, Phase 3)
 blind_watermark = "0.1"
 bitvec = "1"

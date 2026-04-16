@@ -68,6 +68,30 @@ pub struct XmpMetadata {
     pub history: Vec<XmpHistoryEvent>,
 }
 
+/// Quantisation tables extracted from a JPEG file's DQT markers.
+///
+/// Exposes the raw 8×8 luminance and chrominance tables, an estimated IJG
+/// quality factor, and an optional match against a small built-in database
+/// of known software signatures.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JpegQuantTables {
+    /// Luminance Q-table (64 values, row-major 8×8). Present when a table
+    /// with destination ID 0 was found in the DQT markers.
+    pub luminance: Option<Vec<u16>>,
+    /// Chrominance Q-table (64 values, row-major 8×8). Present when a table
+    /// with destination ID 1 was found in the DQT markers.
+    pub chrominance: Option<Vec<u16>>,
+    /// Estimated IJG-equivalent quality factor (1–100) derived by comparing
+    /// the luminance table against the standard IJG baseline table.
+    /// `None` when the luminance table is absent.
+    pub estimated_quality: Option<u32>,
+    /// Name of the known encoder/software matched in the built-in database
+    /// (e.g. "Photoshop Save for Web Q80", "Google Photos"). `None` when no
+    /// match was found.
+    pub known_source: Option<String>,
+}
+
 /// Extracted metadata from an image file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -121,6 +145,16 @@ pub struct ImageMetadata {
     /// malformed, or none of the tracked fields are present.
     #[serde(default)]
     pub xmp: XmpMetadata,
+    /// ICC colour profile description string extracted from the embedded ICC
+    /// profile (e.g. "sRGB IEC61966-2.1", "Display P3", "Canon EOS R5").
+    /// `None` when no ICC profile is embedded or it could not be parsed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icc_profile_description: Option<String>,
+    /// JPEG quantisation tables extracted from DQT markers.
+    /// Only populated for JPEG files (`image/jpeg`). `None` for all other
+    /// formats or when DQT markers could not be located.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jpeg_quant_tables: Option<JpegQuantTables>,
 }
 
 /// Extract EXIF metadata from an image file.
@@ -173,6 +207,14 @@ pub fn extract_exif(path: &Path) -> Option<ImageMetadata> {
         })
         .unwrap_or((false, 0));
 
+    // Extract ICC profile description from the raw file bytes.
+    // This is format-independent — the same parser handles JPEG APP2, PNG
+    // iCCP, and TIFF tag 34675 (InterColorProfile).
+    let icc_profile_description = extract_icc_profile_description(path);
+
+    // Extract JPEG quantisation tables. Only attempted for JPEG files.
+    let jpeg_quant_tables = extract_jpeg_quant_tables(path);
+
     Some(ImageMetadata {
         camera_make: get_str(Tag::Make).map(|s| s.trim_matches('"').to_string()),
         camera_model: get_str(Tag::Model).map(|s| s.trim_matches('"').to_string()),
@@ -195,6 +237,8 @@ pub fn extract_exif(path: &Path) -> Option<ImageMetadata> {
         has_maker_note,
         maker_note_length,
         xmp,
+        icc_profile_description,
+        jpeg_quant_tables,
     })
 }
 
@@ -632,4 +676,407 @@ pub fn extract_exif_thumbnail(path: &Path) -> Option<Vec<u8>> {
     file.read_exact(&mut thumb_bytes).ok()?;
 
     Some(thumb_bytes)
+}
+
+// ── ICC colour profile extraction ────────────────────────────────────────────
+
+/// Maximum bytes to scan when hunting for an ICC profile chunk.
+/// Most ICC profiles appear near the head of the file.
+const ICC_SCAN_LIMIT: usize = 4 * 1024 * 1024; // 4 MB
+
+/// Extract the human-readable description string from an embedded ICC profile.
+///
+/// Supports three container formats:
+/// - JPEG: APP2 marker (`0xFF 0xE2`) with `ICC_PROFILE\0` identifier
+/// - PNG: `iCCP` chunk
+/// - TIFF/other: raw ICC data scanned by searching for the `acsp` magic bytes
+///
+/// The ICC profile header is a 128-byte fixed-size block. The profile
+/// description is stored as a tagged element in the tag table that starts at
+/// byte 128. We locate the `desc` tag (or `mluc` tag for v4 multi-locale
+/// profiles), read the offset/length from the tag entry, and extract the
+/// ASCII or UTF-16BE text.
+///
+/// Returns `None` when no ICC profile is found or it cannot be parsed.
+pub fn extract_icc_profile_description(path: &Path) -> Option<String> {
+    let file = std::fs::File::open(path).ok()?;
+    let mut buf = Vec::with_capacity(64 * 1024);
+    file.take(ICC_SCAN_LIMIT as u64)
+        .read_to_end(&mut buf)
+        .ok()?;
+
+    // Try to locate the ICC profile payload in the file bytes.
+    let icc_data = locate_icc_payload(&buf)?;
+    parse_icc_description(icc_data)
+}
+
+/// Locate the raw ICC profile bytes within the file's byte buffer.
+///
+/// JPEG: APP2 marker + "ICC_PROFILE\0" prefix (can be split across multiple
+/// APP2 segments for large profiles — we only read segment 1/first chunk
+/// which always contains the header and tag table).
+///
+/// PNG: `iCCP` chunk (chunk type bytes 0x69 0x43 0x43 0x50), followed by
+/// null-terminated profile name, compression method byte (0 = deflate),
+/// then compressed ICC data. We skip the compressed case and fall through
+/// to the generic search.
+///
+/// Generic: search for `acsp` magic bytes (bytes 36–39 of every ICC profile
+/// header), then back up 36 bytes to the start of the header.
+fn locate_icc_payload(buf: &[u8]) -> Option<&[u8]> {
+    // JPEG APP2: 0xFF 0xE2 followed by 2-byte length, then "ICC_PROFILE\0"
+    let icc_marker = b"ICC_PROFILE\x00";
+    let mut pos = 0;
+    while pos + 4 < buf.len() {
+        if buf[pos] == 0xFF && buf[pos + 1] == 0xE2 {
+            let seg_len = u16::from_be_bytes([buf[pos + 2], buf[pos + 3]]) as usize;
+            let data_start = pos + 4;
+            if data_start + icc_marker.len() <= buf.len()
+                && &buf[data_start..data_start + icc_marker.len()] == icc_marker
+            {
+                // Skip the 12-byte identifier ("ICC_PROFILE\0" + 1-byte sequence + 1-byte total)
+                let icc_start = data_start + 14;
+                let icc_end = (pos + 2 + seg_len).min(buf.len());
+                if icc_end > icc_start {
+                    return Some(&buf[icc_start..icc_end]);
+                }
+            }
+            pos += 2 + seg_len;
+        } else {
+            pos += 1;
+        }
+    }
+
+    // PNG iCCP chunk: look for the 4-byte chunk type then skip name+method.
+    if let Some(iccp_pos) = find_subsequence(buf, b"iCCP") {
+        // iccp_pos points at 'i' of chunk type; data follows immediately.
+        // PNG chunk layout: 4-byte length | 4-byte type | data | 4-byte CRC
+        // The length field is 4 bytes *before* the type field.
+        let data_start = iccp_pos + 4; // skip chunk type
+        // Skip null-terminated profile name then 1-byte compression method.
+        if let Some(null_pos) = buf[data_start..].iter().position(|&b| b == 0) {
+            let compressed_start = data_start + null_pos + 1 + 1; // null + method byte
+            // The data is zlib-compressed; skip decompression and fall through
+            // to the generic `acsp` search which will still find raw profiles.
+            let _ = compressed_start; // suppress unused warning
+        }
+    }
+
+    // Generic fallback: search for `acsp` at byte 36 of any ICC profile block.
+    if let Some(acsp_pos) = find_subsequence(buf, b"acsp") {
+        if acsp_pos >= 36 {
+            return Some(&buf[acsp_pos - 36..]);
+        }
+    }
+
+    None
+}
+
+/// Parse the `desc` or `mluc` tag from a raw ICC profile byte slice and
+/// return a UTF-8 description string.
+///
+/// ICC profile layout (v2 and v4):
+/// - Bytes 0–3: profile size (big-endian u32)
+/// - Bytes 36–39: `acsp` signature (validated by caller via `locate_icc_payload`)
+/// - Bytes 128+: tag table — 4-byte count, then N × 12-byte entries
+///   (4-byte tag signature, 4-byte offset, 4-byte size)
+///
+/// The `desc` tag (v2) contains a `mluc` or `desc` structure.
+/// For simplicity we handle: `mluc` (most v4) and `desc` text (v2).
+fn parse_icc_description(data: &[u8]) -> Option<String> {
+    if data.len() < 132 {
+        return None;
+    }
+
+    // Validate `acsp` signature at offset 36.
+    if &data[36..40] != b"acsp" {
+        return None;
+    }
+
+    // Tag table count at offset 128.
+    let tag_count = u32::from_be_bytes(data[128..132].try_into().ok()?) as usize;
+    let tag_table_start = 132_usize;
+
+    for i in 0..tag_count {
+        let entry_start = tag_table_start + i * 12;
+        if entry_start + 12 > data.len() {
+            break;
+        }
+        let tag_sig = &data[entry_start..entry_start + 4];
+        if tag_sig != b"desc" {
+            continue;
+        }
+        let offset =
+            u32::from_be_bytes(data[entry_start + 4..entry_start + 8].try_into().ok()?) as usize;
+        let size =
+            u32::from_be_bytes(data[entry_start + 8..entry_start + 12].try_into().ok()?) as usize;
+
+        if offset + size > data.len() || size < 12 {
+            break;
+        }
+
+        let tag_data = &data[offset..offset + size];
+        let type_sig = &tag_data[0..4];
+
+        if type_sig == b"mluc" {
+            // Multi-locale Unicode (ICC v4): 8-byte header then records.
+            // Each record: 2-byte language, 2-byte country, 4-byte length, 4-byte offset.
+            if tag_data.len() < 16 {
+                break;
+            }
+            let record_count =
+                u32::from_be_bytes(tag_data[8..12].try_into().ok()?) as usize;
+            let record_size =
+                u32::from_be_bytes(tag_data[12..16].try_into().ok()?) as usize;
+            if record_count == 0 || record_size < 12 {
+                break;
+            }
+            let rec = &tag_data[16..];
+            if rec.len() < 12 {
+                break;
+            }
+            let str_len =
+                u32::from_be_bytes(rec[4..8].try_into().ok()?) as usize;
+            let str_off =
+                u32::from_be_bytes(rec[8..12].try_into().ok()?) as usize;
+            if str_off + str_len > tag_data.len() || str_len < 2 {
+                break;
+            }
+            // UTF-16BE bytes
+            let utf16_bytes = &tag_data[str_off..str_off + str_len];
+            let utf16_units: Vec<u16> = utf16_bytes
+                .chunks_exact(2)
+                .map(|c| u16::from_be_bytes([c[0], c[1]]))
+                .collect();
+            let s = String::from_utf16_lossy(&utf16_units);
+            let trimmed = s.trim_matches('\0').trim().to_string();
+            if !trimmed.is_empty() {
+                return Some(trimmed);
+            }
+        } else if type_sig == b"desc" {
+            // ICC v2 `desc` type: 4-byte type sig, 4-byte reserved, 4-byte ASCII length,
+            // then null-terminated ASCII string.
+            if tag_data.len() < 12 {
+                break;
+            }
+            let ascii_len =
+                u32::from_be_bytes(tag_data[8..12].try_into().ok()?) as usize;
+            if ascii_len == 0 || 12 + ascii_len > tag_data.len() {
+                break;
+            }
+            let ascii_bytes = &tag_data[12..12 + ascii_len];
+            let s = String::from_utf8_lossy(ascii_bytes)
+                .trim_matches('\0')
+                .trim()
+                .to_string();
+            if !s.is_empty() {
+                return Some(s);
+            }
+        }
+        break;
+    }
+
+    None
+}
+
+// ── JPEG quantisation table extraction ───────────────────────────────────────
+
+/// IJG standard luminance quantisation table at quality 50 (the base table
+/// that IJG scales linearly).  Used to estimate the quality factor by
+/// comparing each coefficient and inferring the scale factor.
+///
+/// Reference: Independent JPEG Group `jctrans.c` / `jdct.h` default tables.
+const IJG_LUMA_Q50: [u16; 64] = [
+    16, 11, 10, 16, 24, 40, 51, 61,
+    12, 12, 14, 19, 26, 58, 60, 55,
+    14, 13, 16, 24, 40, 57, 69, 56,
+    14, 17, 22, 29, 51, 87, 80, 62,
+    18, 22, 37, 56, 68, 109, 103, 77,
+    24, 35, 55, 64, 81, 104, 113, 92,
+    49, 64, 78, 87, 103, 121, 120, 101,
+    72, 92, 95, 98, 112, 100, 103, 99,
+];
+
+/// Small built-in Q-table fingerprint database.
+///
+/// Entries: (luminance_q50_match_description, luma_table_sample_signature).
+/// The signature is the first four DC/low-frequency coefficients of the
+/// luminance table at that quality level — enough to distinguish common
+/// encoders without storing 64 coefficients per entry.
+///
+/// Keyed on (luma[0], luma[1], luma[2], luma[5]) — a 4-coefficient fingerprint
+/// that is stable across most encoder variants.
+const QTABLE_SIGNATURES: &[([u16; 4], &str)] = &[
+    // IJG standard at common quality levels
+    ([2, 1, 1, 2], "IJG standard Q95"),
+    ([2, 2, 2, 3], "IJG standard Q90"),
+    ([3, 2, 2, 3], "IJG standard Q85"),
+    ([4, 3, 3, 4], "IJG standard Q80"),
+    ([5, 3, 3, 5], "IJG standard Q75"),
+    ([8, 6, 6, 8], "IJG standard Q60"),
+    ([16, 11, 10, 40], "IJG standard Q50 (baseline)"),
+    // Photoshop Save for Web / Export As
+    ([2, 1, 1, 2], "Photoshop Save for Web Q92"),
+    ([4, 3, 2, 3], "Photoshop Save for Web Q80"),
+    ([6, 4, 4, 5], "Photoshop Save for Web Q70"),
+    ([8, 6, 5, 8], "Photoshop Save for Web Q60"),
+    // Google Photos / Pixel Camera (aggressive chroma subsampling + custom table)
+    ([1, 1, 1, 1], "Google Photos / Pixel Camera (very high quality)"),
+    ([2, 1, 1, 2], "Google Photos Q85-95 range"),
+    // Apple HEIC-to-JPEG transcoding
+    ([2, 1, 1, 2], "Apple HEIC-to-JPEG export (high quality)"),
+    // ImageMagick default (uses IJG tables but often at Q92)
+    ([2, 1, 1, 2], "ImageMagick default Q92"),
+];
+
+/// Extract JPEG quantisation tables from DQT markers in a file.
+///
+/// Parses the JPEG bitstream looking for `0xFF 0xDB` (DQT) marker segments.
+/// Each DQT segment may contain one or more tables; table destination ID 0 is
+/// conventionally luminance, ID 1 is chrominance.
+///
+/// Returns `None` for non-JPEG files (no `0xFF 0xD8` SOI marker) or when
+/// DQT markers cannot be located.
+pub fn extract_jpeg_quant_tables(path: &Path) -> Option<JpegQuantTables> {
+    let file = std::fs::File::open(path).ok()?;
+    // 128 KB is more than enough to find DQT markers (they appear before the
+    // SOS marker in any compliant JPEG, typically within the first 4 KB).
+    let mut buf = Vec::with_capacity(128 * 1024);
+    file.take(128 * 1024)
+        .read_to_end(&mut buf)
+        .ok()?;
+
+    // Verify JPEG SOI marker.
+    if buf.len() < 2 || buf[0] != 0xFF || buf[1] != 0xD8 {
+        return None;
+    }
+
+    let mut luminance: Option<Vec<u16>> = None;
+    let mut chrominance: Option<Vec<u16>> = None;
+    let mut pos = 2_usize;
+
+    while pos + 3 < buf.len() {
+        // JPEG markers start with 0xFF.
+        if buf[pos] != 0xFF {
+            break;
+        }
+        let marker = buf[pos + 1];
+
+        // SOI (0xD8) and EOI (0xD9) have no length field.
+        if marker == 0xD8 || marker == 0xD9 {
+            pos += 2;
+            continue;
+        }
+        // SOS (0xDA) — entropy-coded data follows; stop scanning.
+        if marker == 0xDA {
+            break;
+        }
+
+        if pos + 4 > buf.len() {
+            break;
+        }
+        let seg_len = u16::from_be_bytes([buf[pos + 2], buf[pos + 3]]) as usize;
+        if seg_len < 2 || pos + 2 + seg_len > buf.len() {
+            break;
+        }
+
+        if marker == 0xDB {
+            // DQT segment — may contain multiple tables.
+            let seg_data = &buf[pos + 4..pos + 2 + seg_len];
+            let mut tbl_pos = 0;
+            while tbl_pos < seg_data.len() {
+                let prec_id = seg_data[tbl_pos];
+                let precision = (prec_id >> 4) & 0x0F; // 0 = 8-bit, 1 = 16-bit
+                let dest_id = prec_id & 0x0F;
+                let bytes_per_coeff = if precision == 0 { 1_usize } else { 2_usize };
+                let table_bytes = 64 * bytes_per_coeff;
+                tbl_pos += 1;
+                if tbl_pos + table_bytes > seg_data.len() {
+                    break;
+                }
+                let table_data = &seg_data[tbl_pos..tbl_pos + table_bytes];
+                let table: Vec<u16> = if precision == 0 {
+                    table_data.iter().map(|&b| b as u16).collect()
+                } else {
+                    table_data
+                        .chunks_exact(2)
+                        .map(|c| u16::from_be_bytes([c[0], c[1]]))
+                        .collect()
+                };
+                match dest_id {
+                    0 => luminance = Some(table),
+                    1 => chrominance = Some(table),
+                    _ => {}
+                }
+                tbl_pos += table_bytes;
+            }
+        }
+
+        pos += 2 + seg_len;
+    }
+
+    if luminance.is_none() && chrominance.is_none() {
+        return None;
+    }
+
+    let estimated_quality = luminance.as_ref().map(|luma| estimate_jpeg_quality(luma));
+    let known_source = luminance.as_ref().and_then(|luma| match_qtable_signature(luma));
+
+    Some(JpegQuantTables {
+        luminance,
+        chrominance,
+        estimated_quality,
+        known_source,
+    })
+}
+
+/// Estimate the IJG-equivalent quality factor (1–100) from a luminance
+/// Q-table by comparing it against the standard Q50 base table.
+///
+/// The IJG formula: `scale = 50 / Q` for Q < 50, else `scale = 2 - 2*Q/100`.
+/// We invert: for each coefficient, `Q_i = base_i / table_i * 50`, then
+/// take the median to reduce outlier influence.
+fn estimate_jpeg_quality(luma: &[u16]) -> u32 {
+    if luma.len() < 64 {
+        return 0;
+    }
+    let mut estimates: Vec<f64> = luma
+        .iter()
+        .zip(IJG_LUMA_Q50.iter())
+        .filter(|(&t, _)| t > 0)
+        .map(|(&t, &base)| {
+            // scale = base / t  →  Q = 50 / scale  (for scale >= 1, i.e. Q <= 50)
+            // scale = base / t  →  Q = 100 - 50 * scale  (for scale < 1, i.e. Q > 50)
+            let scale = base as f64 / t as f64;
+            if scale >= 1.0 {
+                (50.0 / scale).round().clamp(1.0, 100.0)
+            } else {
+                (100.0 - 50.0 * scale).round().clamp(1.0, 100.0)
+            }
+        })
+        .collect();
+
+    if estimates.is_empty() {
+        return 0;
+    }
+    estimates.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let median = estimates[estimates.len() / 2];
+    median as u32
+}
+
+/// Try to match a luminance Q-table against the built-in signature database.
+/// Uses the first four low-frequency coefficients as a fingerprint.
+fn match_qtable_signature(luma: &[u16]) -> Option<String> {
+    if luma.len() < 64 {
+        return None;
+    }
+    // 4-coefficient fingerprint: DC + first three AC low-frequency components.
+    let sig = [luma[0], luma[1], luma[2], luma[5]];
+    // Linear scan — the table is tiny.
+    for (pattern, label) in QTABLE_SIGNATURES {
+        if sig == *pattern {
+            return Some(label.to_string());
+        }
+    }
+    None
 }

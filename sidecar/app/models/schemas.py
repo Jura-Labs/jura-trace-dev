@@ -478,6 +478,41 @@ class FourierAnalysisResponse(BaseModel):
     summary: str
 
 
+class PlatformCandidate(BaseModel):
+    """A candidate social media platform match."""
+
+    platform: str
+    confidence: float
+
+
+class PlatformFingerprintResponse(BaseModel):
+    """Social media re-upload platform fingerprinting result."""
+
+    detected: bool
+    platform: str | None = None
+    confidence: float
+    allCandidates: list[PlatformCandidate] = []
+    maxDimension: int | None = None
+    estimatedQuality: int | None = None
+    hasExif: bool
+    summary: str
+
+
+class EnfAnalysisResponse(BaseModel):
+    """Audio ENF (Electrical Network Frequency) analysis result."""
+
+    detected: bool
+    meanFrequency: float | None = None
+    frequencyStd: float | None = None
+    snr: float | None = None
+    gridRegion: str | None = None
+    expectedFrequency: float
+    durationSeconds: float | None = None
+    sampleCount: int = 0
+    frequencyTrace: list[float] = []
+    summary: str
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
 

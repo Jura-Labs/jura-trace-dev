@@ -508,6 +508,18 @@ export interface VerificationResult {
    * inferring detector presence from individual `*Result` field population.
    */
   detectorsRun?: string[];
+  /**
+   * Filename provenance heuristics. Populated for all content types.
+   * Signals: camera naming convention, screenshot, AI generator, web download,
+   * edited file copy, or unknown.
+   */
+  filenameAnalysis?: FilenameAnalysis | null;
+  /**
+   * PDF internal provenance signals (producer, creator, incremental saves,
+   * digital signatures, redactions, PDF/A compliance). Only present for PDF
+   * documents.
+   */
+  pdfProvenance?: PdfProvenance | null;
 }
 
 /** Methodology metadata captured at verification time for reproducibility. */
@@ -522,6 +534,73 @@ export interface MethodologyRecord {
   analysisMode: string;
   /** ISO 8601 timestamp when the analysis was performed. */
   analysedAt: string;
+}
+
+/**
+ * Filename provenance heuristics result.
+ * Mirrors `filename_analysis::FilenameAnalysis` in the Rust backend.
+ */
+export interface FilenameAnalysis {
+  /**
+   * Provenance category:
+   * `"camera"` | `"screenshot"` | `"ai_generated"` | `"web_download"` |
+   * `"edited"` | `"unknown"`
+   */
+  pattern: string;
+  /** Confidence in the classification (0.0-1.0). */
+  confidence: number;
+  /** Human-readable description of the matched pattern. */
+  matchedPattern?: string | null;
+  /** Short summary for the UI provenance panel. */
+  summary: string;
+}
+
+/**
+ * JPEG quantisation tables extracted from DQT markers.
+ * Mirrors `metadata::JpegQuantTables` in the Rust backend.
+ * Only present for JPEG files.
+ */
+export interface JpegQuantTables {
+  /** 64-value luminance Q-table (row-major 8x8). */
+  luminance?: number[] | null;
+  /** 64-value chrominance Q-table (row-major 8x8). */
+  chrominance?: number[] | null;
+  /** Estimated IJG-equivalent quality factor (1-100). */
+  estimatedQuality?: number | null;
+  /** Name of the matched known encoder/software, if any. */
+  knownSource?: string | null;
+}
+
+/**
+ * PDF internal provenance signals.
+ * Mirrors `pdf_provenance::PdfProvenance` in the Rust backend.
+ * Only present for PDF documents.
+ */
+export interface PdfProvenance {
+  /** Producing software (e.g. "Adobe PDF Library 15.0"). */
+  producer?: string | null;
+  /** Originating application (e.g. "Microsoft Word 2019"). */
+  creator?: string | null;
+  /** PDF creation date (raw string from Info dictionary). */
+  creationDate?: string | null;
+  /** Last modification date (raw string). */
+  modDate?: string | null;
+  /** Number of pages. */
+  pageCount: number;
+  /** Whether the file contains a digital signature. */
+  hasDigitalSignature: boolean;
+  /** Whether the file was saved incrementally (multiple edit rounds). */
+  hasIncrementalSaves: boolean;
+  /** Whether the file contains redaction annotations. */
+  hasRedactionAnnotations: boolean;
+  /** PDF version string (e.g. "1.7", "2.0"). */
+  pdfVersion: string;
+  /** Whether PDF/A archival compliance is declared. */
+  isPdfA: boolean;
+  /** Number of embedded font names. */
+  embeddedFontCount: number;
+  /** Human-readable provenance summary. */
+  summary: string;
 }
 
 /** EXIF thumbnail vs main image consistency check. */
@@ -705,6 +784,17 @@ export interface ImageMetadata {
   orientation?: number;
   /** Parsed XMP metadata including edit-history stack. */
   xmp?: XmpMetadata;
+  /**
+   * ICC colour profile description extracted from the embedded ICC profile
+   * (e.g. "sRGB IEC61966-2.1", "Display P3", "Canon EOS R5").
+   * Absent when no ICC profile is embedded or it could not be parsed.
+   */
+  iccProfileDescription?: string | null;
+  /**
+   * JPEG quantisation tables extracted from DQT markers.
+   * Only present for JPEG files.
+   */
+  jpegQuantTables?: JpegQuantTables | null;
 }
 
 /** A complete C2PA provenance chain extracted from a file. */
@@ -747,6 +837,22 @@ export interface ManifestInfo {
   thumbnailBase64?: string;
   /** MIME type of the thumbnail (e.g. "image/jpeg"). */
   thumbnailMime?: string;
+  /** True when this manifest is a C2PA update manifest (metadata-only change,
+   *  not an edit to the asset). Per C2PA UX Rec v1.4 §6 the UI must not
+   *  present update manifests as edits and must suppress their thumbnails. */
+  isUpdateManifest?: boolean;
+  /** Redactions declared by this manifest (JUMBF URIs of redacted assertions,
+   *  with optional rationale from the matching c2pa.redacted action entry).
+   *  Per C2PA UX Rec v1.4 §6 redaction details must be shown at L3. */
+  redactions?: RedactionRecord[];
+}
+
+/** A single redaction recorded on a C2PA manifest. */
+export interface RedactionRecord {
+  /** JUMBF URI of the redacted assertion. */
+  target: string;
+  /** Human-readable rationale from the accompanying c2pa.redacted action. */
+  reason?: string;
 }
 
 /** A single C2PA validation check result. */

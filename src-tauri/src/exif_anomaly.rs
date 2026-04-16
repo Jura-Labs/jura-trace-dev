@@ -106,6 +106,7 @@ pub fn analyse(
                 check_editor_on_phone_capture(meta, &mut findings);
                 check_xmp_history_manipulation_tool(meta, &mut findings);
                 check_xmp_history_multi_save_phone(meta, &mut findings);
+                check_icc_profile_mismatch(meta, &mut findings);
                 let (fp, ft) = compute_completeness(meta);
                 (fp, ft, meta.gps_latitude, meta.gps_longitude, bonus)
             }
@@ -1247,6 +1248,156 @@ fn compute_completeness(meta: &ImageMetadata) -> (u32, u32) {
     (count, 16)
 }
 
+// ── ICC colour profile mismatch check ────────────────────────────────────────
+
+/// Camera-specific ICC profile description substrings — these appear in
+/// device-specific profiles embedded by camera firmware. When the ICC
+/// description contains one of these strings but the EXIF `Make` field
+/// does not match the associated vendor, it is a provenance signal that
+/// the file has been re-processed (because re-saves by editors like
+/// Photoshop, GIMP, and Lightroom replace device profiles with generic
+/// ones and vice versa).
+const CAMERA_ICC_VENDORS: &[(&str, &str)] = &[
+    ("canon", "Canon"),
+    ("nikon", "Nikon"),
+    ("sony", "Sony"),
+    ("fujifilm", "Fujifilm"),
+    ("fuji", "Fujifilm"),
+    ("apple", "Apple"),
+    ("google", "Google"),
+    ("samsung", "Samsung"),
+    ("dji", "DJI"),
+    ("gopro", "GoPro"),
+    ("panasonic", "Panasonic"),
+    ("olympus", "Olympus"),
+    ("leica", "Leica"),
+    ("hasselblad", "Hasselblad"),
+    ("phase one", "Phase One"),
+];
+
+/// Editor / generic colour space profile descriptions. These are the profiles
+/// that editing software embeds — finding them alongside camera EXIF is not
+/// necessarily suspicious, but finding a *camera-specific* profile when EXIF
+/// claims a different vendor, or finding an editor profile alongside no EXIF,
+/// is informational.
+const EDITOR_ICC_PROFILES: &[&str] = &[
+    "adobe rgb",
+    "adobe wide gamut",
+    "prophoto rgb",
+    "pro photo rgb",
+    "wide gamut rgb",
+    "eci rgb",
+];
+
+/// Check for ICC colour profile / EXIF Make mismatch.
+///
+/// Fires when the embedded ICC profile description names a specific camera
+/// vendor that differs from the EXIF `Make` field. This indicates that
+/// either the ICC profile or the EXIF was injected independently, or the
+/// file has been processed through a pipeline that overwrote one but not
+/// the other.
+///
+/// Also emits an informational finding when an editor-specific profile
+/// (Adobe RGB, ProPhoto) is present in a file that claims to be a direct
+/// camera capture (has camera EXIF but no software editing field).
+///
+/// Severity: Medium (vendor mismatch) / Info (editor profile on camera image).
+pub fn check_icc_profile_mismatch(meta: &ImageMetadata, findings: &mut Vec<AnomalyFinding>) {
+    let icc_desc = match &meta.icc_profile_description {
+        Some(d) if !d.is_empty() => d.to_lowercase(),
+        _ => return,
+    };
+
+    let make_lower = meta
+        .camera_make
+        .as_deref()
+        .map(|s| s.to_lowercase())
+        .unwrap_or_default();
+
+    // Check: ICC profile names a specific camera vendor — does EXIF Make match?
+    for (icc_vendor_substr, display_name) in CAMERA_ICC_VENDORS {
+        if icc_desc.contains(icc_vendor_substr) {
+            // ICC profile is camera-specific.
+            if make_lower.is_empty() {
+                // Camera-specific ICC profile but no EXIF Make at all.
+                findings.push(AnomalyFinding {
+                    check_id: "icc_camera_profile_no_make".into(),
+                    title: "Camera-specific ICC profile without EXIF Make".into(),
+                    description: format!(
+                        "The ICC colour profile description contains '{display_name}' but the \
+                         EXIF Make field is absent. Camera-specific ICC profiles are embedded \
+                         by firmware; their presence without matching camera EXIF may indicate \
+                         metadata has been partially injected or stripped."
+                    ),
+                    severity: Severity::Medium,
+                    category: "icc_provenance".into(),
+                });
+                return;
+            }
+            if !make_lower.contains(icc_vendor_substr) {
+                // Camera-specific ICC profile names a different vendor than EXIF Make.
+                findings.push(AnomalyFinding {
+                    check_id: "icc_vendor_make_mismatch".into(),
+                    title: "ICC profile vendor does not match EXIF Make".into(),
+                    description: format!(
+                        "The ICC colour profile description references '{display_name}' but the \
+                         EXIF Make field is '{make}'. A camera-specific ICC profile belonging to \
+                         a different manufacturer suggests the file metadata may have been \
+                         modified or combined from different sources.",
+                        make = meta.camera_make.as_deref().unwrap_or("unknown")
+                    ),
+                    severity: Severity::Medium,
+                    category: "icc_provenance".into(),
+                });
+                return;
+            }
+            // ICC vendor matches EXIF Make — no finding.
+            return;
+        }
+    }
+
+    // Check: editor-specific profile on a file that claims to be a direct camera capture.
+    for editor_profile in EDITOR_ICC_PROFILES {
+        if icc_desc.contains(editor_profile) {
+            // Only emit an informational finding if the file has camera EXIF
+            // (Make + DateTimeOriginal) but no Software field — suggesting an
+            // unedited camera capture that nevertheless carries an editor profile.
+            let looks_like_camera_capture =
+                meta.camera_make.is_some() && meta.datetime_original.is_some();
+            let has_editor_software = meta
+                .software
+                .as_deref()
+                .map(|s| {
+                    let sl = s.to_lowercase();
+                    sl.contains("photoshop")
+                        || sl.contains("lightroom")
+                        || sl.contains("gimp")
+                        || sl.contains("capture one")
+                        || sl.contains("darktable")
+                })
+                .unwrap_or(false);
+
+            if looks_like_camera_capture && !has_editor_software {
+                findings.push(AnomalyFinding {
+                    check_id: "icc_editor_profile_on_camera_image".into(),
+                    title: "Editor colour profile on apparent camera capture".into(),
+                    description: format!(
+                        "The embedded ICC colour profile is '{}', an editor-specific wide-gamut \
+                         colour space. Camera firmware does not embed this profile — it is \
+                         applied by editing software. Yet no editing software was detected in \
+                         the EXIF Software field. This may indicate the Software field was \
+                         stripped or the file was processed but metadata was not fully updated.",
+                        meta.icc_profile_description.as_deref().unwrap_or(&icc_desc)
+                    ),
+                    severity: Severity::Info,
+                    category: "icc_provenance".into(),
+                });
+            }
+            return;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1275,6 +1426,8 @@ mod tests {
             has_maker_note: false,
             maker_note_length: 0,
             xmp: XmpMetadata::default(),
+            icc_profile_description: None,
+            jpeg_quant_tables: None,
         }
     }
 
@@ -1301,6 +1454,8 @@ mod tests {
             has_maker_note: true,
             maker_note_length: 2048,
             xmp: XmpMetadata::default(),
+            icc_profile_description: None,
+            jpeg_quant_tables: None,
         }
     }
 

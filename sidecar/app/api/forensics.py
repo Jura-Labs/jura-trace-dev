@@ -19,11 +19,13 @@ from app.models.schemas import (
     DctAnalysisResponse,
     DeepfakeResponse,
     ElaResponse,
+    EnfAnalysisResponse,
     FourierAnalysisResponse,
     ImageDescribeResponse,
     JpegGhostResponse,
     NoiseAnalysisResponse,
     NprResponse,
+    PlatformFingerprintResponse,
     SegmentedElaResponse,
     ShadowConsistencyResponse,
     SpliceBoundaryResponse,
@@ -62,7 +64,9 @@ from app.services.gan_fingerprint import visualise_gan_fingerprint
 from app.services.audio_deepfake import score_audio_deepfake
 from app.services.watermark import perform_watermark_embed, perform_watermark_extract
 from app.services.dct_analysis import analyse_dct
+from app.services.enf_analysis import analyse_enf
 from app.services.fourier_analysis import analyse_fourier
+from app.services.platform_fingerprint import analyse_platform
 
 router = APIRouter()
 
@@ -856,3 +860,64 @@ async def fourier_analysis(file: UploadFile = File(...)) -> FourierAnalysisRespo
         score=result["score"],
         summary=result["summary"],
     )
+
+
+# ── Platform fingerprinting ──────────────────────────────────────────────────
+
+
+@router.post("/platform-fingerprint", response_model=PlatformFingerprintResponse)
+async def platform_fingerprint(
+    file: UploadFile = File(...),
+) -> PlatformFingerprintResponse:
+    """Identify which social media platform processed an uploaded image.
+
+    Analyses JPEG compression quality, maximum dimension, EXIF stripping,
+    and resolution patterns to match against known platform signatures
+    (WhatsApp, Telegram, Facebook, Instagram, Twitter/X, Signal, WeChat).
+
+    Returns ranked candidates with confidence scores. Useful for
+    establishing an image's distribution chain — e.g. confirming that a
+    photo was forwarded via WhatsApp before being submitted for verification.
+
+    Accepted formats: JPEG (strongest signals), PNG, WebP (limited matching).
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        result = analyse_platform(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return PlatformFingerprintResponse(**result)
+
+
+# ── ENF (Electrical Network Frequency) analysis ─────────────────────────────
+
+
+@router.post("/enf-analysis", response_model=EnfAnalysisResponse)
+async def enf_analysis(
+    file: UploadFile = File(...),
+    expected_freq: float = Query(default=50.0, description="Expected mains frequency: 50.0 or 60.0 Hz"),
+) -> EnfAnalysisResponse:
+    """Extract and analyse mains hum (ENF) from an audio recording.
+
+    Power grids operate at either 50 Hz (Europe, Asia, Africa, Oceania)
+    or 60 Hz (Americas, parts of Asia). The mains frequency leaves a
+    subtle imprint in audio recordings made near electrical infrastructure.
+
+    ENF analysis can help establish geographic provenance (50 vs 60 Hz
+    grid), temporal consistency, and recording authenticity.
+
+    Accepts WAV audio files. The ``expected_freq`` parameter selects
+    which grid frequency to search for (default 50.0 Hz).
+
+    Maximum file size: 100 MB.
+    """
+    contents = await _read_media(file, _MAX_AUDIO_SIZE, "audio")
+
+    try:
+        result = analyse_enf(contents, expected_freq=expected_freq)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return EnfAnalysisResponse(**result)

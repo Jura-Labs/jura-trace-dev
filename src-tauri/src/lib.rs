@@ -10,11 +10,13 @@ mod c2pa;
 pub mod db;
 mod error;
 mod exif_anomaly;
+mod filename_analysis;
 mod fingerprint;
 mod format_router;
 mod metadata;
 mod monitor_scheduler;
 mod network_mode;
+mod pdf_provenance;
 pub mod sidecar;
 mod sun_position;
 pub mod telemetry;
@@ -215,6 +217,14 @@ pub struct VerificationResult {
     /// neutralised to 0.5 in trust scoring.  `None` when the sidecar is
     /// offline or the content type is not an image.
     pub content_type_result: Option<sidecar::ContentTypeResult>,
+    /// Filename provenance heuristics (camera naming, screenshot, AI generator, etc.).
+    /// Populated for all content types.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filename_analysis: Option<filename_analysis::FilenameAnalysis>,
+    /// PDF internal provenance signals (producer, creator, incremental saves,
+    /// digital signatures, redactions, PDF/A). Only populated for PDF documents.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pdf_provenance: Option<pdf_provenance::PdfProvenance>,
     /// Stable string identifiers for every detector that produced a result
     /// for this verification. Consumers (PDF / ZIP renderers, Expert View
     /// badges) use this as an authoritative list of what ran, so that
@@ -413,7 +423,9 @@ fn compute_file_sha256(path: &std::path::Path) -> Option<String> {
 /// Get application statistics for the dashboard.
 #[tauri::command]
 fn get_stats(state: State<'_, Arc<Mutex<AppState>>>) -> Result<AppStats, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db.get_stats().map_err(Into::into)
 }
 
@@ -703,7 +715,9 @@ fn get_assets(
     offset: Option<u32>,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<Vec<Asset>, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .get_all_assets(limit.unwrap_or(200), offset.unwrap_or(0))
         .map_err(Into::into)
@@ -1848,7 +1862,8 @@ fn verify_content_inner(
                 let mismatch = phash_mismatch || mse_mismatch;
 
                 let summary = if !mismatch {
-                    "Thumbnail matches full image — no post-capture modification detected.".to_string()
+                    "Thumbnail matches full image — no post-capture modification detected."
+                        .to_string()
                 } else if phash_mismatch && mse_mismatch {
                     format!(
                         "Thumbnail mismatch (pHash distance {}, MSE {:.4}) — post-capture modification likely.",
@@ -1881,6 +1896,36 @@ fn verify_content_inner(
     } else {
         None
     };
+
+    // ── Filename provenance analysis ─────────────────────────────────────
+    // Runs for all content types — pure computation on the path stem.
+    let filename_analysis_result: Option<filename_analysis::FilenameAnalysis> = {
+        let a = filename_analysis::analyse_filename(&path);
+        Some(a)
+    };
+
+    // ── PDF internal provenance ───────────────────────────────────────────
+    // Only attempted for PDF documents. lopdf::Document::load handles
+    // non-PDF files gracefully by returning Err, so no MIME guard is needed,
+    // but we restrict to the document content type to avoid the parsing cost
+    // on image/video/audio files.
+    let pdf_provenance_result: Option<pdf_provenance::PdfProvenance> =
+        if info.content_type == format_router::ContentType::Document
+            && info.mime_type.contains("pdf")
+        {
+            match pdf_provenance::analyse_pdf(&path) {
+                Some(p) => Some(p),
+                None => {
+                    log::warn!(
+                        "PDF provenance analysis failed for {}",
+                        path.display()
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
 
     // ── C2PA verification ────────────────────────────────────────────────
     // Verification mode: always Standard (local-only) here because
@@ -1994,9 +2039,8 @@ fn verify_content_inner(
         .as_ref()
         .map(|ct| ct.ai_detection_suitable)
         .unwrap_or(true);
-    let content_type_category: Option<&str> = content_type_result
-        .as_ref()
-        .map(|ct| ct.category.as_str());
+    let content_type_category: Option<&str> =
+        content_type_result.as_ref().map(|ct| ct.category.as_str());
 
     // ── Standard parallel group ──────────────────────────────────────────
     // ELA + deepfake + watermark extraction are independent and each takes
@@ -2578,6 +2622,8 @@ fn verify_content_inner(
         methodology,
         input_quality,
         content_type_result,
+        filename_analysis: filename_analysis_result,
+        pdf_provenance: pdf_provenance_result,
         detectors_run: detectors_run_list.iter().map(|s| s.to_string()).collect(),
     })
 }
@@ -2870,9 +2916,10 @@ fn read_manifest_chain(
 /// Return the current network mode (`standard` or `enhanced`).
 #[tauri::command]
 fn get_network_mode(app_handle: tauri::AppHandle) -> Result<network_mode::NetworkMode, AppError> {
-    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
-        AppError::Internal(format!("Cannot resolve app data directory: {e}"))
-    })?;
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(format!("Cannot resolve app data directory: {e}")))?;
     Ok(network_mode::get_network_mode(&data_dir))
 }
 
@@ -2885,9 +2932,10 @@ fn set_network_mode(
     mode: network_mode::NetworkMode,
     app_handle: tauri::AppHandle,
 ) -> Result<network_mode::NetworkMode, AppError> {
-    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
-        AppError::Internal(format!("Cannot resolve app data directory: {e}"))
-    })?;
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(format!("Cannot resolve app data directory: {e}")))?;
     network_mode::set_network_mode(&data_dir, mode).map_err(|e| {
         log::error!("set_network_mode: {e}");
         AppError::Internal(e)
@@ -3001,7 +3049,9 @@ fn get_filtered_assets(
     offset: Option<u32>,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<Vec<Asset>, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .get_filtered_assets(
             content_type.as_deref(),
@@ -3017,7 +3067,9 @@ fn get_filtered_assets(
 /// Delete an asset by ID.
 #[tauri::command]
 fn delete_asset(asset_id: String, state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db.delete_asset(&asset_id)?;
     let _ = app
         .db
@@ -3032,7 +3084,9 @@ fn get_recent_assets(
     limit: Option<u32>,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<Vec<Asset>, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .get_recent_assets(limit.unwrap_or(5))
         .map_err(Into::into)
@@ -3184,7 +3238,9 @@ fn verify_url(
 fn check_sidecar_health(
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<sidecar::SidecarHealth, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.sidecar.check_health().map_err(AppError::Sidecar)
 }
 
@@ -3218,7 +3274,9 @@ fn analyse_video_deepfake(
         )));
     }
 
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     if !app.sidecar.is_available() {
         return Err(AppError::Sidecar("ML sidecar is not available".into()));
     }
@@ -3255,15 +3313,14 @@ fn extract_text_from_image(
         .canonicalize()
         .map_err(|_| AppError::Validation("File not found or inaccessible".into()))?;
 
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     if !app.sidecar.is_available() {
         return Err(AppError::Sidecar("ML sidecar is not available".into()));
     }
 
-    let result = app
-        .sidecar
-        .extract_text(&path)
-        .map_err(AppError::Sidecar)?;
+    let result = app.sidecar.extract_text(&path).map_err(AppError::Sidecar)?;
 
     if result.success {
         result
@@ -3297,7 +3354,9 @@ fn check_metadata_before_sign(
     asset_id: String,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<MetadataSigningWarning, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     let asset = app
         .db
         .get_asset_by_id(&asset_id)?
@@ -3371,7 +3430,9 @@ fn embed_watermark_asset(
     strength: Option<u32>,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<watermark::WatermarkResult, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
 
     let asset = app
         .db
@@ -3408,8 +3469,8 @@ fn embed_watermark_asset(
         strength
     );
 
-    let result = watermark::embed_watermark(&source, &output, &options)
-        .map_err(AppError::FileSystem)?;
+    let result =
+        watermark::embed_watermark(&source, &output, &options).map_err(AppError::FileSystem)?;
 
     // Update the asset record in the database
     let output_str = output.to_string_lossy().to_string();
@@ -3491,7 +3552,9 @@ fn mark_false_positive(
     let report_id = uuid::Uuid::new_v4().to_string();
     let created_at = chrono::Utc::now().to_rfc3339();
 
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .insert_false_positive(
             &report_id,
@@ -3531,7 +3594,9 @@ fn mark_false_positive(
 /// Intended for the Settings page to surface calibration data to the user.
 #[tauri::command]
 fn get_false_positive_stats(state: State<'_, Arc<Mutex<AppState>>>) -> Result<u64, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .get_false_positive_count()
         .map_err(|e| AppError::Database(e.to_string()))
@@ -3549,7 +3614,9 @@ fn get_false_positive_stats(state: State<'_, Arc<Mutex<AppState>>>) -> Result<u6
 /// columns are verified.
 #[tauri::command]
 fn verify_audit_integrity(state: State<'_, Arc<Mutex<AppState>>>) -> Result<bool, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db.verify_audit_chain().map_err(Into::into)
 }
 
@@ -3567,7 +3634,9 @@ fn add_monitor_url(
     asset_id: Option<String>,
     frequency: Option<String>,
 ) -> Result<db::MonitorUrl, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .add_monitor_url(
             &url,
@@ -3584,7 +3653,9 @@ fn remove_monitor_url(
     state: State<'_, Arc<Mutex<AppState>>>,
     url_id: String,
 ) -> Result<(), AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db.remove_monitor_url(&url_id).map_err(Into::into)
 }
 
@@ -3597,7 +3668,9 @@ fn list_monitor_urls(
     state: State<'_, Arc<Mutex<AppState>>>,
     enabled_only: Option<bool>,
 ) -> Result<Vec<db::MonitorUrl>, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .list_monitor_urls(enabled_only.unwrap_or(false))
         .map_err(Into::into)
@@ -3612,7 +3685,9 @@ fn get_monitor_events(
     url_id: String,
     limit: Option<u32>,
 ) -> Result<Vec<db::MonitorEvent>, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .get_monitor_events(&url_id, limit.unwrap_or(50))
         .map_err(Into::into)
@@ -3651,8 +3726,12 @@ fn update_monitor_case_status(
 /// Assembles protection statistics, trust distribution, the 20 most recent
 /// audit log entries, and a 30-day activity timeline.
 #[tauri::command]
-fn get_monitor_overview(state: State<'_, Arc<Mutex<AppState>>>) -> Result<MonitorOverview, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+fn get_monitor_overview(
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<MonitorOverview, AppError> {
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     let protection = app.db.get_protection_summary()?;
     let trust = app.db.get_trust_distribution()?;
     let recent_activity = app.db.get_audit_log(20, None)?;
@@ -3675,7 +3754,9 @@ fn get_audit_log(
     limit: Option<u32>,
     action_filter: Option<String>,
 ) -> Result<Vec<AuditLogEntry>, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .get_audit_log(limit.unwrap_or(50), action_filter.as_deref())
         .map_err(Into::into)
@@ -3690,7 +3771,9 @@ fn get_verification_history(
     limit: Option<u32>,
     offset: Option<u32>,
 ) -> Result<Vec<VerificationSummary>, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.db
         .get_verification_history(limit.unwrap_or(20), offset.unwrap_or(0))
         .map_err(Into::into)
@@ -3724,7 +3807,9 @@ pub enum LicenceTier {
 /// pilot demonstrations; it does not enforce feature gates.
 #[tauri::command]
 fn get_licence_tier(state: State<'_, Arc<Mutex<AppState>>>) -> Result<LicenceTier, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     Ok(app.licence_tier)
 }
 
@@ -3750,7 +3835,9 @@ fn set_licence_tier(
     write_app_config(&data_dir, &config).map_err(AppError::FileSystem)?;
 
     // Update the live state so subsequent get_licence_tier calls reflect the change.
-    let mut app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let mut app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.licence_tier = tier;
 
     log::info!("Licence tier updated to {:?}", tier);
@@ -3769,7 +3856,9 @@ fn set_licence_tier(
 fn get_ai_description_enabled(
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<Option<bool>, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     Ok(app.ai_description_enabled)
 }
 
@@ -3791,7 +3880,9 @@ fn set_ai_description_enabled(
     config.ai_description_enabled = enabled;
     write_app_config(&data_dir, &config).map_err(AppError::FileSystem)?;
 
-    let mut app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let mut app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.ai_description_enabled = enabled;
 
     log::info!("AI image description preference updated to {:?}", enabled);
@@ -3840,7 +3931,9 @@ fn create_api_key(
     rate_limit: Option<i64>,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<serde_json::Value, AppError> {
-    let guard = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let guard = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     let key_id = uuid::Uuid::new_v4().to_string();
     let raw_key = format!("jt_{}", uuid::Uuid::new_v4().simple());
     let key_hash = crate::api::auth::hash_key(&raw_key);
@@ -3860,7 +3953,9 @@ fn create_api_key(
 /// List all API keys (active and revoked).
 #[tauri::command]
 fn list_api_keys(state: State<'_, Arc<Mutex<AppState>>>) -> Result<Vec<ApiKeyInfo>, AppError> {
-    let guard = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let guard = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     let records = guard
         .db
         .list_api_keys()
@@ -3880,7 +3975,9 @@ fn list_api_keys(state: State<'_, Arc<Mutex<AppState>>>) -> Result<Vec<ApiKeyInf
 /// Revoke an API key by ID.
 #[tauri::command]
 fn revoke_api_key(key_id: String, state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), AppError> {
-    let guard = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let guard = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     guard.db.revoke_api_key(&key_id).map_err(Into::into)
 }
 
@@ -4190,7 +4287,9 @@ fn resolve_db_path(app: &tauri::App) -> PathBuf {
 /// Return the current database file path as a string.
 #[tauri::command]
 async fn get_db_path(state: State<'_, Arc<Mutex<AppState>>>) -> Result<String, AppError> {
-    let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
     Ok(app.db_path.clone())
 }
 
@@ -4252,7 +4351,9 @@ async fn set_db_path(
 
     // Get current DB path from shared state
     let current_path = {
-        let app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+        let app = state
+            .lock()
+            .map_err(|_| AppError::Internal("State lock failed".into()))?;
         PathBuf::from(&app.db_path)
     };
 
@@ -4292,7 +4393,10 @@ async fn set_db_path(
     // Rename temp file to final destination
     std::fs::rename(&tmp_path, &new_db_path).map_err(|e| {
         let _ = std::fs::remove_file(&tmp_path);
-        log::error!("Failed to move database to '{}': {e}", new_db_path.display());
+        log::error!(
+            "Failed to move database to '{}': {e}",
+            new_db_path.display()
+        );
         AppError::FileSystem("Failed to move database to new location".into())
     })?;
 
@@ -4310,7 +4414,9 @@ async fn set_db_path(
 
     // Update the shared state so get_db_path reflects the change immediately.
     {
-        let mut app = state.lock().map_err(|_| AppError::Internal("State lock failed".into()))?;
+        let mut app = state
+            .lock()
+            .map_err(|_| AppError::Internal("State lock failed".into()))?;
         app.db_path.clone_from(&new_path);
     }
 
@@ -4984,7 +5090,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(trust > 0.85, "Expected >0.85, got {trust:.3}");
     }
@@ -5009,7 +5115,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(trust < 0.5, "Expected <0.5, got {trust:.3}");
     }
@@ -5034,7 +5140,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(trust > 0.50, "Expected >0.50, got {trust:.3}");
     }
@@ -5059,7 +5165,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(trust < 0.55, "Expected <0.55, got {trust:.3}");
     }
@@ -5084,7 +5190,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust_weighted > 0.55,
@@ -5111,7 +5217,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         let trust_with = compute_trust(
             Some(0.1),
@@ -5130,7 +5236,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust_with > trust_without,
@@ -5142,9 +5248,8 @@ mod tests {
     fn trust_no_forensics_falls_back_to_exif() {
         let trust = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false, None,
-            None,
-            None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            None, None, // content_type_category: None → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!((trust - 0.8).abs() < 0.01, "Expected ~0.8, got {trust:.3}");
     }
@@ -5168,7 +5273,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust > 0.65,
@@ -5196,7 +5301,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(trust <= 1.0, "Trust exceeded 1.0: {trust:.3}");
     }
@@ -5224,7 +5329,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust <= 0.55,
@@ -5255,7 +5360,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust <= 0.25,
@@ -5283,7 +5388,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust <= 0.45,
@@ -5310,7 +5415,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust > 0.85,
@@ -5338,7 +5443,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust > 0.70,
@@ -5486,7 +5591,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust <= 0.55,
@@ -5542,6 +5647,8 @@ mod tests {
             methodology: None,
             input_quality: None,
             content_type_result: None,
+            filename_analysis: None,
+            pdf_provenance: None,
             detectors_run: Vec::new(),
         };
         let json = serde_json::to_string(&result).unwrap();
@@ -5573,7 +5680,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         let trust_without = compute_trust(
             Some(0.05),
@@ -5592,7 +5699,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust_with < trust_without,
@@ -5620,7 +5727,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust <= 0.55,
@@ -5650,7 +5757,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust <= 0.55,
@@ -5678,7 +5785,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust > 0.55,
@@ -5706,7 +5813,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         let trust_no_regional = compute_trust(
             Some(0.04),
@@ -5725,7 +5832,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         // With all regional detectors clean the trust should be close to the
         // no-regional baseline (regional scores ≈ 0 contribute ~1.0 trust).
@@ -5757,7 +5864,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust <= 0.55,
@@ -5795,8 +5902,8 @@ mod tests {
             false,
             Some(0.6), // JPEG Ghost suspicious
             Some(95),  // jpeg_quality_estimate → effective_weight=0.475
-            None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            None,      // content_type_category: None → no suppression
+            true,      // ai_detection_suitable: true → no suppression
         );
         let trust_base = compute_trust(
             Some(0.1), // same ELA
@@ -5814,8 +5921,8 @@ mod tests {
             false,
             Some(0.6), // same ghost score
             None,      // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            None,      // content_type_category: None → no suppression
+            true,      // ai_detection_suitable: true → no suppression
         );
         // At Q=95, effective_weight=0.475 vs base=0.5 — small difference (< 3pp)
         assert!(
@@ -5845,8 +5952,8 @@ mod tests {
             false,
             Some(0.9), // JPEG Ghost very suspicious
             Some(75),  // jpeg_quality_estimate → effective_weight=0.375
-            None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            None,      // content_type_category: None → no suppression
+            true,      // ai_detection_suitable: true → no suppression
         );
         let trust_base = compute_trust(
             Some(0.1), // same ELA
@@ -5864,8 +5971,8 @@ mod tests {
             false,
             Some(0.9), // same ghost score
             None,      // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            None,      // content_type_category: None → no suppression
+            true,      // ai_detection_suitable: true → no suppression
         );
         // Q=75 → effective_weight=0.375 < 0.5 → ghost penalises less → higher trust
         assert!(
@@ -5896,8 +6003,8 @@ mod tests {
             false,
             Some(0.8), // JPEG Ghost suspicious
             Some(30),  // jpeg_quality_estimate — floor exactly engaged
-            None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            None,      // content_type_category: None → no suppression
+            true,      // ai_detection_suitable: true → no suppression
         );
         let trust_q20 = compute_trust(
             Some(0.1), // same ELA
@@ -5915,8 +6022,8 @@ mod tests {
             false,
             Some(0.8), // same ghost score
             Some(20),  // jpeg_quality_estimate — floor also engaged
-            None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            None,      // content_type_category: None → no suppression
+            true,      // ai_detection_suitable: true → no suppression
         );
         // Both floor at quality_factor=0.30 → effective_weight=0.15 → same trust
         assert!(
@@ -5946,15 +6053,15 @@ mod tests {
             false,
             Some(0.7), // JPEG Ghost suspicious
             None,      // jpeg_quality_estimate: None → quality_factor=1.0
-            None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            None,      // content_type_category: None → no suppression
+            true,      // ai_detection_suitable: true → no suppression
         );
         let trust_no_ghost = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false,
             None, // no JPEG Ghost score at all
             None, // jpeg_quality_estimate: None uses 0.5 base weight
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust_with_ghost < trust_no_ghost,
@@ -5986,8 +6093,8 @@ mod tests {
             false,
             Some(0.9), // highly suspicious ghost
             Some(95),  // direct camera upload → effective_weight=0.475
-            None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            None,      // content_type_category: None → no suppression
+            true,      // ai_detection_suitable: true → no suppression
         );
         let trust_low_q = compute_trust(
             Some(0.1), // same ELA
@@ -6005,8 +6112,8 @@ mod tests {
             false,
             Some(0.9), // same ghost score
             Some(20),  // heavy compression → effective_weight=0.15 (floor at q/100=0.30)
-            None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            None,      // content_type_category: None → no suppression
+            true,      // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust_low_q > trust_high_q,
@@ -6165,7 +6272,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         let trust_no_ai = compute_trust(
             Some(0.1),
@@ -6184,7 +6291,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust_ai_declared < trust_no_ai,
@@ -6214,13 +6321,12 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         let trust_none = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false, None,
-            None,
-            None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            None, None, // content_type_category: None → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         assert!(
             trust_ai < trust_none,
@@ -6249,7 +6355,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         let trust_ai = compute_trust(
             None,
@@ -6268,7 +6374,7 @@ mod tests {
             None,
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
-            true,  // ai_detection_suitable: true → no suppression
+            true, // ai_detection_suitable: true → no suppression
         );
         // valid: 1.0 + 0.10 capped at 1.0 = 1.0
         assert!(
