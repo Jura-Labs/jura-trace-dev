@@ -1812,6 +1812,37 @@
           <div id="card-provenance-body" class="border-t border-border-dark/60">
             <ul class="divide-y divide-border-dark/40" aria-label="Provenance checks">
 
+              <!-- Filename Analysis -->
+              {#if result.filenameAnalysis}
+                {@const fa = result.filenameAnalysis}
+                <li class="px-5 py-4">
+                  <div class="flex items-start gap-3">
+                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 text-lapis dark:text-lapis-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 mb-1 flex-wrap">
+                        <span class="text-sm font-medium text-quartz">Filename Analysis</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium border
+                          {fa.pattern === 'camera' ? 'bg-malachite/15 text-malachite dark:text-malachite-light border-malachite/30'
+                           : fa.pattern === 'ai_generated' ? 'bg-amber/15 text-amber dark:text-amber-light border-amber/30'
+                           : fa.pattern === 'screenshot' ? 'bg-lapis/15 text-lapis dark:text-lapis-light border-lapis/30'
+                           : 'bg-graphite-light text-flint dark:text-flint-light border-border-dark'}">
+                          {fa.pattern.replace('_', ' ')}
+                        </span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-graphite-light border border-border-dark text-flint dark:text-flint-light tabular-nums">
+                          {Math.round(fa.confidence * 100)}% confidence
+                        </span>
+                      </div>
+                      <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{fa.summary}</p>
+                      {#if fa.matchedPattern}
+                        <p class="text-[11px] mt-1 font-mono text-flint/70 dark:text-flint-light/60 break-all">{fa.matchedPattern}</p>
+                      {/if}
+                    </div>
+                  </div>
+                </li>
+              {/if}
+
               <!-- EXIF -->
               <li class="px-5 py-4 {(result.exifAnalysis?.findings ?? []).some((f: AnomalyFinding) => f.severity === 'high' || f.severity === 'critical') ? 'bg-amber/[0.04]' : ''}">
                 <div class="flex items-start gap-3">
@@ -1960,6 +1991,24 @@
                               </p>
                             </div>
                           {/if}
+                          {#if meta.iccProfileDescription}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">ICC Profile</p>
+                              <p class="text-quartz">{meta.iccProfileDescription}</p>
+                            </div>
+                          {/if}
+                          {#if meta.jpegQuantTables?.estimatedQuality != null}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">JPEG Quality</p>
+                              <p class="text-quartz tabular-nums">{meta.jpegQuantTables.estimatedQuality} / 100</p>
+                            </div>
+                          {/if}
+                          {#if meta.jpegQuantTables?.knownSource}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">Q-table encoder</p>
+                              <p class="text-quartz">{meta.jpegQuantTables.knownSource}</p>
+                            </div>
+                          {/if}
                           {#if meta.artist}
                             <div>
                               <p class="text-[10px] text-flint uppercase tracking-wider">Artist</p>
@@ -2074,6 +2123,58 @@
                           {/if}
                         </button>
                         <p class="mt-1.5 text-[10px] text-flint/60">Requires internet connection. Data from Open-Meteo (CC-BY).</p>
+                      {/if}
+                    </div>
+                  </div>
+                </li>
+              {/if}
+
+              <!-- Platform Fingerprint -->
+              {#if result.platformFingerprintResult}
+                {@const pf = result.platformFingerprintResult}
+                <li class="px-5 py-4 {pf.detected ? 'bg-amber/[0.03]' : ''}">
+                  <div class="flex items-start gap-3">
+                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {pf.detected ? 'text-amber dark:text-amber-light' : 'text-flint dark:text-flint-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 mb-1 flex-wrap">
+                        <span class="text-sm font-medium text-quartz">Platform Fingerprint</span>
+                        {#if pf.detected && pf.platform}
+                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-amber/15 text-amber dark:text-amber-light border border-amber/30">
+                            {pf.platform}
+                          </span>
+                          {#if pf.confidence != null}
+                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-graphite-light border border-border-dark text-flint dark:text-flint-light tabular-nums">
+                              {Math.round(pf.confidence * 100)}% confidence
+                            </span>
+                          {/if}
+                        {/if}
+                      </div>
+                      {#if pf.detected}
+                        <p class="text-xs text-amber dark:text-amber-light leading-relaxed">{pf.summary}</p>
+                      {:else}
+                        <p class="text-xs text-flint dark:text-flint-light">No social media processing detected.</p>
+                        {#if pf.summary && pf.summary !== 'No social media processing detected.'}
+                          <p class="text-xs text-flint dark:text-flint-light mt-0.5">{pf.summary}</p>
+                        {/if}
+                      {/if}
+                      {#if pf.detected && pf.allCandidates && pf.allCandidates.length > 1}
+                        <details class="mt-2 group">
+                          <summary class="list-none text-[11px] text-lapis dark:text-lapis-light cursor-pointer hover:text-quartz flex items-center gap-1 min-h-[24px]
+                                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded">
+                            <svg class="w-3 h-3 motion-safe:group-open:rotate-90 transition-transform duration-150" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+                            All candidates
+                          </summary>
+                          <ul class="mt-1.5 space-y-1" aria-label="Platform fingerprint candidates">
+                            {#each pf.allCandidates as candidate}
+                              <li class="flex items-center justify-between gap-3 text-[11px]">
+                                <span class="text-flint dark:text-flint-light">{candidate.platform}</span>
+                                <span class="tabular-nums text-quartz">{Math.round(candidate.score * 100)}%</span>
+                              </li>
+                            {/each}
+                          </ul>
+                        </details>
                       {/if}
                     </div>
                   </div>
@@ -2591,6 +2692,121 @@
                 </li>
               {/if}
 
+              <!-- PDF Provenance -->
+              {#if result.pdfProvenance}
+                {@const pdf = result.pdfProvenance}
+                <li class="px-5 py-4">
+                  <div class="flex items-start gap-3">
+                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 text-lapis dark:text-lapis-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 mb-2 flex-wrap">
+                        <span class="text-sm font-medium text-quartz">PDF Provenance</span>
+                        {#if pdf.hasDigitalSignature}
+                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-malachite/15 text-malachite dark:text-malachite-light border border-malachite/30">Digitally Signed</span>
+                        {/if}
+                        {#if pdf.isPdfA}
+                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-malachite/15 text-malachite dark:text-malachite-light border border-malachite/30">PDF/A</span>
+                        {/if}
+                        {#if pdf.hasIncrementalSaves}
+                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-amber/15 text-amber dark:text-amber-light border border-amber/30">Incremental Saves</span>
+                        {/if}
+                        {#if pdf.hasRedactionAnnotations}
+                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-amber/15 text-amber dark:text-amber-light border border-amber/30">Redactions</span>
+                        {/if}
+                      </div>
+                      <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-2">{pdf.summary}</p>
+                      <dl class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+                        {#if pdf.producer}
+                          <div>
+                            <dt class="text-[10px] text-flint uppercase tracking-wider">Producer</dt>
+                            <dd class="text-quartz">{pdf.producer}</dd>
+                          </div>
+                        {/if}
+                        {#if pdf.creator}
+                          <div>
+                            <dt class="text-[10px] text-flint uppercase tracking-wider">Creator</dt>
+                            <dd class="text-quartz">{pdf.creator}</dd>
+                          </div>
+                        {/if}
+                        {#if pdf.creationDate}
+                          <div>
+                            <dt class="text-[10px] text-flint uppercase tracking-wider">Created</dt>
+                            <dd class="text-quartz">{pdf.creationDate}</dd>
+                          </div>
+                        {/if}
+                        {#if pdf.modDate}
+                          <div>
+                            <dt class="text-[10px] text-flint uppercase tracking-wider">Modified</dt>
+                            <dd class="text-quartz">{pdf.modDate}</dd>
+                          </div>
+                        {/if}
+                        <div>
+                          <dt class="text-[10px] text-flint uppercase tracking-wider">Pages</dt>
+                          <dd class="text-quartz tabular-nums">{pdf.pageCount}</dd>
+                        </div>
+                        <div>
+                          <dt class="text-[10px] text-flint uppercase tracking-wider">PDF Version</dt>
+                          <dd class="text-quartz font-mono">{pdf.pdfVersion}</dd>
+                        </div>
+                      </dl>
+                    </div>
+                  </div>
+                </li>
+              {/if}
+
+              <!-- Audio ENF Analysis -->
+              {#if result.enfAnalysisResult}
+                {@const enf = result.enfAnalysisResult}
+                <li class="px-5 py-4">
+                  <div class="flex items-start gap-3">
+                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {enf.detected ? 'text-malachite dark:text-malachite-light' : 'text-flint dark:text-flint-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 mb-1 flex-wrap">
+                        <span class="text-sm font-medium text-quartz">Audio ENF Analysis</span>
+                        {#if enf.detected && enf.gridRegion}
+                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-malachite/15 text-malachite dark:text-malachite-light border border-malachite/30">
+                            {enf.gridRegion}
+                          </span>
+                        {/if}
+                      </div>
+                      <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-1">{enf.summary}</p>
+                      {#if enf.detected}
+                        <dl class="grid grid-cols-2 gap-x-6 gap-y-1 text-xs mt-1">
+                          {#if enf.meanFrequency != null}
+                            <div>
+                              <dt class="text-[10px] text-flint uppercase tracking-wider">Mean frequency</dt>
+                              <dd class="text-quartz tabular-nums">{enf.meanFrequency.toFixed(3)} Hz</dd>
+                            </div>
+                          {/if}
+                          {#if enf.snr != null}
+                            <div>
+                              <dt class="text-[10px] text-flint uppercase tracking-wider">SNR</dt>
+                              <dd class="text-quartz tabular-nums">{enf.snr.toFixed(1)} dB</dd>
+                            </div>
+                          {/if}
+                          {#if enf.durationSeconds != null}
+                            <div>
+                              <dt class="text-[10px] text-flint uppercase tracking-wider">Duration analysed</dt>
+                              <dd class="text-quartz tabular-nums">{enf.durationSeconds.toFixed(1)} s</dd>
+                            </div>
+                          {/if}
+                          {#if enf.sampleCount != null}
+                            <div>
+                              <dt class="text-[10px] text-flint uppercase tracking-wider">Samples</dt>
+                              <dd class="text-quartz tabular-nums">{enf.sampleCount}</dd>
+                            </div>
+                          {/if}
+                        </dl>
+                      {/if}
+                    </div>
+                  </div>
+                </li>
+              {/if}
+
             </ul>
             {#if result.inputQuality}
               <LimitationBanner quality={result.inputQuality} />
@@ -2902,6 +3118,70 @@
                       <span>Diff variance ratio: {npr.diffVarianceRatio.toFixed(4)}</span>
                       <span>HF energy ratio: {npr.hfEnergyRatio.toFixed(4)}</span>
                     </div>
+                  {/if}
+                </li>
+              {/if}
+
+              <!-- DCT Analysis — deep/archival mode only -->
+              {#if result.dctAnalysisResult}
+                {@const dct = result.dctAnalysisResult}
+                <li class="px-5 py-3 {dct.suspicious ? 'bg-amber/[0.04]' : ''}">
+                  <div class="flex items-center gap-3">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {dct.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      {#if dct.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                      {:else}<polyline points="20 6 9 17 4 12"/>{/if}
+                    </svg>
+                    <span class="text-sm {dct.suspicious ? 'text-amber-light font-medium' : 'text-quartz'} flex-1">
+                      DCT Analysis
+                      <span class="ml-1.5 text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">Deep</span>
+                    </span>
+                    {#if showRawScores}
+                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">AC CV: {dct.acCoefficientOfVariation.toFixed(4)}</span>
+                    {/if}
+                    <span class="text-xs tabular-nums {forensicScoreClass(dct.score)}">{Math.round(dct.score * 100)}%</span>
+                    {#if dct.heatmapBase64}
+                      <img src="data:image/png;base64,{dct.heatmapBase64}" alt="DCT coefficient energy heatmap showing per-block AC distribution" class="w-16 h-10 rounded object-cover border border-border-dark flex-shrink-0" />
+                    {/if}
+                  </div>
+                  {#if dct.suspicious}
+                    <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{dct.summary}</p>
+                  {/if}
+                  {#if showRawScores}
+                    <div class="mt-1 ml-6 grid grid-cols-3 gap-x-4 gap-y-0.5 text-[10px] text-flint dark:text-flint-light tabular-nums">
+                      <span>DC std: {dct.dcStd.toFixed(4)}</span>
+                      <span>AC mean: {dct.acMean.toFixed(4)}</span>
+                      <span>AC std: {dct.acStd.toFixed(4)}</span>
+                    </div>
+                  {/if}
+                </li>
+              {/if}
+
+              <!-- Fourier Analysis — deep/archival mode only -->
+              {#if result.fourierAnalysisResult}
+                {@const fou = result.fourierAnalysisResult}
+                <li class="px-5 py-3 {fou.suspicious ? 'bg-amber/[0.04]' : ''}">
+                  <div class="flex items-center gap-3">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {fou.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      {#if fou.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                      {:else}<polyline points="20 6 9 17 4 12"/>{/if}
+                    </svg>
+                    <span class="text-sm {fou.suspicious ? 'text-amber-light font-medium' : 'text-quartz'} flex-1">
+                      Fourier Analysis
+                      <span class="ml-1.5 text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">Deep</span>
+                    </span>
+                    {#if showRawScores}
+                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">peaks: {fou.peakCount}</span>
+                    {/if}
+                    <span class="text-xs tabular-nums {forensicScoreClass(fou.score)}">{Math.round(fou.score * 100)}%</span>
+                    {#if fou.spectrumBase64}
+                      <img src="data:image/png;base64,{fou.spectrumBase64}" alt="Fourier spectrum showing log-magnitude FFT with detected periodic peaks" class="w-16 h-10 rounded object-cover border border-border-dark flex-shrink-0" />
+                    {/if}
+                  </div>
+                  {#if fou.suspicious}
+                    <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{fou.summary}</p>
+                  {/if}
+                  {#if showRawScores}
+                    <p class="mt-1 ml-6 text-[10px] text-flint dark:text-flint-light tabular-nums">peak count: {fou.peakCount}</p>
                   {/if}
                 </li>
               {/if}

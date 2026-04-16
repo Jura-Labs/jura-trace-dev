@@ -520,6 +520,19 @@ export interface VerificationResult {
    * documents.
    */
   pdfProvenance?: PdfProvenance | null;
+  /**
+   * Social media / platform processing fingerprint.
+   * Identifies whether the image has been processed through a known platform
+   * (WhatsApp, Facebook, Twitter/X, etc.) which strips or transforms metadata.
+   * Present for image content when the sidecar is available.
+   */
+  platformFingerprintResult?: PlatformFingerprintResult | null;
+  /**
+   * Electrical Network Frequency (ENF) analysis result.
+   * Extracts and analyses the mains-frequency hum embedded in audio recordings
+   * to provide a temporal provenance signal. Only present for audio/video content.
+   */
+  enfAnalysisResult?: EnfAnalysisResult | null;
 }
 
 /** Methodology metadata captured at verification time for reproducibility. */
@@ -569,6 +582,54 @@ export interface JpegQuantTables {
   estimatedQuality?: number | null;
   /** Name of the matched known encoder/software, if any. */
   knownSource?: string | null;
+}
+
+/**
+ * Social media / platform processing fingerprint result.
+ * Mirrors `platform_fingerprint::PlatformFingerprintResult` in the Rust backend.
+ * Present for all image content when the sidecar is available.
+ */
+export interface PlatformFingerprintResult {
+  /** Whether a known platform processing signature was detected. */
+  detected: boolean;
+  /** Name of the detected platform (e.g. "WhatsApp", "Twitter/X", "Facebook"). */
+  platform?: string | null;
+  /** Confidence in the platform identification (0.0–1.0). */
+  confidence?: number | null;
+  /** All candidate platforms with scores, ordered by confidence descending. */
+  allCandidates?: Array<{ platform: string; score: number }> | null;
+  /** Maximum dimension of the image in pixels (largest of width/height). */
+  maxDimension?: number | null;
+  /** Estimated JPEG quality factor from quantisation tables (1–100). */
+  estimatedQuality?: number | null;
+  /** Whether any EXIF data is present. */
+  hasExif?: boolean | null;
+  /** Human-readable provenance summary. */
+  summary: string;
+}
+
+/**
+ * Electrical Network Frequency (ENF) analysis result.
+ * Mirrors `enf_analysis::EnfAnalysisResult` in the Rust backend.
+ * Only present for audio/video content when the sidecar is available.
+ */
+export interface EnfAnalysisResult {
+  /** Whether an ENF signal was detected in the recording. */
+  detected: boolean;
+  /** Mean instantaneous frequency of the detected ENF signal (Hz). */
+  meanFrequency?: number | null;
+  /** Standard deviation of the frequency estimates (Hz). */
+  frequencyStd?: number | null;
+  /** Signal-to-noise ratio of the ENF component (dB). */
+  snr?: number | null;
+  /** Estimated grid region (e.g. "50 Hz — Europe/Africa/Asia", "60 Hz — Americas/Japan"). */
+  gridRegion?: string | null;
+  /** Duration of audio analysed (seconds). */
+  durationSeconds?: number | null;
+  /** Number of frequency samples extracted. */
+  sampleCount?: number | null;
+  /** Human-readable summary. */
+  summary: string;
 }
 
 /**
