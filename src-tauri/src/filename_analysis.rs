@@ -150,6 +150,46 @@ pub(crate) fn classify(file_name: &str, stem: &str, ext: &str) -> FilenameAnalys
         };
     }
 
+    // ── Social media platform filename patterns ──────────────────────────
+
+    // Twitter/X: base62-encoded media IDs, typically 15 chars alphanumeric
+    // e.g. "HDddUFtWkAAZgyM", "E9kPjK1VUAAI3Jn"
+    if stem.len() >= 12
+        && stem.len() <= 20
+        && stem.chars().all(|c| c.is_ascii_alphanumeric())
+        && stem.chars().any(|c| c.is_ascii_uppercase())
+        && stem.chars().any(|c| c.is_ascii_lowercase())
+        && !stem.starts_with("IMG")
+        && !stem.starts_with("DSC")
+        && !stem.starts_with("PXL")
+    {
+        return FilenameAnalysis {
+            pattern: "social_media".to_string(),
+            confidence: 0.70,
+            matched_pattern: Some("Twitter/X base62 media ID".to_string()),
+            summary:
+                "Filename matches Twitter/X media ID pattern — this image was likely \
+                 downloaded from or shared via Twitter/X."
+                    .to_string(),
+        };
+    }
+
+    // Facebook: numeric IDs, typically 15-19 digits
+    // e.g. "123456789012345"
+    if stem.len() >= 15
+        && stem.len() <= 20
+        && stem.chars().all(|c| c.is_ascii_digit())
+    {
+        return FilenameAnalysis {
+            pattern: "social_media".to_string(),
+            confidence: 0.65,
+            matched_pattern: Some("Facebook numeric media ID".to_string()),
+            summary:
+                "Filename is a long numeric ID — typical of Facebook/Instagram media downloads."
+                    .to_string(),
+        };
+    }
+
     // ── AI-generated / UUID patterns ─────────────────────────────────────
 
     // UUID v4: 8-4-4-4-12 hex pattern
@@ -453,5 +493,19 @@ mod tests {
     fn unknown_arbitrary() {
         let r = classify("myholiday.jpg", "myholiday", "jpg");
         assert_eq!(r.pattern, "unknown");
+    }
+
+    #[test]
+    fn twitter_media_id() {
+        let r = classify("HDddUFtWkAAZgyM.jpeg", "HDddUFtWkAAZgyM", "jpeg");
+        assert_eq!(r.pattern, "social_media");
+        assert!(r.matched_pattern.as_deref().unwrap().contains("Twitter"));
+    }
+
+    #[test]
+    fn facebook_numeric_id() {
+        let r = classify("123456789012345.jpg", "123456789012345", "jpg");
+        assert_eq!(r.pattern, "social_media");
+        assert!(r.matched_pattern.as_deref().unwrap().contains("Facebook"));
     }
 }
