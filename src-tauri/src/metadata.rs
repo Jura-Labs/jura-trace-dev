@@ -70,6 +70,7 @@ pub struct XmpMetadata {
 
 /// Extracted metadata from an image file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ImageMetadata {
     /// Camera make (e.g. "Canon")
     pub camera_make: Option<String>,
