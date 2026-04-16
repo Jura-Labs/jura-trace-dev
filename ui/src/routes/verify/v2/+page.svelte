@@ -2132,6 +2132,7 @@
 
                     <!-- L1 one-line summary -->
                     {#if result.c2paValid === true && result.c2paManifest}
+                      {@const manifest = result.c2paManifest}
                       <p class="text-xs text-malachite dark:text-malachite-light leading-relaxed">
                         {#if c2paSignerName && c2paSignedDate()}
                           Issued by {c2paSignerName} on {c2paSignedDate()}
@@ -2143,6 +2144,14 @@
                           Provenance record attached and verified.
                         {/if}
                       </p>
+
+                      <!-- Content summary — plain-language description like Adobe's tool -->
+                      {#if manifest.contentSummary}
+                        <p class="text-xs text-quartz/80 mt-1 leading-relaxed">
+                          {manifest.contentSummary}
+                        </p>
+                      {/if}
+
                       {#if c2paValidAtSigning}
                         <p class="text-xs text-amber dark:text-amber-light mt-1 leading-relaxed">
                           Certificate expired; signature verified via trusted timestamp.
@@ -2173,9 +2182,28 @@
                         </button>
                       </div>
 
-                      <!-- ── L2: Issued by, Edits, Digital source type ── -->
+                      <!-- ── L2: App/device, Issued by, Edits, Digital source type ── -->
                       {#if c2paShowL2}
                         <div id="c2pa-l2" class="mt-3 space-y-3 border-t border-border-dark/40 pt-3">
+
+                          <!-- Manifest thumbnail (when embedded in assertion) -->
+                          {#if result.c2paManifest.thumbnailBase64}
+                            <div class="mb-1">
+                              <img
+                                src="data:{result.c2paManifest.thumbnailMime ?? 'image/jpeg'};base64,{result.c2paManifest.thumbnailBase64}"
+                                alt="Content Credentials thumbnail"
+                                class="w-24 h-auto rounded border border-border-dark"
+                              />
+                            </div>
+                          {/if}
+
+                          <!-- App or device used — prominent standalone field like Adobe -->
+                          {#if result.c2paManifest.appOrDevice}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider mb-0.5">App or device used</p>
+                              <p class="text-xs text-quartz font-medium">{result.c2paManifest.appOrDevice}</p>
+                            </div>
+                          {/if}
 
                           <!-- Issued by — mandatory per C2PA UX Rec v1.4 §4.2 -->
                           <div>
@@ -2265,14 +2293,21 @@
                                     class="absolute left-[4.5px] top-4 bottom-0 w-px bg-malachite/40"
                                     aria-hidden="true"
                                   ></span>
-                                  <p class="text-[10px] font-semibold text-flint uppercase tracking-wider leading-none mb-0.5">Active</p>
-                                  <p class="text-xs text-quartz leading-snug">{chainSignerName(chain.active)}</p>
-                                  {#if chainSignedDate(chain.active)}
-                                    <p class="text-[11px] text-flint dark:text-flint-light">{chainSignedDate(chain.active)}</p>
-                                  {/if}
-                                  {#if chainActionSummary(chain.active)}
-                                    <p class="text-[11px] text-flint dark:text-flint-light italic">{chainActionSummary(chain.active)}</p>
-                                  {/if}
+                                  <div class="flex items-start gap-2">
+                                    {#if chain.active.thumbnailBase64}
+                                      <img src="data:{chain.active.thumbnailMime ?? 'image/jpeg'};base64,{chain.active.thumbnailBase64}" alt="" class="w-10 h-10 rounded border border-border-dark object-cover flex-shrink-0" />
+                                    {/if}
+                                    <div>
+                                      <p class="text-[10px] font-semibold text-flint uppercase tracking-wider leading-none mb-0.5">Active</p>
+                                      <p class="text-xs text-quartz leading-snug">{chain.active.appOrDevice ?? chainSignerName(chain.active)}</p>
+                                      {#if chainSignedDate(chain.active)}
+                                        <p class="text-[11px] text-flint dark:text-flint-light">{chainSignedDate(chain.active)}</p>
+                                      {/if}
+                                      {#if chainActionSummary(chain.active)}
+                                        <p class="text-[11px] text-flint dark:text-flint-light italic">{chainActionSummary(chain.active)}</p>
+                                      {/if}
+                                    </div>
+                                  </div>
                                 </li>
 
                                 <!-- Middle ingredients (collapsed when >= 4 manifests) -->
@@ -2343,14 +2378,21 @@
                                     class="absolute left-0 top-1.5 w-2.5 h-2.5 rounded-full border-2 border-malachite bg-obsidian dark:bg-obsidian"
                                     aria-hidden="true"
                                   ></span>
-                                  <p class="text-[10px] font-semibold text-flint uppercase tracking-wider leading-none mb-0.5">Origin</p>
-                                  <p class="text-xs text-quartz leading-snug">{chainSignerName(originManifest)}</p>
-                                  {#if chainSignedDate(originManifest)}
-                                    <p class="text-[11px] text-flint dark:text-flint-light">{chainSignedDate(originManifest)}</p>
-                                  {/if}
-                                  {#if chainActionSummary(originManifest)}
-                                    <p class="text-[11px] text-flint dark:text-flint-light italic">{chainActionSummary(originManifest)}</p>
-                                  {/if}
+                                  <div class="flex items-start gap-2">
+                                    {#if originManifest.thumbnailBase64}
+                                      <img src="data:{originManifest.thumbnailMime ?? 'image/jpeg'};base64,{originManifest.thumbnailBase64}" alt="" class="w-10 h-10 rounded border border-border-dark object-cover flex-shrink-0" />
+                                    {/if}
+                                    <div>
+                                      <p class="text-[10px] font-semibold text-flint uppercase tracking-wider leading-none mb-0.5">Origin</p>
+                                      <p class="text-xs text-quartz leading-snug">{originManifest.appOrDevice ?? chainSignerName(originManifest)}</p>
+                                      {#if chainSignedDate(originManifest)}
+                                        <p class="text-[11px] text-flint dark:text-flint-light">{chainSignedDate(originManifest)}</p>
+                                      {/if}
+                                      {#if chainActionSummary(originManifest)}
+                                        <p class="text-[11px] text-flint dark:text-flint-light italic">{chainActionSummary(originManifest)}</p>
+                                      {/if}
+                                    </div>
+                                  </div>
                                 </li>
                               </ol>
                             </div>

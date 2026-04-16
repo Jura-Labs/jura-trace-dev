@@ -50,6 +50,29 @@ pub struct ManifestInfo {
     /// can accurately report whether online checks were attempted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verification_mode: Option<String>,
+    /// Base64-encoded thumbnail image extracted from the manifest's thumbnail assertion
+    /// (label prefix `c2pa.thumbnail`).  Suitable for use directly in an `<img src>`
+    /// data URI on the frontend.  `None` when no thumbnail assertion is present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumbnail_base64: Option<String>,
+    /// MIME type of the thumbnail (e.g. `"image/jpeg"`, `"image/png"`).
+    /// Derived from the thumbnail assertion label suffix.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumbnail_mime: Option<String>,
+    /// The app or device that produced this content, intended for user-facing display
+    /// (e.g. "Pixel Camera", "Google Photos", "Adobe Lightroom").
+    ///
+    /// Derived in priority order:
+    /// 1. `claim_generator_info[0].name` — the most structured, tool-specific field.
+    /// 2. `signature_info.common_name` — the certificate CN, often the device name.
+    /// 3. `claim_generator` — the raw generator string as a last resort.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_or_device: Option<String>,
+    /// Auto-generated plain-language content summary derived from actions and
+    /// `digitalSourceType` declarations in the manifest assertions.  1-2 sentences.
+    /// `None` when insufficient information is available to form a meaningful summary.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_summary: Option<String>,
 }
 
 /// A single C2PA validation check result.
@@ -464,6 +487,312 @@ fn extract_validation_checks(json: &serde_json::Value) -> Vec<ValidationCheck> {
     checks
 }
 
+// ===== Reading helpers =====
+
+/// Extract a base64-encoded thumbnail and its MIME type from a manifest's assertions array.
+///
+/// c2pa-rs serialises thumbnail assertions with labels of the form
+/// `c2pa.thumbnail.claim.jpeg`, `c2pa.thumbnail.claim.png`, or
+/// `c2pa.thumbnail.ingredient.jpeg` etc.  The assertion `data` field is
+/// serialised as a JSON object `{ "identifier": "…", "format": "image/jpeg" }`
+/// where the actual bytes live in the reader's resource store, **or** as a
+/// plain base64 string in older c2pa-rs serialisations.
+///
+/// Because c2pa-rs 0.76 does not expose resource bytes in the JSON snapshot
+/// directly, this function handles both representations:
+///
+/// - If `data` is an object with a `"data"` key whose value is a base64
+///   string (some builds embed it inline), use that directly.
+/// - If `data` is an object with only a resource reference
+///   (`"identifier"` / `"format"`), record the MIME from the `"format"` key
+///   and return `None` for the bytes (resource resolution requires the live
+///   `Reader` handle, which is not threaded through here).
+/// - If `data` is itself a base64 string, use it directly.
+///
+/// Returns `(Option<base64_string>, Option<mime_type>)`.
+fn extract_thumbnail_from_assertions(
+    assertions: &serde_json::Value,
+) -> (Option<String>, Option<String>) {
+    let arr = match assertions.as_array() {
+        Some(a) => a,
+        None => return (None, None),
+    };
+
+    for assertion in arr {
+        let label = assertion
+            .get("label")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        if !label.starts_with("c2pa.thumbnail") {
+            continue;
+        }
+
+        // Derive MIME type from the label suffix: "…jpeg" → "image/jpeg", "…png" → "image/png"
+        let mime_from_label = if label.ends_with(".jpeg") || label.ends_with(".jpg") {
+            Some("image/jpeg".to_string())
+        } else if label.ends_with(".png") {
+            Some("image/png".to_string())
+        } else if label.ends_with(".webp") {
+            Some("image/webp".to_string())
+        } else {
+            None
+        };
+
+        let data = match assertion.get("data") {
+            Some(d) => d,
+            None => continue,
+        };
+
+        // Case 1: data is a plain base64 string.
+        if let Some(b64) = data.as_str() {
+            if !b64.is_empty() {
+                return (Some(b64.to_string()), mime_from_label);
+            }
+        }
+
+        // Case 2: data is an object.
+        if data.is_object() {
+            // Sub-case A: inline base64 bytes in a "data" sub-key.
+            if let Some(inner) = data.get("data").and_then(|v| v.as_str()) {
+                if !inner.is_empty() {
+                    let mime = mime_from_label.or_else(|| {
+                        data.get("format")
+                            .and_then(|v| v.as_str())
+                            .map(String::from)
+                    });
+                    return (Some(inner.to_string()), mime);
+                }
+            }
+
+            // Sub-case B: resource reference only — return MIME but no bytes.
+            // The resource identifier is present but we cannot resolve it without
+            // the live `Reader` handle.  Returning the MIME lets the frontend
+            // know a thumbnail exists even when bytes are unavailable.
+            let mime = mime_from_label.or_else(|| {
+                data.get("format")
+                    .and_then(|v| v.as_str())
+                    .map(String::from)
+            });
+            if mime.is_some() {
+                return (None, mime);
+            }
+        }
+    }
+
+    (None, None)
+}
+
+/// Derive the most user-meaningful "app or device" name from a manifest object.
+///
+/// Priority:
+/// 1. `claim_generator_info[0].name` — structured, tool-specific (e.g. "Google Photos").
+/// 2. `signature_info.common_name` — certificate CN (e.g. "Pixel Camera").
+/// 3. `claim_generator` raw string, truncated at the first `/` or space followed
+///    by a version number so "Jura Trace/0.9.0" becomes "Jura Trace".
+fn derive_app_or_device(manifest: &serde_json::Value) -> Option<String> {
+    // Priority 1: claim_generator_info[0].name
+    if let Some(name) = manifest
+        .get("claim_generator_info")
+        .and_then(|v| v.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|entry| entry.get("name"))
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+    {
+        return Some(name.to_string());
+    }
+
+    // Priority 2: signature_info.common_name
+    if let Some(cn) = manifest
+        .get("signature_info")
+        .and_then(|si| si.get("common_name"))
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+    {
+        return Some(cn.to_string());
+    }
+
+    // Priority 3: claim_generator, trimmed to remove version suffixes like "/0.9.0"
+    if let Some(raw) = manifest
+        .get("claim_generator")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+    {
+        // Strip a trailing "/version" component (e.g. "Jura Trace/0.9.0" → "Jura Trace").
+        let trimmed = raw.split('/').next().unwrap_or(raw).trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_string());
+        }
+    }
+
+    None
+}
+
+/// Generate a plain-language content summary from the manifest's assertions.
+///
+/// Inspects `c2pa.actions` / `c2pa.actions.v2` assertions for:
+/// - `digitalSourceType` — presence of AI declarations
+/// - action verbs — `c2pa.created`, `c2pa.opened`, `c2pa.edited`, `c2pa.repackaged`
+///
+/// Also considers ingredient count (multiple ingredients → composite content).
+///
+/// Returns `None` when there is insufficient information for a meaningful sentence.
+fn build_content_summary(manifest: &serde_json::Value) -> Option<String> {
+    let assertions = manifest.get("assertions").and_then(|v| v.as_array())?;
+
+    let mut has_ai = false;
+    let mut has_computational_capture = false;
+    let mut has_digital_capture = false;
+    let mut has_edited = false;
+    let mut has_created = false;
+    let mut actions_found = false;
+
+    // The claim_generator_info name is used to personalise the summary where possible.
+    let tool_name: Option<String> = manifest
+        .get("claim_generator_info")
+        .and_then(|v| v.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|e| e.get("name"))
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .or_else(|| {
+            manifest
+                .get("signature_info")
+                .and_then(|si| si.get("common_name"))
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(String::from)
+        });
+
+    for assertion in assertions {
+        let label = assertion
+            .get("label")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        if !label.starts_with("c2pa.actions") {
+            continue;
+        }
+
+        let data = match assertion.get("data") {
+            Some(d) => d,
+            None => continue,
+        };
+
+        let action_list = data
+            .get("actions")
+            .and_then(|v| v.as_array())
+            .map(|a| a.as_slice())
+            .unwrap_or(&[]);
+
+        if !action_list.is_empty() {
+            actions_found = true;
+        }
+
+        for action in action_list {
+            let action_name = action
+                .get("action")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            // Check digitalSourceType on the action object (C2PA 2.x style).
+            let dst = action
+                .get("digitalSourceType")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_lowercase();
+
+            if dst.contains("trainedalgorithmicmedia")
+                || dst.contains("compositewithtrained")
+            {
+                has_ai = true;
+            } else if dst.contains("computationalcapture") {
+                has_computational_capture = true;
+            } else if dst.contains("digitalcapture") {
+                has_digital_capture = true;
+            }
+
+            // Also scan the serialised action JSON for digitalSourceType buried deeper.
+            let action_str = serde_json::to_string(action).unwrap_or_default().to_lowercase();
+            if action_str.contains("trainedalgorithmicmedia") {
+                has_ai = true;
+            } else if action_str.contains("computationalcapture") && !has_ai {
+                has_computational_capture = true;
+            } else if action_str.contains("digitalcapture") && !has_ai && !has_computational_capture {
+                has_digital_capture = true;
+            }
+
+            match action_name {
+                "c2pa.created" => has_created = true,
+                "c2pa.edited" | "c2pa.color_adjustments" | "c2pa.cropped"
+                | "c2pa.filtered" | "c2pa.resized" | "c2pa.orientation" => has_edited = true,
+                _ => {}
+            }
+        }
+    }
+
+    // Count ingredients for composite-content detection.
+    let ingredient_count = manifest
+        .get("ingredients")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.len())
+        .unwrap_or(0);
+    let is_composite = ingredient_count > 1;
+
+    // Build the summary sentence(s).
+    let mut parts: Vec<String> = Vec::new();
+
+    if is_composite {
+        parts.push("This content combines multiple pieces of content.".to_string());
+    }
+
+    if has_ai {
+        parts.push(
+            "At least one component was generated or enhanced with an AI tool.".to_string(),
+        );
+    } else if has_computational_capture {
+        if let Some(ref name) = tool_name {
+            parts.push(format!(
+                "Captured using computational photography by {name}."
+            ));
+        } else {
+            parts.push("Captured using computational photography.".to_string());
+        }
+    } else if has_digital_capture {
+        if let Some(ref name) = tool_name {
+            parts.push(format!("Captured with a digital camera by {name}."));
+        } else {
+            parts.push("Captured with a digital camera.".to_string());
+        }
+    } else if has_edited && !has_created {
+        if let Some(ref name) = tool_name {
+            parts.push(format!("Opened and edited using {name}."));
+        } else {
+            parts.push("Opened and edited in a photo application.".to_string());
+        }
+    } else if has_created && !has_edited {
+        if let Some(ref name) = tool_name {
+            parts.push(format!("Created and signed by {name}."));
+        } else {
+            parts.push("Created and signed.".to_string());
+        }
+    } else if actions_found {
+        if let Some(ref name) = tool_name {
+            parts.push(format!("Processed using {name}."));
+        } else {
+            parts.push("Processed with a content tool.".to_string());
+        }
+    }
+
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(" "))
+    }
+}
+
 // ===== Reading =====
 
 /// Extract a `ManifestInfo` from one manifest object within the full c2pa-rs JSON.
@@ -555,6 +884,16 @@ fn extract_manifest_info(
         .and_then(|v| v.as_str())
         .map(String::from);
 
+    // Extract thumbnail from assertions (c2pa.thumbnail.* labels).
+    let assertions_json = manifest.get("assertions").cloned().unwrap_or(serde_json::Value::Null);
+    let (thumbnail_base64, thumbnail_mime) = extract_thumbnail_from_assertions(&assertions_json);
+
+    // Derive app_or_device from claim_generator_info > signature_info.common_name > claim_generator.
+    let app_or_device = derive_app_or_device(manifest);
+
+    // Build a plain-language content summary from actions and digitalSourceType.
+    let content_summary = build_content_summary(manifest);
+
     ManifestInfo {
         title,
         format,
@@ -567,6 +906,10 @@ fn extract_manifest_info(
         signed_by_issuer,
         validation_checks,
         verification_mode: verification_mode.map(String::from),
+        thumbnail_base64,
+        thumbnail_mime,
+        app_or_device,
+        content_summary,
     }
 }
 
@@ -1680,6 +2023,10 @@ mod tests {
             signed_by_issuer: None,
             validation_checks: vec![],
             verification_mode: Some("standard".to_string()),
+            thumbnail_base64: None,
+            thumbnail_mime: None,
+            app_or_device: None,
+            content_summary: None,
         };
         let json = serde_json::to_string(&info).unwrap();
         assert!(json.contains("\"isValid\""));
@@ -1948,6 +2295,211 @@ mod tests {
         assert!(
             detect_ai_from_assertions(&[]).is_none(),
             "Empty assertions should return None"
+        );
+    }
+
+    // ---- extract_thumbnail_from_assertions tests ----
+
+    #[test]
+    fn thumbnail_extracted_from_claim_jpeg_label_with_inline_data() {
+        let assertions = serde_json::json!([
+            {
+                "label": "c2pa.thumbnail.claim.jpeg",
+                "data": "/9j/4AAQ"  // fake base64 snippet
+            }
+        ]);
+        let (b64, mime) = extract_thumbnail_from_assertions(&assertions);
+        assert_eq!(b64.as_deref(), Some("/9j/4AAQ"));
+        assert_eq!(mime.as_deref(), Some("image/jpeg"));
+    }
+
+    #[test]
+    fn thumbnail_extracted_from_claim_png_label_with_object_data_field() {
+        let assertions = serde_json::json!([
+            {
+                "label": "c2pa.thumbnail.claim.png",
+                "data": {
+                    "data": "iVBORw0KGgo=",
+                    "format": "image/png"
+                }
+            }
+        ]);
+        let (b64, mime) = extract_thumbnail_from_assertions(&assertions);
+        assert_eq!(b64.as_deref(), Some("iVBORw0KGgo="));
+        assert_eq!(mime.as_deref(), Some("image/png"));
+    }
+
+    #[test]
+    fn thumbnail_resource_reference_returns_mime_only() {
+        // When data has an identifier but no inline bytes, we return the MIME but no base64.
+        let assertions = serde_json::json!([
+            {
+                "label": "c2pa.thumbnail.claim.jpeg",
+                "data": {
+                    "identifier": "self#jumbf=…/c2pa.thumbnail.claim.jpeg",
+                    "format": "image/jpeg"
+                }
+            }
+        ]);
+        let (b64, mime) = extract_thumbnail_from_assertions(&assertions);
+        assert!(b64.is_none(), "resource-ref thumbnail should not return base64");
+        assert_eq!(mime.as_deref(), Some("image/jpeg"));
+    }
+
+    #[test]
+    fn thumbnail_skips_non_thumbnail_assertions() {
+        let assertions = serde_json::json!([
+            { "label": "c2pa.actions", "data": { "actions": [] } },
+            { "label": "c2pa.rights", "data": "AAAA" }
+        ]);
+        let (b64, mime) = extract_thumbnail_from_assertions(&assertions);
+        assert!(b64.is_none());
+        assert!(mime.is_none());
+    }
+
+    #[test]
+    fn thumbnail_ingredient_label_also_matched() {
+        let assertions = serde_json::json!([
+            { "label": "c2pa.thumbnail.ingredient.jpeg", "data": "ABCD" }
+        ]);
+        let (b64, mime) = extract_thumbnail_from_assertions(&assertions);
+        assert_eq!(b64.as_deref(), Some("ABCD"));
+        assert_eq!(mime.as_deref(), Some("image/jpeg"));
+    }
+
+    // ---- derive_app_or_device tests ----
+
+    #[test]
+    fn app_or_device_prefers_claim_generator_info_name() {
+        let manifest = serde_json::json!({
+            "claim_generator_info": [{ "name": "Google Photos" }],
+            "signature_info": { "common_name": "Pixel Camera" },
+            "claim_generator": "Google/C2PA-SDK/1.0"
+        });
+        assert_eq!(
+            derive_app_or_device(&manifest).as_deref(),
+            Some("Google Photos")
+        );
+    }
+
+    #[test]
+    fn app_or_device_falls_back_to_signature_common_name() {
+        let manifest = serde_json::json!({
+            "signature_info": { "common_name": "Pixel Camera" },
+            "claim_generator": "Google/C2PA-SDK/1.0"
+        });
+        assert_eq!(
+            derive_app_or_device(&manifest).as_deref(),
+            Some("Pixel Camera")
+        );
+    }
+
+    #[test]
+    fn app_or_device_strips_version_from_claim_generator() {
+        let manifest = serde_json::json!({
+            "claim_generator": "Jura Trace/0.9.0"
+        });
+        assert_eq!(
+            derive_app_or_device(&manifest).as_deref(),
+            Some("Jura Trace")
+        );
+    }
+
+    #[test]
+    fn app_or_device_returns_none_when_no_fields() {
+        let manifest = serde_json::json!({});
+        assert!(derive_app_or_device(&manifest).is_none());
+    }
+
+    // ---- build_content_summary tests ----
+
+    #[test]
+    fn content_summary_computational_capture_with_tool_name() {
+        let manifest = serde_json::json!({
+            "claim_generator_info": [{ "name": "Pixel Camera" }],
+            "assertions": [{
+                "label": "c2pa.actions",
+                "data": {
+                    "actions": [{
+                        "action": "c2pa.created",
+                        "digitalSourceType": "http://cv.iptc.org/newscodes/digitalsourcetype/computationalCapture"
+                    }]
+                }
+            }]
+        });
+        let summary = build_content_summary(&manifest);
+        assert!(summary.is_some());
+        let s = summary.unwrap();
+        assert!(s.contains("computational"), "summary should mention computational photography");
+        assert!(s.contains("Pixel Camera"), "summary should name the tool");
+    }
+
+    #[test]
+    fn content_summary_ai_generation_detected() {
+        let manifest = serde_json::json!({
+            "assertions": [{
+                "label": "c2pa.actions",
+                "data": {
+                    "actions": [{
+                        "action": "c2pa.created",
+                        "digitalSourceType": "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"
+                    }]
+                }
+            }]
+        });
+        let summary = build_content_summary(&manifest);
+        assert!(summary.is_some());
+        assert!(summary.unwrap().to_lowercase().contains("ai"));
+    }
+
+    #[test]
+    fn content_summary_composite_content_mentions_multiple_pieces() {
+        let manifest = serde_json::json!({
+            "assertions": [{
+                "label": "c2pa.actions",
+                "data": { "actions": [{ "action": "c2pa.edited" }] }
+            }],
+            "ingredients": [
+                { "title": "A.jpg" },
+                { "title": "B.jpg" }
+            ]
+        });
+        let summary = build_content_summary(&manifest);
+        assert!(summary.is_some());
+        let s = summary.unwrap();
+        assert!(s.to_lowercase().contains("multiple") || s.to_lowercase().contains("combines"),
+            "summary should mention multiple/combines: {s}");
+    }
+
+    #[test]
+    fn content_summary_jura_trace_created_and_signed() {
+        let manifest = serde_json::json!({
+            "claim_generator_info": [{ "name": "Jura Trace" }],
+            "assertions": [{
+                "label": "c2pa.actions",
+                "data": {
+                    "actions": [{ "action": "c2pa.created" }]
+                }
+            }]
+        });
+        let summary = build_content_summary(&manifest);
+        assert!(summary.is_some());
+        let s = summary.unwrap();
+        assert!(s.contains("Jura Trace"), "summary should name Jura Trace");
+    }
+
+    #[test]
+    fn content_summary_none_when_no_actions() {
+        let manifest = serde_json::json!({
+            "assertions": [
+                { "label": "c2pa.rights", "data": { "rights": "All Rights Reserved" } }
+            ]
+        });
+        // No actions assertion — should return None.
+        let summary = build_content_summary(&manifest);
+        assert!(
+            summary.is_none(),
+            "no actions assertion should yield None summary, got: {summary:?}"
         );
     }
 
@@ -2599,6 +3151,10 @@ mod tests {
             signed_by_issuer: None,
             validation_checks: vec![],
             verification_mode: Some("enhanced".to_string()),
+            thumbnail_base64: None,
+            thumbnail_mime: None,
+            app_or_device: None,
+            content_summary: None,
         };
         let json = serde_json::to_string(&info).unwrap();
         assert!(
@@ -2626,6 +3182,10 @@ mod tests {
             signed_by_issuer: None,
             validation_checks: vec![],
             verification_mode: None,
+            thumbnail_base64: None,
+            thumbnail_mime: None,
+            app_or_device: None,
+            content_summary: None,
         };
         let json = serde_json::to_string(&info).unwrap();
         assert!(
@@ -2650,6 +3210,10 @@ mod tests {
                 signed_by_issuer: None,
                 validation_checks: vec![],
                 verification_mode: Some("standard".to_string()),
+                thumbnail_base64: None,
+                thumbnail_mime: None,
+                app_or_device: None,
+                content_summary: None,
             },
             ingredients: vec![],
             manifest_count: 1,

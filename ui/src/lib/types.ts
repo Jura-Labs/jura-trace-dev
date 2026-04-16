@@ -682,6 +682,14 @@ export interface ManifestInfo {
   validationChecks?: ValidationCheck[];
   /** Verification mode used for this manifest: "standard" or "enhanced". */
   verificationMode?: string;
+  /** The app or device that produced this content (e.g. "Pixel Camera", "Google Photos"). */
+  appOrDevice?: string;
+  /** Auto-generated plain-language content summary from actions + digitalSourceType. */
+  contentSummary?: string;
+  /** Base64-encoded manifest thumbnail image (when embedded in the assertion). */
+  thumbnailBase64?: string;
+  /** MIME type of the thumbnail (e.g. "image/jpeg"). */
+  thumbnailMime?: string;
 }
 
 /** A single C2PA validation check result. */
