@@ -327,9 +327,7 @@ fn derive_validity(json: &serde_json::Value) -> (bool, bool) {
         .iter()
         .any(|c| c == "claimSignature.validated");
 
-    if failure_codes.is_empty() {
-        (true, false)
-    } else if only_cert_soft_failures && !has_expired {
+    if failure_codes.is_empty() || (only_cert_soft_failures && !has_expired) {
         (true, false)
     } else if only_cert_soft_failures
         && has_expired
@@ -378,42 +376,23 @@ fn extract_validation_checks(json: &serde_json::Value) -> Vec<ValidationCheck> {
 
 // ===== Reading =====
 
-/// Read a C2PA manifest from a file.
+/// Extract a `ManifestInfo` from one manifest object within the full c2pa-rs JSON.
 ///
-/// Returns `None` if the file contains no C2PA manifest (not an error).
-pub fn read_manifest(path: &Path) -> Result<Option<ManifestInfo>, String> {
-    let reader = match c2pa::Reader::from_file(path) {
-        Ok(r) => r,
-        Err(c2pa::Error::JumbfNotFound) => return Ok(None),
-        Err(e) => {
-            let msg = e.to_string().to_lowercase();
-            if msg.contains("jumbf") || msg.contains("not found") || msg.contains("no c2pa") {
-                return Ok(None);
-            }
-            return Err(format!("Failed to read C2PA manifest: {e}"));
-        }
-    };
-
-    // Parse the JSON representation — more robust than struct methods
-    let json_str = reader.json();
-    let json: serde_json::Value = serde_json::from_str(&json_str)
-        .map_err(|e| format!("Failed to parse manifest JSON: {e}"))?;
-
-    let active_label = match json.get("active_manifest").and_then(|v| v.as_str()) {
-        Some(l) => l.to_string(),
-        None => return Ok(None),
-    };
-
-    let manifest = json
-        .get("manifests")
-        .and_then(|v| v.as_object())
-        .and_then(|m| m.get(&active_label));
-
-    let manifest = match manifest {
-        Some(m) => m,
-        None => return Ok(None),
-    };
-
+/// `manifest` is the JSON object for the specific manifest (e.g.
+/// `json["manifests"]["urn:uuid:…"]`).  `full_json` is the entire c2pa-rs
+/// reader JSON, used to derive active-manifest validity via
+/// `derive_validity` and `extract_validation_checks`.
+///
+/// For ingredient manifests the validation data in `full_json` describes only
+/// the active manifest. Until c2pa-rs exposes per-ingredient validation
+/// deltas in a stable form we conservatively mark ingredient manifests as
+/// valid (`is_valid = true`) with no validation checks.  Set
+/// `use_full_validation = true` only when extracting the active manifest.
+fn extract_manifest_info(
+    manifest: &serde_json::Value,
+    full_json: &serde_json::Value,
+    use_full_validation: bool,
+) -> ManifestInfo {
     let title = manifest
         .get("title")
         .and_then(|v| v.as_str())
@@ -426,6 +405,16 @@ pub fn read_manifest(path: &Path) -> Result<Option<ManifestInfo>, String> {
         .get("claim_generator")
         .and_then(|v| v.as_str())
         .map(String::from);
+    // Fallback: claim_generator_info[0].name (c2pa-rs v2 format)
+    let claim_generator = claim_generator.or_else(|| {
+        manifest
+            .get("claim_generator_info")
+            .and_then(|v| v.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|entry| entry.get("name"))
+            .and_then(|v| v.as_str())
+            .map(String::from)
+    });
 
     let mut assertions = Vec::new();
     if let Some(arr) = manifest.get("assertions").and_then(|v| v.as_array()) {
@@ -443,7 +432,15 @@ pub fn read_manifest(path: &Path) -> Result<Option<ManifestInfo>, String> {
         }
     }
 
-    let (is_valid, valid_at_signing) = derive_validity(&json);
+    let (is_valid, valid_at_signing, validation_checks) = if use_full_validation {
+        let (v, vas) = derive_validity(full_json);
+        let checks = extract_validation_checks(full_json);
+        (v, vas, checks)
+    } else {
+        // Conservative default for ingredient manifests — no per-ingredient
+        // deltas available from c2pa-rs in a stable API yet.
+        (true, false, vec![])
+    };
 
     let sig_info = manifest.get("signature_info");
     let signed_at = sig_info
@@ -459,20 +456,7 @@ pub fn read_manifest(path: &Path) -> Result<Option<ManifestInfo>, String> {
         .and_then(|v| v.as_str())
         .map(String::from);
 
-    // Also try claim_generator_info[0].name as fallback for v2 manifests
-    let claim_generator = claim_generator.or_else(|| {
-        manifest
-            .get("claim_generator_info")
-            .and_then(|v| v.as_array())
-            .and_then(|arr| arr.first())
-            .and_then(|entry| entry.get("name"))
-            .and_then(|v| v.as_str())
-            .map(String::from)
-    });
-
-    let validation_checks = extract_validation_checks(&json);
-
-    Ok(Some(ManifestInfo {
+    ManifestInfo {
         title,
         format,
         claim_generator,
@@ -483,6 +467,154 @@ pub fn read_manifest(path: &Path) -> Result<Option<ManifestInfo>, String> {
         signed_by,
         signed_by_issuer,
         validation_checks,
+    }
+}
+
+/// Open a c2pa-rs `Reader` for `path`, returning `Ok(None)` when no C2PA data is present.
+fn open_reader(path: &Path) -> Result<Option<c2pa::Reader>, String> {
+    match c2pa::Reader::from_file(path) {
+        Ok(r) => Ok(Some(r)),
+        Err(c2pa::Error::JumbfNotFound) => Ok(None),
+        Err(e) => {
+            let msg = e.to_string().to_lowercase();
+            if msg.contains("jumbf") || msg.contains("not found") || msg.contains("no c2pa") {
+                return Ok(None);
+            }
+            Err(format!("Failed to read C2PA manifest: {e}"))
+        }
+    }
+}
+
+/// Read a C2PA manifest from a file.
+///
+/// Returns `None` if the file contains no C2PA manifest (not an error).
+pub fn read_manifest(path: &Path) -> Result<Option<ManifestInfo>, String> {
+    let reader = match open_reader(path)? {
+        Some(r) => r,
+        None => return Ok(None),
+    };
+
+    let json_str = reader.json();
+    let json: serde_json::Value = serde_json::from_str(&json_str)
+        .map_err(|e| format!("Failed to parse manifest JSON: {e}"))?;
+
+    let active_label = match json.get("active_manifest").and_then(|v| v.as_str()) {
+        Some(l) => l.to_string(),
+        None => return Ok(None),
+    };
+
+    let manifest = match json
+        .get("manifests")
+        .and_then(|v| v.as_object())
+        .and_then(|m| m.get(&active_label))
+    {
+        Some(m) => m,
+        None => return Ok(None),
+    };
+
+    Ok(Some(extract_manifest_info(manifest, &json, true)))
+}
+
+// ===== Manifest chain =====
+
+/// A complete C2PA provenance chain extracted from a file.
+///
+/// The chain captures all manifests in the store, not just the active (most
+/// recent) one.  This allows the frontend to display the full history of
+/// edits and re-signings that led to the current state of an asset.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestChain {
+    /// The active (most recent) manifest.
+    pub active: ManifestInfo,
+    /// Ingredient manifests in chain order: the active manifest's direct
+    /// parent first, then their parents, ending at the origin (oldest ancestor).
+    ///
+    /// Empty for single-manifest files (no provenance history recorded).
+    pub ingredients: Vec<ManifestInfo>,
+    /// Total number of manifest entries in the store (active + all ancestors).
+    pub manifest_count: usize,
+}
+
+/// Read the full C2PA provenance chain from a file.
+///
+/// Returns `None` when the file contains no C2PA data.  Returns a
+/// [`ManifestChain`] with an empty `ingredients` list for files that contain
+/// only a single manifest (no ancestor chain recorded).
+///
+/// The chain is walked breadth-first: each manifest's `ingredients` array is
+/// inspected for `active_manifest` references that point to other entries in
+/// the manifest store. The resulting `ingredients` list is ordered from the
+/// active manifest's direct parents to the oldest ancestor.
+pub fn read_manifest_chain(path: &Path) -> Result<Option<ManifestChain>, String> {
+    let reader = match open_reader(path)? {
+        Some(r) => r,
+        None => return Ok(None),
+    };
+
+    let json_str = reader.json();
+    let json: serde_json::Value = serde_json::from_str(&json_str)
+        .map_err(|e| format!("Failed to parse manifest JSON: {e}"))?;
+
+    let active_label = match json.get("active_manifest").and_then(|v| v.as_str()) {
+        Some(l) => l.to_string(),
+        None => return Ok(None),
+    };
+
+    let manifests = match json.get("manifests").and_then(|v| v.as_object()) {
+        Some(m) => m,
+        None => return Ok(None),
+    };
+
+    let active_manifest = match manifests.get(&active_label) {
+        Some(m) => m,
+        None => return Ok(None),
+    };
+
+    let manifest_count = manifests.len();
+    let active = extract_manifest_info(active_manifest, &json, true);
+
+    // Walk the ingredient chain breadth-first.
+    // `queue` holds (manifest_json, label) pairs yet to be expanded.
+    let mut ingredients: Vec<ManifestInfo> = Vec::new();
+    let mut queue: Vec<(&serde_json::Value, String)> = vec![(active_manifest, active_label)];
+    let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    while !queue.is_empty() {
+        // Drain the current level before adding the next.
+        let current_level = std::mem::take(&mut queue);
+        for (manifest_json, label) in &current_level {
+            visited.insert(label.clone());
+            // Look for ingredient entries that reference a child manifest label.
+            if let Some(ing_arr) = manifest_json.get("ingredients").and_then(|v| v.as_array()) {
+                for ing in ing_arr {
+                    // c2pa-rs exposes ingredient manifest references as
+                    // `active_manifest` within each ingredient object.
+                    if let Some(child_label) =
+                        ing.get("active_manifest").and_then(|v| v.as_str())
+                    {
+                        if visited.contains(child_label) {
+                            continue; // guard against cycles
+                        }
+                        if let Some(child_manifest) = manifests.get(child_label) {
+                            // Ingredient manifests: validation data in full_json
+                            // describes only the active manifest; use conservative
+                            // defaults for ingredient validity.
+                            let info =
+                                extract_manifest_info(child_manifest, &json, false);
+                            ingredients.push(info);
+                            queue.push((child_manifest, child_label.to_string()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(Some(ManifestChain {
+        active,
+        ingredients,
+        manifest_count,
     }))
 }
 
@@ -2091,5 +2223,160 @@ mod tests {
             SigningMode::Bedrock,
             "missing config should default to Bedrock"
         );
+    }
+
+    // ===== ManifestChain / read_manifest_chain tests =====
+
+    /// `extract_manifest_info` correctly extracts all fields from a synthetic
+    /// manifest JSON object.
+    #[test]
+    fn extract_manifest_info_extracts_all_fields() {
+        let manifest = serde_json::json!({
+            "title": "photo.jpg",
+            "format": "image/jpeg",
+            "claim_generator": "Jura Trace/0.9.0",
+            "assertions": [
+                { "label": "c2pa.actions", "data": { "actions": [] } },
+                { "label": "c2pa.rights",  "data": { "rights": "CC BY 4.0" } }
+            ],
+            "signature_info": {
+                "time": "2026-01-01T00:00:00Z",
+                "common_name": "Test Signer",
+                "issuer": "Test CA"
+            }
+        });
+
+        // Full-validation JSON with no failures — expect is_valid = true.
+        let full_json = serde_json::json!({
+            "validation_results": {
+                "activeManifest": { "success": [], "failure": [] }
+            }
+        });
+
+        let info = extract_manifest_info(&manifest, &full_json, true);
+
+        assert_eq!(info.title.as_deref(), Some("photo.jpg"));
+        assert_eq!(info.format.as_deref(), Some("image/jpeg"));
+        assert_eq!(info.claim_generator.as_deref(), Some("Jura Trace/0.9.0"));
+        assert_eq!(info.assertions.len(), 2);
+        assert!(info.is_valid);
+        assert!(!info.valid_at_signing);
+        assert_eq!(info.signed_at.as_deref(), Some("2026-01-01T00:00:00Z"));
+        assert_eq!(info.signed_by.as_deref(), Some("Test Signer"));
+        assert_eq!(info.signed_by_issuer.as_deref(), Some("Test CA"));
+    }
+
+    /// `extract_manifest_info` falls back to `claim_generator_info[0].name`
+    /// when the top-level `claim_generator` field is absent (c2pa-rs v2 format).
+    #[test]
+    fn extract_manifest_info_claim_generator_fallback() {
+        let manifest = serde_json::json!({
+            "claim_generator_info": [{ "name": "FallbackTool/1.0", "version": "1.0" }],
+            "assertions": []
+        });
+        let full_json = serde_json::json!({});
+
+        let info = extract_manifest_info(&manifest, &full_json, false);
+        assert_eq!(
+            info.claim_generator.as_deref(),
+            Some("FallbackTool/1.0"),
+            "should fall back to claim_generator_info[0].name"
+        );
+    }
+
+    /// `read_manifest_chain` on a non-existent file returns an error (not None).
+    #[test]
+    fn read_manifest_chain_missing_file_returns_error() {
+        let result = read_manifest_chain(Path::new("/nonexistent/file.jpg"));
+        assert!(result.is_err(), "missing file should return Err");
+    }
+
+    /// `read_manifest_chain` on a signed single-manifest file returns a chain
+    /// with `manifest_count == 1` and an empty `ingredients` list.
+    #[test]
+    fn read_manifest_chain_single_manifest_no_ingredients() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let data_dir = tmp.path().join("data");
+
+        let (cert, key) = ensure_certificate(&data_dir).expect("ensure_certificate");
+
+        let source = tmp.path().join("input.png");
+        let img = image::RgbImage::new(32, 32);
+        img.save(&source).expect("save PNG");
+        let output = signed_output_path(&source);
+
+        sign_file(&source, &output, "Chain Test User", None, &cert, &key)
+            .expect("signing should succeed");
+
+        let chain = read_manifest_chain(&output)
+            .expect("read_manifest_chain should not error")
+            .expect("signed file should contain a manifest");
+
+        assert_eq!(
+            chain.manifest_count, 1,
+            "single-manifest file should have manifest_count == 1"
+        );
+        assert!(
+            chain.ingredients.is_empty(),
+            "single-manifest file should have no ingredient chain"
+        );
+        assert_eq!(
+            chain.active.title.as_deref(),
+            Some("input.png"),
+            "active manifest title should match filename"
+        );
+    }
+
+    /// `read_manifest` regression: still returns the same result after the
+    /// refactor to use `extract_manifest_info` internally.
+    #[test]
+    fn read_manifest_regression_after_refactor() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let data_dir = tmp.path().join("data");
+
+        let (cert, key) = ensure_certificate(&data_dir).expect("ensure_certificate");
+
+        let source = tmp.path().join("regression.png");
+        let img = image::RgbImage::new(16, 16);
+        img.save(&source).expect("save PNG");
+        let output = signed_output_path(&source);
+
+        sign_file(&source, &output, "Regression User", Some("CC BY 4.0"), &cert, &key)
+            .expect("signing should succeed");
+
+        let manifest = read_manifest(&output)
+            .expect("read_manifest should not error")
+            .expect("signed file should have a manifest");
+
+        assert_eq!(manifest.title.as_deref(), Some("regression.png"));
+        assert!(manifest.is_valid, "manifest should be valid");
+        assert!(
+            !manifest.assertions.is_empty(),
+            "manifest should have assertions"
+        );
+    }
+
+    /// `ManifestChain` serialises to camelCase for the IPC boundary.
+    #[test]
+    fn manifest_chain_serialises_to_camel_case() {
+        let chain = ManifestChain {
+            active: ManifestInfo {
+                title: Some("x.jpg".to_string()),
+                format: None,
+                claim_generator: None,
+                assertions: vec![],
+                is_valid: true,
+                valid_at_signing: false,
+                signed_at: None,
+                signed_by: None,
+                signed_by_issuer: None,
+                validation_checks: vec![],
+            },
+            ingredients: vec![],
+            manifest_count: 1,
+        };
+        let json = serde_json::to_string(&chain).expect("serialise");
+        assert!(json.contains("\"manifestCount\""), "should use camelCase");
+        assert!(!json.contains("\"manifest_count\""), "should not use snake_case");
     }
 }

@@ -311,7 +311,7 @@ pub async fn protect_sign(
     // Derive a safe extension from the first few magic bytes.
     let ext = infer_extension(&bytes);
     let filename_hint = original_filename.as_deref().unwrap_or("upload").to_string();
-    let ext_for_tempfile = ext.clone();
+    let ext_for_tempfile = ext;
 
     let signed_bytes = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, ApiError> {
         // Write source file to a temp file with the correct extension —

@@ -14,6 +14,7 @@ mod fingerprint;
 mod format_router;
 mod metadata;
 mod monitor_scheduler;
+mod network_mode;
 pub mod sidecar;
 mod sun_position;
 pub mod telemetry;
@@ -149,6 +150,10 @@ pub struct VerificationResult {
     pub overall_trust: f64,
     pub exif_analysis: Option<exif_anomaly::ExifAnalysis>,
     pub c2pa_manifest: Option<c2pa::ManifestInfo>,
+    /// Full C2PA provenance chain (active manifest + all ancestor ingredient manifests).
+    /// `None` when the file contains no C2PA data.
+    /// The `active` field mirrors `c2pa_manifest`; both are populated together.
+    pub c2pa_chain: Option<c2pa::ManifestChain>,
     pub ela_result: Option<sidecar::ElaResult>,
     pub noise_result: Option<sidecar::NoiseResult>,
     pub copy_move_result: Option<sidecar::CopyMoveResult>,
@@ -1737,7 +1742,8 @@ fn verify_content_inner(
 
     // ── C2PA verification ────────────────────────────────────────────────
     let t_c2pa = std::time::Instant::now();
-    let c2pa_manifest = c2pa::read_manifest(&path).ok().flatten();
+    let c2pa_chain = c2pa::read_manifest_chain(&path).ok().flatten();
+    let c2pa_manifest = c2pa_chain.as_ref().map(|ch| ch.active.clone());
     let c2pa_valid = c2pa_manifest.as_ref().map(|m| m.is_valid);
 
     // Check C2PA claim_generator AND assertions for known AI generators.
@@ -2394,6 +2400,7 @@ fn verify_content_inner(
         overall_trust,
         exif_analysis,
         c2pa_manifest,
+        c2pa_chain,
         ela_result,
         noise_result,
         copy_move_result,
@@ -2656,6 +2663,59 @@ fn verify_c2pa(file_path: String) -> Result<Option<c2pa::ManifestInfo>, AppError
         log::error!("verify_c2pa: C2PA parse error: {e}");
         AppError::C2pa("Content credential operation failed".into())
     })
+}
+
+/// Read the full C2PA provenance chain from a file.
+///
+/// Returns `None` when the file contains no C2PA data, or a
+/// [`c2pa::ManifestChain`] with the active manifest plus all ancestor
+/// ingredient manifests in chain order.
+///
+/// SECURITY: Canonicalises the path before parsing to prevent directory
+/// traversal and null-byte injection.
+#[tauri::command]
+fn read_manifest_chain(file_path: String) -> Result<Option<c2pa::ManifestChain>, AppError> {
+    if file_path.contains('\0') {
+        return Err(AppError::Validation("Invalid file path".into()));
+    }
+    let path = std::path::PathBuf::from(&file_path)
+        .canonicalize()
+        .map_err(|e| {
+            log::error!("read_manifest_chain: path canonicalisation failed: {e}");
+            AppError::FileSystem("File not found or inaccessible".into())
+        })?;
+    c2pa::read_manifest_chain(&path).map_err(|e| {
+        log::error!("read_manifest_chain: C2PA parse error: {e}");
+        AppError::C2pa("Content credential operation failed".into())
+    })
+}
+
+/// Return the current network mode (`standard` or `enhanced`).
+#[tauri::command]
+fn get_network_mode(app_handle: tauri::AppHandle) -> Result<network_mode::NetworkMode, AppError> {
+    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
+        AppError::Internal(format!("Cannot resolve app data directory: {e}"))
+    })?;
+    Ok(network_mode::get_network_mode(&data_dir))
+}
+
+/// Persist a new network mode.
+///
+/// `mode` must be `"standard"` or `"enhanced"` (camelCase as sent by the
+/// frontend).  Returns the newly-active mode on success.
+#[tauri::command]
+fn set_network_mode(
+    mode: network_mode::NetworkMode,
+    app_handle: tauri::AppHandle,
+) -> Result<network_mode::NetworkMode, AppError> {
+    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
+        AppError::Internal(format!("Cannot resolve app data directory: {e}"))
+    })?;
+    network_mode::set_network_mode(&data_dir, mode).map_err(|e| {
+        log::error!("set_network_mode: {e}");
+        AppError::Internal(e)
+    })?;
+    Ok(mode)
 }
 
 /// Get perceptual fingerprints for a specific asset.
@@ -4686,6 +4746,9 @@ pub fn run() {
             set_signing_mode,
             get_conformant_cert_info,
             clear_conformant_cert,
+            read_manifest_chain,
+            get_network_mode,
+            set_network_mode,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Jura Trace")
@@ -5274,6 +5337,7 @@ mod tests {
             overall_trust: 0.0,
             exif_analysis: None,
             c2pa_manifest: None,
+            c2pa_chain: None,
             ela_result: None,
             noise_result: None,
             copy_move_result: None,
