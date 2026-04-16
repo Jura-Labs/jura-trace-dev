@@ -1466,6 +1466,102 @@
                     {:else}
                       <p class="text-xs text-flint dark:text-flint-light">EXIF data not available for this file type.</p>
                     {/if}
+
+                    <!-- Expandable raw EXIF metadata fields -->
+                    {#if result.imageMetadata}
+                      {@const meta = result.imageMetadata}
+                      <details class="mt-2">
+                        <summary class="text-[11px] text-lapis cursor-pointer hover:text-lapis-light">
+                          View EXIF metadata fields
+                        </summary>
+                        <div class="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+                          {#if meta.cameraMake || meta.cameraModel}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">Camera</p>
+                              <p class="text-quartz">{[meta.cameraMake, meta.cameraModel].filter(Boolean).join(' ')}</p>
+                            </div>
+                          {/if}
+                          {#if meta.software}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">Software</p>
+                              <p class="text-quartz">{meta.software}</p>
+                            </div>
+                          {/if}
+                          {#if meta.datetimeOriginal}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">Date taken</p>
+                              <p class="text-quartz">{meta.datetimeOriginal}</p>
+                            </div>
+                          {/if}
+                          {#if meta.datetimeModified}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">Date modified</p>
+                              <p class="text-quartz">{meta.datetimeModified}</p>
+                            </div>
+                          {/if}
+                          {#if meta.iso}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">ISO</p>
+                              <p class="text-quartz">{meta.iso}</p>
+                            </div>
+                          {/if}
+                          {#if meta.focalLength}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">Focal length</p>
+                              <p class="text-quartz">{meta.focalLength}</p>
+                            </div>
+                          {/if}
+                          {#if meta.exposureTime}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">Exposure</p>
+                              <p class="text-quartz">{meta.exposureTime}</p>
+                            </div>
+                          {/if}
+                          {#if meta.fNumber}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">Aperture</p>
+                              <p class="text-quartz">{meta.fNumber}</p>
+                            </div>
+                          {/if}
+                          {#if meta.colorSpace}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">Colour space</p>
+                              <p class="text-quartz">{meta.colorSpace}</p>
+                            </div>
+                          {/if}
+                          {#if meta.exifWidth && meta.exifHeight}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">EXIF dimensions</p>
+                              <p class="text-quartz">{meta.exifWidth} x {meta.exifHeight}</p>
+                            </div>
+                          {/if}
+                          {#if meta.gpsLatitude != null && meta.gpsLongitude != null}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">GPS</p>
+                              <p class="text-quartz">{meta.gpsLatitude.toFixed(6)}, {meta.gpsLongitude.toFixed(6)}</p>
+                            </div>
+                          {/if}
+                          {#if meta.artist}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">Artist</p>
+                              <p class="text-quartz">{meta.artist}</p>
+                            </div>
+                          {/if}
+                          {#if meta.copyright}
+                            <div>
+                              <p class="text-[10px] text-flint uppercase tracking-wider">Copyright</p>
+                              <p class="text-quartz">{meta.copyright}</p>
+                            </div>
+                          {/if}
+                          {#if meta.description}
+                            <div class="col-span-2">
+                              <p class="text-[10px] text-flint uppercase tracking-wider">Description</p>
+                              <p class="text-quartz">{meta.description}</p>
+                            </div>
+                          {/if}
+                        </div>
+                      </details>
+                    {/if}
                   </div>
                   {#if result.exifAnalysis}
                     <span class="text-sm font-medium tabular-nums flex-shrink-0 {forensicScoreClass(1 - result.exifAnalysis.trustScore)}">

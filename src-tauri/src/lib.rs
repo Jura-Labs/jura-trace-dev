@@ -149,6 +149,10 @@ pub struct VerificationResult {
     pub claim_verdict: Option<String>,
     pub overall_trust: f64,
     pub exif_analysis: Option<exif_anomaly::ExifAnalysis>,
+    /// Raw EXIF/image metadata fields (Make, Model, DateTime, GPS, etc.).
+    /// Exposed for the v2 verify page EXIF detail panel.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_metadata: Option<metadata::ImageMetadata>,
     pub c2pa_manifest: Option<c2pa::ManifestInfo>,
     /// Full C2PA provenance chain (active manifest + all ancestor ingredient manifests).
     /// `None` when the file contains no C2PA data.
@@ -2403,6 +2407,7 @@ fn verify_content_inner(
         claim_verdict: None,
         overall_trust,
         exif_analysis,
+        image_metadata: raw_exif_meta,
         c2pa_manifest,
         c2pa_chain,
         ela_result,
@@ -5364,6 +5369,7 @@ mod tests {
             claim_verdict: None,
             overall_trust: 0.0,
             exif_analysis: None,
+            image_metadata: None,
             c2pa_manifest: None,
             c2pa_chain: None,
             ela_result: None,

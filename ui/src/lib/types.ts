@@ -441,6 +441,8 @@ export interface VerificationResult {
   ragClaimResult?: RagClaimResult;
   overallTrust: number;
   exifAnalysis?: ExifAnalysis;
+  /** Raw EXIF/image metadata fields (Make, Model, DateTime, GPS, etc.). */
+  imageMetadata?: ImageMetadata;
   c2paManifest?: ManifestInfo;
   c2paChain?: ManifestChain;
   elaResult?: ElaResult;
