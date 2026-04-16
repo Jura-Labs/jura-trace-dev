@@ -4,13 +4,13 @@
   import {
     verifyFile, verifyUrl, checkSidecarHealth, markFalsePositive,
     parseAppError, getLicenceTier, getVersion,
-    openBatchFileDialog, extractTextFromImage,
+    openBatchFileDialog, extractTextFromImage, calculateSunPosition,
   } from '$lib/api';
   import { getTrustLevel, formatFileSize, formatDuration } from '$lib/types';
   import type {
     VerificationResult, SidecarHealth, VerifyMode, LicenceTier,
     AnomalyFinding, InputQualityAssessment, ManifestInfo,
-    BatchItem, BatchItemStatus,
+    BatchItem, BatchItemStatus, SolarPosition,
   } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
   import LimitationBanner from '$lib/components/LimitationBanner.svelte';
@@ -90,6 +90,74 @@
   });
 
   const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+  // ── Sun Position state ─────────────────────────────────────────────
+  let sunDateInput = $state('');
+  let sunHourInput = $state(12);
+  let sunPosition = $state<SolarPosition | null>(null);
+  let sunLoading = $state(false);
+  let sunError = $state<string | null>(null);
+
+  const gpsCoords = $derived(
+    result?.imageMetadata?.gpsLatitude != null && result?.imageMetadata?.gpsLongitude != null
+      ? { lat: result.imageMetadata.gpsLatitude, lon: result.imageMetadata.gpsLongitude }
+      : null
+  );
+
+  function parseSunDate(): { year: number; month: number; day: number } | null {
+    const parts = sunDateInput.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return null;
+    const [year, month, day] = parts;
+    if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return { year, month, day };
+  }
+
+  async function handleCalculateSunPosition() {
+    if (!gpsCoords || sunLoading) return;
+    const dateParts = parseSunDate();
+    if (!dateParts) {
+      sunError = 'Please enter a valid date in YYYY-MM-DD format.';
+      return;
+    }
+    sunLoading = true;
+    sunError = null;
+    sunPosition = null;
+    try {
+      sunPosition = await calculateSunPosition(
+        gpsCoords.lat,
+        gpsCoords.lon,
+        dateParts.year,
+        dateParts.month,
+        dateParts.day,
+        sunHourInput,
+      );
+    } catch (e) {
+      sunError = e instanceof Error ? e.message : 'Sun position calculation failed.';
+    } finally {
+      sunLoading = false;
+    }
+  }
+
+  function azimuthToCompass(deg: number): string {
+    const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    const index = Math.round(((deg % 360) + 360) % 360 / 22.5) % 16;
+    return dirs[index];
+  }
+
+  function formatUtcHour(h: number): string {
+    const hh = Math.floor(h);
+    const mm = Math.round((h - hh) * 60);
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')} UTC`;
+  }
+
+  // Reset sun state when result changes
+  $effect(() => {
+    void result;
+    sunPosition = null;
+    sunError = null;
+    sunDateInput = '';
+    sunHourInput = 12;
+  });
 
   // ── Derived ────────────────────────────────────────────────────────
   const rawTrustLevel = $derived(result ? getTrustLevel(result.overallTrust) : null);
@@ -384,6 +452,21 @@
           state: dotState(result.colourTemperatureResult?.suspicious, result.colourTemperatureResult != null),
           ariaDetail: result.colourTemperatureResult ? `Score ${Math.round((result.colourTemperatureResult.score) * 100)}%` : 'Not run',
         },
+        {
+          id: 'card-integrity', label: 'Shadow',
+          state: dotState(result.shadowConsistencyResult?.suspicious, result.shadowConsistencyResult != null),
+          ariaDetail: result.shadowConsistencyResult ? `Score ${Math.round((result.shadowConsistencyResult.score) * 100)}%` : 'Not run',
+        },
+        {
+          id: 'card-integrity', label: 'Splice',
+          state: dotState(result.spliceBoundaryResult?.suspicious, result.spliceBoundaryResult != null),
+          ariaDetail: result.spliceBoundaryResult ? `Score ${Math.round((result.spliceBoundaryResult.score) * 100)}%` : 'Not run',
+        },
+        {
+          id: 'card-integrity', label: 'NPR',
+          state: dotState(result.nprResult?.suspicious, result.nprResult != null),
+          ariaDetail: result.nprResult ? `Score ${Math.round((result.nprResult.score) * 100)}%` : 'Not run',
+        },
       ],
       ai: [
         {
@@ -424,6 +507,8 @@
       result.jpegGhostResult?.suspicious,
       result.segmentedElaResult?.suspicious,
       result.colourTemperatureResult?.suspicious,
+      result.shadowConsistencyResult?.suspicious,
+      result.spliceBoundaryResult?.suspicious,
     ].some(Boolean);
   });
 
@@ -452,6 +537,8 @@
       result.jpegGhostResult?.suspicious,
       result.segmentedElaResult?.suspicious,
       result.colourTemperatureResult?.suspicious,
+      result.shadowConsistencyResult?.suspicious,
+      result.spliceBoundaryResult?.suspicious,
     ].filter(Boolean).length
   );
 
@@ -470,6 +557,7 @@
       result.elaResult, result.noiseResult, result.copyMoveResult,
       result.deepfakeResult, result.jpegGhostResult, result.segmentedElaResult,
       result.colourTemperatureResult, result.clipResult, result.watermarkExtractResult,
+      result.shadowConsistencyResult, result.spliceBoundaryResult, result.nprResult,
     ].filter(Boolean).length;
   });
 
@@ -1579,7 +1667,7 @@
           <div class="flex items-center gap-4 flex-wrap border-t border-border-dark/60 pt-3" role="list" aria-label="Verification summary">
             <div role="listitem" class="flex flex-col gap-0.5">
               <span class="text-[10px] text-flint uppercase tracking-wider">Detectors run</span>
-              <span class="text-sm text-quartz font-medium">{detectorsRun()} / 12</span>
+              <span class="text-sm text-quartz font-medium">{detectorsRun()} / 15</span>
             </div>
             <div role="separator" aria-hidden="true" class="w-px h-6 bg-border-dark"></div>
             <div role="listitem" class="flex flex-col gap-0.5">
@@ -1908,6 +1996,112 @@
                   {/if}
                 </div>
               </li>
+
+              <!-- Sun Position — on-demand tool, shown when GPS coords available -->
+              {#if gpsCoords}
+                <li class="px-5 py-4">
+                  <div class="flex items-start gap-3">
+                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 text-lapis dark:text-lapis-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 mb-2">
+                        <span class="text-sm font-medium text-quartz">Sun Position Calculator</span>
+                        <span class="text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30">On-demand</span>
+                      </div>
+                      <p class="text-xs text-flint dark:text-flint-light mb-3">
+                        GPS detected at {gpsCoords.lat.toFixed(4)}, {gpsCoords.lon.toFixed(4)}.
+                        Enter the date and time to calculate the expected sun position and compare with shadow direction.
+                      </p>
+
+                      <fieldset class="border-0 p-0 m-0">
+                        <legend class="sr-only">Sun position inputs</legend>
+                        <div class="flex flex-wrap items-end gap-3">
+                          <div class="flex flex-col gap-1">
+                            <label for="sun-date-v2" class="text-[10px] text-flint uppercase tracking-wider">Date (YYYY-MM-DD)</label>
+                            <input
+                              id="sun-date-v2"
+                              type="text"
+                              inputmode="numeric"
+                              placeholder="2024-06-15"
+                              bind:value={sunDateInput}
+                              class="w-36 px-2 py-1.5 text-xs rounded border border-border-dark bg-obsidian/60 text-quartz
+                                     placeholder:text-flint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+                            />
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <label for="sun-hour-v2" class="text-[10px] text-flint uppercase tracking-wider">Hour UTC (0–23)</label>
+                            <input
+                              id="sun-hour-v2"
+                              type="number"
+                              min="0"
+                              max="23"
+                              bind:value={sunHourInput}
+                              class="w-20 px-2 py-1.5 text-xs rounded border border-border-dark bg-obsidian/60 text-quartz
+                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onclick={handleCalculateSunPosition}
+                            disabled={sunLoading || !sunDateInput}
+                            class="px-3 py-1.5 min-h-[32px] text-xs rounded bg-lapis text-white hover:bg-lapis-dark
+                                   transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                                   dark:focus-visible:ring-offset-obsidian"
+                          >
+                            {#if sunLoading}
+                              <span class="flex items-center gap-1.5">
+                                <span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Calculating"></span>
+                                Calculating...
+                              </span>
+                            {:else}
+                              Calculate
+                            {/if}
+                          </button>
+                        </div>
+                      </fieldset>
+
+                      {#if sunError}
+                        <p class="mt-2 text-xs text-cinnabar dark:text-cinnabar-light" role="alert">{sunError}</p>
+                      {/if}
+
+                      {#if sunPosition}
+                        <dl
+                          class="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs border-t border-border-dark/60 pt-3"
+                          aria-label="Solar position results"
+                        >
+                          <div class="flex justify-between">
+                            <dt class="text-flint dark:text-flint-light">Azimuth</dt>
+                            <dd class="tabular-nums font-medium text-quartz">{sunPosition.azimuth.toFixed(1)}&deg; ({azimuthToCompass(sunPosition.azimuth)})</dd>
+                          </div>
+                          <div class="flex justify-between">
+                            <dt class="text-flint dark:text-flint-light">Elevation</dt>
+                            <dd class="tabular-nums font-medium {sunPosition.elevation < 0 ? 'text-flint dark:text-flint-light' : 'text-quartz'}">{sunPosition.elevation.toFixed(1)}&deg;</dd>
+                          </div>
+                          <div class="flex justify-between">
+                            <dt class="text-flint dark:text-flint-light">Solar Noon UTC</dt>
+                            <dd class="tabular-nums font-medium text-quartz">{formatUtcHour(sunPosition.solarNoonUtc)}</dd>
+                          </div>
+                          <div class="flex justify-between">
+                            <dt class="text-flint dark:text-flint-light">Day Length</dt>
+                            <dd class="tabular-nums font-medium text-quartz">{sunPosition.dayLengthHours.toFixed(2)} hrs</dd>
+                          </div>
+                        </dl>
+                        {#if sunPosition.elevation < 0}
+                          <p class="mt-2 text-xs text-amber dark:text-amber-light">The sun is below the horizon at this time and location. No shadows would be cast.</p>
+                        {/if}
+                        {#if result.shadowConsistencyResult}
+                          <p class="mt-2 text-xs text-flint dark:text-flint-light">
+                            Shadow detector reports global light direction at {result.shadowConsistencyResult.globalLightDirection.toFixed(1)}&deg;.
+                            Compare with solar azimuth {sunPosition.azimuth.toFixed(1)}&deg; ({azimuthToCompass(sunPosition.azimuth)}) — shadows should be roughly opposite the sun.
+                          </p>
+                        {/if}
+                      {/if}
+                    </div>
+                  </div>
+                </li>
+              {/if}
 
               <!-- Content Credentials (C2PA) — 3-tier progressive disclosure
                    per C2PA UX Recommendations v1.4. Internal identifiers
@@ -2407,7 +2601,7 @@
 
           <span class="text-xs text-flint dark:text-flint-light mr-2">
             {(() => {
-              const total = [result.elaResult, result.noiseResult, result.copyMoveResult, result.jpegGhostResult, result.segmentedElaResult, result.colourTemperatureResult].filter(Boolean).length;
+              const total = [result.elaResult, result.noiseResult, result.copyMoveResult, result.jpegGhostResult, result.segmentedElaResult, result.colourTemperatureResult, result.shadowConsistencyResult, result.spliceBoundaryResult].filter(Boolean).length;
               return `${total - integrityFindings} of ${total} passed`;
             })()}
           </span>
@@ -2547,6 +2741,146 @@
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.colourTemperatureResult.score)}">{Math.round(result.colourTemperatureResult.score * 100)}%</span>
                   </div>
+                  {#if result.colourTemperatureResult.suspicious}
+                    <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{result.colourTemperatureResult.anomalousRegions} of {result.colourTemperatureResult.totalRegions} regions flagged</p>
+                  {/if}
+                  {#if result.colourTemperatureResult.heatmapBase64}
+                    <div class="mt-2 ml-6">
+                      <img
+                        src={blobs.url(result.colourTemperatureResult.heatmapBase64, 'image/png')}
+                        alt="Colour temperature heatmap showing regions deviating from the global colour balance"
+                        class="w-full max-h-48 object-contain rounded border border-border-dark"
+                      />
+                    </div>
+                  {/if}
+                  {#if showRawScores}
+                    <div class="mt-1 ml-6 grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px] text-flint dark:text-flint-light tabular-nums">
+                      <span>Global A (green-red): {result.colourTemperatureResult.globalMeanA.toFixed(2)}</span>
+                      <span>Global B (blue-yellow): {result.colourTemperatureResult.globalMeanB.toFixed(2)}</span>
+                    </div>
+                  {/if}
+                </li>
+              {/if}
+
+              <!-- Shadow Consistency — deep/archival mode only -->
+              {#if result.shadowConsistencyResult}
+                {@const sh = result.shadowConsistencyResult}
+                <li class="px-5 py-3 {sh.suspicious ? 'bg-amber/[0.04]' : ''}">
+                  <div class="flex items-center gap-3">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {sh.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      {#if sh.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                      {:else}<polyline points="20 6 9 17 4 12"/>{/if}
+                    </svg>
+                    <span class="text-sm {sh.suspicious ? 'text-amber-light font-medium' : 'text-quartz'} flex-1">Shadow Consistency</span>
+                    {#if showRawScores}
+                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {sh.score.toFixed(4)} · light dir: {sh.globalLightDirection.toFixed(1)}&deg;</span>
+                    {/if}
+                    <span class="text-xs tabular-nums {forensicScoreClass(sh.score)}">{Math.round(sh.score * 100)}%</span>
+                  </div>
+                  {#if sh.suspicious}
+                    <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{sh.inconsistentRegions} of {sh.totalRegions} regions inconsistent · global light {sh.globalLightDirection.toFixed(0)}&deg;</p>
+                  {/if}
+                  {#if sh.heatmapBase64}
+                    <div class="mt-2 ml-6">
+                      <img
+                        src={blobs.url(sh.heatmapBase64, 'image/png')}
+                        alt="Shadow consistency heatmap showing regions with inconsistent light direction"
+                        class="w-full max-h-48 object-contain rounded border border-border-dark"
+                      />
+                    </div>
+                  {/if}
+                </li>
+              {/if}
+
+              <!-- Splice Boundary — deep/archival mode only -->
+              {#if result.spliceBoundaryResult}
+                {@const sb = result.spliceBoundaryResult}
+                <li class="px-5 py-3 {sb.suspicious ? 'bg-amber/[0.04]' : ''}">
+                  <div class="flex items-center gap-3">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {sb.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      {#if sb.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                      {:else}<polyline points="20 6 9 17 4 12"/>{/if}
+                    </svg>
+                    <span class="text-sm {sb.suspicious ? 'text-amber-light font-medium' : 'text-quartz'} flex-1">Splice Boundary</span>
+                    {#if showRawScores}
+                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {sb.score.toFixed(4)} · {sb.suspiciousBoundaries}/{sb.totalBoundariesChecked} boundaries</span>
+                    {/if}
+                    <span class="text-xs tabular-nums {forensicScoreClass(sb.score)}">{Math.round(sb.score * 100)}%</span>
+                  </div>
+                  {#if sb.suspicious}
+                    <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{sb.suspiciousBoundaries} of {sb.totalBoundariesChecked} boundaries flagged</p>
+                  {/if}
+                  {#if sb.heatmapBase64}
+                    <div class="mt-2 ml-6">
+                      <img
+                        src={blobs.url(sb.heatmapBase64, 'image/png')}
+                        alt="Splice boundary heatmap showing candidate cut edges between composited regions"
+                        class="w-full max-h-48 object-contain rounded border border-border-dark"
+                      />
+                    </div>
+                  {/if}
+                  {#if sb.boundaries.length > 0}
+                    <details class="mt-2 ml-6 group">
+                      <summary class="list-none text-[11px] text-lapis dark:text-lapis-light cursor-pointer hover:text-quartz flex items-center gap-1 min-h-[24px]
+                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded">
+                        <svg class="w-3 h-3 motion-safe:group-open:rotate-90 transition-transform duration-150" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+                        {sb.suspiciousBoundaries} candidate {sb.suspiciousBoundaries === 1 ? 'boundary' : 'boundaries'}
+                      </summary>
+                      <ul class="mt-1.5 space-y-1" aria-label="Splice boundary candidates">
+                        {#each sb.boundaries as boundary, i (i)}
+                          <li class="text-[11px] text-flint dark:text-flint-light flex items-center justify-between gap-2">
+                            <span class="font-mono">({boundary.x}, {boundary.y}) {boundary.width}&times;{boundary.height}px</span>
+                            <span class="flex items-center gap-1.5 shrink-0">
+                              {#if boundary.jpegGridAligned}<span class="text-[10px] px-1 py-px rounded bg-amber/10 text-amber dark:text-amber-light">JPEG grid</span>{/if}
+                              {#if boundary.noiseAsymmetric}<span class="text-[10px] px-1 py-px rounded bg-amber/10 text-amber dark:text-amber-light">Noise</span>{/if}
+                              {#if boundary.featheringDetected}<span class="text-[10px] px-1 py-px rounded bg-amber/10 text-amber dark:text-amber-light">Feathering</span>{/if}
+                              <span class="tabular-nums">{(boundary.confidence * 100).toFixed(0)}%</span>
+                            </span>
+                          </li>
+                        {/each}
+                      </ul>
+                    </details>
+                  {/if}
+                </li>
+              {/if}
+
+              <!-- NPR — on-demand, deep/archival mode only -->
+              {#if result.nprResult}
+                {@const npr = result.nprResult}
+                <li class="px-5 py-3 {npr.suspicious ? 'bg-amber/[0.04]' : ''}">
+                  <div class="flex items-center gap-3">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {npr.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      {#if npr.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                      {:else}<polyline points="20 6 9 17 4 12"/>{/if}
+                    </svg>
+                    <span class="text-sm {npr.suspicious ? 'text-amber-light font-medium' : 'text-quartz'} flex-1">
+                      Neighbouring Pixel Relationships
+                      <span class="ml-1.5 text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">On-demand</span>
+                    </span>
+                    {#if showRawScores}
+                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {npr.score.toFixed(4)} · threshold: 40%</span>
+                    {/if}
+                    <span class="text-xs tabular-nums {forensicScoreClass(npr.score)}">{Math.round(npr.score * 100)}%</span>
+                  </div>
+                  {#if npr.suspicious}
+                    <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{npr.summary}</p>
+                  {/if}
+                  {#if npr.heatmapBase64}
+                    <div class="mt-2 ml-6">
+                      <img
+                        src={blobs.url(npr.heatmapBase64, 'image/png')}
+                        alt="Neighbouring pixel relationship heatmap showing local correlation anomalies"
+                        class="w-full max-h-48 object-contain rounded border border-border-dark"
+                      />
+                    </div>
+                  {/if}
+                  {#if showRawScores}
+                    <div class="mt-1 ml-6 grid grid-cols-3 gap-x-4 gap-y-0.5 text-[10px] text-flint dark:text-flint-light tabular-nums">
+                      <span>H-V correlation: {npr.hvCorrelation.toFixed(4)}</span>
+                      <span>Diff variance ratio: {npr.diffVarianceRatio.toFixed(4)}</span>
+                      <span>HF energy ratio: {npr.hfEnergyRatio.toFixed(4)}</span>
+                    </div>
+                  {/if}
                 </li>
               {/if}
 
@@ -2561,14 +2895,15 @@
 
             </ul>
 
-            <!-- On-demand tools -->
-            <div class="px-5 py-3 border-t border-border-dark/40 bg-white/[0.01] flex items-center gap-3 flex-wrap">
-              <span class="text-[10px] text-flint uppercase tracking-wider font-semibold">On-demand tools</span>
-              <span class="text-xs text-flint dark:text-flint-light">
-                NPR, Shadow Consistency, and Splice Boundary require deep or archival mode.
-                <a href="/verify" class="text-lapis-light underline hover:text-quartz">Run in classic view</a>
-              </span>
-            </div>
+            <!-- Deep-mode detectors note -->
+            {#if !result.shadowConsistencyResult && !result.spliceBoundaryResult && !result.nprResult}
+              <div class="px-5 py-3 border-t border-border-dark/40 bg-white/[0.01] flex items-center gap-3 flex-wrap">
+                <span class="text-[10px] text-flint uppercase tracking-wider font-semibold">On-demand tools</span>
+                <span class="text-xs text-flint dark:text-flint-light">
+                  Shadow Consistency, Splice Boundary, and NPR require deep or archival mode.
+                </span>
+              </div>
+            {/if}
 
             {#if result.inputQuality}
               <LimitationBanner quality={result.inputQuality} />
