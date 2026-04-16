@@ -33,6 +33,23 @@ pub struct ManifestInfo {
     /// Individual validation checks from c2pa-rs, grouped by outcome.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub validation_checks: Vec<ValidationCheck>,
+    /// Verification mode used when reading this manifest.
+    ///
+    /// - `"standard"` — local-only verification, no OCSP/CRL or remote manifest fetch.
+    ///   This is the default air-gapped mode.
+    /// - `"enhanced"` — online verification with OCSP/CRL revocation checks and
+    ///   remote manifest fetch enabled (user opt-in via Settings → Enhanced mode).
+    ///
+    /// `None` for ingredient manifests (they inherit the mode from the active manifest).
+    ///
+    /// **Infrastructure note**: c2pa-rs 0.76 does not expose reader-level configuration
+    /// for trust-list loading or OCSP/CRL checking.  When such configuration is added
+    /// to `c2pa::Reader` in a future release, the `enhanced = true` path in
+    /// `read_manifest` and `read_manifest_chain` is where those options should be set.
+    /// For now the field documents which mode was requested so the UI and PDF export
+    /// can accurately report whether online checks were attempted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verification_mode: Option<String>,
 }
 
 /// A single C2PA validation check result.
@@ -279,8 +296,8 @@ pub fn sign_file(
         .sign_file(&*signer, source, output)
         .map_err(|e| format!("Failed to sign file: {e}"))?;
 
-    // Read back the manifest we just created
-    read_manifest(output)?.ok_or_else(|| "Signed file but could not read back manifest".to_string())
+    // Read back the manifest we just created. Always standard mode — signing is local-only.
+    read_manifest(output, false)?.ok_or_else(|| "Signed file but could not read back manifest".to_string())
 }
 
 // ===== Validity derivation =====
@@ -302,6 +319,79 @@ fn derive_validity(json: &serde_json::Value) -> (bool, bool) {
     let codes_of = |key: &str| -> Vec<String> {
         active_results
             .and_then(|am| am.get(key))
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|s| s.get("code").and_then(|c| c.as_str()).map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let failure_codes = codes_of("failure");
+    let success_codes = codes_of("success");
+
+    let only_cert_soft_failures = !failure_codes.is_empty()
+        && failure_codes
+            .iter()
+            .all(|c| c == "signingCredential.untrusted" || c == "signingCredential.expired");
+    let has_expired = failure_codes
+        .iter()
+        .any(|c| c == "signingCredential.expired");
+    let has_validated_timestamp = success_codes
+        .iter()
+        .any(|c| c == "timeStamp.validated" || c == "timeStamp.trusted");
+    let has_valid_claim_sig = success_codes
+        .iter()
+        .any(|c| c == "claimSignature.validated");
+
+    if failure_codes.is_empty() || (only_cert_soft_failures && !has_expired) {
+        (true, false)
+    } else if only_cert_soft_failures
+        && has_expired
+        && has_validated_timestamp
+        && has_valid_claim_sig
+    {
+        (true, true)
+    } else {
+        (false, false)
+    }
+}
+
+/// Extract validation checks from one entry in `ingredientDeltas[].validationDeltas`.
+///
+/// The `delta` argument is the `validationDeltas` object for a single ingredient,
+/// containing optional `success`, `informational`, and `failure` arrays.
+fn extract_validation_checks_from_delta(delta: &serde_json::Value) -> Vec<ValidationCheck> {
+    let mut checks = Vec::new();
+    for (outcome, key) in [("pass", "success"), ("info", "informational"), ("fail", "failure")] {
+        if let Some(arr) = delta.get(key).and_then(|v| v.as_array()) {
+            for entry in arr {
+                let code = entry
+                    .get("code")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                let explanation = entry
+                    .get("explanation")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                checks.push(ValidationCheck {
+                    code,
+                    outcome: outcome.to_string(),
+                    explanation,
+                });
+            }
+        }
+    }
+    checks
+}
+
+/// Derive `(is_valid, valid_at_signing)` from a `validationDeltas` object within
+/// an `ingredientDelta` entry.  Uses the same cert-soft logic as `derive_validity`.
+fn derive_validity_from_delta(delta: &serde_json::Value) -> (bool, bool) {
+    let codes_of = |key: &str| -> Vec<String> {
+        delta
+            .get(key)
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
@@ -383,15 +473,18 @@ fn extract_validation_checks(json: &serde_json::Value) -> Vec<ValidationCheck> {
 /// reader JSON, used to derive active-manifest validity via
 /// `derive_validity` and `extract_validation_checks`.
 ///
-/// For ingredient manifests the validation data in `full_json` describes only
-/// the active manifest. Until c2pa-rs exposes per-ingredient validation
-/// deltas in a stable form we conservatively mark ingredient manifests as
-/// valid (`is_valid = true`) with no validation checks.  Set
-/// `use_full_validation = true` only when extracting the active manifest.
+/// `use_full_validation = true` selects active-manifest validation from
+/// `full_json`.  When `false`, `ingredient_delta` is consulted instead: if
+/// it is `Some(delta)` the validity and checks are derived from the
+/// per-ingredient `validationDeltas` object; if it is `None` the ingredient
+/// manifest is conservatively marked valid with no checks (the fallback used
+/// when c2pa-rs does not include `ingredientDeltas` for an ingredient).
 fn extract_manifest_info(
     manifest: &serde_json::Value,
     full_json: &serde_json::Value,
     use_full_validation: bool,
+    ingredient_delta: Option<&serde_json::Value>,
+    verification_mode: Option<&str>,
 ) -> ManifestInfo {
     let title = manifest
         .get("title")
@@ -436,9 +529,15 @@ fn extract_manifest_info(
         let (v, vas) = derive_validity(full_json);
         let checks = extract_validation_checks(full_json);
         (v, vas, checks)
+    } else if let Some(delta) = ingredient_delta {
+        // Per-ingredient validation data provided by the caller from the
+        // `ingredientDeltas` array in the c2pa-rs reader JSON.
+        let (v, vas) = derive_validity_from_delta(delta);
+        let checks = extract_validation_checks_from_delta(delta);
+        (v, vas, checks)
     } else {
-        // Conservative default for ingredient manifests — no per-ingredient
-        // deltas available from c2pa-rs in a stable API yet.
+        // Conservative default: no per-ingredient delta was available.
+        // Mark as valid with no checks rather than falsely flagging as invalid.
         (true, false, vec![])
     };
 
@@ -467,6 +566,7 @@ fn extract_manifest_info(
         signed_by,
         signed_by_issuer,
         validation_checks,
+        verification_mode: verification_mode.map(String::from),
     }
 }
 
@@ -488,11 +588,29 @@ fn open_reader(path: &Path) -> Result<Option<c2pa::Reader>, String> {
 /// Read a C2PA manifest from a file.
 ///
 /// Returns `None` if the file contains no C2PA manifest (not an error).
-pub fn read_manifest(path: &Path) -> Result<Option<ManifestInfo>, String> {
+///
+/// `enhanced` controls which network mode label is recorded in the returned
+/// `ManifestInfo.verification_mode` field.  When `true` the field is set to
+/// `"enhanced"` (online OCSP/CRL checks requested); when `false` it is
+/// `"standard"` (local-only, air-gapped).
+///
+/// **Infrastructure note for future OCSP/CRL support**: when c2pa-rs exposes
+/// reader-level configuration for trust-list loading or revocation checking,
+/// configure the `c2pa::Reader` here based on the `enhanced` flag before
+/// calling `reader.json()`.  As of c2pa-rs 0.76 no such API exists.
+pub fn read_manifest(path: &Path, enhanced: bool) -> Result<Option<ManifestInfo>, String> {
     let reader = match open_reader(path)? {
         Some(r) => r,
         None => return Ok(None),
     };
+
+    // TODO(OCSP): when c2pa-rs adds Reader configuration for trust-list and
+    // OCSP/CRL revocation, configure it here when `enhanced = true`.
+    // Example (hypothetical API — does not exist in c2pa-rs 0.76):
+    //   if enhanced {
+    //       reader.set_trust_list(c2pa::TrustList::from_online_sources()?);
+    //       reader.enable_ocsp_checking(true);
+    //   }
 
     let json_str = reader.json();
     let json: serde_json::Value = serde_json::from_str(&json_str)
@@ -512,7 +630,14 @@ pub fn read_manifest(path: &Path) -> Result<Option<ManifestInfo>, String> {
         None => return Ok(None),
     };
 
-    Ok(Some(extract_manifest_info(manifest, &json, true)))
+    let mode_str = if enhanced { "enhanced" } else { "standard" };
+    Ok(Some(extract_manifest_info(
+        manifest,
+        &json,
+        true,
+        None,
+        Some(mode_str),
+    )))
 }
 
 // ===== Manifest chain =====
@@ -546,7 +671,16 @@ pub struct ManifestChain {
 /// inspected for `active_manifest` references that point to other entries in
 /// the manifest store. The resulting `ingredients` list is ordered from the
 /// active manifest's direct parents to the oldest ancestor.
-pub fn read_manifest_chain(path: &Path) -> Result<Option<ManifestChain>, String> {
+///
+/// `enhanced` is the same mode flag as in [`read_manifest`] — recorded in
+/// the active manifest's `verification_mode` field.  Ingredient manifests do
+/// not carry a `verification_mode` (they inherit the mode from the active
+/// manifest; the field is `None` for ingredients).
+///
+/// **Infrastructure note for future OCSP/CRL support**: see [`read_manifest`]
+/// for the TODO comment on where to configure c2pa-rs when the API becomes
+/// available.
+pub fn read_manifest_chain(path: &Path, enhanced: bool) -> Result<Option<ManifestChain>, String> {
     let reader = match open_reader(path)? {
         Some(r) => r,
         None => return Ok(None),
@@ -572,18 +706,41 @@ pub fn read_manifest_chain(path: &Path) -> Result<Option<ManifestChain>, String>
     };
 
     let manifest_count = manifests.len();
-    let active = extract_manifest_info(active_manifest, &json, true);
+    let mode_str = if enhanced { "enhanced" } else { "standard" };
+    let active = extract_manifest_info(active_manifest, &json, true, None, Some(mode_str));
+
+    // Build a lookup map from ingredient assertion URI → validationDeltas so
+    // we can enrich ingredient manifests with their actual validation results.
+    //
+    // The c2pa-rs reader JSON may include:
+    //   validation_results.ingredientDeltas[].ingredientAssertionURI  (string)
+    //   validation_results.ingredientDeltas[].validationDeltas         (object)
+    //
+    // The URI typically ends with the manifest label, but the format is not
+    // guaranteed to be stable.  We collect all deltas in order and also build
+    // a secondary index keyed on any manifest label substring found in the URI
+    // so that either strategy can match.
+    let ingredient_deltas: Vec<&serde_json::Value> = json
+        .get("validation_results")
+        .and_then(|vr| vr.get("ingredientDeltas"))
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().collect())
+        .unwrap_or_default();
 
     // Walk the ingredient chain breadth-first.
-    // `queue` holds (manifest_json, label) pairs yet to be expanded.
+    // `queue` holds (manifest_json, label, insertion_index) tuples.
     let mut ingredients: Vec<ManifestInfo> = Vec::new();
-    let mut queue: Vec<(&serde_json::Value, String)> = vec![(active_manifest, active_label)];
+    let mut queue: Vec<(&serde_json::Value, String, usize)> =
+        vec![(active_manifest, active_label, 0)];
     let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // Counter tracking order of ingredient discovery — used to correlate
+    // with ingredient_deltas when URI matching is unavailable.
+    let mut ingredient_order: usize = 0;
 
     while !queue.is_empty() {
         // Drain the current level before adding the next.
         let current_level = std::mem::take(&mut queue);
-        for (manifest_json, label) in &current_level {
+        for (manifest_json, label, _depth) in &current_level {
             visited.insert(label.clone());
             // Look for ingredient entries that reference a child manifest label.
             if let Some(ing_arr) = manifest_json.get("ingredients").and_then(|v| v.as_array()) {
@@ -597,13 +754,36 @@ pub fn read_manifest_chain(path: &Path) -> Result<Option<ManifestChain>, String>
                             continue; // guard against cycles
                         }
                         if let Some(child_manifest) = manifests.get(child_label) {
-                            // Ingredient manifests: validation data in full_json
-                            // describes only the active manifest; use conservative
-                            // defaults for ingredient validity.
-                            let info =
-                                extract_manifest_info(child_manifest, &json, false);
+                            // Try to find a matching ingredient delta.
+                            // Strategy 1: URI contains the manifest label as a substring.
+                            // Strategy 2: fall back to positional order.
+                            let matched_delta: Option<&serde_json::Value> = ingredient_deltas
+                                .iter()
+                                .find(|d| {
+                                    d.get("ingredientAssertionURI")
+                                        .and_then(|u| u.as_str())
+                                        .map(|uri| uri.contains(child_label))
+                                        .unwrap_or(false)
+                                })
+                                .copied()
+                                .and_then(|d| d.get("validationDeltas"))
+                                .or_else(|| {
+                                    // Positional fallback: nth ingredient delta.
+                                    ingredient_deltas
+                                        .get(ingredient_order)
+                                        .and_then(|d| d.get("validationDeltas"))
+                                });
+
+                            let info = extract_manifest_info(
+                                child_manifest,
+                                &json,
+                                false,
+                                matched_delta,
+                                None, // ingredients inherit mode from active manifest
+                            );
                             ingredients.push(info);
-                            queue.push((child_manifest, child_label.to_string()));
+                            queue.push((child_manifest, child_label.to_string(), _depth + 1));
+                            ingredient_order += 1;
                         }
                     }
                 }
@@ -1499,6 +1679,7 @@ mod tests {
             signed_by: None,
             signed_by_issuer: None,
             validation_checks: vec![],
+            verification_mode: Some("standard".to_string()),
         };
         let json = serde_json::to_string(&info).unwrap();
         assert!(json.contains("\"isValid\""));
@@ -1772,7 +1953,7 @@ mod tests {
 
     #[test]
     fn read_manifest_missing_file_returns_error() {
-        let result = read_manifest(Path::new("/nonexistent/file.jpg"));
+        let result = read_manifest(Path::new("/nonexistent/file.jpg"), false);
         assert!(result.is_err());
     }
 
@@ -1863,7 +2044,7 @@ mod tests {
         }
 
         // Step 4: Read manifest back from the signed output
-        let readback = read_manifest(&output_path).expect("read_manifest should not error");
+        let readback = read_manifest(&output_path, false).expect("read_manifest should not error");
         assert!(readback.is_some(), "signed file should contain a manifest");
         let readback = readback.unwrap();
         assert!(readback.is_valid, "readback manifest should be valid");
@@ -2206,7 +2387,7 @@ mod tests {
         assert_eq!(info.title.as_deref(), Some("input_conf.png"));
         assert!(output.exists(), "signed output should exist");
         // Read back and verify
-        let readback = read_manifest(&output).expect("read_manifest");
+        let readback = read_manifest(&output, false).expect("read_manifest");
         assert!(readback.is_some(), "manifest should be present");
     }
 
@@ -2253,7 +2434,7 @@ mod tests {
             }
         });
 
-        let info = extract_manifest_info(&manifest, &full_json, true);
+        let info = extract_manifest_info(&manifest, &full_json, true, None, Some("standard"));
 
         assert_eq!(info.title.as_deref(), Some("photo.jpg"));
         assert_eq!(info.format.as_deref(), Some("image/jpeg"));
@@ -2276,7 +2457,7 @@ mod tests {
         });
         let full_json = serde_json::json!({});
 
-        let info = extract_manifest_info(&manifest, &full_json, false);
+        let info = extract_manifest_info(&manifest, &full_json, false, None, None);
         assert_eq!(
             info.claim_generator.as_deref(),
             Some("FallbackTool/1.0"),
@@ -2287,7 +2468,7 @@ mod tests {
     /// `read_manifest_chain` on a non-existent file returns an error (not None).
     #[test]
     fn read_manifest_chain_missing_file_returns_error() {
-        let result = read_manifest_chain(Path::new("/nonexistent/file.jpg"));
+        let result = read_manifest_chain(Path::new("/nonexistent/file.jpg"), false);
         assert!(result.is_err(), "missing file should return Err");
     }
 
@@ -2308,7 +2489,7 @@ mod tests {
         sign_file(&source, &output, "Chain Test User", None, &cert, &key)
             .expect("signing should succeed");
 
-        let chain = read_manifest_chain(&output)
+        let chain = read_manifest_chain(&output, false)
             .expect("read_manifest_chain should not error")
             .expect("signed file should contain a manifest");
 
@@ -2344,7 +2525,7 @@ mod tests {
         sign_file(&source, &output, "Regression User", Some("CC BY 4.0"), &cert, &key)
             .expect("signing should succeed");
 
-        let manifest = read_manifest(&output)
+        let manifest = read_manifest(&output, false)
             .expect("read_manifest should not error")
             .expect("signed file should have a manifest");
 
@@ -2353,6 +2534,103 @@ mod tests {
         assert!(
             !manifest.assertions.is_empty(),
             "manifest should have assertions"
+        );
+    }
+
+    /// `derive_validity_from_delta` returns (true, false) when the delta has no failures.
+    #[test]
+    fn delta_validity_no_failures_is_valid() {
+        let delta = serde_json::json!({ "success": [], "failure": [] });
+        assert_eq!(derive_validity_from_delta(&delta), (true, false));
+    }
+
+    /// `derive_validity_from_delta` returns (false, false) for a hash-mismatch failure.
+    #[test]
+    fn delta_validity_hash_mismatch_is_invalid() {
+        let delta = serde_json::json!({
+            "success": [{ "code": "claimSignature.validated" }],
+            "failure": [{ "code": "assertion.dataHash.mismatch" }]
+        });
+        assert_eq!(derive_validity_from_delta(&delta), (false, false));
+    }
+
+    /// `extract_validation_checks_from_delta` extracts checks from all outcome arrays.
+    #[test]
+    fn delta_checks_extracted_from_all_outcomes() {
+        let delta = serde_json::json!({
+            "success": [{ "code": "claimSignature.validated" }],
+            "informational": [{ "code": "some.info", "explanation": "note" }],
+            "failure": [{ "code": "assertion.dataHash.mismatch" }]
+        });
+        let checks = extract_validation_checks_from_delta(&delta);
+        assert_eq!(checks.len(), 3);
+        assert!(checks.iter().any(|c| c.code == "claimSignature.validated" && c.outcome == "pass"));
+        assert!(checks.iter().any(|c| c.code == "some.info" && c.outcome == "info"));
+        assert!(checks.iter().any(|c| c.code == "assertion.dataHash.mismatch" && c.outcome == "fail"));
+    }
+
+    /// `extract_manifest_info` with `use_full_validation = true` and `Some("enhanced")`
+    /// propagates the verification_mode to the result.
+    #[test]
+    fn extract_manifest_info_sets_verification_mode() {
+        let manifest = serde_json::json!({ "assertions": [] });
+        let full_json = serde_json::json!({
+            "validation_results": { "activeManifest": { "success": [], "failure": [] } }
+        });
+        let info = extract_manifest_info(&manifest, &full_json, true, None, Some("enhanced"));
+        assert_eq!(info.verification_mode.as_deref(), Some("enhanced"));
+
+        let info2 = extract_manifest_info(&manifest, &full_json, false, None, None);
+        assert_eq!(info2.verification_mode, None, "ingredient should have no mode");
+    }
+
+    /// `verification_mode` serialises as `"verificationMode"` in camelCase JSON.
+    #[test]
+    fn verification_mode_serialises_as_camel_case() {
+        let info = ManifestInfo {
+            title: None,
+            format: None,
+            claim_generator: None,
+            assertions: vec![],
+            is_valid: true,
+            valid_at_signing: false,
+            signed_at: None,
+            signed_by: None,
+            signed_by_issuer: None,
+            validation_checks: vec![],
+            verification_mode: Some("enhanced".to_string()),
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(
+            json.contains("\"verificationMode\""),
+            "should serialise as camelCase"
+        );
+        assert!(
+            json.contains("\"enhanced\""),
+            "should contain the mode value"
+        );
+    }
+
+    /// `verification_mode = None` is omitted from serialised JSON.
+    #[test]
+    fn verification_mode_none_is_omitted() {
+        let info = ManifestInfo {
+            title: None,
+            format: None,
+            claim_generator: None,
+            assertions: vec![],
+            is_valid: true,
+            valid_at_signing: false,
+            signed_at: None,
+            signed_by: None,
+            signed_by_issuer: None,
+            validation_checks: vec![],
+            verification_mode: None,
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(
+            !json.contains("verificationMode"),
+            "None should be omitted from JSON"
         );
     }
 
@@ -2371,6 +2649,7 @@ mod tests {
                 signed_by: None,
                 signed_by_issuer: None,
                 validation_checks: vec![],
+                verification_mode: Some("standard".to_string()),
             },
             ingredients: vec![],
             manifest_count: 1,

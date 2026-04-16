@@ -1741,8 +1741,12 @@ fn verify_content_inner(
     };
 
     // ── C2PA verification ────────────────────────────────────────────────
+    // Verification mode: always Standard (local-only) here because
+    // verify_content_inner does not have access to the app data dir.
+    // The Tauri read_manifest / read_manifest_chain commands read the
+    // actual network mode and forward it correctly.
     let t_c2pa = std::time::Instant::now();
-    let c2pa_chain = c2pa::read_manifest_chain(&path).ok().flatten();
+    let c2pa_chain = c2pa::read_manifest_chain(&path, false).ok().flatten();
     let c2pa_manifest = c2pa_chain.as_ref().map(|ch| ch.active.clone());
     let c2pa_valid = c2pa_manifest.as_ref().map(|m| m.is_valid);
 
@@ -2626,7 +2630,10 @@ fn sign_asset(
 ///   - Null-byte injection
 ///   - Path existence oracle attacks via error messages
 #[tauri::command]
-fn read_manifest(file_path: String) -> Result<Option<c2pa::ManifestInfo>, AppError> {
+fn read_manifest(
+    file_path: String,
+    app_handle: tauri::AppHandle,
+) -> Result<Option<c2pa::ManifestInfo>, AppError> {
     if file_path.contains('\0') {
         return Err(AppError::Validation("Invalid file path".into()));
     }
@@ -2636,7 +2643,12 @@ fn read_manifest(file_path: String) -> Result<Option<c2pa::ManifestInfo>, AppErr
             log::error!("read_manifest: path canonicalisation failed: {e}");
             AppError::FileSystem("File not found or inaccessible".into())
         })?;
-    c2pa::read_manifest(&path).map_err(|e| {
+    let enhanced = app_handle
+        .path()
+        .app_data_dir()
+        .map(|d| network_mode::is_enhanced(&d))
+        .unwrap_or(false);
+    c2pa::read_manifest(&path, enhanced).map_err(|e| {
         log::error!("read_manifest: C2PA parse error: {e}");
         AppError::C2pa("Content credential operation failed".into())
     })
@@ -2649,7 +2661,10 @@ fn read_manifest(file_path: String) -> Result<Option<c2pa::ManifestInfo>, AppErr
 ///   - Null-byte injection
 ///   - Path existence oracle attacks via error messages
 #[tauri::command]
-fn verify_c2pa(file_path: String) -> Result<Option<c2pa::ManifestInfo>, AppError> {
+fn verify_c2pa(
+    file_path: String,
+    app_handle: tauri::AppHandle,
+) -> Result<Option<c2pa::ManifestInfo>, AppError> {
     if file_path.contains('\0') {
         return Err(AppError::Validation("Invalid file path".into()));
     }
@@ -2659,7 +2674,12 @@ fn verify_c2pa(file_path: String) -> Result<Option<c2pa::ManifestInfo>, AppError
             log::error!("verify_c2pa: path canonicalisation failed: {e}");
             AppError::FileSystem("File not found or inaccessible".into())
         })?;
-    c2pa::read_manifest(&path).map_err(|e| {
+    let enhanced = app_handle
+        .path()
+        .app_data_dir()
+        .map(|d| network_mode::is_enhanced(&d))
+        .unwrap_or(false);
+    c2pa::read_manifest(&path, enhanced).map_err(|e| {
         log::error!("verify_c2pa: C2PA parse error: {e}");
         AppError::C2pa("Content credential operation failed".into())
     })
@@ -2674,7 +2694,10 @@ fn verify_c2pa(file_path: String) -> Result<Option<c2pa::ManifestInfo>, AppError
 /// SECURITY: Canonicalises the path before parsing to prevent directory
 /// traversal and null-byte injection.
 #[tauri::command]
-fn read_manifest_chain(file_path: String) -> Result<Option<c2pa::ManifestChain>, AppError> {
+fn read_manifest_chain(
+    file_path: String,
+    app_handle: tauri::AppHandle,
+) -> Result<Option<c2pa::ManifestChain>, AppError> {
     if file_path.contains('\0') {
         return Err(AppError::Validation("Invalid file path".into()));
     }
@@ -2684,7 +2707,12 @@ fn read_manifest_chain(file_path: String) -> Result<Option<c2pa::ManifestChain>,
             log::error!("read_manifest_chain: path canonicalisation failed: {e}");
             AppError::FileSystem("File not found or inaccessible".into())
         })?;
-    c2pa::read_manifest_chain(&path).map_err(|e| {
+    let enhanced = app_handle
+        .path()
+        .app_data_dir()
+        .map(|d| network_mode::is_enhanced(&d))
+        .unwrap_or(false);
+    c2pa::read_manifest_chain(&path, enhanced).map_err(|e| {
         log::error!("read_manifest_chain: C2PA parse error: {e}");
         AppError::C2pa("Content credential operation failed".into())
     })
@@ -3135,8 +3163,8 @@ fn check_metadata_before_sign(
     let existing_copyright = meta.as_ref().and_then(|m| m.copyright.clone());
     let existing_description = meta.as_ref().and_then(|m| m.description.clone());
 
-    // Check for existing C2PA manifest
-    let has_existing_c2pa = c2pa::read_manifest(&path).ok().flatten().is_some();
+    // Check for existing C2PA manifest (standard mode — no OCSP needed here)
+    let has_existing_c2pa = c2pa::read_manifest(&path, false).ok().flatten().is_some();
 
     // Build a human-readable summary
     let mut warnings: Vec<String> = Vec::new();
@@ -4644,7 +4672,7 @@ pub fn run() {
             // On the Community tier the task idles without performing any checks.
             {
                 let scheduler_state = shared_state.clone();
-                let handle = monitor_scheduler::spawn_scheduler(scheduler_state);
+                let handle = monitor_scheduler::spawn_scheduler(scheduler_state, data_dir.clone());
                 if let Ok(mut guard) = shared_state.lock() {
                     guard.scheduler_handle = Some(handle);
                 }

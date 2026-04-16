@@ -175,6 +175,16 @@
   // Provenance chain timeline expand state (§5.4 collapse when >= 4 manifests).
   let c2paChainExpanded = $state(false);
 
+  // L3 manifest selector — 0 = active manifest, 1+ = ingredients in chain order.
+  let selectedManifestIndex = $state(0);
+
+  const allManifests = $derived(() => {
+    if (!result?.c2paChain) return result?.c2paManifest ? [result.c2paManifest] : [];
+    return [result.c2paChain.active, ...result.c2paChain.ingredients];
+  });
+
+  const selectedManifest = $derived(() => allManifests()[selectedManifestIndex] ?? null);
+
   /** Format a ManifestInfo signer name for chain timeline display. */
   function chainSignerName(manifest: ManifestInfo): string {
     return manifest.signedBy || manifest.claimGenerator || 'Unknown';
@@ -1699,71 +1709,113 @@
                                    dark:focus-visible:ring-offset-obsidian rounded min-h-[32px] px-0"
                             aria-expanded={c2paShowL3}
                             aria-controls="c2pa-l3"
-                            onclick={() => c2paShowL3 = !c2paShowL3}
+                            onclick={() => { if (!c2paShowL3) selectedManifestIndex = 0; c2paShowL3 = !c2paShowL3; }}
                           >
                             {c2paShowL3 ? 'Hide full details' : 'View full details'}
                           </button>
 
                           <!-- ── L3: Validation checks, assertions, format ── -->
                           {#if c2paShowL3}
+                            {@const manifests = allManifests()}
+                            {@const hasChain = manifests.length > 1}
                             <div id="c2pa-l3" class="space-y-3 border-t border-border-dark/40 pt-3">
 
-                              <!-- Validation checks -->
-                              {#if result.c2paManifest.validationChecks && result.c2paManifest.validationChecks.length > 0}
-                                <div>
-                                  <p class="text-[10px] text-flint uppercase tracking-wider mb-1.5">Validation checks</p>
-                                  <ul class="space-y-1" aria-label="C2PA validation checks">
-                                    {#each result.c2paManifest.validationChecks as check}
-                                      <li class="flex items-start gap-2">
-                                        <span
-                                          class="flex-shrink-0 w-1.5 h-1.5 rounded-full mt-1.5
-                                                 {check.outcome === 'pass' ? 'bg-malachite dark:bg-malachite-light'
-                                                  : check.outcome === 'fail' ? 'bg-cinnabar dark:bg-cinnabar-light'
-                                                  : 'bg-flint dark:bg-flint-light'}"
-                                          aria-hidden="true"
-                                        ></span>
+                              <!-- Manifest selector tabs — only shown when chain has multiple manifests -->
+                              {#if hasChain}
+                                <div role="tablist" aria-label="Manifest in chain" class="flex flex-wrap gap-1.5">
+                                  {#each manifests as manifest, idx}
+                                    {@const tabLabel = idx === 0 ? 'Active'
+                                      : idx === manifests.length - 1 ? 'Origin'
+                                      : `Intermediate ${idx}`}
+                                    {@const isSelected = selectedManifestIndex === idx}
+                                    {@const isValid = manifest.isValid}
+                                    <button
+                                      role="tab"
+                                      aria-selected={isSelected}
+                                      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium
+                                             transition-colors duration-150
+                                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                                             focus-visible:ring-offset-1 dark:focus-visible:ring-offset-obsidian
+                                             {isSelected
+                                               ? 'bg-lapis/20 text-lapis dark:bg-lapis/30 dark:text-lapis-light'
+                                               : 'bg-graphite-light/40 text-flint hover:bg-graphite-light/70 hover:text-quartz'}"
+                                      onclick={() => { selectedManifestIndex = idx; }}
+                                    >
+                                      <span
+                                        class="w-1.5 h-1.5 rounded-full flex-shrink-0
+                                               {isValid ? 'bg-malachite dark:bg-malachite-light' : 'bg-cinnabar dark:bg-cinnabar-light'}"
+                                        aria-hidden="true"
+                                      ></span>
+                                      {tabLabel}
+                                    </button>
+                                  {/each}
+                                </div>
+                              {/if}
+
+                              <!-- Selected manifest detail panel -->
+                              {#if selectedManifest() !== null}
+                                {@const sm = selectedManifest()}
+                                <div role="tabpanel" aria-label="Manifest details" class="space-y-3">
+
+                                  <!-- Format / title -->
+                                  {#if sm && (sm.format || sm.title)}
+                                    <div class="flex gap-4 flex-wrap">
+                                      {#if sm.title}
                                         <div>
-                                          <span class="text-[11px] font-mono text-flint dark:text-flint-light">{check.code}</span>
-                                          {#if check.explanation}
-                                            <p class="text-[11px] text-quartz mt-0.5">{check.explanation}</p>
-                                          {/if}
+                                          <p class="text-[10px] text-flint uppercase tracking-wider mb-0.5">Title</p>
+                                          <p class="text-xs text-quartz">{sm.title}</p>
                                         </div>
-                                        <span class="sr-only">{check.outcome}</span>
-                                      </li>
-                                    {/each}
-                                  </ul>
-                                </div>
-                              {/if}
-
-                              <!-- All assertions -->
-                              {#if result.c2paManifest.assertions.length > 0}
-                                <div>
-                                  <p class="text-[10px] text-flint uppercase tracking-wider mb-1.5">Assertions</p>
-                                  <ul class="space-y-1" aria-label="Manifest assertions">
-                                    {#each result.c2paManifest.assertions as assertion}
-                                      <li class="text-[11px]">
-                                        <span class="font-mono text-flint dark:text-flint-light">{assertion.label}</span>
-                                      </li>
-                                    {/each}
-                                  </ul>
-                                </div>
-                              {/if}
-
-                              <!-- Format / title -->
-                              {#if result.c2paManifest.format || result.c2paManifest.title}
-                                <div class="flex gap-4 flex-wrap">
-                                  {#if result.c2paManifest.title}
-                                    <div>
-                                      <p class="text-[10px] text-flint uppercase tracking-wider mb-0.5">Title</p>
-                                      <p class="text-xs text-quartz">{result.c2paManifest.title}</p>
+                                      {/if}
+                                      {#if sm.format}
+                                        <div>
+                                          <p class="text-[10px] text-flint uppercase tracking-wider mb-0.5">Format</p>
+                                          <p class="text-xs text-quartz font-mono">{sm.format}</p>
+                                        </div>
+                                      {/if}
                                     </div>
                                   {/if}
-                                  {#if result.c2paManifest.format}
+
+                                  <!-- Validation checks -->
+                                  {#if sm && sm.validationChecks && sm.validationChecks.length > 0}
                                     <div>
-                                      <p class="text-[10px] text-flint uppercase tracking-wider mb-0.5">Format</p>
-                                      <p class="text-xs text-quartz font-mono">{result.c2paManifest.format}</p>
+                                      <p class="text-[10px] text-flint uppercase tracking-wider mb-1.5">Validation checks</p>
+                                      <ul class="space-y-1" aria-label="C2PA validation checks">
+                                        {#each sm.validationChecks as check}
+                                          <li class="flex items-start gap-2">
+                                            <span
+                                              class="flex-shrink-0 w-1.5 h-1.5 rounded-full mt-1.5
+                                                     {check.outcome === 'pass' ? 'bg-malachite dark:bg-malachite-light'
+                                                      : check.outcome === 'fail' ? 'bg-cinnabar dark:bg-cinnabar-light'
+                                                      : 'bg-flint dark:bg-flint-light'}"
+                                              aria-hidden="true"
+                                            ></span>
+                                            <div>
+                                              <span class="text-[11px] font-mono text-flint dark:text-flint-light">{check.code}</span>
+                                              {#if check.explanation}
+                                                <p class="text-[11px] text-quartz mt-0.5">{check.explanation}</p>
+                                              {/if}
+                                            </div>
+                                            <span class="sr-only">{check.outcome}</span>
+                                          </li>
+                                        {/each}
+                                      </ul>
                                     </div>
                                   {/if}
+
+                                  <!-- Assertions -->
+                                  {#if sm && sm.assertions.length > 0}
+                                    <div>
+                                      <p class="text-[10px] text-flint uppercase tracking-wider mb-1.5">Assertions</p>
+                                      <ul class="space-y-1" aria-label="Manifest assertions">
+                                        {#each sm.assertions as assertion}
+                                          <li class="text-[11px]">
+                                            <span class="font-mono text-flint dark:text-flint-light">{assertion.label}</span>
+                                          </li>
+                                        {/each}
+                                      </ul>
+                                    </div>
+                                  {/if}
+
                                 </div>
                               {/if}
 

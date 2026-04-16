@@ -564,6 +564,144 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
         y += valLines.length * 3 + 1;
       }
     }
+
+    // Verification mode row
+    if (m.verificationMode) {
+      row(
+        'Verification Mode',
+        m.verificationMode === 'enhanced' ? 'Enhanced' : 'Standard'
+      );
+    }
+
+    // Provenance chain
+    if (result.c2paChain && result.c2paChain.ingredients.length > 0) {
+      const chain = result.c2paChain;
+      // Sub-heading
+      y += 3;
+      checkPage(10);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(60);
+      doc.text(`Provenance Chain (${chain.manifestCount} manifests)`, MARGIN, y);
+      y += 5;
+      doc.setFont('helvetica', 'normal');
+
+      // C2PA action label mapping
+      const C2PA_ACTION_LABELS: Record<string, string> = {
+        'c2pa.created': 'Created',
+        'c2pa.edited': 'Edited',
+        'c2pa.converted': 'Converted',
+        'c2pa.published': 'Published',
+        'c2pa.placed': 'Placed',
+        'c2pa.dubbed': 'Dubbed',
+        'c2pa.transcribed': 'Transcribed',
+        'c2pa.repackaged': 'Repackaged',
+        'c2pa.translated': 'Translated',
+        'c2pa.color_adjustments': 'Colour adjusted',
+        'c2pa.cropped': 'Cropped',
+        'c2pa.drawing': 'Drawing added',
+        'c2pa.filtered': 'Filtered',
+        'c2pa.orientation': 'Rotated / reoriented',
+        'c2pa.resized': 'Resized',
+        'c2pa.unknown': 'Action unknown',
+        'c2pa.ai_generative_fill': 'AI generative fill',
+        'c2pa.opened': 'Opened',
+        'c2pa.saved': 'Saved',
+        'c2pa.watermarked': 'Watermarked',
+      };
+
+      function parseActionSummary(assertions: { label: string; value: string }[]): string {
+        const actionsAssertion = assertions.find(a => a.label === 'c2pa.actions');
+        if (!actionsAssertion) return '';
+        try {
+          const parsed = JSON.parse(actionsAssertion.value) as { actions?: { action?: string }[] };
+          const actions = parsed?.actions ?? [];
+          if (actions.length === 0) return '';
+          const labels = actions
+            .map(a => a.action ? (C2PA_ACTION_LABELS[a.action] ?? a.action) : '')
+            .filter(Boolean);
+          return labels.join(', ');
+        } catch {
+          return '';
+        }
+      }
+
+      const allNodes = [chain.active, ...chain.ingredients];
+      const lastIdx = allNodes.length - 1;
+
+      for (let idx = 0; idx < allNodes.length; idx++) {
+        const node = allNodes[idx];
+        const nodeLabel = idx === 0 ? 'Active'
+          : idx === lastIdx ? 'Origin'
+          : `Intermediate ${idx}`;
+
+        const signer = node.signedBy ?? node.claimGenerator ?? 'Unknown';
+        const dateStr = node.signedAt
+          ? new Date(node.signedAt).toLocaleString('en-GB')
+          : '\u2014';
+        const actionSummary = parseActionSummary(node.assertions);
+        const validStatus = node.isValid
+          ? (node.validAtSigning ? 'Valid at signing' : 'Valid')
+          : 'Invalid';
+
+        checkPage(LINE_HEIGHT * 4 + 2);
+
+        // Node label in bold
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(60);
+        doc.text(nodeLabel, MARGIN + 2, y);
+        y += 3.5;
+        doc.setFont('helvetica', 'normal');
+
+        // Signer
+        doc.setFontSize(7);
+        doc.setTextColor(100);
+        doc.text('Signer:', MARGIN + 4, y);
+        doc.setTextColor(40);
+        doc.text(signer, MARGIN + 22, y);
+        y += LINE_HEIGHT;
+
+        // Date
+        doc.setTextColor(100);
+        doc.text('Date:', MARGIN + 4, y);
+        doc.setTextColor(40);
+        doc.text(dateStr, MARGIN + 22, y);
+        y += LINE_HEIGHT;
+
+        // Action summary (only if present)
+        if (actionSummary) {
+          doc.setTextColor(100);
+          doc.text('Action:', MARGIN + 4, y);
+          doc.setTextColor(40);
+          const actionLines = doc.splitTextToSize(actionSummary, CONTENT_WIDTH - 26);
+          doc.text(actionLines, MARGIN + 22, y);
+          y += actionLines.length * 3.5;
+        }
+
+        // Validation status
+        const isValid = node.isValid;
+        doc.setTextColor(100);
+        doc.text('Status:', MARGIN + 4, y);
+        if (isValid) {
+          doc.setTextColor(91, 138, 95);
+        } else {
+          doc.setTextColor(205, 92, 92);
+        }
+        doc.text(validStatus, MARGIN + 22, y);
+        doc.setTextColor(40);
+        y += LINE_HEIGHT;
+
+        // Hairline separator between nodes (not after last)
+        if (idx < lastIdx) {
+          doc.setDrawColor(220);
+          doc.setLineWidth(0.1);
+          doc.line(MARGIN + 2, y, PAGE_WIDTH - MARGIN, y);
+          y += 2;
+        }
+      }
+    }
+
   } else {
     paragraph('No C2PA provenance manifest found in this file.');
   }

@@ -18,7 +18,15 @@
 //! Call [`SchedulerHandle::cancel`] to stop the background task.  The handle
 //! wraps an `Arc<AtomicBool>` flag; the scheduler loop checks it on every
 //! wake and terminates without panicking.
+//!
+//! ## Network mode gating
+//! The URL watchlist scheduler makes outbound HTTP requests.  These are gated
+//! by [`crate::network_mode::is_enhanced`].  When the application is in
+//! `Standard` mode (the air-gapped default) the scheduler skips every check
+//! cycle without making any network call.  Only when the user has explicitly
+//! opted in to `Enhanced` mode are outbound HTTP checks performed.
 
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -26,7 +34,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 
 use crate::db::MonitorEvent;
-use crate::{AppState, LicenceTier};
+use crate::{network_mode, AppState, LicenceTier};
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -79,12 +87,17 @@ impl SchedulerHandle {
 ///
 /// The scheduler will not perform any checks on the [`LicenceTier::Community`]
 /// tier — it logs a single notice and idles until cancelled.
-pub fn spawn_scheduler(state: Arc<Mutex<AppState>>) -> SchedulerHandle {
+///
+/// `data_dir` is the application data directory used to read the
+/// [`crate::network_mode::NetworkMode`] setting.  When the mode is `Standard`
+/// (the default / air-gapped setting) the scheduler skips all poll cycles
+/// without making any outbound HTTP request.
+pub fn spawn_scheduler(state: Arc<Mutex<AppState>>, data_dir: PathBuf) -> SchedulerHandle {
     let handle = SchedulerHandle::new();
     let handle_clone = handle.clone();
 
     tauri::async_runtime::spawn(async move {
-        run_scheduler(state, handle_clone).await;
+        run_scheduler(state, handle_clone, data_dir).await;
     });
 
     handle
@@ -93,7 +106,7 @@ pub fn spawn_scheduler(state: Arc<Mutex<AppState>>) -> SchedulerHandle {
 // ── Core loop ────────────────────────────────────────────────────────────────
 
 /// Main scheduler loop.  Runs until [`SchedulerHandle::is_cancelled`] returns `true`.
-async fn run_scheduler(state: Arc<Mutex<AppState>>, handle: SchedulerHandle) {
+async fn run_scheduler(state: Arc<Mutex<AppState>>, handle: SchedulerHandle, data_dir: PathBuf) {
     // Check the licence tier once at startup so we emit at most one log line.
     let tier = {
         match state.lock() {
@@ -157,6 +170,16 @@ async fn run_scheduler(state: Arc<Mutex<AppState>>, handle: SchedulerHandle) {
 
         if matches!(current_tier, LicenceTier::Community) {
             log::info!("Monitor scheduler: licence tier is now Community — skipping poll cycle.");
+            continue;
+        }
+
+        // Gate outbound HTTP on NetworkMode::Enhanced.  Standard mode is the
+        // air-gapped default — no external requests of any kind are made.
+        if !network_mode::is_enhanced(&data_dir) {
+            log::debug!(
+                "Monitor scheduler: network mode is Standard — skipping poll cycle. \
+                 Enable Enhanced mode in Settings to activate URL watchlist checks."
+            );
             continue;
         }
 

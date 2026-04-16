@@ -678,6 +678,8 @@ export interface ManifestInfo {
   signedByIssuer?: string;
   /** Individual validation checks from c2pa-rs, grouped by outcome. */
   validationChecks?: ValidationCheck[];
+  /** Verification mode used for this manifest: "standard" or "enhanced". */
+  verificationMode?: string;
 }
 
 /** A single C2PA validation check result. */

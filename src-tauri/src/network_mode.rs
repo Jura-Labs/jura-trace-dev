@@ -94,9 +94,6 @@ pub fn set_network_mode(data_dir: &Path, mode: NetworkMode) -> Result<(), String
 ///     return Err("Network access is disabled. Switch to Enhanced mode in Settings.".into());
 /// }
 /// ```
-// Published for future use by gated network call sites (OCSP, FP telemetry,
-// URL watchlist). The `#[allow]` is removed once the first call site lands.
-#[allow(dead_code)]
 pub fn is_enhanced(data_dir: &Path) -> bool {
     get_network_mode(data_dir) == NetworkMode::Enhanced
 }
