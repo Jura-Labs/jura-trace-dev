@@ -4,24 +4,28 @@
   import {
     verifyFile, verifyUrl, checkSidecarHealth, markFalsePositive,
     parseAppError, getLicenceTier, getVersion,
+    openBatchFileDialog, extractTextFromImage,
   } from '$lib/api';
-  import { getTrustLevel, formatFileSize } from '$lib/types';
-  import { createBlobTracker } from '$lib/blob';
+  import { getTrustLevel, formatFileSize, formatDuration } from '$lib/types';
   import type {
     VerificationResult, SidecarHealth, VerifyMode, LicenceTier,
     AnomalyFinding, InputQualityAssessment, ManifestInfo,
+    BatchItem, BatchItemStatus,
   } from '$lib/types';
+  import { createBlobTracker } from '$lib/blob';
   import LimitationBanner from '$lib/components/LimitationBanner.svelte';
   import ExperimentalPill from '$lib/components/ExperimentalPill.svelte';
   import ContentCredentialsSeal from '$lib/components/ContentCredentialsSeal.svelte';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
+  import SignalAgreement from '$lib/components/SignalAgreement.svelte';
+  import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
   import { generateTrustReport } from '$lib/pdf';
   import type { ReportContext, ReportFormat } from '$lib/pdf';
   import { exportCaseZip } from '$lib/zip';
   import { saveVerifySession, restoreVerifySession, clearVerifySession } from '$lib/stores/verifySession';
 
   // ── State ──────────────────────────────────────────────────────────
-  let activeTab = $state<'file' | 'url'>('file');
+  let activeTab = $state<'file' | 'batch' | 'url'>('file');
   let filePath = $state<string | null>(null);
   let fileName = $state<string | null>(null);
   let urlInput = $state('');
@@ -57,6 +61,20 @@
 
   // Forensic question card expand state
   let openCard = $state<'provenance' | 'integrity' | 'ai' | 'claims' | null>(null);
+
+  // Raw scores toggle (persisted to localStorage)
+  let showRawScores = $state(false);
+
+  // Batch state
+  let batchItems = $state<BatchItem[]>([]);
+  let batchRunning = $state(false);
+  let batchDragOver = $state(false);
+  let expandedBatchId = $state<string | null>(null);
+
+  // Read Text (Ollama LLaVA)
+  let extractingText = $state(false);
+  let extractedText = $state<string | null>(null);
+  let extractTextError = $state<string | null>(null);
 
   // Test hook store
   const _testResultStore = writable<VerificationResult | null>(null);
@@ -582,6 +600,7 @@
     if (savedMode === 'standard' || savedMode === 'deep' || savedMode === 'archival') {
       verifyMode = savedMode;
     }
+    showRawScores = localStorage.getItem('jura-raw-scores-default') === 'true';
     analystName = localStorage.getItem('jura-analyst-name') ?? '';
     analystOrg = localStorage.getItem('jura-analyst-org') ?? '';
     analystNote = localStorage.getItem('jura-analyst-note') ?? '';
@@ -730,6 +749,7 @@
     loading = false; cancelled = false;
     openCard = null; showImageOverlay = false;
     previewUrl = null;
+    extractedText = null; extractTextError = null;
   }
 
   // ── Export helpers ────────────────────────────────────────────────
@@ -858,6 +878,114 @@
   function highestSeverityFindings(findings: AnomalyFinding[]): AnomalyFinding[] {
     const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
     return [...findings].sort((a, b) => (order[a.severity] ?? 5) - (order[b.severity] ?? 5));
+  }
+
+  // ── Batch helpers ──────────────────────────────────────────────────
+  const batchCompleted = $derived(batchItems.filter(i => i.status === 'done' || i.status === 'error').length);
+  const batchQueued = $derived(batchItems.filter(i => i.status === 'queued').length);
+
+  function addBatchFiles(files: { filePath: string; fileName: string }[]) {
+    const existing = new Set(batchItems.map(i => i.filePath));
+    const newItems: BatchItem[] = files
+      .filter(f => !existing.has(f.filePath))
+      .map(f => ({
+        id: `${Date.now()}-${Math.random()}`,
+        filePath: f.filePath,
+        fileName: f.fileName,
+        status: 'queued' as BatchItemStatus,
+        result: null,
+        error: null,
+        startedAt: null,
+        finishedAt: null,
+      }));
+    batchItems = [...batchItems, ...newItems];
+  }
+
+  async function handleBatchDrop(e: DragEvent) {
+    e.preventDefault();
+    batchDragOver = false;
+    const files = e.dataTransfer?.files;
+    if (!files?.length) return;
+    addBatchFiles(Array.from(files).map(f => ({ filePath: (f as any).path || f.name, fileName: f.name })));
+  }
+
+  async function handleBatchBrowse() {
+    const files = await openBatchFileDialog();
+    if (files.length) addBatchFiles(files);
+  }
+
+  async function runBatch() {
+    if (batchRunning) return;
+    batchRunning = true;
+
+    async function processItem(item: BatchItem) {
+      batchItems = batchItems.map(i => i.id === item.id ? { ...i, status: 'running' as BatchItemStatus, startedAt: Date.now() } : i);
+      try {
+        const res = await verifyFile(item.filePath, verifyMode);
+        batchItems = batchItems.map(i => i.id === item.id ? { ...i, status: 'done' as BatchItemStatus, result: res, finishedAt: Date.now() } : i);
+      } catch (err: any) {
+        batchItems = batchItems.map(i => i.id === item.id ? { ...i, status: 'error' as BatchItemStatus, error: err?.message ?? 'Unknown error', finishedAt: Date.now() } : i);
+      }
+    }
+
+    const queued = batchItems.filter(i => i.status === 'queued');
+    for (const item of queued) {
+      await processItem(item);
+    }
+    batchRunning = false;
+  }
+
+  function removeBatchItem(id: string) {
+    batchItems = batchItems.filter(i => i.id !== id);
+    if (expandedBatchId === id) expandedBatchId = null;
+  }
+
+  function clearBatch() {
+    batchItems = [];
+    expandedBatchId = null;
+  }
+
+  function downloadBatchReport() {
+    const completed = batchItems.filter(i => i.status === 'done' && i.result);
+    if (completed.length === 0) return;
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const csvHeaders = 'Filename,Verdict,Trust Score,Mode,Date\n';
+    const csvRows = completed.map(item => {
+      const r = item.result!;
+      const verdict = r.deepfakeResult?.verdictLevel ?? (r.overallTrust >= 0.7 ? 'authentic' : r.overallTrust >= 0.4 ? 'inconclusive' : 'synthetic');
+      const trust = Math.round(r.overallTrust * 100);
+      const mode = (r as any).mode ?? verifyMode;
+      const date = item.finishedAt ? new Date(item.finishedAt).toISOString().slice(0, 10) : dateStr;
+      const name = item.fileName.replace(/"/g, '""');
+      return `"${name}","${verdict}",${trust},"${mode}","${date}"`;
+    }).join('\n');
+    const blob = new Blob([csvHeaders + csvRows], { type: 'text/csv;charset=utf-8;' });
+    const dlUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = dlUrl;
+    a.download = `jura-batch-results-${dateStr}.csv`;
+    a.click();
+    URL.revokeObjectURL(dlUrl);
+  }
+
+  // ── Read Text (Ollama LLaVA) ───────────────────────────────────────
+  async function handleExtractText() {
+    if (!filePath || extractingText) return;
+    extractingText = true;
+    extractedText = null;
+    extractTextError = null;
+    try {
+      const text = await extractTextFromImage(filePath);
+      if (text) {
+        extractedText = text;
+      } else {
+        extractTextError = 'Text extraction is unavailable. Ensure Ollama is running and llava:7b is pulled.';
+      }
+    } catch {
+      extractTextError = 'Text extraction failed. Check that Ollama is running.';
+    } finally {
+      extractingText = false;
+    }
   }
 </script>
 
@@ -1041,7 +1169,19 @@
 
     {#if checked && result}
       <button
-        class="ml-auto text-xs text-flint dark:text-flint-light hover:text-quartz transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded px-2 py-1"
+        class="ml-auto text-xs px-2.5 py-1.5 min-h-[36px] rounded border transition-colors
+               {showRawScores
+                 ? 'border-lapis bg-lapis/10 text-lapis-light'
+                 : 'border-border-dark text-flint dark:text-flint-light hover:text-quartz'}
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+        onclick={() => { showRawScores = !showRawScores; localStorage.setItem('jura-raw-scores-default', String(showRawScores)); }}
+        aria-pressed={showRawScores}
+        title={showRawScores ? 'Showing raw numerical scores — click to switch to summary view' : 'Click to show raw numerical scores for each detector'}
+      >
+        {showRawScores ? 'Technical View' : 'Summary View'}
+      </button>
+      <button
+        class="text-xs text-flint dark:text-flint-light hover:text-quartz transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded px-2 py-1"
         onclick={reset}
         aria-label="Clear result and verify a new file"
       >Clear result</button>
@@ -1068,9 +1208,13 @@
     <div class="mb-6 bg-graphite border border-border-dark rounded-xl overflow-hidden">
       <!-- Tab bar -->
       <div role="tablist" aria-label="Verification input method" class="flex border-b border-border-dark">
-        {#each [{ id: 'file', label: 'File' }, { id: 'url', label: 'URL' }] as tab}
+        {#each [
+          { id: 'file', label: 'File' },
+          { id: 'batch', label: 'Batch', badge: batchItems.length > 0 ? batchItems.length : null },
+          { id: 'url', label: 'URL' },
+        ] as tab}
           <button
-            class="px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors
+            class="px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5
                    {activeTab === tab.id
                      ? 'text-lapis-light border-lapis-light'
                      : 'text-flint dark:text-flint-light border-transparent hover:text-quartz'}
@@ -1079,8 +1223,13 @@
             aria-selected={activeTab === tab.id}
             aria-controls="v2-tab-{tab.id}"
             id="v2-tab-btn-{tab.id}"
-            onclick={() => activeTab = tab.id as 'file' | 'url'}
-          >{tab.label}</button>
+            onclick={() => activeTab = tab.id as 'file' | 'batch' | 'url'}
+          >
+            {tab.label}
+            {#if (tab as any).badge}
+              <span class="text-[10px] text-flint dark:text-flint-light" aria-label="{(tab as any).badge} files queued">({(tab as any).badge})</span>
+            {/if}
+          </button>
         {/each}
       </div>
 
@@ -1162,6 +1311,168 @@
               onclick={runUrlVerification}
             >{loading ? 'Analysing…' : 'Verify'}</button>
           </div>
+        </div>
+      {/if}
+
+      <!-- Batch tab -->
+      {#if activeTab === 'batch'}
+        <div id="v2-tab-batch" role="tabpanel" aria-labelledby="v2-tab-btn-batch" class="p-4">
+          <!-- Drop zone -->
+          <button
+            class="w-full border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200 cursor-pointer
+                   {batchDragOver ? 'border-lapis-light bg-lapis/5' : 'border-border-dark hover:border-lapis/50'}
+                   {batchRunning ? 'opacity-60 pointer-events-none' : ''}
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light focus-visible:ring-offset-2 focus-visible:ring-offset-graphite"
+            ondragover={(e) => { e.preventDefault(); batchDragOver = true; }}
+            ondragleave={() => { batchDragOver = false; }}
+            ondrop={handleBatchDrop}
+            onclick={handleBatchBrowse}
+            aria-label="Drop multiple files here or click to browse for batch verification"
+          >
+            <div class="flex flex-col items-center gap-2">
+              <svg class="w-8 h-8 text-flint dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              <p class="text-quartz font-medium">Drop multiple files to verify</p>
+              <p class="text-xs text-flint dark:text-flint-light">or click to browse — files are queued for sequential verification</p>
+            </div>
+          </button>
+
+          <!-- Batch controls -->
+          {#if batchItems.length > 0}
+            <div class="flex items-center justify-between mt-4 flex-wrap gap-3">
+              <div class="flex items-center gap-3">
+                <button
+                  class="px-4 py-2.5 min-h-[44px] bg-lapis text-quartz text-sm font-medium rounded-lg hover:bg-lapis-dark transition-colors
+                         disabled:opacity-50 disabled:cursor-not-allowed
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+                  onclick={runBatch}
+                  disabled={batchRunning || batchQueued === 0}
+                >
+                  {batchRunning ? 'Running…' : 'Run Batch'}
+                </button>
+                <span class="text-xs text-flint dark:text-flint-light">{batchCompleted} of {batchItems.length} complete</span>
+              </div>
+              <div class="flex items-center gap-2">
+                {#if batchCompleted > 0}
+                  <button
+                    class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-malachite/50
+                           text-malachite dark:text-malachite-light hover:bg-malachite/10 transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+                    onclick={downloadBatchReport}
+                    aria-label="Download batch verification results as a CSV spreadsheet"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 16v-8m0 8l-3-3m3 3l3-3M4 20h16" />
+                    </svg>
+                    Download CSV
+                  </button>
+                {/if}
+                <button
+                  class="text-xs text-flint dark:text-flint-light hover:text-quartz transition-colors px-2 py-1 rounded
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+                  onclick={clearBatch}
+                  disabled={batchRunning}
+                >Clear all</button>
+              </div>
+            </div>
+
+            <!-- Results table -->
+            <div class="mt-4 bg-obsidian border border-border-dark rounded-lg overflow-x-auto">
+              <div class="grid grid-cols-[1fr_90px_70px_70px_36px] gap-3 px-4 py-2 border-b border-border-dark
+                          text-[10px] text-flint uppercase tracking-wide min-w-[480px]">
+                <span>File</span>
+                <span>Status</span>
+                <span>Trust</span>
+                <span>Duration</span>
+                <span></span>
+              </div>
+              {#each batchItems as item (item.id)}
+                <div class="border-b border-border-dark/50 last:border-0 min-w-[480px]">
+                  <div
+                    class="w-full grid grid-cols-[1fr_90px_70px_70px_36px] gap-3 px-4 py-2.5 text-left
+                           {item.status === 'done' ? 'cursor-pointer hover:bg-white/[0.03]' : ''}
+                           {expandedBatchId === item.id ? 'bg-lapis/5' : ''}"
+                    onclick={() => { if (item.status === 'done') expandedBatchId = expandedBatchId === item.id ? null : item.id; }}
+                    onkeydown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && item.status === 'done') { e.preventDefault(); expandedBatchId = expandedBatchId === item.id ? null : item.id; } }}
+                    role={item.status === 'done' ? 'button' : undefined}
+                    tabindex={item.status === 'done' ? 0 : undefined}
+                    aria-expanded={item.status === 'done' ? expandedBatchId === item.id : undefined}
+                  >
+                    <span class="text-sm text-quartz truncate self-center" title={item.filePath}>{item.fileName}</span>
+                    <span class="text-xs self-center">
+                      {#if item.status === 'queued'}
+                        <span class="text-flint dark:text-flint-light">Queued</span>
+                      {:else if item.status === 'running'}
+                        <span class="flex items-center gap-1.5">
+                          <span class="w-3 h-3 border-2 border-lapis-light border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Verifying"></span>
+                          <span class="text-lapis-light">Running</span>
+                        </span>
+                      {:else if item.status === 'done'}
+                        {@const lv = getTrustLevel(item.result?.overallTrust ?? 0)}
+                        <span class="font-medium px-1.5 py-0.5 rounded
+                          {lv === 'high' ? 'text-malachite dark:text-malachite-light bg-malachite/10'
+                           : lv === 'medium' ? 'text-amber dark:text-amber-light bg-amber/10'
+                           : 'text-cinnabar dark:text-cinnabar-light bg-cinnabar/10'}">Done</span>
+                      {:else}
+                        <span class="text-cinnabar dark:text-cinnabar-light">Error</span>
+                      {/if}
+                    </span>
+                    <span class="text-xs tabular-nums self-center">
+                      {#if item.status === 'done' && item.result}
+                        {@const lv = getTrustLevel(item.result.overallTrust)}
+                        <span class="{lv === 'high' ? 'text-malachite dark:text-malachite-light' : lv === 'medium' ? 'text-amber dark:text-amber-light' : 'text-cinnabar dark:text-cinnabar-light'}">
+                          {Math.round(item.result.overallTrust * 100)}%
+                        </span>
+                      {:else}
+                        <span class="text-flint/50">—</span>
+                      {/if}
+                    </span>
+                    <span class="text-xs text-flint dark:text-flint-light tabular-nums self-center">
+                      {#if item.startedAt && item.finishedAt}
+                        {formatDuration(item.startedAt, item.finishedAt)}
+                      {:else}—{/if}
+                    </span>
+                    <button
+                      class="w-9 h-9 flex items-center justify-center rounded hover:bg-white/10 text-flint hover:text-cinnabar-light transition-colors self-center
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+                      onclick={(e) => { e.stopPropagation(); removeBatchItem(item.id); }}
+                      aria-label="Remove {item.fileName} from queue"
+                      disabled={batchRunning && item.status === 'running'}
+                    >
+                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                  </div>
+                  <!-- Expanded result row -->
+                  {#if expandedBatchId === item.id && item.result}
+                    <div class="px-4 py-3 border-t border-border-dark/40 bg-obsidian/50 text-xs space-y-1">
+                      <p class="text-flint dark:text-flint-light">
+                        Detectors:
+                        {[item.result.exifAnalysis, item.result.elaResult, item.result.noiseResult, item.result.copyMoveResult, item.result.deepfakeResult].filter(Boolean).length} ran
+                        {#if item.result.exifAnalysis?.findings.some((f: AnomalyFinding) => f.severity === 'high' || f.severity === 'critical')}
+                          · <span class="text-amber dark:text-amber-light">EXIF anomalies</span>
+                        {/if}
+                        {#if item.result.elaResult?.suspicious}
+                          · <span class="text-amber dark:text-amber-light">ELA concern</span>
+                        {/if}
+                        {#if item.result.deepfakeResult?.suspicious}
+                          · <span class="text-amber dark:text-amber-light">AI detection concern</span>
+                        {/if}
+                      </p>
+                    </div>
+                  {/if}
+                  {#if item.status === 'error' && item.error}
+                    <div class="px-4 py-2 border-t border-cinnabar/20 bg-cinnabar/5 text-xs text-cinnabar dark:text-cinnabar-light">
+                      {item.error}
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
@@ -1443,6 +1754,28 @@
                       {/if}
                     </div>
                     {#if result.exifAnalysis}
+                      <!-- MakerNote camera authenticity badge -->
+                      {#if (result.exifAnalysis as any).cameraAuthenticityBonus != null && (result.exifAnalysis as any).cameraAuthenticityBonus > 0.5}
+                        <div
+                          class="mb-2 flex items-start gap-2 rounded px-2.5 py-2 bg-malachite/10 border border-malachite/30"
+                          role="note"
+                          aria-label="Camera MakerNote authenticity signal"
+                        >
+                          <span class="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-malachite/15 text-malachite dark:text-malachite-light border border-malachite/30">
+                            Authentic
+                          </span>
+                          <div class="flex-1 min-w-0">
+                            <p class="text-xs font-medium text-malachite dark:text-malachite-light leading-snug">
+                              Camera MakerNote signature verified
+                            </p>
+                            <p class="text-[11px] text-flint dark:text-flint-light leading-relaxed mt-0.5">
+                              Vendor-proprietary MakerNote blob detected — AI generators virtually never synthesise these.
+                              Confidence: <span class="tabular-nums font-medium">{Math.round((result.exifAnalysis as any).cameraAuthenticityBonus * 100)}%</span>.
+                            </p>
+                          </div>
+                        </div>
+                      {/if}
+
                       {#if result.exifAnalysis.findings.length === 0}
                         <p class="text-xs text-malachite dark:text-malachite-light">No anomalies detected</p>
                       {:else}
@@ -1564,9 +1897,14 @@
                     {/if}
                   </div>
                   {#if result.exifAnalysis}
-                    <span class="text-sm font-medium tabular-nums flex-shrink-0 {forensicScoreClass(1 - result.exifAnalysis.trustScore)}">
-                      {Math.round(result.exifAnalysis.trustScore * 100)}%
-                    </span>
+                    <div class="flex flex-col items-end gap-0.5 flex-shrink-0">
+                      <span class="text-sm font-medium tabular-nums {forensicScoreClass(1 - result.exifAnalysis.trustScore)}">
+                        {Math.round(result.exifAnalysis.trustScore * 100)}%
+                      </span>
+                      {#if showRawScores}
+                        <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">trust score</span>
+                      {/if}
+                    </div>
                   {/if}
                 </div>
               </li>
@@ -1998,6 +2336,45 @@
 
               </li>
 
+              <!-- Watermark Detection — provenance signal -->
+              {#if result.watermarkExtractResult}
+                <li class="px-5 py-4 {result.watermarkExtractResult.hasWatermark ? 'bg-malachite/[0.03]' : ''}">
+                  <div class="flex items-start gap-3">
+                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 text-malachite dark:text-malachite-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 mb-1">
+                        <span class="text-sm font-medium text-quartz">Watermark Detection</span>
+                        {#if result.watermarkExtractResult.hasWatermark}
+                          <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-malachite/15 text-malachite dark:text-malachite-light border border-malachite/30">
+                            Found
+                          </span>
+                        {/if}
+                      </div>
+                      {#if result.watermarkExtractResult.hasWatermark}
+                        <p class="text-xs text-malachite dark:text-malachite-light">
+                          Jura Trace watermark detected
+                          {#if result.watermarkExtractResult.confidence != null}
+                            — confidence: {Math.round(result.watermarkExtractResult.confidence * 100)}%
+                          {/if}
+                        </p>
+                        {#if result.watermarkExtractResult.extractedPayload}
+                          <p class="text-xs text-flint dark:text-flint-light mt-0.5 font-mono break-all">{result.watermarkExtractResult.extractedPayload}</p>
+                        {/if}
+                      {:else}
+                        <p class="text-xs text-flint dark:text-flint-light">No Jura Trace watermark detected. This is normal for files not protected via Jura Trace.</p>
+                      {/if}
+                      {#if showRawScores && result.watermarkExtractResult.confidence != null}
+                        <p class="text-[10px] text-flint/60 dark:text-flint-light/60 mt-1 tabular-nums">
+                          confidence: {result.watermarkExtractResult.confidence.toFixed(4)}
+                        </p>
+                      {/if}
+                    </div>
+                  </div>
+                </li>
+              {/if}
+
             </ul>
             {#if result.inputQuality}
               <LimitationBanner quality={result.inputQuality} />
@@ -2055,9 +2432,12 @@
                       {/if}
                     </svg>
                     <span class="text-sm {result.elaResult.suspicious ? 'text-amber-light font-medium' : 'text-quartz'} flex-1">Error Level Analysis</span>
+                    {#if showRawScores}
+                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {result.elaResult.score.toFixed(4)} · threshold: {(result.elaResult as any).threshold?.toFixed(4) ?? '—'}</span>
+                    {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.elaResult.score)}">{Math.round(result.elaResult.score * 100)}%</span>
                     {#if result.elaResult.elaImageBase64}
-                      <img src="data:image/png;base64,{result.elaResult.elaImageBase64}" alt="ELA heatmap" class="w-12 h-8 rounded object-cover border border-border-dark flex-shrink-0" />
+                      <img src="data:image/png;base64,{result.elaResult.elaImageBase64}" alt="ELA heatmap showing compression artefact distribution" class="w-16 h-10 rounded object-cover border border-border-dark flex-shrink-0" />
                     {/if}
                   </div>
                 </li>
@@ -2074,6 +2454,9 @@
                       {/if}
                     </svg>
                     <span class="text-sm {result.noiseResult.suspicious ? 'text-amber-light font-medium' : 'text-quartz'} flex-1">Noise Pattern Analysis</span>
+                    {#if showRawScores}
+                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {result.noiseResult.score.toFixed(4)}</span>
+                    {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.noiseResult.score)}">{Math.round(result.noiseResult.score * 100)}%</span>
                   </div>
                   {#if result.noiseResult.suspicious}
@@ -2093,7 +2476,13 @@
                       {/if}
                     </svg>
                     <span class="text-sm {result.copyMoveResult.suspicious ? 'text-amber-light font-medium' : 'text-quartz'} flex-1">Copy-Move Detection</span>
+                    {#if showRawScores}
+                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {result.copyMoveResult.score.toFixed(4)}</span>
+                    {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.copyMoveResult.score)}">{Math.round(result.copyMoveResult.score * 100)}%</span>
+                    {#if result.copyMoveResult.visualisationBase64}
+                      <img src="data:image/png;base64,{result.copyMoveResult.visualisationBase64}" alt="Copy-move detection visualisation showing cloned regions" class="w-16 h-10 rounded object-cover border border-border-dark flex-shrink-0" />
+                    {/if}
                   </div>
                   {#if result.copyMoveResult.suspicious && result.copyMoveResult.cloneRegions.length > 0}
                     <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{result.copyMoveResult.cloneRegions.length} cloned region{result.copyMoveResult.cloneRegions.length === 1 ? '' : 's'} detected</p>
@@ -2112,7 +2501,13 @@
                       JPEG Ghost
                       <ExperimentalPill variant="uncalibrated" tooltip="JPEG Ghost is weighted at 0.5× in the trust score. See methodology." />
                     </span>
+                    {#if showRawScores}
+                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {result.jpegGhostResult.score.toFixed(4)} · weight: 0.5×</span>
+                    {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.jpegGhostResult.score)}">{Math.round(result.jpegGhostResult.score * 100)}%</span>
+                    {#if (result.jpegGhostResult as any).ghostImageBase64}
+                      <img src="data:image/png;base64,{(result.jpegGhostResult as any).ghostImageBase64}" alt="JPEG Ghost heatmap showing re-compression artefact regions" class="w-16 h-10 rounded object-cover border border-border-dark flex-shrink-0" />
+                    {/if}
                   </div>
                 </li>
               {/if}
@@ -2125,7 +2520,13 @@
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
                     <span class="text-sm {result.segmentedElaResult.suspicious ? 'text-amber-light font-medium' : 'text-quartz'} flex-1">Segmented ELA</span>
+                    {#if showRawScores}
+                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {result.segmentedElaResult.score.toFixed(4)}</span>
+                    {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.segmentedElaResult.score)}">{Math.round(result.segmentedElaResult.score * 100)}%</span>
+                    {#if (result.segmentedElaResult as any).visualizationBase64}
+                      <img src="data:image/png;base64,{(result.segmentedElaResult as any).visualizationBase64}" alt="Segmented ELA region heatmap" class="w-16 h-10 rounded object-cover border border-border-dark flex-shrink-0" />
+                    {/if}
                   </div>
                   {#if result.segmentedElaResult.suspicious}
                     <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{result.segmentedElaResult.anomalousRegions} of {result.segmentedElaResult.totalRegions} regions flagged</p>
@@ -2141,6 +2542,9 @@
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
                     <span class="text-sm {result.colourTemperatureResult.suspicious ? 'text-amber-light font-medium' : 'text-quartz'} flex-1">Colour Temperature</span>
+                    {#if showRawScores}
+                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {result.colourTemperatureResult.score.toFixed(4)}</span>
+                    {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.colourTemperatureResult.score)}">{Math.round(result.colourTemperatureResult.score * 100)}%</span>
                   </div>
                 </li>
@@ -2233,7 +2637,7 @@
                         {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                       </svg>
                       <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 mb-1">
+                        <div class="flex items-center gap-2 mb-1 flex-wrap">
                           <span class="text-sm font-medium {result.deepfakeResult.suspicious ? 'text-amber-light' : 'text-quartz'}">AI Generation (GBM Deepfake)</span>
                           <span class="text-xs px-1.5 py-0.5 rounded bg-graphite-light border border-border-dark text-flint dark:text-flint-light">{result.deepfakeResult.confidence} confidence</span>
                         </div>
@@ -2241,6 +2645,31 @@
                         {#if result.deepfakeResult.verdictLevel}
                           <p class="text-xs mt-1 font-medium {result.deepfakeResult.verdictLevel === 'synthetic' ? 'text-cinnabar dark:text-cinnabar-light' : result.deepfakeResult.verdictLevel === 'inconclusive' ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}">
                             Verdict: {result.deepfakeResult.verdictLevel.charAt(0).toUpperCase() + result.deepfakeResult.verdictLevel.slice(1)}
+                          </p>
+                        {/if}
+                        <!-- Signal breakdown (always shown when signals present) -->
+                        {#if result.deepfakeResult.signals && result.deepfakeResult.signals.length > 0}
+                          <details class="mt-2 group">
+                            <summary class="list-none text-[11px] text-lapis dark:text-lapis-light cursor-pointer hover:text-quartz flex items-center gap-1 min-h-[24px]
+                                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded">
+                              <svg class="w-3 h-3 motion-safe:group-open:rotate-90 transition-transform duration-150" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+                              {result.deepfakeResult.signals.length} signal{result.deepfakeResult.signals.length === 1 ? '' : 's'}
+                            </summary>
+                            <ul class="mt-1.5 space-y-1 ml-4" aria-label="Deepfake detector signals">
+                              {#each result.deepfakeResult.signals as sig}
+                                <li class="flex items-center justify-between gap-3 text-[11px]">
+                                  <span class="text-flint dark:text-flint-light">{sig.name}</span>
+                                  <span class="{sig.triggered ? 'text-amber dark:text-amber-light font-medium' : 'text-malachite dark:text-malachite-light'}">
+                                    {sig.triggered ? 'Triggered' : 'Clear'} · w={sig.weight.toFixed(2)}
+                                  </span>
+                                </li>
+                              {/each}
+                            </ul>
+                          </details>
+                        {/if}
+                        {#if showRawScores}
+                          <p class="text-[10px] text-flint/60 dark:text-flint-light/60 mt-1 tabular-nums font-mono">
+                            score: {result.deepfakeResult.score.toFixed(6)} · threshold: {(result.deepfakeResult as any).threshold?.toFixed(6) ?? '—'}
                           </p>
                         {/if}
                       </div>
@@ -2257,27 +2686,35 @@
                         {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                       </svg>
                       <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 mb-1">
+                        <div class="flex items-center gap-2 mb-1 flex-wrap">
                           <span class="text-sm font-medium {result.clipResult.verdictLevel === 'synthetic' ? 'text-amber-light' : 'text-quartz'}">CLIP / UnivFD Probe</span>
                           <ExperimentalPill variant="uncalibrated" tooltip="CLIP probe AUC 0.9933. See methodology for limitations." />
                         </div>
                         <p class="text-xs text-flint dark:text-flint-light">{result.clipResult.summary}</p>
+                        <!-- Class probability distribution -->
+                        {#if result.clipResult.classProbs && Object.keys(result.clipResult.classProbs).length > 0}
+                          <div class="mt-2 space-y-1" aria-label="CLIP class probability distribution">
+                            {#each Object.entries(result.clipResult.classProbs) as [cls, prob]}
+                              <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-flint dark:text-flint-light w-20 shrink-0 truncate" title={cls}>{cls}</span>
+                                <div class="flex-1 bg-graphite-light dark:bg-graphite-light/50 rounded-full h-1.5 overflow-hidden" role="progressbar" aria-valuenow={Math.round(prob * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="{cls}: {Math.round(prob * 100)}%">
+                                  <div
+                                    class="h-full rounded-full {prob > 0.5 ? 'bg-amber dark:bg-amber-light' : 'bg-lapis dark:bg-lapis-light'}"
+                                    style="width: {Math.round(prob * 100)}%"
+                                  ></div>
+                                </div>
+                                <span class="text-[10px] tabular-nums {forensicScoreClass(prob)} w-8 text-right">{Math.round(prob * 100)}%</span>
+                              </div>
+                            {/each}
+                          </div>
+                        {/if}
+                        {#if showRawScores}
+                          <p class="text-[10px] text-flint/60 dark:text-flint-light/60 mt-1 tabular-nums font-mono">
+                            score: {result.clipResult.score.toFixed(6)} · confidence: {result.clipResult.confidence}
+                          </p>
+                        {/if}
                       </div>
                       <span class="text-sm font-medium tabular-nums flex-shrink-0 {forensicScoreClass(result.clipResult.score)}">{Math.round(result.clipResult.score * 100)}%</span>
-                    </div>
-                  </li>
-                {/if}
-
-                {#if result.watermarkExtractResult}
-                  <li class="px-5 py-3">
-                    <div class="flex items-center gap-3">
-                      <svg class="w-3.5 h-3.5 flex-shrink-0 text-malachite dark:text-malachite-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                      <span class="text-sm text-quartz flex-1">Watermark Detection</span>
-                      <span class="text-xs text-flint dark:text-flint-light">
-                        {result.watermarkExtractResult.hasWatermark ? 'Watermark found' : 'No watermark detected'}
-                      </span>
                     </div>
                   </li>
                 {/if}
@@ -2375,6 +2812,82 @@
       </div>
     </section>
 
+    <!-- ── AI Description (Ollama LLaVA) ────────────────────────────── -->
+    {#if result.aiDescription}
+      <section
+        class="mb-4 bg-graphite border border-border-dark rounded-xl p-5"
+        aria-labelledby="v2-ai-desc-heading"
+      >
+        <h2 id="v2-ai-desc-heading" class="font-serif text-base text-quartz mb-2">AI Image Description</h2>
+        <p class="text-sm text-quartz leading-relaxed italic break-words whitespace-pre-wrap">"{result.aiDescription}"</p>
+        <p class="mt-2 text-xs text-flint dark:text-flint-light">Generated by LLaVA 7B via Ollama. This is an AI-generated description and is not a verified fact.</p>
+      </section>
+    {/if}
+
+    <!-- ── Read Text (Ollama LLaVA) ──────────────────────────────────── -->
+    {#if result.contentType === 'image' && filePath && sidecarHealth?.ollama !== null}
+      <section
+        class="mb-4 bg-graphite border border-border-dark rounded-xl p-5"
+        aria-labelledby="v2-read-text-heading"
+      >
+        <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+          <h2 id="v2-read-text-heading" class="font-serif text-base text-quartz">Read Text</h2>
+          <button
+            type="button"
+            onclick={handleExtractText}
+            disabled={extractingText}
+            aria-busy={extractingText}
+            class="inline-flex items-center gap-2 text-xs px-3 py-2 min-h-[44px] rounded border border-lapis/40 text-lapis dark:text-lapis-light
+                   hover:bg-lapis/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+          >
+            {#if extractingText}
+              <svg class="w-3.5 h-3.5 motion-safe:animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              Reading text…
+            {:else}
+              Read Text (Ollama)
+            {/if}
+          </button>
+        </div>
+        <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-3">
+          Transcribe all visible text in this image using LLaVA. Useful for screenshots, social media posts, and document images.
+        </p>
+        {#if extractTextError}
+          <div role="alert" aria-live="assertive" class="rounded border border-cinnabar/30 bg-cinnabar/10 px-4 py-3 text-xs text-cinnabar dark:text-cinnabar-light leading-relaxed">
+            {extractTextError}
+          </div>
+        {/if}
+        {#if extractedText}
+          <div role="status" aria-live="polite" class="rounded-lg border border-border-dark bg-obsidian/50 px-4 py-3">
+            <p class="text-[10px] text-flint uppercase tracking-wider mb-2">Extracted Text</p>
+            <pre class="text-sm text-quartz whitespace-pre-wrap font-mono leading-relaxed">{extractedText}</pre>
+            <p class="mt-3 text-xs text-flint dark:text-flint-light">Extracted by LLaVA 7B via Ollama. Review carefully — AI models can misread text in low-resolution or heavily compressed images.</p>
+          </div>
+        {/if}
+      </section>
+    {/if}
+
+    <!-- ── Signal Agreement Table ────────────────────────────────────── -->
+    <section class="mb-4" aria-label="Signal agreement across all detectors">
+      <details class="group bg-graphite border border-border-dark rounded-xl overflow-hidden">
+        <summary class="list-none flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-white/[0.02] transition-colors min-h-[56px]
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis-light"
+                 aria-label="Signal Agreement — cross-detector summary table">
+          <svg class="w-4 h-4 text-flint flex-shrink-0 motion-safe:group-open:rotate-90 transition-transform duration-200"
+               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+               aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+          <span class="font-serif text-base text-quartz flex-1">Signal Agreement</span>
+          <span class="text-xs text-flint dark:text-flint-light">Cross-detector overview</span>
+        </summary>
+        <div class="border-t border-border-dark/60 px-5 py-4">
+          <SignalAgreement {result} />
+        </div>
+      </details>
+    </section>
+
     <!-- ── Actions footer ──────────────────────────────────────────── -->
     <div class="flex items-center gap-3 flex-wrap bg-graphite border border-border-dark rounded-xl px-5 py-4">
       <button
@@ -2427,6 +2940,11 @@
       Region-of-interest analysis, per-frame video deepfake detail, sun position estimation, and annotation tools are available in the
       <a href="/verify" class="underline hover:text-flint dark:hover:text-flint-light">classic view</a>.
     </p>
+
+    <!-- ── Methodology Panel ────────────────────────────────────────── -->
+    <div class="mt-4">
+      <MethodologyPanel {result} {sidecarHealth} {appVersion} />
+    </div>
 
   {/if}<!-- end #if checked && result -->
 
