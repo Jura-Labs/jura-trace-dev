@@ -150,13 +150,30 @@
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')} UTC`;
   }
 
-  // Reset sun state when result changes
+  // Reset sun state and pre-populate date/hour from EXIF when result changes
   $effect(() => {
     void result;
     sunPosition = null;
     sunError = null;
-    sunDateInput = '';
-    sunHourInput = 12;
+    // Pre-fill from EXIF datetimeOriginal (format: "2025:08:14 05:47:00" or "2025-08-14T05:47:00")
+    const dt = result?.imageMetadata?.datetimeOriginal;
+    if (dt) {
+      const dateMatch = dt.match(/(\d{4})[:\-](\d{2})[:\-](\d{2})/);
+      const hourMatch = dt.match(/(\d{2}):\d{2}:\d{2}/);
+      if (dateMatch) {
+        sunDateInput = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+      } else {
+        sunDateInput = '';
+      }
+      if (hourMatch) {
+        sunHourInput = parseInt(hourMatch[1], 10);
+      } else {
+        sunHourInput = 12;
+      }
+    } else {
+      sunDateInput = '';
+      sunHourInput = 12;
+    }
   });
 
   // ── Derived ────────────────────────────────────────────────────────
@@ -1959,7 +1976,15 @@
                           {#if meta.gpsLatitude != null && meta.gpsLongitude != null}
                             <div>
                               <p class="text-[10px] text-flint uppercase tracking-wider">GPS</p>
-                              <p class="text-quartz">{meta.gpsLatitude.toFixed(6)}, {meta.gpsLongitude.toFixed(6)}</p>
+                              <p class="text-quartz">
+                                {meta.gpsLatitude.toFixed(6)}, {meta.gpsLongitude.toFixed(6)}
+                                <a
+                                  href="https://www.openstreetmap.org/?mlat={meta.gpsLatitude}&mlon={meta.gpsLongitude}#map=16/{meta.gpsLatitude}/{meta.gpsLongitude}"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  class="ml-1.5 text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline text-[11px]"
+                                >View on map</a>
+                              </p>
                             </div>
                           {/if}
                           {#if meta.artist}
