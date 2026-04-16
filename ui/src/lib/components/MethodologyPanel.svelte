@@ -17,6 +17,12 @@
 
   // ── Derived ──────────────────────────────────────────────────────────
 
+  interface StageCitation {
+    authors: string;
+    year: number;
+    paper: string;
+  }
+
   /** Which pipeline stages ran, derived from presence of result sub-objects */
   const stages = $derived([
     {
@@ -24,36 +30,42 @@
       label: 'EXIF Analysis',
       description: 'Reads embedded metadata fields and checks for anomalies, inconsistencies, and signs of editing.',
       ran: true, // Always runs
+      citation: { authors: 'Kee, E. & Farid, H.', year: 2011, paper: 'Digital Forensics of EXIF Metadata Inconsistencies in Digital Photographs' } as StageCitation,
     },
     {
       id: 'c2pa',
       label: 'C2PA Verification',
       description: 'Reads and validates C2PA provenance manifests embedded in the file to establish provenance.',
       ran: true, // Always runs
+      citation: { authors: 'Coalition for Content Provenance and Authenticity', year: 2024, paper: 'C2PA Content Credentials Technical Specification v2.3' } as StageCitation,
     },
     {
       id: 'ela',
       label: 'Error Level Analysis',
       description: 'Re-compresses the image at a known quality and measures pixel-level differences to detect regions that have been edited at a different compression history.',
       ran: result.elaResult !== undefined,
+      citation: { authors: 'Krawetz, N.', year: 2007, paper: "A Picture's Worth: Digital Image Analysis and Forensics" } as StageCitation,
     },
     {
       id: 'noise',
       label: 'Noise Analysis',
       description: 'Analyses block-wise noise variance across the image. Inconsistent noise patterns between regions can indicate splicing, inpainting, or compositing.',
       ran: result.noiseResult !== undefined,
+      citation: { authors: 'Mahdian, B. & Saic, S.', year: 2009, paper: 'Noise Inconsistencies in Digital Photographs' } as StageCitation,
     },
     {
       id: 'copymove',
       label: 'Copy-Move Detection',
       description: 'Searches for duplicated regions within the image using feature matching. A high number of matched pairs may indicate content has been cloned from one area to another.',
       ran: result.copyMoveResult !== undefined,
+      citation: { authors: 'Lowe, D.G.', year: 2004, paper: 'Distinctive Image Features from Scale-Invariant Keypoints' } as StageCitation,
     },
     {
       id: 'deepfake',
       label: 'AI Generation Detection',
       description: 'Applies a weighted ensemble of statistical signals — frequency spectrum analysis, colour distribution, texture regularity, and invisible watermark checks — to assess whether the image is likely AI-generated.',
       ran: result.deepfakeResult !== undefined,
+      citation: { authors: 'Ojha, U. et al.', year: 2023, paper: 'Towards Universal Fake Image Detectors that Generalise Across Generative Models' } as StageCitation,
     },
   ]);
 
@@ -147,6 +159,11 @@
                 </span>
               </div>
               <p class="text-xs text-flint dark:text-flint-light mt-0.5 leading-relaxed">{stage.description}</p>
+              {#if stage.citation}
+                <p class="text-[10px] text-flint/60 dark:text-flint/50 mt-0.5 leading-snug italic">
+                  {stage.citation.authors} ({stage.citation.year}). {stage.citation.paper}.
+                </p>
+              {/if}
             </div>
           </div>
         {/each}

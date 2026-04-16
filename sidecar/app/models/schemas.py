@@ -455,6 +455,29 @@ class AudioDeepfakeResponse(BaseModel):
     """Wall-clock time for the full ensemble call in milliseconds."""
 
 
+class DctAnalysisResponse(BaseModel):
+    """8×8 block DCT coefficient map analysis result."""
+
+    heatmap_base64: str
+    dc_std: float
+    ac_mean: float
+    ac_std: float
+    ac_coefficient_of_variation: float
+    suspicious: bool
+    score: float
+    summary: str
+
+
+class FourierAnalysisResponse(BaseModel):
+    """2D FFT periodic pattern detection result."""
+
+    spectrum_base64: str
+    peak_count: int
+    suspicious: bool
+    score: float
+    summary: str
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
 

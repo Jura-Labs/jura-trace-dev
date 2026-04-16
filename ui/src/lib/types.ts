@@ -466,6 +466,18 @@ export interface VerificationResult {
   aiDescription?: string | null;
   /** EXIF thumbnail vs main image consistency check (images only). */
   thumbnailCheck?: ThumbnailCheck | null;
+  /**
+   * 8×8 block DCT coefficient map analysis result.
+   * Only populated in deep/archival mode when the sidecar is available.
+   * Only present for image content.
+   */
+  dctAnalysisResult?: DctAnalysisResult | null;
+  /**
+   * 2D Fourier periodic pattern detection result.
+   * Only populated in deep/archival mode when the sidecar is available.
+   * Only present for image content.
+   */
+  fourierAnalysisResult?: FourierAnalysisResult | null;
   /** Methodology metadata for reproducibility (pipeline version, sidecar version, classifier hash). */
   methodology?: MethodologyRecord | null;
   /** Input quality assessment — conditions that degrade detector reliability. */
@@ -515,8 +527,53 @@ export interface MethodologyRecord {
 /** EXIF thumbnail vs main image consistency check. */
 export interface ThumbnailCheck {
   hasThumbnail: boolean;
-  hammingDistance?: number;
+  /** Width of the embedded EXIF thumbnail in pixels. */
+  thumbnailWidth?: number | null;
+  /** Height of the embedded EXIF thumbnail in pixels. */
+  thumbnailHeight?: number | null;
+  hammingDistance?: number | null;
+  /**
+   * Normalised mean squared error between thumbnail pixels and the
+   * corresponding region of the full image, in [0, 1].
+   * Values above ~0.02 suggest post-capture modification.
+   */
+  differenceScore?: number | null;
   mismatch: boolean;
+  /** Human-readable summary of the consistency check result. */
+  summary: string;
+}
+
+/** 8×8 block DCT coefficient map analysis result. */
+export interface DctAnalysisResult {
+  /** Base64-encoded PNG heatmap of per-block AC energy distribution. */
+  heatmapBase64: string;
+  /** Standard deviation of the DC (mean brightness) coefficient across blocks. */
+  dcStd: number;
+  /** Mean AC energy across all blocks. */
+  acMean: number;
+  /** Standard deviation of AC energy across all blocks. */
+  acStd: number;
+  /**
+   * AC energy coefficient of variation (acStd / acMean).
+   * Values above ~0.5 indicate mixed compression levels (splice indicator).
+   */
+  acCoefficientOfVariation: number;
+  suspicious: boolean;
+  /** Normalised score in [0, 1]. */
+  score: number;
+  summary: string;
+}
+
+/** 2D Fourier periodic pattern detection result. */
+export interface FourierAnalysisResult {
+  /** Base64-encoded PNG of the log-magnitude FFT spectrum. */
+  spectrumBase64: string;
+  /** Number of discrete spectral peaks above the 3-sigma detection threshold. */
+  peakCount: number;
+  suspicious: boolean;
+  /** Normalised score in [0, 1] (peakCount / 100, capped at 1). */
+  score: number;
+  summary: string;
 }
 
 /** Severity level for an EXIF anomaly finding */

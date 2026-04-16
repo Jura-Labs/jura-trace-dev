@@ -658,6 +658,61 @@ pub struct ContentTypeResult {
     pub reasoning: String,
 }
 
+/// Block-level DCT coefficient map analysis result.
+///
+/// Measures per-block AC energy variance across all 8×8 DCT blocks in the
+/// image. A high coefficient of variation indicates mixed compression
+/// levels — a strong indicator of splice or composite forgery.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DctAnalysisResult {
+    /// Base64-encoded PNG heatmap of per-block AC energy distribution.
+    #[serde(alias = "heatmap_base64")]
+    pub heatmap_base64: String,
+    /// Standard deviation of the DC (mean brightness) coefficient across blocks.
+    #[serde(alias = "dc_std")]
+    pub dc_std: f64,
+    /// Mean AC energy across all blocks.
+    #[serde(alias = "ac_mean")]
+    pub ac_mean: f64,
+    /// Standard deviation of AC energy across all blocks.
+    #[serde(alias = "ac_std")]
+    pub ac_std: f64,
+    /// AC energy coefficient of variation (ac_std / ac_mean).
+    /// Values above ~0.5 indicate compression inconsistencies.
+    #[serde(alias = "ac_coefficient_of_variation")]
+    pub ac_coefficient_of_variation: f64,
+    /// `true` when `ac_coefficient_of_variation` exceeds the threshold.
+    pub suspicious: bool,
+    /// Normalised score in [0, 1].
+    pub score: f64,
+    /// Human-readable interpretation.
+    pub summary: String,
+}
+
+/// 2D Fourier periodic pattern detection result.
+///
+/// Counts discrete spectral peaks in the log-magnitude FFT spectrum
+/// (excluding the DC region). Authentic photographs have a smooth,
+/// isotropic spectrum; GAN-generated images, screen-recaptured content,
+/// and composited sources typically exhibit discrete off-centre peaks.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FourierAnalysisResult {
+    /// Base64-encoded PNG of the log-magnitude spectrum.
+    #[serde(alias = "spectrum_base64")]
+    pub spectrum_base64: String,
+    /// Number of spectral peaks above the 3-sigma detection threshold.
+    #[serde(alias = "peak_count")]
+    pub peak_count: u32,
+    /// `true` when `peak_count` exceeds the threshold (default: 20 peaks).
+    pub suspicious: bool,
+    /// Normalised score in [0, 1] (peak_count / 100, capped at 1).
+    pub score: f64,
+    /// Human-readable interpretation.
+    pub summary: String,
+}
+
 /// HTTP client for the Python ML sidecar.
 ///
 /// Cheaply cloneable — the inner `reqwest::blocking::Client` uses an `Arc`
@@ -1372,6 +1427,66 @@ impl SidecarClient {
     /// Checks the internal file cache first — if the path matches, uses
     /// cached bytes instead of re-reading from disk.  The verify pipeline
     /// calls `cache_file_bytes` once before the parallel sidecar group,
+    /// Run 8×8 block DCT coefficient map analysis on an image file.
+    ///
+    /// Computes AC energy variance across all DCT blocks and returns a
+    /// heatmap plus a coefficient-of-variation score. High CV indicates
+    /// mixed compression levels — a strong splice/composite marker.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/dct-analysis`.
+    /// Only called in deep/archival mode.
+    pub fn analyse_dct(&self, image_path: &Path) -> Result<DctAnalysisResult, String> {
+        let form = self.build_image_form(image_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/dct-analysis", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(30))
+            .send()
+            .map_err(|e| format!("Sidecar DCT analysis request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!("Sidecar DCT analysis returned {status}: {body}"));
+        }
+
+        resp.json::<DctAnalysisResult>()
+            .map_err(|e| format!("Failed to parse DCT analysis response: {e}"))
+    }
+
+    /// Run 2D Fourier periodic pattern detection on an image file.
+    ///
+    /// Counts discrete spectral peaks in the log-magnitude FFT spectrum
+    /// (excluding DC). A high peak count indicates periodic artefacts from
+    /// GAN upsampling, screen recapture, or resampling during compositing.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/fourier-analysis`.
+    /// Only called in deep/archival mode.
+    pub fn analyse_fourier(&self, image_path: &Path) -> Result<FourierAnalysisResult, String> {
+        let form = self.build_image_form(image_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/fourier-analysis", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(30))
+            .send()
+            .map_err(|e| format!("Sidecar Fourier analysis request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!(
+                "Sidecar Fourier analysis returned {status}: {body}"
+            ));
+        }
+
+        resp.json::<FourierAnalysisResult>()
+            .map_err(|e| format!("Failed to parse Fourier analysis response: {e}"))
+    }
+
     /// avoiding 4–9 redundant disk reads per image.
     fn build_image_form(
         &self,

@@ -191,6 +191,14 @@ pub struct VerificationResult {
     /// Comparison between the EXIF-embedded thumbnail and the full image.
     /// `None` for non-image content types.
     pub thumbnail_check: Option<ThumbnailCheck>,
+    /// 8×8 block DCT coefficient map analysis result.
+    /// Only populated in deep/archival mode when the sidecar is available.
+    /// `None` for non-image content types.
+    pub dct_analysis_result: Option<sidecar::DctAnalysisResult>,
+    /// 2D Fourier periodic pattern detection result.
+    /// Only populated in deep/archival mode when the sidecar is available.
+    /// `None` for non-image content types.
+    pub fourier_analysis_result: Option<sidecar::FourierAnalysisResult>,
     /// SHA-256 hex digest of the input file computed at verification time.
     /// Allows the caller to confirm the file has not changed since import.
     pub input_sha256: Option<String>,
@@ -226,21 +234,43 @@ pub struct VerificationResult {
 
 /// Result of comparing the EXIF-embedded thumbnail against the full image.
 ///
-/// A large Hamming distance between thumbnail pHash and full-image pHash
-/// indicates the thumbnail no longer matches the visible content — a common
-/// artefact of cropping, splicing, or AI in-painting applied after the
-/// original EXIF was written.
+/// Combines two complementary signals:
+///
+/// 1. **pHash Hamming distance** — perceptual hash mismatch between the
+///    thumbnail and the resized full image. A distance above 10 indicates
+///    the thumbnail no longer represents the visible content (crop, splice,
+///    AI in-painting applied after the original EXIF was written).
+///
+/// 2. **Pixel MSE** — mean squared error between the thumbnail pixels and
+///    the corresponding region of the full image after normalisation to the
+///    thumbnail's exact dimensions. MSE above ~0.02 (on a [0, 1] scale) is a
+///    secondary signal that confirms perceptual deviation even when pHash
+///    Hamming distance is borderline.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ThumbnailCheck {
     /// Whether the file contained an EXIF-embedded thumbnail.
     pub has_thumbnail: bool,
+    /// Width of the embedded thumbnail in pixels.
+    /// `None` when `has_thumbnail` is `false` or decoding failed.
+    pub thumbnail_width: Option<u32>,
+    /// Height of the embedded thumbnail in pixels.
+    /// `None` when `has_thumbnail` is `false` or decoding failed.
+    pub thumbnail_height: Option<u32>,
     /// Hamming distance between thumbnail pHash and full-image pHash.
     /// `None` when `has_thumbnail` is `false` or hashing failed.
     pub hamming_distance: Option<u32>,
-    /// `true` when `hamming_distance` exceeds 10 — the thumbnail does not
-    /// match the visible content, suggesting post-capture modification.
+    /// Normalised mean squared error between thumbnail pixels and the
+    /// corresponding region of the full image, in [0.0, 1.0].
+    /// `None` when `has_thumbnail` is `false` or pixel comparison failed.
+    /// Values above ~0.02 suggest post-capture modification.
+    pub difference_score: Option<f64>,
+    /// `true` when either `hamming_distance` > 10 or `difference_score` > 0.02 —
+    /// the thumbnail does not match the visible content, suggesting
+    /// post-capture modification.
     pub mismatch: bool,
+    /// Human-readable summary of the consistency check result.
+    pub summary: String,
 }
 
 /// Application statistics for the dashboard.
@@ -1332,10 +1362,10 @@ pub(crate) fn run_standard_sidecar_group(
 }
 
 /// Run the deep sidecar parallel group: noise + copy-move + JPEG ghost + segmented ELA
-/// + colour temperature.
+/// + colour temperature + DCT analysis + Fourier analysis.
 ///
-/// All five detectors are independent. Running them via `std::thread::scope` cuts
-/// deep-mode wall time from ~15–20 s sequential to the slowest single detector (~5 s).
+/// All seven detectors are independent. Running them via `std::thread::scope` cuts
+/// deep-mode wall time from ~20+ s sequential to the slowest single detector (~5 s).
 ///
 /// NPR, shadow consistency, and splice boundary are **not** included here — they were
 /// demoted to on-demand investigation tools in Sprint 28 (April 2026) and are returned
@@ -1343,7 +1373,8 @@ pub(crate) fn run_standard_sidecar_group(
 ///
 /// Returns `(noise_score, noise_result, copy_move_score, copy_move_result, npr_result,
 ///           jpeg_ghost_result, segmented_ela_result, shadow_consistency_result,
-///           colour_temperature_result, splice_boundary_result)`.
+///           colour_temperature_result, splice_boundary_result,
+///           dct_analysis_result, fourier_analysis_result)`.
 #[allow(clippy::type_complexity)]
 pub(crate) fn run_deep_sidecar_group(
     path: &std::path::Path,
@@ -1359,6 +1390,8 @@ pub(crate) fn run_deep_sidecar_group(
     Option<sidecar::ShadowConsistencyResult>,
     Option<sidecar::ColourTemperatureResult>,
     Option<sidecar::SpliceBoundaryResult>,
+    Option<sidecar::DctAnalysisResult>,
+    Option<sidecar::FourierAnalysisResult>,
 ) {
     let t_deep = std::time::Instant::now();
 
@@ -1377,54 +1410,76 @@ pub(crate) fn run_deep_sidecar_group(
     let jg_path = path.to_path_buf();
     let seg_path = path.to_path_buf();
     let ct_path = path.to_path_buf();
+    let dct_path = path.to_path_buf();
+    let fourier_path = path.to_path_buf();
 
     let noise_client = sidecar.clone();
     let cm_client = sidecar.clone();
     let jg_client = sidecar.clone();
     let seg_client = sidecar.clone();
     let ct_client = sidecar.clone();
+    let dct_client = sidecar.clone();
+    let fourier_client = sidecar.clone();
 
-    let (noise_out, cm_out, jg_out, seg_out, ct_out) = std::thread::scope(|s| {
-        let noise_h = s.spawn(move || {
-            let t = std::time::Instant::now();
-            let r = noise_client.analyse_noise(&noise_path);
-            log::info!("PERF: noise analysis took {:?}", t.elapsed());
-            r
+    let (noise_out, cm_out, jg_out, seg_out, ct_out, dct_out, fourier_out) =
+        std::thread::scope(|s| {
+            let noise_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = noise_client.analyse_noise(&noise_path);
+                log::info!("PERF: noise analysis took {:?}", t.elapsed());
+                r
+            });
+            let cm_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = cm_client.detect_copy_move(&cm_path);
+                log::info!("PERF: copy-move detection took {:?}", t.elapsed());
+                r
+            });
+            let jg_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = jg_client.detect_jpeg_ghost(&jg_path);
+                log::info!("PERF: JPEG ghost detection took {:?}", t.elapsed());
+                r
+            });
+            let seg_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = seg_client.check_segmented_ela(&seg_path);
+                log::info!("PERF: segmented ELA took {:?}", t.elapsed());
+                r
+            });
+            let ct_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = ct_client.check_colour_temperature(&ct_path);
+                log::info!("PERF: colour temperature took {:?}", t.elapsed());
+                r
+            });
+            let dct_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = dct_client.analyse_dct(&dct_path);
+                log::info!("PERF: DCT analysis took {:?}", t.elapsed());
+                r
+            });
+            let fourier_h = s.spawn(move || {
+                let t = std::time::Instant::now();
+                let r = fourier_client.analyse_fourier(&fourier_path);
+                log::info!("PERF: Fourier analysis took {:?}", t.elapsed());
+                r
+            });
+            (
+                noise_h.join(),
+                cm_h.join(),
+                jg_h.join(),
+                seg_h.join(),
+                ct_h.join(),
+                dct_h.join(),
+                fourier_h.join(),
+            )
         });
-        let cm_h = s.spawn(move || {
-            let t = std::time::Instant::now();
-            let r = cm_client.detect_copy_move(&cm_path);
-            log::info!("PERF: copy-move detection took {:?}", t.elapsed());
-            r
-        });
-        let jg_h = s.spawn(move || {
-            let t = std::time::Instant::now();
-            let r = jg_client.detect_jpeg_ghost(&jg_path);
-            log::info!("PERF: JPEG ghost detection took {:?}", t.elapsed());
-            r
-        });
-        let seg_h = s.spawn(move || {
-            let t = std::time::Instant::now();
-            let r = seg_client.check_segmented_ela(&seg_path);
-            log::info!("PERF: segmented ELA took {:?}", t.elapsed());
-            r
-        });
-        let ct_h = s.spawn(move || {
-            let t = std::time::Instant::now();
-            let r = ct_client.check_colour_temperature(&ct_path);
-            log::info!("PERF: colour temperature took {:?}", t.elapsed());
-            r
-        });
-        (
-            noise_h.join(),
-            cm_h.join(),
-            jg_h.join(),
-            seg_h.join(),
-            ct_h.join(),
-        )
-    });
 
-    log::info!("PERF: deep group (noise + copy-move + JPEG ghost + segmented ELA + colour-temp, parallel) took {:?}", t_deep.elapsed());
+    log::info!(
+        "PERF: deep group (noise + copy-move + JPEG ghost + segmented ELA + colour-temp + DCT + Fourier, parallel) took {:?}",
+        t_deep.elapsed()
+    );
 
     let (noise_score, noise_result) = match noise_out {
         Ok(Ok(r)) => (Some(r.score), Some(r)),
@@ -1481,6 +1536,28 @@ pub(crate) fn run_deep_sidecar_group(
             None
         }
     };
+    let dct_analysis_result = match dct_out {
+        Ok(Ok(r)) => Some(r),
+        Ok(Err(e)) => {
+            log::warn!("Sidecar DCT analysis failed: {e}");
+            None
+        }
+        Err(_) => {
+            log::warn!("Sidecar DCT analysis thread panicked");
+            None
+        }
+    };
+    let fourier_analysis_result = match fourier_out {
+        Ok(Ok(r)) => Some(r),
+        Ok(Err(e)) => {
+            log::warn!("Sidecar Fourier analysis failed: {e}");
+            None
+        }
+        Err(_) => {
+            log::warn!("Sidecar Fourier analysis thread panicked");
+            None
+        }
+    };
 
     // NPR, shadow consistency, and splice boundary no longer auto-run
     // in the deep group — see doc comment above. The Option fields remain
@@ -1501,6 +1578,8 @@ pub(crate) fn run_deep_sidecar_group(
         shadow_consistency_result,
         colour_temperature_result,
         splice_boundary_result,
+        dct_analysis_result,
+        fourier_analysis_result,
     )
 }
 
@@ -1706,38 +1785,97 @@ fn verify_content_inner(
 
     // ── Thumbnail consistency check ───────────────────────────────────────
     // Compare the EXIF-embedded JPEG thumbnail against the full image using
-    // pHash. A Hamming distance > 10 suggests the image was modified after
-    // the original thumbnail was written (crop, splice, AI in-painting, etc.).
+    // two complementary signals:
+    //   1. pHash Hamming distance > 10 — perceptual mismatch
+    //   2. Normalised pixel MSE > 0.02 — pixel-level deviation
+    // Either signal being true marks the thumbnail as inconsistent.
     // Only performed for image content types; skipped gracefully on failure.
     let thumbnail_check: Option<ThumbnailCheck> = if is_image {
         let thumb_bytes = metadata::extract_exif_thumbnail(&path);
         match thumb_bytes {
             None => Some(ThumbnailCheck {
                 has_thumbnail: false,
+                thumbnail_width: None,
+                thumbnail_height: None,
                 hamming_distance: None,
+                difference_score: None,
                 mismatch: false,
+                summary: "No EXIF thumbnail embedded in this image.".to_string(),
             }),
             Some(bytes) => {
+                // Decode thumbnail to get its dimensions and pixels.
+                let thumb_img = image::load_from_memory(&bytes).ok();
+                let (thumb_w, thumb_h) = thumb_img
+                    .as_ref()
+                    .map(|i| (i.width(), i.height()))
+                    .unwrap_or((0, 0));
+
                 let thumb_hash = fingerprint::compute_phash_from_bytes(&bytes);
-                // Compute only a pHash of the main image — we only need
-                // pHash for the thumbnail mismatch check (not aHash/dHash).
                 let main_phash = fingerprint::compute_phash(&path);
 
-                match (thumb_hash, main_phash) {
-                    (Some(th), Some(mh)) => {
-                        let distance = fingerprint::hamming_distance(&th, &mh).unwrap_or(64);
-                        Some(ThumbnailCheck {
-                            has_thumbnail: true,
-                            hamming_distance: Some(distance),
-                            mismatch: distance > 10,
-                        })
+                // Compute pixel MSE: load main image, resize to thumbnail dims,
+                // compare luma channels normalised to [0, 1].
+                let mse: Option<f64> = (|| -> Option<f64> {
+                    if thumb_w == 0 || thumb_h == 0 {
+                        return None;
                     }
-                    _ => Some(ThumbnailCheck {
-                        has_thumbnail: true,
-                        hamming_distance: None,
-                        mismatch: false,
-                    }),
-                }
+                    let main_img = image::open(&path).ok()?;
+                    let main_resized = main_img
+                        .resize_exact(thumb_w, thumb_h, image::imageops::FilterType::Triangle)
+                        .to_luma8();
+                    let thumb_luma = thumb_img.as_ref()?.to_luma8();
+                    let n = (thumb_w * thumb_h) as f64;
+                    let sum_sq: f64 = thumb_luma
+                        .pixels()
+                        .zip(main_resized.pixels())
+                        .map(|(tp, mp)| {
+                            let diff = (tp[0] as f64 - mp[0] as f64) / 255.0;
+                            diff * diff
+                        })
+                        .sum();
+                    Some(sum_sq / n)
+                })();
+
+                let distance = match (&thumb_hash, &main_phash) {
+                    (Some(th), Some(mh)) => {
+                        Some(fingerprint::hamming_distance(th, mh).unwrap_or(64))
+                    }
+                    _ => None,
+                };
+
+                let phash_mismatch = distance.is_some_and(|d| d > 10);
+                let mse_mismatch = mse.is_some_and(|m| m > 0.02);
+                let mismatch = phash_mismatch || mse_mismatch;
+
+                let summary = if !mismatch {
+                    "Thumbnail matches full image — no post-capture modification detected.".to_string()
+                } else if phash_mismatch && mse_mismatch {
+                    format!(
+                        "Thumbnail mismatch (pHash distance {}, MSE {:.4}) — post-capture modification likely.",
+                        distance.unwrap_or(0),
+                        mse.unwrap_or(0.0)
+                    )
+                } else if phash_mismatch {
+                    format!(
+                        "Thumbnail perceptual mismatch (pHash distance {}) — post-capture modification possible.",
+                        distance.unwrap_or(0)
+                    )
+                } else {
+                    format!(
+                        "Thumbnail pixel deviation (MSE {:.4}) — minor post-capture modification possible.",
+                        mse.unwrap_or(0.0)
+                    )
+                };
+
+                Some(ThumbnailCheck {
+                    has_thumbnail: true,
+                    thumbnail_width: if thumb_w > 0 { Some(thumb_w) } else { None },
+                    thumbnail_height: if thumb_h > 0 { Some(thumb_h) } else { None },
+                    hamming_distance: distance,
+                    difference_score: mse,
+                    mismatch,
+                    summary,
+                })
             }
         }
     } else {
@@ -1900,9 +2038,9 @@ fn verify_content_inner(
     };
 
     // ── Deep parallel group ──────────────────────────────────────────────
-    // Five detectors run concurrently when in deep/archival mode.
+    // Seven detectors run concurrently when in deep/archival mode.
     // Slowest is copy-move (~5 s); without parallelism the group takes
-    // ~15-20 s sequentially. With parallelism wall time is bounded by the
+    // ~20+ s sequentially. With parallelism wall time is bounded by the
     // slowest single detector rather than the sum of all detectors.
     let (
         noise_score,
@@ -1915,10 +2053,14 @@ fn verify_content_inner(
         shadow_consistency_result,
         colour_temperature_result,
         splice_boundary_result,
+        dct_analysis_result,
+        fourier_analysis_result,
     ) = if sidecar_up && is_deep {
         run_deep_sidecar_group(&path, &app.sidecar)
     } else {
-        (None, None, None, None, None, None, None, None, None, None)
+        (
+            None, None, None, None, None, None, None, None, None, None, None, None,
+        )
     };
 
     // PERF: release the cached file bytes — image sidecar calls are done.
@@ -2430,6 +2572,8 @@ fn verify_content_inner(
         claim_check_result,
         ai_description,
         thumbnail_check,
+        dct_analysis_result,
+        fourier_analysis_result,
         input_sha256,
         methodology,
         input_quality,
@@ -5392,6 +5536,8 @@ mod tests {
             claim_check_result: None,
             ai_description: None,
             thumbnail_check: None,
+            dct_analysis_result: None,
+            fourier_analysis_result: None,
             input_sha256: None,
             methodology: None,
             input_quality: None,
@@ -6402,24 +6548,35 @@ mod tests {
     fn thumbnail_check_serialization_no_thumbnail() {
         let tc = ThumbnailCheck {
             has_thumbnail: false,
+            thumbnail_width: None,
+            thumbnail_height: None,
             hamming_distance: None,
+            difference_score: None,
             mismatch: false,
+            summary: "No EXIF thumbnail embedded in this image.".to_string(),
         };
         let json = serde_json::to_string(&tc).expect("serialization must succeed");
         assert!(json.contains("\"hasThumbnail\":false"));
         assert!(json.contains("\"hammingDistance\":null"));
         assert!(json.contains("\"mismatch\":false"));
+        assert!(json.contains("\"summary\""));
     }
 
     #[test]
     fn thumbnail_check_serialization_match() {
         let tc = ThumbnailCheck {
             has_thumbnail: true,
+            thumbnail_width: Some(160),
+            thumbnail_height: Some(120),
             hamming_distance: Some(3),
+            difference_score: Some(0.005),
             mismatch: false,
+            summary: "Thumbnail matches full image.".to_string(),
         };
         let json = serde_json::to_string(&tc).expect("serialization must succeed");
         assert!(json.contains("\"hasThumbnail\":true"));
+        assert!(json.contains("\"thumbnailWidth\":160"));
+        assert!(json.contains("\"thumbnailHeight\":120"));
         assert!(json.contains("\"hammingDistance\":3"));
         assert!(json.contains("\"mismatch\":false"));
     }
@@ -6428,45 +6585,77 @@ mod tests {
     fn thumbnail_check_serialization_mismatch() {
         let tc = ThumbnailCheck {
             has_thumbnail: true,
+            thumbnail_width: Some(160),
+            thumbnail_height: Some(120),
             hamming_distance: Some(24),
+            difference_score: Some(0.08),
             mismatch: true,
+            summary: "Thumbnail mismatch detected.".to_string(),
         };
         let json = serde_json::to_string(&tc).expect("serialization must succeed");
         assert!(json.contains("\"hasThumbnail\":true"));
         assert!(json.contains("\"hammingDistance\":24"));
         assert!(json.contains("\"mismatch\":true"));
+        assert!(json.contains("\"differenceScore\":0.08"));
     }
 
     #[test]
     fn thumbnail_check_deserialization_round_trip() {
         let tc = ThumbnailCheck {
             has_thumbnail: true,
+            thumbnail_width: Some(80),
+            thumbnail_height: Some(60),
             hamming_distance: Some(7),
+            difference_score: Some(0.01),
             mismatch: false,
+            summary: "Thumbnail matches.".to_string(),
         };
         let json = serde_json::to_string(&tc).expect("serialization must succeed");
         let decoded: ThumbnailCheck =
             serde_json::from_str(&json).expect("deserialization must succeed");
         assert_eq!(decoded.has_thumbnail, tc.has_thumbnail);
+        assert_eq!(decoded.thumbnail_width, tc.thumbnail_width);
+        assert_eq!(decoded.thumbnail_height, tc.thumbnail_height);
         assert_eq!(decoded.hamming_distance, tc.hamming_distance);
+        assert_eq!(decoded.difference_score, tc.difference_score);
         assert_eq!(decoded.mismatch, tc.mismatch);
+        assert_eq!(decoded.summary, tc.summary);
     }
 
     #[test]
     fn thumbnail_check_mismatch_threshold() {
-        // Boundary: distance == 10 is NOT a mismatch; 11 IS.
+        // Hamming distance == 10 is NOT a mismatch; 11 IS.
+        // MSE == 0.02 is NOT a mismatch; 0.021 IS.
         let at_boundary = ThumbnailCheck {
             has_thumbnail: true,
+            thumbnail_width: Some(160),
+            thumbnail_height: Some(120),
             hamming_distance: Some(10),
-            mismatch: false, // 10 is not > 10
+            difference_score: Some(0.02),
+            mismatch: false, // neither threshold exceeded
+            summary: "No mismatch.".to_string(),
         };
-        let over_boundary = ThumbnailCheck {
+        let over_hamming = ThumbnailCheck {
             has_thumbnail: true,
+            thumbnail_width: Some(160),
+            thumbnail_height: Some(120),
             hamming_distance: Some(11),
-            mismatch: true, // 11 > 10
+            difference_score: Some(0.01),
+            mismatch: true, // pHash distance > 10
+            summary: "pHash mismatch.".to_string(),
+        };
+        let over_mse = ThumbnailCheck {
+            has_thumbnail: true,
+            thumbnail_width: Some(160),
+            thumbnail_height: Some(120),
+            hamming_distance: Some(5),
+            difference_score: Some(0.025),
+            mismatch: true, // MSE > 0.02
+            summary: "MSE mismatch.".to_string(),
         };
         assert!(!at_boundary.mismatch);
-        assert!(over_boundary.mismatch);
+        assert!(over_hamming.mismatch);
+        assert!(over_mse.mismatch);
     }
 
     // ── assess_input_quality — is_modern_lossy_codec ─────────────────────

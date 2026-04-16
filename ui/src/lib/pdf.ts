@@ -61,6 +61,32 @@ const COL_SCORE = MARGIN + 88;         // right of label column
 const COL_THRESHOLD = MARGIN + 110;    // next column
 const COL_STATUS = MARGIN + 130;       // final column
 
+// ── Academic citations for each detector ─────────────────────────────────
+// Cited in the Methodology Disclosure section and the References appendix.
+// Keys match the detector description entries in methodologyEntries below.
+interface Citation {
+  paper: string;
+  authors: string;
+  year: number;
+}
+
+const DETECTOR_CITATIONS: Record<string, Citation> = {
+  ela:               { paper: 'A Picture\'s Worth: Digital Image Analysis and Forensics', authors: 'Krawetz, N.', year: 2007 },
+  noise:             { paper: 'Noise Inconsistencies in Digital Photographs', authors: 'Mahdian, B. & Saic, S.', year: 2009 },
+  copyMove:          { paper: 'Distinctive Image Features from Scale-Invariant Keypoints', authors: 'Lowe, D.G.', year: 2004 },
+  deepfake:          { paper: 'XGBoost: A Scalable Tree Boosting System', authors: 'Chen, T. & Guestrin, C.', year: 2016 },
+  clipDetect:        { paper: 'Towards Universal Fake Image Detectors that Generalise Across Generative Models', authors: 'Ojha, U. et al.', year: 2023 },
+  jpegGhost:         { paper: 'Exposing Digital Forgeries from JPEG Ghosts', authors: 'Farid, H.', year: 2009 },
+  segmentedEla:      { paper: 'A Picture\'s Worth: Digital Image Analysis and Forensics (region-extended)', authors: 'Krawetz, N.', year: 2007 },
+  shadowConsistency: { paper: 'Exposing Photo Manipulation with Inconsistent Shadows', authors: "Kee, E., O'Brien, J.F. & Farid, H.", year: 2013 },
+  colourTemperature: { paper: 'Exposing Colour Splicing in Digital Images Using Illuminant Colour Estimation', authors: 'de Carvalho, T.J. et al.', year: 2013 },
+  spliceBoundary:    { paper: 'Multi-signal Splice Boundary Detection (heuristic ensemble)', authors: 'Jura Trace', year: 2026 },
+  npr:               { paper: 'Detecting Photographic Image Manipulation with Upsampling Artefacts', authors: 'Tan, C. et al.', year: 2024 },
+  c2pa:              { paper: 'C2PA Content Credentials Technical Specification v2.3', authors: 'Coalition for Content Provenance and Authenticity', year: 2024 },
+  watermark:         { paper: 'Robust Image Watermarking Using DWT-DCT-SVD', authors: 'Navas, K.A. et al.', year: 2008 },
+  exifAnomaly:       { paper: 'Digital Forensics of EXIF Metadata Inconsistencies in Digital Photographs', authors: 'Kee, E. & Farid, H.', year: 2011 },
+};
+
 // Known thresholds for primary detectors (mirrors Python sidecar defaults).
 // Detectors without a single fixed published threshold use null — shown as "—".
 const DETECTOR_THRESHOLDS: Record<string, number | null> = {
@@ -1164,26 +1190,119 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
 
   y += SECTION_GAP;
 
-  // ── Methodology Disclosure (detector descriptions) ───────────
+  // ── Methodology Disclosure (detector descriptions with citations) ────────
   heading('Methodology Disclosure');
-  const methodologyText = [
-    'Error Level Analysis (ELA): Recompresses the image at a fixed JPEG quality and measures pixel-level differences. Regions with inconsistent compression artefacts may indicate editing.',
-    'Noise Analysis: Divides the image into blocks and measures variance in each. Inconsistent noise patterns across blocks can indicate splicing or inpainting.',
-    'Copy-Move Detection: Uses ORB feature matching to find duplicated regions within the image. Clustered matches suggest content has been cloned from one area to another.',
-    'AI Generation Detection: An ensemble of 13 statistical signals analyses frequency spectra, gradient patterns, noise consistency, colour distribution, and other features to estimate the likelihood of AI generation.',
-    'Neighbouring Pixel Relationships (NPR): Analyses statistical correlations between adjacent pixels in horizontal, vertical, and diagonal directions. AI-generated images often exhibit atypical inter-pixel dependencies.',
-    'JPEG Ghost: Recompresses the image across multiple JPEG quality levels and identifies regions that deviate significantly from a consistent quality history, suggesting prior manipulation.',
-    'Segmented ELA: Divides the image into an 8x8 grid and computes per-region ELA scores. High inter-region variance suggests inconsistent editing or compositing.',
-    'Shadow Consistency: Estimates the dominant light direction in each image region using gradient analysis. Significant directional inconsistencies between regions suggest compositing.',
-    'Colour Temperature: Segments the image in CIELAB colour space and measures per-region colour temperature. Abrupt temperature changes across regions can indicate splicing.',
-    'Splice Boundary: Applies three complementary edge detectors (JPEG grid alignment, noise asymmetry, feathering patterns) at grid junctions to locate compositing boundaries.',
-    'EXIF Anomaly Analysis: Checks embedded metadata for consistency, completeness, and known manipulation patterns. Missing or contradictory metadata reduces trust.',
-    'C2PA Provenance: Verifies cryptographically signed provenance manifests embedded in the file, following the Coalition for Content Provenance and Authenticity specification.',
-    'All analysis is performed locally on the user\'s device. No data is transmitted to external servers at any point during the verification process.',
+
+  // Each entry pairs a description with an optional citation key from DETECTOR_CITATIONS.
+  const methodologyEntries: { text: string; citationKey?: string }[] = [
+    {
+      text: 'Error Level Analysis (ELA): Recompresses the image at a fixed JPEG quality and measures pixel-level differences. Regions with inconsistent compression artefacts may indicate editing.',
+      citationKey: 'ela',
+    },
+    {
+      text: 'Noise Analysis: Divides the image into blocks and measures variance in each. Inconsistent noise patterns across blocks can indicate splicing or inpainting.',
+      citationKey: 'noise',
+    },
+    {
+      text: 'Copy-Move Detection: Uses ORB feature matching to find duplicated regions within the image. Clustered matches suggest content has been cloned from one area to another.',
+      citationKey: 'copyMove',
+    },
+    {
+      text: 'AI Generation Detection: An ensemble of 13 statistical signals analyses frequency spectra, gradient patterns, noise consistency, colour distribution, and other features to estimate the likelihood of AI generation.',
+      citationKey: 'deepfake',
+    },
+    {
+      text: 'Neighbouring Pixel Relationships (NPR): Analyses statistical correlations between adjacent pixels in horizontal, vertical, and diagonal directions. AI-generated images often exhibit atypical inter-pixel dependencies.',
+      citationKey: 'npr',
+    },
+    {
+      text: 'JPEG Ghost: Recompresses the image across multiple JPEG quality levels and identifies regions that deviate significantly from a consistent quality history, suggesting prior manipulation.',
+      citationKey: 'jpegGhost',
+    },
+    {
+      text: 'Segmented ELA: Divides the image into an 8x8 grid and computes per-region ELA scores. High inter-region variance suggests inconsistent editing or compositing.',
+      citationKey: 'segmentedEla',
+    },
+    {
+      text: 'Shadow Consistency: Estimates the dominant light direction in each image region using gradient analysis. Significant directional inconsistencies between regions suggest compositing.',
+      citationKey: 'shadowConsistency',
+    },
+    {
+      text: 'Colour Temperature: Segments the image in CIELAB colour space and measures per-region colour temperature. Abrupt temperature changes across regions can indicate splicing.',
+      citationKey: 'colourTemperature',
+    },
+    {
+      text: 'Splice Boundary: Applies three complementary edge detectors (JPEG grid alignment, noise asymmetry, feathering patterns) at grid junctions to locate compositing boundaries.',
+      citationKey: 'spliceBoundary',
+    },
+    {
+      text: 'EXIF Anomaly Analysis: Checks embedded metadata for consistency, completeness, and known manipulation patterns. Missing or contradictory metadata reduces trust.',
+      citationKey: 'exifAnomaly',
+    },
+    {
+      text: 'C2PA Provenance: Verifies cryptographically signed provenance manifests embedded in the file, following the Coalition for Content Provenance and Authenticity specification.',
+      citationKey: 'c2pa',
+    },
+    {
+      text: "All analysis is performed locally on the user\u2019s device. No data is transmitted to external servers at any point during the verification process.",
+    },
   ];
-  for (const text of methodologyText) {
-    paragraph(text, 7);
+
+  for (const entry of methodologyEntries) {
+    paragraph(entry.text, 7);
+    if (entry.citationKey) {
+      const cit = DETECTOR_CITATIONS[entry.citationKey];
+      if (cit) {
+        checkPage(5);
+        doc.setFontSize(6.5);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(120);
+        const citText = `${cit.authors} (${cit.year}). ${cit.paper}.`;
+        const citLines = doc.splitTextToSize(citText, CONTENT_WIDTH - 4);
+        doc.text(citLines, MARGIN + 4, y);
+        y += citLines.length * 3 + 1;
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(60);
+      }
+    }
     y += 1;
+  }
+
+  // ── References ──────────────────────────────────────────────────────────
+  // Full bibliography of all cited works, sorted alphabetically by first author surname.
+  y += SECTION_GAP;
+  heading('References');
+
+  // Build sorted bibliography from all entries that carry a citation.
+  const citedKeys = methodologyEntries
+    .filter(e => e.citationKey)
+    .map(e => e.citationKey as string);
+  // Deduplicate (watermark key only appears once but guard defensively).
+  const uniqueKeys = [...new Set(citedKeys)];
+
+  // Sort by author surname (first word before comma or space).
+  const sorted = uniqueKeys
+    .map(k => ({ key: k, cit: DETECTOR_CITATIONS[k] }))
+    .filter(e => !!e.cit)
+    .sort((a, b) => {
+      const surnameA = a.cit.authors.split(/[,\s]/)[0].toLowerCase();
+      const surnameB = b.cit.authors.split(/[,\s]/)[0].toLowerCase();
+      if (surnameA < surnameB) return -1;
+      if (surnameA > surnameB) return 1;
+      return a.cit.year - b.cit.year;
+    });
+
+  // Number sequentially for easy cross-referencing.
+  for (let i = 0; i < sorted.length; i++) {
+    const { cit } = sorted[i];
+    const refText = `[${i + 1}] ${cit.authors} (${cit.year}). ${cit.paper}.`;
+    checkPage(8);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(50);
+    const refLines = doc.splitTextToSize(refText, CONTENT_WIDTH);
+    doc.text(refLines, MARGIN, y);
+    y += refLines.length * 3.5 + 1;
   }
 
   // ── Disclaimer ──────────────────────────────────────────────

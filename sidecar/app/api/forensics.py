@@ -16,8 +16,10 @@ from app.models.schemas import (
     ClipDetectionResponse,
     ColourTemperatureResponse,
     CopyMoveResponse,
+    DctAnalysisResponse,
     DeepfakeResponse,
     ElaResponse,
+    FourierAnalysisResponse,
     ImageDescribeResponse,
     JpegGhostResponse,
     NoiseAnalysisResponse,
@@ -59,6 +61,8 @@ from app.services.roi_analysis import analyse_roi
 from app.services.gan_fingerprint import visualise_gan_fingerprint
 from app.services.audio_deepfake import score_audio_deepfake
 from app.services.watermark import perform_watermark_embed, perform_watermark_extract
+from app.services.dct_analysis import analyse_dct
+from app.services.fourier_analysis import analyse_fourier
 
 router = APIRouter()
 
@@ -793,3 +797,62 @@ async def audio_deepfake(file: UploadFile = File(...)) -> AudioDeepfakeResponse:
             os.unlink(tmp_path)
         except OSError:
             pass
+
+
+@router.post("/dct-analysis", response_model=DctAnalysisResponse)
+async def dct_analysis(file: UploadFile = File(...)) -> DctAnalysisResponse:
+    """Compute 8x8 block DCT statistics to detect mixed compression levels.
+
+    Returns a heatmap of AC energy distribution across all 8x8 DCT blocks
+    and a coefficient of variation score. A high CV indicates that different
+    image regions were compressed at different quality levels — a strong
+    indicator of splice or composite forgery.
+
+    Only runs in deep/archival verification mode.
+    Accepted formats: JPEG, PNG, WebP, TIFF, BMP, GIF.
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        result = analyse_dct(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return DctAnalysisResponse(
+        heatmap_base64=result["heatmapBase64"],
+        dc_std=result["dcStd"],
+        ac_mean=result["acMean"],
+        ac_std=result["acStd"],
+        ac_coefficient_of_variation=result["acCoefficientOfVariation"],
+        suspicious=result["suspicious"],
+        score=result["score"],
+        summary=result["summary"],
+    )
+
+
+@router.post("/fourier-analysis", response_model=FourierAnalysisResponse)
+async def fourier_analysis(file: UploadFile = File(...)) -> FourierAnalysisResponse:
+    """Detect periodic patterns via 2D FFT magnitude spectrum analysis.
+
+    Returns the log-magnitude spectrum as a PNG heatmap and a count of
+    spectral peaks above a 3-sigma threshold. Discrete peaks away from
+    the DC component indicate periodic artefacts from GAN upsampling,
+    screen recapture (moire), or resampling during compositing.
+
+    Only runs in deep/archival verification mode.
+    Accepted formats: JPEG, PNG, WebP, TIFF, BMP, GIF.
+    """
+    image_bytes = await _read_and_validate(file)
+
+    try:
+        result = analyse_fourier(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return FourierAnalysisResponse(
+        spectrum_base64=result["spectrumBase64"],
+        peak_count=result["peakCount"],
+        suspicious=result["suspicious"],
+        score=result["score"],
+        summary=result["summary"],
+    )
