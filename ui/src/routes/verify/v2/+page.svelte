@@ -4,13 +4,13 @@
   import {
     verifyFile, verifyUrl, checkSidecarHealth, markFalsePositive,
     parseAppError, getLicenceTier, getVersion,
-    openBatchFileDialog, extractTextFromImage, calculateSunPosition,
+    openBatchFileDialog, extractTextFromImage,
   } from '$lib/api';
   import { getTrustLevel, formatFileSize, formatDuration } from '$lib/types';
   import type {
     VerificationResult, SidecarHealth, VerifyMode, LicenceTier,
     AnomalyFinding, InputQualityAssessment, ManifestInfo,
-    BatchItem, BatchItemStatus, SolarPosition,
+    BatchItem, BatchItemStatus,
   } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
   import LimitationBanner from '$lib/components/LimitationBanner.svelte';
@@ -91,12 +91,17 @@
 
   const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
-  // ── Sun Position state ─────────────────────────────────────────────
-  let sunDateInput = $state('');
-  let sunHourInput = $state(12);
-  let sunPosition = $state<SolarPosition | null>(null);
-  let sunLoading = $state(false);
-  let sunError = $state<string | null>(null);
+  // ── Weather Context state ──────────────────────────────────────────
+  interface WeatherData {
+    temperature: number;
+    cloudCover: number;
+    precipitation: number;
+    visibility: number;
+    windSpeed: number;
+  }
+  let weatherData = $state<WeatherData | null>(null);
+  let weatherLoading = $state(false);
+  let weatherError = $state<string | null>(null);
 
   const gpsCoords = $derived(
     result?.imageMetadata?.gpsLatitude != null && result?.imageMetadata?.gpsLongitude != null
@@ -104,76 +109,56 @@
       : null
   );
 
-  function parseSunDate(): { year: number; month: number; day: number } | null {
-    const parts = sunDateInput.split('-').map(Number);
-    if (parts.length !== 3 || parts.some(isNaN)) return null;
-    const [year, month, day] = parts;
-    if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
-    return { year, month, day };
-  }
+  const exifDate = $derived(() => {
+    const dt = result?.imageMetadata?.datetimeOriginal;
+    if (!dt) return null;
+    const m = dt.match(/(\d{4})[:\-](\d{2})[:\-](\d{2})/);
+    if (!m) return null;
+    return `${m[1]}-${m[2]}-${m[3]}`;
+  });
 
-  async function handleCalculateSunPosition() {
-    if (!gpsCoords || sunLoading) return;
-    const dateParts = parseSunDate();
-    if (!dateParts) {
-      sunError = 'Please enter a valid date in YYYY-MM-DD format.';
-      return;
-    }
-    sunLoading = true;
-    sunError = null;
-    sunPosition = null;
+  const exifHour = $derived(() => {
+    const dt = result?.imageMetadata?.datetimeOriginal;
+    if (!dt) return 12;
+    const m = dt.match(/\s(\d{2}):\d{2}/);
+    return m ? parseInt(m[1], 10) : 12;
+  });
+
+  async function handleFetchWeather() {
+    if (!gpsCoords || weatherLoading) return;
+    const date = exifDate();
+    if (!date) { weatherError = 'No date available from EXIF metadata.'; return; }
+    weatherLoading = true;
+    weatherError = null;
+    weatherData = null;
     try {
-      sunPosition = await calculateSunPosition(
-        gpsCoords.lat,
-        gpsCoords.lon,
-        dateParts.year,
-        dateParts.month,
-        dateParts.day,
-        sunHourInput,
-      );
+      const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${gpsCoords.lat}&longitude=${gpsCoords.lon}&start_date=${date}&end_date=${date}&hourly=temperature_2m,cloudcover,precipitation,visibility,windspeed_10m&timezone=UTC`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`Weather API returned ${resp.status}`);
+      const json = await resp.json();
+      const hour = exifHour();
+      const idx = Math.min(hour, (json.hourly?.time?.length ?? 1) - 1);
+      weatherData = {
+        temperature: json.hourly?.temperature_2m?.[idx] ?? 0,
+        cloudCover: json.hourly?.cloudcover?.[idx] ?? 0,
+        precipitation: json.hourly?.precipitation?.[idx] ?? 0,
+        visibility: json.hourly?.visibility?.[idx] ?? 0,
+        windSpeed: json.hourly?.windspeed_10m?.[idx] ?? 0,
+      };
     } catch (e) {
-      sunError = e instanceof Error ? e.message : 'Sun position calculation failed.';
+      weatherError = e instanceof Error ? e.message : 'Weather lookup failed.';
     } finally {
-      sunLoading = false;
+      weatherLoading = false;
     }
   }
 
-  function azimuthToCompass(deg: number): string {
-    const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-    const index = Math.round(((deg % 360) + 360) % 360 / 22.5) % 16;
-    return dirs[index];
-  }
 
-  function formatUtcHour(h: number): string {
-    const hh = Math.floor(h);
-    const mm = Math.round((h - hh) * 60);
-    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')} UTC`;
-  }
 
-  // Reset sun state and pre-populate date/hour from EXIF when result changes
+  // Reset weather state when result changes
   $effect(() => {
     void result;
-    sunPosition = null;
-    sunError = null;
-    // Pre-fill from EXIF datetimeOriginal (format: "2025:08:14 05:47:00" or "2025-08-14T05:47:00")
-    const dt = result?.imageMetadata?.datetimeOriginal;
-    if (dt) {
-      const dateMatch = dt.match(/(\d{4})[:\-](\d{2})[:\-](\d{2})/);
-      const hourMatch = dt.match(/(\d{2}):\d{2}:\d{2}/);
-      if (dateMatch) {
-        sunDateInput = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
-      } else {
-        sunDateInput = '';
-      }
-      if (hourMatch) {
-        sunHourInput = parseInt(hourMatch[1], 10);
-      } else {
-        sunHourInput = 12;
-      }
-    } else {
-      sunDateInput = '';
-      sunHourInput = 12;
-    }
+    weatherData = null;
+    weatherError = null;
   });
 
   // ── Derived ────────────────────────────────────────────────────────
@@ -2022,106 +2007,85 @@
                 </div>
               </li>
 
-              <!-- Sun Position — on-demand tool, shown when GPS coords available -->
-              {#if gpsCoords}
+              <!-- Historical Weather Context — Enhanced mode, GPS + date required -->
+              {#if gpsCoords && exifDate()}
                 <li class="px-5 py-4">
                   <div class="flex items-start gap-3">
                     <svg class="w-4 h-4 mt-0.5 flex-shrink-0 text-lapis dark:text-lapis-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                      <path d="M3 15h4l3-6 4 12 3-6h4"/>
                     </svg>
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2 mb-2">
-                        <span class="text-sm font-medium text-quartz">Sun Position Calculator</span>
-                        <span class="text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30">On-demand</span>
+                        <span class="text-sm font-medium text-quartz">Weather Context</span>
+                        <span class="text-[10px] px-1.5 py-px rounded-full bg-amber/15 text-amber border border-amber/30">Enhanced</span>
                       </div>
                       <p class="text-xs text-flint dark:text-flint-light mb-3">
-                        GPS detected at {gpsCoords.lat.toFixed(4)}, {gpsCoords.lon.toFixed(4)}.
-                        Enter the date and time to calculate the expected sun position and compare with shadow direction.
+                        Historical weather at {gpsCoords.lat.toFixed(4)}, {gpsCoords.lon.toFixed(4)} on {exifDate()} ~{exifHour()}:00 UTC.
+                        Useful for verifying visible conditions match the claimed time and location.
                       </p>
 
-                      <fieldset class="border-0 p-0 m-0">
-                        <legend class="sr-only">Sun position inputs</legend>
-                        <div class="flex flex-wrap items-end gap-3">
-                          <div class="flex flex-col gap-1">
-                            <label for="sun-date-v2" class="text-[10px] text-flint uppercase tracking-wider">Date (YYYY-MM-DD)</label>
-                            <input
-                              id="sun-date-v2"
-                              type="text"
-                              inputmode="numeric"
-                              placeholder="2024-06-15"
-                              bind:value={sunDateInput}
-                              class="w-36 px-2 py-1.5 text-xs rounded border border-border-dark bg-obsidian/60 text-quartz
-                                     placeholder:text-flint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
-                            />
+                      {#if weatherData}
+                        <dl class="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-xs" aria-label="Historical weather conditions">
+                          <div>
+                            <dt class="text-[10px] text-flint uppercase tracking-wider">Temperature</dt>
+                            <dd class="text-quartz font-medium">{weatherData.temperature.toFixed(1)} °C</dd>
                           </div>
-                          <div class="flex flex-col gap-1">
-                            <label for="sun-hour-v2" class="text-[10px] text-flint uppercase tracking-wider">Hour UTC (0–23)</label>
-                            <input
-                              id="sun-hour-v2"
-                              type="number"
-                              min="0"
-                              max="23"
-                              bind:value={sunHourInput}
-                              class="w-20 px-2 py-1.5 text-xs rounded border border-border-dark bg-obsidian/60 text-quartz
-                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
-                            />
+                          <div>
+                            <dt class="text-[10px] text-flint uppercase tracking-wider">Cloud cover</dt>
+                            <dd class="text-quartz font-medium">{weatherData.cloudCover.toFixed(0)}%
+                              {#if weatherData.cloudCover > 80}
+                                <span class="text-flint/70 ml-1">(overcast — no sharp shadows expected)</span>
+                              {:else if weatherData.cloudCover > 50}
+                                <span class="text-flint/70 ml-1">(partly cloudy)</span>
+                              {:else}
+                                <span class="text-flint/70 ml-1">(clear)</span>
+                              {/if}
+                            </dd>
                           </div>
-                          <button
-                            type="button"
-                            onclick={handleCalculateSunPosition}
-                            disabled={sunLoading || !sunDateInput}
-                            class="px-3 py-1.5 min-h-[32px] text-xs rounded bg-lapis text-white hover:bg-lapis-dark
-                                   transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed
-                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
-                                   dark:focus-visible:ring-offset-obsidian"
-                          >
-                            {#if sunLoading}
-                              <span class="flex items-center gap-1.5">
-                                <span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Calculating"></span>
-                                Calculating...
-                              </span>
-                            {:else}
-                              Calculate
-                            {/if}
-                          </button>
-                        </div>
-                      </fieldset>
-
-                      {#if sunError}
-                        <p class="mt-2 text-xs text-cinnabar dark:text-cinnabar-light" role="alert">{sunError}</p>
-                      {/if}
-
-                      {#if sunPosition}
-                        <dl
-                          class="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs border-t border-border-dark/60 pt-3"
-                          aria-label="Solar position results"
-                        >
-                          <div class="flex justify-between">
-                            <dt class="text-flint dark:text-flint-light">Azimuth</dt>
-                            <dd class="tabular-nums font-medium text-quartz">{sunPosition.azimuth.toFixed(1)}&deg; ({azimuthToCompass(sunPosition.azimuth)})</dd>
+                          <div>
+                            <dt class="text-[10px] text-flint uppercase tracking-wider">Precipitation</dt>
+                            <dd class="text-quartz font-medium">{weatherData.precipitation.toFixed(1)} mm</dd>
                           </div>
-                          <div class="flex justify-between">
-                            <dt class="text-flint dark:text-flint-light">Elevation</dt>
-                            <dd class="tabular-nums font-medium {sunPosition.elevation < 0 ? 'text-flint dark:text-flint-light' : 'text-quartz'}">{sunPosition.elevation.toFixed(1)}&deg;</dd>
+                          <div>
+                            <dt class="text-[10px] text-flint uppercase tracking-wider">Visibility</dt>
+                            <dd class="text-quartz font-medium">{(weatherData.visibility / 1000).toFixed(1)} km
+                              {#if weatherData.visibility < 1000}
+                                <span class="text-amber ml-1">(fog/mist)</span>
+                              {/if}
+                            </dd>
                           </div>
-                          <div class="flex justify-between">
-                            <dt class="text-flint dark:text-flint-light">Solar Noon UTC</dt>
-                            <dd class="tabular-nums font-medium text-quartz">{formatUtcHour(sunPosition.solarNoonUtc)}</dd>
-                          </div>
-                          <div class="flex justify-between">
-                            <dt class="text-flint dark:text-flint-light">Day Length</dt>
-                            <dd class="tabular-nums font-medium text-quartz">{sunPosition.dayLengthHours.toFixed(2)} hrs</dd>
+                          <div>
+                            <dt class="text-[10px] text-flint uppercase tracking-wider">Wind speed</dt>
+                            <dd class="text-quartz font-medium">{weatherData.windSpeed.toFixed(1)} km/h</dd>
                           </div>
                         </dl>
-                        {#if sunPosition.elevation < 0}
-                          <p class="mt-2 text-xs text-amber dark:text-amber-light">The sun is below the horizon at this time and location. No shadows would be cast.</p>
-                        {/if}
-                        {#if result.shadowConsistencyResult}
-                          <p class="mt-2 text-xs text-flint dark:text-flint-light">
-                            Shadow detector reports global light direction at {result.shadowConsistencyResult.globalLightDirection.toFixed(1)}&deg;.
-                            Compare with solar azimuth {sunPosition.azimuth.toFixed(1)}&deg; ({azimuthToCompass(sunPosition.azimuth)}) — shadows should be roughly opposite the sun.
+                        {#if result.shadowConsistencyResult && weatherData.cloudCover > 80}
+                          <p class="mt-2 text-xs text-amber dark:text-amber-light">
+                            Shadow consistency analysis may be unreliable — cloud cover was {weatherData.cloudCover.toFixed(0)}% (overcast), producing diffuse lighting without distinct shadows.
                           </p>
                         {/if}
+                      {:else if weatherError}
+                        <p class="text-xs text-cinnabar dark:text-cinnabar-light" role="alert">{weatherError}</p>
+                      {:else}
+                        <button
+                          type="button"
+                          onclick={handleFetchWeather}
+                          disabled={weatherLoading}
+                          class="px-3 py-1.5 min-h-[32px] text-xs rounded bg-lapis text-white hover:bg-lapis-dark
+                                 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed
+                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
+                                 dark:focus-visible:ring-offset-obsidian"
+                        >
+                          {#if weatherLoading}
+                            <span class="flex items-center gap-1.5">
+                              <span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Loading"></span>
+                              Fetching weather...
+                            </span>
+                          {:else}
+                            Fetch historical weather
+                          {/if}
+                        </button>
+                        <p class="mt-1.5 text-[10px] text-flint/60">Requires internet connection. Data from Open-Meteo (CC-BY).</p>
                       {/if}
                     </div>
                   </div>
