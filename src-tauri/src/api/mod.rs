@@ -33,11 +33,7 @@ use axum::{
 };
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
-use tower_http::{
-    cors::CorsLayer,
-    limit::RequestBodyLimitLayer,
-    trace::TraceLayer,
-};
+use tower_http::{cors::CorsLayer, limit::RequestBodyLimitLayer, trace::TraceLayer};
 use utoipa::OpenApi;
 
 use crate::AppState;

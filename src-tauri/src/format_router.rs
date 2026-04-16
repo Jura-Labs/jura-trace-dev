@@ -201,11 +201,14 @@ mod tests {
     fn classify_extension_3d_and_web_fall_to_unknown() {
         // 3D and web extensions are no longer supported — they fall through to Unknown
         for ext in &[
-            "stl", "obj", "gltf", "glb", "fbx", "ply", "usdz", "3mf", "dae",
-            "html", "htm",
+            "stl", "obj", "gltf", "glb", "fbx", "ply", "usdz", "3mf", "dae", "html", "htm",
         ] {
             let (ct, _) = classify_extension(ext);
-            assert_eq!(ct, ContentType::Unknown, "extension {ext} should be Unknown");
+            assert_eq!(
+                ct,
+                ContentType::Unknown,
+                "extension {ext} should be Unknown"
+            );
         }
     }
 

@@ -13,6 +13,11 @@
     BatchItem, BatchItemStatus,
   } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
+  import {
+    C2PA_ACTION_LABELS,
+    C2PA_STATUS_INVALID,
+    C2PA_STATUS_INVALID_SHORT,
+  } from '$lib/c2pa-labels';
   import LimitationBanner from '$lib/components/LimitationBanner.svelte';
   import ExperimentalPill from '$lib/components/ExperimentalPill.svelte';
   import ContentCredentialsSeal from '$lib/components/ContentCredentialsSeal.svelte';
@@ -311,25 +316,9 @@
     }
   }
 
-  // Map C2PA action URIs to C2PA UX Rec v1.4 recommended labels.
-  const C2PA_ACTION_LABELS: Record<string, string> = {
-    'c2pa.created':           'Created',
-    'c2pa.edited':            'Other edits',
-    'c2pa.cropped':           'Cropped',
-    'c2pa.filtered':          'Filter or style edits',
-    'c2pa.resized':           'Resized',
-    'c2pa.published':         'Published',
-    'c2pa.opened':            'Opened',
-    'c2pa.placed':            'Imported',
-    'c2pa.orientation':       'Changed orientation',
-    'c2pa.color_adjustments': 'Colour or exposure edits',
-    'c2pa.drawing':           'Drawing edits',
-    'c2pa.converted':         'Converted',
-    'c2pa.transcoded':        'Transcoded',
-    'c2pa.removed':           'Removed',
-    'c2pa.repackaged':        'Repackaged',
-    'c2pa.unknown':           'Unknown edits or activity',
-  };
+  // Action URI -> consumer label map is imported from $lib/c2pa-labels so the
+  // verify page and the PDF report cannot drift. See that module for the
+  // v1.4 Table 3 references.
 
   // Parse actions from the c2pa.actions.v2 assertion with full detail.
   const c2paActions = $derived(() => {
@@ -420,7 +409,8 @@
           state: result.c2paValid === false ? 'suspicious' as DotState
                : result.c2paValid === true  ? 'pass' as DotState
                : 'not-run' as DotState,
-          ariaDetail: result.c2paValid === true ? 'Valid' : result.c2paValid === false ? 'Invalid signature' : 'Not attached',
+          // Invalid label is the C2PA UX Rec v1.4 Table 4 verbatim string.
+          ariaDetail: result.c2paValid === true ? 'Valid' : result.c2paValid === false ? C2PA_STATUS_INVALID : 'Not attached',
         },
       ],
       integrity: [
@@ -1676,8 +1666,16 @@
             <div role="separator" aria-hidden="true" class="w-px h-6 bg-border-dark"></div>
             <div role="listitem" class="flex flex-col gap-0.5">
               <span class="text-[10px] text-flint uppercase tracking-wider">Content Credentials</span>
+              <!--
+                Status labels per C2PA UX Rec v1.4 Table 4:
+                  invalid -> "Content Credential unavailable or invalid" (verbatim).
+                Compressed to "Invalid or unavailable" here because the
+                header strip layout cannot accommodate the full string at a
+                legible size. Flagged in the conformance submission letter.
+                Valid/Not attached are spec-silent — plain consumer copy used.
+              -->
               <span class="text-sm font-medium {result.c2paValid === true ? 'text-malachite dark:text-malachite-light' : result.c2paValid === false ? 'text-cinnabar dark:text-cinnabar-light' : 'text-flint dark:text-flint-light'}">
-                {result.c2paValid === true ? 'Signed & valid' : result.c2paValid === false ? 'Invalid' : 'Not attached'}
+                {result.c2paValid === true ? 'Valid' : result.c2paValid === false ? C2PA_STATUS_INVALID_SHORT : 'Not attached'}
               </span>
             </div>
           </div>
@@ -2374,6 +2372,7 @@
                                       <img src="data:{chain.active.thumbnailMime ?? 'image/jpeg'};base64,{chain.active.thumbnailBase64}" alt="" class="w-10 h-10 rounded border border-border-dark object-cover flex-shrink-0" />
                                     {/if}
                                     <div>
+                                      <!-- "Active" label per C2PA UX Rec v1.4 §5.3 and §5.4. -->
                                       <p class="text-[10px] font-semibold text-flint uppercase tracking-wider leading-none mb-0.5">Active</p>
                                       <p class="text-xs text-quartz leading-snug">{chain.active.appOrDevice ?? chainSignerName(chain.active)}</p>
                                       {#if chainSignedDate(chain.active)}
@@ -2459,6 +2458,7 @@
                                       <img src="data:{originManifest.thumbnailMime ?? 'image/jpeg'};base64,{originManifest.thumbnailBase64}" alt="" class="w-10 h-10 rounded border border-border-dark object-cover flex-shrink-0" />
                                     {/if}
                                     <div>
+                                      <!-- "Origin" label per C2PA UX Rec v1.4 §5.4 and Figure 12. -->
                                       <p class="text-[10px] font-semibold text-flint uppercase tracking-wider leading-none mb-0.5">Origin</p>
                                       <p class="text-xs text-quartz leading-snug">{originManifest.appOrDevice ?? chainSignerName(originManifest)}</p>
                                       {#if chainSignedDate(originManifest)}
@@ -2496,9 +2496,22 @@
                               {#if hasChain}
                                 <div role="tablist" aria-label="Manifest in chain" class="flex flex-wrap gap-1.5">
                                   {#each manifests as manifest, idx}
+                                    <!--
+                                      Chain-position labels per C2PA UX Rec v1.4:
+                                        "Active" — spec-sanctioned (§5.3 and §5.4:
+                                          "the active manifest at the top").
+                                        "Origin" — spec-sanctioned (§5.4 and Figure
+                                          12: "origin ingredients … at the bottom").
+                                        Middle positions — spec is silent (it assumes
+                                          they are collapsed under "N additional
+                                          manifests" when chain count >= 4). We use a
+                                          neutral positional label for the uncollapsed
+                                          <4 case rather than invent terminology like
+                                          "Intermediate".
+                                    -->
                                     {@const tabLabel = idx === 0 ? 'Active'
                                       : idx === manifests.length - 1 ? 'Origin'
-                                      : `Intermediate ${idx}`}
+                                      : `Step ${idx} of ${manifests.length - 1}`}
                                     {@const isSelected = selectedManifestIndex === idx}
                                     {@const isValid = manifest.isValid}
                                     <button

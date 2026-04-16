@@ -842,7 +842,7 @@
       <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
         No verifications yet.
         <a
-          href="/verify"
+          href="/verify/v2"
           class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
         >
           Visit the Verify page

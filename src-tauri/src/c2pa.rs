@@ -73,6 +73,43 @@ pub struct ManifestInfo {
     /// `None` when insufficient information is available to form a meaningful summary.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_summary: Option<String>,
+    /// True when this manifest is a C2PA **update manifest** — a metadata-only
+    /// change (e.g. provenance re-binding, redaction, re-signing) that does
+    /// **not** represent an edit to the underlying media asset.  Detected
+    /// heuristically from the reader JSON: an update manifest has no data hash
+    /// assertion (`c2pa.hash.data`, `c2pa.hash.bmff`, `c2pa.hash.boxes`,
+    /// `c2pa.hash.bmff.v2`) yet still references a parent via `ingredients`.
+    ///
+    /// Per C2PA UX Recommendations v1.4 §6 the UI must not present update
+    /// manifests as edits to the asset and must not display update-manifest
+    /// thumbnails.
+    #[serde(default)]
+    pub is_update_manifest: bool,
+    /// Redactions declared by this manifest.  Populated from two sources:
+    ///
+    /// 1. The `redactions` array on the manifest itself (JUMBF URIs to the
+    ///    redacted assertions) — surfaced by c2pa-rs in the reader JSON.
+    /// 2. `c2pa.redacted` action entries in the manifest's actions assertion,
+    ///    from which the optional `reason` field is extracted.
+    ///
+    /// Per C2PA UX Recommendations v1.4 §6 redaction details must be shown at
+    /// L3 with a rationale when available.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub redactions: Vec<RedactionRecord>,
+}
+
+/// A single redaction recorded on a C2PA manifest.
+///
+/// `target` is the JUMBF URI of the redacted assertion (e.g.
+/// `self#jumbf=/c2pa/<label>/c2pa.assertions/c2pa.training-mining`).
+/// `reason` is the human-readable rationale taken from the accompanying
+/// `c2pa.redacted` action entry, when present.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RedactionRecord {
+    pub target: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 /// A single C2PA validation check result.
@@ -320,7 +357,8 @@ pub fn sign_file(
         .map_err(|e| format!("Failed to sign file: {e}"))?;
 
     // Read back the manifest we just created. Always standard mode — signing is local-only.
-    read_manifest(output, false)?.ok_or_else(|| "Signed file but could not read back manifest".to_string())
+    read_manifest(output, false)?
+        .ok_or_else(|| "Signed file but could not read back manifest".to_string())
 }
 
 // ===== Validity derivation =====
@@ -386,7 +424,11 @@ fn derive_validity(json: &serde_json::Value) -> (bool, bool) {
 /// containing optional `success`, `informational`, and `failure` arrays.
 fn extract_validation_checks_from_delta(delta: &serde_json::Value) -> Vec<ValidationCheck> {
     let mut checks = Vec::new();
-    for (outcome, key) in [("pass", "success"), ("info", "informational"), ("fail", "failure")] {
+    for (outcome, key) in [
+        ("pass", "success"),
+        ("info", "informational"),
+        ("fail", "failure"),
+    ] {
         if let Some(arr) = delta.get(key).and_then(|v| v.as_array()) {
             for entry in arr {
                 let code = entry
@@ -464,7 +506,11 @@ fn extract_validation_checks(json: &serde_json::Value) -> Vec<ValidationCheck> {
         return checks;
     };
 
-    for (outcome, key) in [("pass", "success"), ("info", "informational"), ("fail", "failure")] {
+    for (outcome, key) in [
+        ("pass", "success"),
+        ("info", "informational"),
+        ("fail", "failure"),
+    ] {
         if let Some(arr) = am.get(key).and_then(|v| v.as_array()) {
             for entry in arr {
                 let code = entry
@@ -692,10 +738,7 @@ fn build_content_summary(manifest: &serde_json::Value) -> Option<String> {
         }
 
         for action in action_list {
-            let action_name = action
-                .get("action")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let action_name = action.get("action").and_then(|v| v.as_str()).unwrap_or("");
 
             // Check digitalSourceType on the action object (C2PA 2.x style).
             let dst = action
@@ -704,9 +747,7 @@ fn build_content_summary(manifest: &serde_json::Value) -> Option<String> {
                 .unwrap_or("")
                 .to_lowercase();
 
-            if dst.contains("trainedalgorithmicmedia")
-                || dst.contains("compositewithtrained")
-            {
+            if dst.contains("trainedalgorithmicmedia") || dst.contains("compositewithtrained") {
                 has_ai = true;
             } else if dst.contains("computationalcapture") {
                 has_computational_capture = true;
@@ -715,19 +756,26 @@ fn build_content_summary(manifest: &serde_json::Value) -> Option<String> {
             }
 
             // Also scan the serialised action JSON for digitalSourceType buried deeper.
-            let action_str = serde_json::to_string(action).unwrap_or_default().to_lowercase();
+            let action_str = serde_json::to_string(action)
+                .unwrap_or_default()
+                .to_lowercase();
             if action_str.contains("trainedalgorithmicmedia") {
                 has_ai = true;
             } else if action_str.contains("computationalcapture") && !has_ai {
                 has_computational_capture = true;
-            } else if action_str.contains("digitalcapture") && !has_ai && !has_computational_capture {
+            } else if action_str.contains("digitalcapture") && !has_ai && !has_computational_capture
+            {
                 has_digital_capture = true;
             }
 
             match action_name {
                 "c2pa.created" => has_created = true,
-                "c2pa.edited" | "c2pa.color_adjustments" | "c2pa.cropped"
-                | "c2pa.filtered" | "c2pa.resized" | "c2pa.orientation" => has_edited = true,
+                "c2pa.edited"
+                | "c2pa.color_adjustments"
+                | "c2pa.cropped"
+                | "c2pa.filtered"
+                | "c2pa.resized"
+                | "c2pa.orientation" => has_edited = true,
                 _ => {}
             }
         }
@@ -749,9 +797,7 @@ fn build_content_summary(manifest: &serde_json::Value) -> Option<String> {
     }
 
     if has_ai {
-        parts.push(
-            "At least one component was generated or enhanced with an AI tool.".to_string(),
-        );
+        parts.push("At least one component was generated or enhanced with an AI tool.".to_string());
     } else if has_computational_capture {
         if let Some(ref name) = tool_name {
             parts.push(format!(
@@ -885,7 +931,10 @@ fn extract_manifest_info(
         .map(String::from);
 
     // Extract thumbnail from assertions (c2pa.thumbnail.* labels).
-    let assertions_json = manifest.get("assertions").cloned().unwrap_or(serde_json::Value::Null);
+    let assertions_json = manifest
+        .get("assertions")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
     let (thumbnail_base64, thumbnail_mime) = extract_thumbnail_from_assertions(&assertions_json);
 
     // Derive app_or_device from claim_generator_info > signature_info.common_name > claim_generator.
@@ -893,6 +942,10 @@ fn extract_manifest_info(
 
     // Build a plain-language content summary from actions and digitalSourceType.
     let content_summary = build_content_summary(manifest);
+
+    // Detect update manifest + redactions.
+    let is_update_manifest = detect_update_manifest(manifest);
+    let redactions = extract_redactions(manifest);
 
     ManifestInfo {
         title,
@@ -910,7 +963,127 @@ fn extract_manifest_info(
         thumbnail_mime,
         app_or_device,
         content_summary,
+        is_update_manifest,
+        redactions,
     }
+}
+
+/// Detect whether a manifest is a C2PA **update manifest** from its reader JSON.
+///
+/// c2pa-rs 0.79 exposes the internal `update_manifest` bool on the `Claim`
+/// struct but does not surface it on the public `Manifest` type or in the
+/// reader JSON.  We fall back to the spec-level heuristic: an update manifest
+/// has **no** data-binding hash assertion (any of `c2pa.hash.data`,
+/// `c2pa.hash.bmff`, `c2pa.hash.bmff.v2`, `c2pa.hash.boxes`) **and** has at
+/// least one ingredient (the parent whose metadata is being updated).
+///
+/// This mirrors the invariant enforced inside c2pa-rs itself — see
+/// `store.rs` guards such as `hash_assertions.is_empty() && claim.update_manifest()`.
+fn detect_update_manifest(manifest: &serde_json::Value) -> bool {
+    let Some(assertions) = manifest.get("assertions").and_then(|v| v.as_array()) else {
+        return false;
+    };
+
+    let has_hash_assertion = assertions.iter().any(|a| {
+        a.get("label")
+            .and_then(|v| v.as_str())
+            .map(|label| {
+                label == "c2pa.hash.data"
+                    || label == "c2pa.hash.bmff"
+                    || label == "c2pa.hash.bmff.v2"
+                    || label == "c2pa.hash.boxes"
+            })
+            .unwrap_or(false)
+    });
+
+    if has_hash_assertion {
+        return false;
+    }
+
+    // No data hash — also require at least one ingredient so we do not
+    // mis-classify a bare/malformed manifest as an update manifest.
+    manifest
+        .get("ingredients")
+        .and_then(|v| v.as_array())
+        .map(|arr| !arr.is_empty())
+        .unwrap_or(false)
+}
+
+/// Collect redaction records for a manifest from both the top-level
+/// `redactions` array (JUMBF URIs) and any `c2pa.redacted` action entries
+/// (which may carry a `reason` string).  Each target URI yields a single
+/// `RedactionRecord`; if an action with a matching `parameters.redacted`
+/// URI supplies a `reason`, it is merged onto that record.
+fn extract_redactions(manifest: &serde_json::Value) -> Vec<RedactionRecord> {
+    use std::collections::HashMap;
+
+    // Step 1 — seed records from the manifest's `redactions` array.
+    let mut by_target: HashMap<String, Option<String>> = HashMap::new();
+    let mut order: Vec<String> = Vec::new();
+
+    if let Some(arr) = manifest.get("redactions").and_then(|v| v.as_array()) {
+        for entry in arr {
+            if let Some(uri) = entry.as_str() {
+                if !by_target.contains_key(uri) {
+                    by_target.insert(uri.to_string(), None);
+                    order.push(uri.to_string());
+                }
+            }
+        }
+    }
+
+    // Step 2 — scan actions assertions for `c2pa.redacted` action entries.
+    // The action's `parameters.redacted` field is the URI of the redacted
+    // assertion; `reason` (at the top level of the action) is the rationale.
+    if let Some(assertions) = manifest.get("assertions").and_then(|v| v.as_array()) {
+        for assertion in assertions {
+            let label = assertion
+                .get("label")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if label != "c2pa.actions" && label != "c2pa.actions.v2" {
+                continue;
+            }
+            let Some(data) = assertion.get("data") else {
+                continue;
+            };
+            let Some(actions) = data.get("actions").and_then(|v| v.as_array()) else {
+                continue;
+            };
+            for action in actions {
+                let action_label = action.get("action").and_then(|v| v.as_str()).unwrap_or("");
+                if action_label != "c2pa.redacted" {
+                    continue;
+                }
+                let uri = action
+                    .get("parameters")
+                    .and_then(|p| p.get("redacted"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                let reason = action
+                    .get("reason")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                if let Some(target) = uri {
+                    let entry = by_target.entry(target.clone()).or_insert_with(|| {
+                        order.push(target.clone());
+                        None
+                    });
+                    if entry.is_none() {
+                        *entry = reason;
+                    }
+                }
+            }
+        }
+    }
+
+    order
+        .into_iter()
+        .map(|target| {
+            let reason = by_target.remove(&target).flatten();
+            RedactionRecord { target, reason }
+        })
+        .collect()
 }
 
 /// Open a c2pa-rs `Reader` for `path`, returning `Ok(None)` when no C2PA data is present.
@@ -1090,9 +1263,7 @@ pub fn read_manifest_chain(path: &Path, enhanced: bool) -> Result<Option<Manifes
                 for ing in ing_arr {
                     // c2pa-rs exposes ingredient manifest references as
                     // `active_manifest` within each ingredient object.
-                    if let Some(child_label) =
-                        ing.get("active_manifest").and_then(|v| v.as_str())
-                    {
+                    if let Some(child_label) = ing.get("active_manifest").and_then(|v| v.as_str()) {
                         if visited.contains(child_label) {
                             continue; // guard against cycles
                         }
@@ -2027,6 +2198,8 @@ mod tests {
             thumbnail_mime: None,
             app_or_device: None,
             content_summary: None,
+            is_update_manifest: false,
+            redactions: vec![],
         };
         let json = serde_json::to_string(&info).unwrap();
         assert!(json.contains("\"isValid\""));
@@ -2342,7 +2515,10 @@ mod tests {
             }
         ]);
         let (b64, mime) = extract_thumbnail_from_assertions(&assertions);
-        assert!(b64.is_none(), "resource-ref thumbnail should not return base64");
+        assert!(
+            b64.is_none(),
+            "resource-ref thumbnail should not return base64"
+        );
         assert_eq!(mime.as_deref(), Some("image/jpeg"));
     }
 
@@ -2430,7 +2606,10 @@ mod tests {
         let summary = build_content_summary(&manifest);
         assert!(summary.is_some());
         let s = summary.unwrap();
-        assert!(s.contains("computational"), "summary should mention computational photography");
+        assert!(
+            s.contains("computational"),
+            "summary should mention computational photography"
+        );
         assert!(s.contains("Pixel Camera"), "summary should name the tool");
     }
 
@@ -2467,8 +2646,10 @@ mod tests {
         let summary = build_content_summary(&manifest);
         assert!(summary.is_some());
         let s = summary.unwrap();
-        assert!(s.to_lowercase().contains("multiple") || s.to_lowercase().contains("combines"),
-            "summary should mention multiple/combines: {s}");
+        assert!(
+            s.to_lowercase().contains("multiple") || s.to_lowercase().contains("combines"),
+            "summary should mention multiple/combines: {s}"
+        );
     }
 
     #[test]
@@ -3074,8 +3255,15 @@ mod tests {
         img.save(&source).expect("save PNG");
         let output = signed_output_path(&source);
 
-        sign_file(&source, &output, "Regression User", Some("CC BY 4.0"), &cert, &key)
-            .expect("signing should succeed");
+        sign_file(
+            &source,
+            &output,
+            "Regression User",
+            Some("CC BY 4.0"),
+            &cert,
+            &key,
+        )
+        .expect("signing should succeed");
 
         let manifest = read_manifest(&output, false)
             .expect("read_manifest should not error")
@@ -3116,9 +3304,15 @@ mod tests {
         });
         let checks = extract_validation_checks_from_delta(&delta);
         assert_eq!(checks.len(), 3);
-        assert!(checks.iter().any(|c| c.code == "claimSignature.validated" && c.outcome == "pass"));
-        assert!(checks.iter().any(|c| c.code == "some.info" && c.outcome == "info"));
-        assert!(checks.iter().any(|c| c.code == "assertion.dataHash.mismatch" && c.outcome == "fail"));
+        assert!(checks
+            .iter()
+            .any(|c| c.code == "claimSignature.validated" && c.outcome == "pass"));
+        assert!(checks
+            .iter()
+            .any(|c| c.code == "some.info" && c.outcome == "info"));
+        assert!(checks
+            .iter()
+            .any(|c| c.code == "assertion.dataHash.mismatch" && c.outcome == "fail"));
     }
 
     /// `extract_manifest_info` with `use_full_validation = true` and `Some("enhanced")`
@@ -3133,7 +3327,10 @@ mod tests {
         assert_eq!(info.verification_mode.as_deref(), Some("enhanced"));
 
         let info2 = extract_manifest_info(&manifest, &full_json, false, None, None);
-        assert_eq!(info2.verification_mode, None, "ingredient should have no mode");
+        assert_eq!(
+            info2.verification_mode, None,
+            "ingredient should have no mode"
+        );
     }
 
     /// `verification_mode` serialises as `"verificationMode"` in camelCase JSON.
@@ -3155,6 +3352,8 @@ mod tests {
             thumbnail_mime: None,
             app_or_device: None,
             content_summary: None,
+            is_update_manifest: false,
+            redactions: vec![],
         };
         let json = serde_json::to_string(&info).unwrap();
         assert!(
@@ -3186,6 +3385,8 @@ mod tests {
             thumbnail_mime: None,
             app_or_device: None,
             content_summary: None,
+            is_update_manifest: false,
+            redactions: vec![],
         };
         let json = serde_json::to_string(&info).unwrap();
         assert!(
@@ -3214,12 +3415,165 @@ mod tests {
                 thumbnail_mime: None,
                 app_or_device: None,
                 content_summary: None,
+                is_update_manifest: false,
+                redactions: vec![],
             },
             ingredients: vec![],
             manifest_count: 1,
         };
         let json = serde_json::to_string(&chain).expect("serialise");
         assert!(json.contains("\"manifestCount\""), "should use camelCase");
-        assert!(!json.contains("\"manifest_count\""), "should not use snake_case");
+        assert!(
+            !json.contains("\"manifest_count\""),
+            "should not use snake_case"
+        );
+    }
+
+    /// A manifest with a `c2pa.hash.data` assertion is a normal (non-update)
+    /// manifest — even when it has ingredients.
+    #[test]
+    fn detect_update_manifest_false_when_hash_present() {
+        let manifest = serde_json::json!({
+            "assertions": [
+                { "label": "c2pa.hash.data", "data": {} },
+                { "label": "c2pa.actions", "data": {} }
+            ],
+            "ingredients": [ { "title": "parent.jpg" } ],
+        });
+        assert!(!detect_update_manifest(&manifest));
+    }
+
+    /// An update manifest has no hash assertion but has at least one ingredient.
+    #[test]
+    fn detect_update_manifest_true_when_no_hash_with_ingredients() {
+        let manifest = serde_json::json!({
+            "assertions": [
+                { "label": "c2pa.actions", "data": {} }
+            ],
+            "ingredients": [ { "title": "parent.jpg" } ],
+        });
+        assert!(detect_update_manifest(&manifest));
+    }
+
+    /// A manifest with no hash and no ingredients is not classified as an update
+    /// manifest — too ambiguous.
+    #[test]
+    fn detect_update_manifest_false_when_no_ingredients() {
+        let manifest = serde_json::json!({
+            "assertions": [
+                { "label": "c2pa.actions", "data": {} }
+            ],
+        });
+        assert!(!detect_update_manifest(&manifest));
+    }
+
+    /// Redactions from the top-level `redactions` array are captured with no
+    /// reason when no matching `c2pa.redacted` action entry is present.
+    #[test]
+    fn extract_redactions_from_top_level_array() {
+        let manifest = serde_json::json!({
+            "redactions": [
+                "self#jumbf=/c2pa/urn:uuid:abc/c2pa.assertions/c2pa.training-mining",
+            ],
+            "assertions": [],
+        });
+        let redactions = extract_redactions(&manifest);
+        assert_eq!(redactions.len(), 1);
+        assert_eq!(
+            redactions[0].target,
+            "self#jumbf=/c2pa/urn:uuid:abc/c2pa.assertions/c2pa.training-mining"
+        );
+        assert_eq!(redactions[0].reason, None);
+    }
+
+    /// A `c2pa.redacted` action entry contributes its `reason` to the
+    /// matching redaction record.
+    #[test]
+    fn extract_redactions_merges_reason_from_action() {
+        let manifest = serde_json::json!({
+            "redactions": [
+                "self#jumbf=/c2pa/urn:uuid:abc/c2pa.assertions/c2pa.training-mining",
+            ],
+            "assertions": [
+                {
+                    "label": "c2pa.actions.v2",
+                    "data": {
+                        "actions": [
+                            {
+                                "action": "c2pa.redacted",
+                                "reason": "Removed training-mining permissions at rights-holder request.",
+                                "parameters": {
+                                    "redacted": "self#jumbf=/c2pa/urn:uuid:abc/c2pa.assertions/c2pa.training-mining"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+        });
+        let redactions = extract_redactions(&manifest);
+        assert_eq!(redactions.len(), 1);
+        assert_eq!(
+            redactions[0].reason.as_deref(),
+            Some("Removed training-mining permissions at rights-holder request.")
+        );
+    }
+
+    /// A `c2pa.redacted` action without a matching top-level `redactions`
+    /// entry still contributes a redaction record (discovered via the action).
+    #[test]
+    fn extract_redactions_action_only() {
+        let manifest = serde_json::json!({
+            "assertions": [
+                {
+                    "label": "c2pa.actions",
+                    "data": {
+                        "actions": [
+                            {
+                                "action": "c2pa.redacted",
+                                "parameters": {
+                                    "redacted": "self#jumbf=/c2pa/urn:uuid:xyz/c2pa.assertions/c2pa.training-mining"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+        });
+        let redactions = extract_redactions(&manifest);
+        assert_eq!(redactions.len(), 1);
+        assert!(redactions[0].target.contains("training-mining"));
+    }
+
+    /// `is_update_manifest` and `redactions` serialise to camelCase.
+    #[test]
+    fn update_manifest_and_redactions_serialise_to_camel_case() {
+        let info = ManifestInfo {
+            title: None,
+            format: None,
+            claim_generator: None,
+            assertions: vec![],
+            is_valid: true,
+            valid_at_signing: false,
+            signed_at: None,
+            signed_by: None,
+            signed_by_issuer: None,
+            validation_checks: vec![],
+            verification_mode: None,
+            thumbnail_base64: None,
+            thumbnail_mime: None,
+            app_or_device: None,
+            content_summary: None,
+            is_update_manifest: true,
+            redactions: vec![RedactionRecord {
+                target: "self#jumbf=/c2pa/x/c2pa.assertions/c2pa.training-mining".to_string(),
+                reason: Some("Rights-holder request.".to_string()),
+            }],
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("\"isUpdateManifest\":true"));
+        assert!(json.contains("\"redactions\""));
+        assert!(json.contains("\"target\""));
+        assert!(json.contains("\"reason\""));
     }
 }

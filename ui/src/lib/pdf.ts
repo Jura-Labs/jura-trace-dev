@@ -7,6 +7,11 @@ import { jsPDF } from 'jspdf';
 import type { VerificationResult, VerifyMode } from './types';
 import { getTrustLevel } from './types';
 import { DETECTOR_ID_LABELS } from './detectorLabels';
+import {
+  C2PA_ACTION_LABELS,
+  C2PA_UNKNOWN_ACTION_LABEL,
+  C2PA_STATUS_INVALID,
+} from './c2pa-labels';
 // ── Single source of truth for the expected-detector matrix ──────────────
 // Generated from src-tauri/src/bin/gen_detectors.rs (MODE_MATRIX const).
 // DO NOT edit this import or the file it points to by hand — run:
@@ -543,7 +548,7 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
         ? 'Valid at signing (certificate expired; trusted timestamp intact)'
         : m.isValid
           ? 'Valid'
-          : 'Invalid'
+          : C2PA_STATUS_INVALID
     );
     if (m.signedBy) row('Signed By', m.signedBy + (m.signedByIssuer ? ` (${m.signedByIssuer})` : ''));
     if (m.claimGenerator) row('Claim Generator', m.claimGenerator);
@@ -612,39 +617,21 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
       y += 5;
       doc.setFont('helvetica', 'normal');
 
-      // C2PA action label mapping
-      const C2PA_ACTION_LABELS: Record<string, string> = {
-        'c2pa.created': 'Created',
-        'c2pa.edited': 'Edited',
-        'c2pa.converted': 'Converted',
-        'c2pa.published': 'Published',
-        'c2pa.placed': 'Placed',
-        'c2pa.dubbed': 'Dubbed',
-        'c2pa.transcribed': 'Transcribed',
-        'c2pa.repackaged': 'Repackaged',
-        'c2pa.translated': 'Translated',
-        'c2pa.color_adjustments': 'Colour adjusted',
-        'c2pa.cropped': 'Cropped',
-        'c2pa.drawing': 'Drawing added',
-        'c2pa.filtered': 'Filtered',
-        'c2pa.orientation': 'Rotated / reoriented',
-        'c2pa.resized': 'Resized',
-        'c2pa.unknown': 'Action unknown',
-        'c2pa.ai_generative_fill': 'AI generative fill',
-        'c2pa.opened': 'Opened',
-        'c2pa.saved': 'Saved',
-        'c2pa.watermarked': 'Watermarked',
-      };
+      // C2PA action label mapping — imported from the shared v1.4 Table 3
+      // module so this file cannot drift from the verify page. See
+      // ui/src/lib/c2pa-labels.ts for the full list and spec references.
 
       function parseActionSummary(assertions: { label: string; value: string }[]): string {
-        const actionsAssertion = assertions.find(a => a.label === 'c2pa.actions');
+        const actionsAssertion = assertions.find(
+          a => a.label === 'c2pa.actions' || a.label === 'c2pa.actions.v2'
+        );
         if (!actionsAssertion) return '';
         try {
           const parsed = JSON.parse(actionsAssertion.value) as { actions?: { action?: string }[] };
           const actions = parsed?.actions ?? [];
           if (actions.length === 0) return '';
           const labels = actions
-            .map(a => a.action ? (C2PA_ACTION_LABELS[a.action] ?? a.action) : '')
+            .map(a => a.action ? (C2PA_ACTION_LABELS[a.action] ?? C2PA_UNKNOWN_ACTION_LABEL) : '')
             .filter(Boolean);
           return labels.join(', ');
         } catch {
@@ -657,9 +644,16 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
 
       for (let idx = 0; idx < allNodes.length; idx++) {
         const node = allNodes[idx];
+        // Chain-position labels per C2PA UX Rec v1.4:
+        //   "Active" — §5.3 and §5.4 ("the active manifest at the top")
+        //   "Origin" — §5.4 and Figure 12 ("origin ingredients … at the bottom")
+        // The spec does not prescribe a label for middle manifests (it assumes
+        // they are collapsed under "N additional manifests" when chain >= 4).
+        // For the uncollapsed middle case we use a neutral positional label
+        // rather than inventing terminology like "Intermediate".
         const nodeLabel = idx === 0 ? 'Active'
           : idx === lastIdx ? 'Origin'
-          : `Intermediate ${idx}`;
+          : `Step ${idx} of ${lastIdx}`;
 
         const signer = node.signedBy ?? node.claimGenerator ?? 'Unknown';
         const dateStr = node.signedAt
@@ -668,7 +662,7 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
         const actionSummary = parseActionSummary(node.assertions);
         const validStatus = node.isValid
           ? (node.validAtSigning ? 'Valid at signing' : 'Valid')
-          : 'Invalid';
+          : C2PA_STATUS_INVALID;
 
         checkPage(LINE_HEIGHT * 4 + 2);
 

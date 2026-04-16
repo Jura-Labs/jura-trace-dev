@@ -120,7 +120,7 @@
         </p>
         <div class="flex flex-col sm:flex-row gap-3 justify-center">
           <a
-            href="/verify"
+            href="/verify/v2"
             class="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] rounded border border-lapis text-lapis dark:text-lapis-light dark:border-lapis-light text-sm font-medium
                    hover:bg-lapis hover:text-white dark:hover:bg-lapis-light dark:hover:text-obsidian transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
@@ -210,7 +210,7 @@
           style="letter-spacing: -0.01em;"
         >
           <a
-            href="/verify"
+            href="/verify/v2"
             class="hover:text-lapis dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
             Check what you're looking at
