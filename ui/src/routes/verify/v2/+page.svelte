@@ -2592,7 +2592,9 @@
                                              certExpired fires on all short-lived certs (Pixel, Leica) — noise when timestamp mitigates.
                                              certUntrusted fires on every file because c2pa-rs has no default trust list — always-on noise.
                                              Both remain visible in L4 "Show raw validation codes" for forensic users. -->
-                                        <p class="text-[11px] text-flint mt-1">{passCount} passed, {failCount} failed, {infoCount} informational</p>
+                                        <!-- Pass/fail/info counters removed — the "failed" count includes
+                                             cert-expired and cert-untrusted which are suppressed noise, making
+                                             the counter misleading. Raw codes in L4 show the full picture. -->
                                       </div>
 
                                       <!-- L4: Raw validation codes (collapsible) -->
