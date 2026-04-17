@@ -2566,8 +2566,7 @@
                                     {@const sigValid = checks.some(c => c.code === 'claimSignature.validated' && c.outcome === 'pass')}
                                     {@const dataValid = checks.some(c => c.code === 'assertion.dataHash.match' && c.outcome === 'pass')}
                                     {@const tsValid = checks.some(c => (c.code === 'timeStamp.validated' || c.code === 'timeStamp.trusted') && c.outcome === 'pass')}
-                                    {@const certExpired = checks.some(c => c.code === 'signingCredential.expired' && c.outcome === 'fail')}
-                                    {@const certUntrusted = checks.some(c => c.code === 'signingCredential.untrusted' && c.outcome === 'fail')}
+                                    <!-- certExpired / certUntrusted removed from L3 display (always-on noise); raw codes in L4 -->
                                     {@const hashFail = checks.some(c => c.code.includes('dataHash.mismatch') && c.outcome === 'fail')}
                                     {@const passCount = checks.filter(c => c.outcome === 'pass').length}
                                     {@const failCount = checks.filter(c => c.outcome === 'fail').length}
@@ -2586,21 +2585,13 @@
                                         {#if tsValid}
                                           <div class="flex items-center gap-2 text-xs">
                                             <span class="w-4 text-center text-malachite">{'\u2713'}</span>
-                                            <span class="text-quartz">Timestamp verified{certExpired ? ' — signature was valid at signing time' : ''}</span>
+                                            <span class="text-quartz">Timestamp verified</span>
                                           </div>
                                         {/if}
-                                        {#if certExpired}
-                                          <div class="flex items-center gap-2 text-xs">
-                                            <span class="w-4 text-center text-amber">{'\u26A0'}</span>
-                                            <span class="text-quartz">Signing certificate has expired{tsValid ? ' (mitigated by trusted timestamp)' : ''}</span>
-                                          </div>
-                                        {/if}
-                                        {#if certUntrusted}
-                                          <div class="flex items-center gap-2 text-xs">
-                                            <span class="w-4 text-center text-flint">{'\u26A0'}</span>
-                                            <span class="text-quartz">Signing certificate not on a public trust list</span>
-                                          </div>
-                                        {/if}
+                                        <!-- Certificate expiry and trust-list warnings removed from L3.
+                                             certExpired fires on all short-lived certs (Pixel, Leica) — noise when timestamp mitigates.
+                                             certUntrusted fires on every file because c2pa-rs has no default trust list — always-on noise.
+                                             Both remain visible in L4 "Show raw validation codes" for forensic users. -->
                                         <p class="text-[11px] text-flint mt-1">{passCount} passed, {failCount} failed, {infoCount} informational</p>
                                       </div>
 
