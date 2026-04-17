@@ -539,69 +539,165 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
   }
 
   // ── C2PA Credentials ────────────────────────────────────────
+  // Renders a label/value pair where the value wraps onto subsequent lines
+  // if it exceeds the column width. Used for fields that can be arbitrarily
+  // long (signer CN, claim generator, Table 4 status strings).
+  function wrappedRow(labelText: string, valueText: string) {
+    checkPage(LINE_HEIGHT + 1);
+    doc.setFontSize(8);
+    doc.setTextColor(100);
+    doc.text(labelText, MARGIN, y);
+    doc.setFontSize(9);
+    doc.setTextColor(40);
+    const valLines = doc.splitTextToSize(valueText, CONTENT_WIDTH - 45);
+    doc.text(valLines, MARGIN + 45, y);
+    y += Math.max(LINE_HEIGHT, valLines.length * 4 + 1);
+  }
+
   heading('C2PA Provenance');
   if (result.c2paManifest) {
     const m = result.c2paManifest;
-    row(
+    wrappedRow(
       'Status',
-      m.isValid && m.validAtSigning
-        ? 'Valid at signing (certificate expired; trusted timestamp intact)'
-        : m.isValid
+      m.isValid
           ? 'Valid'
           : C2PA_STATUS_INVALID
     );
-    if (m.signedBy) row('Signed By', m.signedBy + (m.signedByIssuer ? ` (${m.signedByIssuer})` : ''));
-    if (m.claimGenerator) row('Claim Generator', m.claimGenerator);
-    if (m.format) row('Format', m.format);
-    if (m.title) row('Title', m.title);
-    if (m.signedAt) row('Signed At', new Date(m.signedAt).toLocaleString('en-GB'));
-    if (m.validationChecks && m.validationChecks.length > 0) {
-      y += 2;
-      doc.setFontSize(8);
-      doc.setTextColor(80);
-      doc.text(`Validation Checks (${m.validationChecks.length}):`, MARGIN, y);
-      y += LINE_HEIGHT;
-      for (const c of m.validationChecks) {
-        checkPage(LINE_HEIGHT);
-        doc.setFontSize(7);
-        const icon = c.outcome === 'pass' ? '\u2713' : c.outcome === 'fail' ? '\u2717' : '\u26A0';
-        if (c.outcome === 'pass') doc.setTextColor(91, 138, 95);
-        else if (c.outcome === 'fail') doc.setTextColor(205, 92, 92);
-        else doc.setTextColor(180, 140, 50);
-        doc.text(`${icon} ${c.code}`, MARGIN + 2, y);
-        if (c.explanation) {
-          doc.setTextColor(100);
-          const explLines = doc.splitTextToSize(c.explanation, CONTENT_WIDTH - 50);
-          doc.text(explLines, MARGIN + 50, y);
-        }
-        y += LINE_HEIGHT;
-      }
+    // Verification mode sits next to Status — related concept, not buried after assertions.
+    if (m.verificationMode) {
+      wrappedRow(
+        'Verification mode',
+        m.verificationMode === 'enhanced'
+          ? 'Enhanced (OCSP/CRL + remote manifest fetch)'
+          : 'Standard (offline, local trust anchors only)'
+      );
     }
-    if (m.assertions.length > 0) {
-      y += 2;
+    // C2PA UX Rec v1.4 Table 5 consumer-friendly labels.
+    if (m.appOrDevice) wrappedRow('App or device used', m.appOrDevice);
+    if (m.signedBy) {
+      const via = m.signedByIssuer ? ` (via ${m.signedByIssuer})` : '';
+      wrappedRow('Issued by', m.signedBy + via);
+    } else if (m.claimGenerator && !m.appOrDevice) {
+      // Fall back to claim generator only when no richer label is available.
+      wrappedRow('App or device used', m.claimGenerator);
+    }
+    if (m.signedAt) wrappedRow('Date', new Date(m.signedAt).toLocaleString('en-GB'));
+    if (m.format) wrappedRow('Format', m.format);
+    if (m.title) wrappedRow('Title', m.title);
+
+    // Validation summary — human-readable translation of the raw c2pa-rs
+    // check codes, mirroring the verify page's L3 panel (v2 +page.svelte
+    // lines 2563–2605). The old per-code dump was L4 content in an L3 section
+    // and overflowed the page when codes were long.
+    if (m.validationChecks && m.validationChecks.length > 0) {
+      const checks = m.validationChecks;
+      const has = (code: string, outcome: 'pass' | 'fail' | 'info') =>
+        checks.some(c => c.code === code && c.outcome === outcome);
+      const hasMatch = (frag: string, outcome: 'pass' | 'fail' | 'info') =>
+        checks.some(c => c.code.includes(frag) && c.outcome === outcome);
+
+      const sigValid = has('claimSignature.validated', 'pass');
+      const dataValid = has('assertion.dataHash.match', 'pass');
+      const tsValid =
+        has('timeStamp.validated', 'pass') || has('timeStamp.trusted', 'pass');
+      const hashFail = hasMatch('dataHash.mismatch', 'fail');
+
+      y += 3;
+      checkPage(12);
       doc.setFontSize(8);
       doc.setTextColor(80);
-      doc.text(`Assertions (${m.assertions.length}):`, MARGIN, y);
+      doc.text('Validation summary', MARGIN, y);
       y += LINE_HEIGHT;
-      for (const a of m.assertions) {
-        checkPage(LINE_HEIGHT * 2);
-        doc.setFontSize(7);
-        doc.setTextColor(70);
-        doc.text(a.label, MARGIN + 2, y);
-        y += 3.5;
-        const valLines = doc.splitTextToSize(a.value, CONTENT_WIDTH - 4);
+
+      // ASCII marker instead of ✓/✗/⚠ — WinAnsi Helvetica (jsPDF default)
+      // does not map U+2713/U+2717/U+26A0 and renders them as stray glyphs.
+      // Colour still conveys the outcome.
+      function summaryLine(
+        marker: string,
+        r: number, g: number, b: number,
+        text: string,
+      ) {
+        checkPage(LINE_HEIGHT);
+        doc.setFontSize(8);
+        doc.setTextColor(r, g, b);
+        doc.text(marker, MARGIN + 2, y);
         doc.setTextColor(50);
-        doc.text(valLines, MARGIN + 4, y);
-        y += valLines.length * 3 + 1;
+        const lines = doc.splitTextToSize(text, CONTENT_WIDTH - 14);
+        doc.text(lines, MARGIN + 12, y);
+        y += Math.max(LINE_HEIGHT, lines.length * 4);
+      }
+
+      // Green / red / amber / neutral colour triples (pass / fail / warn / info).
+      const OK: [number, number, number] = [91, 138, 95];
+      const FAIL: [number, number, number] = [205, 92, 92];
+      const WARN: [number, number, number] = [180, 140, 50];
+      const INFO: [number, number, number] = [140, 140, 140];
+
+      summaryLine(
+        sigValid ? '[OK]' : '[FAIL]',
+        ...(sigValid ? OK : FAIL),
+        `Claim signature ${sigValid ? 'verified' : 'failed'}`,
+      );
+      summaryLine(
+        dataValid ? '[OK]' : hashFail ? '[FAIL]' : '[-]',
+        ...(dataValid ? OK : hashFail ? FAIL : INFO),
+        dataValid
+          ? 'Data integrity confirmed - file has not been modified'
+          : hashFail
+            ? 'Data integrity failed - file has been modified since signing'
+            : 'Data hash not checked',
+      );
+      if (tsValid) {
+        summaryLine('[OK]', ...OK, 'Timestamp verified');
       }
     }
 
-    // Verification mode row
-    if (m.verificationMode) {
-      row(
-        'Verification Mode',
-        m.verificationMode === 'enhanced' ? 'Enhanced' : 'Standard'
-      );
+    // Assertions block — consumer-facing summary only. Structural hash
+    // assertions (c2pa.hash.data*, c2pa.hash.multi-asset) are skipped here
+    // because they dump hundreds of lines of base64/exclusion JSON that
+    // belong in an L4 technical appendix, not the main report body.
+    // The claim generator, actions, and creative-work assertions carry the
+    // meaningful provenance information.
+    if (m.assertions.length > 0) {
+      const contentAssertions = m.assertions.filter(a => {
+        const label = a.label;
+        if (label.startsWith('c2pa.hash.')) return false;
+        if (label === 'c2pa.claim.v2' || label === 'c2pa.claim') return false;
+        return true;
+      });
+      if (contentAssertions.length > 0) {
+        y += 3;
+        checkPage(10);
+        doc.setFontSize(8);
+        doc.setTextColor(80);
+        doc.text(`Assertions (${contentAssertions.length}):`, MARGIN, y);
+        y += LINE_HEIGHT;
+        for (const a of contentAssertions) {
+          checkPage(LINE_HEIGHT * 2);
+          doc.setFontSize(7);
+          doc.setTextColor(70);
+          doc.text(a.label, MARGIN + 2, y);
+          y += 3.5;
+          const valLines = doc.splitTextToSize(a.value, CONTENT_WIDTH - 4);
+          doc.setTextColor(50);
+          doc.text(valLines, MARGIN + 4, y);
+          y += valLines.length * 3 + 1;
+        }
+      }
+      const skipped = m.assertions.length - contentAssertions.length;
+      if (skipped > 0) {
+        checkPage(5);
+        doc.setFontSize(6.5);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(120);
+        doc.text(
+          `${skipped} structural hash assertion${skipped === 1 ? '' : 's'} omitted from this summary (available via raw manifest export).`,
+          MARGIN + 2, y,
+        );
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(40);
+        y += 4;
+      }
     }
 
     // Provenance chain
@@ -613,7 +709,8 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(60);
-      doc.text(`Provenance Chain (${chain.manifestCount} manifests)`, MARGIN, y);
+      const countLabel = chain.manifestCount === 1 ? 'manifest' : 'manifests';
+      doc.text(`Provenance Chain (${chain.manifestCount} ${countLabel})`, MARGIN, y);
       y += 5;
       doc.setFont('helvetica', 'normal');
 
@@ -664,7 +761,11 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
           ? (node.validAtSigning ? 'Valid at signing' : 'Valid')
           : C2PA_STATUS_INVALID;
 
-        checkPage(LINE_HEIGHT * 4 + 2);
+        // Reserve enough space so a node never splits across a page break.
+        // Each node uses: label (3.5) + Issued-by (up to 2 lines × 4) +
+        // Date (5) + optional Action (up to 2 × 3.5) + Status (up to 2 × 4)
+        // + separator (2) ≈ 30 mm worst case.
+        checkPage(32);
 
         // Node label in bold
         doc.setFontSize(7);
@@ -674,49 +775,36 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
         y += 3.5;
         doc.setFont('helvetica', 'normal');
 
-        // Signer
-        doc.setFontSize(7);
-        doc.setTextColor(100);
-        doc.text('Signer:', MARGIN + 4, y);
-        doc.setTextColor(40);
-        doc.text(signer, MARGIN + 22, y);
-        y += LINE_HEIGHT;
-
-        // Date
-        doc.setTextColor(100);
-        doc.text('Date:', MARGIN + 4, y);
-        doc.setTextColor(40);
-        doc.text(dateStr, MARGIN + 22, y);
-        y += LINE_HEIGHT;
-
-        // Action summary (only if present)
-        if (actionSummary) {
+        // Local helper for wrapped label/value rows inside a chain node.
+        const FIELD_X = MARGIN + 4;
+        const VALUE_X = MARGIN + 24;
+        const VALUE_W = CONTENT_WIDTH - (VALUE_X - MARGIN);
+        function nodeRow(fieldLabel: string, valueText: string, colour?: [number, number, number]) {
+          doc.setFontSize(7);
           doc.setTextColor(100);
-          doc.text('Action:', MARGIN + 4, y);
+          doc.text(fieldLabel, FIELD_X, y);
+          if (colour) doc.setTextColor(colour[0], colour[1], colour[2]);
+          else doc.setTextColor(40);
+          const lines = doc.splitTextToSize(valueText, VALUE_W);
+          doc.text(lines, VALUE_X, y);
+          y += Math.max(LINE_HEIGHT, lines.length * 4);
           doc.setTextColor(40);
-          const actionLines = doc.splitTextToSize(actionSummary, CONTENT_WIDTH - 26);
-          doc.text(actionLines, MARGIN + 22, y);
-          y += actionLines.length * 3.5;
         }
 
-        // Validation status
-        const isValid = node.isValid;
-        doc.setTextColor(100);
-        doc.text('Status:', MARGIN + 4, y);
-        if (isValid) {
-          doc.setTextColor(91, 138, 95);
-        } else {
-          doc.setTextColor(205, 92, 92);
-        }
-        doc.text(validStatus, MARGIN + 22, y);
-        doc.setTextColor(40);
-        y += LINE_HEIGHT;
+        nodeRow('Issued by:', signer);
+        nodeRow('Date:', dateStr);
+        if (actionSummary) nodeRow('Action:', actionSummary);
+        nodeRow(
+          'Status:',
+          validStatus,
+          node.isValid ? [91, 138, 95] : [205, 92, 92],
+        );
 
         // Hairline separator between nodes (not after last)
         if (idx < lastIdx) {
           doc.setDrawColor(220);
           doc.setLineWidth(0.1);
-          doc.line(MARGIN + 2, y, PAGE_WIDTH - MARGIN, y);
+          doc.line(MARGIN + 2, y, PAGE_WIDTH - MARGIN - 2, y);
           y += 2;
         }
       }
@@ -1132,7 +1220,7 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
     ...(sidecarVer ? [['Analysis Engine version', sidecarVer] as [string, string]] : []),
     ['Analysis mode', modeLabel],
     ['Trust formula', '40% EXIF metadata + 60% forensic analysis'],
-    ['C2PA adjustment', '+0.10 (valid, no AI declared) / \u22120.25 (AI declared)'],
+    ['C2PA adjustment', '+0.10 (valid, no AI declared) / -0.25 (AI declared)'],
     ['Classifier model', classifierModel + (classifierHash ? ` (${classifierHash})` : '')],
     ['CLIP model', clipModel],
     ['Detectors run', detectorsRunText],
