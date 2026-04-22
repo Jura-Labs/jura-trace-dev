@@ -271,23 +271,14 @@
             noise analysis, copy-move detection, JPEG ghost
           </td>
         </tr>
-        <tr class="border-b border-border-light/50 dark:border-border-dark/50">
+        <tr>
           <td class="py-3 pr-4 font-semibold text-text-light dark:text-text-dark align-top">Deep</td>
           <td class="py-3 pr-4 align-top whitespace-nowrap">~60 s</td>
           <td class="py-3">
-            All Standard detectors, plus: segmented ELA (8 × 8 regional grid) and
-            colour temperature analysis. Recommended for suspected composites or content
-            where Standard returns an inconclusive result.
-          </td>
-        </tr>
-        <tr>
-          <td class="py-3 pr-4 font-semibold text-text-light dark:text-text-dark align-top">Archival</td>
-          <td class="py-3 pr-4 align-top whitespace-nowrap">~90 s</td>
-          <td class="py-3">
-            All Deep detectors with scanner-calibrated tolerances tuned for digitised
-            material. Adds full chain-of-custody audit logging. Use this mode for legal
-            evidence handling, institutional acquisition, or any context requiring a
-            complete evidence record.
+            All Standard detectors, plus: segmented ELA (8 × 8 regional grid),
+            colour temperature analysis, splice boundary detection, and shadow
+            consistency. Recommended for suspected composites, digitised archive
+            material, or any content where Standard returns an inconclusive result.
           </td>
         </tr>
       </tbody>
@@ -299,8 +290,8 @@
     <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Not sure which to choose?</strong>
       Start with Standard. If the result is inconclusive and the content is high-stakes,
-      re-run in Deep mode. Reserve Archival mode for situations where you need a
-      court-admissible or formally audited evidence record.
+      re-run in Deep mode — this is the mode to use for legal evidence handling,
+      institutional acquisition, or digitised archive material.
     </p>
   </div>
 </section>

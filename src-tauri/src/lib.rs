@@ -1603,7 +1603,9 @@ pub(crate) fn run_deep_sidecar_group(
 /// - `"quick"` (or legacy `"fast"`) — EXIF + C2PA only. Target: <5 s.
 /// - `"standard"` (default) — EXIF + C2PA + ELA + deepfake. Target: <15 s.
 /// - `"deep"` — full pipeline including noise, copy-move, NPR, JPEG ghost, CA.
-/// - `"archival"` — deep with scanner-calibrated tolerances.
+/// - `"archival"` — retired 2026-04-22; accepted and silently aliased to `"deep"`.
+///   Will regain a distinct pipeline when scanner-calibrated tolerances and
+///   uncapped video frame extraction are implemented.
 fn verify_content_inner(
     source: &str,
     source_type: &str,
@@ -1719,49 +1721,55 @@ fn verify_content_inner(
     let exif_analysis = if info.content_type == format_router::ContentType::Image {
         let mut analysis = exif_anomaly::analyse(raw_exif_meta.as_ref(), img_w, img_h);
 
-        // Reduce missing-EXIF penalty for modern web codecs (AVIF, WebP, HEIC).
-        // These formats routinely have EXIF stripped by CMS/CDN pipelines for
-        // bandwidth and privacy — absence is standard behaviour, not suspicious.
-        if !analysis.has_exif {
-            let is_web_codec = matches!(
-                info.mime_type.as_str(),
-                "image/avif" | "image/webp" | "image/heic"
-            );
-            if is_web_codec {
-                for finding in &mut analysis.findings {
-                    if finding.check_id == "no_exif_data" {
-                        finding.severity = exif_anomaly::Severity::Low;
-                        finding.description = format!(
-                            "No EXIF data present. For {} files delivered via the web, \
-                             EXIF stripping is standard CMS behaviour for bandwidth \
-                             and privacy. This is not inherently suspicious.",
-                            info.mime_type
-                        );
-                    }
+        // Reduce missing-metadata penalties for formats where camera EXIF is
+        // not routinely carried: modern web codecs (AVIF, WebP, HEIC) are
+        // stripped by CMS/CDN pipelines for bandwidth and privacy; PNG has
+        // an eXIf chunk (PNG 1.2, 2017) but tooling overwhelmingly omits it
+        // because PNG is mostly used for screenshots, diagrams, and graphics.
+        // For these formats, metadata absence is standard behaviour.
+        let is_metadata_optional_format = matches!(
+            info.mime_type.as_str(),
+            "image/avif" | "image/webp" | "image/heic" | "image/png"
+        );
+        if !analysis.has_exif && is_metadata_optional_format {
+            for finding in &mut analysis.findings {
+                if finding.check_id == "no_exif_data" {
+                    finding.severity = exif_anomaly::Severity::Low;
+                    finding.description = format!(
+                        "No EXIF data present. For {} files this is standard behaviour — \
+                         camera EXIF is routinely absent in CMS/CDN pipelines (WebP/AVIF/HEIC) \
+                         and in PNG tooling that does not write the optional eXIf chunk. \
+                         This is not inherently suspicious.",
+                        info.mime_type
+                    );
                 }
-                // Recalculate trust score with reduced penalty
-                let mut score = 1.0_f64;
-                for finding in &analysis.findings {
-                    score -= finding.severity.deduction();
-                }
-                analysis.trust_score = score.max(0.0);
             }
+            // Recalculate trust score with reduced penalty
+            let mut score = 1.0_f64;
+            for finding in &analysis.findings {
+                score -= finding.severity.deduction();
+            }
+            analysis.trust_score = score.max(0.0);
         }
 
         // Inject metadata_completely_absent finding when applicable.
         // This fires when both EXIF and XMP are absent — a stronger signal
         // than the individual no_exif_data finding which fires on EXIF alone.
-        if let Some(absent_finding) = exif_anomaly::check_metadata_completely_absent(
-            analysis.has_exif,
-            raw_exif_meta.as_ref().map(|m| &m.xmp),
-        ) {
-            analysis.trust_score =
-                (analysis.trust_score - absent_finding.severity.deduction()).max(0.0);
-            analysis.findings.push(absent_finding);
-            // Re-sort: Critical first
-            analysis
-                .findings
-                .sort_by(|a, b| b.severity.cmp(&a.severity));
+        // Suppressed for metadata-optional formats (see comment above): for
+        // those formats a bare file with no EXIF and no XMP is the norm.
+        if !is_metadata_optional_format {
+            if let Some(absent_finding) = exif_anomaly::check_metadata_completely_absent(
+                analysis.has_exif,
+                raw_exif_meta.as_ref().map(|m| &m.xmp),
+            ) {
+                analysis.trust_score =
+                    (analysis.trust_score - absent_finding.severity.deduction()).max(0.0);
+                analysis.findings.push(absent_finding);
+                // Re-sort: Critical first
+                analysis
+                    .findings
+                    .sort_by(|a, b| b.severity.cmp(&a.severity));
+            }
         }
 
         Some(analysis)
@@ -1960,16 +1968,21 @@ fn verify_content_inner(
     //   quick/fast → no sidecar at all
     //   standard   → ELA + deepfake only
     //   deep       → all detectors
-    //   archival   → all detectors (scanner-calibrated)
+    //   archival   → retired; silently aliased to "deep" below
     let app = state.lock().map_err(|e| {
         log::error!("AppState mutex poisoned in verify pipeline: {}", e);
         AppError::Internal("Failed to acquire application state".to_string())
     })?;
+    // 'archival' was retired 2026-04-22 because it shared the Deep code path
+    // end-to-end with no detector or threshold differences.  The value is
+    // still accepted for API back-compat (Axum REST, older Tauri clients,
+    // legacy persisted profiles) and silently aliased to "deep".  When real
+    // differentiation lands (scanner-calibrated tolerances, uncapped video
+    // frames), "archival" can regain its own arm without a breaking change.
     let effective_mode = match mode {
         Some("fast") | Some("quick") => "quick",
         Some("standard") => "standard",
-        Some("archival") => "archival",
-        Some("deep") => "deep",
+        Some("archival") | Some("deep") => "deep",
         _ => "standard", // default to standard (was "deep" — too slow for typical use)
     };
     let is_quick = effective_mode == "quick";
@@ -1977,7 +1990,7 @@ fn verify_content_inner(
     // to avoid multiple HTTP round-trips.
     let sidecar_available = !is_quick && app.sidecar.is_available();
     let sidecar_up = is_image && sidecar_available;
-    let is_deep = matches!(effective_mode, "deep" | "archival");
+    let is_deep = effective_mode == "deep";
     log::info!(
         "Verify pipeline: is_image={}, mode={:?}, effective={}, sidecar_up={}, is_deep={}",
         is_image,
@@ -2124,12 +2137,9 @@ fn verify_content_inner(
             let vd_path = path.to_path_buf();
             let vm_client = app.sidecar.clone();
             let vd_client = app.sidecar.clone();
-            let deepfake_mode_owned = match effective_mode {
-                "archival" => "archival",
-                "deep" => "deep",
-                _ => "standard",
-            }
-            .to_string();
+            // effective_mode is already normalised to "quick" | "standard" |
+            // "deep" above; "archival" has been folded into "deep".
+            let deepfake_mode_owned = effective_mode.to_string();
 
             // Transcription runs in parallel too (unless quick mode)
             let run_transcription = !is_quick;
@@ -3266,13 +3276,16 @@ fn analyse_video_deepfake(
         .canonicalize()
         .map_err(|_| AppError::Validation("File not found or inaccessible".into()))?;
 
+    // 'archival' is accepted for API back-compat and normalised to 'deep'
+    // (see verify_content_inner notes).  Reject anything else.
     let valid_modes = ["standard", "deep", "archival"];
     if !valid_modes.contains(&mode.as_str()) {
         return Err(AppError::Validation(format!(
-            "Invalid mode '{}'. Must be one of: standard, deep, archival",
+            "Invalid mode '{}'. Must be one of: standard, deep",
             mode
         )));
     }
+    let effective_mode = if mode == "archival" { "deep" } else { mode.as_str() };
 
     let app = state
         .lock()
@@ -3282,7 +3295,7 @@ fn analyse_video_deepfake(
     }
 
     app.sidecar
-        .analyse_video_deepfake(&path, &mode)
+        .analyse_video_deepfake(&path, effective_mode)
         .map_err(AppError::Sidecar)
 }
 

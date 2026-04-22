@@ -104,19 +104,6 @@
 
       <div>
         <dt
-          id="term-archival-mode"
-          class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >Archival Mode</dt>
-        <dd class="mt-1 text-sm text-flint dark:text-flint-light leading-relaxed max-w-prose">
-          The most thorough investigation mode in Jura Trace. Runs all forensic detectors
-          with scanner-calibrated tolerances, preserves a full chain-of-custody audit log,
-          and is designed for cultural heritage preservation and legal-evidence workflows.
-          Expect analysis times of 60–90 seconds depending on file size.
-        </dd>
-      </div>
-
-      <div>
-        <dt
           id="term-authentic"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Authentic <span class="font-normal text-flint dark:text-flint-light">(Verdict)</span></dt>

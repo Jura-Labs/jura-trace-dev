@@ -21,8 +21,16 @@ from app.services.video_frames import perform_frame_extraction
 
 logger = logging.getLogger(__name__)
 
-# Frame counts by analysis mode
-FRAME_COUNTS = {"standard": 6, "deep": 20, "archival": 40}
+# Frame counts by analysis mode.
+#
+# "archival" was retired upstream on 2026-04-22 (it ran the identical image
+# pipeline to "deep"); the Rust caller now normalises archival->deep before
+# dispatching.  The key is kept here so any direct-to-sidecar caller still
+# using the old label gets the same behaviour.  When phase-2 differentiation
+# lands (uncapped video frames, scanner-calibrated tolerances) this map will
+# regain a distinct archival entry and the 12-frame cap at
+# `perform_frame_extraction(... count=min(count, 12))` must be lifted.
+FRAME_COUNTS = {"standard": 6, "deep": 20, "archival": 20}
 
 # Default similarity threshold for frame deduplication (SSIM-like metric)
 DEDUP_SIMILARITY_THRESHOLD = 0.95
@@ -121,17 +129,26 @@ def perform_video_deepfake_analysis(
 
     Args:
         video_bytes: Raw bytes of the input video file.
-        mode: Analysis mode — "standard" (6 frames), "deep" (20), "archival" (40).
+        mode: Analysis mode — "standard" (6 frames) or "deep" (20 frames).
+              "archival" is accepted for back-compat and aliased to "deep".
 
     Returns:
         VideoDeepfakeResponse with per-frame and aggregate results.
     """
     count = FRAME_COUNTS.get(mode, 6)
 
-    # Step 1: Extract frames
-    frames_response = perform_frame_extraction(video_bytes, count=min(count, 12))
-    # video_frames.py caps at 12 — for deep/archival we re-extract with higher count
-    if count > 12:
+    # Step 1: Extract frames.
+    #
+    # `perform_frame_extraction` has no intrinsic frame-count cap — the
+    # 12-frame ceiling that used to live here was a defensive caller-side
+    # guard from before the deep mode rollout.  `_extract_many_frames`
+    # below duplicates the same logic for larger counts so calling it
+    # unconditionally for count > 12 was double-work.  We now dispatch
+    # once, based on requested count, so Standard (6) and Deep (20) each
+    # get exactly what they asked for with no wasted extraction.
+    if count <= 12:
+        frames_response = perform_frame_extraction(video_bytes, count=count)
+    else:
         frames_response = _extract_many_frames(video_bytes, count)
 
     if not frames_response.success or not frames_response.frames:

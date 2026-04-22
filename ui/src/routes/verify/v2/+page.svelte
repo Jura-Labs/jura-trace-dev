@@ -233,12 +233,6 @@
     return 'none' as const;
   });
 
-  // validAtSigning: certificate may have expired but the timestamp proves the
-  // signature was valid when made — spec requires a malachite seal + amber note.
-  const c2paValidAtSigning = $derived(
-    result?.c2paManifest?.validAtSigning === true
-  );
-
   // Signer display name: prefer signedBy (human-readable org), fall back to
   // claimGenerator (tool identifier). Both are permitted by the spec; signedBy
   // is the "Issued by" field per C2PA UX Rec v1.4 §4.2.
@@ -677,7 +671,13 @@
   // ── Lifecycle ─────────────────────────────────────────────────────
   onMount(() => {
     const savedMode = localStorage.getItem('jura-verify-mode');
-    if (savedMode === 'standard' || savedMode === 'deep' || savedMode === 'archival') {
+    // Migrate 'archival' -> 'deep' — archival was removed 2026-04-22 because
+    // it ran the identical pipeline to Deep.  Existing pilot users had
+    // 'archival' persisted and must land on a still-offered mode.
+    if (savedMode === 'archival') {
+      verifyMode = 'deep';
+      localStorage.setItem('jura-verify-mode', 'deep');
+    } else if (savedMode === 'standard' || savedMode === 'deep') {
       verifyMode = savedMode;
     }
     showRawScores = localStorage.getItem('jura-raw-scores-default') === 'true';
@@ -841,9 +841,12 @@
         const chosen = await save({ defaultPath: filename });
         if (chosen) {
           await writeFile(chosen, new Uint8Array(await blob.arrayBuffer()));
+          console.log(`Saved to: ${chosen}`);
         }
         return;
-      } catch {}
+      } catch (e) {
+        console.warn('Tauri save dialog failed, falling back to browser download:', e);
+      }
     }
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -863,7 +866,7 @@
         caseReference: analystCaseRef.trim() || undefined,
         analysisDate: analystDate.trim() || undefined,
       };
-      const blob = generateTrustReport(result, {
+      const blob = await generateTrustReport(result, {
         fileName: fileName ?? 'Unknown',
         fileSize: 0,
         analysedAt: new Date().toISOString(),
@@ -1220,7 +1223,12 @@
       {#each [
         { mode: 'standard' as VerifyMode, label: 'Standard', description: '~15s' },
         { mode: 'deep' as VerifyMode, label: 'Deep', description: '~60s' },
-        { mode: 'archival' as VerifyMode, label: 'Archival', description: '~2min' },
+        // Archival mode removed 2026-04-22 — it ran the same pipeline as Deep
+        // (src-tauri/src/lib.rs:1986) and the advertised 40-frame video
+        // extraction was capped at 12 by the sidecar.  Re-introduce once
+        // proper differentiation lands (uncapped frames, scanner-calibrated
+        // tolerances).  The 'archival' VerifyMode value is retained in
+        // `lib/types.ts` for API back-compat and aliases to 'deep' in Rust.
       ] as opt}
         <button
           class="px-3 py-1.5 text-xs font-medium transition-colors min-h-[36px]
@@ -1669,12 +1677,18 @@
               <!--
                 Status labels per C2PA UX Rec v1.4 Table 4:
                   invalid -> "Content Credential unavailable or invalid" (verbatim).
-                Compressed to "Invalid or unavailable" here because the
-                header strip layout cannot accommodate the full string at a
-                legible size. Flagged in the conformance submission letter.
-                Valid/Not attached are spec-silent — plain consumer copy used.
+                The header strip summary compresses the label visually
+                to "Invalid or unavailable" for layout reasons, but the
+                full verbatim Table 4 string is exposed to screen readers
+                via aria-label AND is also rendered as a direct disclosure
+                in the L1 card at :2239.  Valid/Not attached are
+                spec-silent — plain consumer copy used.
               -->
-              <span class="text-sm font-medium {result.c2paValid === true ? 'text-malachite dark:text-malachite-light' : result.c2paValid === false ? 'text-cinnabar dark:text-cinnabar-light' : 'text-flint dark:text-flint-light'}">
+              <span
+                class="text-sm font-medium {result.c2paValid === true ? 'text-malachite dark:text-malachite-light' : result.c2paValid === false ? 'text-cinnabar dark:text-cinnabar-light' : 'text-flint dark:text-flint-light'}"
+                title={result.c2paValid === false ? C2PA_STATUS_INVALID : undefined}
+                aria-label={result.c2paValid === false ? C2PA_STATUS_INVALID : undefined}
+              >
                 {result.c2paValid === true ? 'Valid' : result.c2paValid === false ? C2PA_STATUS_INVALID_SHORT : 'Not attached'}
               </span>
             </div>
@@ -2189,17 +2203,17 @@
                 aria-label="Content Credentials"
               >
 
-                <!-- ── L1: Icon + one-line summary (always visible) ── -->
+                <!-- ── L1: Icon + one-line summary (always visible) ──
+                     The seal is the official C2PA "cr" information pin per
+                     UX Recommendations v1.4 §4.1 — circle with squared
+                     lower-right corner, "cr" lettermark inside.  Invalid
+                     state adds a secondary warning marker that leaves the
+                     "cr" fully legible.  Colour and tooltip are driven by
+                     the component itself from `c2paSealState`. -->
                 <div class="flex items-start gap-3">
-                  <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {result.c2paValid === true ? 'text-malachite dark:text-malachite-light' : result.c2paValid === false ? 'text-cinnabar dark:text-cinnabar-light' : 'text-flint dark:text-flint-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    {#if result.c2paValid === false}
-                      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                    {:else if result.c2paValid === true}
-                      <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
-                    {:else}
-                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                    {/if}
-                  </svg>
+                  <span class="mt-0.5 flex-shrink-0">
+                    <ContentCredentialsSeal state={c2paSealState()} size="sm" />
+                  </span>
 
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 mb-1 flex-wrap">
@@ -2260,8 +2274,12 @@
                       {#if c2paShowL2}
                         <div id="c2pa-l2" class="mt-3 space-y-3 border-t border-border-dark/40 pt-3">
 
-                          <!-- Manifest thumbnail (when embedded in assertion) -->
-                          {#if result.c2paManifest.thumbnailBase64}
+                          <!-- Manifest thumbnail (when embedded in assertion).
+                               Suppressed on update manifests per C2PA UX Rec
+                               v1.4 §6 — an update manifest describes a metadata-
+                               only change and MUST NOT display a thumbnail that
+                               could be mistaken for the current asset state. -->
+                          {#if result.c2paManifest.thumbnailBase64 && !result.c2paManifest.isUpdateManifest}
                             <div class="mb-1">
                               <img
                                 src="data:{result.c2paManifest.thumbnailMime ?? 'image/jpeg'};base64,{result.c2paManifest.thumbnailBase64}"
@@ -2368,7 +2386,8 @@
                                     aria-hidden="true"
                                   ></span>
                                   <div class="flex items-start gap-2">
-                                    {#if chain.active.thumbnailBase64}
+                                    <!-- Thumbnail suppressed on update manifests per §6. -->
+                                    {#if chain.active.thumbnailBase64 && !chain.active.isUpdateManifest}
                                       <img src="data:{chain.active.thumbnailMime ?? 'image/jpeg'};base64,{chain.active.thumbnailBase64}" alt="" class="w-10 h-10 rounded border border-border-dark object-cover flex-shrink-0" />
                                     {/if}
                                     <div>
@@ -2454,7 +2473,8 @@
                                     aria-hidden="true"
                                   ></span>
                                   <div class="flex items-start gap-2">
-                                    {#if originManifest.thumbnailBase64}
+                                    <!-- Thumbnail suppressed on update manifests per §6. -->
+                                    {#if originManifest.thumbnailBase64 && !originManifest.isUpdateManifest}
                                       <img src="data:{originManifest.thumbnailMime ?? 'image/jpeg'};base64,{originManifest.thumbnailBase64}" alt="" class="w-10 h-10 rounded border border-border-dark object-cover flex-shrink-0" />
                                     {/if}
                                     <div>
@@ -2622,6 +2642,32 @@
                                           {/each}
                                         </ul>
                                       </details>
+                                    </div>
+                                  {/if}
+
+                                  <!-- Redactions — spec MUST surface at L3 per C2PA UX
+                                       Recommendations v1.4 §6 with both target and rationale,
+                                       so users can see exactly which assertions were removed
+                                       and why (e.g. "Rights-holder request"). -->
+                                  {#if sm && sm.redactions && sm.redactions.length > 0}
+                                    <div>
+                                      <p class="text-[10px] text-flint uppercase tracking-wider mb-1.5">
+                                        Redactions ({sm.redactions.length})
+                                      </p>
+                                      <ul class="space-y-2" aria-label="Redacted assertions">
+                                        {#each sm.redactions as redaction}
+                                          <li class="text-[11px] border-l-2 border-amber/60 pl-2">
+                                            <span class="font-mono text-flint dark:text-flint-light break-all">
+                                              {redaction.target}
+                                            </span>
+                                            {#if redaction.reason}
+                                              <p class="text-quartz/80 mt-0.5 italic">{redaction.reason}</p>
+                                            {:else}
+                                              <p class="text-flint/70 mt-0.5 italic">No rationale provided</p>
+                                            {/if}
+                                          </li>
+                                        {/each}
+                                      </ul>
                                     </div>
                                   {/if}
 

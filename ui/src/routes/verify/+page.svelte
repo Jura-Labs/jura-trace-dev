@@ -558,9 +558,13 @@
     // Restore persisted raw scores preference
     showRawScores = localStorage.getItem('jura-raw-scores-default') === 'true';
 
-    // Restore persisted investigation mode
+    // Restore persisted investigation mode. Legacy 'archival' value was
+    // retired 2026-04-22 (identical code path to Deep) — migrate on load.
     const savedMode = localStorage.getItem('jura-verify-mode');
-    if (savedMode === 'standard' || savedMode === 'deep' || savedMode === 'archival') {
+    if (savedMode === 'archival') {
+      verifyMode = 'deep';
+      localStorage.setItem('jura-verify-mode', 'deep');
+    } else if (savedMode === 'standard' || savedMode === 'deep') {
       verifyMode = savedMode;
     }
 
@@ -1012,7 +1016,7 @@
         analysisDate: analystDate.trim() || undefined,
       };
 
-      const blob = generateTrustReport(
+      const blob = await generateTrustReport(
         result,
         {
           fileName: fileName ?? 'Unknown',
@@ -2049,11 +2053,7 @@
               label: 'Deep',
               description: 'Extended analysis with checks for compositing and region-level inconsistencies',
             },
-            {
-              mode: 'archival' as VerifyMode,
-              label: 'Archival',
-              description: 'Full analysis tuned for digitised archive material — takes around 90 seconds',
-            },
+            // Archival removed 2026-04-22 — identical code path to Deep; re-introduce with real differentiation.
           ] as opt}
             <button
               class="px-3 py-2 min-h-[44px] text-left transition-colors duration-150
