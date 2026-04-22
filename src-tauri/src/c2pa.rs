@@ -42,12 +42,12 @@ pub struct ManifestInfo {
     ///
     /// `None` for ingredient manifests (they inherit the mode from the active manifest).
     ///
-    /// **Infrastructure note**: c2pa-rs 0.76 does not expose reader-level configuration
-    /// for trust-list loading or OCSP/CRL checking.  When such configuration is added
-    /// to `c2pa::Reader` in a future release, the `enhanced = true` path in
-    /// `read_manifest` and `read_manifest_chain` is where those options should be set.
-    /// For now the field documents which mode was requested so the UI and PDF export
-    /// can accurately report whether online checks were attempted.
+    /// **Infrastructure note**: trust-list loading is unconditional as of c2pa-rs 0.79
+    /// and happens via thread-local `Settings` populated by
+    /// `ensure_trust_settings_initialised`.  The `enhanced = true` path remains reserved
+    /// for future OCSP/CRL revocation checks, which c2pa-rs 0.79 does not yet expose at
+    /// the `Reader` level.  For now this field documents which mode the user requested so
+    /// the UI and PDF export can accurately report whether online checks were attempted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verification_mode: Option<String>,
     /// Base64-encoded thumbnail image extracted from the manifest's thumbnail assertion
@@ -1086,8 +1086,69 @@ fn extract_redactions(manifest: &serde_json::Value) -> Vec<RedactionRecord> {
         .collect()
 }
 
+// ===== Trust list initialisation =====
+//
+// Vendored PEM bundles — see `src-tauri/trust-list/README.md` for provenance
+// and refresh policy.  Concatenated into a single PEM blob and loaded into
+// `c2pa::Settings` thread-local storage before any `Reader` is constructed,
+// so chains to the official C2PA-recognised CAs and TSAs validate correctly
+// (Google Pixel, Adobe, Truepic, etc.) instead of surfacing as
+// `signingCredential.untrusted`.
+
+const C2PA_TRUST_LIST_PEM: &str = include_str!("../trust-list/C2PA-TRUST-LIST.pem");
+const C2PA_TSA_TRUST_LIST_PEM: &str = include_str!("../trust-list/C2PA-TSA-TRUST-LIST.pem");
+const ITL_ANCHORS_PEM: &str = include_str!("../trust-list/ITL-anchors.pem");
+const ITL_ALLOWED_PEM: &str = include_str!("../trust-list/ITL-allowed.pem");
+
+/// Concatenate all four trust list PEM bundles into one blob suitable for the
+/// `trust.trust_anchors` settings field.  Newline-separated so individual
+/// certificates retain their `-----BEGIN/-----END` framing.
+fn concatenated_trust_bundle() -> String {
+    [
+        C2PA_TRUST_LIST_PEM,
+        C2PA_TSA_TRUST_LIST_PEM,
+        ITL_ANCHORS_PEM,
+        ITL_ALLOWED_PEM,
+    ]
+    .join("\n")
+}
+
+/// Initialise c2pa-rs thread-local trust settings.
+///
+/// c2pa-rs 0.79 stores `Settings` (including `trust.trust_anchors`) in
+/// thread-local storage.  Each thread that constructs a `c2pa::Reader` must
+/// call this first so the official C2PA CA + TSA trust lists (and the legacy
+/// Interim Trust List bundles for content signed before January 2026) are in
+/// scope when the certificate chain is validated.
+///
+/// Idempotent per thread — a thread-local flag short-circuits subsequent
+/// calls so we parse the TOML at most once per worker.  TOML multi-line
+/// *literal* strings (triple single quotes) are used so no escape processing
+/// is applied to the PEM content.
+fn ensure_trust_settings_initialised() -> Result<(), String> {
+    thread_local! {
+        static INITIALISED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+    INITIALISED.with(|flag| {
+        if flag.get() {
+            return Ok(());
+        }
+        let bundle = concatenated_trust_bundle();
+        let toml = format!("[trust]\ntrust_anchors = '''\n{bundle}\n'''\n");
+        c2pa::Settings::from_toml(&toml)
+            .map_err(|e| format!("Failed to initialise C2PA trust settings: {e}"))?;
+        flag.set(true);
+        Ok(())
+    })
+}
+
 /// Open a c2pa-rs `Reader` for `path`, returning `Ok(None)` when no C2PA data is present.
+///
+/// Thread-local trust settings are initialised on first call so the returned
+/// `Reader`'s validation walks the official C2PA trust lists rather than
+/// returning `signingCredential.untrusted` for every well-known signer.
 fn open_reader(path: &Path) -> Result<Option<c2pa::Reader>, String> {
+    ensure_trust_settings_initialised()?;
     match c2pa::Reader::from_file(path) {
         Ok(r) => Ok(Some(r)),
         Err(c2pa::Error::JumbfNotFound) => Ok(None),
@@ -1110,23 +1171,15 @@ fn open_reader(path: &Path) -> Result<Option<c2pa::Reader>, String> {
 /// `"enhanced"` (online OCSP/CRL checks requested); when `false` it is
 /// `"standard"` (local-only, air-gapped).
 ///
-/// **Infrastructure note for future OCSP/CRL support**: when c2pa-rs exposes
-/// reader-level configuration for trust-list loading or revocation checking,
-/// configure the `c2pa::Reader` here based on the `enhanced` flag before
-/// calling `reader.json()`.  As of c2pa-rs 0.76 no such API exists.
+/// Trust-list loading is unconditional — both modes chain against the
+/// official C2PA CA and TSA trust lists via `ensure_trust_settings_initialised`.
+/// `enhanced` remains a hook for future OCSP/CRL revocation checks, which
+/// c2pa-rs 0.79 does not yet expose at the `Reader` level.
 pub fn read_manifest(path: &Path, enhanced: bool) -> Result<Option<ManifestInfo>, String> {
     let reader = match open_reader(path)? {
         Some(r) => r,
         None => return Ok(None),
     };
-
-    // TODO(OCSP): when c2pa-rs adds Reader configuration for trust-list and
-    // OCSP/CRL revocation, configure it here when `enhanced = true`.
-    // Example (hypothetical API — does not exist in c2pa-rs 0.76):
-    //   if enhanced {
-    //       reader.set_trust_list(c2pa::TrustList::from_online_sources()?);
-    //       reader.enable_ocsp_checking(true);
-    //   }
 
     let json_str = reader.json();
     let json: serde_json::Value = serde_json::from_str(&json_str)
@@ -1193,9 +1246,9 @@ pub struct ManifestChain {
 /// not carry a `verification_mode` (they inherit the mode from the active
 /// manifest; the field is `None` for ingredients).
 ///
-/// **Infrastructure note for future OCSP/CRL support**: see [`read_manifest`]
-/// for the TODO comment on where to configure c2pa-rs when the API becomes
-/// available.
+/// Trust-list loading is unconditional and shared with [`read_manifest`] via
+/// [`ensure_trust_settings_initialised`].  The `enhanced` flag remains reserved
+/// for future OCSP/CRL revocation checks.
 pub fn read_manifest_chain(path: &Path, enhanced: bool) -> Result<Option<ManifestChain>, String> {
     let reader = match open_reader(path)? {
         Some(r) => r,
@@ -3575,5 +3628,121 @@ mod tests {
         assert!(json.contains("\"redactions\""));
         assert!(json.contains("\"target\""));
         assert!(json.contains("\"reason\""));
+    }
+
+    // ===== Trust list initialisation =====
+
+    /// The concatenated trust bundle must contain every PEM certificate from
+    /// all four vendored sources.  Count drift (e.g. a missing `include_str!`
+    /// or an accidentally-truncated refresh) would silently regress Validator
+    /// conformance — this test catches it at build time.
+    #[test]
+    fn concatenated_trust_bundle_has_all_expected_certs() {
+        let bundle = concatenated_trust_bundle();
+        let cert_count = bundle.matches("-----BEGIN CERTIFICATE-----").count();
+        // 19 (current CA) + 14 (current TSA) + 27 (ITL anchors) + 115 (ITL
+        // allowed) = 175 at time of vendoring.  If this ever needs revision
+        // after a refresh, update `trust-list/README.md` to match.
+        assert_eq!(
+            cert_count, 175,
+            "expected 175 certs across all four trust bundles, got {cert_count}"
+        );
+        assert!(bundle.contains("Google C2PA Root CA G3"));
+    }
+
+    /// `ensure_trust_settings_initialised` must succeed and the first call
+    /// must leave the thread-local `trust.trust_anchors` populated.  The
+    /// second call must be a fast no-op (thread-local flag short-circuit).
+    #[test]
+    fn trust_settings_initialisation_is_idempotent() {
+        ensure_trust_settings_initialised().expect("first init must succeed");
+        ensure_trust_settings_initialised().expect("re-init must be a no-op");
+    }
+
+    /// After init, `c2pa::Reader::from_file` must not fail for reasons
+    /// related to missing trust anchors.  This is a smoke test only — it
+    /// uses a minimal path and asserts the Reader constructor itself does
+    /// not panic or return a trust-config-related error.
+    #[test]
+    fn reader_construction_after_trust_init_does_not_panic() {
+        ensure_trust_settings_initialised().expect("trust init");
+        // Non-existent path — we expect `Ok(None)` (no C2PA data) or a
+        // file-I/O error, NOT a trust-configuration error.
+        let result = open_reader(std::path::Path::new("/nonexistent/asset.jpg"));
+        match result {
+            Ok(None) => {}
+            Err(msg) => {
+                assert!(
+                    !msg.to_lowercase().contains("trust"),
+                    "unexpected trust-config error: {msg}"
+                );
+            }
+            Ok(Some(_)) => panic!("unexpected Reader for nonexistent file"),
+        }
+    }
+
+    /// End-to-end conformance check: reading a Google-Pixel-signed JPEG
+    /// from the C2PA Validator test-vector set must NOT surface
+    /// `signingCredential.untrusted` in the validation checks.  This was the
+    /// exact failure the C2PA Conformance administrator flagged on the
+    /// 2026-04-22 Validator review, and it's the root-cause test that
+    /// proves the vendored trust list is being honoured by c2pa-rs.
+    ///
+    /// Gracefully skipped if the fixture is absent (e.g. a minimal
+    /// source checkout without `docs/c2pa-conformance/test-vectors/`).
+    #[test]
+    fn google_pixel_asset_chains_to_trusted_ca() {
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../docs/c2pa-conformance/test-vectors/pixel_expired_cert.jpg");
+        if !fixture.exists() {
+            eprintln!("skipping: fixture not present at {}", fixture.display());
+            return;
+        }
+
+        let manifest = read_manifest(&fixture, false)
+            .expect("read_manifest must not error on a valid Pixel asset")
+            .expect("Pixel asset must contain a C2PA manifest");
+
+        // The chain must have produced validation activity — an empty list
+        // would indicate the Reader bailed out early and this test would be
+        // a false positive.  With the official trust list loaded, c2pa-rs
+        // produces 9 passing checks: timeStamp.validated, timeStamp.trusted,
+        // signingCredential.trusted, claimSignature.insideValidity,
+        // claimSignature.validated, 3x assertion.hashedURI.match,
+        // assertion.dataHash.match.
+        assert!(
+            !manifest.validation_checks.is_empty(),
+            "expected at least one validation check from c2pa-rs"
+        );
+
+        let untrusted: Vec<_> = manifest
+            .validation_checks
+            .iter()
+            .filter(|c| c.code.contains("untrusted"))
+            .collect();
+
+        assert!(
+            untrusted.is_empty(),
+            "Google-signed Pixel asset must not surface trust-related failures \
+             after trust-list init; got: {untrusted:?}"
+        );
+
+        // All checks must have outcome "pass" — no "fail", no "info" on this
+        // canonical asset once the trust list is honoured.
+        let non_pass: Vec<_> = manifest
+            .validation_checks
+            .iter()
+            .filter(|c| c.outcome != "pass")
+            .collect();
+        assert!(
+            non_pass.is_empty(),
+            "all validation checks should pass for this asset; non-pass: {non_pass:?}"
+        );
+
+        // Fully valid — overrides `valid_at_signing` when no failures occur.
+        assert!(
+            manifest.is_valid,
+            "Pixel asset with trusted CA + TSA must be is_valid=true"
+        );
     }
 }
