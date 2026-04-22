@@ -881,6 +881,12 @@ export interface ManifestInfo {
   /** Cert expired but trusted timestamp + valid claim signature prove the signature
    *  was valid when issued (common for short-lived certs like Google Pixel Camera). */
   validAtSigning?: boolean;
+  /** True when the leaf signing cert's notAfter is in the past at the time of
+   *  this verification. Independent of `isValid`: a manifest can be fully valid
+   *  (trusted chain + trusted timestamp) and have a signing cert that has since
+   *  expired. L3 uses this flag to disclose the expiry without downgrading the
+   *  Valid seal. Undefined when the cert chain couldn't be parsed. */
+  certificateExpired?: boolean;
   signedAt?: string;
   /** Signer common name from signature_info (e.g. "Pixel Camera"). */
   signedBy?: string;

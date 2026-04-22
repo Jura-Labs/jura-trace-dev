@@ -5611,19 +5611,23 @@
           <div class="flex items-center gap-3 mb-4">
             <h2 id="c2pa-heading" class="text-sm font-medium text-text-light dark:text-quartz">C2PA Credentials</h2>
             <ContextualHelpLink href="/help/verify#provenance" label="Learn about C2PA provenance" />
+            <!-- Cert-expired signal: either the legacy c2pa-rs failure path
+                 (`validAtSigning`) OR our post-trust-list notAfter probe
+                 (`certificateExpired`).  Inlined because `{@const}` cannot
+                 be a direct child of a <div> in Svelte. -->
             <span
               class="text-xs font-medium px-2 py-0.5 rounded
-                     {manifest.isValid && manifest.validAtSigning
+                     {manifest.isValid && (manifest.validAtSigning === true || manifest.certificateExpired === true)
                        ? 'bg-amber/15 text-amber border border-amber/30'
                        : manifest.isValid
                        ? 'bg-malachite/15 text-malachite-light border border-malachite/20'
                        : 'bg-cinnabar/15 text-cinnabar-light border border-cinnabar/20'}"
-              aria-label="C2PA signature is {manifest.isValid && manifest.validAtSigning ? 'valid at signing (certificate expired)' : manifest.isValid ? 'valid' : 'invalid'}"
-              title={manifest.isValid && manifest.validAtSigning
+              aria-label="C2PA signature is {manifest.isValid && (manifest.validAtSigning === true || manifest.certificateExpired === true) ? 'valid at signing (certificate expired)' : manifest.isValid ? 'valid' : 'invalid'}"
+              title={manifest.isValid && (manifest.validAtSigning === true || manifest.certificateExpired === true)
                 ? 'Signing certificate has expired, but a trusted timestamp and valid claim signature prove the signature was issued while the certificate was still valid. Common for short-lived credentials such as Google Pixel Camera.'
                 : undefined}
             >
-              {manifest.isValid && manifest.validAtSigning ? 'Valid at signing' : manifest.isValid ? 'Valid' : 'Invalid'}
+              {manifest.isValid && (manifest.validAtSigning === true || manifest.certificateExpired === true) ? 'Valid at signing' : manifest.isValid ? 'Valid' : 'Invalid'}
             </span>
             {#if result.aiGenerator}
               <span
@@ -5755,10 +5759,19 @@
                   class="absolute left-[7px] top-[18px] bottom-0 w-px bg-border-light dark:bg-border-dark"
                   aria-hidden="true"
                 ></span>
-                <!-- Dot -->
+                <!-- Dot.  Amber applies when the signing cert has expired
+                     in either of two ways:
+                       - `validAtSigning` — c2pa-rs flagged the expired cert
+                         via the legacy failure-with-timestamp path (common
+                         pre-trust-list, still possible for untrusted chains).
+                       - `certificateExpired` — our own post-trust-list probe
+                         of the leaf cert's notAfter.  With the official
+                         trust lists now loaded, this is the signal that
+                         replaces the old c2pa-rs `signingCredential.expired`
+                         code for well-known signers. -->
                 <span
                   class="absolute left-0 top-1 w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center
-                         {manifest.isValid && manifest.validAtSigning
+                         {manifest.isValid && (manifest.validAtSigning === true || manifest.certificateExpired === true)
                            ? 'border-amber bg-amber/15'
                            : manifest.isValid
                            ? 'border-malachite bg-malachite/15'
@@ -5769,7 +5782,7 @@
                 <div class="bg-gray-50 dark:bg-obsidian/30 rounded-md border border-border-light dark:border-border-dark px-3 py-2">
                   <p class="text-xs font-semibold text-text-light dark:text-quartz mb-0.5">
                     Signed
-                    {#if manifest.isValid && manifest.validAtSigning}
+                    {#if manifest.isValid && (manifest.validAtSigning === true || manifest.certificateExpired === true)}
                       <span class="text-amber font-medium">(valid at signing — certificate has since expired)</span>
                     {:else if manifest.isValid}
                       <span class="text-malachite dark:text-malachite-light font-medium">(valid)</span>

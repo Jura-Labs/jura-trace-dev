@@ -2608,10 +2608,29 @@
                                             <span class="text-quartz">Timestamp verified</span>
                                           </div>
                                         {/if}
-                                        <!-- Certificate expiry and trust-list warnings removed from L3.
-                                             certExpired fires on all short-lived certs (Pixel, Leica) — noise when timestamp mitigates.
-                                             certUntrusted fires on every file because c2pa-rs has no default trust list — always-on noise.
-                                             Both remain visible in L4 "Show raw validation codes" for forensic users. -->
+                                        <!-- Certificate-expired disclosure (informational, L3 only).
+                                             Spec: v1.4 treats timestamped-valid as a Valid state, so
+                                             this must NOT be a failure, warning, or red mark.  It is
+                                             an amber advisory that preserves the audit-trail
+                                             transparency the conformance admin asked for now that
+                                             c2pa-rs no longer emits `signingCredential.expired` under
+                                             a trusted chain.  Trigger: signing cert's notAfter is in
+                                             the past, regardless of `isValid`. -->
+                                        {#if sm.certificateExpired === true}
+                                          <div class="flex items-start gap-2 text-xs">
+                                            <span class="w-4 text-center text-amber dark:text-amber-light shrink-0" aria-hidden="true">{'ⓘ'}</span>
+                                            <span class="text-quartz/90 leading-relaxed">
+                                              Signed with a short-lived certificate that has since expired.
+                                              A trusted timestamp confirms the signature was valid at the
+                                              time it was issued.
+                                            </span>
+                                          </div>
+                                        {/if}
+                                        <!-- Trust-list warnings remain out of L3. `certUntrusted`
+                                             used to fire on every file because c2pa-rs had no default
+                                             trust list — now suppressed because the official CA + TSA
+                                             lists are loaded.  Raw codes remain visible in L4 for
+                                             forensic users. -->
                                         <!-- Pass/fail/info counters removed — the "failed" count includes
                                              cert-expired and cert-untrusted which are suppressed noise, making
                                              the counter misleading. Raw codes in L4 show the full picture. -->

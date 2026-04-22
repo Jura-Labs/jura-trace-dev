@@ -23,6 +23,19 @@ pub struct ManifestInfo {
     /// Google Pixel Camera.
     #[serde(default)]
     pub valid_at_signing: bool,
+    /// True when the leaf signing certificate's `notAfter` is in the past at
+    /// the time of this verification.  Independent of `is_valid`: a manifest
+    /// can be fully valid (trusted chain + trusted timestamp) AND have a
+    /// signing certificate that has since expired — this is the normal case
+    /// for short-lived phone-camera certs like Google Pixel.  The UI uses
+    /// this flag to render an informational L3 note explaining the
+    /// "signed with a certificate that has since expired" situation without
+    /// downgrading the Valid seal.
+    ///
+    /// `None` when the cert chain cannot be parsed (e.g. self-signed
+    /// manifests from Sovereign mode that don't embed a parseable chain).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub certificate_expired: Option<bool>,
     pub signed_at: Option<String>,
     /// Signer common name from `signature_info.common_name` (e.g. "Pixel Camera").
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -954,6 +967,11 @@ fn extract_manifest_info(
         assertions,
         is_valid,
         valid_at_signing,
+        // Populated in `read_manifest` / `read_manifest_chain` from the
+        // typed Reader API — the reader JSON omits `cert_chain`, so the
+        // info constructed here leaves this as `None` and the caller
+        // overrides it once the cert chain has been parsed.
+        certificate_expired: None,
         signed_at,
         signed_by,
         signed_by_issuer,
@@ -1142,6 +1160,28 @@ fn ensure_trust_settings_initialised() -> Result<(), String> {
     })
 }
 
+/// Parse the leaf (first) certificate of a PEM chain and return whether
+/// its `notAfter` is in the past.
+///
+/// c2pa-rs exposes the full signing chain as a concatenated PEM string via
+/// `SignatureInfo::cert_chain()`; the leaf is always the first cert.  We
+/// parse only the leaf because that's the signer itself — any CA expiry
+/// is separately enforced by the trust-list validation pass.
+///
+/// Returns `None` if the chain is empty or the leaf can't be parsed (e.g.
+/// Sovereign-mode self-signed manifests that embed a non-standard chain).
+fn leaf_cert_expired(cert_chain_pem: &str) -> Option<bool> {
+    use x509_parser::pem::parse_x509_pem;
+    let (_, pem) = parse_x509_pem(cert_chain_pem.as_bytes()).ok()?;
+    let cert = pem.parse_x509().ok()?;
+    let not_after_ts = cert.validity().not_after.timestamp();
+    let now_ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_secs() as i64;
+    Some(not_after_ts < now_ts)
+}
+
 /// Open a c2pa-rs `Reader` for `path`, returning `Ok(None)` when no C2PA data is present.
 ///
 /// Thread-local trust settings are initialised on first call so the returned
@@ -1200,13 +1240,20 @@ pub fn read_manifest(path: &Path, enhanced: bool) -> Result<Option<ManifestInfo>
     };
 
     let mode_str = if enhanced { "enhanced" } else { "standard" };
-    Ok(Some(extract_manifest_info(
-        manifest,
-        &json,
-        true,
-        None,
-        Some(mode_str),
-    )))
+    let mut info = extract_manifest_info(manifest, &json, true, None, Some(mode_str));
+
+    // Overlay the leaf-cert expiry flag from the typed Reader API — the
+    // reader JSON doesn't carry `cert_chain` (it's `#[serde(skip)]` in
+    // c2pa-rs's `SignatureInfo`), so we have to reach into the typed
+    // manifest to extract the PEM chain.  This lets L3 disclose
+    // "signed with a certificate that has since expired" for short-lived
+    // phone-camera credentials without contradicting the Valid seal.
+    info.certificate_expired = reader
+        .active_manifest()
+        .and_then(|m| m.signature_info())
+        .and_then(|si| leaf_cert_expired(si.cert_chain()));
+
+    Ok(Some(info))
 }
 
 // ===== Manifest chain =====
@@ -1276,7 +1323,16 @@ pub fn read_manifest_chain(path: &Path, enhanced: bool) -> Result<Option<Manifes
 
     let manifest_count = manifests.len();
     let mode_str = if enhanced { "enhanced" } else { "standard" };
-    let active = extract_manifest_info(active_manifest, &json, true, None, Some(mode_str));
+    let mut active = extract_manifest_info(active_manifest, &json, true, None, Some(mode_str));
+
+    // Overlay the leaf-cert expiry flag for the active manifest — same
+    // reasoning as in `read_manifest`.  Ingredient manifests are left at
+    // `None` because they represent historical steps whose cert lifecycle
+    // is not actionable for current-state verification.
+    active.certificate_expired = reader
+        .active_manifest()
+        .and_then(|m| m.signature_info())
+        .and_then(|si| leaf_cert_expired(si.cert_chain()));
 
     // Build a lookup map from ingredient assertion URI → validationDeltas so
     // we can enrich ingredient manifests with their actual validation results.
@@ -2242,6 +2298,7 @@ mod tests {
             }],
             is_valid: true,
             valid_at_signing: false,
+            certificate_expired: None,
             signed_at: Some("2026-01-01T00:00:00Z".to_string()),
             signed_by: None,
             signed_by_issuer: None,
@@ -3396,6 +3453,7 @@ mod tests {
             assertions: vec![],
             is_valid: true,
             valid_at_signing: false,
+            certificate_expired: None,
             signed_at: None,
             signed_by: None,
             signed_by_issuer: None,
@@ -3429,6 +3487,7 @@ mod tests {
             assertions: vec![],
             is_valid: true,
             valid_at_signing: false,
+            certificate_expired: None,
             signed_at: None,
             signed_by: None,
             signed_by_issuer: None,
@@ -3459,6 +3518,7 @@ mod tests {
                 assertions: vec![],
                 is_valid: true,
                 valid_at_signing: false,
+                certificate_expired: None,
                 signed_at: None,
                 signed_by: None,
                 signed_by_issuer: None,
@@ -3608,6 +3668,7 @@ mod tests {
             assertions: vec![],
             is_valid: true,
             valid_at_signing: false,
+            certificate_expired: None,
             signed_at: None,
             signed_by: None,
             signed_by_issuer: None,
@@ -3743,6 +3804,71 @@ mod tests {
         assert!(
             manifest.is_valid,
             "Pixel asset with trusted CA + TSA must be is_valid=true"
+        );
+
+        // The Pixel test vector's leaf signing cert is deliberately expired
+        // (that's what the filename advertises).  With the trust list loaded
+        // c2pa-rs no longer emits `signingCredential.expired` as a failure,
+        // so the UI relies on this flag instead.  `certificate_expired`
+        // should be `Some(true)` so L3 can disclose the expiry.
+        assert_eq!(
+            manifest.certificate_expired,
+            Some(true),
+            "Pixel asset's leaf signing cert is past its notAfter date"
+        );
+    }
+
+    // ===== Leaf cert expiry helper =====
+
+    /// Round-trip test for `leaf_cert_expired` using a synthetic PEM with a
+    /// known-past `notAfter`.  The PEM below is a self-signed ECDSA cert
+    /// generated at test-fixture time with a validity window of 2023-01-01
+    /// to 2024-01-01 — far in the past from any reasonable build time.
+    #[test]
+    fn leaf_cert_expired_returns_true_for_past_not_after() {
+        // Embed a real expired cert rather than mocking — rcgen lets us
+        // generate one deterministically in-process.
+        use rcgen::{CertificateParams, DistinguishedName, DnType, KeyPair};
+        let mut params = CertificateParams::new(vec!["test".to_string()]).unwrap();
+        let mut dn = DistinguishedName::new();
+        dn.push(DnType::CommonName, "expired-test");
+        params.distinguished_name = dn;
+        params.not_before = time::OffsetDateTime::from_unix_timestamp(1_672_531_200).unwrap(); // 2023-01-01
+        params.not_after = time::OffsetDateTime::from_unix_timestamp(1_704_067_200).unwrap(); // 2024-01-01
+        let kp = KeyPair::generate().unwrap();
+        let cert = params.self_signed(&kp).unwrap();
+        let pem = cert.pem();
+
+        assert_eq!(leaf_cert_expired(&pem), Some(true));
+    }
+
+    /// A cert with a `notAfter` far in the future must return `Some(false)`.
+    #[test]
+    fn leaf_cert_expired_returns_false_for_future_not_after() {
+        use rcgen::{CertificateParams, DistinguishedName, DnType, KeyPair};
+        let mut params = CertificateParams::new(vec!["test".to_string()]).unwrap();
+        let mut dn = DistinguishedName::new();
+        dn.push(DnType::CommonName, "future-test");
+        params.distinguished_name = dn;
+        params.not_before = time::OffsetDateTime::now_utc();
+        params.not_after = time::OffsetDateTime::now_utc()
+            .checked_add(time::Duration::days(365 * 10))
+            .unwrap();
+        let kp = KeyPair::generate().unwrap();
+        let cert = params.self_signed(&kp).unwrap();
+        let pem = cert.pem();
+
+        assert_eq!(leaf_cert_expired(&pem), Some(false));
+    }
+
+    /// Malformed PEM input must return `None` rather than panicking.
+    #[test]
+    fn leaf_cert_expired_returns_none_for_garbage_pem() {
+        assert_eq!(leaf_cert_expired(""), None);
+        assert_eq!(leaf_cert_expired("not a pem"), None);
+        assert_eq!(
+            leaf_cert_expired("-----BEGIN CERTIFICATE-----\nnot-base64\n-----END CERTIFICATE-----"),
+            None
         );
     }
 }
