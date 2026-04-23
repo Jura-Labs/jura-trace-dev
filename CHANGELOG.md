@@ -6,6 +6,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 23 April 2026 — Release Candidate rc.21 — Validator evaluation build
+
+The C2PA Validator submission is progressing through final approval. The approver requested a copy change and indicated they will soon be presented the application for review. This build consolidates the last set of UX and trust-scoring changes needed for that evaluation, re-enables macOS signing in CI, and hides the Protect workflow (a separate Generator-track submission) to keep the approver's attention on the verification pipeline.
+
+### Added
+
+- **Self-declared AI ceiling in the trust score.** When a file self-declares AI generation — via a C2PA manifest action with `digitalSourceType = trainedAlgorithmicMedia`, OR via the XMP IPTC vocabularies (`Iptc4xmpExt:DigitalSourceType`, `xmp:CreatorTool`) — the overall trust score is now capped at 0.25. Producer self-declaration is the gold-standard provenance signal; forensic and ensemble signals cannot override it. Fixes a calibration gap where a Firefly → Photoshop-Web → JPEG export (C2PA stripped by the editor, XMP AI flag preserved) resolved to 55% "Medium Trust / Concern" instead of the correct Low Trust.
+- **macOS Apple Silicon build restored in the release matrix.** Paused since rc.18 while the Apple Developer ID Application certificate was being set up for Jura Labs CIC (Team Y82C4P9L7F). All six signing secrets now configured on `juralabs/jura-archive`; both macOS and Windows produce signed + notarised artefacts on tag.
+- **PDF report heatmap transcoding.** Heatmap PNGs are downscaled to 800 px and re-encoded as JPEG (quality 0.75) before embedding. Cuts PDF report size ~5–10× — addresses the approver's round-2 evidence-bundle readability feedback where aggressive global compression had made screenshots illegible.
+- **Certificate validity window in L3 disclosure.** `ManifestInfo` carries `certNotBefore` + `certNotAfter`; the expired-certificate disclosure now shows the concrete validity range rather than prose alone.
+
+### Changed
+
+- **V2 is canonical Verify.** The hybrid V2 layout is now the default route at `/verify`; the original V1 is archived at `/verify/classic` (still reachable by URL but not linked from the main nav; retained only for specialist ROI/annotation tooling that hasn't been ported yet). The "v2 Preview" pill and "Switch to classic view" link are removed.
+- **"This is normal for most images" helper copy removed** from the No-Content-Credentials state per the C2PA approver's feedback. As more generator products pass conformance, the "normal for most" framing becomes untrue; the message now states the fact and stops.
+- **Protect and Signing Modes hidden for the Validator evaluation build.** Both are omitted from the top nav, the dashboard hero, the dashboard narrative chapters, the Help sidebar, and the Help index. The `/protect` and `/help/protect` routes remain reachable by URL and carry an amber beta banner: *"Content Credentials signing is in active development and is not part of the C2PA Validator conformance submission currently under evaluation. A separate Generator-track submission will follow."* All hide edits are comment-tagged "Restore after Generator-track approval" for trivial reversal.
+- **Training corpus canonical path** moved from `/Volumes/Samsung USB/Training Data` to `/Volumes/MAC SSD/Training Data` (Thunderbolt SSD — 5–10× faster than the USB mirror). Samsung USB retained as an independent offsite copy via a weekly `org.juralabs.corpus-mirror` LaunchAgent. Eighteen training scripts sed-updated.
+- **Tauri permissions** renamed from deprecated `fs:allow-read` / `fs:allow-write` to `fs:allow-read-file` / `fs:allow-write-file` in `capabilities/default.json`.
+
+### Context for reviewers
+
+The approver's 23 April guidance confirmed the Validator and Generator submissions are independently assessed via the same intake form. The Generator-track submission will follow once this Validator approval lands; a subsequent build will un-hide the Protect workflow and include a staging-system link as the approver requested.
+
+### Tests
+
+485 Rust lib tests pass, clippy + fmt clean, svelte-check reports 0 errors (12 pre-existing a11y warnings unchanged).
+
+---
+
 ## 15 April 2026 — C2PA "Valid at signing" tri-state
 
 Real-world Google Pixel Camera photos were rendering as **Invalid** in the Verify panel despite carrying a cryptographically sound Google-issued C2PA manifest. Root cause: Pixel uses short-lived signing certificates paired with a trusted timestamp — the standard C2PA pattern for camera-capture credentials. c2pa-rs correctly reports `signingCredential.expired`, but our manifest reader treated any non-`signingCredential.untrusted` failure as outright invalid, collapsing the legitimate "signature was valid at signing time" case into the invalid bucket alongside tamper and hash-mismatch failures.
