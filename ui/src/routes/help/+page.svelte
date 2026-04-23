@@ -1,11 +1,12 @@
 <script lang="ts">
-  // Topic cards shown on the help index
+  // Topic cards shown on the help index.
+  //
+  // Protect is deliberately omitted for the C2PA Validator evaluation build
+  // (2026-04-23). The /help/protect page still exists if linked directly —
+  // it carries its own beta notice — but is hidden from the help index so
+  // the approver's attention stays on verification workflow documentation.
+  // Restore this card after Generator-track approval lands.
   const cards = [
-    {
-      href: '/help/protect',
-      title: 'Protect',
-      description: 'Learn how to safeguard your digital assets with C2PA provenance credentials and invisible frequency-domain watermarking.',
-    },
     {
       href: '/help/verify',
       title: 'Verify',
@@ -25,6 +26,11 @@
       href: '/help/settings#ollama',
       title: 'Ollama AI Features',
       description: 'How to use text reading and claim verification powered by local AI models.',
+    },
+    {
+      href: '/help/how-it-works',
+      title: 'How It Works — Start Here',
+      description: 'A plain-English walk-through of what Jura Trace checks, why there are two AI checks, and what "Experimental" means. Written for non-technical users.',
     },
     {
       href: '/help/methodology',
@@ -87,10 +93,6 @@
     </li>
     <li class="flex gap-3 text-sm text-flint dark:text-flint-light leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
-      <span>Import your first asset on the <a href="/help/protect" class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"><strong class="text-text-light dark:text-text-dark">Protect</strong> page</a> to apply C2PA provenance or an invisible watermark.</span>
-    </li>
-    <li class="flex gap-3 text-sm text-flint dark:text-flint-light leading-relaxed">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">3</span>
       <span>Run your first verification on the <a href="/help/verify" class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"><strong class="text-text-light dark:text-text-dark">Verify</strong> page</a> to see the forensic pipeline in action.</span>
     </li>
   </ol>

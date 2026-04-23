@@ -37,8 +37,9 @@
     <ul role="list" class="flex gap-1 min-w-max">
       {#each [
         { href: '/help',                 label: 'Getting Started' },
-        { href: '/help/protect',         label: 'Protect' },
-        { href: '/help/bedrock-signing', label: 'Signing Modes' },
+        { href: '/help/how-it-works',    label: 'How It Works' },
+        // Protect + Signing Modes hidden for Validator evaluation build
+        // (2026-04-23). Restore after Generator-track approval.
         { href: '/help/verify',          label: 'Verify' },
         { href: '/help/monitor',         label: 'Monitor' },
         { href: '/help/settings',        label: 'Settings' },

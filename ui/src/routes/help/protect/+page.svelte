@@ -3,6 +3,21 @@
   // Section IDs are used for deep linking from contextual help buttons.
 </script>
 
+<!-- Beta notice — Protect is a separate Generator-track workstream,
+     not part of the Validator conformance submission currently under
+     evaluation. This page is reachable by direct URL only; it is
+     intentionally omitted from the Help index and sidebar during
+     the Validator evaluation build. -->
+<div
+  role="note"
+  class="rounded-lg border border-amber/40 bg-amber/10 dark:bg-amber/5 px-4 py-3 text-sm text-amber-dark dark:text-amber-light leading-relaxed mb-6"
+>
+  <strong class="font-semibold">Beta — internal alpha</strong>
+  — Content Credentials signing is in active development and is
+  <em>not</em> part of the C2PA Validator conformance submission currently
+  under evaluation. A separate Generator-track submission will follow.
+</div>
+
 <!-- ── Page header ────────────────────────────────────────────────── -->
 <header class="mb-8">
   <h1 class="text-3xl font-heading text-text-light dark:text-text-dark tracking-heading mb-3">

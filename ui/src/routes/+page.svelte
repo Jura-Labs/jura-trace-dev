@@ -120,21 +120,15 @@
         </p>
         <div class="flex flex-col sm:flex-row gap-3 justify-center">
           <a
-            href="/verify/v2"
+            href="/verify"
             class="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] rounded border border-lapis text-lapis dark:text-lapis-light dark:border-lapis-light text-sm font-medium
                    hover:bg-lapis hover:text-white dark:hover:bg-lapis-light dark:hover:text-obsidian transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
           >
             Verify Content
           </a>
-          <a
-            href="/protect"
-            class="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] rounded border border-lapis text-lapis dark:text-lapis-light dark:border-lapis-light text-sm font-medium
-                   hover:bg-lapis hover:text-white dark:hover:bg-lapis-light dark:hover:text-obsidian transition-colors
-                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
-          >
-            Protect Content
-          </a>
+          <!-- Protect CTA hidden for C2PA Validator evaluation build (2026-04-23).
+               Restore after Generator-track approval. -->
         </div>
       </div>
     </section>
@@ -166,40 +160,10 @@
   <!-- Narrative chapters -->
   <section class="pt-2 pb-12" aria-label="What you can do">
 
-    <!-- Protect -->
-    <div class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]">
-      <div class="flex items-baseline gap-4 mb-4">
-        <span class="text-xs uppercase tracking-widest text-flint dark:text-[#A09D95] flex-shrink-0 w-20">Protect</span>
-        <h2
-          class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
-          style="letter-spacing: -0.01em;"
-        >
-          <a
-            href="/protect"
-            class="hover:text-lapis dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-          >
-            Safeguard your content
-          </a>
-        </h2>
-      </div>
-      <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
-        Import your files and let Jura Trace catalogue them with care. Sign with a C2PA
-        provenance manifest so your work carries proof of origin wherever it travels. Generate
-        perceptual fingerprints that persist even when images are cropped, resized, or screenshotted.
-      </p>
-
-      <!-- Asset hint -->
-      <p class="text-xs text-flint/60 dark:text-flint mt-4 pl-24">
-        {#if hasAssets}
-          {stats.totalAssets} {stats.totalAssets === 1 ? 'file' : 'files'} catalogued — <a
-            href="/protect"
-            class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-          >view all</a>
-        {:else}
-          No content catalogued yet.
-        {/if}
-      </p>
-    </div>
+    <!-- Protect chapter hidden for C2PA Validator evaluation build (2026-04-23).
+         Protect is a separate Generator-track submission; keeping it off the
+         dashboard keeps the approver's focus on the Validator workflow.
+         Restore this block after Generator-track approval. -->
 
     <!-- Verify -->
     <div class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]">
@@ -210,7 +174,7 @@
           style="letter-spacing: -0.01em;"
         >
           <a
-            href="/verify/v2"
+            href="/verify"
             class="hover:text-lapis dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
             Check what you're looking at

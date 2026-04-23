@@ -12,9 +12,10 @@
     },
     {
       groupLabel: 'Features',
+      // Protect + Signing Modes hidden for the C2PA Validator evaluation
+      // build (2026-04-23). Both routes still exist if accessed by URL;
+      // restore these entries after Generator-track approval.
       items: [
-        { href: '/help/protect',         label: 'Protect',             title: 'Safeguard digital assets' },
-        { href: '/help/bedrock-signing', label: 'Signing Modes',       title: 'Local and Conformant C2PA signing modes' },
         { href: '/help/verify',          label: 'Verify',              title: 'Forensic analysis and trust scores' },
         { href: '/help/monitor',         label: 'Monitor',             title: 'Activity log and trust landscape' },
         { href: '/help/settings',        label: 'Settings',            title: 'Configuration and deployment' },
@@ -23,6 +24,7 @@
     {
       groupLabel: 'Understanding',
       items: [
+        { href: '/help/how-it-works', label: 'How It Works',       title: 'Plain-English guide for non-technical users' },
         { href: '/help/methodology',  label: 'How Analysis Works', title: 'Methodology and trust score computation' },
         { href: '/help/model-cards',  label: 'Model Cards',        title: 'ML classifier training data and performance' },
         { href: '/help/glossary',     label: 'Glossary',           title: 'Definitions of technical terms' },

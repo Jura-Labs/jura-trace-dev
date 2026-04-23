@@ -154,11 +154,17 @@
     closeMobileMenu();
   }
 
-  // Navigation items
+  // Navigation items.
+  //
+  // Protect is intentionally hidden from nav for the C2PA Validator
+  // evaluation build (2026-04-23). The route still works if typed
+  // directly (`/protect`), but the page carries a beta notice clarifying
+  // that Content Credentials signing is not part of the Validator
+  // conformance submission — it's a separate Generator-track workstream.
+  // Restore the nav entry here after Generator-track approval lands.
   const navItems = [
     { href: '/',         label: 'Dashboard', title: 'Overview and statistics' },
-    { href: '/protect',  label: 'Protect',   title: 'Safeguard digital assets' },
-    { href: '/verify/v2', label: 'Verify',    title: 'Check content authenticity' },
+    { href: '/verify',   label: 'Verify',    title: 'Check content authenticity' },
     { href: '/monitor',  label: 'Monitor',   title: 'Track content protection and verification' },
     { href: '/settings', label: 'Settings',  title: 'Application preferences' },
     { href: '/help',     label: 'Help',      title: 'Documentation and guidance' },
