@@ -99,12 +99,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS Apple Silicon (M1/M2/M3) — paused for rc.18+
-          # Re-enable when Apple Developer ID certificate is configured.
-          # - label: macOS (Apple Silicon)
-          #   runner: macos-latest
-          #   target: aarch64-apple-darwin
-          #   sidecar_name: jura-sidecar-aarch64-apple-darwin
+          # macOS Apple Silicon (M1/M2/M3) — re-enabled rc.21 (2026-04-23)
+          # with the 6 Apple Developer ID secrets (APPLE_CERTIFICATE etc.)
+          # now configured on juralabs/jura-archive.
+          - label: macOS (Apple Silicon)
+            runner: macos-latest
+            target: aarch64-apple-darwin
+            sidecar_name: jura-sidecar-aarch64-apple-darwin
 
           # Windows x64 — produces both MSI and NSIS installers
           - label: Windows (x64)
@@ -329,16 +330,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
           # ── macOS code signing ────────────────────────────────────────────
-          # Uncomment when an Apple Developer ID Application certificate has been
-          # exported as a base64 PEM and stored in GitHub Secrets. Notarisation
-          # requires an app-specific password for the Apple ID.
-          #
-          # APPLE_CERTIFICATE:          ${{ secrets.APPLE_CERTIFICATE }}
-          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          # APPLE_SIGNING_IDENTITY:     ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          # APPLE_ID:                   ${{ secrets.APPLE_ID }}
-          # APPLE_PASSWORD:             ${{ secrets.APPLE_PASSWORD }}
-          # APPLE_TEAM_ID:              ${{ secrets.APPLE_TEAM_ID }}
+          # All 6 secrets configured on juralabs/jura-archive (2026-04-23).
+          # APPLE_CERTIFICATE is the base64-encoded .p12 bundle (cert + key).
+          # APPLE_PASSWORD is an app-specific password for notarisation, not
+          # the Apple ID login password. Tauri's action reads these env vars
+          # directly when --target contains *-apple-darwin.
+          APPLE_CERTIFICATE:          ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY:     ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID:                   ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD:             ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID:              ${{ secrets.APPLE_TEAM_ID }}
 
         with:
           # releaseId intentionally omitted — tauri-action must not upload to
