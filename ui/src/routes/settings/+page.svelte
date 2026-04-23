@@ -2198,6 +2198,7 @@
 
   <!-- Network Access -->
   <section
+    id="network-access"
     class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="network-access-heading"
   >

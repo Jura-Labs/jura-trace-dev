@@ -21,6 +21,7 @@
     C2PA_MSG_VALID_AT_SIGNING_DETAIL,
   } from '$lib/c2pa-labels';
   import LimitationBanner from '$lib/components/LimitationBanner.svelte';
+  import EnhancedModeBanner from '$lib/components/EnhancedModeBanner.svelte';
   import ExperimentalPill from '$lib/components/ExperimentalPill.svelte';
   import ContentCredentialsSeal from '$lib/components/ContentCredentialsSeal.svelte';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
@@ -1242,6 +1243,10 @@
   <div class="flex items-center gap-3 mb-6">
     <h1 class="font-serif text-2xl text-obsidian dark:text-quartz">Verify</h1>
   </div>
+
+  <!-- First-run nudge: suggest Enhanced mode for full C2PA validation.
+       Auto-hides when the user enables Enhanced or dismisses. -->
+  <EnhancedModeBanner />
 
   <!-- Mode selector + sidecar status row -->
   <div class="flex items-center gap-3 mb-5 flex-wrap">
