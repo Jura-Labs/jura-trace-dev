@@ -788,6 +788,12 @@ fn compute_trust(
     // `ai_detection_suitable` — the two are always consistent.
     content_type_category: Option<&str>,
     ai_detection_suitable: bool,
+    // Self-declared AI provenance via XMP IPTC vocabularies. True when
+    // exif_anomaly emits a HIGH-severity `xmp_ai_digital_source` or
+    // `xmp_ai_creator_tool` finding. Treated equivalently to
+    // `ai_declared_by_c2pa` — see `ai_declared` derivation and the
+    // self-declared ceiling below.
+    ai_declared_by_xmp: bool,
 ) -> f64 {
     // ── AI-detection suppression ─────────────────────────────────────
     // Screenshots and documents cause systematic false positives in the
@@ -818,11 +824,14 @@ fn compute_trust(
         None
     };
 
-    // C2PA that honestly declares AI generation should penalise trust — the
-    // content's own provenance record confirms it is synthetic.  A valid
-    // manifest without an AI declaration is still a positive provenance signal.
-    let c2pa_bonus = if ai_declared_by_c2pa {
-        -0.25 // Penalty: manifest explicitly declares AI-generated content
+    // Self-declared AI provenance — either from a C2PA manifest action or
+    // from XMP IPTC vocabularies (DigitalSourceType / CreatorTool). Either
+    // source is a producer-asserted "this file is AI-generated" signal, so
+    // they're treated equivalently. A valid C2PA manifest without an AI
+    // declaration is still a positive provenance signal.
+    let ai_declared = ai_declared_by_c2pa || ai_declared_by_xmp;
+    let c2pa_bonus = if ai_declared {
+        -0.25 // Penalty: manifest or XMP explicitly declares AI-generated content
     } else if c2pa_valid == Some(true) {
         0.1 // Bonus: valid provenance, not declared AI
     } else {
@@ -1006,7 +1015,18 @@ fn compute_trust(
         _ => 1.0, // no ceiling for authentic or sidecar offline
     };
 
-    base_trust.min(verdict_ceiling).min(regional_cap)
+    let result = base_trust.min(verdict_ceiling).min(regional_cap);
+
+    // ── Self-declared AI ceiling ────────────────────────────────────
+    // When the file declares itself as AI-generated (via C2PA manifest
+    // action `c2pa.created` + `digitalSourceType: trainedAlgorithmicMedia`,
+    // OR via XMP IPTC `Iptc4xmpExt:DigitalSourceType` / `xmp:CreatorTool`),
+    // cap trust at 0.25 regardless of other signals. Producer
+    // self-declaration is the gold-standard provenance signal — that's
+    // literally what these vocabularies exist for. Forensic and ensemble
+    // signals cannot override it.
+    let self_declared_ceiling = if ai_declared { 0.25 } else { 1.0 };
+    result.min(self_declared_ceiling)
 }
 
 /// Trust score for non-analysable content types (PDFs, documents).
@@ -2413,8 +2433,19 @@ fn verify_content_inner(
     // Use a lightweight C2PA-only path rather than defaulting to 0.50 from
     // the unwrap_or on missing EXIF data.
     let ai_declared_by_c2pa = ai_generator.is_some();
+    let ai_declared_by_xmp = exif_analysis
+        .as_ref()
+        .map(|a| {
+            a.findings.iter().any(|f| {
+                matches!(
+                    f.check_id.as_str(),
+                    "xmp_ai_digital_source" | "xmp_ai_creator_tool"
+                ) && matches!(f.severity, exif_anomaly::Severity::High)
+            })
+        })
+        .unwrap_or(false);
     let overall_trust = if !is_image && !is_video && !is_audio {
-        document_trust(c2pa_valid, ai_declared_by_c2pa)
+        document_trust(c2pa_valid, ai_declared_by_c2pa || ai_declared_by_xmp)
     } else {
         compute_trust(
             ela_score,
@@ -2434,6 +2465,7 @@ fn verify_content_inner(
             input_quality.as_ref().and_then(|q| q.jpeg_quality_estimate),
             content_type_category,
             ai_detection_suitable,
+            ai_declared_by_xmp,
         )
     };
     log::info!("PERF: trust score computation took {:?}", t_trust.elapsed());
@@ -5104,6 +5136,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(trust > 0.85, "Expected >0.85, got {trust:.3}");
     }
@@ -5129,6 +5162,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(trust < 0.5, "Expected <0.5, got {trust:.3}");
     }
@@ -5154,6 +5188,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(trust > 0.50, "Expected >0.50, got {trust:.3}");
     }
@@ -5179,6 +5214,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(trust < 0.55, "Expected <0.55, got {trust:.3}");
     }
@@ -5204,6 +5240,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust_weighted > 0.55,
@@ -5231,6 +5268,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         let trust_with = compute_trust(
             Some(0.1),
@@ -5250,6 +5288,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust_with > trust_without,
@@ -5263,6 +5302,7 @@ mod tests {
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false, None,
             None, None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!((trust - 0.8).abs() < 0.01, "Expected ~0.8, got {trust:.3}");
     }
@@ -5287,6 +5327,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust > 0.65,
@@ -5315,6 +5356,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(trust <= 1.0, "Trust exceeded 1.0: {trust:.3}");
     }
@@ -5343,6 +5385,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust <= 0.55,
@@ -5374,6 +5417,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust <= 0.25,
@@ -5402,6 +5446,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust <= 0.45,
@@ -5429,6 +5474,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust > 0.85,
@@ -5457,6 +5503,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust > 0.70,
@@ -5605,10 +5652,77 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust <= 0.55,
             "Inconclusive should cap trust at 55% max, got {:.1}%",
+            trust * 100.0
+        );
+    }
+
+    #[test]
+    fn trust_xmp_ai_digital_source_capped_at_25() {
+        // Firefly→Photoshop Web→JPEG round-trip pattern: C2PA stripped, but
+        // XMP IPTC DigitalSourceType: TrainedAlgorithmicMedia survives.
+        // GBM inconclusive, CLIP/UnivFD lukewarm, no tampering. Without
+        // the self-declared ceiling, trust ≈ 0.55 (Concern). With it,
+        // capped at 0.25 — the file says it's AI, so we believe the file.
+        let trust = compute_trust(
+            Some(0.05), // ELA clean
+            Some(0.06), // Noise clean
+            Some(0.0),  // Copy-move clean
+            Some(0.41), // Deepfake borderline
+            Some("low"),
+            Some("inconclusive"),
+            0.85, // EXIF still has useful data
+            None,
+            None,
+            None,
+            None,
+            None,
+            false, // ai_declared_by_c2pa: false (manifest stripped)
+            None,
+            None,
+            None,
+            true,
+            true, // ai_declared_by_xmp: TRUE (the new behaviour)
+        );
+        assert!(
+            trust <= 0.25,
+            "XMP self-declared AI must cap trust at 25% max, got {:.1}%",
+            trust * 100.0
+        );
+    }
+
+    #[test]
+    fn trust_xmp_declaration_overrides_high_base_trust() {
+        // Even with all forensics clean and a strongly authentic deepfake
+        // verdict (which would otherwise yield > 0.85), an XMP self-declared
+        // AI provenance signal still caps the score at 0.25.
+        let trust = compute_trust(
+            Some(0.04),
+            Some(0.05),
+            Some(0.0),
+            Some(0.15),
+            Some("high"),
+            Some("authentic"),
+            1.0,
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            None,
+            None,
+            None,
+            true,
+            true, // ai_declared_by_xmp: TRUE
+        );
+        assert!(
+            trust <= 0.25,
+            "XMP self-declared AI must override even high base trust, got {:.1}%",
             trust * 100.0
         );
     }
@@ -5694,6 +5808,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         let trust_without = compute_trust(
             Some(0.05),
@@ -5713,6 +5828,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust_with < trust_without,
@@ -5741,6 +5857,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust <= 0.55,
@@ -5771,6 +5888,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust <= 0.55,
@@ -5799,6 +5917,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust > 0.55,
@@ -5827,6 +5946,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         let trust_no_regional = compute_trust(
             Some(0.04),
@@ -5846,6 +5966,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         // With all regional detectors clean the trust should be close to the
         // no-regional baseline (regional scores ≈ 0 contribute ~1.0 trust).
@@ -5878,6 +5999,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust <= 0.55,
@@ -5917,6 +6039,7 @@ mod tests {
             Some(95),  // jpeg_quality_estimate → effective_weight=0.475
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         let trust_base = compute_trust(
             Some(0.1), // same ELA
@@ -5936,6 +6059,7 @@ mod tests {
             None,      // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         // At Q=95, effective_weight=0.475 vs base=0.5 — small difference (< 3pp)
         assert!(
@@ -5967,6 +6091,7 @@ mod tests {
             Some(75),  // jpeg_quality_estimate → effective_weight=0.375
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         let trust_base = compute_trust(
             Some(0.1), // same ELA
@@ -5986,6 +6111,7 @@ mod tests {
             None,      // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         // Q=75 → effective_weight=0.375 < 0.5 → ghost penalises less → higher trust
         assert!(
@@ -6018,6 +6144,7 @@ mod tests {
             Some(30),  // jpeg_quality_estimate — floor exactly engaged
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         let trust_q20 = compute_trust(
             Some(0.1), // same ELA
@@ -6037,6 +6164,7 @@ mod tests {
             Some(20),  // jpeg_quality_estimate — floor also engaged
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         // Both floor at quality_factor=0.30 → effective_weight=0.15 → same trust
         assert!(
@@ -6068,6 +6196,7 @@ mod tests {
             None,      // jpeg_quality_estimate: None → quality_factor=1.0
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         let trust_no_ghost = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false,
@@ -6075,6 +6204,7 @@ mod tests {
             None, // jpeg_quality_estimate: None uses 0.5 base weight
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust_with_ghost < trust_no_ghost,
@@ -6108,6 +6238,7 @@ mod tests {
             Some(95),  // direct camera upload → effective_weight=0.475
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         let trust_low_q = compute_trust(
             Some(0.1), // same ELA
@@ -6127,6 +6258,7 @@ mod tests {
             Some(20),  // heavy compression → effective_weight=0.15 (floor at q/100=0.30)
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust_low_q > trust_high_q,
@@ -6286,6 +6418,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         let trust_no_ai = compute_trust(
             Some(0.1),
@@ -6305,6 +6438,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust_ai_declared < trust_no_ai,
@@ -6335,11 +6469,13 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         let trust_none = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false, None,
             None, None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         assert!(
             trust_ai < trust_none,
@@ -6369,6 +6505,7 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         let trust_ai = compute_trust(
             None,
@@ -6388,16 +6525,23 @@ mod tests {
             None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
+            false, // ai_declared_by_xmp: false (default)
         );
         // valid: 1.0 + 0.10 capped at 1.0 = 1.0
         assert!(
             (trust_valid - 1.0).abs() < 0.001,
             "Valid C2PA + perfect EXIF should reach 1.0: got {trust_valid:.3}"
         );
-        // AI declared: 1.0 - 0.25 = 0.75
+        // AI declared: -0.25 penalty AND self-declared AI ceiling → ≤0.25.
+        // Updated 2026-04-23: previously asserted 0.75 (penalty only). The
+        // self-declared AI ceiling, added alongside the equivalent XMP
+        // detection, now caps any self-declared synthetic asset at 0.25
+        // regardless of other signals. Producer self-declaration is the
+        // gold-standard provenance signal — forensic disagreement cannot
+        // override it.
         assert!(
-            (trust_ai - 0.75).abs() < 0.001,
-            "AI-declared C2PA should yield 0.75 with perfect EXIF: got {trust_ai:.3}"
+            trust_ai <= 0.25,
+            "AI-declared C2PA must cap trust at 0.25 (self-declared ceiling): got {trust_ai:.3}"
         );
     }
 
