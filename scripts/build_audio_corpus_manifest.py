@@ -7,8 +7,8 @@ per-clip metadata, and writes/appends to models/audio_corpus_manifest.json.
 Usage:
     # After LibriSpeech + LJSpeech have been extracted to USB:
     python scripts/build_audio_corpus_manifest.py \
-        --librispeech "/Volumes/Samsung USB/Training Data/corpus/audio/authentic/librispeech/LibriSpeech" \
-        --ljspeech    "/Volumes/Samsung USB/Training Data/corpus/audio/authentic/ljspeech/LJSpeech-1.1/wavs" \
+        --librispeech "/Volumes/MAC SSD/Training Data/corpus/audio/authentic/librispeech/LibriSpeech" \
+        --ljspeech    "/Volumes/MAC SSD/Training Data/corpus/audio/authentic/ljspeech/LJSpeech-1.1/wavs" \
         --manifest    models/audio_corpus_manifest.json \
         --max-librispeech 3000 \
         --max-ljspeech 500 \

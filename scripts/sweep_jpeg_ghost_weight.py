@@ -482,7 +482,7 @@ def run_sanity_check(
 def main():
     repo_root = Path(__file__).parent.parent
     default_corpus = repo_root / "models" / "splice_calibration_150"
-    default_authentic = Path("/Volumes/Samsung USB/Training Data/corpus/training/authentic")
+    default_authentic = Path("/Volumes/MAC SSD/Training Data/corpus/training/authentic")
 
     parser = argparse.ArgumentParser(description="JPEG Ghost weight sweep (S28-FU9)")
     parser.add_argument("--corpus", type=Path, default=default_corpus)

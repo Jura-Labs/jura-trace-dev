@@ -219,13 +219,13 @@ def main():
     parser.add_argument(
         "--authentic",
         type=str,
-        default="/Volumes/Samsung USB/Training Data/corpus/training/authentic",
+        default="/Volumes/MAC SSD/Training Data/corpus/training/authentic",
         help="Path to authentic test images",
     )
     parser.add_argument(
         "--ai",
         type=str,
-        default="/Volumes/Samsung USB/Training Data/corpus/training/ai_generated",
+        default="/Volumes/MAC SSD/Training Data/corpus/training/ai_generated",
         help="Path to AI-generated test images",
     )
     parser.add_argument(

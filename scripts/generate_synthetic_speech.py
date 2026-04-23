@@ -11,7 +11,7 @@ encumbrance on the synthesised audio.
 
 Usage:
     python scripts/generate_synthetic_speech.py \
-        --output "/Volumes/Samsung USB/Training Data/corpus/audio/synthetic/edge_tts" \
+        --output "/Volumes/MAC SSD/Training Data/corpus/audio/synthetic/edge_tts" \
         --n-clips 2000 \
         --voices-per-locale 2 \
         --manifest models/audio_corpus_manifest.json \

@@ -42,7 +42,7 @@ Citation (must be included in all derived work):
 Usage:
     # Full download (all three splits)
     export HF_TOKEN=hf_...
-    export JURA_CORPUS_BASE="/Volumes/Samsung USB/Training Data/corpus/training"
+    export JURA_CORPUS_BASE="/Volumes/MAC SSD/Training Data/corpus/training"
     python -m scripts.agents.crawl_deepfake_eval_2024
 
     # Images only (fastest, ~1 GB, useful for smoke test)

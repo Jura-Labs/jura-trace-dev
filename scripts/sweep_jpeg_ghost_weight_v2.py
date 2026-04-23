@@ -274,7 +274,7 @@ def sanity_check(authentic_dir: Path, n: int = 200, seed: int = 42) -> dict:
 
 def main():
     default_corpus = REPO_ROOT / "models" / "splice_calibration_150_v2"
-    default_authentic = Path("/Volumes/Samsung USB/Training Data/corpus/training/authentic")
+    default_authentic = Path("/Volumes/MAC SSD/Training Data/corpus/training/authentic")
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus", type=Path, default=default_corpus)

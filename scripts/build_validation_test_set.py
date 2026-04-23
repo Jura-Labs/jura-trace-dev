@@ -33,13 +33,13 @@ Sprint 29 exit gates (sprint passes only if ALL met):
 Usage:
     # Build the test set (samples from existing corpus + writes manifest)
     python scripts/build_validation_test_set.py build \\
-        --corpus "/Volumes/Samsung USB/Training Data/corpus/training" \\
-        --output "/Volumes/Samsung USB/Training Data/corpus/sprint29_validation"
+        --corpus "/Volumes/MAC SSD/Training Data/corpus/training" \\
+        --output "/Volumes/MAC SSD/Training Data/corpus/sprint29_validation"
 
     # Run the validation against the current model (called from calibrate.py
     # or from CI)
     python scripts/build_validation_test_set.py validate \\
-        --test-set "/Volumes/Samsung USB/Training Data/corpus/sprint29_validation" \\
+        --test-set "/Volumes/MAC SSD/Training Data/corpus/sprint29_validation" \\
         --sidecar http://127.0.0.1:8200 \\
         --report models/sprint29_validation.json
 

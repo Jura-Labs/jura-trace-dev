@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 # Paths
 # ---------------------------------------------------------------------------
 
-CORPUS_ROOT = Path("/Volumes/Samsung USB/Training Data/corpus/training")
+CORPUS_ROOT = Path("/Volumes/MAC SSD/Training Data/corpus/training")
 AUTHENTIC_ROOT = CORPUS_ROOT / "authentic"
 AI_ROOT = CORPUS_ROOT / "ai_generated"
 

@@ -15,12 +15,12 @@ images are poison data for the deepfake classifier:
 
 Usage:
     python scripts/find_composite_borders.py \\
-        --corpus "/Volumes/Samsung USB/Training Data/corpus/training/authentic" \\
+        --corpus "/Volumes/MAC SSD/Training Data/corpus/training/authentic" \\
         --output corpus/border_candidates.csv
 
     # Move flagged images to corpus/excluded/composite_borders/
     python scripts/find_composite_borders.py \\
-        --corpus "/Volumes/Samsung USB/Training Data/corpus/training/authentic" \\
+        --corpus "/Volumes/MAC SSD/Training Data/corpus/training/authentic" \\
         --move \\
         --threshold 0.6
 
@@ -321,7 +321,7 @@ def main():
     parser.add_argument(
         "--corpus",
         type=str,
-        default="/Volumes/Samsung USB/Training Data/corpus/training/authentic",
+        default="/Volumes/MAC SSD/Training Data/corpus/training/authentic",
         help="Path to the authentic image corpus",
     )
     parser.add_argument(
@@ -344,7 +344,7 @@ def main():
     parser.add_argument(
         "--quarantine-dir",
         type=str,
-        default="/Volumes/Samsung USB/Training Data/corpus/excluded/composite_borders",
+        default="/Volumes/MAC SSD/Training Data/corpus/excluded/composite_borders",
         help="Where to move flagged images (with --move)",
     )
     parser.add_argument(

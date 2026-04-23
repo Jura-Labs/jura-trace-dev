@@ -17,10 +17,10 @@ Usage
 
     # Override corpus paths
     python scripts/build_augmented_training_set.py \\
-        --original-authentic "/Volumes/Samsung USB/Training Data/corpus/training/authentic" \\
-        --original-ai        "/Volumes/Samsung USB/Training Data/corpus/training/ai_generated" \\
-        --aug-authentic      "/Volumes/Samsung USB/Training Data/corpus/training_platform_forwarded/authentic" \\
-        --aug-ai             "/Volumes/Samsung USB/Training Data/corpus/training_platform_forwarded/ai_generated"
+        --original-authentic "/Volumes/MAC SSD/Training Data/corpus/training/authentic" \\
+        --original-ai        "/Volumes/MAC SSD/Training Data/corpus/training/ai_generated" \\
+        --aug-authentic      "/Volumes/MAC SSD/Training Data/corpus/training_platform_forwarded/authentic" \\
+        --aug-ai             "/Volumes/MAC SSD/Training Data/corpus/training_platform_forwarded/ai_generated"
 
     # Skip the augmented corpus (baseline-only mode, for comparison)
     python scripts/build_augmented_training_set.py --original-only
@@ -311,7 +311,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Build augmented training set and train UnivFD v9 probe"
     )
-    usb = "/Volumes/Samsung USB/Training Data/corpus"
+    usb = "/Volumes/MAC SSD/Training Data/corpus"
     parser.add_argument("--original-authentic", default=f"{usb}/training/authentic")
     parser.add_argument("--original-ai",        default=f"{usb}/training/ai_generated")
     parser.add_argument("--aug-authentic",       default=f"{usb}/training_platform_forwarded/authentic")

@@ -39,8 +39,8 @@ Usage
 
     # Override source / output roots
     python scripts/augment_corpus_platform_forwarded.py \\
-        --source-root "/Volumes/Samsung USB/Training Data/corpus/training" \\
-        --output-root "/Volumes/Samsung USB/Training Data/corpus/training_platform_forwarded" \\
+        --source-root "/Volumes/MAC SSD/Training Data/corpus/training" \\
+        --output-root "/Volumes/MAC SSD/Training Data/corpus/training_platform_forwarded" \\
         --manifest models/platform_augmentation_manifest.json
 
     # Parallel workers (default: cpu_count or 4, whichever is lower)
@@ -344,12 +344,12 @@ def main():
     )
     parser.add_argument(
         "--source-root",
-        default="/Volumes/Samsung USB/Training Data/corpus/training",
+        default="/Volumes/MAC SSD/Training Data/corpus/training",
         help="Root directory containing authentic/ and ai_generated/ subdirectories",
     )
     parser.add_argument(
         "--output-root",
-        default="/Volumes/Samsung USB/Training Data/corpus/training_platform_forwarded",
+        default="/Volumes/MAC SSD/Training Data/corpus/training_platform_forwarded",
         help="Root directory for augmented output (must NOT be inside source-root)",
     )
     parser.add_argument(

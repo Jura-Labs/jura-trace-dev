@@ -1,0 +1,80 @@
+# Rsync exclusion patterns for the daily Jura Labs backup.
+# Patterns are relative to each source root passed to rsync.
+# Pattern syntax: https://download.samba.org/pub/rsync/rsync.1#FILTER_RULES
+
+# ── Build artefacts (rebuildable from source) ──
+src-tauri/target/
+**/target/
+ui/node_modules/
+**/node_modules/
+sidecar/build/
+sidecar/dist/
+**/build/
+**/dist/
+**/__pycache__/
+**/.venv/
+**/venv/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+ui/.svelte-kit/
+**/.svelte-kit/
+ui/playwright-report/
+ui/test-results/
+ui/coverage/
+**/.next/
+**/.nuxt/
+
+# ── Claude transient state (not memory) ──
+.claude/worktrees/
+.claude/cache/
+.claude/statsig/
+.claude/shell-snapshots/
+.claude/paste-cache/
+.claude/image-cache/
+.claude/file-history/
+.claude/ide/
+.claude/telemetry/
+.claude/mcp-needs-auth-cache.json
+.claude/session-env/
+.claude/scheduled_tasks.lock
+
+# ── macOS / FS cruft ──
+.DS_Store
+**/.DS_Store
+._*
+**/._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+.DocumentRevisions-V100
+.apdisk
+
+# ── Editor / tool transient ──
+*.swp
+*.swo
+*~
+.idea/
+.vscode/extensions/
+**/.*.swp
+
+# ── Large regenerable or non-essential ──
+*.log
+logs/
+tmp/
+**/tmp/
+*.tmp
+
+# ── ROOTED regenerable data artefacts ──
+# ChromaDB vector store and BM25 index — can be rebuilt by re-running the
+# ingest pipeline against the source documents. link_lists.bin is sparse
+# (157 GB logical / 2.4 GB physical) and rsync without --sparse would
+# materialise it fully on the backup target. Source docs elsewhere in the
+# repo are backed up; the indices are derived.
+ecoadvisor/data/embeddings/
+ecoadvisor/data/cache/
+
+# ── PyInstaller artefacts ──
+sidecar/dist/
+**/PyInstaller/

@@ -48,7 +48,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
 # Output directories on USB
-USB_BASE = Path("/Volumes/Samsung USB/Training Data/corpus/training/authentic")
+USB_BASE = Path("/Volumes/MAC SSD/Training Data/corpus/training/authentic")
 
 # Wildlife categories — diverse subjects
 WILDLIFE_CATEGORIES = [

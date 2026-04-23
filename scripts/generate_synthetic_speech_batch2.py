@@ -7,7 +7,7 @@ Generates 3,000 more synthetic clips using:
 - Different Project Gutenberg texts to avoid sentence overlap with batch 1
 - Prosody variation: +10%, -10%, +20%, -20% speaking rates on ~40% of clips
 
-Output: /Volumes/Samsung USB/Training Data/corpus/audio/synthetic/edge_tts_batch2/
+Output: /Volumes/MAC SSD/Training Data/corpus/audio/synthetic/edge_tts_batch2/
 Appends to existing manifest: models/audio_corpus_manifest.json
 
 Licence: edge-tts output owned by generator (Jura Labs CIC).

@@ -849,7 +849,7 @@ def build_corpus(corpus_dir: Path, output_dir: Path, count: int, seed: int) -> N
 
 
 def main() -> None:
-    default_corpus = "/Volumes/Samsung USB/Training Data/corpus/training/authentic"
+    default_corpus = "/Volumes/MAC SSD/Training Data/corpus/training/authentic"
     default_output = Path(__file__).parent.parent / "models" / "splice_calibration_v3"
 
     parser = argparse.ArgumentParser(
