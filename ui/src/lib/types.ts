@@ -887,6 +887,13 @@ export interface ManifestInfo {
    *  expired. L3 uses this flag to disclose the expiry without downgrading the
    *  Valid seal. Undefined when the cert chain couldn't be parsed. */
   certificateExpired?: boolean;
+  /** Leaf signing certificate's `notBefore` (RFC 3339 / ISO 8601). Paired with
+   *  `certNotAfter`. Surfaced at L3 so the expired-cert disclosure carries the
+   *  concrete validity window rather than prose alone. Undefined when the cert
+   *  chain couldn't be parsed. */
+  certNotBefore?: string;
+  /** Leaf signing certificate's `notAfter` (RFC 3339 / ISO 8601). See `certNotBefore`. */
+  certNotAfter?: string;
   signedAt?: string;
   /** Signer common name from signature_info (e.g. "Pixel Camera"). */
   signedBy?: string;

@@ -36,6 +36,17 @@ pub struct ManifestInfo {
     /// manifests from Sovereign mode that don't embed a parseable chain).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub certificate_expired: Option<bool>,
+    /// Leaf signing certificate's `notBefore` in RFC 3339 / ISO 8601.
+    /// Populated alongside `certificate_expired` — `None` when the chain
+    /// cannot be parsed.  Surfaced at L3 so the certificate-expired
+    /// disclosure carries concrete evidence (validity window + TSA time)
+    /// rather than prose alone, per C2PA UX Rec v1.4 §6.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cert_not_before: Option<String>,
+    /// Leaf signing certificate's `notAfter` in RFC 3339 / ISO 8601.
+    /// Paired with `cert_not_before`; see that field for semantics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cert_not_after: Option<String>,
     pub signed_at: Option<String>,
     /// Signer common name from `signature_info.common_name` (e.g. "Pixel Camera").
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -972,6 +983,8 @@ fn extract_manifest_info(
         // info constructed here leaves this as `None` and the caller
         // overrides it once the cert chain has been parsed.
         certificate_expired: None,
+        cert_not_before: None,
+        cert_not_after: None,
         signed_at,
         signed_by,
         signed_by_issuer,
@@ -1160,8 +1173,19 @@ fn ensure_trust_settings_initialised() -> Result<(), String> {
     })
 }
 
-/// Parse the leaf (first) certificate of a PEM chain and return whether
-/// its `notAfter` is in the past.
+/// Parsed validity window of the leaf signing certificate.
+///
+/// Populated from the PEM chain exposed by `SignatureInfo::cert_chain()`.
+/// Both dates are RFC 3339 / ISO 8601 strings so the frontend can render
+/// them directly via `Intl.DateTimeFormat` without Rust-side locale work.
+pub(crate) struct LeafCertValidity {
+    pub not_before_rfc3339: String,
+    pub not_after_rfc3339: String,
+    pub expired: bool,
+}
+
+/// Parse the leaf (first) certificate of a PEM chain and return its
+/// `notBefore` / `notAfter` plus an `expired` flag.
 ///
 /// c2pa-rs exposes the full signing chain as a concatenated PEM string via
 /// `SignatureInfo::cert_chain()`; the leaf is always the first cert.  We
@@ -1170,16 +1194,32 @@ fn ensure_trust_settings_initialised() -> Result<(), String> {
 ///
 /// Returns `None` if the chain is empty or the leaf can't be parsed (e.g.
 /// Sovereign-mode self-signed manifests that embed a non-standard chain).
-fn leaf_cert_expired(cert_chain_pem: &str) -> Option<bool> {
+fn leaf_cert_validity(cert_chain_pem: &str) -> Option<LeafCertValidity> {
     use x509_parser::pem::parse_x509_pem;
     let (_, pem) = parse_x509_pem(cert_chain_pem.as_bytes()).ok()?;
     let cert = pem.parse_x509().ok()?;
+    let not_before_ts = cert.validity().not_before.timestamp();
     let not_after_ts = cert.validity().not_after.timestamp();
     let now_ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .ok()?
         .as_secs() as i64;
-    Some(not_after_ts < now_ts)
+    let to_rfc3339 = |ts: i64| -> Option<String> {
+        chrono::DateTime::<chrono::Utc>::from_timestamp(ts, 0).map(|dt| dt.to_rfc3339())
+    };
+    Some(LeafCertValidity {
+        not_before_rfc3339: to_rfc3339(not_before_ts)?,
+        not_after_rfc3339: to_rfc3339(not_after_ts)?,
+        expired: not_after_ts < now_ts,
+    })
+}
+
+/// Legacy shim retained because the leaf-cert-expiry tests assert on a
+/// `Option<bool>` return.  New code should call `leaf_cert_validity` to
+/// pick up `notBefore` / `notAfter` alongside the expired flag.
+#[cfg(test)]
+fn leaf_cert_expired(cert_chain_pem: &str) -> Option<bool> {
+    leaf_cert_validity(cert_chain_pem).map(|v| v.expired)
 }
 
 /// Open a c2pa-rs `Reader` for `path`, returning `Ok(None)` when no C2PA data is present.
@@ -1242,16 +1282,22 @@ pub fn read_manifest(path: &Path, enhanced: bool) -> Result<Option<ManifestInfo>
     let mode_str = if enhanced { "enhanced" } else { "standard" };
     let mut info = extract_manifest_info(manifest, &json, true, None, Some(mode_str));
 
-    // Overlay the leaf-cert expiry flag from the typed Reader API — the
+    // Overlay the leaf-cert validity from the typed Reader API — the
     // reader JSON doesn't carry `cert_chain` (it's `#[serde(skip)]` in
     // c2pa-rs's `SignatureInfo`), so we have to reach into the typed
     // manifest to extract the PEM chain.  This lets L3 disclose
     // "signed with a certificate that has since expired" for short-lived
-    // phone-camera credentials without contradicting the Valid seal.
-    info.certificate_expired = reader
+    // phone-camera credentials without contradicting the Valid seal, and
+    // surface the notBefore/notAfter window as concrete evidence.
+    if let Some(v) = reader
         .active_manifest()
         .and_then(|m| m.signature_info())
-        .and_then(|si| leaf_cert_expired(si.cert_chain()));
+        .and_then(|si| leaf_cert_validity(si.cert_chain()))
+    {
+        info.certificate_expired = Some(v.expired);
+        info.cert_not_before = Some(v.not_before_rfc3339);
+        info.cert_not_after = Some(v.not_after_rfc3339);
+    }
 
     Ok(Some(info))
 }
@@ -1325,14 +1371,19 @@ pub fn read_manifest_chain(path: &Path, enhanced: bool) -> Result<Option<Manifes
     let mode_str = if enhanced { "enhanced" } else { "standard" };
     let mut active = extract_manifest_info(active_manifest, &json, true, None, Some(mode_str));
 
-    // Overlay the leaf-cert expiry flag for the active manifest — same
+    // Overlay the leaf-cert validity for the active manifest — same
     // reasoning as in `read_manifest`.  Ingredient manifests are left at
     // `None` because they represent historical steps whose cert lifecycle
     // is not actionable for current-state verification.
-    active.certificate_expired = reader
+    if let Some(v) = reader
         .active_manifest()
         .and_then(|m| m.signature_info())
-        .and_then(|si| leaf_cert_expired(si.cert_chain()));
+        .and_then(|si| leaf_cert_validity(si.cert_chain()))
+    {
+        active.certificate_expired = Some(v.expired);
+        active.cert_not_before = Some(v.not_before_rfc3339);
+        active.cert_not_after = Some(v.not_after_rfc3339);
+    }
 
     // Build a lookup map from ingredient assertion URI → validationDeltas so
     // we can enrich ingredient manifests with their actual validation results.
@@ -2299,6 +2350,8 @@ mod tests {
             is_valid: true,
             valid_at_signing: false,
             certificate_expired: None,
+            cert_not_before: None,
+            cert_not_after: None,
             signed_at: Some("2026-01-01T00:00:00Z".to_string()),
             signed_by: None,
             signed_by_issuer: None,
@@ -3454,6 +3507,8 @@ mod tests {
             is_valid: true,
             valid_at_signing: false,
             certificate_expired: None,
+            cert_not_before: None,
+            cert_not_after: None,
             signed_at: None,
             signed_by: None,
             signed_by_issuer: None,
@@ -3488,6 +3543,8 @@ mod tests {
             is_valid: true,
             valid_at_signing: false,
             certificate_expired: None,
+            cert_not_before: None,
+            cert_not_after: None,
             signed_at: None,
             signed_by: None,
             signed_by_issuer: None,
@@ -3519,6 +3576,8 @@ mod tests {
                 is_valid: true,
                 valid_at_signing: false,
                 certificate_expired: None,
+                cert_not_before: None,
+                cert_not_after: None,
                 signed_at: None,
                 signed_by: None,
                 signed_by_issuer: None,
@@ -3669,6 +3728,8 @@ mod tests {
             is_valid: true,
             valid_at_signing: false,
             certificate_expired: None,
+            cert_not_before: None,
+            cert_not_after: None,
             signed_at: None,
             signed_by: None,
             signed_by_issuer: None,

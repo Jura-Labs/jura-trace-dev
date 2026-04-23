@@ -106,9 +106,38 @@ const DETECTOR_THRESHOLDS: Record<string, number | null> = {
 /** Report format: 'standard' for the default report, 'berkeley' for Berkeley Protocol legal evidence format. */
 export type ReportFormat = 'standard' | 'berkeley';
 
+/** Transcode a base64 PNG to a JPEG data URL, downscaled to `maxWidth` px.
+ *  Heatmaps are the dominant contributor to report size — a 1024 px lossless
+ *  PNG becomes a ~80 kB JPEG at q=0.75, 5–10× smaller. White background is
+ *  painted first because JPEG has no alpha. */
+async function transcodePngToJpeg(
+  pngBase64: string,
+  maxWidth = 800,
+  quality = 0.75,
+): Promise<string> {
+  const img = new Image();
+  img.src = `data:image/png;base64,${pngBase64}`;
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error('heatmap decode failed'));
+  });
+  const scale = Math.min(1, maxWidth / img.naturalWidth);
+  const w = Math.max(1, Math.round(img.naturalWidth * scale));
+  const h = Math.max(1, Math.round(img.naturalHeight * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const cctx = canvas.getContext('2d');
+  if (!cctx) throw new Error('canvas 2d context unavailable');
+  cctx.fillStyle = '#ffffff';
+  cctx.fillRect(0, 0, w, h);
+  cctx.drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL('image/jpeg', quality);
+}
+
 /** Generate a trust report PDF and return as a Blob. */
-export function generateTrustReport(result: VerificationResult, meta: ReportMeta, ctx?: ReportContext, reportFormat: ReportFormat = 'standard'): Blob {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+export async function generateTrustReport(result: VerificationResult, meta: ReportMeta, ctx?: ReportContext, reportFormat: ReportFormat = 'standard'): Promise<Blob> {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
   const version = meta.appVersion ?? '0.9.0';
   let y = MARGIN;
 
@@ -636,7 +665,7 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
       summaryLine(
         sigValid ? '[OK]' : '[FAIL]',
         ...(sigValid ? OK : FAIL),
-        `Claim signature ${sigValid ? 'verified' : 'failed'}`,
+        sigValid ? 'Signature valid' : C2PA_STATUS_INVALID,
       );
       summaryLine(
         dataValid ? '[OK]' : hashFail ? '[FAIL]' : '[-]',
@@ -876,7 +905,8 @@ export function generateTrustReport(result: VerificationResult, meta: ReportMeta
       doc.text(hm.label, MARGIN, y);
       y += 4;
       try {
-        doc.addImage(`data:image/png;base64,${hm.data}`, 'PNG', MARGIN, y, CONTENT_WIDTH * 0.7, 55);
+        const jpegDataUrl = await transcodePngToJpeg(hm.data);
+        doc.addImage(jpegDataUrl, 'JPEG', MARGIN, y, CONTENT_WIDTH * 0.7, 55, undefined, 'FAST');
         y += 58;
       } catch {
         doc.setFontSize(7);

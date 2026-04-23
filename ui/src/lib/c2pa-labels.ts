@@ -83,6 +83,20 @@ export const C2PA_STATUS_VALID = 'Valid';
 export const C2PA_STATUS_VALID_AT_SIGNING = 'Valid at signing';
 
 /**
+ * L3 explainer for the Valid-at-signing state.  Spec-safe wording:
+ * "signing certificate has expired" is descriptive language drawn
+ * directly from the certificate's notAfter attribute; "trusted
+ * timestamp" matches the C2PA core spec §14 time-stamp terminology
+ * without reusing the TSA-internal "time-stamp token" vocabulary.
+ * Earlier drafts used the term "short-lived certificate", which is
+ * not part of the UX Rec vocabulary — kept out of the user-facing
+ * copy and flagged in the submission letter as a deliberate deviation
+ * from any such invented label.
+ */
+export const C2PA_MSG_VALID_AT_SIGNING_DETAIL =
+  'Signing certificate has expired, but a trusted timestamp confirms the signature was valid at the time of signing.';
+
+/**
  * Compressed Invalid label for tight layouts (header strips, small badges).
  * Near-verbatim compression of the Table 4 string; flag in the submission
  * letter as a layout-driven abbreviation.
