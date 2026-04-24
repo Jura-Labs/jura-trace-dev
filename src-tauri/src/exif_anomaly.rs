@@ -913,26 +913,60 @@ fn check_xmp_ai_digital_source(meta: &ImageMetadata, findings: &mut Vec<AnomalyF
         return;
     };
     let dst_lower = dst.to_lowercase();
-    let is_ai = dst_lower.contains("trainedalgorithmicmedia")
-        || dst_lower.contains("compositewithtrainedalgorithmicmedia")
+
+    // Distinguish pure-AI vs composite-AI per IPTC vocabulary.  The
+    // distinction is meaningful: pure `trainedAlgorithmicMedia` is a
+    // fully-synthetic image (Firefly, DALL-E); `compositeWithTrained­
+    // AlgorithmicMedia` is a real photo that had AI-generated regions
+    // composited in (Pixel Zoom Enhance, Magic Editor, Adobe generative
+    // fill).  The composite case deserves a lower trust cap (0.55 via
+    // the compute_trust composite ceiling) because the base capture is
+    // real — it's still AI-touched and must be disclosed, but it is not
+    // deepfake-class material.
+    //
+    // Pure AI markers (fully synthetic):
+    //   - trainedAlgorithmicMedia
+    //   - algorithmicMedia              (older non-TAM marker; still "AI")
+    //
+    // Composite markers (real capture + AI elements):
+    //   - compositeWithTrainedAlgorithmicMedia
+    //   - compositeCapture              (AI-composited from multiple frames)
+    let is_pure_ai = (dst_lower.contains("trainedalgorithmicmedia")
+        && !dst_lower.contains("compositewith"))
         || dst_lower == "algorithmicmedia"
         || dst_lower.ends_with("/algorithmicmedia");
-    if !is_ai {
-        return;
+    let is_composite_ai = dst_lower.contains("compositewithtrainedalgorithmicmedia")
+        || dst_lower.ends_with("/compositecapture")
+        || dst_lower == "compositecapture";
+
+    if is_pure_ai {
+        findings.push(AnomalyFinding {
+            check_id: "xmp_ai_digital_source".into(),
+            title: "XMP declares AI-generated content".into(),
+            description: format!(
+                "The file's XMP packet sets Iptc4xmpExt:DigitalSourceType to '{dst}', \
+                 the IPTC vocabulary value used to mark a fully AI-generated image. \
+                 This is a self-declared provenance signal written by the generator \
+                 (or a downstream signer).  Treat as strong evidence of AI origin."
+            ),
+            severity: Severity::High,
+            category: "provenance".into(),
+        });
+    } else if is_composite_ai {
+        findings.push(AnomalyFinding {
+            check_id: "xmp_ai_composite_source".into(),
+            title: "XMP declares AI-composited regions in a real capture".into(),
+            description: format!(
+                "The file's XMP packet sets Iptc4xmpExt:DigitalSourceType to '{dst}', \
+                 the IPTC vocabulary value for a real photograph whose content has \
+                 been altered by AI generation — typical of Google Pixel Zoom Enhance, \
+                 Magic Editor, or Adobe generative fill.  The base capture is real \
+                 but AI-generated regions are present; provenance remains intact."
+            ),
+            severity: Severity::Medium,
+            category: "provenance".into(),
+        });
     }
-    findings.push(AnomalyFinding {
-        check_id: "xmp_ai_digital_source".into(),
-        title: "XMP declares AI-generated content".into(),
-        description: format!(
-            "The file's XMP packet sets Iptc4xmpExt:DigitalSourceType to '{dst}', \
-             the IPTC vocabulary value used to mark AI-generated or AI-composited \
-             content. This is a self-declared provenance signal written by the \
-             generator (or a downstream signer). Treat as strong evidence of \
-             AI origin."
-        ),
-        severity: Severity::High,
-        category: "provenance".into(),
-    });
 }
 
 /// Class G — XMP `xmp:CreatorTool` names a known AI generator.

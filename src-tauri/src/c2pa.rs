@@ -1431,6 +1431,15 @@ pub fn read_manifest_chain(path: &Path, enhanced: bool) -> Result<Option<Manifes
                             // Try to find a matching ingredient delta.
                             // Strategy 1: URI contains the manifest label as a substring.
                             // Strategy 2: fall back to positional order.
+                            // Strategy 3 (added 2026-04-24 for the Pixel Zoom Enhance
+                            //   case): when no top-level ingredientDelta matches, the
+                            //   ingredient may carry its OWN
+                            //   `validation_results.activeManifest` block — same
+                            //   success/failure/informational shape as a delta.
+                            //   Without this fallback the chain ingredient renders as
+                            //   "Content Credential unavailable or invalid" in the L3
+                            //   panel because validation_checks ends up empty even
+                            //   when the parent ingredient was actually validated.
                             let matched_delta: Option<&serde_json::Value> = ingredient_deltas
                                 .iter()
                                 .find(|d| {
@@ -1446,6 +1455,13 @@ pub fn read_manifest_chain(path: &Path, enhanced: bool) -> Result<Option<Manifes
                                     ingredient_deltas
                                         .get(ingredient_order)
                                         .and_then(|d| d.get("validationDeltas"))
+                                })
+                                .or_else(|| {
+                                    // Fallback: ingredient's own validation_results
+                                    // (same wire shape as a delta — success / failure /
+                                    // informational arrays of {code, explanation, url}).
+                                    ing.get("validation_results")
+                                        .and_then(|vr| vr.get("activeManifest"))
                                 });
 
                             let info = extract_manifest_info(
@@ -1576,7 +1592,17 @@ pub fn detect_ai_from_assertions(assertions: &[AssertionInfo]) -> Option<String>
 
         // Check digitalSourceType — the primary IPTC/C2PA AI declaration mechanism.
         // The full URI contains "trainedAlgorithmicMedia"; match case-insensitively.
-        if lower_value.contains("trainedalgorithmicmedia") {
+        //
+        // IMPORTANT: `compositeWithTrainedAlgorithmicMedia` is a DIFFERENT IPTC
+        // value meaning "real photograph with AI-composited regions" — not a
+        // fully synthetic image.  It's detected separately by
+        // `detect_composite_ai_from_assertions` and deliberately excluded here
+        // so the trust ceiling for pure AI (0.25) is not applied to Pixel
+        // Zoom Enhance / Magic Editor / generative fill cases, which should
+        // cap at 0.55 instead.
+        if lower_value.contains("trainedalgorithmicmedia")
+            && !lower_value.contains("compositewithtrainedalgorithmicmedia")
+        {
             return Some("AI-generated (C2PA digitalSourceType)".to_string());
         }
 
@@ -1605,6 +1631,31 @@ pub fn detect_ai_from_assertions(assertions: &[AssertionInfo]) -> Option<String>
                     return Some(format!("AI-generated (C2PA mentions {name})"));
                 }
             }
+        }
+    }
+    None
+}
+
+/// Check if a C2PA manifest declares composite AI content (real photograph
+/// with AI-generated regions) via assertions.
+///
+/// Returns the human-readable composite AI label if detected, or `None`.
+///
+/// Distinguishes composite-AI (e.g. Google Pixel Zoom Enhance, Magic Editor,
+/// Adobe generative fill) from fully synthetic AI (Firefly, DALL-E).  The
+/// composite case sets `Iptc4xmpExt:DigitalSourceType` to
+/// `compositeWithTrainedAlgorithmicMedia` — the IPTC value for a real
+/// photograph whose content has been altered by AI generation.
+///
+/// This is the companion to [`detect_ai_from_assertions`], which
+/// deliberately excludes composite cases so the 0.25 pure-AI ceiling is
+/// not applied to legitimate camera captures with AI-assisted features.
+/// Composite-AI gets a 0.55 ceiling via the compute_trust composite path.
+pub fn detect_composite_ai_from_assertions(assertions: &[AssertionInfo]) -> Option<String> {
+    for assertion in assertions {
+        let lower_value = assertion.value.to_lowercase();
+        if lower_value.contains("compositewithtrainedalgorithmicmedia") {
+            return Some("AI-composited regions (C2PA digitalSourceType)".to_string());
         }
     }
     None

@@ -794,6 +794,18 @@ fn compute_trust(
     // `ai_declared_by_c2pa` — see `ai_declared` derivation and the
     // self-declared ceiling below.
     ai_declared_by_xmp: bool,
+    // Self-declared COMPOSITE AI (real photograph with AI-generated
+    // regions composited in). True when:
+    //   - exif_anomaly emits a MEDIUM-severity `xmp_ai_composite_source`
+    //     finding (IPTC `compositeWithTrainedAlgorithmicMedia`), OR
+    //   - the C2PA manifest contains a `compositeWithTrainedAlgorithmicMedia`
+    //     digitalSourceType via `detect_composite_ai_from_assertions`.
+    //
+    // Distinguished from pure AI because the base capture is real (Pixel
+    // Zoom Enhance, Magic Editor, generative fill).  Caps trust at 0.55
+    // instead of 0.25 — honest disclosure of AI involvement without
+    // labelling every camera-with-AI-feature photo as deepfake-class.
+    ai_declared_composite: bool,
 ) -> f64 {
     // ── AI-detection suppression ─────────────────────────────────────
     // Screenshots and documents cause systematic false positives in the
@@ -1017,15 +1029,28 @@ fn compute_trust(
 
     let result = base_trust.min(verdict_ceiling).min(regional_cap);
 
-    // ── Self-declared AI ceiling ────────────────────────────────────
-    // When the file declares itself as AI-generated (via C2PA manifest
-    // action `c2pa.created` + `digitalSourceType: trainedAlgorithmicMedia`,
-    // OR via XMP IPTC `Iptc4xmpExt:DigitalSourceType` / `xmp:CreatorTool`),
-    // cap trust at 0.25 regardless of other signals. Producer
-    // self-declaration is the gold-standard provenance signal — that's
-    // literally what these vocabularies exist for. Forensic and ensemble
-    // signals cannot override it.
-    let self_declared_ceiling = if ai_declared { 0.25 } else { 1.0 };
+    // ── Self-declared AI ceilings ───────────────────────────────────
+    // Pure AI declared (C2PA manifest action `c2pa.created` +
+    // `digitalSourceType: trainedAlgorithmicMedia`, OR XMP IPTC
+    // `Iptc4xmpExt:DigitalSourceType` / `xmp:CreatorTool`): cap trust
+    // at 0.25 regardless of other signals.  Producer self-declaration
+    // of pure synthetic AI is the gold-standard provenance signal.
+    //
+    // Composite AI declared (`compositeWithTrainedAlgorithmicMedia` —
+    // real photograph with AI-generated regions: Pixel Zoom Enhance,
+    // Magic Editor, Adobe generative fill): cap at 0.55 ("Medium —
+    // AI components declared").  The base capture is real and the
+    // provenance is intact; the cap is disclosure, not condemnation.
+    //
+    // If both flags are somehow set (pure AI with composite elements
+    // declared), pure AI wins — the stricter ceiling applies.
+    let self_declared_ceiling = if ai_declared {
+        0.25
+    } else if ai_declared_composite {
+        0.55
+    } else {
+        1.0
+    };
     result.min(self_declared_ceiling)
 }
 
@@ -2433,6 +2458,14 @@ fn verify_content_inner(
     // Use a lightweight C2PA-only path rather than defaulting to 0.50 from
     // the unwrap_or on missing EXIF data.
     let ai_declared_by_c2pa = ai_generator.is_some();
+    // Composite-AI derivation from C2PA side — real photograph with
+    // AI-generated regions (Pixel Zoom Enhance, Magic Editor, Adobe
+    // generative fill).  Scans assertions for
+    // `compositeWithTrainedAlgorithmicMedia`.
+    let ai_declared_composite_by_c2pa = c2pa_manifest
+        .as_ref()
+        .and_then(|m| c2pa::detect_composite_ai_from_assertions(&m.assertions))
+        .is_some();
     let ai_declared_by_xmp = exif_analysis
         .as_ref()
         .map(|a| {
@@ -2444,6 +2477,15 @@ fn verify_content_inner(
             })
         })
         .unwrap_or(false);
+    let ai_declared_composite_by_xmp = exif_analysis
+        .as_ref()
+        .map(|a| {
+            a.findings
+                .iter()
+                .any(|f| f.check_id == "xmp_ai_composite_source")
+        })
+        .unwrap_or(false);
+    let ai_declared_composite = ai_declared_composite_by_c2pa || ai_declared_composite_by_xmp;
     let overall_trust = if !is_image && !is_video && !is_audio {
         document_trust(c2pa_valid, ai_declared_by_c2pa || ai_declared_by_xmp)
     } else {
@@ -2466,6 +2508,7 @@ fn verify_content_inner(
             content_type_category,
             ai_detection_suitable,
             ai_declared_by_xmp,
+            ai_declared_composite,
         )
     };
     log::info!("PERF: trust score computation took {:?}", t_trust.elapsed());
@@ -5137,6 +5180,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(trust > 0.85, "Expected >0.85, got {trust:.3}");
     }
@@ -5163,6 +5207,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(trust < 0.5, "Expected <0.5, got {trust:.3}");
     }
@@ -5189,6 +5234,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(trust > 0.50, "Expected >0.50, got {trust:.3}");
     }
@@ -5215,6 +5261,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(trust < 0.55, "Expected <0.55, got {trust:.3}");
     }
@@ -5241,6 +5288,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust_weighted > 0.55,
@@ -5269,6 +5317,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         let trust_with = compute_trust(
             Some(0.1),
@@ -5289,6 +5338,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust_with > trust_without,
@@ -5303,6 +5353,7 @@ mod tests {
             None, None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!((trust - 0.8).abs() < 0.01, "Expected ~0.8, got {trust:.3}");
     }
@@ -5328,6 +5379,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust > 0.65,
@@ -5357,6 +5409,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(trust <= 1.0, "Trust exceeded 1.0: {trust:.3}");
     }
@@ -5386,6 +5439,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust <= 0.55,
@@ -5418,6 +5472,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust <= 0.25,
@@ -5447,6 +5502,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust <= 0.45,
@@ -5475,6 +5531,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust > 0.85,
@@ -5504,6 +5561,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust > 0.70,
@@ -5653,6 +5711,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust <= 0.55,
@@ -5687,10 +5746,85 @@ mod tests {
             None,
             true,
             true, // ai_declared_by_xmp: TRUE (the new behaviour)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust <= 0.25,
             "XMP self-declared AI must cap trust at 25% max, got {:.1}%",
+            trust * 100.0
+        );
+    }
+
+    #[test]
+    fn trust_composite_ai_capped_at_055_not_025() {
+        // Pixel Zoom Enhance / Magic Editor pattern: real photo with
+        // AI-composited regions.  XMP DigitalSourceType =
+        // compositeWithTrainedAlgorithmicMedia.  Should cap at 0.55
+        // (Medium — AI components declared), NOT 0.25 (pure-AI ceiling).
+        // The base photograph is real; the AI-touched regions warrant
+        // disclosure but not deepfake-class trust.
+        let trust = compute_trust(
+            Some(0.04),
+            Some(0.05),
+            Some(0.0),
+            Some(0.20),
+            Some("medium"),
+            Some("authentic"),
+            0.95,
+            Some(true), // c2pa_valid: Pixel manifest is fully valid
+            None,
+            None,
+            None,
+            None,
+            false, // ai_declared_by_c2pa: false (composite is separate)
+            None,
+            None,
+            None,
+            true,
+            false, // ai_declared_by_xmp: false (composite is separate)
+            true,  // ai_declared_composite: TRUE (the new behaviour)
+        );
+        assert!(
+            trust > 0.25,
+            "Composite AI must NOT trigger the 0.25 pure-AI ceiling, got {:.1}%",
+            trust * 100.0
+        );
+        assert!(
+            trust <= 0.55,
+            "Composite AI must cap at 0.55, got {:.1}%",
+            trust * 100.0
+        );
+    }
+
+    #[test]
+    fn trust_pure_ai_overrides_composite_when_both_set() {
+        // Defensive: if both flags are somehow set, pure AI wins (stricter
+        // ceiling applies). Real cases shouldn't have both, but the code
+        // path must be deterministic.
+        let trust = compute_trust(
+            Some(0.04),
+            Some(0.05),
+            Some(0.0),
+            Some(0.15),
+            Some("high"),
+            Some("authentic"),
+            1.0,
+            Some(true),
+            None,
+            None,
+            None,
+            None,
+            false,
+            None,
+            None,
+            None,
+            true,
+            true, // pure-AI declared
+            true, // composite-AI also declared
+        );
+        assert!(
+            trust <= 0.25,
+            "Pure-AI ceiling must dominate when both flags set, got {:.1}%",
             trust * 100.0
         );
     }
@@ -5719,6 +5853,7 @@ mod tests {
             None,
             true,
             true, // ai_declared_by_xmp: TRUE
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust <= 0.25,
@@ -5809,6 +5944,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         let trust_without = compute_trust(
             Some(0.05),
@@ -5829,6 +5965,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust_with < trust_without,
@@ -5858,6 +5995,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust <= 0.55,
@@ -5889,6 +6027,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust <= 0.55,
@@ -5918,6 +6057,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust > 0.55,
@@ -5947,6 +6087,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         let trust_no_regional = compute_trust(
             Some(0.04),
@@ -5967,6 +6108,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         // With all regional detectors clean the trust should be close to the
         // no-regional baseline (regional scores ≈ 0 contribute ~1.0 trust).
@@ -6000,6 +6142,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust <= 0.55,
@@ -6040,6 +6183,7 @@ mod tests {
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         let trust_base = compute_trust(
             Some(0.1), // same ELA
@@ -6060,6 +6204,7 @@ mod tests {
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         // At Q=95, effective_weight=0.475 vs base=0.5 — small difference (< 3pp)
         assert!(
@@ -6092,6 +6237,7 @@ mod tests {
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         let trust_base = compute_trust(
             Some(0.1), // same ELA
@@ -6112,6 +6258,7 @@ mod tests {
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         // Q=75 → effective_weight=0.375 < 0.5 → ghost penalises less → higher trust
         assert!(
@@ -6145,6 +6292,7 @@ mod tests {
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         let trust_q20 = compute_trust(
             Some(0.1), // same ELA
@@ -6165,6 +6313,7 @@ mod tests {
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         // Both floor at quality_factor=0.30 → effective_weight=0.15 → same trust
         assert!(
@@ -6197,6 +6346,7 @@ mod tests {
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         let trust_no_ghost = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false,
@@ -6205,6 +6355,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust_with_ghost < trust_no_ghost,
@@ -6239,6 +6390,7 @@ mod tests {
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         let trust_low_q = compute_trust(
             Some(0.1), // same ELA
@@ -6259,6 +6411,7 @@ mod tests {
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust_low_q > trust_high_q,
@@ -6419,6 +6572,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         let trust_no_ai = compute_trust(
             Some(0.1),
@@ -6439,6 +6593,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust_ai_declared < trust_no_ai,
@@ -6470,12 +6625,14 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         let trust_none = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false, None,
             None, None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         assert!(
             trust_ai < trust_none,
@@ -6506,6 +6663,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         let trust_ai = compute_trust(
             None,
@@ -6526,6 +6684,7 @@ mod tests {
             None, // content_type_category: None → no suppression
             true, // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
+            false, // ai_declared_composite: false (default)
         );
         // valid: 1.0 + 0.10 capped at 1.0 = 1.0
         assert!(
