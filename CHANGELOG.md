@@ -6,6 +6,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 24 April 2026 — Release Candidate rc.22 — Pilot-readiness fixes
+
+Eight fixes triggered by the rc.21 Windows VM smoke test on 23 April. The C2PA Validator approver's review build now produces well-calibrated trust scores on real-world Pixel photos, displays images correctly on Windows, surfaces the Enhanced-mode upgrade contextually, handles installer collisions cleanly, and gives users a working FFmpeg path on Windows Server SKUs.
+
+### Added
+
+- **First-run Enhanced-mode banner** on Dashboard and Verify. One-click upgrade from the local-first Standard default to Enhanced (online OCSP/CRL revocation checks + remote Content Credentials retrieval). Auto-hides once enabled or dismissed; respects the user's choice across sessions via `localStorage`. Preserves the local-first USP while giving evaluators and real-world users the full validation path.
+- **Composite-AI trust ceiling at 0.55.** When the IPTC vocabulary declares `compositeWithTrainedAlgorithmicMedia` (Pixel Zoom Enhance, Magic Editor, Adobe generative fill — real photographs with AI-composited regions), trust caps at 0.55 ("Medium — AI components declared") rather than the 0.25 pure-AI ceiling. New `xmp_ai_composite_source` Medium-severity finding and `detect_composite_ai_from_assertions` C2PA path. Two new tests lock the behaviour.
+- **Direct FFmpeg download fallback in the Setup Wizard** for Windows installations without `winget` (Server 2022, locked-down enterprise SKUs). Collapsible "No winget?" section surfaces the gyan.dev pre-built static binaries with a 4-step PATH recipe.
+
+### Fixed
+
+- **Image preview now renders on Windows.** The CSP `img-src` allowed `asset:` and `https://asset.localhost` but not `http://asset.localhost`, which is the URL scheme Tauri's WebView2 uses for the asset protocol on Windows. Verify-page thumbnails were showing alt-text fallback only. Added `http://asset.localhost`, `data:`, and `blob:` to the directive.
+- **Chain-ingredient validation checks fallback.** The Origin tab in the L3 manifest panel rendered "Content Credential unavailable or invalid" on Pixel Zoom Enhance images, even though the parent ingredient was fully validated. Root cause: the chain builder only consulted top-level `validation_results.ingredientDeltas[]` and missed the ingredient's own embedded `validation_results.activeManifest`. Added a third fallback path that extracts validation checks from the ingredient's own block when no top-level delta matches.
+- **Weather Context now respects Enhanced mode.** The button rendered regardless of NetworkMode and called `https://archive-api.open-meteo.com` directly from the WebView. CSP blocked it (open-meteo wasn't in `connect-src`), and the section had no business appearing in the local-first Standard default anyway. Now: section hides entirely in Standard mode (the EnhancedModeBanner above offers the upgrade); CSP allows the open-meteo domain so Enhanced-mode fetches succeed.
+- **Windows installer no longer fails on re-install.** Two NSIS hooks (`NSIS_HOOK_PREINSTALL`, `NSIS_HOOK_PREUNINSTALL`) `taskkill` any running `jura-trace.exe` or `jura-sidecar.exe` before file operations begin, with a 500 ms sleep to let Windows release file handles. Resolves the "Error opening file for writing: jura-sidecar.exe" mid-install failure observed on rc.21 when re-installing while the app was open.
+- **Windows uninstaller no longer leaves orphan processes** that locked `%LOCALAPPDATA%\Jura Trace` files. Same NSIS hook approach applied to the uninstall flow.
+
+### Tests
+
+487 Rust lib tests pass, clippy + fmt clean, svelte-check 0 errors.
+
+### Known limitations
+
+- The MSI installer variant has always handled the running-process and orphan-cleanup cases more cleanly than NSIS; the new NSIS hooks bring NSIS up to MSI parity for re-install scenarios but the MSI remains the recommended distribution channel for IT-managed deployments.
+
+---
+
 ## 23 April 2026 — Release Candidate rc.21 — Validator evaluation build
 
 The C2PA Validator submission is progressing through final approval. The approver requested a copy change and indicated they will soon be presented the application for review. This build consolidates the last set of UX and trust-scoring changes needed for that evaluation, re-enables macOS signing in CI, and hides the Protect workflow (a separate Generator-track submission) to keep the approver's attention on the verification pipeline.
