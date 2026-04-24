@@ -5,12 +5,13 @@
     verifyFile, verifyUrl, checkSidecarHealth, markFalsePositive,
     parseAppError, getLicenceTier, getVersion,
     openBatchFileDialog, extractTextFromImage,
+    getNetworkMode,
   } from '$lib/api';
   import { getTrustLevel, formatFileSize, formatDuration } from '$lib/types';
   import type {
     VerificationResult, SidecarHealth, VerifyMode, LicenceTier,
     AnomalyFinding, InputQualityAssessment, ManifestInfo,
-    BatchItem, BatchItemStatus,
+    BatchItem, BatchItemStatus, NetworkMode,
   } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
   import {
@@ -110,6 +111,10 @@
   let weatherData = $state<WeatherData | null>(null);
   let weatherLoading = $state(false);
   let weatherError = $state<string | null>(null);
+  // NetworkMode gates the Weather Context section below — Standard mode
+  // hides it because the open-meteo fetch needs Enhanced.  Defaults to
+  // 'standard' (the local-first default); refreshed on mount.
+  let networkMode = $state<NetworkMode>('standard');
 
   const gpsCoords = $derived(
     result?.imageMetadata?.gpsLatitude != null && result?.imageMetadata?.gpsLongitude != null
@@ -716,6 +721,12 @@
       verifyMode = savedMode;
     }
     showRawScores = localStorage.getItem('jura-raw-scores-default') === 'true';
+
+    // Load NetworkMode so the Weather Context section can gate itself.
+    // Weather requires an outbound HTTPS call to archive-api.open-meteo.com,
+    // which is only allowed in Enhanced mode.  In Standard mode the section
+    // is hidden entirely; the EnhancedModeBanner above offers the upgrade.
+    getNetworkMode().then((m) => { networkMode = m; }).catch(() => {});
     analystName = localStorage.getItem('jura-analyst-name') ?? '';
     analystOrg = localStorage.getItem('jura-analyst-org') ?? '';
     analystNote = localStorage.getItem('jura-analyst-note') ?? '';
@@ -2100,8 +2111,10 @@
                 </div>
               </li>
 
-              <!-- Historical Weather Context — Enhanced mode, GPS + date required -->
-              {#if gpsCoords && exifDate()}
+              <!-- Historical Weather Context — Enhanced mode, GPS + date required.
+                   Hidden in Standard mode entirely (no broken button surface).
+                   The EnhancedModeBanner higher up the page offers the upgrade. -->
+              {#if gpsCoords && exifDate() && networkMode === 'enhanced'}
                 <li class="px-5 py-4">
                   <div class="flex items-start gap-3">
                     <svg class="w-4 h-4 mt-0.5 flex-shrink-0 text-lapis dark:text-lapis-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
