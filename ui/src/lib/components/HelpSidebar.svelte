@@ -56,7 +56,7 @@
     <div class="mb-6">
       <!-- Section group label -->
       <p
-        class="px-2 mb-1 text-[0.65rem] font-semibold uppercase tracking-widest text-flint dark:text-flint-light select-none"
+        class="px-2 mb-1 text-[0.65rem] font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light select-none"
         aria-hidden="true"
       >
         {section.groupLabel}
@@ -76,7 +76,7 @@
                 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
                 {isActive(item.href)
                   ? 'text-lapis dark:text-lapis-light font-medium bg-lapis/5 dark:bg-lapis/10'
-                  : 'text-flint dark:text-flint-light hover:text-lapis dark:hover:text-lapis-light hover:bg-gray-50 dark:hover:bg-graphite-light/30'}
+                  : 'text-flint-dark dark:text-flint-light hover:text-lapis dark:hover:text-lapis dark:text-lapis-light hover:bg-gray-50 dark:hover:bg-graphite-light/30'}
               "
             >
               {item.label}

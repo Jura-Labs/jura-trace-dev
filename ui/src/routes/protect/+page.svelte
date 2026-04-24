@@ -741,14 +741,14 @@
   <div class="flex items-start justify-between gap-4">
     <div>
       <h1 class="text-2xl font-heading text-text-light dark:text-quartz">Protect</h1>
-      <p class="text-flint dark:text-flint-light text-sm mt-1">
+      <p class="text-flint-dark dark:text-flint-light text-sm mt-1">
         Import, catalogue, and safeguard your digital content.
       </p>
     </div>
 
     <!-- Asset count + CSV export -->
     <div class="flex items-center gap-3 flex-shrink-0 pt-1 flex-wrap justify-end">
-      <span class="text-xs text-flint dark:text-flint-light" aria-live="polite" aria-atomic="true">
+      <span class="text-xs text-flint-dark dark:text-flint-light" aria-live="polite" aria-atomic="true">
         {displayedAssets.length} asset{displayedAssets.length !== 1 ? 's' : ''}
         {#if displayedAssets.length !== assets.length}
           <span class="sr-only">(filtered)</span>
@@ -756,7 +756,7 @@
       </span>
       {#if displayedAssets.length > 0}
         <button
-          class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center rounded border border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+          class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center rounded border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
           onclick={exportCsv}
           title="Download a spreadsheet of all assets in your collection, including protection status, file paths, and metadata."
           aria-label="Export Asset Database — download all visible assets as a spreadsheet"
@@ -770,7 +770,7 @@
   <!-- Error banner -->
   {#if error}
     <div
-      class="bg-cinnabar/10 border border-cinnabar/30 rounded-lg px-4 py-3 text-sm text-cinnabar dark:text-cinnabar-light"
+      class="bg-cinnabar/10 border border-cinnabar/30 rounded-lg px-4 py-3 text-sm text-cinnabar-dark dark:text-cinnabar-light"
       role="alert"
       aria-live="assertive"
     >
@@ -799,7 +799,7 @@
           class="w-6 h-6 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
           aria-hidden="true"
         ></div>
-        <p class="text-sm text-flint dark:text-flint-light" aria-live="polite">
+        <p class="text-sm text-flint-dark dark:text-flint-light" aria-live="polite">
           {importingCount > 1
             ? `Importing ${importingCount} file${importingCount !== 1 ? 's' : ''}...`
             : 'Importing files...'}
@@ -807,12 +807,12 @@
       </div>
     {:else}
       <div class="flex flex-col items-center gap-2">
-        <svg class="w-10 h-10 text-flint dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <svg class="w-10 h-10 text-flint-dark dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
             d="M12 16V4m0 0L8 8m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4" />
         </svg>
         <p class="font-heading text-text-light dark:text-quartz">Drop files or folders here</p>
-        <p class="text-xs text-flint dark:text-flint-light mt-1">
+        <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
           or click to browse &mdash; JPEG, PNG, TIFF, WebP, PDF, MP4, WAV, and more
         </p>
       </div>
@@ -827,7 +827,7 @@
   >
     <!-- Content type filter -->
     <div class="flex items-center gap-2">
-      <label for="filter-content-type" class="text-xs text-flint dark:text-flint-light uppercase tracking-wide flex-shrink-0">Type</label>
+      <label for="filter-content-type" class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide flex-shrink-0">Type</label>
       <select
         id="filter-content-type"
         bind:value={filterContentType}
@@ -845,7 +845,7 @@
 
     <!-- Status filter -->
     <div class="flex items-center gap-2">
-      <label for="filter-status" class="text-xs text-flint dark:text-flint-light uppercase tracking-wide flex-shrink-0">Status</label>
+      <label for="filter-status" class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide flex-shrink-0">Status</label>
       <select
         id="filter-status"
         bind:value={filterStatus}
@@ -862,7 +862,7 @@
 
     <!-- Sort dropdown -->
     <div class="flex items-center gap-2">
-      <label for="filter-sort" class="text-xs text-flint dark:text-flint-light uppercase tracking-wide flex-shrink-0">Sort</label>
+      <label for="filter-sort" class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide flex-shrink-0">Sort</label>
       <select
         id="filter-sort"
         onchange={(e) => {
@@ -889,10 +889,10 @@
 
     <!-- Search input -->
     <div class="flex items-center gap-2 flex-1 min-w-48">
-      <label for="filter-search" class="text-xs text-flint dark:text-flint-light uppercase tracking-wide flex-shrink-0 sr-only">Search</label>
+      <label for="filter-search" class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide flex-shrink-0 sr-only">Search</label>
       <div class="relative flex-1">
         <svg
-          class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-flint dark:text-flint-light pointer-events-none"
+          class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-flint-dark dark:text-flint-light pointer-events-none"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -907,7 +907,7 @@
           bind:value={searchRaw}
           placeholder="Search files..."
           class="w-full pl-8 pr-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite text-text-light dark:text-quartz text-sm
-                 placeholder:text-flint/60
+                 placeholder:text-flint-dark dark:text-flint-light
                  hover:border-lapis/50 transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
           aria-label="Search files by name"
@@ -918,7 +918,7 @@
     <!-- Clear filters -->
     {#if filterContentType || filterStatus || searchRaw}
       <button
-        class="text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors underline underline-offset-2
+        class="text-xs text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors underline underline-offset-2
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
         onclick={() => { filterContentType = ''; filterStatus = ''; searchRaw = ''; }}
         aria-label="Clear all filters"
@@ -973,7 +973,7 @@
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                {viewLayout === 'list'
                  ? 'bg-lapis/15 text-lapis dark:text-lapis-light'
-                 : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
+                 : 'text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
         aria-pressed={viewLayout === 'list'}
         title="List view"
         aria-label="Switch to list view"
@@ -991,7 +991,7 @@
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                {viewLayout === 'grid'
                  ? 'bg-lapis/15 text-lapis dark:text-lapis-light'
-                 : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
+                 : 'text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
         aria-pressed={viewLayout === 'grid'}
         title="Grid view"
         aria-label="Switch to grid view"
@@ -1021,7 +1021,7 @@
         </h2>
         {#if !batchSignRunning}
           <button
-            class="text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+            class="text-xs text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite rounded px-2 py-1 min-h-[44px] inline-flex items-center"
             onclick={closeBatchSign}
             aria-label="Close batch signing panel"
@@ -1038,7 +1038,7 @@
           <div class="space-y-4">
 
             <!-- Eligible asset count -->
-            <p class="text-sm text-flint dark:text-flint-light">
+            <p class="text-sm text-flint-dark dark:text-flint-light">
               <span class="font-medium text-text-light dark:text-quartz">{unsignedAssets.length}</span>
               {unsignedAssets.length === 1 ? 'image' : 'images'} eligible &mdash; not yet signed.
             </p>
@@ -1046,7 +1046,7 @@
             <!-- Creator name input -->
             <div>
               <label
-                class="text-xs text-flint dark:text-flint-light uppercase tracking-wide"
+                class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
                 for="batch-sign-creator"
               >
                 Creator / Rights Holder Name
@@ -1058,11 +1058,11 @@
                 placeholder="e.g. Jane Smith / National Archive UK"
                 maxlength={128}
                 class="w-full mt-1.5 px-3 py-2.5 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm
-                       placeholder:text-flint/50
+                       placeholder:text-flint-dark dark:text-flint-light
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                 aria-describedby="batch-sign-creator-hint"
               />
-              <p id="batch-sign-creator-hint" class="mt-1 text-xs text-flint dark:text-flint-light">
+              <p id="batch-sign-creator-hint" class="mt-1 text-xs text-flint-dark dark:text-flint-light">
                 Embedded in the content credential for each signed file.
               </p>
             </div>
@@ -1070,7 +1070,7 @@
             <!-- Licence selector -->
             <div>
               <label
-                class="text-xs text-flint dark:text-flint-light uppercase tracking-wide"
+                class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
                 for="batch-sign-licence"
               >
                 Licence
@@ -1103,7 +1103,7 @@
                 Begin Signing
               </button>
               <button
-                class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint dark:text-flint-light text-sm rounded hover:text-text-light dark:hover:text-quartz transition-colors
+                class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint-dark dark:text-flint-light text-sm rounded hover:text-text-light dark:hover:text-quartz transition-colors
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                 onclick={closeBatchSign}
               >
@@ -1130,16 +1130,16 @@
             </div>
 
             {#if batchSignCurrentFile}
-              <p class="text-xs text-flint dark:text-flint-light truncate">
+              <p class="text-xs text-flint-dark dark:text-flint-light truncate">
                 Signing: <span class="text-text-light dark:text-quartz">{batchSignCurrentFile}</span>
               </p>
             {/if}
             {#if batchSignEta}
-              <p class="text-xs text-flint dark:text-flint-light">{batchSignEta}</p>
+              <p class="text-xs text-flint-dark dark:text-flint-light">{batchSignEta}</p>
             {/if}
 
             <button
-              class="px-4 py-2 min-h-[44px] text-sm text-cinnabar dark:text-cinnabar-light border border-cinnabar/30 rounded hover:bg-cinnabar/10 transition-colors
+              class="px-4 py-2 min-h-[44px] text-sm text-cinnabar-dark dark:text-cinnabar-light border border-cinnabar/30 rounded hover:bg-cinnabar/10 transition-colors
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
               onclick={() => { batchSignCancelled = true; }}
             >
@@ -1152,7 +1152,7 @@
           <div class="space-y-4" role="status" aria-live="polite">
             <div class="flex items-center gap-3">
               <div class="w-8 h-8 rounded-full bg-malachite/15 flex items-center justify-center flex-shrink-0" aria-hidden="true">
-                <svg class="w-4 h-4 text-malachite dark:text-malachite-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 text-malachite-dark dark:text-malachite-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
@@ -1160,7 +1160,7 @@
                 <p class="text-sm font-medium text-text-light dark:text-quartz">
                   {batchSignCancelled ? 'Signing cancelled' : 'Signing complete'}
                 </p>
-                <p class="text-xs text-flint dark:text-flint-light mt-0.5">
+                <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5">
                   {batchSignSuccessCount} signed successfully{batchSignFailCount > 0 ? `, ${batchSignFailCount} failed` : ''}
                 </p>
               </div>
@@ -1169,7 +1169,7 @@
             {#if batchSignErrors.length > 0}
               <div>
                 <button
-                  class="text-xs text-amber dark:text-amber-light hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-lapis rounded"
+                  class="text-xs text-amber-dark dark:text-amber-light hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-lapis rounded"
                   onclick={() => { showBatchSignErrors = !showBatchSignErrors; }}
                   aria-expanded={showBatchSignErrors}
                 >
@@ -1178,13 +1178,13 @@
                 {#if showBatchSignErrors}
                   <ul class="mt-2 space-y-1" aria-label="Signing errors">
                     {#each batchSignErrors as err}
-                      <li class="text-xs text-cinnabar dark:text-cinnabar-light">
+                      <li class="text-xs text-cinnabar-dark dark:text-cinnabar-light">
                         <span class="font-medium">{err.fileName}</span>: {err.error}
                       </li>
                     {/each}
                   </ul>
                   <button
-                    class="mt-2 text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-lapis rounded"
+                    class="mt-2 text-xs text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-lapis rounded"
                     onclick={exportBatchSignErrors}
                   >
                     Download error log
@@ -1224,7 +1224,7 @@
         </div>
         {#if !batchRunning}
           <button
-            class="text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+            class="text-xs text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite rounded px-2 py-1 min-h-[44px] inline-flex items-center"
             onclick={closeBatchWatermark}
             aria-label="Close batch watermark panel"
@@ -1241,7 +1241,7 @@
           <div class="space-y-4">
 
             <!-- Eligible image count -->
-            <p class="text-sm text-flint dark:text-flint-light">
+            <p class="text-sm text-flint-dark dark:text-flint-light">
               <span class="font-medium text-text-light dark:text-quartz">{unwatermarkedImages.length}</span>
               {unwatermarkedImages.length === 1 ? 'image' : 'images'} eligible &mdash; not yet watermarked.
             </p>
@@ -1249,7 +1249,7 @@
             <!-- Institution name input -->
             <div>
               <label
-                class="text-xs text-flint dark:text-flint-light uppercase tracking-wide"
+                class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
                 for="batch-watermark-payload"
               >
                 Organisation Name or Identifier
@@ -1261,18 +1261,18 @@
                 placeholder="e.g. National Archive UK — 2026"
                 maxlength={64}
                 class="w-full mt-1.5 px-3 py-2.5 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm
-                       placeholder:text-flint/50
+                       placeholder:text-flint-dark dark:text-flint-light
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                 aria-describedby="batch-payload-hint"
               />
-              <p id="batch-payload-hint" class="mt-1 text-xs text-flint dark:text-flint-light">
+              <p id="batch-payload-hint" class="mt-1 text-xs text-flint-dark dark:text-flint-light">
                 Encoded invisibly into each file. Maximum 64 characters.
               </p>
             </div>
 
             <!-- Strength selector -->
             <fieldset>
-              <legend class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-2">
+              <legend class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide mb-2">
                 Embedding Strength
               </legend>
               <div class="flex gap-2">
@@ -1287,7 +1287,7 @@
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite
                            {batchStrength === opt.value
                              ? 'border-lapis bg-lapis/10 text-lapis dark:text-lapis-light font-medium'
-                             : 'border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:border-lapis/50 hover:text-text-light dark:hover:text-quartz'}"
+                             : 'border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light hover:border-lapis/50 hover:text-text-light dark:hover:text-quartz'}"
                     onclick={() => batchStrength = opt.value}
                     aria-pressed={batchStrength === opt.value}
                   >
@@ -1298,7 +1298,7 @@
 
               <!-- Live explainer — updates to match the selected strength -->
               <p
-                class="mt-2 text-xs text-flint dark:text-flint-light leading-relaxed"
+                class="mt-2 text-xs text-flint-dark dark:text-flint-light leading-relaxed"
                 aria-live="polite"
               >
                 {#if batchStrength === 1}
@@ -1327,7 +1327,7 @@
                   </svg>
                   What's the trade-off?
                 </summary>
-                <div class="mt-2 p-3 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/30 text-xs text-flint dark:text-flint-light leading-relaxed space-y-1.5">
+                <div class="mt-2 p-3 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/30 text-xs text-flint-dark dark:text-flint-light leading-relaxed space-y-1.5">
                   <p>
                     Watermark strength controls how deeply the invisible payload is embedded
                     into the image's frequency data using DWT-DCT-SVD.
@@ -1364,7 +1364,7 @@
                 Begin Watermarking
               </button>
               <button
-                class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint dark:text-flint-light text-sm rounded hover:text-text-light dark:hover:text-quartz transition-colors
+                class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint-dark dark:text-flint-light text-sm rounded hover:text-text-light dark:hover:text-quartz transition-colors
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                 onclick={closeBatchWatermark}
               >
@@ -1383,10 +1383,10 @@
 
             <!-- Current file name + ETA -->
             {#if batchCurrentFile}
-              <p class="text-xs text-flint dark:text-flint-light truncate" aria-live="polite">
+              <p class="text-xs text-flint-dark dark:text-flint-light truncate" aria-live="polite">
                 Current: <span class="text-text-light dark:text-quartz">{batchCurrentFile}</span>
                 {#if batchEta}
-                  <span class="ml-2 text-flint/60">{batchEta}</span>
+                  <span class="ml-2 text-flint-dark dark:text-flint-light">{batchEta}</span>
                 {/if}
               </p>
             {/if}
@@ -1408,7 +1408,7 @@
 
             <!-- Cancel -->
             <button
-              class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint dark:text-flint-light text-sm rounded border border-border-light dark:border-border-dark hover:text-text-light dark:hover:text-quartz hover:border-cinnabar/50 transition-colors
+              class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint-dark dark:text-flint-light text-sm rounded border border-border-light dark:border-border-dark hover:text-text-light dark:hover:text-quartz hover:border-cinnabar/50 transition-colors
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
               onclick={() => batchCancelled = true}
               aria-label="Cancel batch watermarking after current file completes"
@@ -1417,7 +1417,7 @@
             </button>
 
             {#if batchCancelled}
-              <p class="text-xs text-amber dark:text-amber-light" role="status" aria-live="polite">
+              <p class="text-xs text-amber-dark dark:text-amber-light" role="status" aria-live="polite">
                 Cancelling after current file...
               </p>
             {/if}
@@ -1428,7 +1428,7 @@
           <div class="space-y-4">
             {#if batchFailCount === 0}
               <div
-                class="px-4 py-3 rounded-md bg-malachite/10 border border-malachite/30 text-sm text-malachite dark:text-malachite-light"
+                class="px-4 py-3 rounded-md bg-malachite/10 border border-malachite/30 text-sm text-malachite-dark dark:text-malachite-light"
                 role="status"
                 aria-live="polite"
               >
@@ -1440,7 +1440,7 @@
               </div>
             {:else if batchSuccessCount === 0}
               <div
-                class="px-4 py-3 rounded-md bg-cinnabar/10 border border-cinnabar/30 text-sm text-cinnabar dark:text-cinnabar-light"
+                class="px-4 py-3 rounded-md bg-cinnabar/10 border border-cinnabar/30 text-sm text-cinnabar-dark dark:text-cinnabar-light"
                 role="alert"
                 aria-live="assertive"
               >
@@ -1449,7 +1449,7 @@
               </div>
             {:else}
               <div
-                class="px-4 py-3 rounded-md bg-amber/10 border border-amber/30 text-sm text-amber dark:text-amber-light"
+                class="px-4 py-3 rounded-md bg-amber/10 border border-amber/30 text-sm text-amber-dark dark:text-amber-light"
                 role="status"
                 aria-live="polite"
               >
@@ -1465,7 +1465,7 @@
             {#if batchErrors.length > 0}
               <div class="space-y-2">
                 <button
-                  class="text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                  class="text-xs text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                   onclick={() => showBatchErrors = !showBatchErrors}
                   aria-expanded={showBatchErrors}
                   aria-controls="batch-error-list"
@@ -1478,7 +1478,7 @@
                     {#each batchErrors as err}
                       <li class="flex gap-2">
                         <span class="text-text-light dark:text-quartz truncate flex-1">{err.fileName}</span>
-                        <span class="text-cinnabar dark:text-cinnabar-light flex-shrink-0">{err.error}</span>
+                        <span class="text-cinnabar-dark dark:text-cinnabar-light flex-shrink-0">{err.error}</span>
                       </li>
                     {/each}
                   </ul>
@@ -1512,7 +1512,7 @@
   {#if displayedAssets.length === 0 && importingCount === 0}
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-10 text-center">
       {#if filterContentType || filterStatus || searchRaw}
-        <p class="text-flint dark:text-flint-light">No assets match the current filters.</p>
+        <p class="text-flint-dark dark:text-flint-light">No assets match the current filters.</p>
         <button
           class="mt-3 text-sm text-lapis dark:text-lapis-light hover:text-lapis-dark dark:hover:text-lapis transition-colors underline underline-offset-2
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
@@ -1529,11 +1529,11 @@
             Your collection is empty
           </h2>
           <div class="earth-line mb-5" aria-hidden="true"></div>
-          <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed mb-2">
+          <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed mb-2">
             Import images, documents, or media files to begin protecting
             your content with content credentials and invisible watermarks.
           </p>
-          <p class="text-sm text-flint/70 dark:text-flint leading-relaxed mb-5">
+          <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
             Drop files above or click to browse.
           </p>
           <button
@@ -1585,7 +1585,7 @@
                     onerror={() => { thumbnailUrls = { ...thumbnailUrls, [asset.assetId]: '' }; }}
                   />
                 {:else}
-                  <span class="text-xl font-mono text-flint dark:text-flint-light uppercase">
+                  <span class="text-xl font-mono text-flint-dark dark:text-flint-light uppercase">
                     {asset.fileName.split('.').pop()?.slice(0, 4) ?? contentTypeIcon(asset.contentType)}
                   </span>
                 {/if}
@@ -1607,7 +1607,7 @@
                 <p class="text-xs text-text-light dark:text-quartz truncate leading-tight" title={asset.fileName}>
                   {asset.fileName}
                 </p>
-                <p class="text-[10px] text-flint dark:text-flint-light mt-0.5 truncate">{formatFileSize(asset.fileSize)}</p>
+                <p class="text-[10px] text-flint-dark dark:text-flint-light mt-0.5 truncate">{formatFileSize(asset.fileSize)}</p>
               </div>
             </button>
 
@@ -1619,12 +1619,12 @@
                 role="region"
                 aria-label="Asset details for {asset.fileName}"
               >
-                <p class="text-flint dark:text-flint-light truncate" title={asset.filePath}>{asset.filePath}</p>
+                <p class="text-flint-dark dark:text-flint-light truncate" title={asset.filePath}>{asset.filePath}</p>
                 {#if asset.width && asset.height}
                   <p class="text-text-light dark:text-quartz">{asset.width} &times; {asset.height} px</p>
                 {/if}
                 {#if meta?.cameraMake || meta?.cameraModel}
-                  <p class="text-flint dark:text-flint-light">{[meta.cameraMake, meta.cameraModel].filter(Boolean).join(' ')}</p>
+                  <p class="text-flint-dark dark:text-flint-light">{[meta.cameraMake, meta.cameraModel].filter(Boolean).join(' ')}</p>
                 {/if}
                 <!-- Quick action buttons -->
                 <div class="flex flex-wrap gap-1.5 pt-1">
@@ -1640,7 +1640,7 @@
                   {/if}
                   {#if !asset.watermarked && canWatermark(asset)}
                     <button
-                      class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:border-lapis/50 hover:text-lapis dark:hover:text-lapis-light transition-colors
+                      class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light hover:border-lapis/50 hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
                       onclick={() => { watermarkAssetId = asset.assetId; }}
                       aria-label="Watermark {asset.fileName}"
@@ -1658,7 +1658,7 @@
                       Confirm
                     </button>
                     <button
-                      class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:border-lapis/50 transition-colors
+                      class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light hover:border-lapis/50 transition-colors
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
                       onclick={() => { confirmDeleteId = null; }}
                       aria-label="Cancel deletion of {asset.fileName}"
@@ -1667,7 +1667,7 @@
                     </button>
                   {:else}
                     <button
-                      class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-cinnabar/30 text-cinnabar dark:text-cinnabar-light hover:bg-cinnabar/10 transition-colors
+                      class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-cinnabar/30 text-cinnabar-dark dark:text-cinnabar-light hover:bg-cinnabar/10 transition-colors
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-1"
                       onclick={() => { confirmDeleteId = asset.assetId; }}
                       aria-label="Delete {asset.fileName}"
@@ -1689,7 +1689,7 @@
 
       <!-- Column headers (sortable) — desktop only -->
       <div
-        class="hidden sm:grid grid-cols-[1fr_80px_170px_90px_130px] gap-4 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint dark:text-flint-light uppercase tracking-wide"
+        class="hidden sm:grid grid-cols-[1fr_80px_170px_90px_130px] gap-4 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
         role="row"
         aria-label="Asset list column headers"
       >
@@ -1765,16 +1765,16 @@
           aria-label="View details for {asset.fileName}"
         >
           <div class="flex items-center gap-2">
-            <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-text-light dark:text-flint flex-shrink-0" aria-hidden="true">{contentTypeIcon(asset.contentType)}</span>
+            <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light text-text-light dark:text-flint-light flex-shrink-0" aria-hidden="true">{contentTypeIcon(asset.contentType)}</span>
             <p class="text-sm text-text-light dark:text-quartz truncate flex-1">{asset.fileName}</p>
             {#if asset.c2paSigned}
-              <span class="text-xs px-1.5 py-0.5 rounded bg-malachite/15 text-malachite dark:text-malachite-light flex-shrink-0">Signed</span>
+              <span class="text-xs px-1.5 py-0.5 rounded bg-malachite/15 text-malachite-dark dark:text-malachite-light flex-shrink-0">Signed</span>
             {/if}
             {#if asset.watermarked}
               <span class="text-xs px-1.5 py-0.5 rounded bg-lapis/15 text-lapis dark:text-lapis-light flex-shrink-0">Watermarked</span>
             {/if}
           </div>
-          <div class="flex items-center gap-3 mt-1.5 text-xs text-flint dark:text-flint-light">
+          <div class="flex items-center gap-3 mt-1.5 text-xs text-flint-dark dark:text-flint-light">
             <span>{asset.mimeType}</span>
             <span>{formatFileSize(asset.fileSize)}</span>
             <span>{new Date(asset.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
@@ -1810,37 +1810,37 @@
                   }}
                 />
               {:else}
-                <span class="text-xs font-mono text-text-light dark:text-flint uppercase">
+                <span class="text-xs font-mono text-text-light dark:text-flint-light uppercase">
                   {asset.fileName.split('.').pop()?.slice(0, 4) ?? contentTypeIcon(asset.contentType)}
                 </span>
               {/if}
             </div>
             <div class="min-w-0">
               <p class="text-sm text-text-light dark:text-quartz truncate">{asset.fileName}</p>
-              <p class="text-xs text-flint dark:text-flint-light truncate">{asset.mimeType}</p>
+              <p class="text-xs text-flint-dark dark:text-flint-light truncate">{asset.mimeType}</p>
             </div>
           </div>
 
-          <span class="text-sm text-flint dark:text-flint-light self-center">
+          <span class="text-sm text-flint-dark dark:text-flint-light self-center">
             {CONTENT_TYPE_LABELS[asset.contentType] || asset.contentType}
           </span>
 
           <!-- Status badges cell -->
           <div class="self-center flex flex-wrap gap-1" aria-label="Protection status">
             {#if asset.c2paSigned}
-              <span class="text-[10px] px-1.5 py-0.5 rounded bg-malachite/15 text-malachite dark:text-malachite-light leading-tight">Signed</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-malachite/15 text-malachite-dark dark:text-malachite-light leading-tight">Signed</span>
             {/if}
             {#if asset.watermarked}
               <span class="text-[10px] px-1.5 py-0.5 rounded bg-lapis/15 text-lapis dark:text-lapis-light leading-tight">Watermarked</span>
             {/if}
             {#if !asset.c2paSigned && !asset.watermarked}
-              <span class="text-[10px] text-flint/60 dark:text-flint-light/50 italic">Unprotected</span>
+              <span class="text-[10px] text-flint-dark dark:text-flint-light italic">Unprotected</span>
             {/if}
           </div>
 
-          <span class="text-sm text-flint dark:text-flint-light self-center">{formatFileSize(asset.fileSize)}</span>
+          <span class="text-sm text-flint-dark dark:text-flint-light self-center">{formatFileSize(asset.fileSize)}</span>
 
-          <span class="text-xs text-flint dark:text-flint-light self-center">
+          <span class="text-xs text-flint-dark dark:text-flint-light self-center">
             {new Date(asset.createdAt).toLocaleDateString('en-GB', {
               day: 'numeric',
               month: 'short',
@@ -1862,7 +1862,7 @@
 
               <!-- File path -->
               <div class="col-span-2 md:col-span-3">
-                <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Path</span>
+                <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Path</span>
                 <div class="flex items-center gap-2 mt-0.5">
                   <p
                     class="text-text-light dark:text-quartz text-xs truncate max-w-[300px] select-all"
@@ -1874,14 +1874,14 @@
                   <button
                     type="button"
                     onclick={() => copyPath(asset.filePath)}
-                    class="flex-shrink-0 p-1 rounded text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:bg-gray-100 dark:hover:bg-graphite-light transition-colors
+                    class="flex-shrink-0 p-1 rounded text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:bg-gray-100 dark:hover:bg-graphite-light transition-colors
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
                     aria-label="Copy file path to clipboard"
                     title="Copy path"
                   >
                     {#if copyPathFeedback === asset.filePath}
                       <!-- Tick — confirmed -->
-                      <svg class="w-3.5 h-3.5 text-malachite dark:text-malachite-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <svg class="w-3.5 h-3.5 text-malachite-dark dark:text-malachite-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                       </svg>
                       <span class="sr-only">Path copied</span>
@@ -1898,7 +1898,7 @@
                     <button
                       type="button"
                       onclick={() => openInFinder(asset.filePath)}
-                      class="flex-shrink-0 p-1 rounded text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:bg-gray-100 dark:hover:bg-graphite-light transition-colors
+                      class="flex-shrink-0 p-1 rounded text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:bg-gray-100 dark:hover:bg-graphite-light transition-colors
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
                       aria-label="{revealLabel} — {asset.fileName}"
                       title={revealLabel}
@@ -1914,7 +1914,7 @@
 
               {#if asset.width && asset.height}
                 <div>
-                  <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Dimensions</span>
+                  <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Dimensions</span>
                   <p class="text-text-light dark:text-quartz mt-0.5">{asset.width} &times; {asset.height} px</p>
                 </div>
               {/if}
@@ -1923,61 +1923,61 @@
               {#if meta}
                 {#if meta.cameraMake || meta.cameraModel}
                   <div>
-                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Camera</span>
+                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Camera</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{[meta.cameraMake, meta.cameraModel].filter(Boolean).join(' ')}</p>
                   </div>
                 {/if}
                 {#if meta.datetimeOriginal}
                   <div>
-                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Date Taken</span>
+                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Date Taken</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.datetimeOriginal}</p>
                   </div>
                 {/if}
                 {#if meta.software}
                   <div>
-                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Software</span>
+                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Software</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.software}</p>
                   </div>
                 {/if}
                 {#if meta.iso}
                   <div>
-                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">ISO</span>
+                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">ISO</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.iso}</p>
                   </div>
                 {/if}
                 {#if meta.focalLength}
                   <div>
-                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Focal Length</span>
+                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Focal Length</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.focalLength}</p>
                   </div>
                 {/if}
                 {#if meta.exposureTime}
                   <div>
-                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Exposure</span>
+                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Exposure</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.exposureTime}</p>
                   </div>
                 {/if}
                 {#if meta.fNumber}
                   <div>
-                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Aperture</span>
+                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Aperture</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.fNumber}</p>
                   </div>
                 {/if}
                 {#if meta.copyright}
                   <div>
-                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Copyright</span>
+                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Copyright</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.copyright}</p>
                   </div>
                 {/if}
                 {#if meta.artist}
                   <div>
-                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Artist</span>
+                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Artist</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.artist}</p>
                   </div>
                 {/if}
                 {#if meta.gpsLatitude != null && meta.gpsLongitude != null}
                   <div>
-                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">GPS</span>
+                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">GPS</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.gpsLatitude.toFixed(6)}, {meta.gpsLongitude.toFixed(6)}</p>
                   </div>
                 {/if}
@@ -1991,41 +1991,41 @@
                       class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
                       aria-hidden="true"
                     ></span>
-                    <p class="text-xs text-flint dark:text-flint-light">Loading video metadata...</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light">Loading video metadata...</p>
                   </div>
                 {:else if videoMetadata && selectedAsset?.assetId === asset.assetId && videoMetadata.success}
                   {#if videoMetadata.duration != null}
                     <div>
-                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Duration</span>
+                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Duration</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">{formatDurationSecs(videoMetadata.duration)}</p>
                     </div>
                   {/if}
                   {#if videoMetadata.codec}
                     <div>
-                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Video Codec</span>
+                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Video Codec</span>
                       <p class="text-text-light dark:text-quartz mt-0.5 uppercase">{videoMetadata.codec}</p>
                     </div>
                   {/if}
                   {#if videoMetadata.width && videoMetadata.height}
                     <div>
-                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Resolution</span>
+                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Resolution</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">{videoMetadata.width} &times; {videoMetadata.height}</p>
                     </div>
                   {/if}
                   {#if videoMetadata.fps != null}
                     <div>
-                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Frame Rate</span>
+                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Frame Rate</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">{videoMetadata.fps} fps</p>
                     </div>
                   {/if}
                   {#if videoMetadata.bitrate != null}
                     <div>
-                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Bitrate</span>
+                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Bitrate</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">{formatBitrate(videoMetadata.bitrate)}</p>
                     </div>
                   {/if}
                   <div>
-                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Audio</span>
+                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Audio</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">
                       {videoMetadata.hasAudio
                         ? videoMetadata.audioCodec
@@ -2039,7 +2039,7 @@
                 <!-- Video frame thumbnails -->
                 {#if videoFrames && selectedAsset?.assetId === asset.assetId && videoFrames.success && videoFrames.frames.length > 0}
                   <div class="col-span-full mt-2">
-                    <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide block mb-2">
+                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide block mb-2">
                       Frame Samples
                     </span>
                     <div
@@ -2073,30 +2073,30 @@
                       class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
                       aria-hidden="true"
                     ></span>
-                    <p class="text-xs text-flint dark:text-flint-light">Loading audio metadata...</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light">Loading audio metadata...</p>
                   </div>
                 {:else if audioMetadata && selectedAsset?.assetId === asset.assetId && audioMetadata.success}
                   {#if audioMetadata.duration != null}
                     <div>
-                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Duration</span>
+                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Duration</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">{formatDurationSecs(audioMetadata.duration)}</p>
                     </div>
                   {/if}
                   {#if audioMetadata.codec}
                     <div>
-                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Codec</span>
+                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Codec</span>
                       <p class="text-text-light dark:text-quartz mt-0.5 uppercase">{audioMetadata.codec}</p>
                     </div>
                   {/if}
                   {#if audioMetadata.sampleRate != null}
                     <div>
-                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Sample Rate</span>
+                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Sample Rate</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">{(audioMetadata.sampleRate / 1000).toFixed(1)} kHz</p>
                     </div>
                   {/if}
                   {#if audioMetadata.channels != null}
                     <div>
-                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Channels</span>
+                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Channels</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">
                         {audioMetadata.channels === 1 ? 'Mono' : audioMetadata.channels === 2 ? 'Stereo' : `${audioMetadata.channels} ch`}
                       </p>
@@ -2104,7 +2104,7 @@
                   {/if}
                   {#if audioMetadata.bitrate != null}
                     <div>
-                      <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Bitrate</span>
+                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Bitrate</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">{formatBitrate(audioMetadata.bitrate)}</p>
                     </div>
                   {/if}
@@ -2115,15 +2115,15 @@
               <div class="col-span-full flex gap-2 mt-2 flex-wrap">
                 <span
                   class="text-xs px-2 py-0.5 rounded {asset.c2paSigned
-                    ? 'bg-malachite/15 text-malachite dark:text-malachite-light'
-                    : 'bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light'}"
+                    ? 'bg-malachite/15 text-malachite-dark dark:text-malachite-light'
+                    : 'bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light'}"
                 >
                   {asset.c2paSigned ? 'Signed' : 'Unsigned'}
                 </span>
                 <span
                   class="text-xs px-2 py-0.5 rounded {asset.watermarked
-                    ? 'bg-malachite/15 text-malachite dark:text-malachite-light'
-                    : 'bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light'}"
+                    ? 'bg-malachite/15 text-malachite-dark dark:text-malachite-light'
+                    : 'bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light'}"
                 >
                   {asset.watermarked ? 'Watermarked' : 'No Watermark'}
                 </span>
@@ -2138,17 +2138,17 @@
                       <ContextualHelpLink href="/help/protect#c2pa-signing" label="Learn about content credentials" />
                     </div>
 
-                    <p class="text-xs text-malachite dark:text-malachite-light mb-2 leading-relaxed">
+                    <p class="text-xs text-malachite-dark dark:text-malachite-light mb-2 leading-relaxed">
                       No data leaves your device. This creates a fully valid content credential embedded in your file.
                     </p>
 
-                    <p class="text-xs text-flint dark:text-flint-light mb-3 leading-relaxed">
+                    <p class="text-xs text-flint-dark dark:text-flint-light mb-3 leading-relaxed">
                       Third-party tools will confirm this file's integrity. Your identity as signer will show as
                       unverified until you supply a trust-list certificate — this is expected in Local Signing mode.
                     </p>
 
                     {#if metadataWarningLoading}
-                      <div class="mb-3 flex items-center gap-2 text-xs text-flint dark:text-flint-light">
+                      <div class="mb-3 flex items-center gap-2 text-xs text-flint-dark dark:text-flint-light">
                         <span
                           class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
                           aria-hidden="true"
@@ -2159,7 +2159,7 @@
 
                     {#if metadataWarning?.warningMessage}
                       <div
-                        class="mb-3 px-3 py-2 rounded-md bg-amber/10 border border-amber/30 text-xs text-amber dark:text-amber-light"
+                        class="mb-3 px-3 py-2 rounded-md bg-amber/10 border border-amber/30 text-xs text-amber-dark dark:text-amber-light"
                         role="alert"
                       >
                         <span class="font-medium">Note:</span>
@@ -2173,7 +2173,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
                         <label
-                          class="text-xs text-flint dark:text-flint-light uppercase tracking-wide"
+                          class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
                           for="creator-name"
                         >
                           Creator Name
@@ -2189,7 +2189,7 @@
                       </div>
                       <div>
                         <label
-                          class="text-xs text-flint dark:text-flint-light uppercase tracking-wide"
+                          class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
                           for="license-select"
                         >
                           Licence
@@ -2219,7 +2219,7 @@
                         {signing ? 'Signing...' : 'Sign'}
                       </button>
                       <button
-                        class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint dark:text-flint-light text-sm rounded hover:text-text-light dark:hover:text-quartz transition-colors
+                        class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint-dark dark:text-flint-light text-sm rounded hover:text-text-light dark:hover:text-quartz transition-colors
                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                         onclick={() => signingAssetId = null}
                         disabled={signing}
@@ -2249,7 +2249,7 @@
                 >
                   <div class="flex items-start gap-3">
                     <svg
-                      class="w-4 h-4 flex-shrink-0 mt-0.5 text-malachite dark:text-malachite-light"
+                      class="w-4 h-4 flex-shrink-0 mt-0.5 text-malachite-dark dark:text-malachite-light"
                       aria-hidden="true"
                       fill="none"
                       viewBox="0 0 24 24"
@@ -2258,7 +2258,7 @@
                     >
                       <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
                     </svg>
-                    <div class="text-xs text-malachite dark:text-malachite-light leading-relaxed">
+                    <div class="text-xs text-malachite-dark dark:text-malachite-light leading-relaxed">
                       <p class="font-semibold mb-1">Content credential added successfully</p>
                       <p>Existing file metadata (EXIF, IPTC, XMP) has been preserved. The content credential was added alongside your existing metadata — no fields were removed or overwritten.</p>
                     </div>
@@ -2286,7 +2286,7 @@
                       <!-- Success / error feedback -->
                       {#if watermarkResult.success}
                         <div
-                          class="mb-3 px-3 py-2 rounded-md bg-malachite/10 border border-malachite/30 text-xs text-malachite dark:text-malachite-light"
+                          class="mb-3 px-3 py-2 rounded-md bg-malachite/10 border border-malachite/30 text-xs text-malachite-dark dark:text-malachite-light"
                           role="status"
                           aria-live="polite"
                         >
@@ -2296,7 +2296,7 @@
                         </div>
                       {:else}
                         <div
-                          class="mb-3 px-3 py-2 rounded-md bg-cinnabar/10 border border-cinnabar/30 text-xs text-cinnabar dark:text-cinnabar-light"
+                          class="mb-3 px-3 py-2 rounded-md bg-cinnabar/10 border border-cinnabar/30 text-xs text-cinnabar-dark dark:text-cinnabar-light"
                           role="alert"
                           aria-live="assertive"
                         >
@@ -2309,7 +2309,7 @@
                       <!-- Institution / payload input -->
                       <div>
                         <label
-                          class="text-xs text-flint dark:text-flint-light uppercase tracking-wide"
+                          class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
                           for="watermark-payload-{asset.assetId}"
                         >
                           Institution Name or Identifier
@@ -2320,13 +2320,13 @@
                           bind:value={watermarkPayload}
                           placeholder="e.g. National Archive UK — 2026"
                           class="w-full mt-1 px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm
-                                 placeholder:text-flint/60
+                                 placeholder:text-flint-dark dark:text-flint-light
                                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                           aria-describedby="watermark-payload-hint-{asset.assetId}"
                         />
                         <p
                           id="watermark-payload-hint-{asset.assetId}"
-                          class="mt-1 text-xs text-flint dark:text-flint-light"
+                          class="mt-1 text-xs text-flint-dark dark:text-flint-light"
                         >
                           This text will be encoded invisibly into the file. Max 64 characters.
                         </p>
@@ -2334,7 +2334,7 @@
 
                       <!-- Strength selector -->
                       <fieldset>
-                        <legend class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-2">
+                        <legend class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide mb-2">
                           Embedding Strength
                         </legend>
                         <div
@@ -2353,7 +2353,7 @@
                                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite
                                      {watermarkStrength === opt.value
                                        ? 'border-lapis bg-lapis/10 text-lapis dark:text-lapis-light font-medium'
-                                       : 'border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:border-lapis/50 hover:text-text-light dark:hover:text-quartz'}"
+                                       : 'border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light hover:border-lapis/50 hover:text-text-light dark:hover:text-quartz'}"
                               onclick={() => watermarkStrength = opt.value}
                               aria-pressed={watermarkStrength === opt.value}
                             >
@@ -2364,7 +2364,7 @@
 
                         <!-- Live explainer — updates to match the selected strength -->
                         <p
-                          class="mt-2 text-xs text-flint dark:text-flint-light leading-relaxed"
+                          class="mt-2 text-xs text-flint-dark dark:text-flint-light leading-relaxed"
                           aria-live="polite"
                         >
                           {#if watermarkStrength === 1}
@@ -2394,7 +2394,7 @@
                             </svg>
                             What's the trade-off?
                           </summary>
-                          <div class="mt-2 p-3 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/30 text-xs text-flint dark:text-flint-light leading-relaxed space-y-1.5">
+                          <div class="mt-2 p-3 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/30 text-xs text-flint-dark dark:text-flint-light leading-relaxed space-y-1.5">
                             <p>
                               Watermark strength controls how deeply the invisible payload is
                               embedded into the image's frequency data using DWT-DCT-SVD.
@@ -2440,7 +2440,7 @@
                         {/if}
                       </button>
                       <button
-                        class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint dark:text-flint-light text-sm rounded hover:text-text-light dark:hover:text-quartz transition-colors
+                        class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint-dark dark:text-flint-light text-sm rounded hover:text-text-light dark:hover:text-quartz transition-colors
                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                         onclick={() => { watermarkAssetId = null; watermarkResult = null; }}
                         disabled={watermarking}
@@ -2473,7 +2473,7 @@
               <!-- Delete asset -->
               <div class="col-span-full mt-3 pt-3 border-t border-border-light/50 dark:border-graphite-light/50 flex items-center justify-end gap-2">
                 {#if confirmDeleteId === asset.assetId}
-                  <span class="text-xs text-flint dark:text-flint-light" id="delete-confirm-label-{asset.assetId}">
+                  <span class="text-xs text-flint-dark dark:text-flint-light" id="delete-confirm-label-{asset.assetId}">
                     Permanently delete this asset?
                   </span>
                   <button
@@ -2487,7 +2487,7 @@
                     Confirm Delete
                   </button>
                   <button
-                    class="text-sm px-3 py-1.5 min-h-[44px] inline-flex items-center rounded border border-border-light dark:border-border-dark text-flint dark:text-flint-light
+                    class="text-sm px-3 py-1.5 min-h-[44px] inline-flex items-center rounded border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light
                            hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
                     onclick={() => { confirmDeleteId = null; }}
@@ -2497,7 +2497,7 @@
                   </button>
                 {:else}
                   <button
-                    class="text-sm text-cinnabar hover:text-cinnabar-dark dark:hover:text-cinnabar-light transition-colors
+                    class="text-sm text-cinnabar-dark dark:text-cinnabar-light hover:text-cinnabar-dark dark:text-cinnabar-light dark:hover:text-cinnabar-light transition-colors
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded px-2 py-1 min-h-[44px] inline-flex items-center"
                     onclick={() => { confirmDeleteId = asset.assetId; }}
                     aria-label="Delete asset {asset.fileName}"

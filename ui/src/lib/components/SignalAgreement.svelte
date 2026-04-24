@@ -177,18 +177,18 @@
       case 'clean':
       case 'authentic':
       case 'valid':
-        return 'text-malachite dark:text-malachite-light';
+        return 'text-malachite-dark dark:text-malachite-light';
       case 'concerns':
       case 'inconclusive':
-        return 'text-amber dark:text-amber-light';
+        return 'text-amber-dark dark:text-amber-light';
       case 'suspicious':
       case 'synthetic':
       case 'invalid':
-        return 'text-cinnabar dark:text-cinnabar-light';
+        return 'text-cinnabar-dark dark:text-cinnabar-light';
       case 'not_run':
       case 'not_present':
       default:
-        return 'text-flint/50 dark:text-flint-light/50';
+        return 'text-flint-dark dark:text-flint-light';
     }
   }
 
@@ -258,12 +258,12 @@
 
   <!-- ── Section header ─────────────────────────────────────────────── -->
   <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-border-light dark:border-graphite">
-    <h3 class="text-sm font-medium text-flint dark:text-flint-light">Signal Agreement</h3>
+    <h3 class="text-sm font-medium text-flint-dark dark:text-flint-light">Signal Agreement</h3>
 
     <!-- Agreement indicator badge -->
     {#if hasDisagreement}
       <span
-        class="text-xs px-2 py-0.5 rounded border bg-amber/10 text-amber dark:text-amber-light border-amber/30 font-medium"
+        class="text-xs px-2 py-0.5 rounded border bg-amber/10 text-amber-dark dark:text-amber-light border-amber/30 font-medium"
         role="status"
         aria-label="Detectors disagree — mixed signals present"
       >
@@ -271,17 +271,17 @@
       </span>
     {:else if hasMixed}
       <span
-        class="text-xs px-2 py-0.5 rounded border bg-amber/10 text-amber dark:text-amber-light border-amber/20"
+        class="text-xs px-2 py-0.5 rounded border bg-amber/10 text-amber-dark dark:text-amber-light border-amber/20"
         role="status"
         aria-label="Some inconclusive signals present"
       >
         Some inconclusive
       </span>
     {:else if runRows.length === 0}
-      <span class="text-xs text-flint/50 dark:text-flint-light/50">No detectors ran</span>
+      <span class="text-xs text-flint-dark dark:text-flint-light">No detectors ran</span>
     {:else}
       <span
-        class="text-xs px-2 py-0.5 rounded border bg-malachite/10 text-malachite dark:text-malachite-light border-malachite/20"
+        class="text-xs px-2 py-0.5 rounded border bg-malachite/10 text-malachite-dark dark:text-malachite-light border-malachite/20"
         role="status"
         aria-label="Detectors agree"
       >
@@ -293,11 +293,11 @@
   <!-- ── Disagreement callout ────────────────────────────────────────── -->
   {#if hasDisagreement}
     <div
-      class="px-4 py-2.5 border-b border-border-light dark:border-graphite bg-amber/5 text-xs text-amber dark:text-amber-light leading-relaxed"
+      class="px-4 py-2.5 border-b border-border-light dark:border-graphite bg-amber/5 text-xs text-amber-dark dark:text-amber-light leading-relaxed"
       role="alert"
       aria-live="polite"
     >
-      <span class="font-medium text-amber dark:text-amber-light">Detectors disagree.</span>
+      <span class="font-medium text-amber-dark dark:text-amber-light">Detectors disagree.</span>
       Some analysis layers returned clean results while others flagged concerns.
       This pattern can occur with recompressed images, modern codecs, or partial edits.
       Review individual sections for detail.
@@ -306,7 +306,7 @@
 
   <!-- ── Table header ────────────────────────────────────────────────── -->
   <div
-    class="grid grid-cols-[1fr_120px_80px] gap-3 px-4 py-2 border-b border-border-light dark:border-graphite text-xs text-flint dark:text-flint-light uppercase tracking-wide"
+    class="grid grid-cols-[1fr_120px_80px] gap-3 px-4 py-2 border-b border-border-light dark:border-graphite text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
     aria-hidden="true"
   >
     <span>Detector</span>
@@ -367,7 +367,7 @@
               ></div>
             </div>
           {:else}
-            <span class="text-xs text-flint/40">—</span>
+            <span class="text-xs text-flint-dark dark:text-flint-light">—</span>
           {/if}
         </div>
 

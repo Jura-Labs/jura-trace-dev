@@ -52,13 +52,13 @@
 @layer components {
   /* Trust score traffic light */
   .trust-green {
-    @apply text-malachite dark:text-malachite-light;
+    @apply text-malachite-dark dark:text-malachite-light;
   }
   .trust-amber {
-    @apply text-amber dark:text-amber-light;
+    @apply text-amber-dark dark:text-amber-light;
   }
   .trust-red {
-    @apply text-cinnabar dark:text-cinnabar-light;
+    @apply text-cinnabar-dark dark:text-cinnabar-light;
   }
 
   /* Brand name styling */
@@ -98,7 +98,7 @@
   /* Touch-target-safe ghost/secondary button */
   .btn-ghost {
     @apply px-3 py-2.5 min-h-[44px] inline-flex items-center justify-center
-           text-sm text-flint hover:text-text-light dark:hover:text-quartz
+           text-sm text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz
            border border-border-light dark:border-graphite-light rounded transition-colors
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
            focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian;

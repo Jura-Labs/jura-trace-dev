@@ -758,11 +758,11 @@ export interface ExifAnalysis {
 
 /** Severity display configuration */
 export const SEVERITY_CONFIG: Record<Severity, { label: string; textClass: string; bgClass: string }> = {
-  info: { label: 'Info', textClass: 'text-flint', bgClass: 'bg-graphite' },
+  info: { label: 'Info', textClass: 'text-flint-dark dark:text-flint-light', bgClass: 'bg-graphite' },
   low: { label: 'Low', textClass: 'text-lapis', bgClass: 'bg-lapis/10' },
-  medium: { label: 'Medium', textClass: 'text-amber', bgClass: 'bg-amber/10' },
-  high: { label: 'High', textClass: 'text-cinnabar', bgClass: 'bg-cinnabar/10' },
-  critical: { label: 'Critical', textClass: 'text-cinnabar', bgClass: 'bg-cinnabar/20' },
+  medium: { label: 'Medium', textClass: 'text-amber-dark dark:text-amber-light', bgClass: 'bg-amber/10' },
+  high: { label: 'High', textClass: 'text-cinnabar-dark dark:text-cinnabar-light', bgClass: 'bg-cinnabar/10' },
+  critical: { label: 'Critical', textClass: 'text-cinnabar-dark dark:text-cinnabar-light', bgClass: 'bg-cinnabar/20' },
 };
 
 /** Claim verdict from RAG verification */

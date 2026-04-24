@@ -17,7 +17,7 @@
   <h1 class="text-3xl font-heading text-text-light dark:text-text-dark tracking-heading mb-3">
     Usage Guides
   </h1>
-  <p class="text-base text-flint dark:text-flint-light leading-relaxed max-w-2xl">
+  <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
     Jura Trace serves different communities with different needs. These guides provide
     practical workflows tailored to your role.
   </p>
@@ -28,7 +28,7 @@
 
 <!-- On-page navigation -->
 <nav aria-label="On this page" class="mb-8">
-  <p class="text-xs font-medium uppercase tracking-wider text-flint dark:text-flint-light mb-3">
+  <p class="text-xs font-medium uppercase tracking-wider text-flint-dark dark:text-flint-light mb-3">
     On this page
   </p>
   <ul role="list" class="space-y-1">
@@ -37,8 +37,8 @@
         <a
           href="#{section.id}"
           class="
-            text-sm text-flint dark:text-flint-light
-            hover:text-lapis dark:hover:text-lapis-light
+            text-sm text-flint-dark dark:text-flint-light
+            hover:text-lapis dark:hover:text-lapis dark:text-lapis-light
             motion-safe:transition-colors motion-safe:duration-150
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
             focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
@@ -64,7 +64,7 @@
     Museum and Archive Staff
   </h2>
 
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     You manage collections of cultural heritage material — photographs, manuscripts,
     artworks — and need to protect them from unauthorised reproduction while maintaining
     provenance records. Jura Trace gives you a bedrock of cryptographic evidence and
@@ -75,7 +75,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended workflow
   </h3>
-  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>
       Import your collection into Jura Trace via the
       <strong class="text-text-light dark:text-text-dark">Protect</strong> page.
@@ -105,7 +105,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended investigation mode
   </h3>
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <strong class="text-text-light dark:text-text-dark">Archival</strong> — designed for
     preservation workflows with scanner-calibrated tolerances that account for the
     artefacts common in digitised heritage material.
@@ -115,7 +115,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Key features to explore
   </h3>
-  <ul class="list-disc pl-6 space-y-1 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ul class="list-disc pl-6 space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>Batch watermarking for large-scale collection processing</li>
     <li>C2PA signing with institution name and timestamp</li>
     <li>Configurable database location for shared-network deployments</li>
@@ -124,10 +124,10 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint dark:text-flint-light mb-2">
+    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
       Tips
     </p>
-    <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed">
+    <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <li>
         Sign before watermarking — C2PA credentials attest to the pre-watermark original.
         Reversing the order means the credential captures a watermarked version rather
@@ -159,7 +159,7 @@
     Journalists and Fact-Checkers
   </h2>
 
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     You verify images, videos, and documents received from sources or found online.
     You need to assess authenticity quickly and document your findings clearly. Each
     analysis builds another layer of verifiable evidence — a provenance chain you can
@@ -170,7 +170,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended workflow
   </h3>
-  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>
       Receive an image or URL from a source.
     </li>
@@ -212,7 +212,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended investigation mode
   </h3>
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <strong class="text-text-light dark:text-text-dark">Standard</strong> for initial
     triage.
     <strong class="text-text-light dark:text-text-dark">Deep</strong> for stories
@@ -223,7 +223,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Key features to explore
   </h3>
-  <ul class="list-disc pl-6 space-y-1 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ul class="list-disc pl-6 space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>URL verification — paste a link without downloading the file first</li>
     <li>Three-way verdict classification: Authentic, Inconclusive, or Synthetic</li>
     <li>Signal Agreement dashboard — per-detector consensus at a glance</li>
@@ -233,10 +233,10 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint dark:text-flint-light mb-2">
+    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
       Tips
     </p>
-    <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed">
+    <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <li>
         <strong class="text-text-light dark:text-text-dark">"Inconclusive" is the most
         common verdict</strong> — it does not mean fake. It means the automated analysis
@@ -273,7 +273,7 @@
     Content Creators
   </h2>
 
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     You create original photographs, illustrations, or videos and want to prove your
     authorship before publishing. C2PA provenance and invisible watermarking
     deposit a durable record of your creative origin — one that survives the compression
@@ -284,7 +284,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended workflow
   </h3>
-  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>
       Import your finished work into Jura Trace via the
       <strong class="text-text-light dark:text-text-dark">Protect</strong> page.
@@ -312,7 +312,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended investigation mode
   </h3>
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     Not applicable — this workflow is centred on the
     <strong class="text-text-light dark:text-text-dark">Protect</strong> section.
     If you want to confirm your credentials are intact after publishing, run a
@@ -324,7 +324,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Key features to explore
   </h3>
-  <ul class="list-disc pl-6 space-y-1 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ul class="list-disc pl-6 space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>C2PA signing with creator name and timestamp</li>
     <li>Invisible watermarking at three strength levels (Low, Medium, High)</li>
     <li>Asset catalogue with perceptual fingerprints for near-duplicate detection</li>
@@ -333,10 +333,10 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint dark:text-flint-light mb-2">
+    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
       Tips
     </p>
-    <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed">
+    <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <li>
         Sign immediately after final editing — do not sign work-in-progress. The
         credential captures the exact state of the file at the moment of signing.
@@ -373,7 +373,7 @@
     Researchers and Analysts
   </h2>
 
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     You conduct systematic analysis of media content — misinformation research, digital
     forensics, or content authenticity studies. You need detailed, reproducible results
     with full visibility into each detector's methodology. Jura Trace exposes every layer
@@ -385,7 +385,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended workflow
   </h3>
-  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>
       Import your corpus into Jura Trace via the
       <strong class="text-text-light dark:text-text-dark">Protect</strong> page to
@@ -426,7 +426,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended investigation mode
   </h3>
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <strong class="text-text-light dark:text-text-dark">Deep</strong> or
     <strong class="text-text-light dark:text-text-dark">Archival</strong> — both provide
     maximum detector coverage. Archival additionally applies scanner-calibrated tolerances
@@ -437,7 +437,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Key features to explore
   </h3>
-  <ul class="list-disc pl-6 space-y-1 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ul class="list-disc pl-6 space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>Signal Agreement dashboard — per-detector agreement and disagreement at a glance</li>
     <li>Methodology transparency page — detector approaches, weightings, and known limitations</li>
     <li>ZIP case export — complete evidence bundle per item</li>
@@ -448,15 +448,15 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint dark:text-flint-light mb-2">
+    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
       Tips
     </p>
-    <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed">
+    <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <li>
         The
         <a
           href="/help/methodology"
-          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:text-lapis/80 dark:hover:text-lapis-light/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian motion-safe:transition-colors"
+          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:text-lapis/80 dark:hover:text-lapis dark:text-lapis-light/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian motion-safe:transition-colors"
         >How Analysis Works</a> page documents every detector's approach, limitations, and
         known false positive triggers. Cite it in your research methodology when
         describing the analysis pipeline.
@@ -497,7 +497,7 @@
     Legal and Compliance Professionals
   </h2>
 
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     You authenticate digital evidence for litigation, regulatory submissions, or compliance
     investigations. You need methodology-disclosed analysis that can withstand legal challenge.
     Jura Trace produces a traceable stratum of forensic evidence: every detector version,
@@ -508,7 +508,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended workflow
   </h3>
-  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>
       Receive digital evidence (photographs, documents, PDFs).
     </li>
@@ -538,7 +538,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended investigation mode
   </h3>
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <strong class="text-text-light dark:text-text-dark">Deep</strong> for standard matters.
     <strong class="text-text-light dark:text-text-dark">Archival</strong> for high-stakes
     litigation where maximum detector coverage is required.
@@ -548,7 +548,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Key features to explore
   </h3>
-  <ul class="list-disc pl-6 space-y-1 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ul class="list-disc pl-6 space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>Analyst declaration in PDF exports (name, firm, case reference)</li>
     <li>Methodology versioning — detector versions recorded with every report</li>
     <li>Raw signal scores for all detectors</li>
@@ -558,10 +558,10 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint dark:text-flint-light mb-2">
+    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
       Tips
     </p>
-    <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed">
+    <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <li>
         The trust score is a forensic indicator, not legal proof — frame it accordingly
         in submissions and expert statements.
@@ -577,7 +577,7 @@
         The
         <a
           href="/help/methodology"
-          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:text-lapis/80 dark:hover:text-lapis-light/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian motion-safe:transition-colors"
+          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:text-lapis/80 dark:hover:text-lapis dark:text-lapis-light/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian motion-safe:transition-colors"
         >How Analysis Works</a> page documents every detector — cite it in your methodology
         statement when describing the analysis pipeline used.
       </li>
@@ -598,7 +598,7 @@
     Insurance and Claims Investigation
   </h2>
 
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     You investigate potentially fraudulent claims by analysing submitted photographs and
     documents for signs of manipulation, cloning, or AI generation. Copy-move detection
     and JPEG ghost analysis are the two detectors most relevant to composite fraud images —
@@ -609,7 +609,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended workflow
   </h3>
-  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>
       Receive claims photographs from the adjuster or claimant.
     </li>
@@ -644,7 +644,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended investigation mode
   </h3>
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <strong class="text-text-light dark:text-text-dark">Deep</strong> — covers copy-move
     detection, JPEG ghost, and regional analysis alongside the full forensic pipeline.
   </p>
@@ -653,7 +653,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Key features to explore
   </h3>
-  <ul class="list-disc pl-6 space-y-1 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ul class="list-disc pl-6 space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>Batch verification for multi-image case processing</li>
     <li>Copy-move detection — flags cloned regions within an image</li>
     <li>JPEG ghost analysis — reveals regions composited from a differently-compressed source</li>
@@ -663,10 +663,10 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint dark:text-flint-light mb-2">
+    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
       Tips
     </p>
-    <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed">
+    <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <li>
         Focus on copy-move detection — this catches cloned regions such as duplicated
         damage patterns, a common indicator of manipulated claims photographs.
@@ -705,7 +705,7 @@
     Corporate Communications and Security
   </h2>
 
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     You need to verify whether content purporting to show company executives or official
     communications is authentic, and respond rapidly to potential deepfake incidents.
     Jura Trace provides a three-way classification verdict — Authentic, Inconclusive, or
@@ -716,7 +716,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended workflow
   </h3>
-  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>
       Receive suspicious content — a video call recording, social media post, or forwarded image.
     </li>
@@ -748,7 +748,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended investigation mode
   </h3>
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <strong class="text-text-light dark:text-text-dark">Standard</strong> for rapid triage
     during active incidents.
     <strong class="text-text-light dark:text-text-dark">Deep</strong> for thorough
@@ -759,7 +759,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Key features to explore
   </h3>
-  <ul class="list-disc pl-6 space-y-1 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ul class="list-disc pl-6 space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>Video deepfake detection with temporal consistency signals</li>
     <li>C2PA AI declaration detection — flags content declared as AI-generated by its creator tool</li>
     <li>Three-way verdict classification for clear incident response framing</li>
@@ -768,10 +768,10 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint dark:text-flint-light mb-2">
+    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
       Tips
     </p>
-    <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed">
+    <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <li>
         "Inconclusive" on a deepfake video means automated analysis could not confirm
         authenticity — do not treat it as clearance to declare the content genuine.
@@ -807,7 +807,7 @@
     Human Rights Documentation
   </h2>
 
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     You document human rights abuses using photographs, video, and audio from conflict
     zones and crisis environments. Your evidence must be tamper-evident and its analysis
     methodology transparent for international accountability mechanisms. Jura Trace
@@ -820,7 +820,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended workflow
   </h3>
-  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ol class="list-decimal pl-6 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>
       Import field evidence into Jura Trace immediately upon receipt.
     </li>
@@ -857,7 +857,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Recommended investigation mode
   </h3>
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <strong class="text-text-light dark:text-text-dark">Archival</strong> — maximum
     detector coverage with calibrated tolerances suited to field-captured material and
     chain-of-custody logging.
@@ -867,7 +867,7 @@
   <h3 class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
     Key features to explore
   </h3>
-  <ul class="list-disc pl-6 space-y-1 text-sm text-flint dark:text-flint-light leading-relaxed mb-5">
+  <ul class="list-disc pl-6 space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>C2PA provenance chain — cryptographic attestation from point of intake</li>
     <li>Audit trail with SHA-256 hash chain — tamper-evident record of every action</li>
     <li>Batch processing for large evidence sets</li>
@@ -878,10 +878,10 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint dark:text-flint-light mb-2">
+    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
       Tips
     </p>
-    <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed">
+    <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <li>
         All processing runs on your device — no content is transmitted to any external
         service. This is critical when handling evidence from hostile or restricted
@@ -907,7 +907,7 @@
         See
         <a
           href="/help/methodology"
-          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:text-lapis/80 dark:hover:text-lapis-light/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian motion-safe:transition-colors"
+          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:text-lapis/80 dark:hover:text-lapis dark:text-lapis-light/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian motion-safe:transition-colors"
         >Help → How Analysis Works</a> for how Jura Trace's methodology aligns with the
         Berkeley Protocol on Digital Open Source Investigations.
       </li>
@@ -920,13 +920,13 @@
 <nav aria-label="Help section navigation" class="flex flex-wrap gap-4 text-sm">
   <a
     href="/help"
-    class="text-flint dark:text-flint-light hover:text-lapis dark:hover:text-lapis-light motion-safe:transition-colors motion-safe:duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+    class="text-flint-dark dark:text-flint-light hover:text-lapis dark:hover:text-lapis dark:text-lapis-light motion-safe:transition-colors motion-safe:duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
   >
     ← Help home
   </a>
   <a
     href="/help/methodology"
-    class="text-flint dark:text-flint-light hover:text-lapis dark:hover:text-lapis-light motion-safe:transition-colors motion-safe:duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+    class="text-flint-dark dark:text-flint-light hover:text-lapis dark:hover:text-lapis dark:text-lapis-light motion-safe:transition-colors motion-safe:duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
   >
     How Analysis Works →
   </a>

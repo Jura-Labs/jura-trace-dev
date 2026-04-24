@@ -88,9 +88,9 @@
   }
 
   function trustColour(score: number): string {
-    if (score >= 0.7) return 'text-malachite dark:text-malachite-light';
-    if (score >= 0.4) return 'text-amber dark:text-amber-light';
-    return 'text-cinnabar dark:text-cinnabar-light';
+    if (score >= 0.7) return 'text-malachite-dark dark:text-malachite-light';
+    if (score >= 0.4) return 'text-amber-dark dark:text-amber-light';
+    return 'text-cinnabar-dark dark:text-cinnabar-light';
   }
 
   function trustLabel(score: number): string {
@@ -172,11 +172,11 @@
 
   function statusBadgeClass(status: string | null): string {
     switch (status) {
-      case 'ok':      return 'bg-malachite/15 text-malachite dark:bg-malachite/20 dark:text-malachite-light';
-      case 'changed': return 'bg-amber/15 text-amber dark:bg-amber/20 dark:text-amber-light';
+      case 'ok':      return 'bg-malachite/15 text-malachite-dark dark:bg-malachite/20 dark:text-malachite-light';
+      case 'changed': return 'bg-amber/15 text-amber-dark dark:bg-amber/20 dark:text-amber-light';
       case 'missing':
-      case 'error':   return 'bg-cinnabar/15 text-cinnabar dark:bg-cinnabar/20 dark:text-cinnabar-light';
-      default:        return 'bg-graphite/30 text-flint dark:bg-graphite-light/30 dark:text-flint-light';
+      case 'error':   return 'bg-cinnabar/15 text-cinnabar-dark dark:bg-cinnabar/20 dark:text-cinnabar-light';
+      default:        return 'bg-graphite/30 text-flint-dark dark:bg-graphite-light/30 dark:text-flint-light';
     }
   }
 
@@ -204,10 +204,10 @@
 
   function caseStatusBadgeClass(cs: string): string {
     switch (cs) {
-      case 'investigating': return 'bg-amber/15 text-amber dark:bg-amber/20 dark:text-amber-light';
-      case 'resolved':      return 'bg-malachite/15 text-malachite dark:bg-malachite/20 dark:text-malachite-light';
-      case 'escalated':     return 'bg-cinnabar/15 text-cinnabar dark:bg-cinnabar/20 dark:text-cinnabar-light';
-      case 'dismissed':     return 'bg-graphite/30 text-flint dark:bg-graphite-light/30 dark:text-flint-light';
+      case 'investigating': return 'bg-amber/15 text-amber-dark dark:bg-amber/20 dark:text-amber-light';
+      case 'resolved':      return 'bg-malachite/15 text-malachite-dark dark:bg-malachite/20 dark:text-malachite-light';
+      case 'escalated':     return 'bg-cinnabar/15 text-cinnabar-dark dark:bg-cinnabar/20 dark:text-cinnabar-light';
+      case 'dismissed':     return 'bg-graphite/30 text-flint-dark dark:bg-graphite-light/30 dark:text-flint-light';
       default:              return 'bg-lapis/10 text-lapis dark:text-lapis-light';
     }
   }
@@ -229,7 +229,7 @@
 <!-- ── Loading skeleton ─────────────────────────────────────────── -->
 {#if loading}
   <div class="py-32 text-center" aria-live="polite" aria-busy="true">
-    <p class="text-sm text-flint dark:text-flint-light">Loading activity record…</p>
+    <p class="text-sm text-flint-dark dark:text-flint-light">Loading activity record…</p>
   </div>
 
 {:else}
@@ -237,7 +237,7 @@
 
   <!-- ── Hero ──────────────────────────────────────────────────── -->
   <section class="text-center py-16 pb-12">
-    <p class="text-xs text-flint dark:text-[#A09D95] uppercase tracking-widest mb-5">
+    <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] uppercase tracking-widest mb-5">
       Content story
     </p>
     <h1
@@ -246,10 +246,10 @@
     >
       What has happened to your work
     </h1>
-    <p class="text-base text-flint dark:text-[#9B9890] max-w-md mx-auto mb-3 leading-relaxed">
+    <p class="text-base text-flint-dark dark:text-flint-light dark:text-[#9B9890] max-w-md mx-auto mb-3 leading-relaxed">
       A record of every file you have protected and every claim you have examined.
     </p>
-    <p class="text-sm text-flint/70 dark:text-flint max-w-sm mx-auto italic leading-relaxed">
+    <p class="text-sm text-flint-dark dark:text-flint-light max-w-sm mx-auto italic leading-relaxed">
       Everything stored locally. Nothing leaves this machine.
     </p>
   </section>
@@ -284,7 +284,7 @@
           href="/help/methodology"
           class="underline underline-offset-2 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded-sm"
         >
-          Learn more
+          Learn more about content monitoring limits
         </a>
       </p>
     </div>
@@ -300,7 +300,7 @@
   >
     <div class="flex items-baseline gap-4 mb-2">
       <span
-        class="text-xs uppercase tracking-widest text-flint dark:text-[#A09D95] flex-shrink-0 w-20"
+        class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20"
         aria-hidden="true"
       >
         Watch
@@ -317,7 +317,7 @@
       </div>
     </div>
 
-    <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-6">
+    <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-6">
       Register URLs where your protected content is published. Jura Trace will periodically check
       for changes to content, credentials, and watermarks.
     </p>
@@ -327,12 +327,12 @@
       <!-- How URL monitoring works explanation -->
       <div class="rounded-lg border border-lapis/20 bg-lapis/5 px-4 py-3 mb-6 max-w-2xl">
         <p class="text-sm text-lapis dark:text-lapis-light font-medium mb-1">How URL Monitoring Works</p>
-        <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
+        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
           Add URLs where your protected content is published (for example, your website, social media profiles,
           or any page hosting your images). Jura Trace will periodically check each URL for changes
           and verify that your C2PA provenance manifest and perceptual fingerprints remain intact.
         </p>
-        <p class="text-xs text-flint dark:text-flint-light leading-relaxed mt-1">
+        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-1">
           <span class="font-medium">Note:</span> Domain-wide monitoring (scanning every page on a website)
           is planned for a future release. Currently, each URL is monitored individually.
         </p>
@@ -343,9 +343,8 @@
         <button
           onclick={() => { showAddForm = true; addError = null; }}
           class="min-h-[44px] px-5 py-2.5 text-sm rounded-full border border-lapis/40 text-lapis dark:text-lapis-light dark:border-lapis-light/40 hover:bg-lapis/10 dark:hover:bg-lapis-light/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian mb-6"
-          aria-label="Add a URL to monitor"
         >
-          Add URL
+          Add URL to monitor
         </button>
       {:else}
         <div
@@ -357,11 +356,11 @@
             <div>
               <label
                 for="watchlist-url"
-                class="block text-xs text-flint dark:text-flint-light mb-1.5"
+                class="block text-xs text-flint-dark dark:text-flint-light mb-1.5"
               >
-                URL <span class="text-cinnabar" aria-hidden="true">*</span>
+                URL <span class="text-cinnabar-dark dark:text-cinnabar-light" aria-hidden="true">*</span>
               </label>
-              <p class="text-xs text-flint dark:text-flint-light mb-1.5">
+              <p class="text-xs text-flint-dark dark:text-flint-light mb-1.5">
                 Enter the exact URL of a page or image you want to monitor
               </p>
               <input
@@ -369,7 +368,7 @@
                 type="url"
                 bind:value={newUrl}
                 placeholder="https://example.com/gallery/my-photo.jpg"
-                class="w-full rounded-md border border-border-light dark:border-[rgba(122,119,112,0.3)] bg-transparent px-3 py-2 text-sm text-text-light dark:text-quartz placeholder:text-flint/50 dark:placeholder:text-flint-light/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                class="w-full rounded-md border border-border-light dark:border-[rgba(122,119,112,0.3)] bg-transparent px-3 py-2 text-sm text-text-light dark:text-quartz placeholder:text-flint-dark dark:text-flint-light dark:placeholder:text-flint-light/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                 aria-required="true"
                 autocomplete="url"
               />
@@ -377,28 +376,28 @@
             <div>
               <label
                 for="watchlist-label"
-                class="block text-xs text-flint dark:text-flint-light mb-1.5"
+                class="block text-xs text-flint-dark dark:text-flint-light mb-1.5"
               >
-                Label <span class="text-flint/50 dark:text-flint-light/50 font-normal">(optional)</span>
+                Label <span class="text-flint-dark dark:text-flint-light font-normal">(optional)</span>
               </label>
               <input
                 id="watchlist-label"
                 type="text"
                 bind:value={newLabel}
                 placeholder="e.g. Museum collection page"
-                class="w-full rounded-md border border-border-light dark:border-[rgba(122,119,112,0.3)] bg-transparent px-3 py-2 text-sm text-text-light dark:text-quartz placeholder:text-flint/50 dark:placeholder:text-flint-light/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                class="w-full rounded-md border border-border-light dark:border-[rgba(122,119,112,0.3)] bg-transparent px-3 py-2 text-sm text-text-light dark:text-quartz placeholder:text-flint-dark dark:text-flint-light dark:placeholder:text-flint-light/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                 autocomplete="off"
               />
             </div>
             <div>
-              <p class="text-xs text-flint dark:text-flint-light mt-1 leading-relaxed">
+              <p class="text-xs text-flint-dark dark:text-flint-light mt-1 leading-relaxed">
                 URLs are saved for manual checking. Automated monitoring is planned for a future release.
               </p>
             </div>
           </div>
 
           {#if addError}
-            <p class="mt-3 text-xs text-cinnabar dark:text-cinnabar-light" role="alert">{addError}</p>
+            <p class="mt-3 text-xs text-cinnabar-dark dark:text-cinnabar-light" role="alert">{addError}</p>
           {/if}
 
           <div class="mt-4 flex gap-3">
@@ -411,7 +410,7 @@
             </button>
             <button
               onclick={() => { showAddForm = false; addError = null; newUrl = ''; newLabel = ''; newFrequency = 'daily'; }}
-              class="min-h-[44px] px-5 py-2 text-sm rounded-full text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz border border-border-light dark:border-[rgba(122,119,112,0.3)] hover:border-flint/40 dark:hover:border-flint-light/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+              class="min-h-[44px] px-5 py-2 text-sm rounded-full text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz border border-border-light dark:border-[rgba(122,119,112,0.3)] hover:border-flint/40 dark:hover:border-flint-light/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
             >
               Cancel
             </button>
@@ -420,7 +419,7 @@
       {/if}
 
       {#if watchlistError}
-        <p class="mb-4 text-sm text-cinnabar dark:text-cinnabar-light" role="alert">{watchlistError}</p>
+        <p class="mb-4 text-sm text-cinnabar-dark dark:text-cinnabar-light" role="alert">{watchlistError}</p>
       {/if}
 
       <!-- Watchlist table -->
@@ -435,12 +434,12 @@
             No URLs being monitored
           </h3>
           <div class="earth-line mb-5" aria-hidden="true"></div>
-          <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed mb-2">
+          <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed mb-2">
             Register URLs where your protected content is published.
             Jura Trace will track changes and verify that your content
             credentials remain intact.
           </p>
-          <p class="text-sm text-flint/70 dark:text-flint leading-relaxed mt-4">
+          <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mt-4">
             Add your first URL using the form above.
           </p>
         </div>
@@ -464,7 +463,7 @@
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 20 20"
                         fill="currentColor"
-                        class="h-3.5 w-3.5 flex-shrink-0 text-flint dark:text-flint-light transition-transform {expandedUrlId === entry.urlId ? 'rotate-90' : ''}"
+                        class="h-3.5 w-3.5 flex-shrink-0 text-flint-dark dark:text-flint-light transition-transform {expandedUrlId === entry.urlId ? 'rotate-90' : ''}"
                         aria-hidden="true"
                       >
                         <path
@@ -478,7 +477,7 @@
                           <p class="text-sm font-medium text-text-light dark:text-quartz truncate">
                             {entry.label}
                           </p>
-                          <p class="text-xs text-flint dark:text-flint-light mt-0.5 truncate">
+                          <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5 truncate">
                             {truncateUrl(entry.url)}
                           </p>
                         {:else}
@@ -499,20 +498,20 @@
                     </span>
 
                     {#if entry.lastCheckedAt}
-                      <span class="text-xs text-flint dark:text-flint-light">
+                      <span class="text-xs text-flint-dark dark:text-flint-light">
                         <time datetime={entry.lastCheckedAt}>
                           {formatDateTime(entry.lastCheckedAt)}
                         </time>
                       </span>
                     {/if}
 
-                    <span class="text-xs text-flint/60 dark:text-flint-light/60">
+                    <span class="text-xs text-flint-dark dark:text-flint-light">
                       {entry.checkFrequency}
                     </span>
 
                     <button
                       onclick={() => handleRemoveUrl(entry.urlId)}
-                      class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-flint/50 dark:text-flint-light/50 hover:text-cinnabar dark:hover:text-cinnabar-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar"
+                      class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-flint-dark dark:text-flint-light hover:text-cinnabar-dark dark:text-cinnabar-light dark:hover:text-cinnabar-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar"
                       aria-label="Remove {entry.label ?? entry.url} from watchlist"
                     >
                       <svg
@@ -541,9 +540,9 @@
                   aria-label="Recent check events for {entry.label ?? entry.url}"
                 >
                   {#if eventsLoading}
-                    <p class="text-xs text-flint dark:text-flint-light py-2">Loading events…</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light py-2">Loading events…</p>
                   {:else if expandedEvents.length === 0}
-                    <p class="text-xs text-flint dark:text-[#9B9890] py-2">
+                    <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#9B9890] py-2">
                       No check events recorded yet. Events will appear here once Jura Trace has performed its first check.
                     </p>
                   {:else}
@@ -562,7 +561,7 @@
                                   {ev.caseStatus}
                                 </span>
                               </div>
-                              <p class="text-xs text-flint dark:text-flint-light mt-1">
+                              <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
                                 <time datetime={ev.checkedAt}>{formatDateTime(ev.checkedAt)}</time>
                                 {#if ev.httpStatus}
                                   &middot; HTTP {ev.httpStatus}
@@ -572,7 +571,7 @@
                                 {/if}
                               </p>
                               {#if ev.caseNotes}
-                                <p class="text-xs text-flint/80 dark:text-flint mt-1.5 italic">
+                                <p class="text-xs text-flint-dark dark:text-flint-light mt-1.5 italic">
                                   {ev.caseNotes}
                                 </p>
                               {/if}
@@ -589,7 +588,7 @@
                                         e.eventId === ev.eventId ? { ...e, caseStatus: 'investigating' } : e
                                       );
                                     }}
-                                    class="min-h-[44px] px-3 py-1 text-xs rounded-full border border-amber/40 text-amber dark:text-amber-light hover:bg-amber/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber"
+                                    class="min-h-[44px] px-3 py-1 text-xs rounded-full border border-amber/40 text-amber-dark dark:text-amber-light hover:bg-amber/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber"
                                   >
                                     Investigate
                                   </button>
@@ -601,7 +600,7 @@
                                       e.eventId === ev.eventId ? { ...e, caseStatus: 'resolved' } : e
                                     );
                                   }}
-                                  class="min-h-[44px] px-3 py-1 text-xs rounded-full border border-malachite/40 text-malachite dark:text-malachite-light hover:bg-malachite/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-malachite"
+                                  class="min-h-[44px] px-3 py-1 text-xs rounded-full border border-malachite/40 text-malachite-dark dark:text-malachite-light hover:bg-malachite/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-malachite"
                                 >
                                   Resolve
                                 </button>
@@ -612,7 +611,7 @@
                                       e.eventId === ev.eventId ? { ...e, caseStatus: 'dismissed' } : e
                                     );
                                   }}
-                                  class="min-h-[44px] px-3 py-1 text-xs rounded-full border border-border-light dark:border-[rgba(122,119,112,0.3)] text-flint dark:text-flint-light hover:bg-gray-100 dark:hover:bg-graphite-light/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+                                  class="min-h-[44px] px-3 py-1 text-xs rounded-full border border-border-light dark:border-[rgba(122,119,112,0.3)] text-flint-dark dark:text-flint-light hover:bg-gray-100 dark:hover:bg-graphite-light/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
                                 >
                                   Dismiss
                                 </button>
@@ -642,7 +641,7 @@
   >
     <div class="flex items-baseline gap-4 mb-4">
       <span
-        class="text-xs uppercase tracking-widest text-flint dark:text-[#A09D95] flex-shrink-0 w-20"
+        class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20"
         aria-hidden="true"
       >
         Archive
@@ -654,7 +653,7 @@
       >
         <a
           href="/protect"
-          class="hover:text-lapis dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          class="hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
         >
           Your protected collection
         </a>
@@ -663,7 +662,7 @@
 
     {#if overview && overview.protection.totalAssets > 0}
       {@const p = overview.protection}
-      <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-8">
+      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-8">
         {p.totalAssets.toLocaleString()} {p.totalAssets === 1 ? 'file' : 'files'} in your archive,
         {p.c2paSigned.toLocaleString()} with C2PA provenance,
         {p.fingerprinted.toLocaleString()} fingerprinted.
@@ -679,39 +678,39 @@
       >
         <div class="text-center">
           <p
-            class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
+            class="font-heading text-3xl font-normal text-lapis dark:text-lapis-light dark:text-[#8AABBF] tracking-tight"
             style="letter-spacing: -0.02em;"
             aria-label="{p.totalAssets.toLocaleString()} total assets"
           >
             {p.totalAssets.toLocaleString()}
           </p>
-          <p class="text-xs text-flint dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
+          <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
             assets
           </p>
         </div>
 
         <div class="text-center">
           <p
-            class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
+            class="font-heading text-3xl font-normal text-lapis dark:text-lapis-light dark:text-[#8AABBF] tracking-tight"
             style="letter-spacing: -0.02em;"
             aria-label="{p.c2paSigned.toLocaleString()} with C2PA provenance"
           >
             {p.c2paSigned.toLocaleString()}
           </p>
-          <p class="text-xs text-flint dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
+          <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
             C2PA signed
           </p>
         </div>
 
         <div class="text-center">
           <p
-            class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
+            class="font-heading text-3xl font-normal text-lapis dark:text-lapis-light dark:text-[#8AABBF] tracking-tight"
             style="letter-spacing: -0.02em;"
             aria-label="{p.fingerprinted.toLocaleString()} fingerprinted"
           >
             {p.fingerprinted.toLocaleString()}
           </p>
-          <p class="text-xs text-flint dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
+          <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
             fingerprinted
           </p>
         </div>
@@ -721,7 +720,7 @@
       {#if Object.keys(p.byContentType).length > 0}
         <div class="pl-24 mt-8 flex flex-wrap gap-2" aria-label="Content types in collection">
           {#each Object.entries(p.byContentType) as [type, count]}
-            <span class="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light">
+            <span class="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light">
               <span class="font-medium text-text-light dark:text-quartz">{count}</span>
               {type}
             </span>
@@ -730,11 +729,11 @@
       {/if}
 
     {:else}
-      <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
+      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
         No files protected yet.
         <a
           href="/protect"
-          class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
         >
           Visit the Protect page
         </a>
@@ -753,7 +752,7 @@
   >
     <div class="flex items-baseline gap-4 mb-4">
       <span
-        class="text-xs uppercase tracking-widest text-flint dark:text-[#A09D95] flex-shrink-0 w-20"
+        class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20"
         aria-hidden="true"
       >
         Trust
@@ -770,7 +769,7 @@
     {#if overview && overview.trust.total > 0}
       {@const t = overview.trust}
 
-      <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-6">
+      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-6">
         Of {t.total.toLocaleString()} {t.total === 1 ? 'verification' : 'verifications'},
         {t.highCount.toLocaleString()} returned high confidence,
         {t.mediumCount.toLocaleString()} {t.mediumCount === 1 ? 'was' : 'were'} reviewed,
@@ -808,7 +807,7 @@
         </div>
 
         <!-- Bar legend -->
-        <div class="flex gap-4 text-xs text-flint dark:text-flint-light" aria-hidden="true">
+        <div class="flex gap-4 text-xs text-flint-dark dark:text-flint-light" aria-hidden="true">
           <span class="flex items-center gap-1.5">
             <span class="w-2 h-2 rounded-full bg-malachite dark:bg-malachite-light flex-shrink-0"></span>
             High ({t.highCount})
@@ -833,17 +832,17 @@
         >
           {Math.round(t.averageTrust * 100)}%
         </p>
-        <p class="text-xs text-flint dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
+        <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
           average trust score
         </p>
       </div>
 
     {:else}
-      <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
+      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
         No verifications yet.
         <a
           href="/verify"
-          class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
         >
           Visit the Verify page
         </a>
@@ -862,7 +861,7 @@
   >
     <div class="flex items-baseline gap-4 mb-6">
       <span
-        class="text-xs uppercase tracking-widest text-flint dark:text-[#A09D95] flex-shrink-0 w-20"
+        class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20"
         aria-hidden="true"
       >
         Record
@@ -891,7 +890,7 @@
           class="min-h-[44px] px-4 py-2 text-xs rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
                  {activeFilter === tab.key
                    ? 'bg-lapis text-white dark:bg-lapis-light dark:text-obsidian'
-                   : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz bg-transparent hover:bg-gray-100 dark:hover:bg-graphite-light/40'}"
+                   : 'text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz bg-transparent hover:bg-gray-100 dark:hover:bg-graphite-light/40'}"
           aria-pressed={activeFilter === tab.key}
         >
           {tab.label}
@@ -902,7 +901,7 @@
     <!-- Entries -->
     <div class="pl-24">
       {#if filteredAudit.length === 0}
-        <p class="text-sm text-flint dark:text-[#9B9890] py-4">
+        <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] py-4">
           {activeFilter === 'all' ? 'No activity recorded yet.' : `No ${activeFilter} activity recorded.`}
         </p>
       {:else}
@@ -910,7 +909,7 @@
           {#each filteredAudit as entry (entry.logId)}
             <li class="py-3 border-b border-border-light dark:border-[rgba(122,119,112,0.12)] last:border-0">
               <div class="flex items-baseline gap-3">
-                <span class="text-xs text-flint dark:text-flint-light flex-shrink-0 w-28">
+                <span class="text-xs text-flint-dark dark:text-flint-light flex-shrink-0 w-28">
                   <time datetime={entry.createdAt}>{formatDateTime(entry.createdAt)}</time>
                 </span>
                 <span class="text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -918,7 +917,7 @@
                 </span>
               </div>
               {#if entry.details}
-                <p class="text-xs text-flint/70 dark:text-flint mt-1 ml-31 pl-[calc(theme(spacing.28)+theme(spacing.3))] leading-relaxed">
+                <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-31 pl-[calc(theme(spacing.28)+theme(spacing.3))] leading-relaxed">
                   {entry.details}
                 </p>
               {/if}
@@ -932,7 +931,7 @@
             <button
               onclick={loadMore}
               disabled={loadingMore}
-              class="min-h-[44px] px-5 py-2.5 text-sm text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors rounded-full border border-border-light dark:border-[rgba(122,119,112,0.3)] hover:border-flint/40 dark:hover:border-flint-light/40 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+              class="min-h-[44px] px-5 py-2.5 text-sm text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors rounded-full border border-border-light dark:border-[rgba(122,119,112,0.3)] hover:border-flint/40 dark:hover:border-flint-light/40 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
               aria-label="Load more activity entries"
             >
               {loadingMore ? 'Loading…' : 'Show more'}

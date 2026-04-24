@@ -22,7 +22,7 @@
     >
       Model Cards
     </h1>
-    <p class="text-base text-flint dark:text-flint-light leading-relaxed max-w-2xl">
+    <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
       Jura Trace uses two machine learning classifiers to assess whether content
       is AI-generated. This page documents their training data, performance,
       known limitations, and update history — following the
@@ -35,7 +35,7 @@
 
   <!-- ── Table of contents ─────────────────────────────────────────────── -->
   <nav aria-label="Page contents" class="mb-10">
-    <p class="text-xs text-flint dark:text-flint-light uppercase tracking-nav font-medium mb-3">Contents</p>
+    <p class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-nav font-medium mb-3">Contents</p>
     <ol class="space-y-1 text-sm">
       {#each [
         { href: '#gbm-classifier', label: 'GBM Deepfake Classifier' },
@@ -46,7 +46,7 @@
         <li>
           <a
             href={item.href}
-            class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none
+            class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none
                    focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
             {item.label}
@@ -72,34 +72,34 @@
       <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Model type</dt>
-          <dd class="text-flint dark:text-flint-light">Gradient Boosting Machine (GBM)</dd>
+          <dd class="text-flint-dark dark:text-flint-light">Gradient Boosting Machine (GBM)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Framework</dt>
-          <dd class="text-flint dark:text-flint-light">scikit-learn GradientBoostingClassifier</dd>
+          <dd class="text-flint-dark dark:text-flint-light">scikit-learn GradientBoostingClassifier</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">File</dt>
-          <dd class="text-flint dark:text-flint-light font-mono text-xs">models/deepfake_classifier.joblib</dd>
+          <dd class="text-flint-dark dark:text-flint-light font-mono text-xs">models/deepfake_classifier.joblib</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">File size</dt>
-          <dd class="text-flint dark:text-flint-light">~1.2 MB</dd>
+          <dd class="text-flint-dark dark:text-flint-light">~1.2 MB</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Last trained</dt>
-          <dd class="text-flint dark:text-flint-light">7 April 2026</dd>
+          <dd class="text-flint-dark dark:text-flint-light">7 April 2026</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Version</dt>
-          <dd class="text-flint dark:text-flint-light">4.0</dd>
+          <dd class="text-flint-dark dark:text-flint-light">4.0</dd>
         </div>
       </dl>
     </div>
 
     <!-- Purpose -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Purpose</h3>
-    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       The GBM classifier analyses an 80-dimensional feature vector extracted from
       images by the forensic pipeline (ELA statistics, noise patterns, frequency
       domain features, copy-move indicators, and more). It produces a probability
@@ -114,19 +114,19 @@
       <dl class="space-y-3 text-sm">
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Total images</dt>
-          <dd class="text-flint dark:text-flint-light">10,709 (5,724 authentic + 4,985 AI-generated)</dd>
+          <dd class="text-flint-dark dark:text-flint-light">10,709 (5,724 authentic + 4,985 AI-generated)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Authentic sources</dt>
-          <dd class="text-flint dark:text-flint-light">Guardian press photos, COCO (train + validation), Flickr30k, Flickr8k, real camera DCIM photos, Wikimedia Commons photographs (curated, non-art)</dd>
+          <dd class="text-flint-dark dark:text-flint-light">Guardian press photos, COCO (train + validation), Flickr30k, Flickr8k, real camera DCIM photos, Wikimedia Commons photographs (curated, non-art)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">AI-generated sources (14 generator families)</dt>
-          <dd class="text-flint dark:text-flint-light">ELSA 1M (Stable Diffusion, DALL-E mix), DiffusionDB, DALL-E 3, Civitai SFW, SDXL-Turbo, Midjourney v6, Gemini Imagen 4, Grok Aurora, ArtBench, HuggingFace AI, and others</dd>
+          <dd class="text-flint-dark dark:text-flint-light">ELSA 1M (Stable Diffusion, DALL-E mix), DiffusionDB, DALL-E 3, Civitai SFW, SDXL-Turbo, Midjourney v6, Gemini Imagen 4, Grok Aurora, ArtBench, HuggingFace AI, and others</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Feature vector</dt>
-          <dd class="text-flint dark:text-flint-light">84 features extracted from:
+          <dd class="text-flint-dark dark:text-flint-light">84 features extracted from:
             <ul class="list-disc pl-4 mt-1 space-y-0.5">
               <li>ELA (mean, std, max, entropy)</li>
               <li>Noise analysis</li>
@@ -155,7 +155,7 @@
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Value</th>
           </tr>
         </thead>
-        <tbody class="text-flint dark:text-flint-light">
+        <tbody class="text-flint-dark dark:text-flint-light">
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">AUC-ROC (5-fold cross-validation)</td>
             <td class="py-2 pr-4 font-mono">0.9868</td>
@@ -182,7 +182,7 @@
 
     <!-- Known limitations -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Known Limitations</h3>
-    <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
+    <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       <li><strong>Minimum image size:</strong> Images below 128&times;128 pixels produce unreliable results. A guard prevents analysis of very small images.</li>
       <li><strong>Wildlife and macro photography:</strong> The <code>wikimedia_photos</code> category shows a 24.80% FP rate (n=254), driven largely by wildlife and insect macro photography. Additional iNaturalist photographs are being added to the training corpus to address this.</li>
       <li><strong>High-end camera photos:</strong> Images from DJI drones and Sony DSC cameras show a 10.32% FP rate. MakerNote EXIF data provides a partial mitigation at inference time.</li>
@@ -201,7 +201,7 @@
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Change</th>
           </tr>
         </thead>
-        <tbody class="text-flint dark:text-flint-light">
+        <tbody class="text-flint-dark dark:text-flint-light">
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4 font-mono">1.0</td>
             <td class="py-2 pr-4">18 March 2026</td>
@@ -245,42 +245,42 @@
       <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Model type</dt>
-          <dd class="text-flint dark:text-flint-light">Logistic Regression on CLIP embeddings</dd>
+          <dd class="text-flint-dark dark:text-flint-light">Logistic Regression on CLIP embeddings</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Base model</dt>
-          <dd class="text-flint dark:text-flint-light">CLIP ViT-B/32 (open_clip, laion2b_s34b_b79k)</dd>
+          <dd class="text-flint-dark dark:text-flint-light">CLIP ViT-B/32 (open_clip, laion2b_s34b_b79k)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Approach</dt>
-          <dd class="text-flint dark:text-flint-light">UnivFD (Ojha et al. 2023) — linear probe on frozen CLIP features</dd>
+          <dd class="text-flint-dark dark:text-flint-light">UnivFD (Ojha et al. 2023) — linear probe on frozen CLIP features</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Embedding dimension</dt>
-          <dd class="text-flint dark:text-flint-light font-mono">512</dd>
+          <dd class="text-flint-dark dark:text-flint-light font-mono">512</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">File</dt>
-          <dd class="text-flint dark:text-flint-light font-mono text-xs">models/univfd_probe.joblib</dd>
+          <dd class="text-flint-dark dark:text-flint-light font-mono text-xs">models/univfd_probe.joblib</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">File size</dt>
-          <dd class="text-flint dark:text-flint-light">4.8 KB</dd>
+          <dd class="text-flint-dark dark:text-flint-light">4.8 KB</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Last trained</dt>
-          <dd class="text-flint dark:text-flint-light">12 April 2026</dd>
+          <dd class="text-flint-dark dark:text-flint-light">12 April 2026</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Version</dt>
-          <dd class="text-flint dark:text-flint-light">9.0</dd>
+          <dd class="text-flint-dark dark:text-flint-light">9.0</dd>
         </div>
       </dl>
     </div>
 
     <!-- Purpose -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Purpose</h3>
-    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       The UnivFD probe is a lightweight classifier that leverages CLIP's visual
       understanding to detect AI-generated images. CLIP was trained on hundreds of
       millions of image-text pairs and captures high-level semantic features that
@@ -296,19 +296,19 @@
       <dl class="space-y-3 text-sm">
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Total images</dt>
-          <dd class="text-flint dark:text-flint-light">39,016 (10,712 original + 28,304 platform-forwarded augmentation)</dd>
+          <dd class="text-flint-dark dark:text-flint-light">39,016 (10,712 original + 28,304 platform-forwarded augmentation)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Authentic sources</dt>
-          <dd class="text-flint dark:text-flint-light">COCO (train + validation), Flickr30k, Flickr8k, Google Photos, ImageNet validation, CelebA faces, camera DCIM photos, Wikimedia Commons photographs (curated, non-art)</dd>
+          <dd class="text-flint-dark dark:text-flint-light">COCO (train + validation), Flickr30k, Flickr8k, Google Photos, ImageNet validation, CelebA faces, camera DCIM photos, Wikimedia Commons photographs (curated, non-art)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">AI-generated sources (14 generator families)</dt>
-          <dd class="text-flint dark:text-flint-light">ELSA 1M / Stable Diffusion, DiffusionDB, DALL-E 3, Civitai SFW, SDXL-Turbo, ArtBench, Midjourney v6, Gemini Imagen 4, Grok Aurora, HuggingFace AI, and others</dd>
+          <dd class="text-flint-dark dark:text-flint-light">ELSA 1M / Stable Diffusion, DiffusionDB, DALL-E 3, Civitai SFW, SDXL-Turbo, ArtBench, Midjourney v6, Gemini Imagen 4, Grok Aurora, HuggingFace AI, and others</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Regularisation</dt>
-          <dd class="text-flint dark:text-flint-light">C=0.5 (L2), class_weight=balanced, solver=lbfgs, max_iter=1000</dd>
+          <dd class="text-flint-dark dark:text-flint-light">C=0.5 (L2), class_weight=balanced, solver=lbfgs, max_iter=1000</dd>
         </div>
       </dl>
     </div>
@@ -323,7 +323,7 @@
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Value</th>
           </tr>
         </thead>
-        <tbody class="text-flint dark:text-flint-light">
+        <tbody class="text-flint-dark dark:text-flint-light">
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">AUC-ROC (5-fold cross-validation)</td>
             <td class="py-2 pr-4 font-mono">0.9933</td>
@@ -346,7 +346,7 @@
 
     <!-- Known limitations -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Known Limitations</h3>
-    <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
+    <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       <li><strong>CLIP dependency:</strong> Requires the open_clip ViT-B/32 model (~350 MB). When CLIP is not installed, the probe is unavailable and gracefully skipped.</li>
       <li><strong>Non-photographic content:</strong> Paintings, digital illustrations, and stylised artwork can produce false positives. Wikimedia art/illustrations were removed from the training corpus after analysis showed a high false positive rate on that source.</li>
       <li><strong>Wildlife and macro photography:</strong> The <code>wikimedia_photos</code> subset (wildlife, insect macro) is the top FP source. Sprint 29 Track 2 is expanding the authentic corpus with iNaturalist photographs to address this.</li>
@@ -357,7 +357,7 @@
 
     <!-- Improvement history -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Improvement History</h3>
-    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
       The probe's false positive rate was reduced from 28.7% to 4.12% through iterative corpus
       expansion and curation across 3&ndash;12 April 2026:
     </p>
@@ -371,7 +371,7 @@
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Corpus</th>
           </tr>
         </thead>
-        <tbody class="text-flint dark:text-flint-light">
+        <tbody class="text-flint-dark dark:text-flint-light">
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">Baseline (C=0.5)</td>
             <td class="py-2 pr-4 font-mono">0.9650</td>
@@ -429,7 +429,7 @@
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Change</th>
           </tr>
         </thead>
-        <tbody class="text-flint dark:text-flint-light">
+        <tbody class="text-flint-dark dark:text-flint-light">
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4 font-mono">1.0</td>
             <td class="py-2 pr-4">3 April 2026</td>
@@ -477,7 +477,7 @@
     >
       Knowledge Base Retrieval
     </h2>
-    <p class="text-sm font-medium text-amber dark:text-amber-light mb-4">
+    <p class="text-sm font-medium text-amber-dark dark:text-amber-light mb-4">
       Preliminary investigative aid &mdash; not a fact-checker
     </p>
 
@@ -486,7 +486,7 @@
       role="note"
       aria-label="Non-warranty notice"
     >
-      <p class="text-sm font-semibold text-amber dark:text-amber-light mb-2">
+      <p class="text-sm font-semibold text-amber-dark dark:text-amber-light mb-2">
         Non-warranty notice
       </p>
       <p class="text-sm text-text-light/90 dark:text-quartz/90 leading-relaxed mb-2">
@@ -510,7 +510,7 @@
 
     <!-- Intended use -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Intended Use</h3>
-    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
       When an analyst enters a textual claim during verification (for example
       "this image was taken during the Myanmar protests of 2021"), the tool
       retrieves related passages from its preliminary reference corpus and
@@ -518,7 +518,7 @@
       surface reference material the analyst may want to consult, not to
       adjudicate the claim.
     </p>
-    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       The tool does <em>not</em> contribute to the forensic verdict or the numeric
       trust score. It is a distinct investigative aid displayed alongside the
       forensic detectors, not one of the 12 forensic signals that make up the
@@ -527,7 +527,7 @@
 
     <!-- Architecture -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Architecture</h3>
-    <ul class="list-disc pl-5 space-y-1 text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
+    <ul class="list-disc pl-5 space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       <li><strong>Retrieval:</strong> TF-IDF over local markdown reference files (no network calls).</li>
       <li><strong>Grounded assessment:</strong> Local Qwen2.5 model via Ollama (optional dependency). Temperature 0.1.</li>
       <li><strong>Output vocabulary:</strong> <code class="font-mono text-xs">consistent_with_kb</code>, <code class="font-mono text-xs">inconsistent_with_kb</code>, or <code class="font-mono text-xs">insufficient_context_in_kb</code>. No "verdicts" are emitted.</li>
@@ -537,7 +537,7 @@
 
     <!-- Preliminary corpus composition -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Preliminary Corpus Composition</h3>
-    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
       The current knowledge base is a small, hand-curated set of reference passages
       across six domain documents. This is a <strong>preliminary</strong> corpus &mdash; it
       is approximately two orders of magnitude smaller than a production fact-checking
@@ -553,7 +553,7 @@
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Notes</th>
           </tr>
         </thead>
-        <tbody class="text-flint dark:text-flint-light">
+        <tbody class="text-flint-dark dark:text-flint-light">
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">C2PA standards reference</td>
             <td class="py-2 pr-4 tabular-nums">~40</td>
@@ -587,7 +587,7 @@
         </tbody>
       </table>
     </div>
-    <p class="text-xs text-flint/80 dark:text-flint-light/80 leading-relaxed mb-6">
+    <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       Approximate total: 150 passages across 314 lines of source material. The
       published corpus is available in the source repository under
       <code class="font-mono">sidecar/knowledge_base/</code> and is covered by the
@@ -596,7 +596,7 @@
 
     <!-- Known limitations and failure modes -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Known Limitations and Failure Modes</h3>
-    <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
+    <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       <li><strong>Coverage gap:</strong> the corpus contains no references to specific events, individuals, locations, or dates. Any claim about a real-world event, a named person, or a specific place will return <code class="font-mono text-xs">insufficient_context_in_kb</code>. This is by design &mdash; the tool is not a fact-checker.</li>
       <li><strong>No accuracy metrics:</strong> the tool has not been formally evaluated against a held-out test set. No precision, recall, or F1 numbers are published because none have been measured. This is a limitation, not a secret.</li>
       <li><strong>Subjective and future claims:</strong> the tool cannot assess claims that are subjective ("this is the best photograph of X"), predictive ("this event will happen"), or otherwise outside its reference material.</li>
@@ -607,10 +607,10 @@
 
     <!-- Out-of-scope use -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Out-of-Scope Use</h3>
-    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-2">
+    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
       This tool must not be used for:
     </p>
-    <ul class="list-disc pl-5 space-y-1 text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
+    <ul class="list-disc pl-5 space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       <li>Fact-checking claims about named individuals, organisations, or events for publication.</li>
       <li>Any evidentiary, legal, medical, financial, or political claim verification.</li>
       <li>Automated decision-making of any kind.</li>
@@ -620,11 +620,11 @@
 
     <!-- Planned expansion -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Planned Expansion</h3>
-    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-2">
+    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
       A curated corpus expansion is scheduled as part of Sprint 29 (S29-06 multilingual
       testing deliverable). The planned scope includes:
     </p>
-    <ul class="list-disc pl-5 space-y-1 text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
+    <ul class="list-disc pl-5 space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       <li>Expansion to approximately 5,000&ndash;10,000 passages across C2PA specification, Berkeley Protocol, ICC Office of the Prosecutor guidelines, ENFSI image forensic guidelines, cultural heritage provenance standards, synthetic media taxonomy references, deepfake detection methodology literature, and misinformation research standards.</li>
       <li>Multilingual coverage in at least five languages (Arabic, Spanish, French, Swahili, Burmese) matching the TRIED case study languages.</li>
       <li>A held-out test set of 150&ndash;300 hand-curated (claim, expected outcome, expected passage) triples for formal accuracy evaluation.</li>
@@ -632,7 +632,7 @@
       <li>A quarterly corpus review cycle aligned with the classifier retraining cadence.</li>
       <li>Corpus publication as a separate data artefact on Zenodo with a DOI, aligned with the Continuity Promise.</li>
     </ul>
-    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       This expansion is conditional on funding outcomes and corpus curation
       feasibility. Until it lands, the current tool remains a preliminary
       investigative aid as documented above.
@@ -649,7 +649,7 @@
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Change</th>
           </tr>
         </thead>
-        <tbody class="text-flint dark:text-flint-light">
+        <tbody class="text-flint-dark dark:text-flint-light">
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4 font-mono">0.1</td>
             <td class="py-2 pr-4">Sprint 19</td>
@@ -683,20 +683,20 @@
       Update Schedule
     </h2>
 
-    <p class="text-sm text-flint dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
       AI image generators evolve rapidly. Models trained today may not detect
       outputs from generators released six months from now. Jura Trace commits to
       the following update cadence:
     </p>
 
-    <ul class="list-disc pl-5 space-y-2 text-sm text-flint dark:text-flint-light leading-relaxed mb-6">
+    <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       <li><strong>Quarterly retraining:</strong> Both classifiers will be retrained at least every three months with newly sourced AI-generated and authentic images.</li>
       <li><strong>New generator coverage:</strong> When major new generators are released (or existing generators receive significant updates), training data from those generators will be incorporated in the next quarterly cycle.</li>
       <li><strong>Model distribution:</strong> Updated model weights will be distributed via the application's auto-update mechanism. Users will be notified when newer models are available.</li>
       <li><strong>Transparency:</strong> This page will be updated with each retraining cycle to reflect the current training data composition, performance metrics, and known limitations.</li>
     </ul>
 
-    <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       Next scheduled retraining: <strong>July 2026</strong> (Q3).
     </p>
   </section>

@@ -51,9 +51,9 @@
   // inside the SVG.  Using wrapper class (not inline fill) so dark-mode
   // variants apply consistently with the rest of the palette.
   const TINT = {
-    valid:   'text-malachite dark:text-malachite-light',
-    invalid: 'text-cinnabar dark:text-cinnabar-light',
-    none:    'text-flint dark:text-flint-light',
+    valid:   'text-malachite-dark dark:text-malachite-light',
+    invalid: 'text-cinnabar-dark dark:text-cinnabar-light',
+    none:    'text-flint-dark dark:text-flint-light',
   } as const;
 
   const tintClass = $derived(TINT[state]);

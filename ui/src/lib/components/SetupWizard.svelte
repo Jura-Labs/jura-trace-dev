@@ -462,7 +462,7 @@
           role="group"
           aria-labelledby="step0-heading"
         >
-          <p class="text-xs font-medium text-lapis-light uppercase tracking-widest mb-3">
+          <p class="text-xs font-medium text-lapis dark:text-lapis-light uppercase tracking-widest mb-3">
             Step 1 of 5
           </p>
 
@@ -523,7 +523,7 @@
                 <button
                   onclick={refreshHealth}
                   disabled={healthChecking}
-                  class="mt-2 text-xs px-2.5 py-1 rounded border border-lapis/40 text-lapis-light hover:bg-lapis/10 transition-colors
+                  class="mt-2 text-xs px-2.5 py-1 rounded border border-lapis/40 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
                          disabled:opacity-50"
                 >
@@ -541,7 +541,7 @@
           role="group"
           aria-labelledby="step1-heading"
         >
-          <p class="text-xs font-medium text-lapis-light uppercase tracking-widest mb-3">
+          <p class="text-xs font-medium text-lapis dark:text-lapis-light uppercase tracking-widest mb-3">
             Step 2 of 5
           </p>
 
@@ -672,7 +672,7 @@
                   <button
                     onclick={refreshHealth}
                     disabled={healthChecking || ffmpegInstalling}
-                    class="text-xs px-2.5 py-1 rounded border border-lapis/40 text-lapis-light hover:bg-lapis/10 transition-colors
+                    class="text-xs px-2.5 py-1 rounded border border-lapis/40 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
                            disabled:opacity-50"
                   >
@@ -686,7 +686,7 @@
                      winget would install from — with a brief PATH instruction. -->
                 {#if platform === 'windows'}
                   <details class="mt-3">
-                    <summary class="text-xs text-lapis-light cursor-pointer hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
+                    <summary class="text-xs text-lapis dark:text-lapis-light cursor-pointer hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
                       No winget? Direct download for FFmpeg (Windows)
                     </summary>
                     <div class="mt-2 pl-3 border-l-2 border-lapis/30 space-y-2">
@@ -701,7 +701,7 @@
                           <a
                             href="https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
                             target="_blank" rel="noopener noreferrer"
-                            class="text-lapis-light underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                            class="text-lapis dark:text-lapis-light underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                           >ffmpeg-release-essentials.zip</a>
                         </li>
                         <li>Extract to <code class="font-mono">C:\ffmpeg\</code></li>
@@ -730,7 +730,7 @@
           role="group"
           aria-labelledby="step2-heading"
         >
-          <p class="text-xs font-medium text-lapis-light uppercase tracking-widest mb-3">
+          <p class="text-xs font-medium text-lapis dark:text-lapis-light uppercase tracking-widest mb-3">
             Step 3 of 5
           </p>
 
@@ -802,7 +802,7 @@
           role="group"
           aria-labelledby="step3-heading"
         >
-          <p class="text-xs font-medium text-lapis-light uppercase tracking-widest mb-3">
+          <p class="text-xs font-medium text-lapis dark:text-lapis-light uppercase tracking-widest mb-3">
             Step 4 of 5
           </p>
 
@@ -858,7 +858,7 @@
                 onclick={refreshHealth}
                 disabled={healthChecking}
                 class="min-h-[44px] px-4 py-2.5 rounded-lg text-sm font-medium
-                       border border-lapis/40 text-lapis-light hover:bg-lapis/10 transition-colors duration-150
+                       border border-lapis/40 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors duration-150
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                        focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
                        disabled:opacity-50"
@@ -886,12 +886,12 @@
               class="flex items-start gap-2 rounded-md px-3 py-2.5 mb-4"
               style="background: rgba(55,99,153,0.1); border: 1px solid rgba(55,99,153,0.25);"
             >
-              <svg class="flex-shrink-0 w-4 h-4 text-lapis-light mt-0.5" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+              <svg class="flex-shrink-0 w-4 h-4 text-lapis dark:text-lapis-light mt-0.5" fill="none" viewBox="0 0 16 16" aria-hidden="true">
                 <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" />
                 <path stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M8 6v4" />
                 <circle cx="8" cy="5" r="0.5" fill="currentColor" stroke="none" />
               </svg>
-              <p class="text-xs text-lapis-light leading-relaxed">
+              <p class="text-xs text-lapis dark:text-lapis-light leading-relaxed">
                 These models run entirely on your machine. No data is sent to external servers.
               </p>
             </div>
@@ -914,7 +914,7 @@
                 {:else if pullingModel === 'llava:7b'}
                   <!-- Spinner while downloading -->
                   <svg
-                    class="flex-shrink-0 w-5 h-5 text-lapis-light motion-safe:animate-spin"
+                    class="flex-shrink-0 w-5 h-5 text-lapis dark:text-lapis-light motion-safe:animate-spin"
                     fill="none" viewBox="0 0 20 20" aria-hidden="true"
                   >
                     <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="2" stroke-dasharray="22 22" />
@@ -936,7 +936,7 @@
                   {#if llavaInstalled}
                     <p class="text-xs text-flint-light mt-0.5">Installed — image descriptions enabled</p>
                   {:else if pullingModel === 'llava:7b'}
-                    <p class="text-xs text-lapis-light mt-0.5" aria-live="polite">
+                    <p class="text-xs text-lapis dark:text-lapis-light mt-0.5" aria-live="polite">
                       {pullProgress ?? 'Downloading…'}{pullPercent !== null ? ` (${pullPercent}%)` : ''}
                     </p>
                     {#if pullPercent !== null}
@@ -991,7 +991,7 @@
                   </svg>
                 {:else if pullingModel === 'qwen2.5:7b-instruct'}
                   <svg
-                    class="flex-shrink-0 w-5 h-5 text-lapis-light motion-safe:animate-spin"
+                    class="flex-shrink-0 w-5 h-5 text-lapis dark:text-lapis-light motion-safe:animate-spin"
                     fill="none" viewBox="0 0 20 20" aria-hidden="true"
                   >
                     <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="2" stroke-dasharray="22 22" />
@@ -1013,7 +1013,7 @@
                   {#if qwenInstalled}
                     <p class="text-xs text-flint-light mt-0.5">Installed — claim verification enabled</p>
                   {:else if pullingModel === 'qwen2.5:7b-instruct'}
-                    <p class="text-xs text-lapis-light mt-0.5" aria-live="polite">
+                    <p class="text-xs text-lapis dark:text-lapis-light mt-0.5" aria-live="polite">
                       {pullProgress ?? 'Downloading…'}{pullPercent !== null ? ` (${pullPercent}%)` : ''}
                     </p>
                     {#if pullPercent !== null}
@@ -1109,7 +1109,7 @@
           role="group"
           aria-labelledby="step4-heading"
         >
-          <p class="text-xs font-medium text-malachite uppercase tracking-widest mb-3">
+          <p class="text-xs font-medium text-malachite-dark dark:text-malachite-light uppercase tracking-widest mb-3">
             All done
           </p>
 
@@ -1260,7 +1260,7 @@
             {#if currentStep < TOTAL_STEPS - 2}
               <button
                 onclick={onComplete}
-                class="text-xs text-flint-light hover:text-flint transition-colors duration-150
+                class="text-xs text-flint-light hover:text-flint-dark dark:text-flint-light transition-colors duration-150
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                        focus-visible:ring-offset-2 focus-visible:ring-offset-graphite rounded px-1"
               >

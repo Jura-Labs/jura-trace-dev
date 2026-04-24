@@ -78,7 +78,7 @@
       <p class="text-sm text-obsidian dark:text-quartz leading-relaxed">
         <strong class="font-semibold">Enable Enhanced mode for full Content Credentials validation?</strong>
       </p>
-      <p class="text-xs text-flint dark:text-flint-light leading-relaxed mt-1 max-w-prose">
+      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-1 max-w-prose">
         Jura Trace runs fully offline by default. Enhanced mode adds online certificate
         revocation checks (OCSP/CRL) and remote Content Credentials retrieval — recommended
         for real-world content verification and standards-conformant validation.
@@ -96,7 +96,7 @@
           {busy ? 'Enabling…' : 'Enable Enhanced Mode'}
         </button>
         <button
-          class="px-3 py-1.5 min-h-[32px] text-xs text-flint dark:text-flint-light
+          class="px-3 py-1.5 min-h-[32px] text-xs text-flint-dark dark:text-flint-light
                  hover:text-obsidian dark:hover:text-quartz transition-colors underline underline-offset-2
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           onclick={dismiss}
@@ -119,8 +119,8 @@
     aria-live="polite"
     class="rounded-lg border px-4 py-3 mb-5 text-sm leading-relaxed
            {feedback.ok
-             ? 'border-malachite/30 bg-malachite/5 text-malachite dark:text-malachite-light'
-             : 'border-cinnabar/30 bg-cinnabar/5 text-cinnabar dark:text-cinnabar-light'}"
+             ? 'border-malachite/30 bg-malachite/5 text-malachite-dark dark:text-malachite-light'
+             : 'border-cinnabar/30 bg-cinnabar/5 text-cinnabar-dark dark:text-cinnabar-light'}"
   >
     {feedback.text}
   </div>

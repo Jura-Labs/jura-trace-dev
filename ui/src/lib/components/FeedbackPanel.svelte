@@ -237,7 +237,7 @@
           bind:value={description}
           rows={4}
           placeholder="Describe what happened, what you expected, or what you'd like to see…"
-          class="w-full rounded-lg px-3 py-2.5 text-sm text-quartz placeholder:text-flint resize-none
+          class="w-full rounded-lg px-3 py-2.5 text-sm text-quartz placeholder:text-flint-dark dark:text-flint-light resize-none
                  bg-obsidian/60 border border-[rgba(122,119,112,0.2)] hover:border-[rgba(122,119,112,0.35)]
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                  focus-visible:ring-offset-1 focus-visible:ring-offset-graphite
@@ -257,7 +257,7 @@
           bind:value={email}
           placeholder="your@email.org"
           autocomplete="email"
-          class="w-full rounded-lg px-3 py-2.5 text-sm text-quartz placeholder:text-flint
+          class="w-full rounded-lg px-3 py-2.5 text-sm text-quartz placeholder:text-flint-dark dark:text-flint-light
                  bg-obsidian/60 border border-[rgba(122,119,112,0.2)] hover:border-[rgba(122,119,112,0.35)]
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                  focus-visible:ring-offset-1 focus-visible:ring-offset-graphite
@@ -318,7 +318,7 @@
         <p
           role="alert"
           aria-live="assertive"
-          class="text-xs text-cinnabar leading-relaxed"
+          class="text-xs text-cinnabar-dark dark:text-cinnabar-light leading-relaxed"
         >
           {copyError}
         </p>
@@ -329,7 +329,7 @@
         Paste this into an email to
         <a
           href="mailto:feedback@juralabs.org"
-          class="text-lapis-light hover:text-quartz underline underline-offset-2 transition-colors duration-150
+          class="text-lapis dark:text-lapis-light hover:text-quartz underline underline-offset-2 transition-colors duration-150
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
         >feedback@juralabs.org</a>
         or into a GitHub issue.

@@ -297,7 +297,7 @@
       codename: 'Flint',
       description: 'Free, non-commercial use. Full verification pipeline, all 17+ detectors, batch processing, PDF reports, and MONITOR Layer 1. Community support via GitHub Issues.',
       badgeClass: 'bg-flint/15 border border-flint/30',
-      badgeTextClass: 'text-flint dark:text-flint-light',
+      badgeTextClass: 'text-flint-dark dark:text-flint-light',
     },
     professional: {
       tier: 'professional',
@@ -313,7 +313,7 @@
       codename: 'Geode',
       description: 'Team commercial licence, 3–20 seats. Adds API access (port 8300), sector-specific report templates, shared asset database, managed reverse image search, and dedicated 24-hour support.',
       badgeClass: 'bg-malachite/15 border border-malachite/30',
-      badgeTextClass: 'text-malachite dark:text-malachite-light',
+      badgeTextClass: 'text-malachite-dark dark:text-malachite-light',
     },
     enterprise: {
       tier: 'enterprise',
@@ -321,7 +321,7 @@
       codename: 'Bedrock',
       description: 'Unlimited commercial licence. Adds silent installer with MDM templates, central TOML configuration, custom RAG knowledge base, bulk watched-folder signing, white-label rights, and SLA-backed support.',
       badgeClass: 'bg-amber/15 border border-amber/30',
-      badgeTextClass: 'text-amber dark:text-amber-light',
+      badgeTextClass: 'text-amber-dark dark:text-amber-light',
     },
   };
 
@@ -733,7 +733,7 @@
           autocomplete="off"
           spellcheck={false}
         />
-        <p class="text-xs text-flint dark:text-flint-light mt-1">
+        <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
           Ollama runs AI models locally on your computer for two optional features: (1) reading text
           visible in images such as screenshots or memes, and (2) checking factual claims in
           transcribed speech against a knowledge base. Neither feature is required — Jura Trace works
@@ -755,7 +755,7 @@
           autocomplete="off"
           spellcheck={false}
         />
-        <p class="text-xs text-flint dark:text-flint-light mt-1">
+        <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
           Used for image description and visual analysis
         </p>
       </div>
@@ -774,7 +774,7 @@
           autocomplete="off"
           spellcheck={false}
         />
-        <p class="text-xs text-flint dark:text-flint-light mt-1">
+        <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
           Used for claim verification and metadata summarisation
         </p>
       </div>
@@ -791,7 +791,7 @@
 
         {#if saved}
           <p
-            class="text-sm text-malachite dark:text-malachite-light motion-safe:animate-fade-in"
+            class="text-sm text-malachite-dark dark:text-malachite-light motion-safe:animate-fade-in"
             role="status"
             aria-live="polite"
           >
@@ -811,7 +811,7 @@
     <div class="flex items-center justify-between mb-4">
       <div>
         <h2 id="profiles-heading" class="text-lg font-heading text-text-light dark:text-quartz">Deployment Profiles</h2>
-        <p class="text-xs text-flint dark:text-flint-light mt-0.5">
+        <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5">
           Save your current AI settings as a named profile so you can quickly switch between different configurations.
         </p>
       </div>
@@ -824,7 +824,7 @@
           class="shrink-0 ml-4 px-4 py-2 text-sm font-medium rounded border transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
                  {atProfileLimit
-                   ? 'border-graphite-light text-flint dark:text-flint-light cursor-not-allowed opacity-50'
+                   ? 'border-graphite-light text-flint-dark dark:text-flint-light cursor-not-allowed opacity-50'
                    : 'border-lapis/60 text-lapis dark:text-lapis-light hover:bg-lapis/10 hover:border-lapis'}"
         >
           Save current settings as profile
@@ -836,7 +836,7 @@
     {#if atProfileLimit}
       <p
         id="profile-limit-notice"
-        class="text-xs text-amber dark:text-amber-light mb-4 px-3 py-2 rounded border border-amber/20 bg-amber/5"
+        class="text-xs text-amber-dark dark:text-amber-light mb-4 px-3 py-2 rounded border border-amber/20 bg-amber/5"
         role="note"
       >
         Maximum of {MAX_PROFILES} profiles reached. Delete an existing profile to save a new one.
@@ -872,11 +872,11 @@
                    {nameError ? 'border-cinnabar' : 'border-border-light dark:border-border-dark'}"
           />
           {#if nameError}
-            <p id="profile-name-error" class="text-xs text-cinnabar dark:text-cinnabar-light" role="alert">
+            <p id="profile-name-error" class="text-xs text-cinnabar-dark dark:text-cinnabar-light" role="alert">
               {nameError}
             </p>
           {:else}
-            <p id="profile-name-hint" class="text-xs text-flint">
+            <p id="profile-name-hint" class="text-xs text-flint-dark dark:text-flint-light">
               1–50 characters. Captures current Ollama URL, vision model, and text model.
             </p>
           {/if}
@@ -890,7 +890,7 @@
             </button>
             <button
               onclick={handleCancelSave}
-              class="px-4 py-1.5 text-sm font-medium rounded border border-graphite-light text-flint hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors
+              class="px-4 py-1.5 text-sm font-medium rounded border border-graphite-light text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian"
             >
               Cancel
@@ -902,7 +902,7 @@
 
     <!-- Profile list -->
     {#if profiles.length === 0}
-      <p class="text-sm text-flint dark:text-flint-light py-4 text-center border border-dashed border-border-light dark:border-border-dark rounded-lg">
+      <p class="text-sm text-flint-dark dark:text-flint-light py-4 text-center border border-dashed border-border-light dark:border-border-dark rounded-lg">
         No profiles saved yet.
       </p>
     {:else}
@@ -924,7 +924,7 @@
             <div class="flex items-center justify-between gap-3 px-4 py-3">
               <div class="min-w-0">
                 <p class="text-sm font-medium text-text-light dark:text-quartz truncate">{profile.name}</p>
-                <p class="text-xs text-flint dark:text-flint-light mt-0.5 truncate">
+                <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5 truncate">
                   Created {formatProfileDate(profile.createdAt)}
                   &mdash; {profile.ollamaUrl}
                 </p>
@@ -954,7 +954,7 @@
                   <button
                     onclick={() => handleRequestDelete(profile.id)}
                     aria-label="Delete profile {profile.name}"
-                    class="px-3 py-1.5 text-xs font-medium rounded border border-cinnabar/30 text-cinnabar dark:text-cinnabar-light hover:bg-cinnabar/10 hover:border-cinnabar/60 transition-colors
+                    class="px-3 py-1.5 text-xs font-medium rounded border border-cinnabar/30 text-cinnabar-dark dark:text-cinnabar-light hover:bg-cinnabar/10 hover:border-cinnabar/60 transition-colors
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian"
                   >
                     Delete
@@ -970,7 +970,7 @@
                 role="region"
                 aria-label="Confirm deletion of {profile.name}"
               >
-                <p class="text-xs text-cinnabar dark:text-cinnabar-light flex-1">
+                <p class="text-xs text-cinnabar-dark dark:text-cinnabar-light flex-1">
                   Delete "{profile.name}"? This cannot be undone.
                 </p>
                 <button
@@ -983,7 +983,7 @@
                 </button>
                 <button
                   onclick={handleCancelDelete}
-                  class="px-3 py-1.5 text-xs font-medium rounded border border-graphite-light text-flint hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors
+                  class="px-3 py-1.5 text-xs font-medium rounded border border-graphite-light text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian"
                 >
                   Cancel
@@ -1017,7 +1017,7 @@
         <ContextualHelpLink href="/help/settings#service-status" label="Learn about service status indicators" />
       </div>
       <button
-        class="text-xs px-3 py-2.5 min-h-[44px] rounded border border-border-light dark:border-border-dark text-flint hover:text-text-light dark:hover:text-text-light dark:hover:text-quartz hover:border-lapis/50
+        class="text-xs px-3 py-2.5 min-h-[44px] rounded border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-text-light dark:hover:text-quartz hover:border-lapis/50
                transition-colors disabled:opacity-50
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
         onclick={refreshHealth}
@@ -1046,7 +1046,7 @@
             class="text-xs px-2 py-0.5 rounded-full
                    {sidecarOnline
                      ? 'bg-malachite/15 text-malachite-light border border-malachite/20'
-                     : 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light border border-cinnabar/20'}"
+                     : 'bg-cinnabar/10 text-cinnabar-dark dark:text-cinnabar-light border border-cinnabar/20'}"
           >
             {sidecarOnline ? 'Online' : 'Offline'}
           </span>
@@ -1054,14 +1054,14 @@
         <!-- P0-7: raw URL removed — meaningless to non-technical pilots -->
 
         {#if sidecarOnline && sidecarHealth}
-          <p class="text-xs text-flint dark:text-flint-light mb-2">Version: <span class="text-text-light dark:text-quartz">{sidecarHealth.version}</span></p>
+          <p class="text-xs text-flint-dark dark:text-flint-light mb-2">Version: <span class="text-text-light dark:text-quartz">{sidecarHealth.version}</span></p>
           <div class="flex flex-wrap gap-1.5">
             {#each Object.entries(sidecarHealth.capabilities) as [cap, enabled]}
               <span
                 class="text-xs px-2 py-0.5 rounded
                        {enabled
                          ? 'bg-malachite/10 text-malachite-light border border-malachite/20'
-                         : 'bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border border-border-light dark:border-graphite-light'}"
+                         : 'bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light border border-border-light dark:border-graphite-light'}"
               >
                 {cap === 'videoMetadata' ? 'Video analysis'
                   : cap === 'transcription' ? 'Speech transcription'
@@ -1074,10 +1074,10 @@
           </div>
         {:else}
           <div class="mt-2 space-y-2">
-            <p class="text-xs font-medium text-cinnabar dark:text-cinnabar-light leading-relaxed">
+            <p class="text-xs font-medium text-cinnabar-dark dark:text-cinnabar-light leading-relaxed">
               Analysis Engine — Offline
             </p>
-            <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
+            <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
               Core checks (provenance and metadata) work without it. For full
               forensic analysis including AI detection, restart Jura Trace. If
               the engine remains offline after restarting, visit the Help
@@ -1095,25 +1095,25 @@
             class="text-xs px-2 py-0.5 rounded-full
                    {ollamaOnline
                      ? 'bg-malachite/15 text-malachite-light border border-malachite/20'
-                     : 'bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border border-border-light dark:border-graphite-light'}"
+                     : 'bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light border border-border-light dark:border-graphite-light'}"
           >
             {ollamaOnline ? 'Connected' : 'Offline'}
           </span>
         </div>
-        <p class="text-xs text-flint dark:text-flint-light mb-2">{ollamaUrl}</p>
+        <p class="text-xs text-flint-dark dark:text-flint-light mb-2">{ollamaUrl}</p>
 
         {#if ollamaOnline && sidecarHealth?.ollama}
-          <p class="text-xs text-flint dark:text-flint-light">
+          <p class="text-xs text-flint-dark dark:text-flint-light">
             Status: <span class="text-text-light dark:text-quartz">{sidecarHealth.ollama}</span>
           </p>
         {:else}
-          <p class="text-xs text-flint dark:text-flint-light">
+          <p class="text-xs text-flint-dark dark:text-flint-light">
             Required for auto-cataloguing and claim checking. Install from
             <a
               href="https://ollama.com"
               target="_blank"
               rel="noopener noreferrer"
-              class="text-lapis dark:text-lapis-light hover:text-lapis-dark dark:hover:text-lapis-light underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+              class="text-lapis dark:text-lapis-light hover:text-lapis-dark dark:hover:text-lapis dark:text-lapis-light underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
             >ollama.com<span class="sr-only"> (opens in new tab)</span></a>.
           </p>
         {/if}
@@ -1130,7 +1130,7 @@
       <h2 id="db-location-heading" class="text-lg font-heading text-text-light dark:text-quartz">Database Location</h2>
       <ContextualHelpLink href="/help/settings#database" label="Learn about database storage and location settings" />
     </div>
-    <p class="text-xs text-flint dark:text-flint-light mb-4">
+    <p class="text-xs text-flint-dark dark:text-flint-light mb-4">
       Where assets, fingerprints, and verification records are stored. Useful for institutional deployments where data must reside on a shared or managed drive.
     </p>
 
@@ -1155,7 +1155,7 @@
           class="shrink-0 px-4 py-2.5 min-h-[44px] rounded border text-sm font-medium transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
                  {dbPathChanging || !isTauri()
-                   ? 'border-graphite-light text-flint cursor-not-allowed opacity-50'
+                   ? 'border-graphite-light text-flint-dark dark:text-flint-light cursor-not-allowed opacity-50'
                    : 'border-lapis/60 text-lapis dark:text-lapis-light hover:bg-lapis/10 hover:border-lapis'}"
           aria-busy={dbPathChanging}
         >
@@ -1173,7 +1173,7 @@
         </button>
       </div>
 
-      <p id="db-path-hint" class="text-xs text-flint dark:text-flint-light mt-1">
+      <p id="db-path-hint" class="text-xs text-flint-dark dark:text-flint-light mt-1">
         The database will be copied atomically to the new location. The original file is not deleted until the move is verified.
       </p>
 
@@ -1181,8 +1181,8 @@
         <p
           class="mt-3 text-sm px-3 py-2 rounded border
                  {dbPathFeedback.ok
-                   ? 'text-malachite dark:text-malachite-light border-malachite/20 bg-malachite/5'
-                   : 'text-cinnabar dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
+                   ? 'text-malachite-dark dark:text-malachite-light border-malachite/20 bg-malachite/5'
+                   : 'text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
           role="status"
           aria-live="polite"
         >
@@ -1199,17 +1199,17 @@
   >
     <h2 id="about-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4">About</h2>
     <dl class="grid grid-cols-[max-content_1fr] gap-x-8 gap-y-2 text-sm max-w-md">
-      <dt class="text-flint dark:text-flint-light">Version</dt>
+      <dt class="text-flint-dark dark:text-flint-light">Version</dt>
       <dd class="text-text-light dark:text-quartz">{appVersion}</dd>
-      <dt class="text-flint dark:text-flint-light">Licence</dt>
+      <dt class="text-flint-dark dark:text-flint-light">Licence</dt>
       <dd class="text-text-light dark:text-quartz">PolyForm Noncommercial 1.0.0</dd>
-      <dt class="text-flint dark:text-flint-light">Developer</dt>
+      <dt class="text-flint-dark dark:text-flint-light">Developer</dt>
       <dd class="text-text-light dark:text-quartz">
         <a
           href="https://juralabs.org"
           target="_blank"
           rel="noopener noreferrer"
-          class="text-lapis dark:text-lapis-light hover:text-lapis-dark dark:hover:text-lapis-light underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          class="text-lapis dark:text-lapis-light hover:text-lapis-dark dark:hover:text-lapis dark:text-lapis-light underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
         >Jura Labs CIC<span class="sr-only"> (opens in new tab)</span></a>
       </dd>
     </dl>
@@ -1223,7 +1223,7 @@
           class="px-5 py-2.5 min-h-[44px] rounded border text-sm font-medium transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
                  {updateStatus.state === 'checking' || updateStatus.state === 'downloading' || updateStatus.state === 'installing'
-                   ? 'border-graphite-light text-flint cursor-not-allowed opacity-50'
+                   ? 'border-graphite-light text-flint-dark dark:text-flint-light cursor-not-allowed opacity-50'
                    : 'border-lapis/60 text-lapis dark:text-lapis-light hover:bg-lapis/10 hover:border-lapis'}"
           aria-busy={updateStatus.state === 'checking' || updateStatus.state === 'downloading'}
         >
@@ -1259,7 +1259,7 @@
         <!-- Inline status feedback -->
         {#if updateStatus.state === 'up-to-date'}
           <p
-            class="text-sm text-malachite dark:text-malachite-light"
+            class="text-sm text-malachite-dark dark:text-malachite-light"
             role="status"
             aria-live="polite"
           >
@@ -1275,7 +1275,7 @@
           </p>
         {:else if updateStatus.state === 'error'}
           <p
-            class="text-sm text-cinnabar dark:text-cinnabar-light"
+            class="text-sm text-cinnabar-dark dark:text-cinnabar-light"
             role="alert"
             aria-live="assertive"
           >
@@ -1284,7 +1284,7 @@
         {/if}
       </div>
 
-      <p class="text-xs text-flint dark:text-flint-light mt-2">
+      <p class="text-xs text-flint-dark dark:text-flint-light mt-2">
         Updates are downloaded and applied locally. No telemetry is sent.
       </p>
     </div>
@@ -1299,7 +1299,7 @@
       <h2 id="setup-wizard-heading" class="text-lg font-heading text-text-light dark:text-quartz">Setup Wizard</h2>
       <ContextualHelpLink href="/help/settings#setup-wizard" label="Learn about the setup wizard" />
     </div>
-    <p class="text-xs text-flint dark:text-flint-light mb-4">
+    <p class="text-xs text-flint-dark dark:text-flint-light mb-4">
       Re-run the first-launch setup wizard to check the Analysis Engine, FFmpeg, and Ollama configuration.
       Useful after reinstalling or upgrading Jura Trace.
     </p>
@@ -1323,7 +1323,7 @@
       <h2 id="plan-heading" class="text-lg font-heading text-text-light dark:text-quartz">Your Plan</h2>
       <ContextualHelpLink href="/help/settings#your-plan" label="Learn about licence plans and features" />
     </div>
-    <p class="text-xs text-flint dark:text-flint-light mb-4">
+    <p class="text-xs text-flint-dark dark:text-flint-light mb-4">
       During the pilot, you can explore different plans by selecting them here. In the full release, your plan will reflect your licence agreement.
     </p>
 
@@ -1336,7 +1336,7 @@
         {currentTierInfo.name}
       </span>
       <div class="min-w-0">
-        <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
+        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
           {currentTierInfo.description}
         </p>
       </div>
@@ -1362,13 +1362,13 @@
         <option value="team">Team (3–20 seats)</option>
         <option value="enterprise">Enterprise (unlimited seats)</option>
       </select>
-      <p id="tier-select-hint" class="text-xs text-flint dark:text-flint-light">
+      <p id="tier-select-hint" class="text-xs text-flint-dark dark:text-flint-light">
         Pilot mode: tier changes are saved to your local config and persist across restarts.
         Visit <a
           href="https://juralabs.org"
           target="_blank"
           rel="noopener noreferrer"
-          class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
         >juralabs.org<span class="sr-only"> (opens in new tab)</span></a> to purchase a licence.
       </p>
     </div>
@@ -1377,8 +1377,8 @@
       <p
         class="mt-3 text-sm px-3 py-2 rounded border
                {tierFeedback.ok
-                 ? 'text-malachite dark:text-malachite-light border-malachite/20 bg-malachite/5'
-                 : 'text-cinnabar dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
+                 ? 'text-malachite-dark dark:text-malachite-light border-malachite/20 bg-malachite/5'
+                 : 'text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
         role="status"
         aria-live="polite"
       >
@@ -1395,7 +1395,7 @@
     <div class="flex items-center gap-1.5 mb-1">
       <h2 id="analysis-heading" class="text-lg font-heading text-text-light dark:text-quartz">Analysis preferences</h2>
     </div>
-    <p class="text-xs text-flint dark:text-flint-light mb-4">
+    <p class="text-xs text-flint-dark dark:text-flint-light mb-4">
       Control which optional analysis stages run during verify. Turning stages off makes verify faster.
     </p>
 
@@ -1404,22 +1404,22 @@
         <label for="ai-desc-toggle" class="block text-sm font-medium text-text-light dark:text-quartz">
           AI image descriptions
         </label>
-        <p class="text-xs text-flint dark:text-flint-light mt-1 leading-relaxed">
+        <p class="text-xs text-flint-dark dark:text-flint-light mt-1 leading-relaxed">
           Uses Ollama LLaVA to generate a plain-English description of each verified image.
           Adds roughly 5–30 seconds per image. Requires Ollama with a vision model installed.
         </p>
         <p class="text-xs mt-2">
           {#if ollamaDetected}
-            <span class="text-malachite dark:text-malachite-light">Ollama detected</span>
-            {#if sidecarHealth?.ollama}<span class="text-flint dark:text-flint-light"> — version {sidecarHealth.ollama}</span>{/if}
+            <span class="text-malachite-dark dark:text-malachite-light">Ollama detected</span>
+            {#if sidecarHealth?.ollama}<span class="text-flint-dark dark:text-flint-light"> — version {sidecarHealth.ollama}</span>{/if}
           {:else}
-            <span class="text-flint dark:text-flint-light">
+            <span class="text-flint-dark dark:text-flint-light">
               Ollama not detected. Enabling this has no effect until Ollama is installed and a vision model (e.g. <code class="font-mono text-[11px]">llava</code>) is pulled.
             </span>
           {/if}
         </p>
         {#if aiDescPref === null}
-          <p class="text-xs text-flint/70 dark:text-flint-light/70 mt-2 italic">
+          <p class="text-xs text-flint-dark dark:text-flint-light mt-2 italic">
             Not yet set — currently off. Enable to opt in.
           </p>
         {/if}
@@ -1450,8 +1450,8 @@
       <p
         class="mt-3 text-sm px-3 py-2 rounded border
                {aiDescFeedback.ok
-                 ? 'text-malachite dark:text-malachite-light border-malachite/20 bg-malachite/5'
-                 : 'text-cinnabar dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
+                 ? 'text-malachite-dark dark:text-malachite-light border-malachite/20 bg-malachite/5'
+                 : 'text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
         role="status"
         aria-live="polite"
       >
@@ -1469,7 +1469,7 @@
       <h2 id="signing-mode-heading" class="text-lg font-heading text-text-light dark:text-quartz">Signing Mode</h2>
       <ContextualHelpLink href="/help/bedrock-signing" label="Learn about Local and Conformant signing modes" />
     </div>
-    <p class="text-xs text-flint dark:text-flint-light mb-5">
+    <p class="text-xs text-flint-dark dark:text-flint-light mb-5">
       Controls which certificate Jura Trace uses when embedding C2PA manifests into protected assets.
     </p>
 
@@ -1495,16 +1495,16 @@
 
         <div class="mb-3">
           <p class="text-sm font-semibold text-text-light dark:text-quartz">Local Signing</p>
-          <p class="text-xs text-flint dark:text-flint-light mt-0.5">Offline-first default</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5">Offline-first default</p>
         </div>
 
-        <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-3">
+        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-3">
           Uses a per-install certificate authority generated on first launch. Fully offline —
           no account, no external connections, no dependency on external services. Produces
           fully valid C2PA v2.x manifests readable by any C2PA-capable tool worldwide.
         </p>
 
-        <p class="text-xs text-flint/70 dark:text-flint-light/60 leading-relaxed pt-3 border-t border-border-light dark:border-border-dark">
+        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed pt-3 border-t border-border-light dark:border-border-dark">
           Third-party tools will confirm this file's integrity. Your identity as signer will show
           as unverified in external validators — this is expected in Local Signing mode and does
           not affect the validity of the manifest.
@@ -1514,7 +1514,7 @@
         <div class="mt-3">
           <button
             onclick={() => showLocalCertDetails = !showLocalCertDetails}
-            class="text-xs text-lapis dark:text-lapis-light hover:underline underline-offset-2 transition-colors
+            class="text-xs text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline underline-offset-2 transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded flex items-center gap-1"
             aria-expanded={showLocalCertDetails}
             aria-controls="local-cert-details"
@@ -1530,7 +1530,7 @@
           {#if showLocalCertDetails}
             <div
               id="local-cert-details"
-              class="mt-2 p-3 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/30 text-xs text-flint dark:text-flint-light leading-relaxed space-y-2"
+              class="mt-2 p-3 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/30 text-xs text-flint-dark dark:text-flint-light leading-relaxed space-y-2"
             >
               <div>
                 <span class="font-medium text-text-light dark:text-quartz">Algorithm:</span>
@@ -1598,10 +1598,10 @@
 
         <div class="mb-3">
           <p class="text-sm font-semibold text-text-light dark:text-quartz">Conformant Signing</p>
-          <p class="text-xs text-flint dark:text-flint-light mt-0.5">Trust-list certificate (optional)</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5">Trust-list certificate (optional)</p>
         </div>
 
-        <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-3">
+        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-3">
           Uses an institution-supplied certificate from a C2PA-approved certificate authority.
           Manifests signed with this certificate validate cleanly in any conformant C2PA tool,
           including Adobe Inspect and enterprise procurement gates. Requires an annual certificate
@@ -1626,7 +1626,7 @@
             <!-- Validity warning -->
             {#if !conformantCert.isCurrentlyValid}
               <p
-                class="text-xs px-3 py-2 rounded border border-cinnabar/30 bg-cinnabar/5 text-cinnabar dark:text-cinnabar-light"
+                class="text-xs px-3 py-2 rounded border border-cinnabar/30 bg-cinnabar/5 text-cinnabar-dark dark:text-cinnabar-light"
                 role="alert"
               >
                 This certificate is expired or not yet valid. Signing with it will fail.
@@ -1636,15 +1636,15 @@
             <p class="text-sm font-medium text-text-light dark:text-quartz truncate" title={conformantCert.subjectCn}>
               {conformantCert.subjectCn}
             </p>
-            <p class="text-xs text-flint dark:text-flint-light">
+            <p class="text-xs text-flint-dark dark:text-flint-light">
               {formatAbsoluteDate(conformantCert.notBefore)} — {formatAbsoluteDate(conformantCert.notAfter)}
               <span
-                class="ml-1 {conformantCert.isCurrentlyValid ? 'text-malachite dark:text-malachite-light' : 'text-cinnabar dark:text-cinnabar-light'}"
+                class="ml-1 {conformantCert.isCurrentlyValid ? 'text-malachite-dark dark:text-malachite-light' : 'text-cinnabar-dark dark:text-cinnabar-light'}"
               >
                 ({humaniseDistance(conformantCert.notAfter)})
               </span>
             </p>
-            <p class="text-xs text-flint dark:text-flint-light">Imported {humaniseAgo(conformantCert.importedAt)}</p>
+            <p class="text-xs text-flint-dark dark:text-flint-light">Imported {humaniseAgo(conformantCert.importedAt)}</p>
 
             <!-- Action row -->
             <div class="flex flex-wrap items-center gap-2 pt-1">
@@ -1678,14 +1678,14 @@
               {#if !pendingClearCert}
                 <button
                   onclick={handleRequestClearCert}
-                  class="px-3 py-1.5 text-xs font-medium rounded border border-cinnabar/30 text-cinnabar dark:text-cinnabar-light
+                  class="px-3 py-1.5 text-xs font-medium rounded border border-cinnabar/30 text-cinnabar-dark dark:text-cinnabar-light
                          hover:bg-cinnabar/10 hover:border-cinnabar/60 transition-colors
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar"
                 >
                   Remove
                 </button>
               {:else}
-                <span class="flex items-center gap-2 text-xs text-cinnabar dark:text-cinnabar-light">
+                <span class="flex items-center gap-2 text-xs text-cinnabar-dark dark:text-cinnabar-light">
                   Remove certificate?
                   <button
                     onclick={handleConfirmClearCert}
@@ -1698,7 +1698,7 @@
                   </button>
                   <button
                     onclick={handleCancelClearCert}
-                    class="text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+                    class="text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                   >
                     Cancel
@@ -1708,7 +1708,7 @@
             </div>
 
             {#if modeSwitchError !== null}
-              <p class="text-xs text-cinnabar dark:text-cinnabar-light" role="alert" aria-live="assertive">
+              <p class="text-xs text-cinnabar-dark dark:text-cinnabar-light" role="alert" aria-live="assertive">
                 {modeSwitchError}
               </p>
             {/if}
@@ -1741,7 +1741,7 @@
           </button>
           <button
             onclick={() => { offerModeSwitch = false; }}
-            class="px-4 py-2 min-h-[44px] text-sm font-medium rounded border border-border-light dark:border-border-dark text-flint dark:text-flint-light
+            class="px-4 py-2 min-h-[44px] text-sm font-medium rounded border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light
                    hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
                    focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
@@ -1750,7 +1750,7 @@
           </button>
         </div>
         {#if modeSwitchError !== null}
-          <p class="mt-2 text-xs text-cinnabar dark:text-cinnabar-light" role="alert" aria-live="assertive">
+          <p class="mt-2 text-xs text-cinnabar-dark dark:text-cinnabar-light" role="alert" aria-live="assertive">
             {modeSwitchError}
           </p>
         {/if}
@@ -1793,7 +1793,7 @@
               Browse…
             </button>
           </div>
-          <p class="text-xs text-flint dark:text-flint-light mt-1">Accepted formats: .pem, .crt, .cer</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light mt-1">Accepted formats: .pem, .crt, .cer</p>
         </div>
 
         <!-- Private key picker -->
@@ -1823,11 +1823,11 @@
               Browse…
             </button>
           </div>
-          <p class="text-xs text-flint dark:text-flint-light mt-1">Accepted formats: .pem, .key</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light mt-1">Accepted formats: .pem, .key</p>
         </div>
 
         <!-- Help text -->
-        <div class="mb-4 p-3 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/30 text-xs text-flint dark:text-flint-light leading-relaxed space-y-1.5">
+        <div class="mb-4 p-3 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/30 text-xs text-flint-dark dark:text-flint-light leading-relaxed space-y-1.5">
           <p>
             The <strong class="text-text-light dark:text-quartz">certificate chain</strong> is a PEM file containing your end-entity certificate followed by any intermediate CA certificates. Your institution's IT security team or the CA that issued the certificate will have provided this file.
           </p>
@@ -1838,7 +1838,7 @@
             Certificates must be issued by a C2PA-approved certificate authority and carry the correct key usage and extended key usage extensions.
             <a
               href="/help/bedrock-signing"
-              class="text-lapis dark:text-lapis-light hover:underline underline-offset-2
+              class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline underline-offset-2
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
             >
               Learn more about signing modes
@@ -1853,7 +1853,7 @@
             role="alert"
             aria-live="assertive"
           >
-            <p class="text-xs text-cinnabar dark:text-cinnabar-light">{importError}</p>
+            <p class="text-xs text-cinnabar-dark dark:text-cinnabar-light">{importError}</p>
           </div>
         {/if}
 
@@ -1884,7 +1884,7 @@
             onclick={handleCancelImport}
             disabled={importLoading}
             class="px-4 py-2.5 min-h-[44px] text-sm font-medium rounded border border-border-light dark:border-border-dark
-                   text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50
+                   text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50
                    transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
                    focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
           >
@@ -1898,7 +1898,7 @@
     {#if conformantCert !== null && !showCertImport}
       <details class="group mt-4">
         <summary
-          class="list-none flex items-center gap-2 cursor-pointer text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+          class="list-none flex items-center gap-2 cursor-pointer text-xs text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           aria-label="Certificate details"
         >
@@ -1945,14 +1945,14 @@
           {#if conformantCert.issuerCn && !conformantCert.issuerCn.startsWith('(see')}
             <div>
               <p class="text-xs font-medium text-text-light dark:text-quartz mb-0.5">Issuer</p>
-              <p class="text-xs text-flint dark:text-flint-light">{conformantCert.issuerCn}</p>
+              <p class="text-xs text-flint-dark dark:text-flint-light">{conformantCert.issuerCn}</p>
             </div>
           {/if}
 
           <!-- Algorithm -->
           <div>
             <p class="text-xs font-medium text-text-light dark:text-quartz mb-0.5">Algorithm</p>
-            <p class="text-xs text-flint dark:text-flint-light font-mono">{conformantCert.signingAlgorithm}</p>
+            <p class="text-xs text-flint-dark dark:text-flint-light font-mono">{conformantCert.signingAlgorithm}</p>
           </div>
 
           <!-- Key usage chips -->
@@ -1961,7 +1961,7 @@
               <p class="text-xs font-medium text-text-light dark:text-quartz mb-1.5">Key usage</p>
               <div class="flex flex-wrap gap-1.5" aria-label="Key usage flags">
                 {#each conformantCert.keyUsage as usage}
-                  <span class="px-2 py-0.5 rounded text-[11px] bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border border-border-light dark:border-graphite-light">
+                  <span class="px-2 py-0.5 rounded text-[11px] bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light border border-border-light dark:border-graphite-light">
                     {usage}
                   </span>
                 {/each}
@@ -1975,7 +1975,7 @@
               <p class="text-xs font-medium text-text-light dark:text-quartz mb-1.5">Extended key usage</p>
               <div class="flex flex-wrap gap-1.5" aria-label="Extended key usage flags">
                 {#each conformantCert.extendedKeyUsage as eku}
-                  <span class="px-2 py-0.5 rounded text-[11px] bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border border-border-light dark:border-graphite-light">
+                  <span class="px-2 py-0.5 rounded text-[11px] bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light border border-border-light dark:border-graphite-light">
                     {eku}
                   </span>
                 {/each}
@@ -1996,13 +1996,13 @@
       <h2 id="api-keys-heading" class="text-lg font-heading text-text-light dark:text-quartz">API Keys</h2>
       <ContextualHelpLink href="/help/settings#api-keys" label="Learn about API key management" />
     </div>
-    <p class="text-xs text-flint dark:text-flint-light mb-4">
+    <p class="text-xs text-flint-dark dark:text-flint-light mb-4">
       Manage authentication keys for the local REST API on port 8300. Keys allow external tools (CI pipelines, n8n workflows, custom scripts) to call the Jura Trace verification engine programmatically.
     </p>
 
     {#if !apiKeysAvailable}
       <div class="p-4 rounded-lg border border-lapis/20 bg-lapis/5">
-        <p class="text-sm text-flint dark:text-flint-light">
+        <p class="text-sm text-flint-dark dark:text-flint-light">
           API access is available on <strong class="text-text-light dark:text-quartz">Team</strong> and <strong class="text-text-light dark:text-quartz">Enterprise</strong> plans. Upgrade your plan above to manage API keys.
         </p>
       </div>
@@ -2014,7 +2014,7 @@
           role="alert"
           aria-live="polite"
         >
-          <p class="text-sm font-medium text-malachite dark:text-malachite-light mb-2">
+          <p class="text-sm font-medium text-malachite-dark dark:text-malachite-light mb-2">
             API key created — copy it now. It will not be shown again.
           </p>
           <div class="flex items-center gap-2 mb-3">
@@ -2030,11 +2030,11 @@
               Copy
             </button>
           </div>
-          <div class="flex items-center justify-between text-xs text-flint dark:text-flint-light">
+          <div class="flex items-center justify-between text-xs text-flint-dark dark:text-flint-light">
             <span>Name: <strong>{newlyCreatedKey.name}</strong> &middot; Rate limit: {newlyCreatedKey.rateLimit} requests per minute</span>
             <button
               onclick={handleDismissNewKey}
-              class="text-xs text-flint hover:text-text-light dark:hover:text-quartz transition-colors
+              class="text-xs text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
             >
               Dismiss
@@ -2090,7 +2090,7 @@
             {/if}
           </button>
         </div>
-        <p class="mt-2 text-xs text-flint dark:text-flint-light">
+        <p class="mt-2 text-xs text-flint-dark dark:text-flint-light">
           Rate limit: {newKeyRateLimit} requests/min. Keys use <code class="text-xs">Authorization: Bearer jt_...</code> header format.
         </p>
       </div>
@@ -2100,8 +2100,8 @@
         <p
           class="mb-4 text-sm px-3 py-2 rounded border
                  {apiKeyFeedback.ok
-                   ? 'text-malachite dark:text-malachite-light border-malachite/20 bg-malachite/5'
-                   : 'text-cinnabar dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
+                   ? 'text-malachite-dark dark:text-malachite-light border-malachite/20 bg-malachite/5'
+                   : 'text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
           role="status"
           aria-live="polite"
         >
@@ -2111,12 +2111,12 @@
 
       <!-- Key list -->
       {#if apiKeysLoading}
-        <div class="flex items-center gap-2 text-sm text-flint dark:text-flint-light py-4">
+        <div class="flex items-center gap-2 text-sm text-flint-dark dark:text-flint-light py-4">
           <span class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin" aria-hidden="true"></span>
           Loading keys...
         </div>
       {:else if apiKeys.length === 0}
-        <p class="text-sm text-flint dark:text-flint-light py-4">
+        <p class="text-sm text-flint-dark dark:text-flint-light py-4">
           No API keys created yet. Create one above to get started.
         </p>
       {:else}
@@ -2124,12 +2124,12 @@
           <table class="w-full text-sm" aria-label="API keys">
             <thead>
               <tr class="border-b border-border-light dark:border-border-dark text-left">
-                <th class="py-2 pr-4 font-medium text-flint dark:text-flint-light">Name</th>
-                <th class="py-2 pr-4 font-medium text-flint dark:text-flint-light">Key ID</th>
-                <th class="py-2 pr-4 font-medium text-flint dark:text-flint-light">Rate Limit</th>
-                <th class="py-2 pr-4 font-medium text-flint dark:text-flint-light">Status</th>
-                <th class="py-2 pr-4 font-medium text-flint dark:text-flint-light">Created</th>
-                <th class="py-2 font-medium text-flint dark:text-flint-light"><span class="sr-only">Actions</span></th>
+                <th class="py-2 pr-4 font-medium text-flint-dark dark:text-flint-light">Name</th>
+                <th class="py-2 pr-4 font-medium text-flint-dark dark:text-flint-light">Key ID</th>
+                <th class="py-2 pr-4 font-medium text-flint-dark dark:text-flint-light">Rate Limit</th>
+                <th class="py-2 pr-4 font-medium text-flint-dark dark:text-flint-light">Status</th>
+                <th class="py-2 pr-4 font-medium text-flint-dark dark:text-flint-light">Created</th>
+                <th class="py-2 font-medium text-flint-dark dark:text-flint-light"><span class="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
@@ -2137,21 +2137,21 @@
                 <tr class="border-b border-border-light/50 dark:border-border-dark/50 {key.revoked ? 'opacity-50' : ''}">
                   <td class="py-2.5 pr-4 text-text-light dark:text-quartz">{key.name}</td>
                   <td class="py-2.5 pr-4">
-                    <code class="text-xs text-flint dark:text-flint-light">{key.keyId.slice(0, 8)}...</code>
+                    <code class="text-xs text-flint-dark dark:text-flint-light">{key.keyId.slice(0, 8)}...</code>
                   </td>
-                  <td class="py-2.5 pr-4 text-flint dark:text-flint-light">{key.rateLimit} requests per minute</td>
+                  <td class="py-2.5 pr-4 text-flint-dark dark:text-flint-light">{key.rateLimit} requests per minute</td>
                   <td class="py-2.5 pr-4">
                     {#if key.revoked}
-                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light border border-cinnabar/20">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-cinnabar/10 text-cinnabar-dark dark:text-cinnabar-light border border-cinnabar/20">
                         Revoked
                       </span>
                     {:else}
-                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-malachite/10 text-malachite dark:text-malachite-light border border-malachite/20">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-malachite/10 text-malachite-dark dark:text-malachite-light border border-malachite/20">
                         Active
                       </span>
                     {/if}
                   </td>
-                  <td class="py-2.5 pr-4 text-xs text-flint dark:text-flint-light">
+                  <td class="py-2.5 pr-4 text-xs text-flint-dark dark:text-flint-light">
                     {new Date(key.createdAt).toLocaleDateString()}
                   </td>
                   <td class="py-2.5 text-right">
@@ -2160,14 +2160,14 @@
                         <span class="inline-flex items-center gap-2">
                           <button
                             onclick={handleConfirmRevoke}
-                            class="text-xs font-medium text-cinnabar hover:text-cinnabar-dark dark:text-cinnabar-light transition-colors
+                            class="text-xs font-medium text-cinnabar-dark hover:text-cinnabar-dark dark:text-cinnabar-light transition-colors
                                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar rounded"
                           >
                             Confirm revoke
                           </button>
                           <button
                             onclick={handleCancelRevoke}
-                            class="text-xs text-flint hover:text-text-light dark:hover:text-quartz transition-colors
+                            class="text-xs text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                           >
                             Cancel
@@ -2176,7 +2176,7 @@
                       {:else}
                         <button
                           onclick={() => handleRequestRevoke(key.keyId)}
-                          class="text-xs font-medium text-cinnabar/70 hover:text-cinnabar dark:text-cinnabar-light/70 dark:hover:text-cinnabar-light transition-colors
+                          class="text-xs font-medium text-cinnabar-dark/70 hover:text-cinnabar-dark dark:text-cinnabar-light/70 dark:hover:text-cinnabar-light transition-colors
                                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar rounded"
                         >
                           Revoke
@@ -2189,7 +2189,7 @@
             </tbody>
           </table>
         </div>
-        <p class="mt-3 text-xs text-flint dark:text-flint-light">
+        <p class="mt-3 text-xs text-flint-dark dark:text-flint-light">
           {activeKeyCount} active key{activeKeyCount === 1 ? '' : 's'} &middot; {apiKeys.length} total
         </p>
       {/if}
@@ -2203,7 +2203,7 @@
     aria-labelledby="network-access-heading"
   >
     <h2 id="network-access-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-1">Network Access</h2>
-    <p class="text-xs text-flint dark:text-flint-light mb-5">
+    <p class="text-xs text-flint-dark dark:text-flint-light mb-5">
       Controls whether Jura Trace makes outbound network connections. Standard mode is fully local with no external calls. Enhanced mode enables online certificate verification and remote Content Credentials retrieval.
     </p>
 
@@ -2228,7 +2228,7 @@
         {/if}
 
         <h3 class="text-sm font-semibold text-text-light dark:text-quartz mb-1 pr-14">Standard</h3>
-        <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-4">
+        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-4">
           Fully local — no outbound network connections. Certificate revocation checks are skipped. Recommended for air-gapped environments.
         </p>
 
@@ -2266,7 +2266,7 @@
       >
         {#if networkMode === 'enhanced'}
           <span
-            class="absolute top-3 right-3 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber/15 text-amber dark:text-amber-light border border-amber/30"
+            class="absolute top-3 right-3 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber/15 text-amber-dark dark:text-amber-light border border-amber/30"
             aria-label="Currently active"
           >
             Active
@@ -2274,7 +2274,7 @@
         {/if}
 
         <h3 class="text-sm font-semibold text-text-light dark:text-quartz mb-1 pr-14">Enhanced</h3>
-        <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-4">
+        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-4">
           Enables online verification features including certificate revocation checks (OCSP/CRL) and remote Content Credentials retrieval. Network calls are made only during verification.
         </p>
 
@@ -2283,9 +2283,9 @@
             type="button"
             onclick={() => handleNetworkModeChange('enhanced')}
             disabled={networkModeChanging}
-            class="mt-auto self-start px-4 py-2 min-h-[44px] text-sm font-medium rounded border border-amber/60 text-amber dark:text-amber-light
-                   hover:bg-amber/10 hover:border-amber transition-colors
-                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber focus-visible:ring-offset-2
+            class="mt-auto self-start px-4 py-2 min-h-[44px] text-sm font-medium rounded bg-lapis text-white
+                   hover:bg-lapis-dark transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
                    focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite
                    disabled:opacity-50 disabled:cursor-not-allowed"
             aria-busy={networkModeChanging}
@@ -2308,7 +2308,7 @@
       class="text-xs px-3 py-2 rounded border inline-flex items-center gap-1.5
              {networkMode === 'standard'
                ? 'text-lapis dark:text-lapis-light border-lapis/20 bg-lapis/5'
-               : 'text-amber dark:text-amber-light border-amber/20 bg-amber/5'}"
+               : 'text-amber-dark dark:text-amber-light border-amber/20 bg-amber/5'}"
       aria-live="polite"
     >
       <span class="font-medium">Current mode:</span>
@@ -2319,8 +2319,8 @@
       <p
         class="mt-3 text-sm px-3 py-2 rounded border
                {networkModeFeedback.ok
-                 ? 'text-malachite dark:text-malachite-light border-malachite/20 bg-malachite/5'
-                 : 'text-cinnabar dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
+                 ? 'text-malachite-dark dark:text-malachite-light border-malachite/20 bg-malachite/5'
+                 : 'text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
         role="status"
         aria-live="polite"
       >

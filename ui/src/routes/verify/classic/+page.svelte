@@ -474,10 +474,10 @@
 
   const trustTextClass = $derived(() => {
     const level = trustLevel();
-    if (!level) return 'text-flint dark:text-flint-light';
-    if (level === 'high') return 'text-malachite dark:text-malachite-light';
-    if (level === 'medium') return 'text-amber dark:text-amber-light';
-    return 'text-cinnabar dark:text-cinnabar-light';
+    if (!level) return 'text-flint-dark dark:text-flint-light';
+    if (level === 'high') return 'text-malachite-dark dark:text-malachite-light';
+    if (level === 'medium') return 'text-amber-dark dark:text-amber-light';
+    return 'text-cinnabar-dark dark:text-cinnabar-light';
   });
 
   const trustLabelText = $derived(() => {
@@ -1296,9 +1296,9 @@
   }
 
   function forensicScoreClass(score: number): string {
-    if (score < 0.3) return 'text-malachite dark:text-malachite-light';
-    if (score < 0.6) return 'text-amber dark:text-amber-light';
-    return 'text-cinnabar dark:text-cinnabar-light';
+    if (score < 0.3) return 'text-malachite-dark dark:text-malachite-light';
+    if (score < 0.6) return 'text-amber-dark dark:text-amber-light';
+    return 'text-cinnabar-dark dark:text-cinnabar-light';
   }
 
   /** Sidecar-dependent detectors that cannot run when the analysis engine is offline. */
@@ -2013,7 +2013,7 @@
   <div class="flex items-start justify-between">
     <div>
       <h1 class="text-2xl font-heading text-text-light dark:text-quartz">Verify</h1>
-      <p class="text-flint dark:text-flint-light text-sm mt-1">
+      <p class="text-flint-dark dark:text-flint-light text-sm mt-1">
         Check the authenticity and provenance of files. All analysis happens locally on your device.
       </p>
       <!-- Inline Analysis Engine status — visible in both Simple and Expert views -->
@@ -2022,7 +2022,7 @@
           class="w-2 h-2 rounded-full flex-shrink-0 {sidecarAvailable ? 'bg-malachite' : 'bg-amber'}"
           aria-hidden="true"
         ></span>
-        <span class="text-xs {sidecarAvailable ? 'text-malachite dark:text-malachite-light' : 'text-amber dark:text-amber-light'}">
+        <span class="text-xs {sidecarAvailable ? 'text-malachite-dark dark:text-malachite-light' : 'text-amber-dark dark:text-amber-light'}">
           {sidecarAvailable ? 'Analysis Engine online' : 'Limited analysis — Analysis Engine offline'}
         </span>
       </div>
@@ -2031,7 +2031,7 @@
       <!-- v2 preview link -->
       <a
         href="/verify"
-        class="text-xs text-flint dark:text-flint-light hover:text-lapis-light dark:hover:text-lapis-light transition-colors underline underline-offset-2 whitespace-nowrap
+        class="text-xs text-flint-dark dark:text-flint-light hover:text-lapis dark:text-lapis-light dark:hover:text-lapis dark:text-lapis-light transition-colors underline underline-offset-2 whitespace-nowrap
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
         aria-label="Try the new hybrid layout (preview)"
       >Try new layout</a>
@@ -2060,7 +2060,7 @@
               class="px-3 py-2 min-h-[44px] text-left transition-colors duration-150
                      {verifyMode === opt.mode
                        ? 'bg-lapis/20 text-lapis dark:text-lapis-light'
-                       : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}
+                       : 'text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis"
               role="radio"
               aria-checked={verifyMode === opt.mode}
@@ -2070,7 +2070,7 @@
               <span class="block text-xs leading-tight mt-0.5
                            {verifyMode === opt.mode
                              ? 'text-lapis/70 dark:text-lapis-light/70'
-                             : 'text-flint/70 dark:text-flint-light/70'}">
+                             : 'text-flint-dark dark:text-flint-light'}">
                 {opt.description}
               </span>
             </button>
@@ -2084,9 +2084,9 @@
         class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border
                {sidecarAvailable
                  ? sidecarDegraded()
-                   ? 'bg-amber/10 text-amber dark:text-amber-light border-amber/20'
-                   : 'bg-malachite/10 text-malachite dark:text-malachite-light border-malachite/20'
-                 : 'bg-white dark:bg-graphite text-flint dark:text-flint-light border-border-light dark:border-border-dark'}"
+                   ? 'bg-amber/10 text-amber-dark dark:text-amber-light border-amber/20'
+                   : 'bg-malachite/10 text-malachite-dark dark:text-malachite-light border-malachite/20'
+                 : 'bg-white dark:bg-graphite text-flint-dark dark:text-flint-light border-border-light dark:border-border-dark'}"
         title={sidecarAvailable
           ? sidecarDegraded()
             ? `Analysis services limited — ${sidecarDegradedHint()}`
@@ -2114,9 +2114,9 @@
   {#if error}
     <div
       class="rounded-lg px-4 py-3 text-sm border
-        {errorType === 'sidecar' ? 'bg-amber/10 border-amber/30 text-amber dark:text-amber-light' :
+        {errorType === 'sidecar' ? 'bg-amber/10 border-amber/30 text-amber-dark dark:text-amber-light' :
          errorType === 'format' ? 'bg-lapis/10 border-lapis/30 text-lapis dark:text-lapis-light' :
-         'bg-cinnabar/10 border-cinnabar/30 text-cinnabar dark:text-cinnabar-light'}"
+         'bg-cinnabar/10 border-cinnabar/30 text-cinnabar-dark dark:text-cinnabar-light'}"
       role="alert"
       aria-live="assertive"
       data-testid="error-banner"
@@ -2143,7 +2143,7 @@
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                  {activeTab === 'file'
                    ? 'text-lapis dark:text-lapis-light border-lapis'
-                   : 'text-flint dark:text-flint-light border-transparent hover:text-text-light dark:hover:text-quartz'}"
+                   : 'text-flint-dark dark:text-flint-light border-transparent hover:text-text-light dark:hover:text-quartz'}"
           role="tab"
           aria-selected={activeTab === 'file'}
           aria-controls="tab-panel-file"
@@ -2157,7 +2157,7 @@
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                  {activeTab === 'batch'
                    ? 'text-lapis dark:text-lapis-light border-lapis'
-                   : 'text-flint dark:text-flint-light border-transparent hover:text-text-light dark:hover:text-quartz'}"
+                   : 'text-flint-dark dark:text-flint-light border-transparent hover:text-text-light dark:hover:text-quartz'}"
           role="tab"
           aria-selected={activeTab === 'batch'}
           aria-controls="tab-panel-batch"
@@ -2166,7 +2166,7 @@
         >
           Batch
           {#if batchItems.length > 0}
-            <span class="ml-1 text-xs text-flint dark:text-flint-light" aria-label="{batchItems.length} files queued">({batchItems.length})</span>
+            <span class="ml-1 text-xs text-flint-dark dark:text-flint-light" aria-label="{batchItems.length} files queued">({batchItems.length})</span>
           {/if}
         </button>
         <button
@@ -2174,7 +2174,7 @@
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                  {activeTab === 'url'
                    ? 'text-lapis dark:text-lapis-light border-lapis'
-                   : 'text-flint dark:text-flint-light border-transparent hover:text-text-light dark:hover:text-quartz'}"
+                   : 'text-flint-dark dark:text-flint-light border-transparent hover:text-text-light dark:hover:text-quartz'}"
           role="tab"
           aria-selected={activeTab === 'url'}
           aria-controls="tab-panel-url"
@@ -2213,34 +2213,34 @@
               aria-label={analysisPhase ?? 'Analysing file'}
             ></div>
             {#if analysisPhase}
-              <p class="text-sm text-flint dark:text-flint-light">{analysisPhase}</p>
+              <p class="text-sm text-flint-dark dark:text-flint-light">{analysisPhase}</p>
             {:else if verifyMode === 'archival'}
-              <p class="text-sm text-flint dark:text-flint-light">Running all 19 forensic detectors — this takes 30–60 seconds...</p>
+              <p class="text-sm text-flint-dark dark:text-flint-light">Running all 19 forensic detectors — this takes 30–60 seconds...</p>
             {:else if verifyMode === 'deep'}
-              <p class="text-sm text-flint dark:text-flint-light">Running deep forensic analysis — this takes 15–30 seconds...</p>
+              <p class="text-sm text-flint-dark dark:text-flint-light">Running deep forensic analysis — this takes 15–30 seconds...</p>
             {:else}
-              <p class="text-sm text-flint dark:text-flint-light">Analysing file...</p>
+              <p class="text-sm text-flint-dark dark:text-flint-light">Analysing file...</p>
             {/if}
             {#if fileName}
-              <p class="text-xs text-flint/70 dark:text-flint-light/70">{fileName}</p>
+              <p class="text-xs text-flint-dark dark:text-flint-light">{fileName}</p>
             {/if}
             {#if analysisElapsed > 2}
-              <p class="text-xs text-flint/50 dark:text-flint-light/50 tabular-nums">
+              <p class="text-xs text-flint-dark dark:text-flint-light tabular-nums">
                 {analysisElapsed}s elapsed — analysis is running, please wait
               </p>
             {/if}
           </div>
         {:else}
           <div class="flex flex-col items-center gap-2">
-            <svg class="w-10 h-10 text-flint dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <svg class="w-10 h-10 text-flint-dark dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                 d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
             <p class="text-text-light dark:text-quartz font-medium">Drop a file to verify</p>
-            <p class="text-xs text-flint dark:text-flint-light">
+            <p class="text-xs text-flint-dark dark:text-flint-light">
               or click to browse
             </p>
-            <p class="text-xs text-flint dark:text-flint-light mt-1">
+            <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
               Supported: JPEG, PNG, TIFF, WebP, PDF, MP4, MOV, WAV, MP3
             </p>
           </div>
@@ -2259,13 +2259,13 @@
           aria-atomic="false"
           aria-label="Video analysis progress"
         >
-          <p class="text-xs text-flint dark:text-flint-light">{estimatedTime}</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light">{estimatedTime}</p>
           <button
             type="button"
             onclick={cancelAnalysis}
             class="text-xs px-3 py-1.5 min-h-[32px] rounded border border-border-light dark:border-border-dark
-                   text-flint dark:text-flint-light
-                   hover:text-cinnabar hover:border-cinnabar/50 dark:hover:text-cinnabar-light dark:hover:border-cinnabar-light/50
+                   text-flint-dark dark:text-flint-light
+                   hover:text-cinnabar-dark dark:text-cinnabar-light hover:border-cinnabar/50 dark:hover:text-cinnabar-light dark:hover:border-cinnabar-light/50
                    transition-colors duration-150
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
                    focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
@@ -2273,7 +2273,7 @@
           >
             Cancel analysis
           </button>
-          <p class="text-xs text-flint/50 dark:text-flint-light/60">
+          <p class="text-xs text-flint-dark dark:text-flint-light">
             Press Escape to cancel
           </p>
         </div>
@@ -2299,12 +2299,12 @@
         aria-label="Drop files here or click to select files for batch verification"
       >
         <div class="flex flex-col items-center gap-2">
-          <svg class="w-8 h-8 text-flint dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <svg class="w-8 h-8 text-flint-dark dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
               d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
           </svg>
           <p class="text-text-light dark:text-quartz font-medium">Drop multiple files to verify</p>
-          <p class="text-xs text-flint dark:text-flint-light">or click to browse — files will be queued for sequential verification</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light">or click to browse — files will be queued for sequential verification</p>
         </div>
       </button>
 
@@ -2325,12 +2325,12 @@
                 Run Batch
               {/if}
             </button>
-            <span class="text-xs text-flint dark:text-flint-light">
+            <span class="text-xs text-flint-dark dark:text-flint-light">
               {batchCompleted} of {batchItems.length} complete
             </span>
           </div>
           <button
-            class="text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+            class="text-xs text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-2 py-1"
             onclick={clearBatch}
             disabled={batchRunning}
@@ -2339,7 +2339,7 @@
           </button>
           {#if batchCompleted > 0}
             <button
-              class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-malachite/50 text-malachite dark:text-malachite-light hover:bg-malachite/10 transition-colors
+              class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-malachite/50 text-malachite-dark dark:text-malachite-light hover:bg-malachite/10 transition-colors
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-malachite focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
               onclick={downloadBatchReport}
               aria-label="Download batch verification results as a CSV spreadsheet"
@@ -2356,7 +2356,7 @@
         <!-- Results table -->
         <div class="mt-4 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark overflow-x-auto">
           <!-- Header -->
-          <div class="grid grid-cols-[1fr_90px_80px_80px_60px] gap-3 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint dark:text-flint-light uppercase tracking-wide min-w-[480px]">
+          <div class="grid grid-cols-[1fr_90px_80px_80px_60px] gap-3 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide min-w-[480px]">
             <span>File</span>
             <span>Status</span>
             <span>Trust</span>
@@ -2390,7 +2390,7 @@
                 <!-- Status -->
                 <span class="text-xs self-center">
                   {#if item.status === 'queued'}
-                    <span class="text-flint dark:text-flint-light">Queued</span>
+                    <span class="text-flint-dark dark:text-flint-light">Queued</span>
                   {:else if item.status === 'running'}
                     <span class="flex items-center gap-1.5">
                       <span
@@ -2403,13 +2403,13 @@
                   {:else if item.status === 'done'}
                     {@const level = getTrustLevel(item.result?.overallTrust ?? 0)}
                     <span class="font-medium px-1.5 py-0.5 rounded
-                      {level === 'high' ? 'text-malachite dark:text-malachite-light bg-malachite/10' :
-                       level === 'medium' ? 'text-amber dark:text-amber-light bg-amber/10' :
-                       'text-cinnabar dark:text-cinnabar-light bg-cinnabar/10'}">
+                      {level === 'high' ? 'text-malachite-dark dark:text-malachite-light bg-malachite/10' :
+                       level === 'medium' ? 'text-amber-dark dark:text-amber-light bg-amber/10' :
+                       'text-cinnabar-dark dark:text-cinnabar-light bg-cinnabar/10'}">
                       Done
                     </span>
                   {:else}
-                    <span class="text-cinnabar dark:text-cinnabar-light">Error</span>
+                    <span class="text-cinnabar-dark dark:text-cinnabar-light">Error</span>
                   {/if}
                 </span>
 
@@ -2417,16 +2417,16 @@
                 <span class="text-xs tabular-nums self-center">
                   {#if item.status === 'done' && item.result}
                     {@const level = getTrustLevel(item.result.overallTrust)}
-                    <span class="{level === 'high' ? 'text-malachite dark:text-malachite-light' : level === 'medium' ? 'text-amber dark:text-amber-light' : 'text-cinnabar dark:text-cinnabar-light'}">
+                    <span class="{level === 'high' ? 'text-malachite-dark dark:text-malachite-light' : level === 'medium' ? 'text-amber-dark dark:text-amber-light' : 'text-cinnabar-dark dark:text-cinnabar-light'}">
                       {Math.round(item.result.overallTrust * 100)}%
                     </span>
                   {:else}
-                    <span class="text-flint/50 dark:text-flint-light/60">—</span>
+                    <span class="text-flint-dark dark:text-flint-light">—</span>
                   {/if}
                 </span>
 
                 <!-- Duration -->
-                <span class="text-xs text-flint dark:text-flint-light tabular-nums self-center">
+                <span class="text-xs text-flint-dark dark:text-flint-light tabular-nums self-center">
                   {#if item.startedAt && item.finishedAt}
                     {formatDuration(item.startedAt, item.finishedAt)}
                   {:else}
@@ -2438,7 +2438,7 @@
                 <span class="self-center text-right">
                   {#if !batchRunning || item.status !== 'running'}
                     <button
-                      class="text-xs text-flint dark:text-flint-light hover:text-cinnabar dark:hover:text-cinnabar-light transition-colors p-1 min-w-[24px] min-h-[24px]
+                      class="text-xs text-flint-dark dark:text-flint-light hover:text-cinnabar-dark dark:text-cinnabar-light dark:hover:text-cinnabar-light transition-colors p-1 min-w-[24px] min-h-[24px]
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                       onclick={(e) => { e.stopPropagation(); removeBatchItem(item.id); }}
                       aria-label="Remove {item.fileName}"
@@ -2451,7 +2451,7 @@
 
               <!-- Error message -->
               {#if item.status === 'error' && item.error}
-                <div class="px-4 py-2 bg-cinnabar/5 text-xs text-cinnabar dark:text-cinnabar-light">
+                <div class="px-4 py-2 bg-cinnabar/5 text-xs text-cinnabar-dark dark:text-cinnabar-light">
                   {item.error}
                 </div>
               {/if}
@@ -2481,7 +2481,7 @@
           placeholder="https://example.com/image.jpg"
           disabled={loading}
           class="flex-1 bg-white dark:bg-obsidian border border-border-light dark:border-border-dark rounded-lg px-4 py-3 text-sm text-text-light dark:text-quartz
-                 placeholder:text-flint/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-lapis
+                 placeholder:text-flint-dark dark:text-flint-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-lapis
                  disabled:opacity-50"
           onkeydown={(e) => { if (e.key === 'Enter') runUrlVerification(); }}
         />
@@ -2499,7 +2499,7 @@
           {/if}
         </button>
       </div>
-      <p class="text-xs text-flint dark:text-flint-light mt-2">
+      <p class="text-xs text-flint-dark dark:text-flint-light mt-2">
         Enter a URL to an image or document. The content will be downloaded and analysed locally.
       </p>
     </div>
@@ -2895,7 +2895,7 @@
                   >Add</button>
                   <button
                     type="button"
-                    class="text-xs px-1 py-1 text-flint hover:text-cinnabar"
+                    class="text-xs px-1 py-1 text-flint-dark dark:text-flint-light hover:text-cinnabar-dark dark:text-cinnabar-light"
                     onclick={cancelPendingText}
                     aria-label="Cancel text annotation"
                   >&times;</button>
@@ -2906,7 +2906,7 @@
             <!-- Image caption, inspection tools + overlay controls -->
             <div class="px-3 py-2.5 border-t border-border-light dark:border-border-dark bg-white/50 dark:bg-graphite/50 space-y-2.5">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-xs text-flint dark:text-flint-light truncate flex-1 min-w-0" title={fileName ?? undefined}>
+                <p class="text-xs text-flint-dark dark:text-flint-light truncate flex-1 min-w-0" title={fileName ?? undefined}>
                   {fileName}
                 </p>
                 <!-- Compare button — loads a second image for side-by-side inspection -->
@@ -2915,8 +2915,8 @@
                     type="button"
                     onclick={handleLoadComparison}
                     class="flex-shrink-0 text-xs px-2.5 py-1 min-h-[28px] rounded border border-border-light dark:border-border-dark
-                           text-flint dark:text-flint-light hover:border-lapis/50 dark:hover:border-lapis-light/50
-                           hover:text-lapis dark:hover:text-lapis-light transition-colors duration-150
+                           text-flint-dark dark:text-flint-light hover:border-lapis/50 dark:hover:border-lapis-light/50
+                           hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors duration-150
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1
                            focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
                     aria-label="Load a second image for side-by-side comparison"
@@ -2929,7 +2929,7 @@
                     type="button"
                     onclick={closeComparison}
                     class="flex-shrink-0 text-xs px-2.5 py-1 min-h-[28px] rounded border border-cinnabar/40
-                           text-cinnabar dark:text-cinnabar-light hover:bg-cinnabar/10 transition-colors duration-150
+                           text-cinnabar-dark dark:text-cinnabar-light hover:bg-cinnabar/10 transition-colors duration-150
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-1
                            focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
                     aria-label="Close comparison view"
@@ -2942,7 +2942,7 @@
               <!-- Inspection filter toolbar -->
               <div>
                 <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Visual inspection filters">
-                  <span class="text-xs text-flint dark:text-flint-light mr-0.5 flex-shrink-0">Inspect:</span>
+                  <span class="text-xs text-flint-dark dark:text-flint-light mr-0.5 flex-shrink-0">Inspect:</span>
 
                   {#each ([
                     { key: 'grayscale', label: 'Greyscale', title: 'Remove colour to reveal tonal patterns and cloning artefacts' },
@@ -2971,7 +2971,7 @@
                     <button
                       type="button"
                       onclick={resetInspection}
-                      class="text-xs px-2 py-1 min-h-[28px] text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+                      class="text-xs px-2 py-1 min-h-[28px] text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                       aria-label="Reset all image inspection filters"
                     >
@@ -2983,7 +2983,7 @@
                 <!-- Brightness / Contrast sliders -->
                 <div class="flex items-center gap-4 mt-2 flex-wrap">
                   <div class="flex items-center gap-2">
-                    <label class="text-xs text-flint dark:text-flint-light flex-shrink-0" for="inspect-brightness">Brightness</label>
+                    <label class="text-xs text-flint-dark dark:text-flint-light flex-shrink-0" for="inspect-brightness">Brightness</label>
                     <input
                       id="inspect-brightness"
                       type="range"
@@ -2993,10 +2993,10 @@
                       class="w-20 accent-lapis cursor-pointer"
                       aria-label="Image brightness: {brightness}%"
                     />
-                    <span class="text-xs tabular-nums text-flint dark:text-flint-light w-9 flex-shrink-0">{brightness}%</span>
+                    <span class="text-xs tabular-nums text-flint-dark dark:text-flint-light w-9 flex-shrink-0">{brightness}%</span>
                   </div>
                   <div class="flex items-center gap-2">
-                    <label class="text-xs text-flint dark:text-flint-light flex-shrink-0" for="inspect-contrast">Contrast</label>
+                    <label class="text-xs text-flint-dark dark:text-flint-light flex-shrink-0" for="inspect-contrast">Contrast</label>
                     <input
                       id="inspect-contrast"
                       type="range"
@@ -3006,7 +3006,7 @@
                       class="w-20 accent-lapis cursor-pointer"
                       aria-label="Image contrast: {contrast}%"
                     />
-                    <span class="text-xs tabular-nums text-flint dark:text-flint-light w-9 flex-shrink-0">{contrast}%</span>
+                    <span class="text-xs tabular-nums text-flint-dark dark:text-flint-light w-9 flex-shrink-0">{contrast}%</span>
                   </div>
                 </div>
 
@@ -3014,7 +3014,7 @@
                 <div class="mt-1.5 flex flex-wrap items-center gap-3">
                   <a
                     href="/help/verify"
-                    class="text-xs text-lapis dark:text-lapis-light hover:underline
+                    class="text-xs text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                   >
                     Visual inspection guide (help docs)
@@ -3049,7 +3049,7 @@
                   {/if}
 
                   {#if roiLoading}
-                    <span class="flex items-center gap-1.5 text-xs text-flint dark:text-flint-light">
+                    <span class="flex items-center gap-1.5 text-xs text-flint-dark dark:text-flint-light">
                       <span class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Analysing region"></span>
                       Analysing...
                     </span>
@@ -3114,7 +3114,7 @@
                         role="group"
                         aria-label="Annotation colour"
                       >
-                        <span class="text-xs text-flint dark:text-flint-light flex-shrink-0 mr-0.5">Colour:</span>
+                        <span class="text-xs text-flint-dark dark:text-flint-light flex-shrink-0 mr-0.5">Colour:</span>
                         {#each annotationColours as swatch}
                           <button
                             type="button"
@@ -3138,8 +3138,8 @@
                         <button
                           type="button"
                           onclick={clearAllAnnotations}
-                          class="text-xs ml-auto px-2 py-1 min-h-[28px] text-flint dark:text-flint-light
-                                 hover:text-cinnabar dark:hover:text-cinnabar-light transition-colors duration-150
+                          class="text-xs ml-auto px-2 py-1 min-h-[28px] text-flint-dark dark:text-flint-light
+                                 hover:text-cinnabar-dark dark:text-cinnabar-light dark:hover:text-cinnabar-light transition-colors duration-150
                                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                           aria-label="Clear all annotations from this image"
                         >
@@ -3148,7 +3148,7 @@
                       {/if}
                     </div>
 
-                    <p class="mt-1.5 text-xs text-flint/70 dark:text-flint-light/60" aria-live="polite">
+                    <p class="mt-1.5 text-xs text-flint-dark dark:text-flint-light" aria-live="polite">
                       {annotations.length === 0
                         ? annotationTool === 'text'
                           ? 'Click on the image to place a text label.'
@@ -3160,7 +3160,7 @@
 
                 <!-- ROI results panel -->
                 {#if roiError}
-                  <div class="mt-2 rounded-md px-3 py-2 bg-cinnabar/10 border border-cinnabar/30 text-xs text-cinnabar dark:text-cinnabar-light" role="alert">
+                  <div class="mt-2 rounded-md px-3 py-2 bg-cinnabar/10 border border-cinnabar/30 text-xs text-cinnabar-dark dark:text-cinnabar-light" role="alert">
                     {roiError}
                   </div>
                 {/if}
@@ -3174,27 +3174,27 @@
                     <p class="text-xs font-medium text-text-light dark:text-quartz mb-2">Region Analysis</p>
                     <dl class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                       <div class="flex justify-between gap-2">
-                        <dt class="text-flint dark:text-flint-light">Noise Std</dt>
-                        <dd class="tabular-nums font-medium {roiResult.noiseStd > 8 ? 'text-cinnabar dark:text-cinnabar-light' : roiResult.noiseStd > 4 ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}">{roiResult.noiseStd.toFixed(2)}</dd>
+                        <dt class="text-flint-dark dark:text-flint-light">Noise Std</dt>
+                        <dd class="tabular-nums font-medium {roiResult.noiseStd > 8 ? 'text-cinnabar-dark dark:text-cinnabar-light' : roiResult.noiseStd > 4 ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}">{roiResult.noiseStd.toFixed(2)}</dd>
                       </div>
                       <div class="flex justify-between gap-2">
-                        <dt class="text-flint dark:text-flint-light">Noise Mean</dt>
+                        <dt class="text-flint-dark dark:text-flint-light">Noise Mean</dt>
                         <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{roiResult.noiseMean.toFixed(2)}</dd>
                       </div>
                       <div class="flex justify-between gap-2">
-                        <dt class="text-flint dark:text-flint-light">ELA Mean</dt>
-                        <dd class="tabular-nums font-medium {roiResult.elaMean > 0.4 ? 'text-cinnabar dark:text-cinnabar-light' : roiResult.elaMean > 0.2 ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}">{(roiResult.elaMean * 100).toFixed(1)}%</dd>
+                        <dt class="text-flint-dark dark:text-flint-light">ELA Mean</dt>
+                        <dd class="tabular-nums font-medium {roiResult.elaMean > 0.4 ? 'text-cinnabar-dark dark:text-cinnabar-light' : roiResult.elaMean > 0.2 ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}">{(roiResult.elaMean * 100).toFixed(1)}%</dd>
                       </div>
                       <div class="flex justify-between gap-2">
-                        <dt class="text-flint dark:text-flint-light">Freq. Energy</dt>
+                        <dt class="text-flint-dark dark:text-flint-light">Freq. Energy</dt>
                         <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{(roiResult.frequencyEnergy * 100).toFixed(1)}%</dd>
                       </div>
                       <div class="flex justify-between gap-2 col-span-2">
-                        <dt class="text-flint dark:text-flint-light">Texture Complexity</dt>
+                        <dt class="text-flint-dark dark:text-flint-light">Texture Complexity</dt>
                         <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{(roiResult.textureComplexity * 100).toFixed(1)}%</dd>
                       </div>
                     </dl>
-                    <p class="text-xs text-flint/70 dark:text-flint-light/60 pt-1">
+                    <p class="text-xs text-flint-dark dark:text-flint-light pt-1">
                       Region: {roiResult.roi.width}&times;{roiResult.roi.height} px at ({roiResult.roi.x}, {roiResult.roi.y})
                     </p>
                   </div>
@@ -3210,7 +3210,7 @@
                       class="w-3.5 h-3.5 rounded accent-lapis cursor-pointer"
                       aria-describedby="ela-overlay-hint"
                     />
-                    <span class="text-xs text-flint dark:text-flint-light">Show ELA overlay</span>
+                    <span class="text-xs text-flint-dark dark:text-flint-light">Show ELA overlay</span>
                   </label>
                   {#if showElaOverlay}
                     <div class="flex items-center gap-3 flex-wrap" id="ela-overlay-hint">
@@ -3226,10 +3226,10 @@
                           class="w-24 h-1.5 rounded-full accent-lapis cursor-pointer"
                           aria-label="ELA overlay opacity: {elaOpacity}%"
                         />
-                        <span class="text-xs tabular-nums text-flint dark:text-flint-light w-8 flex-shrink-0">{elaOpacity}%</span>
+                        <span class="text-xs tabular-nums text-flint-dark dark:text-flint-light w-8 flex-shrink-0">{elaOpacity}%</span>
                       </div>
                       <div class="flex items-center gap-1.5">
-                        <label class="text-xs text-flint dark:text-flint-light" for="ela-blend-mode">Blend:</label>
+                        <label class="text-xs text-flint-dark dark:text-flint-light" for="ela-blend-mode">Blend:</label>
                         <select
                           id="ela-blend-mode"
                           bind:value={elaBlendMode}
@@ -3282,7 +3282,7 @@
                   <span class="text-gray-600 dark:text-flint-light whitespace-nowrap">{signal.shortName}</span>
                   {#if showRawScores && scoreData}
                     <span
-                      class="tabular-nums text-flint/70 dark:text-flint-light/70 ml-0.5"
+                      class="tabular-nums text-flint-dark dark:text-flint-light ml-0.5"
                       aria-hidden="true"
                     >
                       {(scoreData.score * 100).toFixed(1)}%
@@ -3304,13 +3304,13 @@
         >
           <!-- Comparison header -->
           <div class="flex items-center justify-between px-4 py-2.5 border-b border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40">
-            <p class="text-xs font-medium text-flint dark:text-flint-light uppercase tracking-wide">
+            <p class="text-xs font-medium text-flint-dark dark:text-flint-light uppercase tracking-wide">
               Side-by-side Comparison
             </p>
             <button
               type="button"
               onclick={closeComparison}
-              class="text-xs text-flint dark:text-flint-light hover:text-cinnabar dark:hover:text-cinnabar-light transition-colors
+              class="text-xs text-flint-dark dark:text-flint-light hover:text-cinnabar-dark dark:text-cinnabar-light dark:hover:text-cinnabar-light transition-colors
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-1.5 py-1 min-h-[28px]"
               aria-label="Close comparison view"
             >
@@ -3371,7 +3371,7 @@
           <!-- Comparison caption -->
           {#if comparisonFileName}
             <div class="px-4 py-2 border-t border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/30">
-              <p class="text-xs text-flint dark:text-flint-light truncate">
+              <p class="text-xs text-flint-dark dark:text-flint-light truncate">
                 <span class="font-medium">Comparison:</span> {comparisonFileName}
               </p>
             </div>
@@ -3386,7 +3386,7 @@
         <div class="flex items-center gap-4 min-w-0">
           <div>
             <div class="flex items-center gap-1.5 mb-0.5">
-              <p class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Trust Score</p>
+              <p class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Trust Score</p>
               <ContextualHelpLink href="/help/verify#trust-score" label="Learn about trust scores" />
             </div>
             <div class="flex items-baseline gap-2">
@@ -3409,7 +3409,7 @@
                            ? 'bg-lapis/15 text-lapis dark:text-lapis-light border-lapis/30'
                            : result.mode === 'deep'
                              ? 'bg-lapis/10 text-lapis dark:text-lapis-light border-lapis/20'
-                             : 'bg-gray-100 dark:bg-graphite text-flint dark:text-flint-light border-border-light dark:border-border-dark'}"
+                             : 'bg-gray-100 dark:bg-graphite text-flint-dark dark:text-flint-light border-border-light dark:border-border-dark'}"
                   title="Investigation mode used for this analysis"
                   aria-label="Investigation mode: {result.mode}"
                 >
@@ -3417,7 +3417,7 @@
                 </span>
               {/if}
             </div>
-            <p class="text-xs text-flint dark:text-flint-light mt-0.5">
+            <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5">
               {result.contentType}
               {#if result.sourceType === 'url'}
                 <span class="ml-1 text-lapis dark:text-lapis-light">(via URL)</span>
@@ -3435,7 +3435,7 @@
                    focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
                    {showRawScores
                      ? 'border-lapis bg-lapis/10 text-lapis dark:text-lapis-light'
-                     : 'border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
+                     : 'border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
             onclick={() => {
               showRawScores = !showRawScores;
               localStorage.setItem('jura-raw-scores-default', String(showRawScores));
@@ -3456,7 +3456,7 @@
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                      {viewMode === 'simple'
                        ? 'bg-lapis text-white dark:bg-lapis text-white'
-                       : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
+                       : 'text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
               aria-pressed={viewMode === 'simple'}
             >
               Simple
@@ -3467,14 +3467,14 @@
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                      {viewMode === 'expert'
                        ? 'bg-lapis text-white dark:bg-lapis text-white'
-                       : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
+                       : 'text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz'}"
               aria-pressed={viewMode === 'expert'}
             >
               Expert
             </button>
           </div>
           <button
-            class="flex-shrink-0 text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors duration-150
+            class="flex-shrink-0 text-xs text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors duration-150
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-2 py-1 min-h-[44px] min-w-[44px] flex items-center"
             onclick={reset}
             aria-label="Clear result and verify another file"
@@ -3488,7 +3488,7 @@
       {#if result.metadataFlags.length > 0}
         <div class="px-5 py-3 border-b border-border-light dark:border-border-dark flex flex-wrap gap-2" aria-label="Metadata flags">
           {#each result.metadataFlags as flag}
-            <span class="text-xs px-2 py-0.5 rounded bg-amber/10 text-amber dark:text-amber-light border border-amber/20">
+            <span class="text-xs px-2 py-0.5 rounded bg-amber/10 text-amber-dark dark:text-amber-light border border-amber/20">
               {flag}
             </span>
           {/each}
@@ -3524,7 +3524,7 @@
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite
                      {activeSection === navItem.id
                        ? 'bg-lapis/15 text-lapis dark:text-lapis-light font-medium'
-                       : 'text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:bg-gray-100 dark:hover:bg-graphite-light/40'}"
+                       : 'text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:bg-gray-100 dark:hover:bg-graphite-light/40'}"
               aria-label="Jump to {navItem.label} section"
             >
               {navItem.label}
@@ -3557,7 +3557,7 @@
           <div class="flex items-start gap-3">
             <!-- Info icon -->
             <svg
-              class="flex-shrink-0 w-4 h-4 mt-0.5 text-amber dark:text-amber-light"
+              class="flex-shrink-0 w-4 h-4 mt-0.5 text-amber-dark dark:text-amber-light"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -3568,15 +3568,15 @@
             </svg>
 
             <div class="flex-1 min-w-0">
-              <p class="text-xs leading-relaxed text-amber dark:text-amber-light">
+              <p class="text-xs leading-relaxed text-amber-dark dark:text-amber-light">
                 {bannerText}
               </p>
 
               <!-- "Why?" expandable -->
               <details class="group mt-2">
                 <summary
-                  class="text-xs text-amber/80 dark:text-amber-light/80 cursor-pointer list-none
-                         flex items-center gap-1.5 hover:text-amber dark:hover:text-amber-light
+                  class="text-xs text-amber-dark/80 dark:text-amber-light/80 cursor-pointer list-none
+                         flex items-center gap-1.5 hover:text-amber-dark dark:hover:text-amber-light
                          transition-colors focus-visible:outline-none focus-visible:ring-2
                          focus-visible:ring-amber focus-visible:ring-offset-1
                          focus-visible:ring-offset-amber/10 rounded min-h-[24px]"
@@ -3592,7 +3592,7 @@
                   Why?
                 </summary>
 
-                <div class="mt-2 space-y-2 text-xs text-amber/70 dark:text-amber-light/70">
+                <div class="mt-2 space-y-2 text-xs text-amber-dark/70 dark:text-amber-light/70">
                   <p class="leading-relaxed">{ct.reasoning}</p>
 
                   <!-- Key signals -->
@@ -3600,7 +3600,7 @@
                     <ul class="space-y-0.5" role="list" aria-label="Classification signals">
                       {#each Object.entries(ct.signals).slice(0, 5) as [key, val] (key)}
                         <li class="font-mono">
-                          <span class="text-amber/50 dark:text-amber-light/50">{key}:</span>
+                          <span class="text-amber-dark/50 dark:text-amber-light/50">{key}:</span>
                           <span class="ml-1">
                             {typeof val === 'number'
                               ? (val as number) < 1 ? `${Math.round((val as number) * 100)}%` : String(val)
@@ -3611,7 +3611,7 @@
                     </ul>
                   {/if}
 
-                  <p class="text-amber/50 dark:text-amber-light/50 italic">
+                  <p class="text-amber-dark/50 dark:text-amber-light/50 italic">
                     Confidence: {Math.round(ct.confidence * 100)}%
                   </p>
                 </div>
@@ -3665,7 +3665,7 @@
               type="button"
               onclick={() => { showFalsePositiveModal = true; }}
               class="min-h-[44px] px-4 py-2.5 text-sm font-medium rounded-lg border
-                     border-border-light dark:border-border-dark text-flint dark:text-flint-light
+                     border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light
                      hover:text-text-light dark:hover:text-quartz hover:border-lapis/30 transition-colors
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                      focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
@@ -3689,14 +3689,14 @@
 
       <!-- ── Back to Simple View (Expert View header) ─────────────── -->
       <div class="px-5 py-3 border-b border-border-light dark:border-border-dark flex items-center justify-between">
-        <p class="text-xs text-flint dark:text-flint-light">
+        <p class="text-xs text-flint-dark dark:text-flint-light">
           Expert view — full forensic breakdown
         </p>
         <button
           type="button"
           onclick={() => { viewMode = 'simple'; }}
           class="text-xs px-3 py-1.5 min-h-[36px] rounded border border-border-light dark:border-border-dark
-                 text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz
+                 text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz
                  hover:border-lapis/50 transition-colors duration-150
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                  focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
@@ -3736,16 +3736,16 @@
           aria-label="Knowledge base retrieval match"
         >
           <div class="flex items-center gap-3 mb-1.5">
-            <span class="text-xs font-medium uppercase tracking-wide text-flint dark:text-flint-light">Knowledge Base Match</span>
+            <span class="text-xs font-medium uppercase tracking-wide text-flint-dark dark:text-flint-light">Knowledge Base Match</span>
             <span
               class="text-xs font-medium px-2 py-0.5 rounded border
                      {normalised === 'consistent'
-                       ? 'bg-malachite/15 text-malachite dark:text-malachite-light border-malachite/30'
+                       ? 'bg-malachite/15 text-malachite-dark dark:text-malachite-light border-malachite/30'
                        : normalised === 'inconsistent'
-                         ? 'bg-cinnabar/15 text-cinnabar dark:text-cinnabar-light border-cinnabar/30'
+                         ? 'bg-cinnabar/15 text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/30'
                          : normalised === 'mixed'
-                           ? 'bg-amber/15 text-amber dark:text-amber-light border-amber/30'
-                           : 'bg-gray-100 dark:bg-graphite text-flint dark:text-flint-light border-border-light dark:border-border-dark'}"
+                           ? 'bg-amber/15 text-amber-dark dark:text-amber-light border-amber/30'
+                           : 'bg-gray-100 dark:bg-graphite text-flint-dark dark:text-flint-light border-border-light dark:border-border-dark'}"
             >
               {normalised === 'consistent' ? 'Matches reference material'
                 : normalised === 'inconsistent' ? 'Conflicts with reference material'
@@ -3754,13 +3754,13 @@
                 : 'Insufficient KB context'}
             </span>
             {#if rag?.confidence != null}
-              <span class="text-xs text-flint dark:text-flint-light tabular-nums">
+              <span class="text-xs text-flint-dark dark:text-flint-light tabular-nums">
                 {Math.round(rag.confidence * 100)}% confidence
               </span>
             {/if}
           </div>
           {#if rag?.explanation}
-            <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{rag.explanation}</p>
+            <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">{rag.explanation}</p>
           {/if}
           {#if rag?.sources && rag.sources.length > 0}
             <details class="group mt-2">
@@ -3778,8 +3778,8 @@
                 {#each rag.sources as source, i (i)}
                   <div class="rounded-md px-3 py-2 bg-gray-50 dark:bg-obsidian/50 border border-border-light dark:border-border-dark text-xs" role="listitem">
                     <p class="font-medium text-text-light dark:text-quartz">{source.title}</p>
-                    <p class="text-flint dark:text-flint-light mt-0.5 leading-relaxed">{source.excerpt}</p>
-                    <p class="text-flint/50 dark:text-flint-light/60 tabular-nums mt-0.5">Relevance: {Math.round(source.relevance * 100)}%</p>
+                    <p class="text-flint-dark dark:text-flint-light mt-0.5 leading-relaxed">{source.excerpt}</p>
+                    <p class="text-flint-dark dark:text-flint-light tabular-nums mt-0.5">Relevance: {Math.round(source.relevance * 100)}%</p>
                   </div>
                 {/each}
               </div>
@@ -3795,11 +3795,11 @@
             falsity of any claim. Matches the model card non-warranty.
           -->
           <p
-            class="mt-3 text-[11px] leading-relaxed text-flint/90 dark:text-flint-light/80 border-t border-border-light/60 dark:border-border-dark/60 pt-2"
+            class="mt-3 text-[11px] leading-relaxed text-flint-dark dark:text-flint-light border-t border-border-light/60 dark:border-border-dark/60 pt-2"
             role="note"
             aria-label="Knowledge base retrieval non-warranty"
           >
-            <strong class="text-flint dark:text-flint-light">This is a retrieval match, not a fact-check.</strong>
+            <strong class="text-flint-dark dark:text-flint-light">This is a retrieval match, not a fact-check.</strong>
             The tool reports whether the entered text is consistent with a small preliminary
             reference corpus. It does not assess the truth or falsity of any claim, person,
             organisation, or event, has not been formally evaluated for accuracy, and must not
@@ -3815,13 +3815,13 @@
       <!-- ── Verdict Summary ──────────────────────────────────────── -->
       <div id="section-verdict" class="px-5 py-4 border-b border-border-light dark:border-border-dark">
         <div class="flex items-center gap-1.5 mb-2">
-          <p class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Verdict</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Verdict</p>
           <ContextualHelpLink href="/help/verify#trust-score" label="Learn how the verdict and trust score are calculated" />
         </div>
         <VerdictSummary {result} fileName={fileName ?? 'Unknown file'} />
 
         <!-- Contextual caveat -->
-        <p class="text-xs text-flint dark:text-flint-light leading-relaxed mt-2">
+        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-2">
           {#if result.deepfakeResult?.verdictLevel === 'synthetic' || (result.deepfakeResult?.suspicious && result.deepfakeResult?.verdictLevel !== 'authentic')}
             Multiple detectors flagged signs of AI generation or manipulation. Review the signal breakdown below for details.
           {:else if result.deepfakeResult?.verdictLevel === 'inconclusive' || trustLevel() === 'medium'}
@@ -3855,16 +3855,16 @@
 
             <!-- C2PA AI Declaration signal -->
             <div class="flex items-center justify-between rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/30 px-3 py-2.5">
-              <span class="text-xs text-flint dark:text-flint-light">C2PA Declaration</span>
+              <span class="text-xs text-flint-dark dark:text-flint-light">C2PA Declaration</span>
               {#if result.aiGenerator}
                 <span
-                  class="text-xs font-medium px-2 py-0.5 rounded border bg-amber/15 text-amber dark:text-amber-light border-amber/30"
+                  class="text-xs font-medium px-2 py-0.5 rounded border bg-amber/15 text-amber-dark dark:text-amber-light border-amber/30"
                   title="Generator: {result.aiGenerator}"
                 >
                   AI generation declared
                 </span>
               {:else if result.c2paManifest}
-                <span class="text-xs font-medium px-2 py-0.5 rounded border bg-malachite/15 text-malachite dark:text-malachite-light border-malachite/30">
+                <span class="text-xs font-medium px-2 py-0.5 rounded border bg-malachite/15 text-malachite-dark dark:text-malachite-light border-malachite/30">
                   No AI declaration
                 </span>
               {:else}
@@ -3879,7 +3879,7 @@
               {@const df = result.deepfakeResult}
               <div class="flex items-center justify-between rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/30 px-3 py-2.5">
                 <div>
-                  <span class="text-xs text-flint dark:text-flint-light">Deepfake Ensemble</span>
+                  <span class="text-xs text-flint-dark dark:text-flint-light">Deepfake Ensemble</span>
                   {#if df.score !== null && df.score !== undefined}
                     <span class="text-xs tabular-nums ml-2 {forensicScoreClass(df.score)}">
                       {Math.round(df.score * 100)}%
@@ -3889,10 +3889,10 @@
                 <span
                   class="text-xs font-medium px-2 py-0.5 rounded border
                          {df.verdictLevel === 'synthetic'
-                           ? 'bg-cinnabar/15 text-cinnabar dark:text-cinnabar-light border-cinnabar/30'
+                           ? 'bg-cinnabar/15 text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/30'
                            : df.verdictLevel === 'inconclusive'
-                             ? 'bg-amber/15 text-amber dark:text-amber-light border-amber/30'
-                             : 'bg-malachite/15 text-malachite dark:text-malachite-light border-malachite/30'}"
+                             ? 'bg-amber/15 text-amber-dark dark:text-amber-light border-amber/30'
+                             : 'bg-malachite/15 text-malachite-dark dark:text-malachite-light border-malachite/30'}"
                 >
                   {df.verdictLevel === 'synthetic' ? 'Synthetic' : df.verdictLevel === 'inconclusive' ? 'Inconclusive' : 'Authentic'}
                 </span>
@@ -3903,10 +3903,10 @@
             {#if result.watermarkExtractResult}
               {@const wm = result.watermarkExtractResult}
               <div class="flex items-center justify-between rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/30 px-3 py-2.5">
-                <span class="text-xs text-flint dark:text-flint-light">Jura Trace Watermark</span>
+                <span class="text-xs text-flint-dark dark:text-flint-light">Jura Trace Watermark</span>
                 {#if wm.hasWatermark}
                   <span
-                    class="text-xs font-medium px-2 py-0.5 rounded border bg-malachite/15 text-malachite dark:text-malachite-light border-malachite/30"
+                    class="text-xs font-medium px-2 py-0.5 rounded border bg-malachite/15 text-malachite-dark dark:text-malachite-light border-malachite/30"
                     title={wm.extractedPayload ? `Institution: ${wm.extractedPayload}` : undefined}
                   >
                     {wm.extractedPayload ? wm.extractedPayload : 'Watermark detected'}
@@ -3926,7 +3926,7 @@
       <!-- ── Signal Agreement ─────────────────────────────────────── -->
       <div id="section-signals" class="px-5 py-3 border-b border-border-dark">
         <button
-          class="flex items-center gap-2 text-sm text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
+          class="flex items-center gap-2 text-sm text-flint-dark dark:text-flint-light hover:text-quartz transition-colors duration-150
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           onclick={() => { showSignalAgreement = !showSignalAgreement; }}
           aria-expanded={showSignalAgreement}
@@ -3940,7 +3940,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
           Signal Agreement
-          <span class="text-xs text-flint/60 dark:text-flint-light/70">detector cross-check</span>
+          <span class="text-xs text-flint-dark dark:text-flint-light">detector cross-check</span>
           <ContextualHelpLink href="/help/methodology" label="Learn how signal agreement is calculated across detectors" />
         </button>
         {#if showSignalAgreement}
@@ -3953,7 +3953,7 @@
       <!-- ── Investigate Further ───────────────────────────────────── -->
       <div class="px-5 py-3 border-b border-border-dark">
         <button
-          class="flex items-center gap-2 text-sm text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
+          class="flex items-center gap-2 text-sm text-flint-dark dark:text-flint-light hover:text-quartz transition-colors duration-150
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           onclick={() => { showInvestigatePanel = !showInvestigatePanel; }}
           aria-expanded={showInvestigatePanel}
@@ -3967,9 +3967,9 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
           Investigate Further
-          <span class="text-xs text-flint/60 dark:text-flint-light/70">reverse image search</span>
+          <span class="text-xs text-flint-dark dark:text-flint-light">reverse image search</span>
           {#if licenceTier === 'community'}
-            <span class="text-xs text-flint/50 dark:text-flint-light/60 italic">Professional plan includes API-integrated search</span>
+            <span class="text-xs text-flint-dark dark:text-flint-light italic">Professional plan includes API-integrated search</span>
           {/if}
         </button>
         {#if showInvestigatePanel}
@@ -3981,7 +3981,7 @@
               aria-label="Source protection privacy caution"
             >
               <svg
-                class="w-4 h-4 flex-shrink-0 mt-0.5 text-amber dark:text-amber-light"
+                class="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-dark dark:text-amber-light"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -3994,7 +3994,7 @@
                   d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
                 />
               </svg>
-              <p class="text-xs text-amber dark:text-amber-light leading-relaxed">
+              <p class="text-xs text-amber-dark dark:text-amber-light leading-relaxed">
                 <span class="font-semibold">Caution:</span> using reverse image search services will share
                 the image URL (and your IP address) with third-party commercial services. If you are
                 verifying sensitive or unpublished material, consider whether this is appropriate for your
@@ -4006,14 +4006,14 @@
               class="rounded-lg border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/50 px-4 py-3"
               aria-label="Reverse image search options"
             >
-              <p class="text-xs text-flint dark:text-flint-light mb-3 leading-relaxed">
+              <p class="text-xs text-flint-dark dark:text-flint-light mb-3 leading-relaxed">
                 Search for this image across the web to find other appearances, earlier versions, or
                 context that may help verify its origin.
                 {#if result.sourceType !== 'url'}
                   The file path cannot be sent directly — open the search engine's upload page and
                   drag the file in manually.
                 {:else}
-                  <span class="block mt-1 text-amber/80">
+                  <span class="block mt-1 text-amber-dark dark:text-amber-light/80">
                     Privacy note: clicking a link will share the image URL with the selected search engine.
                   </span>
                 {/if}
@@ -4050,7 +4050,7 @@
         {@const exifForGeo = result.exifAnalysis}
         <div class="px-5 py-3 border-b border-border-dark">
           <button
-            class="flex items-center gap-2 text-sm text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
+            class="flex items-center gap-2 text-sm text-flint-dark dark:text-flint-light hover:text-quartz transition-colors duration-150
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
             onclick={() => { showGeoPanel = !showGeoPanel; }}
             aria-expanded={showGeoPanel}
@@ -4065,9 +4065,9 @@
             </svg>
             Geolocation &amp; Temporal
             {#if gpsCoords}
-              <span class="text-xs text-flint/60 dark:text-flint-light/70">sun angle, shadow time</span>
+              <span class="text-xs text-flint-dark dark:text-flint-light">sun angle, shadow time</span>
             {:else}
-              <span class="text-xs text-flint/50 dark:text-flint-light/60 italic">no GPS data in EXIF</span>
+              <span class="text-xs text-flint-dark dark:text-flint-light italic">no GPS data in EXIF</span>
             {/if}
           </button>
 
@@ -4076,25 +4076,25 @@
 
               {#if !gpsCoords}
                 <!-- No GPS coords available -->
-                <p class="text-xs text-flint dark:text-flint-light px-1">
+                <p class="text-xs text-flint-dark dark:text-flint-light px-1">
                   No GPS coordinates were found in the EXIF metadata. Sun position and shadow time
                   estimation require location data embedded in the image.
                 </p>
               {:else}
                 <!-- GPS coordinates summary -->
                 <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-gray-50 dark:bg-obsidian/30 border border-border-light dark:border-border-dark text-xs">
-                  <svg class="w-3.5 h-3.5 flex-shrink-0 text-flint dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <svg class="w-3.5 h-3.5 flex-shrink-0 text-flint-dark dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  <span class="tabular-nums text-flint dark:text-flint-light flex-1">
+                  <span class="tabular-nums text-flint-dark dark:text-flint-light flex-1">
                     {toDMS(gpsCoords.lat, true)}, {toDMS(gpsCoords.lon, false)}
                   </span>
                   <button
                     type="button"
-                    class="text-xs text-lapis dark:text-lapis-light hover:underline flex-shrink-0
+                    class="text-xs text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline flex-shrink-0
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                     onclick={() => openExternal(`https://www.openstreetmap.org/?mlat=${gpsCoords.lat}&mlon=${gpsCoords.lon}#map=15/${gpsCoords.lat}/${gpsCoords.lon}`)}
                     aria-label="View GPS location on OpenStreetMap (opens in system browser)"
@@ -4108,8 +4108,8 @@
                   <legend class="text-xs font-medium text-text-light dark:text-quartz px-1">Date &amp; Time</legend>
                   <div class="flex flex-wrap items-end gap-4 mt-2">
                     <div>
-                      <label for="geo-date-input" class="block text-xs text-flint dark:text-flint-light mb-1">
-                        Date <span class="text-flint/50 dark:text-flint-light/60">(YYYY-MM-DD)</span>
+                      <label for="geo-date-input" class="block text-xs text-flint-dark dark:text-flint-light mb-1">
+                        Date <span class="text-flint-dark dark:text-flint-light">(YYYY-MM-DD)</span>
                       </label>
                       <input
                         id="geo-date-input"
@@ -4121,8 +4121,8 @@
                       />
                     </div>
                     <div>
-                      <label for="geo-hour-input" class="block text-xs text-flint dark:text-flint-light mb-1">
-                        Hour UTC <span class="text-flint/50 dark:text-flint-light/60">(0–23)</span>
+                      <label for="geo-hour-input" class="block text-xs text-flint-dark dark:text-flint-light mb-1">
+                        Hour UTC <span class="text-flint-dark dark:text-flint-light">(0–23)</span>
                       </label>
                       <input
                         id="geo-hour-input"
@@ -4157,7 +4157,7 @@
                   </div>
 
                   {#if sunError}
-                    <p class="mt-2 text-xs text-cinnabar dark:text-cinnabar-light" role="alert">{sunError}</p>
+                    <p class="mt-2 text-xs text-cinnabar-dark dark:text-cinnabar-light" role="alert">{sunError}</p>
                   {/if}
 
                   {#if sunPosition}
@@ -4166,24 +4166,24 @@
                       aria-label="Solar position results"
                     >
                       <div class="flex justify-between">
-                        <dt class="text-flint dark:text-flint-light">Azimuth</dt>
+                        <dt class="text-flint-dark dark:text-flint-light">Azimuth</dt>
                         <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{sunPosition.azimuth.toFixed(1)}&deg; ({azimuthToCompass(sunPosition.azimuth)})</dd>
                       </div>
                       <div class="flex justify-between">
-                        <dt class="text-flint dark:text-flint-light">Elevation</dt>
-                        <dd class="tabular-nums font-medium {sunPosition.elevation < 0 ? 'text-flint dark:text-flint-light' : 'text-text-light dark:text-quartz'}">{sunPosition.elevation.toFixed(1)}&deg;</dd>
+                        <dt class="text-flint-dark dark:text-flint-light">Elevation</dt>
+                        <dd class="tabular-nums font-medium {sunPosition.elevation < 0 ? 'text-flint-dark dark:text-flint-light' : 'text-text-light dark:text-quartz'}">{sunPosition.elevation.toFixed(1)}&deg;</dd>
                       </div>
                       <div class="flex justify-between">
-                        <dt class="text-flint dark:text-flint-light">Solar Noon UTC</dt>
+                        <dt class="text-flint-dark dark:text-flint-light">Solar Noon UTC</dt>
                         <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{formatUtcHour(sunPosition.solarNoonUtc)}</dd>
                       </div>
                       <div class="flex justify-between">
-                        <dt class="text-flint dark:text-flint-light">Day Length</dt>
+                        <dt class="text-flint-dark dark:text-flint-light">Day Length</dt>
                         <dd class="tabular-nums font-medium text-text-light dark:text-quartz">{sunPosition.dayLengthHours.toFixed(2)} hrs</dd>
                       </div>
                     </dl>
                     {#if sunPosition.elevation < 0}
-                      <p class="mt-2 text-xs text-amber dark:text-amber-light">The sun is below the horizon at this time and location. No shadows would be cast.</p>
+                      <p class="mt-2 text-xs text-amber-dark dark:text-amber-light">The sun is below the horizon at this time and location. No shadows would be cast.</p>
                     {/if}
                   {/if}
                 </fieldset>
@@ -4191,14 +4191,14 @@
                 <!-- Shadow Time sub-panel -->
                 <fieldset class="rounded-lg border border-border-light dark:border-border-dark bg-white dark:bg-graphite px-4 pt-3 pb-4">
                   <legend class="text-xs font-medium text-text-light dark:text-quartz px-1">Shadow Time Estimate</legend>
-                  <p class="text-xs text-flint dark:text-flint-light mt-2 mb-3">
+                  <p class="text-xs text-flint-dark dark:text-flint-light mt-2 mb-3">
                     Measure the direction of a shadow in the image (clockwise from north) and estimate
                     when it was cast. Use the date and GPS coordinates above.
                   </p>
                   <div class="flex flex-wrap items-end gap-4">
                     <div>
-                      <label for="shadow-azimuth-input" class="block text-xs text-flint dark:text-flint-light mb-1">
-                        Shadow Azimuth <span class="text-flint/50 dark:text-flint-light/60">(0–360&deg;, clockwise from north)</span>
+                      <label for="shadow-azimuth-input" class="block text-xs text-flint-dark dark:text-flint-light mb-1">
+                        Shadow Azimuth <span class="text-flint-dark dark:text-flint-light">(0–360&deg;, clockwise from north)</span>
                       </label>
                       <div class="flex items-center gap-2">
                         <input
@@ -4212,7 +4212,7 @@
                                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
                           aria-label="Shadow azimuth in degrees, 0 to 360, clockwise from north"
                         />
-                        <span class="text-xs text-flint dark:text-flint-light">({azimuthToCompass(shadowAzimuth)})</span>
+                        <span class="text-xs text-flint-dark dark:text-flint-light">({azimuthToCompass(shadowAzimuth)})</span>
                       </div>
                     </div>
                     <button
@@ -4236,7 +4236,7 @@
                   </div>
 
                   {#if shadowError}
-                    <p class="mt-2 text-xs text-cinnabar dark:text-cinnabar-light" role="alert">{shadowError}</p>
+                    <p class="mt-2 text-xs text-cinnabar-dark dark:text-cinnabar-light" role="alert">{shadowError}</p>
                   {/if}
 
                   {#if shadowTimeResults.length > 0}
@@ -4253,10 +4253,10 @@
                           {@const minLow = Math.round(est.azimuthError * degToMin)}
                           {@const minHigh = Math.round(est.azimuthError * degToMin * 2)}
                           <li class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs bg-obsidian/20 dark:bg-obsidian/40 rounded px-3 py-2">
-                            <span class="text-flint dark:text-flint-light flex-shrink-0">Option {i + 1}</span>
+                            <span class="text-flint-dark dark:text-flint-light flex-shrink-0">Option {i + 1}</span>
                             <span class="font-medium text-text-light dark:text-quartz tabular-nums flex-1 min-w-0">{est.timeFormatted}</span>
-                            <span class="text-flint dark:text-flint-light tabular-nums">Elev. {est.sunElevation.toFixed(1)}&deg;</span>
-                            <span class="text-flint/70 dark:text-flint-light/60 tabular-nums">&plusmn;{est.azimuthError.toFixed(1)}&deg; azimuth</span>
+                            <span class="text-flint-dark dark:text-flint-light tabular-nums">Elev. {est.sunElevation.toFixed(1)}&deg;</span>
+                            <span class="text-flint-dark dark:text-flint-light tabular-nums">&plusmn;{est.azimuthError.toFixed(1)}&deg; azimuth</span>
                             <span class="font-medium text-lapis dark:text-lapis-light tabular-nums">&asymp; &plusmn;{minLow}&ndash;{minHigh} min</span>
                           </li>
                         {/each}
@@ -4335,12 +4335,12 @@
         >
           {exportingCase ? 'Packaging...' : 'Export Case'}
         </button>
-        <span class="text-xs text-flint/50 dark:text-flint-light/60">
+        <span class="text-xs text-flint-dark dark:text-flint-light">
           {modKey}+E report &middot; {modKey}+Shift+E case
         </span>
 
         {#if licenceTier === 'community'}
-          <span class="text-xs text-flint dark:text-flint-light">
+          <span class="text-xs text-flint-dark dark:text-flint-light">
             Professional plan includes branded reports with your organisation name and case reference.
           </span>
         {/if}
@@ -4348,8 +4348,8 @@
         <!-- False positive report — secondary action, pushed to far right -->
         <div class="flex-1 flex justify-end">
           <button
-            class="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] text-xs text-flint dark:text-flint-light border border-border-light dark:border-border-dark rounded
-                   hover:border-amber/50 hover:text-amber dark:hover:text-amber-light transition-colors duration-150
+            class="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] text-xs text-flint-dark dark:text-flint-light border border-border-light dark:border-border-dark rounded
+                   hover:border-amber/50 hover:text-amber-dark dark:text-amber-light dark:hover:text-amber-light transition-colors duration-150
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
             onclick={() => { showFalsePositiveModal = true; }}
             aria-label="Report this result as a false positive"
@@ -4367,7 +4367,7 @@
       <!-- ── Technical Details Toggle ──────────────────────────────── -->
       <div class="px-5 py-3 border-b border-border-light dark:border-border-dark">
         <button
-          class="flex items-center gap-2 text-sm text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors duration-150
+          class="flex items-center gap-2 text-sm text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors duration-150
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           onclick={() => { showTechnicalDetails = !showTechnicalDetails; }}
           aria-expanded={showTechnicalDetails}
@@ -4383,7 +4383,7 @@
           Detailed Forensic Results
           <a
             href="/help/methodology"
-            class="text-xs text-lapis dark:text-lapis-light hover:underline ml-1"
+            class="text-xs text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline ml-1"
             onclick={(e) => e.stopPropagation()}
           >
             What do these mean?
@@ -4397,10 +4397,10 @@
       <!-- ── Applicability badge snippet (reused across detector headings) ── -->
       {#snippet applicabilityBadge(status: string)}
         <span class="text-[10px] font-medium px-1.5 py-0.5 rounded-full uppercase tracking-wider
-          {status === 'analysed' ? 'bg-malachite/10 text-malachite dark:bg-malachite/20 dark:text-malachite-light' :
+          {status === 'analysed' ? 'bg-malachite/10 text-malachite-dark dark:bg-malachite/20 dark:text-malachite-light' :
            status === 'limited' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' :
            status === 'not_applicable' ? 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400' :
-           'bg-cinnabar/10 text-cinnabar dark:bg-cinnabar/20 dark:text-cinnabar-light'}">
+           'bg-cinnabar/10 text-cinnabar-dark dark:bg-cinnabar/20 dark:text-cinnabar-light'}">
           {status === 'analysed' ? 'Analysed' :
            status === 'limited' ? 'Limited' :
            status === 'not_applicable' ? 'N/A' :
@@ -4432,7 +4432,7 @@
             <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(ela.score)}">
               <span>{(ela.score * 100).toFixed(1)}%</span>
               {#if showRawScores}
-                <span class="text-flint dark:text-flint-light font-normal" aria-label="threshold 40 per cent">
+                <span class="text-flint-dark dark:text-flint-light font-normal" aria-label="threshold 40 per cent">
                   / threshold 40%
                 </span>
               {/if}
@@ -4443,7 +4443,7 @@
           {#if previewUrl}
             <div class="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <p class="text-xs text-flint dark:text-flint-light mb-1">Original</p>
+                <p class="text-xs text-flint-dark dark:text-flint-light mb-1">Original</p>
                 <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
                   <img
                     src={previewUrl}
@@ -4453,7 +4453,7 @@
                 </div>
               </div>
               <div>
-                <p class="text-xs text-flint dark:text-flint-light mb-1">Error Level Analysis</p>
+                <p class="text-xs text-flint-dark dark:text-flint-light mb-1">Error Level Analysis</p>
                 <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
                   <img
                     src={blobs.url(ela.elaImageBase64, 'image/png')}
@@ -4476,17 +4476,17 @@
           <!-- Stats -->
           <div class="grid grid-cols-2 gap-4 text-xs">
             <div>
-              <span class="text-flint dark:text-flint-light">Max Difference</span>
+              <span class="text-flint-dark dark:text-flint-light">Max Difference</span>
               <p class="text-text-light dark:text-quartz tabular-nums">{ela.maxDifference.toFixed(1)}</p>
             </div>
             <div>
-              <span class="text-flint dark:text-flint-light">Mean Difference</span>
+              <span class="text-flint-dark dark:text-flint-light">Mean Difference</span>
               <p class="text-text-light dark:text-quartz tabular-nums">{ela.meanDifference.toFixed(1)}</p>
             </div>
           </div>
 
           {#if ela.suspicious}
-            <div class="mt-3 text-xs text-amber dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+            <div class="mt-3 text-xs text-amber-dark dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
               Elevated compression artefact variation detected. This may indicate pixel-level editing
               or compositing. Consider alongside other verification signals.
             </div>
@@ -4500,7 +4500,7 @@
               Unavailable
             </span>
           </div>
-          <p class="text-xs text-flint dark:text-flint-light mt-1.5">
+          <p class="text-xs text-flint-dark dark:text-flint-light mt-1.5">
             Analysis Engine is offline. Start the Analysis Engine to enable forensic analysis.
           </p>
         </section>
@@ -4523,7 +4523,7 @@
             <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(noise.score)}">
               <span>{(noise.score * 100).toFixed(1)}%</span>
               {#if showRawScores}
-                <span class="text-flint dark:text-flint-light font-normal" aria-label="threshold 40 per cent">
+                <span class="text-flint-dark dark:text-flint-light font-normal" aria-label="threshold 40 per cent">
                   / threshold 40%
                 </span>
               {/if}
@@ -4544,21 +4544,21 @@
           <!-- Stats -->
           <div class="grid grid-cols-3 gap-4 text-xs">
             <div>
-              <span class="text-flint dark:text-flint-light">Global Variance</span>
+              <span class="text-flint-dark dark:text-flint-light">Global Variance</span>
               <p class="text-text-light dark:text-quartz tabular-nums">{noise.globalVariance.toFixed(1)}</p>
             </div>
             <div>
-              <span class="text-flint dark:text-flint-light">Anomalous Blocks</span>
+              <span class="text-flint-dark dark:text-flint-light">Anomalous Blocks</span>
               <p class="text-text-light dark:text-quartz tabular-nums">{noise.anomalousBlocks} / {noise.totalBlocks}</p>
             </div>
             <div>
-              <span class="text-flint dark:text-flint-light">Block Count</span>
+              <span class="text-flint-dark dark:text-flint-light">Block Count</span>
               <p class="text-text-light dark:text-quartz tabular-nums">{noise.totalBlocks}</p>
             </div>
           </div>
 
           {#if noise.suspicious}
-            <div class="mt-3 text-xs text-amber dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+            <div class="mt-3 text-xs text-amber-dark dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
               Inconsistent noise patterns detected across image blocks. This may indicate region-level
               editing, splicing, or inpainting. Consider alongside other verification signals.
             </div>
@@ -4583,7 +4583,7 @@
             <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(cm.score)}">
               <span>{(cm.score * 100).toFixed(1)}%</span>
               {#if showRawScores}
-                <span class="text-flint dark:text-flint-light font-normal" aria-label="threshold 40 per cent">
+                <span class="text-flint-dark dark:text-flint-light font-normal" aria-label="threshold 40 per cent">
                   / threshold 40%
                 </span>
               {/if}
@@ -4604,17 +4604,17 @@
           <!-- Stats -->
           <div class="grid grid-cols-2 gap-4 text-xs">
             <div>
-              <span class="text-flint dark:text-flint-light">Matched Pairs</span>
+              <span class="text-flint-dark dark:text-flint-light">Matched Pairs</span>
               <p class="text-text-light dark:text-quartz tabular-nums">{cm.matchedPairs}</p>
             </div>
             <div>
-              <span class="text-flint dark:text-flint-light">Clone Regions</span>
+              <span class="text-flint-dark dark:text-flint-light">Clone Regions</span>
               <p class="text-text-light dark:text-quartz tabular-nums">{cm.cloneRegions.length}</p>
             </div>
           </div>
 
           {#if cm.suspicious}
-            <div class="mt-3 text-xs text-cinnabar dark:text-cinnabar-light bg-cinnabar/10 border border-cinnabar/20 rounded-md px-3 py-2">
+            <div class="mt-3 text-xs text-cinnabar-dark dark:text-cinnabar-light bg-cinnabar/10 border border-cinnabar/20 rounded-md px-3 py-2">
               Duplicated regions detected within the image. This is a strong indicator of copy-move
               forgery — content appears to have been cloned from one area to another.
             </div>
@@ -4634,17 +4634,17 @@
               <span
                 class="text-xs font-medium px-2 py-0.5 rounded border
                        {regionSuspiciousCount === 0
-                         ? 'bg-malachite/15 border-malachite/20 text-malachite dark:text-malachite-light'
+                         ? 'bg-malachite/15 border-malachite/20 text-malachite-dark dark:text-malachite-light'
                          : regionSuspiciousCount >= 2
-                           ? 'bg-cinnabar/15 border-cinnabar/20 text-cinnabar dark:text-cinnabar-light'
-                           : 'bg-amber/15 border-amber/20 text-amber dark:text-amber-light'}"
+                           ? 'bg-cinnabar/15 border-cinnabar/20 text-cinnabar-dark dark:text-cinnabar-light'
+                           : 'bg-amber/15 border-amber/20 text-amber-dark dark:text-amber-light'}"
                 aria-label="{regionSuspiciousCount} of {regionRunCount} region detectors suspicious"
               >
                 {regionSuspiciousCount} of {regionRunCount} suspicious
               </span>
             </div>
             <button
-              class="flex items-center gap-1 text-xs text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
+              class="flex items-center gap-1 text-xs text-flint-dark dark:text-flint-light hover:text-quartz transition-colors duration-150
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-1"
               onclick={() => { showRegionAnalysis = !showRegionAnalysis; }}
               aria-expanded={showRegionAnalysis}
@@ -4667,7 +4667,7 @@
               {#if result.segmentedElaResult}
                 {@const seg = result.segmentedElaResult}
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-flint dark:text-flint-light">Segmented ELA</span>
+                  <span class="text-flint-dark dark:text-flint-light">Segmented ELA</span>
                   <span class="{forensicScoreClass(seg.score)} tabular-nums">
                     {seg.anomalousRegions}/{seg.totalRegions} anomalous regions
                   </span>
@@ -4676,7 +4676,7 @@
               {#if result.shadowConsistencyResult}
                 {@const sh = result.shadowConsistencyResult}
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-flint dark:text-flint-light">Shadow Consistency</span>
+                  <span class="text-flint-dark dark:text-flint-light">Shadow Consistency</span>
                   <span class="{forensicScoreClass(sh.score)} tabular-nums">
                     {sh.inconsistentRegions} inconsistent
                   </span>
@@ -4685,7 +4685,7 @@
               {#if result.colourTemperatureResult}
                 {@const ct = result.colourTemperatureResult}
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-flint dark:text-flint-light">Colour Temperature</span>
+                  <span class="text-flint-dark dark:text-flint-light">Colour Temperature</span>
                   <span class="{forensicScoreClass(ct.score)} tabular-nums">
                     {ct.anomalousRegions} deviating regions
                   </span>
@@ -4694,7 +4694,7 @@
               {#if result.spliceBoundaryResult}
                 {@const sb = result.spliceBoundaryResult}
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-flint dark:text-flint-light">Splice Boundary</span>
+                  <span class="text-flint-dark dark:text-flint-light">Splice Boundary</span>
                   <span class="{forensicScoreClass(sb.score)} tabular-nums">
                     {sb.suspiciousBoundaries} of {sb.totalBoundariesChecked} boundaries
                   </span>
@@ -4727,7 +4727,7 @@
                     <div class="flex items-center gap-2">
                       <span class="text-xs tabular-nums {forensicScoreClass(seg.score)}">{(seg.score * 100).toFixed(1)}%</span>
                       <svg
-                        class="w-3.5 h-3.5 text-flint dark:text-flint-light transition-transform duration-200 group-open:rotate-90"
+                        class="w-3.5 h-3.5 text-flint-dark dark:text-flint-light transition-transform duration-200 group-open:rotate-90"
                         fill="none" stroke="currentColor" viewBox="0 0 24 24"
                         aria-hidden="true"
                       >
@@ -4737,7 +4737,7 @@
                   </summary>
 
                   <div class="mt-3 space-y-3">
-                    <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{seg.summary}</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">{seg.summary}</p>
 
                     {#if seg.heatmapBase64}
                       <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
@@ -4751,21 +4751,21 @@
 
                     <div class="grid grid-cols-3 gap-3 text-xs">
                       <div>
-                        <span class="text-flint dark:text-flint-light">Anomalous Regions</span>
+                        <span class="text-flint-dark dark:text-flint-light">Anomalous Regions</span>
                         <p class="text-text-light dark:text-quartz tabular-nums">{seg.anomalousRegions} / {seg.totalRegions}</p>
                       </div>
                       <div>
-                        <span class="text-flint dark:text-flint-light">Inter-region Variance</span>
+                        <span class="text-flint-dark dark:text-flint-light">Inter-region Variance</span>
                         <p class="text-text-light dark:text-quartz tabular-nums">{seg.interRegionVariance.toFixed(3)}</p>
                       </div>
                       <div>
-                        <span class="text-flint dark:text-flint-light">Total Regions</span>
+                        <span class="text-flint-dark dark:text-flint-light">Total Regions</span>
                         <p class="text-text-light dark:text-quartz tabular-nums">{seg.totalRegions}</p>
                       </div>
                     </div>
 
                     {#if seg.suspicious}
-                      <div class="text-xs text-amber dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+                      <div class="text-xs text-amber-dark dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
                         Elevated compression variance detected across image regions. Inconsistent ELA patterns
                         between blocks may indicate that regions were edited or inserted separately.
                       </div>
@@ -4794,7 +4794,7 @@
                     <div class="flex items-center gap-2">
                       <span class="text-xs tabular-nums {forensicScoreClass(sh.score)}">{(sh.score * 100).toFixed(1)}%</span>
                       <svg
-                        class="w-3.5 h-3.5 text-flint dark:text-flint-light transition-transform duration-200 group-open:rotate-90"
+                        class="w-3.5 h-3.5 text-flint-dark dark:text-flint-light transition-transform duration-200 group-open:rotate-90"
                         fill="none" stroke="currentColor" viewBox="0 0 24 24"
                         aria-hidden="true"
                       >
@@ -4804,7 +4804,7 @@
                   </summary>
 
                   <div class="mt-3 space-y-3">
-                    <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{sh.summary}</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">{sh.summary}</p>
 
                     {#if sh.heatmapBase64}
                       <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
@@ -4818,21 +4818,21 @@
 
                     <div class="grid grid-cols-3 gap-3 text-xs">
                       <div>
-                        <span class="text-flint dark:text-flint-light">Light Direction</span>
+                        <span class="text-flint-dark dark:text-flint-light">Light Direction</span>
                         <p class="text-text-light dark:text-quartz tabular-nums">{sh.globalLightDirection.toFixed(1)}&deg;</p>
                       </div>
                       <div>
-                        <span class="text-flint dark:text-flint-light">Inconsistent Regions</span>
+                        <span class="text-flint-dark dark:text-flint-light">Inconsistent Regions</span>
                         <p class="text-text-light dark:text-quartz tabular-nums">{sh.inconsistentRegions} / {sh.totalRegions}</p>
                       </div>
                       <div>
-                        <span class="text-flint dark:text-flint-light">Total Regions</span>
+                        <span class="text-flint-dark dark:text-flint-light">Total Regions</span>
                         <p class="text-text-light dark:text-quartz tabular-nums">{sh.totalRegions}</p>
                       </div>
                     </div>
 
                     {#if sh.suspicious}
-                      <div class="text-xs text-amber dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+                      <div class="text-xs text-amber-dark dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
                         Shadow directions in one or more regions deviate significantly from the global light
                         direction. This may indicate that elements were composited from differently-lit sources.
                       </div>
@@ -4861,7 +4861,7 @@
                     <div class="flex items-center gap-2">
                       <span class="text-xs tabular-nums {forensicScoreClass(ct.score)}">{(ct.score * 100).toFixed(1)}%</span>
                       <svg
-                        class="w-3.5 h-3.5 text-flint dark:text-flint-light transition-transform duration-200 group-open:rotate-90"
+                        class="w-3.5 h-3.5 text-flint-dark dark:text-flint-light transition-transform duration-200 group-open:rotate-90"
                         fill="none" stroke="currentColor" viewBox="0 0 24 24"
                         aria-hidden="true"
                       >
@@ -4871,7 +4871,7 @@
                   </summary>
 
                   <div class="mt-3 space-y-3">
-                    <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{ct.summary}</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">{ct.summary}</p>
 
                     {#if ct.heatmapBase64}
                       <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
@@ -4885,25 +4885,25 @@
 
                     <div class="grid grid-cols-2 gap-3 text-xs">
                       <div>
-                        <span class="text-flint dark:text-flint-light">Global A (green-red)</span>
+                        <span class="text-flint-dark dark:text-flint-light">Global A (green-red)</span>
                         <p class="text-text-light dark:text-quartz tabular-nums">{ct.globalMeanA.toFixed(2)}</p>
                       </div>
                       <div>
-                        <span class="text-flint dark:text-flint-light">Global B (blue-yellow)</span>
+                        <span class="text-flint-dark dark:text-flint-light">Global B (blue-yellow)</span>
                         <p class="text-text-light dark:text-quartz tabular-nums">{ct.globalMeanB.toFixed(2)}</p>
                       </div>
                       <div>
-                        <span class="text-flint dark:text-flint-light">Anomalous Regions</span>
+                        <span class="text-flint-dark dark:text-flint-light">Anomalous Regions</span>
                         <p class="text-text-light dark:text-quartz tabular-nums">{ct.anomalousRegions} / {ct.totalRegions}</p>
                       </div>
                       <div>
-                        <span class="text-flint dark:text-flint-light">Total Regions</span>
+                        <span class="text-flint-dark dark:text-flint-light">Total Regions</span>
                         <p class="text-text-light dark:text-quartz tabular-nums">{ct.totalRegions}</p>
                       </div>
                     </div>
 
                     {#if ct.suspicious}
-                      <div class="text-xs text-amber dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+                      <div class="text-xs text-amber-dark dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
                         Regions with significantly different colour temperatures were found. Inconsistent
                         white balance across an image may indicate elements were captured under different
                         lighting conditions and composited together.
@@ -4933,7 +4933,7 @@
                     <div class="flex items-center gap-2">
                       <span class="text-xs tabular-nums {forensicScoreClass(sb.score)}">{(sb.score * 100).toFixed(1)}%</span>
                       <svg
-                        class="w-3.5 h-3.5 text-flint dark:text-flint-light transition-transform duration-200 group-open:rotate-90"
+                        class="w-3.5 h-3.5 text-flint-dark dark:text-flint-light transition-transform duration-200 group-open:rotate-90"
                         fill="none" stroke="currentColor" viewBox="0 0 24 24"
                         aria-hidden="true"
                       >
@@ -4943,7 +4943,7 @@
                   </summary>
 
                   <div class="mt-3 space-y-3">
-                    <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{sb.summary}</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">{sb.summary}</p>
 
                     {#if sb.heatmapBase64}
                       <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
@@ -4957,18 +4957,18 @@
 
                     <div class="grid grid-cols-2 gap-3 text-xs">
                       <div>
-                        <span class="text-flint dark:text-flint-light">Suspicious Boundaries</span>
+                        <span class="text-flint-dark dark:text-flint-light">Suspicious Boundaries</span>
                         <p class="text-text-light dark:text-quartz tabular-nums">{sb.suspiciousBoundaries}</p>
                       </div>
                       <div>
-                        <span class="text-flint dark:text-flint-light">Total Checked</span>
+                        <span class="text-flint-dark dark:text-flint-light">Total Checked</span>
                         <p class="text-text-light dark:text-quartz tabular-nums">{sb.totalBoundariesChecked}</p>
                       </div>
                     </div>
 
                     {#if sb.boundaries.length > 0}
                       <details class="group/inner">
-                        <summary class="text-xs text-lapis dark:text-lapis-light cursor-pointer hover:text-lapis-dark dark:hover:text-lapis-light transition-colors">
+                        <summary class="text-xs text-lapis dark:text-lapis-light cursor-pointer hover:text-lapis-dark dark:hover:text-lapis dark:text-lapis-light transition-colors">
                           {sb.suspiciousBoundaries} candidate {sb.suspiciousBoundaries === 1 ? 'boundary' : 'boundaries'} — view details
                         </summary>
                         <div class="mt-2 space-y-1.5" role="list" aria-label="Splice boundary candidates">
@@ -5007,7 +5007,7 @@
                     {/if}
 
                     {#if sb.suspicious}
-                      <div class="text-xs text-cinnabar dark:text-cinnabar-light bg-cinnabar/10 border border-cinnabar/20 rounded-md px-3 py-2">
+                      <div class="text-xs text-cinnabar-dark dark:text-cinnabar-light bg-cinnabar/10 border border-cinnabar/20 rounded-md px-3 py-2">
                         One or more cut edges with multiple corroborating signals were found. This pattern
                         is consistent with content being inserted or replaced at a region boundary.
                       </div>
@@ -5038,7 +5038,7 @@
             <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(npr.score)}">
               <span>{(npr.score * 100).toFixed(1)}%</span>
               {#if showRawScores}
-                <span class="text-flint dark:text-flint-light font-normal" aria-label="threshold 40 per cent">
+                <span class="text-flint-dark dark:text-flint-light font-normal" aria-label="threshold 40 per cent">
                   / threshold 40%
                 </span>
               {/if}
@@ -5059,23 +5059,23 @@
           <!-- Stats -->
           <div class="grid grid-cols-3 gap-4 text-xs mb-3">
             <div>
-              <span class="text-flint dark:text-flint-light">H-V Correlation</span>
+              <span class="text-flint-dark dark:text-flint-light">H-V Correlation</span>
               <p class="text-text-light dark:text-quartz tabular-nums">{npr.hvCorrelation.toFixed(4)}</p>
             </div>
             <div>
-              <span class="text-flint dark:text-flint-light">Diff Variance Ratio</span>
+              <span class="text-flint-dark dark:text-flint-light">Diff Variance Ratio</span>
               <p class="text-text-light dark:text-quartz tabular-nums">{npr.diffVarianceRatio.toFixed(4)}</p>
             </div>
             <div>
-              <span class="text-flint dark:text-flint-light">HF Energy Ratio</span>
+              <span class="text-flint-dark dark:text-flint-light">HF Energy Ratio</span>
               <p class="text-text-light dark:text-quartz tabular-nums">{npr.hfEnergyRatio.toFixed(4)}</p>
             </div>
           </div>
 
-          <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{npr.summary}</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">{npr.summary}</p>
 
           {#if npr.suspicious}
-            <div class="mt-3 text-xs text-amber dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+            <div class="mt-3 text-xs text-amber-dark dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
               Anomalous pixel neighbourhood correlation detected. This pattern can result from local
               resampling, inpainting, or region insertion that disrupts the natural statistical
               relationship between adjacent pixels.
@@ -5106,7 +5106,7 @@
             <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(jg.score)}">
               <span>{(jg.score * 100).toFixed(1)}%</span>
               {#if showRawScores}
-                <span class="text-flint dark:text-flint-light font-normal" aria-label="threshold 40 per cent">
+                <span class="text-flint-dark dark:text-flint-light font-normal" aria-label="threshold 40 per cent">
                   / threshold 40%
                 </span>
               {/if}
@@ -5127,27 +5127,27 @@
           <!-- Stats -->
           <div class="grid grid-cols-2 gap-4 text-xs mb-3">
             <div>
-              <span class="text-flint dark:text-flint-light">Dominant Ghost Quality</span>
+              <span class="text-flint-dark dark:text-flint-light">Dominant Ghost Quality</span>
               <p class="text-text-light dark:text-quartz tabular-nums">Q{jg.ghostQuality}</p>
             </div>
             <div>
-              <span class="text-flint dark:text-flint-light">Quality Variance</span>
+              <span class="text-flint-dark dark:text-flint-light">Quality Variance</span>
               <p class="text-text-light dark:text-quartz tabular-nums">{jg.qualityVariance.toFixed(3)}</p>
             </div>
             <div>
-              <span class="text-flint dark:text-flint-light">Deviating Blocks</span>
+              <span class="text-flint-dark dark:text-flint-light">Deviating Blocks</span>
               <p class="text-text-light dark:text-quartz tabular-nums">{jg.deviatingBlocks} / {jg.totalBlocks}</p>
             </div>
             <div>
-              <span class="text-flint dark:text-flint-light">Total Blocks</span>
+              <span class="text-flint-dark dark:text-flint-light">Total Blocks</span>
               <p class="text-text-light dark:text-quartz tabular-nums">{jg.totalBlocks}</p>
             </div>
           </div>
 
-          <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{jg.summary}</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">{jg.summary}</p>
 
           {#if jg.suspicious}
-            <div class="mt-3 text-xs text-amber dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
+            <div class="mt-3 text-xs text-amber-dark dark:text-amber-light bg-amber/10 border border-amber/20 rounded-md px-3 py-2">
               Blocks with different JPEG compression histories detected. This is a marker of splice
               forgery — regions from a differently-compressed source image leave a ghost artefact
               pattern when re-compressed at the target quality level.
@@ -5197,11 +5197,11 @@
 
           <div class="grid grid-cols-2 gap-4 text-xs mb-3">
             <div>
-              <span class="text-flint dark:text-flint-light">Verdict</span>
+              <span class="text-flint-dark dark:text-flint-light">Verdict</span>
               <p class="text-text-light dark:text-quartz capitalize">{clip.verdictLevel}</p>
             </div>
             <div>
-              <span class="text-flint dark:text-flint-light">Confidence</span>
+              <span class="text-flint-dark dark:text-flint-light">Confidence</span>
               <p class="text-text-light dark:text-quartz capitalize">{clip.confidence}</p>
             </div>
           </div>
@@ -5209,27 +5209,27 @@
           <!-- Class probabilities -->
           {#if Object.keys(clip.classProbs).length > 0}
             <div class="mb-3">
-              <p class="text-xs text-flint dark:text-flint-light mb-2">Class probabilities</p>
+              <p class="text-xs text-flint-dark dark:text-flint-light mb-2">Class probabilities</p>
               <div class="space-y-1.5" role="list" aria-label="CLIP class probabilities">
                 {#each Object.entries(clip.classProbs).sort((a, b) => b[1] - a[1]) as [label, prob] (label)}
                   <div class="flex items-center gap-3 text-xs" role="listitem">
-                    <span class="w-32 text-flint dark:text-flint-light capitalize truncate" title={label}>{label}</span>
+                    <span class="w-32 text-flint-dark dark:text-flint-light capitalize truncate" title={label}>{label}</span>
                     <div class="flex-1 h-1.5 rounded-full bg-gray-200 dark:bg-graphite-light overflow-hidden" role="presentation">
                       <div
                         class="h-full rounded-full bg-lapis/60 transition-all duration-300 ease-out"
                         style="width: {Math.round(prob * 100)}%"
                       ></div>
                     </div>
-                    <span class="w-10 tabular-nums text-right text-flint dark:text-flint-light">{Math.round(prob * 100)}%</span>
+                    <span class="w-10 tabular-nums text-right text-flint-dark dark:text-flint-light">{Math.round(prob * 100)}%</span>
                   </div>
                 {/each}
               </div>
             </div>
           {/if}
 
-          <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-2">{clip.summary}</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-2">{clip.summary}</p>
 
-          <div class="text-xs text-flint dark:text-flint-light bg-lapis/5 border border-lapis/20 rounded-md px-3 py-2">
+          <div class="text-xs text-flint-dark dark:text-flint-light bg-lapis/5 border border-lapis/20 rounded-md px-3 py-2">
             The class probabilities above are produced by zero-shot cosine similarity without
             the CLIP logit scale multiplier, which causes near-uniform distributions (~20% per class).
             The UnivFD probe — a trained linear classifier on the same CLIP embeddings — is the
@@ -5253,11 +5253,11 @@
                   <span class="text-text-light dark:text-quartz font-mono">
                     {wm.watermarkType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                   </span>
-                  <span class="text-flint dark:text-flint-light tabular-nums">
+                  <span class="text-flint-dark dark:text-flint-light tabular-nums">
                     {(wm.confidence * 100).toFixed(0)}% confidence
                   </span>
                 </div>
-                <p class="text-xs text-flint dark:text-flint-light mb-1">{wm.details}</p>
+                <p class="text-xs text-flint-dark dark:text-flint-light mb-1">{wm.details}</p>
               {/each}
             </div>
           {/if}
@@ -5289,7 +5289,7 @@
             <div class="flex items-center gap-2 text-xs tabular-nums {forensicScoreClass(df.score)}">
               <span>{(df.score * 100).toFixed(1)}%</span>
               {#if showRawScores}
-                <span class="text-flint dark:text-flint-light font-normal" aria-label="threshold 50 per cent">
+                <span class="text-flint-dark dark:text-flint-light font-normal" aria-label="threshold 50 per cent">
                   / threshold 50%
                 </span>
               {/if}
@@ -5308,7 +5308,7 @@
             {#if previewUrl}
               <div class="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <p class="text-xs text-flint dark:text-flint-light mb-1">Original</p>
+                  <p class="text-xs text-flint-dark dark:text-flint-light mb-1">Original</p>
                   <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
                     <img
                       src={previewUrl}
@@ -5318,7 +5318,7 @@
                   </div>
                 </div>
                 <div>
-                  <p class="text-xs text-flint dark:text-flint-light mb-1">Frequency Spectrum</p>
+                  <p class="text-xs text-flint-dark dark:text-flint-light mb-1">Frequency Spectrum</p>
                   <div class="rounded-md overflow-hidden border border-border-light dark:border-border-dark bg-gray-100 dark:bg-obsidian">
                     <img
                       src={blobs.url(df.heatmapBase64, 'image/png')}
@@ -5340,12 +5340,12 @@
           {/if}
 
           <!-- Summary -->
-          <p class="text-xs text-flint dark:text-flint-light mb-3">{df.summary}</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light mb-3">{df.summary}</p>
 
           <!-- Signal list -->
           {#if df.signals.length > 0}
             <details class="group">
-              <summary class="text-xs text-lapis dark:text-lapis-light cursor-pointer hover:text-lapis-dark dark:hover:text-lapis-light transition-colors">
+              <summary class="text-xs text-lapis dark:text-lapis-light cursor-pointer hover:text-lapis-dark dark:hover:text-lapis dark:text-lapis-light transition-colors">
                 {df.signals.filter(s => s.triggered).length} of {df.signals.length} signals triggered — view details
               </summary>
               <div class="mt-2 space-y-1.5" role="list" aria-label="Detection signals">
@@ -5371,7 +5371,7 @@
                               Clear
                             </span>
                           {/if}
-                          <span class="text-gray-500 dark:text-flint-light/70 tabular-nums">weight: {signal.weight.toFixed(1)}</span>
+                          <span class="text-gray-500 dark:text-flint-light tabular-nums">weight: {signal.weight.toFixed(1)}</span>
                         </div>
                       </div>
                       <p class="text-gray-600 dark:text-flint-light mt-0.5">{signal.description}</p>
@@ -5383,7 +5383,7 @@
           {/if}
 
           {#if df.suspicious}
-            <div class="mt-3 text-xs text-cinnabar dark:text-cinnabar-light bg-cinnabar/10 border border-cinnabar/20 rounded-md px-3 py-2">
+            <div class="mt-3 text-xs text-cinnabar-dark dark:text-cinnabar-light bg-cinnabar/10 border border-cinnabar/20 rounded-md px-3 py-2">
               Multiple statistical signals suggest this image may be AI-generated or synthetically produced.
               Consider alongside other verification signals and the specific context of use.
             </div>
@@ -5397,7 +5397,7 @@
         <section id="section-exif" class="px-5 py-4 border-b border-border-light dark:border-border-dark" aria-labelledby="exif-heading">
           <div class="flex items-center justify-between mb-3">
             <h2 id="exif-heading" class="text-sm font-medium text-text-light dark:text-quartz">EXIF Analysis</h2>
-            <span class="text-xs text-flint dark:text-flint-light">
+            <span class="text-xs text-flint-dark dark:text-flint-light">
               {exif.fieldsPopulated}/{exif.fieldsTotal} fields populated
             </span>
           </div>
@@ -5422,10 +5422,10 @@
                 style="width: {Math.round((exif.fieldsPopulated / exif.fieldsTotal) * 100)}%"
               ></div>
             </div>
-            <p class="text-xs text-flint dark:text-flint-light mt-1">
+            <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
               {exif.fieldsPopulated} of {exif.fieldsTotal} EXIF fields populated
               {#if !exif.hasExif}
-                <span class="text-amber dark:text-amber-light ml-1">— no EXIF data present</span>
+                <span class="text-amber-dark dark:text-amber-light ml-1">— no EXIF data present</span>
               {/if}
             </p>
           </div>
@@ -5445,14 +5445,14 @@
               role="note"
               aria-label="Camera MakerNote authenticity signal"
             >
-              <span class="flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-malachite/15 text-malachite dark:text-malachite-light border border-malachite/30">
+              <span class="flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-malachite/15 text-malachite-dark dark:text-malachite-light border border-malachite/30">
                 Authentic
               </span>
               <div class="flex-1 min-w-0">
-                <p class="text-xs font-medium text-malachite dark:text-malachite-light leading-snug">
+                <p class="text-xs font-medium text-malachite-dark dark:text-malachite-light leading-snug">
                   Camera MakerNote signature verified
                 </p>
-                <p class="text-xs text-flint dark:text-flint-light leading-relaxed mt-0.5">
+                <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-0.5">
                   This file carries a vendor-proprietary MakerNote blob from a
                   recognised camera manufacturer. AI image generators virtually
                   never synthesise MakerNotes. Confidence:
@@ -5486,13 +5486,13 @@
                   </span>
                   <div class="min-w-0">
                     <p class="text-sm text-text-light dark:text-quartz leading-snug">{finding.title}</p>
-                    <p class="text-xs text-flint dark:text-flint-light mt-0.5 leading-relaxed">{finding.description}</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5 leading-relaxed">{finding.description}</p>
                   </div>
                 </div>
               {/each}
             </div>
           {:else}
-            <p class="text-xs text-flint dark:text-flint-light">No anomalies detected in EXIF metadata.</p>
+            <p class="text-xs text-flint-dark dark:text-flint-light">No anomalies detected in EXIF metadata.</p>
           {/if}
 
           <!-- GPS coordinates panel — enhanced -->
@@ -5514,14 +5514,14 @@
               <!-- Coordinate grid -->
               <div class="px-3 py-2.5 grid grid-cols-2 gap-x-6 gap-y-2">
                 <div>
-                  <p class="text-[10px] uppercase tracking-wide text-flint/60 dark:text-flint-light/60 mb-0.5">DMS</p>
-                  <p class="text-xs tabular-nums text-flint dark:text-flint-light leading-snug">
+                  <p class="text-[10px] uppercase tracking-wide text-flint-dark dark:text-flint-light mb-0.5">DMS</p>
+                  <p class="text-xs tabular-nums text-flint-dark dark:text-flint-light leading-snug">
                     {toDMS(lat, true)}<br />{toDMS(lon, false)}
                   </p>
                 </div>
                 <div>
-                  <p class="text-[10px] uppercase tracking-wide text-flint/60 dark:text-flint-light/60 mb-0.5">Decimal degrees</p>
-                  <p class="text-xs tabular-nums text-flint dark:text-flint-light leading-snug">
+                  <p class="text-[10px] uppercase tracking-wide text-flint-dark dark:text-flint-light mb-0.5">Decimal degrees</p>
+                  <p class="text-xs tabular-nums text-flint-dark dark:text-flint-light leading-snug">
                     {lat.toFixed(6)}<br />{lon.toFixed(6)}
                   </p>
                 </div>
@@ -5535,8 +5535,8 @@
                   onclick={() => copyGpsCoords(lat, lon)}
                   class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 min-h-[32px] rounded border
                          border-border-light dark:border-border-dark
-                         text-flint dark:text-flint-light
-                         hover:border-lapis/40 hover:text-lapis dark:hover:text-lapis-light
+                         text-flint-dark dark:text-flint-light
+                         hover:border-lapis/40 hover:text-lapis dark:hover:text-lapis dark:text-lapis-light
                          transition-colors duration-150
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
                          focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
@@ -5544,10 +5544,10 @@
                 >
                   {#if gpsCopied}
                     <!-- Tick icon -->
-                    <svg class="w-3 h-3 text-malachite dark:text-malachite-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <svg class="w-3 h-3 text-malachite-dark dark:text-malachite-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
                     </svg>
-                    <span class="text-malachite dark:text-malachite-light">Copied</span>
+                    <span class="text-malachite-dark dark:text-malachite-light">Copied</span>
                   {:else}
                     <!-- Clipboard icon -->
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -5584,8 +5584,8 @@
                   onclick={() => openExternal(`https://earth.google.com/web/@${lat},${lon},0a,1000d,35y,0h,0t,0r`)}
                   class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 min-h-[32px] rounded border
                          border-border-light dark:border-border-dark
-                         text-flint dark:text-flint-light
-                         hover:border-lapis/40 hover:text-lapis dark:hover:text-lapis-light
+                         text-flint-dark dark:text-flint-light
+                         hover:border-lapis/40 hover:text-lapis dark:hover:text-lapis dark:text-lapis-light
                          transition-colors duration-150
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2
                          focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
@@ -5619,7 +5619,7 @@
             <span
               class="text-xs font-medium px-2 py-0.5 rounded
                      {manifest.isValid && (manifest.validAtSigning === true || manifest.certificateExpired === true)
-                       ? 'bg-amber/15 text-amber border border-amber/30'
+                       ? 'bg-amber/15 text-amber-dark dark:text-amber-light border border-amber/30'
                        : manifest.isValid
                        ? 'bg-malachite/15 text-malachite-light border border-malachite/20'
                        : 'bg-cinnabar/15 text-cinnabar-light border border-cinnabar/20'}"
@@ -5647,10 +5647,10 @@
               role="note"
               aria-label="AI generation provenance confirmation"
             >
-              <svg class="w-4 h-4 flex-shrink-0 mt-0.5 text-amber dark:text-amber-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <svg class="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-dark dark:text-amber-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
               </svg>
-              <div class="text-xs text-amber dark:text-amber-light leading-relaxed">
+              <div class="text-xs text-amber-dark dark:text-amber-light leading-relaxed">
                 <p class="font-semibold mb-1">Verified AI-generated content</p>
                 <p>This content carries a valid, signed C2PA provenance record which confirms it was created using AI generation.
                    Source: <span class="font-medium">{result.aiGenerator}</span>.
@@ -5662,31 +5662,31 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm mb-4">
             {#if manifest.signedBy}
               <div>
-                <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Signed By</span>
-                <p class="text-text-light dark:text-quartz mt-0.5 break-words">{manifest.signedBy}{#if manifest.signedByIssuer} <span class="text-flint dark:text-flint-light">({manifest.signedByIssuer})</span>{/if}</p>
+                <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Signed By</span>
+                <p class="text-text-light dark:text-quartz mt-0.5 break-words">{manifest.signedBy}{#if manifest.signedByIssuer} <span class="text-flint-dark dark:text-flint-light">({manifest.signedByIssuer})</span>{/if}</p>
               </div>
             {/if}
             {#if manifest.claimGenerator}
               <div>
-                <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Claim Generator</span>
+                <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Claim Generator</span>
                 <p class="text-text-light dark:text-quartz mt-0.5 break-words">{manifest.claimGenerator}</p>
               </div>
             {/if}
             {#if manifest.format}
               <div>
-                <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Format</span>
+                <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Format</span>
                 <p class="text-text-light dark:text-quartz mt-0.5">{manifest.format}</p>
               </div>
             {/if}
             {#if manifest.title}
               <div>
-                <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Title</span>
+                <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Title</span>
                 <p class="text-text-light dark:text-quartz mt-0.5 break-words">{manifest.title}</p>
               </div>
             {/if}
             {#if manifest.signedAt}
               <div>
-                <span class="text-xs text-flint dark:text-flint-light uppercase tracking-wide">Signed At</span>
+                <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Signed At</span>
                 <p class="text-text-light dark:text-quartz mt-0.5">{formatSignedAt(manifest.signedAt)}</p>
               </div>
             {/if}
@@ -5694,15 +5694,15 @@
 
           {#if manifest.assertions.length > 0}
             <div>
-              <h3 class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-2">
+              <h3 class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide mb-2">
                 Assertions
-                <span class="normal-case ml-1 text-flint/70 dark:text-flint-light/70">({manifest.assertions.length})</span>
+                <span class="normal-case ml-1 text-flint-dark dark:text-flint-light">({manifest.assertions.length})</span>
               </h3>
               <div class="space-y-2" role="list" aria-label="C2PA assertions">
                 {#each manifest.assertions as assertion (assertion.label)}
                   <div class="bg-gray-100 dark:bg-obsidian/50 rounded-md p-3" role="listitem">
                     <p class="text-xs font-mono text-lapis dark:text-lapis-light mb-1 break-all">{assertion.label}</p>
-                    <pre class="text-xs text-flint dark:text-flint-light whitespace-pre-wrap break-words leading-relaxed">{assertion.value}</pre>
+                    <pre class="text-xs text-flint-dark dark:text-flint-light whitespace-pre-wrap break-words leading-relaxed">{assertion.value}</pre>
                   </div>
                 {/each}
               </div>
@@ -5712,19 +5712,19 @@
           <!-- ── Validation Checks ──────────────────────────────────── -->
           {#if manifest.validationChecks && manifest.validationChecks.length > 0}
             <div class="mt-4">
-              <h3 class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-2">
+              <h3 class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide mb-2">
                 Validation Checks
-                <span class="normal-case ml-1 text-flint/70 dark:text-flint-light/70">({manifest.validationChecks.length})</span>
+                <span class="normal-case ml-1 text-flint-dark dark:text-flint-light">({manifest.validationChecks.length})</span>
               </h3>
               <div class="space-y-1" role="list" aria-label="C2PA validation checks">
                 {#each manifest.validationChecks as check (check.code + check.outcome)}
                   <div
                     class="flex items-start gap-2 px-3 py-1.5 rounded text-xs
                            {check.outcome === 'pass'
-                             ? 'bg-malachite/10 text-malachite dark:text-malachite-light'
+                             ? 'bg-malachite/10 text-malachite-dark dark:text-malachite-light'
                              : check.outcome === 'fail'
-                             ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light'
-                             : 'bg-amber/10 text-amber dark:text-amber-light'}"
+                             ? 'bg-cinnabar/10 text-cinnabar-dark dark:text-cinnabar-light'
+                             : 'bg-amber/10 text-amber-dark dark:text-amber-light'}"
                     role="listitem"
                   >
                     <span class="font-medium shrink-0 mt-px" aria-hidden="true">
@@ -5733,7 +5733,7 @@
                     <div>
                       <span class="font-mono">{check.code}</span>
                       {#if check.explanation}
-                        <span class="text-flint dark:text-flint-light ml-1">— {check.explanation}</span>
+                        <span class="text-flint-dark dark:text-flint-light ml-1">— {check.explanation}</span>
                       {/if}
                     </div>
                   </div>
@@ -5744,7 +5744,7 @@
 
           <!-- ── Provenance Chain Timeline ─────────────────────────── -->
           <div class="mt-4">
-            <h3 class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-3">Provenance Chain</h3>
+            <h3 class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide mb-3">Provenance Chain</h3>
 
             <!--
               The C2PA manifest exposed by Jura Trace contains a single claim record.
@@ -5784,22 +5784,22 @@
                   <p class="text-xs font-semibold text-text-light dark:text-quartz mb-0.5">
                     Signed
                     {#if manifest.isValid && (manifest.validAtSigning === true || manifest.certificateExpired === true)}
-                      <span class="text-amber font-medium">(valid at signing — certificate has since expired)</span>
+                      <span class="text-amber-dark dark:text-amber-light font-medium">(valid at signing — certificate has since expired)</span>
                     {:else if manifest.isValid}
-                      <span class="text-malachite dark:text-malachite-light font-medium">(valid)</span>
+                      <span class="text-malachite-dark dark:text-malachite-light font-medium">(valid)</span>
                     {:else}
-                      <span class="text-cinnabar dark:text-cinnabar-light font-medium">(invalid)</span>
+                      <span class="text-cinnabar-dark dark:text-cinnabar-light font-medium">(invalid)</span>
                     {/if}
                   </p>
                   {#if manifest.claimGenerator}
-                    <p class="text-xs text-flint dark:text-flint-light">
-                      <span class="text-flint/60 dark:text-flint-light/60">Generator:</span>
+                    <p class="text-xs text-flint-dark dark:text-flint-light">
+                      <span class="text-flint-dark dark:text-flint-light">Generator:</span>
                       {manifest.claimGenerator}
                     </p>
                   {/if}
                   {#if manifest.signedAt}
-                    <p class="text-xs text-flint dark:text-flint-light">
-                      <span class="text-flint/60 dark:text-flint-light/60">Date:</span>
+                    <p class="text-xs text-flint-dark dark:text-flint-light">
+                      <span class="text-flint-dark dark:text-flint-light">Date:</span>
                       {formatSignedAt(manifest.signedAt)}
                     </p>
                   {/if}
@@ -5808,7 +5808,7 @@
             </ol>
 
             <!-- Ingredient history note -->
-            <p class="mt-2 text-xs text-flint/70 dark:text-flint-light/60 italic leading-relaxed">
+            <p class="mt-2 text-xs text-flint-dark dark:text-flint-light italic leading-relaxed">
               Single claim — no prior provenance history embedded. Full ingredient chain traversal
               requires multi-manifest C2PA records created by compatible tools (e.g. Adobe Firefly,
               Leica cameras, or C2PA provenance enabled at capture).
@@ -5824,7 +5824,7 @@
               Not Found
             </span>
           </div>
-          <p class="text-sm text-flint dark:text-flint-light">
+          <p class="text-sm text-flint-dark dark:text-flint-light">
             No C2PA provenance manifest found in
             <span class="text-text-light dark:text-quartz">{fileName}</span>.
             This file has not been signed with C2PA provenance data.
@@ -5849,7 +5849,7 @@
             <span
               class="text-xs font-medium px-2 py-0.5 rounded border
                      {wm.hasWatermark
-                       ? 'bg-malachite/15 text-malachite dark:text-malachite-light border-malachite/30'
+                       ? 'bg-malachite/15 text-malachite-dark dark:text-malachite-light border-malachite/30'
                        : 'bg-gray-100 dark:bg-graphite-light text-gray-700 dark:text-flint-light border-gray-300 dark:border-border-dark'}"
             >
               {wm.hasWatermark ? 'Detected' : 'Not Found'}
@@ -5864,34 +5864,34 @@
                   class="flex-shrink-0 w-2 h-2 rounded-full bg-malachite"
                   aria-hidden="true"
                 ></span>
-                <p class="text-sm text-malachite dark:text-malachite-light font-medium">
+                <p class="text-sm text-malachite-dark dark:text-malachite-light font-medium">
                   Watermark detected — this file carries Jura Trace provenance data.
                 </p>
               </div>
 
               {#if wm.extractedPayload}
                 <div class="rounded-md bg-gray-50 dark:bg-obsidian/50 border border-border-light dark:border-border-dark px-4 py-3">
-                  <p class="text-xs text-flint dark:text-flint-light uppercase tracking-wide mb-1">Extracted Institution</p>
+                  <p class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide mb-1">Extracted Institution</p>
                   <p class="text-sm text-text-light dark:text-quartz font-mono break-all">{wm.extractedPayload}</p>
                 </div>
               {/if}
 
               <div class="grid grid-cols-2 gap-4 text-xs">
                 <div>
-                  <span class="text-flint dark:text-flint-light">Confidence</span>
+                  <span class="text-flint-dark dark:text-flint-light">Confidence</span>
                   <p class="text-text-light dark:text-quartz tabular-nums mt-0.5">
                     {Math.round(wm.confidence * 100)}%
                   </p>
                 </div>
                 {#if wm.extractedHex}
                   <div>
-                    <span class="text-flint dark:text-flint-light">Hex Payload</span>
+                    <span class="text-flint-dark dark:text-flint-light">Hex Payload</span>
                     <p class="text-text-light dark:text-quartz font-mono text-xs mt-0.5 break-all">{wm.extractedHex}</p>
                   </div>
                 {/if}
               </div>
 
-              <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
+              <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
                 This watermark was embedded using Jura Trace. The extracted institution name can be
                 used to verify the asset's provenance against the originating collection record.
               </p>
@@ -5899,7 +5899,7 @@
 
           {:else}
             <!-- Not found -->
-            <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+            <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
               No Jura Trace invisible watermark was detected in this file. The file may originate
               from outside the Jura Archive workflow, or the watermark may have been removed or
               degraded by subsequent processing.
@@ -5907,7 +5907,7 @@
           {/if}
 
           {#if !wm.success && wm.message}
-            <p class="mt-2 text-xs text-amber dark:text-amber-light">
+            <p class="mt-2 text-xs text-amber-dark dark:text-amber-light">
               Note: {wm.message}
             </p>
           {/if}
@@ -5930,14 +5930,14 @@
             </h2>
             <span
               class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                {vd.aggregateVerdict === 'authentic' ? 'bg-malachite/10 text-malachite dark:text-malachite-light' :
-                 vd.aggregateVerdict === 'synthetic' ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light' :
-                 'bg-amber/10 text-amber dark:text-amber-light'}"
+                {vd.aggregateVerdict === 'authentic' ? 'bg-malachite/10 text-malachite-dark dark:text-malachite-light' :
+                 vd.aggregateVerdict === 'synthetic' ? 'bg-cinnabar/10 text-cinnabar-dark dark:text-cinnabar-light' :
+                 'bg-amber/10 text-amber-dark dark:text-amber-light'}"
             >
               {vd.aggregateVerdict === 'authentic' ? 'Authentic' :
                vd.aggregateVerdict === 'synthetic' ? 'Synthetic' : 'Inconclusive'}
             </span>
-            <span class="text-xs text-flint dark:text-flint-light">
+            <span class="text-xs text-flint-dark dark:text-flint-light">
               Score: {(vd.aggregateScore * 100).toFixed(0)}%
               &middot; {vd.framesAnalysed} frame{vd.framesAnalysed !== 1 ? 's' : ''} analysed
               {#if vd.duration != null}
@@ -5948,7 +5948,7 @@
 
           <!-- Temporal consistency -->
           {#if vd.temporalAvailable}
-            <p class="text-xs text-flint dark:text-flint-light mb-3">
+            <p class="text-xs text-flint-dark dark:text-flint-light mb-3">
               {#if (vd.temporalNoiseDrift ?? 0) > 0.4 || (vd.temporalSpectralDrift ?? 0) > 0.4 || (vd.temporalLbpDrift ?? 0) > 0.4}
                 Frame-to-frame drift detected in forensic features.
               {:else}
@@ -5985,7 +5985,7 @@
                     onclick={() => { expandedFrameIndex = isExpanded ? null : i; }}
                   >
                     <div class="aspect-video flex items-center justify-center">
-                      <span class="text-xs text-flint dark:text-flint-light">F{i + 1}</span>
+                      <span class="text-xs text-flint-dark dark:text-flint-light">F{i + 1}</span>
                     </div>
 
                     <!-- Score badge -->
@@ -6022,13 +6022,13 @@
                         <span class="text-xs font-medium text-text-light dark:text-quartz">
                           Frame {fr.frameIndex + 1} at {fr.timestamp.toFixed(1)}s
                         </span>
-                        <span class="text-xs tabular-nums {fr.verdictLevel === 'authentic' ? 'text-malachite dark:text-malachite-light' : fr.verdictLevel === 'synthetic' ? 'text-cinnabar dark:text-cinnabar-light' : 'text-amber dark:text-amber-light'}">
+                        <span class="text-xs tabular-nums {fr.verdictLevel === 'authentic' ? 'text-malachite-dark dark:text-malachite-light' : fr.verdictLevel === 'synthetic' ? 'text-cinnabar-dark dark:text-cinnabar-light' : 'text-amber-dark dark:text-amber-light'}">
                           {fr.verdictLevel.charAt(0).toUpperCase() + fr.verdictLevel.slice(1)} ({(fr.score * 100).toFixed(1)}%)
                         </span>
                       </div>
 
                       {#if fr.classifierAvailable && fr.classifierScore != null}
-                        <div class="text-xs text-flint dark:text-flint-light">
+                        <div class="text-xs text-flint-dark dark:text-flint-light">
                           GBM classifier: {(fr.classifierScore * 100).toFixed(1)}%
                         </div>
                       {/if}
@@ -6068,7 +6068,7 @@
             </div>
 
             <!-- Colour key -->
-            <div class="flex flex-wrap items-center gap-4 text-xs text-flint dark:text-flint-light mb-2" role="img" aria-label="Score badge colour key: Authentic below 35%, Inconclusive 35 to 60%, Synthetic above 60%">
+            <div class="flex flex-wrap items-center gap-4 text-xs text-flint-dark dark:text-flint-light mb-2" role="img" aria-label="Score badge colour key: Authentic below 35%, Inconclusive 35 to 60%, Synthetic above 60%">
               <span class="flex items-center gap-1" aria-hidden="true">
                 <span class="inline-block w-2 h-2 rounded-full bg-malachite dark:bg-malachite-light"></span>
                 Authentic (&lt;35%)
@@ -6085,7 +6085,7 @@
           {/if}
 
           <!-- Summary -->
-          <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
+          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
             {vd.message}
           </p>
         </section>
@@ -6095,7 +6095,7 @@
           <h2 class="text-sm font-medium text-text-light dark:text-quartz mb-2">
             Video Analysis
           </h2>
-          <p class="text-xs text-cinnabar dark:text-cinnabar-light">
+          <p class="text-xs text-cinnabar-dark dark:text-cinnabar-light">
             {result.videoDeepfakeResult.message}
           </p>
         </section>
@@ -6116,10 +6116,10 @@
               Transcription
             </h3>
             {#if tr.language}
-              <span class="text-xs text-flint dark:text-flint-light">
+              <span class="text-xs text-flint-dark dark:text-flint-light">
                 Language: <span class="font-medium text-obsidian dark:text-white">{tr.language.toUpperCase()}</span>
                 {#if tr.languageProbability != null}
-                  <span class="ml-1 text-flint dark:text-flint-light">({(tr.languageProbability * 100).toFixed(1)}%)</span>
+                  <span class="ml-1 text-flint-dark dark:text-flint-light">({(tr.languageProbability * 100).toFixed(1)}%)</span>
                 {/if}
                 {#if tr.duration != null}
                   <span class="mx-1">·</span>
@@ -6143,13 +6143,13 @@
           <!-- Timestamped segments -->
           {#if tr.segments && tr.segments.length > 0}
             <details class="group">
-              <summary class="cursor-pointer text-xs font-medium text-lapis dark:text-lapis-light hover:underline">
+              <summary class="cursor-pointer text-xs font-medium text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline">
                 Show {tr.segments.length} timestamped segment{tr.segments.length !== 1 ? 's' : ''}
               </summary>
               <div class="mt-2 max-h-64 overflow-y-auto space-y-1">
                 {#each tr.segments as seg, i}
                   <div class="flex gap-3 py-1 px-2 rounded text-xs {i % 2 === 0 ? 'bg-gray-50 dark:bg-obsidian/50' : ''}">
-                    <span class="flex-shrink-0 font-mono text-flint dark:text-flint-light w-24">
+                    <span class="flex-shrink-0 font-mono text-flint-dark dark:text-flint-light w-24">
                       {seg.start.toFixed(1)}s – {seg.end.toFixed(1)}s
                     </span>
                     <span class="text-obsidian dark:text-white">{seg.text}</span>
@@ -6170,7 +6170,7 @@
           >
             Transcription
           </h3>
-          <p class="text-xs text-flint dark:text-flint-light">
+          <p class="text-xs text-flint-dark dark:text-flint-light">
             Speech transcription model not available. Install <code class="bg-gray-100 dark:bg-obsidian px-1 rounded">faster-whisper</code> in the Analysis Engine to enable audio transcription.
           </p>
         </section>
@@ -6207,10 +6207,10 @@
               Knowledge Base Match
             </h3>
             <span class="text-xs px-2 py-0.5 rounded font-medium
-              {normOverall === 'consistent' ? 'bg-malachite/10 text-malachite dark:text-malachite-light' :
-               normOverall === 'inconsistent' ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light' :
-               normOverall === 'mixed' ? 'bg-amber/10 text-amber dark:text-amber-light' :
-               'bg-gray-100 dark:bg-graphite/20 text-flint dark:text-flint-light'}">
+              {normOverall === 'consistent' ? 'bg-malachite/10 text-malachite-dark dark:text-malachite-light' :
+               normOverall === 'inconsistent' ? 'bg-cinnabar/10 text-cinnabar-dark dark:text-cinnabar-light' :
+               normOverall === 'mixed' ? 'bg-amber/10 text-amber-dark dark:text-amber-light' :
+               'bg-gray-100 dark:bg-graphite/20 text-flint-dark dark:text-flint-light'}">
               {normOverall === 'consistent' ? 'Matches reference material'
                 : normOverall === 'inconsistent' ? 'Conflicts with reference material'
                 : normOverall === 'mixed' ? 'Mixed KB match'
@@ -6218,11 +6218,11 @@
                 : 'Insufficient KB context'}
             </span>
           </div>
-          <p class="text-[11px] text-flint/80 dark:text-flint-light/70 mb-3">
+          <p class="text-[11px] text-flint-dark dark:text-flint-light mb-3">
             Preliminary investigative aid &mdash; not a fact-checker.
           </p>
 
-          <p class="text-xs text-flint dark:text-flint-light mb-3">{cc.summary}</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light mb-3">{cc.summary}</p>
 
           {#if cc.claims.length > 0}
             <div class="space-y-2">
@@ -6237,15 +6237,15 @@
                   <div class="flex items-start justify-between gap-2 mb-1">
                     <p class="text-xs font-medium text-obsidian dark:text-white">{claim.claim}</p>
                     <span class="flex-shrink-0 text-xs px-1.5 py-0.5 rounded
-                      {normClaim === 'consistent' ? 'bg-malachite/10 text-malachite dark:text-malachite-light' :
-                       normClaim === 'inconsistent' ? 'bg-cinnabar/10 text-cinnabar dark:text-cinnabar-light' :
-                       'bg-gray-100 dark:bg-graphite/20 text-flint dark:text-flint-light'}">
+                      {normClaim === 'consistent' ? 'bg-malachite/10 text-malachite-dark dark:text-malachite-light' :
+                       normClaim === 'inconsistent' ? 'bg-cinnabar/10 text-cinnabar-dark dark:text-cinnabar-light' :
+                       'bg-gray-100 dark:bg-graphite/20 text-flint-dark dark:text-flint-light'}">
                       {normClaim === 'consistent' ? 'Consistent'
                         : normClaim === 'inconsistent' ? 'Inconsistent'
                         : 'No context'}
                     </span>
                   </div>
-                  <p class="text-xs text-flint dark:text-flint-light">{claim.explanation}</p>
+                  <p class="text-xs text-flint-dark dark:text-flint-light">{claim.explanation}</p>
                   {#if claim.confidence > 0}
                     <div class="mt-1 flex items-center gap-1">
                       <div class="h-1 w-16 rounded-full bg-gray-200 dark:bg-obsidian">
@@ -6254,7 +6254,7 @@
                           style="width: {claim.confidence * 100}%"
                         ></div>
                       </div>
-                      <span class="text-xs text-flint dark:text-flint-light">{(claim.confidence * 100).toFixed(0)}%</span>
+                      <span class="text-xs text-flint-dark dark:text-flint-light">{(claim.confidence * 100).toFixed(0)}%</span>
                     </div>
                   {/if}
                 </div>
@@ -6262,17 +6262,17 @@
             </div>
           {/if}
 
-          <p class="mt-3 text-xs text-flint dark:text-flint-light">
+          <p class="mt-3 text-xs text-flint-dark dark:text-flint-light">
             Model: {cc.modelUsed} &middot; {cc.methodology}
           </p>
 
           <!-- Non-warranty notice (tech-debt April 2026). See RAG panel for rationale. -->
           <p
-            class="mt-3 text-[11px] leading-relaxed text-flint/90 dark:text-flint-light/80 border-t border-border-light/60 dark:border-border-dark/60 pt-2"
+            class="mt-3 text-[11px] leading-relaxed text-flint-dark dark:text-flint-light border-t border-border-light/60 dark:border-border-dark/60 pt-2"
             role="note"
             aria-label="Knowledge base retrieval non-warranty"
           >
-            <strong class="text-flint dark:text-flint-light">This is a retrieval match, not a fact-check.</strong>
+            <strong class="text-flint-dark dark:text-flint-light">This is a retrieval match, not a fact-check.</strong>
             The tool reports whether transcribed claims are consistent with a small preliminary
             reference corpus. It does not assess the truth or falsity of any claim, person,
             organisation, or event, has not been formally evaluated for accuracy, and must not
@@ -6300,7 +6300,7 @@
           <p class="text-sm text-obsidian dark:text-quartz leading-relaxed italic break-words whitespace-pre-wrap">
             "{result.aiDescription}"
           </p>
-          <p class="mt-2 text-xs text-flint dark:text-flint-light">
+          <p class="mt-2 text-xs text-flint-dark dark:text-flint-light">
             Generated by LLaVA 7B via Ollama. This is an AI-generated description and is not a verified fact.
           </p>
         </section>
@@ -6320,15 +6320,15 @@
               {/if}
             </button>
           </div>
-          <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-3">Transcribe all visible text in this image using LLaVA. Useful for screenshots, memes, social media posts, and document images. Text can then be fed into the claim checker.</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-3">Transcribe all visible text in this image using LLaVA. Useful for screenshots, memes, social media posts, and document images. Text can then be fed into the claim checker.</p>
           {#if extractTextError}
-            <div role="alert" aria-live="assertive" class="rounded-md border border-cinnabar/30 bg-cinnabar/10 px-4 py-3 text-xs text-cinnabar dark:text-cinnabar-light leading-relaxed">{extractTextError}</div>
+            <div role="alert" aria-live="assertive" class="rounded-md border border-cinnabar/30 bg-cinnabar/10 px-4 py-3 text-xs text-cinnabar-dark dark:text-cinnabar-light leading-relaxed">{extractTextError}</div>
           {/if}
           {#if extractedText}
             <div role="status" aria-live="polite" class="rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/50 px-4 py-3">
               <p class="text-xs font-medium text-text-light dark:text-quartz mb-2">Extracted Text</p>
               <pre class="text-sm text-obsidian dark:text-quartz whitespace-pre-wrap font-mono leading-relaxed">{extractedText}</pre>
-              <p class="mt-3 text-xs text-flint dark:text-flint-light">Extracted by LLaVA 7B via Ollama. Review carefully — AI models can misread text, especially in low-resolution, stylised, or heavily compressed images.</p>
+              <p class="mt-3 text-xs text-flint-dark dark:text-flint-light">Extracted by LLaVA 7B via Ollama. Review carefully — AI models can misread text, especially in low-resolution, stylised, or heavily compressed images.</p>
             </div>
           {/if}
         </section>
@@ -6350,7 +6350,7 @@
 
     <!-- Pre-verification idle state -->
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-8 text-center">
-      <p class="text-flint dark:text-flint-light text-sm">
+      <p class="text-flint-dark dark:text-flint-light text-sm">
         {#if activeTab === 'file'}
           Drop a file above to analyse its metadata, compression artefacts, and C2PA provenance.
         {:else if activeTab === 'batch'}
@@ -6371,7 +6371,7 @@
     onclick={scrollToTop}
     class="fixed bottom-6 right-6 z-30 w-11 h-11 rounded-full shadow-lg flex items-center justify-center
            bg-white dark:bg-graphite border border-border-light dark:border-border-dark
-           text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50
+           text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50
            transition-all duration-150
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
     aria-label="Scroll to top of page"
@@ -6515,12 +6515,12 @@
         <!-- Success state -->
         <div class="flex flex-col items-center gap-3 py-4 text-center">
           <div class="w-10 h-10 rounded-full bg-malachite/15 border border-malachite/30 flex items-center justify-center" aria-hidden="true">
-            <svg class="w-5 h-5 text-malachite dark:text-malachite-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-malachite-dark dark:text-malachite-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
           </div>
           <p class="text-sm font-medium text-text-light dark:text-quartz">Report submitted</p>
-          <p class="text-xs text-flint dark:text-flint-light">Thank you. This helps improve detection accuracy.</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light">Thank you. This helps improve detection accuracy.</p>
         </div>
 
       {:else}
@@ -6528,14 +6528,14 @@
         <h2 id="fp-modal-title" class="text-lg font-medium text-text-light dark:text-quartz mb-1">
           Report False Positive
         </h2>
-        <p class="text-sm text-flint dark:text-flint-light mb-5">
+        <p class="text-sm text-flint-dark dark:text-flint-light mb-5">
           If this result appears to be a false positive, let us know why. Reports help calibrate the detection system.
         </p>
 
         <!-- Reason code -->
         <fieldset class="mb-4">
-          <legend class="block text-xs font-medium text-flint dark:text-flint-light mb-2">
-            Reason <span class="text-cinnabar dark:text-cinnabar-light" aria-hidden="true">*</span>
+          <legend class="block text-xs font-medium text-flint-dark dark:text-flint-light mb-2">
+            Reason <span class="text-cinnabar-dark dark:text-cinnabar-light" aria-hidden="true">*</span>
             <span class="sr-only">(required)</span>
           </legend>
           <div class="space-y-2">
@@ -6561,7 +6561,7 @@
                 />
                 <div class="min-w-0">
                   <span class="text-sm text-text-light dark:text-quartz leading-snug block">{opt.label}</span>
-                  <span class="text-xs text-flint dark:text-flint-light leading-relaxed">{opt.description}</span>
+                  <span class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">{opt.description}</span>
                 </div>
               </label>
             {/each}
@@ -6570,25 +6570,25 @@
 
         <!-- Optional note -->
         <div class="mb-5">
-          <label for="fp-note" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
-            Additional notes <span class="text-flint/50 dark:text-flint-light/60">(optional)</span>
+          <label for="fp-note" class="block text-xs font-medium text-flint-dark dark:text-flint-light mb-1">
+            Additional notes <span class="text-flint-dark dark:text-flint-light">(optional)</span>
           </label>
           <textarea
             id="fp-note"
             class="w-full h-20 px-3 py-2 text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded
-                   text-text-light dark:text-quartz placeholder:text-flint/40 resize-none
+                   text-text-light dark:text-quartz placeholder:text-flint-dark dark:text-flint-light resize-none
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
             placeholder="e.g. AVIF file exported from Lightroom, high ISO scan from Epson V600..."
             maxlength={500}
             bind:value={fpReasonNote}
           ></textarea>
-          <p class="text-xs text-flint/50 dark:text-flint-light/60 mt-1 text-right">{fpReasonNote.length} / 500</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light mt-1 text-right">{fpReasonNote.length} / 500</p>
         </div>
 
         <!-- Actions -->
         <div class="flex gap-3 justify-end">
           <button
-            class="px-4 py-2.5 min-h-[44px] text-sm text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+            class="px-4 py-2.5 min-h-[44px] text-sm text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
             onclick={() => { showFalsePositiveModal = false; fpReasonNote = ''; fpReasonCode = 'modern_codec'; }}
             disabled={fpSubmitting}
@@ -6628,7 +6628,7 @@
       <!-- Modal heading -->
       <div class="mb-5">
         <h2 id="report-modal-title" class="text-lg font-medium text-text-light dark:text-quartz">Export Forensic Report</h2>
-        <p class="text-sm text-flint dark:text-flint-light mt-1">
+        <p class="text-sm text-flint-dark dark:text-flint-light mt-1">
           Add your details to the report declaration. All fields are optional — leave blank to export without attribution.
         </p>
       </div>
@@ -6639,15 +6639,15 @@
         <!-- Row 1: Analyst name + Date -->
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label for="decl-analyst-name" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
+            <label for="decl-analyst-name" class="block text-xs font-medium text-flint-dark dark:text-flint-light mb-1">
               Analyst Name
-              <span class="text-flint/50 dark:text-flint-light/60 font-normal ml-1">(optional)</span>
+              <span class="text-flint-dark dark:text-flint-light font-normal ml-1">(optional)</span>
             </label>
             <input
               id="decl-analyst-name"
               type="text"
               class="w-full px-3 py-2.5 min-h-[44px] text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded
-                     text-text-light dark:text-quartz placeholder:text-flint/40
+                     text-text-light dark:text-quartz placeholder:text-flint-dark dark:text-flint-light
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
               placeholder="e.g. Niamh Farrell"
               autocomplete="name"
@@ -6655,14 +6655,14 @@
             />
           </div>
           <div>
-            <label for="decl-analysis-date" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
+            <label for="decl-analysis-date" class="block text-xs font-medium text-flint-dark dark:text-flint-light mb-1">
               Date of Analysis
             </label>
             <input
               id="decl-analysis-date"
               type="text"
               class="w-full px-3 py-2.5 min-h-[44px] text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded
-                     text-text-light dark:text-quartz placeholder:text-flint/40
+                     text-text-light dark:text-quartz placeholder:text-flint-dark dark:text-flint-light
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
               bind:value={analystDate}
             />
@@ -6671,34 +6671,34 @@
 
         <!-- Row 2: Organisation -->
         <div>
-          <label for="decl-organisation" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
+          <label for="decl-organisation" class="block text-xs font-medium text-flint-dark dark:text-flint-light mb-1">
             Organisation
-            <span class="text-flint/50 dark:text-flint-light/60 font-normal ml-1">(optional)</span>
+            <span class="text-flint-dark dark:text-flint-light font-normal ml-1">(optional)</span>
           </label>
           <input
             id="decl-organisation"
             type="text"
             class="w-full px-3 py-2.5 min-h-[44px] text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded
-                   text-text-light dark:text-quartz placeholder:text-flint/40
+                   text-text-light dark:text-quartz placeholder:text-flint-dark dark:text-flint-light
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
             placeholder="e.g. Clarke &amp; Associates Solicitors"
             autocomplete="organization"
             bind:value={analystOrg}
           />
-          <p class="text-xs text-flint/50 dark:text-flint-light/60 mt-1">Name and organisation are remembered for your next export.</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light mt-1">Name and organisation are remembered for your next export.</p>
         </div>
 
         <!-- Row 3: Case reference -->
         <div>
-          <label for="decl-case-ref" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
+          <label for="decl-case-ref" class="block text-xs font-medium text-flint-dark dark:text-flint-light mb-1">
             Case Reference
-            <span class="text-flint/50 dark:text-flint-light/60 font-normal ml-1">(optional, not saved)</span>
+            <span class="text-flint-dark dark:text-flint-light font-normal ml-1">(optional, not saved)</span>
           </label>
           <input
             id="decl-case-ref"
             type="text"
             class="w-full px-3 py-2.5 min-h-[44px] text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded
-                   text-text-light dark:text-quartz placeholder:text-flint/40
+                   text-text-light dark:text-quartz placeholder:text-flint-dark dark:text-flint-light
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
             placeholder="e.g. CF-2026-0047"
             bind:value={analystCaseRef}
@@ -6707,7 +6707,7 @@
 
         <!-- Row 4: Report format -->
         <div>
-          <label for="decl-report-format" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
+          <label for="decl-report-format" class="block text-xs font-medium text-flint-dark dark:text-flint-light mb-1">
             Report Format
           </label>
           <select
@@ -6721,7 +6721,7 @@
             <option value="berkeley">Berkeley Protocol (Legal Evidence)</option>
           </select>
           {#if reportFormat === 'berkeley'}
-            <p class="text-xs text-amber dark:text-amber mt-1">
+            <p class="text-xs text-amber-dark dark:text-amber-light dark:text-amber mt-1">
               Berkeley Protocol format adds formal evidence documentation sections suitable for legal proceedings and international investigations.
             </p>
           {/if}
@@ -6729,20 +6729,20 @@
 
         <!-- Row 5: Analyst note (existing) -->
         <div>
-          <label for="analyst-note" class="block text-xs font-medium text-flint dark:text-flint-light mb-1">
+          <label for="analyst-note" class="block text-xs font-medium text-flint-dark dark:text-flint-light mb-1">
             Analyst Note
-            <span class="text-flint/50 dark:text-flint-light/60 font-normal ml-1">(optional, max 2000 chars — saved automatically)</span>
+            <span class="text-flint-dark dark:text-flint-light font-normal ml-1">(optional, max 2000 chars — saved automatically)</span>
           </label>
           <textarea
             id="analyst-note"
             class="w-full h-20 px-3 py-2 text-sm bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded
-                   text-text-light dark:text-quartz placeholder:text-flint/40 resize-none
+                   text-text-light dark:text-quartz placeholder:text-flint-dark dark:text-flint-light resize-none
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent"
             placeholder="e.g. Initial assessment suggests authentic capture with minor metadata gaps..."
             maxlength={2000}
             bind:value={analystNote}
           ></textarea>
-          <p class="text-xs text-flint/50 dark:text-flint-light/60 mt-1 text-right" aria-live="polite" aria-atomic="true">
+          <p class="text-xs text-flint-dark dark:text-flint-light mt-1 text-right" aria-live="polite" aria-atomic="true">
             <span class="sr-only">Characters used: </span>{analystNote.length} / 2000
           </p>
         </div>
@@ -6760,7 +6760,7 @@
       <div class="flex gap-3 justify-end mt-5">
         <button
           type="button"
-          class="px-4 py-2.5 min-h-[44px] text-sm text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+          class="px-4 py-2.5 min-h-[44px] text-sm text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           onclick={() => { showReportModal = false; }}
           disabled={exportingReport}

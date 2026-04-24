@@ -70,7 +70,7 @@
   <h1 class="text-3xl font-heading text-text-light dark:text-text-dark tracking-heading mb-3">
     Documentation and Guidance
   </h1>
-  <p class="text-base text-flint dark:text-flint-light leading-relaxed max-w-2xl">
+  <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
     Jura Trace runs 12 forensic detectors to verify content authenticity and embeds
     tamper-evident credentials to protect your digital assets. These guides explain how
     each feature works, the methodology behind our analysis, and practical workflows for
@@ -83,17 +83,17 @@
 
 <!-- Start here -->
 <section aria-label="Getting started steps" class="mb-8">
-  <p class="text-xs font-semibold uppercase tracking-widest text-flint dark:text-flint-light mb-4">
+  <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4">
     Start here
   </p>
   <ol class="space-y-3">
-    <li class="flex gap-3 text-sm text-flint dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">1</span>
       <span>Complete the <strong class="text-text-light dark:text-text-dark">Setup Wizard</strong> on first launch — it checks the Analysis Engine, FFmpeg, and Ollama so everything is ready before you start.</span>
     </li>
-    <li class="flex gap-3 text-sm text-flint dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
-      <span>Run your first verification on the <a href="/help/verify" class="text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"><strong class="text-text-light dark:text-text-dark">Verify</strong> page</a> to see the forensic pipeline in action.</span>
+      <span>Run your first verification on the <a href="/help/verify" class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"><strong class="text-text-light dark:text-text-dark">Verify</strong> page</a> to see the forensic pipeline in action.</span>
     </li>
   </ol>
 </section>
@@ -117,10 +117,10 @@
           focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
         "
       >
-        <h2 class="text-base font-heading font-semibold text-text-light dark:text-text-dark mb-2 tracking-heading group-hover:text-lapis dark:group-hover:text-lapis-light motion-safe:transition-colors motion-safe:duration-150">
+        <h2 class="text-base font-heading font-semibold text-text-light dark:text-text-dark mb-2 tracking-heading group-hover:text-lapis dark:group-hover:text-lapis dark:text-lapis-light motion-safe:transition-colors motion-safe:duration-150">
           {card.title}
         </h2>
-        <p class="text-sm text-flint dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
           {card.description}
         </p>
       </a>
@@ -136,7 +136,7 @@
   <h2 id="equity-heading" class="font-heading text-lg text-text-light dark:text-quartz mb-3 tracking-heading">
     Built for Those Who Need It Most
   </h2>
-  <p class="text-sm text-flint dark:text-flint-light leading-relaxed max-w-2xl">
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
     Jura Trace is designed to work where verification is most urgent and resources
     are most constrained — offline, on-device, without sending sensitive content to
     any server. It is free for journalists, fact-checkers, and human rights

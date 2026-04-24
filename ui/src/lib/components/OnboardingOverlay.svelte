@@ -197,7 +197,7 @@
           aria-label="Slide 1 of 3: Welcome"
         >
           <!-- Eyebrow label -->
-          <p class="text-xs font-medium text-lapis-light uppercase tracking-widest mb-4">
+          <p class="text-xs font-medium text-lapis dark:text-lapis-light uppercase tracking-widest mb-4">
             Welcome to Jura Trace
           </p>
 
@@ -228,7 +228,7 @@
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                          focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
                          {selectedRole === role.id
-                           ? 'border-lapis bg-lapis/10 text-lapis-light'
+                           ? 'border-lapis bg-lapis/10 text-lapis dark:text-lapis-light'
                            : 'border-[rgba(122,119,112,0.3)] text-flint-light hover:border-lapis/50'}"
                 >
                   {role.label}
@@ -238,7 +238,7 @@
           </fieldset>
 
           <!-- Subtext -->
-          <p class="text-xs text-flint dark:text-flint-light leading-relaxed mt-4">
+          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-4">
             Built by Jura Labs CIC — free for non-commercial use.
           </p>
         </div>
@@ -251,7 +251,7 @@
           aria-label="Slide 2 of 3: Two tools in one"
         >
           <!-- Eyebrow label -->
-          <p class="text-xs font-medium text-lapis-light uppercase tracking-widest mb-4">
+          <p class="text-xs font-medium text-lapis dark:text-lapis-light uppercase tracking-widest mb-4">
             Two tools in one
           </p>
 
@@ -300,7 +300,7 @@
           aria-label="Slide 3 of 3: You're ready"
         >
           <!-- Eyebrow label -->
-          <p class="text-xs font-medium text-malachite uppercase tracking-widest mb-4">
+          <p class="text-xs font-medium text-malachite-dark dark:text-malachite-light uppercase tracking-widest mb-4">
             You're ready
           </p>
 
@@ -366,7 +366,7 @@
         {#if !isLastSlide}
           <button
             onclick={completeOnboarding}
-            class="text-xs text-flint dark:text-flint-light hover:text-flint-light transition-colors duration-150
+            class="text-xs text-flint-dark dark:text-flint-light hover:text-flint-light transition-colors duration-150
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                    focus-visible:ring-offset-2 focus-visible:ring-offset-graphite rounded"
           >
@@ -378,7 +378,7 @@
         {#if !isFirstSlide && !isLastSlide}
           <button
             onclick={goBack}
-            class="text-xs text-flint dark:text-flint-light hover:text-quartz transition-colors duration-150
+            class="text-xs text-flint-dark dark:text-flint-light hover:text-quartz transition-colors duration-150
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                    focus-visible:ring-offset-2 focus-visible:ring-offset-graphite rounded"
             aria-label="Go back to previous slide"

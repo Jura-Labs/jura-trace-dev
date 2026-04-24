@@ -192,10 +192,10 @@
 
   const trustColorClass = $derived(() => {
     const lv = trustLevel();
-    if (lv === 'high') return 'text-malachite dark:text-malachite-light';
-    if (lv === 'medium') return 'text-amber dark:text-amber-light';
-    if (lv === 'low') return 'text-cinnabar dark:text-cinnabar-light';
-    return 'text-flint dark:text-flint-light';
+    if (lv === 'high') return 'text-malachite-dark dark:text-malachite-light';
+    if (lv === 'medium') return 'text-amber-dark dark:text-amber-light';
+    if (lv === 'low') return 'text-cinnabar-dark dark:text-cinnabar-light';
+    return 'text-flint-dark dark:text-flint-light';
   });
 
   const trustStrokeColor = $derived(() => {
@@ -220,7 +220,7 @@
 
   const verdictBadgeClass = $derived(() => {
     const lv = trustLevel();
-    if (lv === 'high') return 'bg-malachite/15 text-malachite dark:text-malachite-light border-malachite/30';
+    if (lv === 'high') return 'bg-malachite/15 text-malachite-dark dark:text-malachite-light border-malachite/30';
     if (lv === 'medium') return 'bg-amber/15 text-amber-dark dark:text-amber-light border-amber/30';
     return 'bg-cinnabar/15 text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/30';
   });
@@ -993,15 +993,15 @@
   }
 
   function forensicScoreClass(score: number): string {
-    if (score < 0.3) return 'text-malachite dark:text-malachite-light';
-    if (score < 0.6) return 'text-amber dark:text-amber-light';
-    return 'text-cinnabar dark:text-cinnabar-light';
+    if (score < 0.3) return 'text-malachite-dark dark:text-malachite-light';
+    if (score < 0.6) return 'text-amber-dark dark:text-amber-light';
+    return 'text-cinnabar-dark dark:text-cinnabar-light';
   }
 
   function cardPassClass(pass: boolean | null): string {
-    if (pass === null) return 'text-flint dark:text-flint-light';
-    if (pass) return 'text-malachite dark:text-malachite-light';
-    return 'text-amber dark:text-amber-light';
+    if (pass === null) return 'text-flint-dark dark:text-flint-light';
+    if (pass) return 'text-malachite-dark dark:text-malachite-light';
+    return 'text-amber-dark dark:text-amber-light';
   }
 
   function highestSeverityFindings(findings: AnomalyFinding[]): AnomalyFinding[] {
@@ -1159,22 +1159,22 @@
       <h2 class="font-serif text-lg text-obsidian dark:text-quartz">Export Trust Report</h2>
       <div class="space-y-3">
         <div>
-          <label for="v2-analyst-name" class="block text-xs text-flint dark:text-flint-light mb-1">Analyst name (optional)</label>
+          <label for="v2-analyst-name" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Analyst name (optional)</label>
           <input id="v2-analyst-name" type="text" bind:value={analystName}
             class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light" />
         </div>
         <div>
-          <label for="v2-analyst-org" class="block text-xs text-flint dark:text-flint-light mb-1">Organisation (optional)</label>
+          <label for="v2-analyst-org" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Organisation (optional)</label>
           <input id="v2-analyst-org" type="text" bind:value={analystOrg}
             class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light" />
         </div>
         <div>
-          <label for="v2-case-ref" class="block text-xs text-flint dark:text-flint-light mb-1">Case reference (optional)</label>
+          <label for="v2-case-ref" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Case reference (optional)</label>
           <input id="v2-case-ref" type="text" bind:value={analystCaseRef}
             class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light" />
         </div>
         <div>
-          <label for="v2-report-format" class="block text-xs text-flint dark:text-flint-light mb-1">Format</label>
+          <label for="v2-report-format" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Format</label>
           <select id="v2-report-format" bind:value={reportFormat}
             class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light">
             <option value="standard">Standard</option>
@@ -1184,7 +1184,7 @@
       </div>
       <div class="flex gap-3 justify-end pt-2">
         <button
-          class="px-4 py-2 min-h-[44px] text-sm text-flint dark:text-flint-light border border-border-light dark:border-border-dark rounded-lg hover:text-obsidian dark:hover:text-quartz transition-colors
+          class="px-4 py-2 min-h-[44px] text-sm text-flint-dark dark:text-flint-light border border-border-light dark:border-border-dark rounded-lg hover:text-obsidian dark:hover:text-quartz transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
           onclick={() => showReportModal = false}
         >Cancel</button>
@@ -1211,11 +1211,11 @@
     <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl p-6 w-full max-w-md space-y-4">
       <h2 class="font-serif text-lg text-obsidian dark:text-quartz">Report False Positive</h2>
       {#if fpSubmitted}
-        <p class="text-malachite dark:text-malachite-light text-sm" role="status" aria-live="polite">Thank you — your feedback has been recorded locally.</p>
+        <p class="text-malachite-dark dark:text-malachite-light text-sm" role="status" aria-live="polite">Thank you — your feedback has been recorded locally.</p>
       {:else}
         <div class="space-y-3">
           <div>
-            <label for="v2-fp-reason" class="block text-xs text-flint dark:text-flint-light mb-1">Reason</label>
+            <label for="v2-fp-reason" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Reason</label>
             <select id="v2-fp-reason" bind:value={fpReasonCode}
               class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light">
               <option value="modern_codec">Modern codec (AVIF/WebP)</option>
@@ -1226,14 +1226,14 @@
             </select>
           </div>
           <div>
-            <label for="v2-fp-note" class="block text-xs text-flint dark:text-flint-light mb-1">Additional notes (optional)</label>
+            <label for="v2-fp-note" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Additional notes (optional)</label>
             <textarea id="v2-fp-note" bind:value={fpReasonNote} rows="3"
               class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"></textarea>
           </div>
         </div>
         <div class="flex gap-3 justify-end pt-2">
           <button
-            class="px-4 py-2 min-h-[44px] text-sm text-flint dark:text-flint-light border border-border-light dark:border-border-dark rounded-lg hover:text-obsidian dark:hover:text-quartz transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+            class="px-4 py-2 min-h-[44px] text-sm text-flint-dark dark:text-flint-light border border-border-light dark:border-border-dark rounded-lg hover:text-obsidian dark:hover:text-quartz transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
             onclick={() => showFalsePositiveModal = false}
           >Cancel</button>
           <button
@@ -1275,21 +1275,21 @@
         <button
           class="px-3 py-1.5 text-xs font-medium transition-colors min-h-[36px]
                  {verifyMode === opt.mode
-                   ? 'bg-lapis/20 text-lapis-light'
-                   : 'text-flint dark:text-flint-light hover:text-obsidian dark:hover:text-quartz'}
+                   ? 'bg-lapis text-white dark:bg-lapis-light dark:text-obsidian'
+                   : 'text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz'}
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis-light"
           role="radio"
           aria-checked={verifyMode === opt.mode}
           onclick={() => { verifyMode = opt.mode; localStorage.setItem('jura-verify-mode', opt.mode); }}
-        >{opt.label} <span class="opacity-50 ml-0.5">{opt.description}</span></button>
+        >{opt.label} <span class="ml-0.5 {verifyMode === opt.mode ? 'text-white dark:text-obsidian' : 'text-flint-dark dark:text-flint-light'}">{opt.description}</span></button>
       {/each}
     </div>
 
     <div
       class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border
              {sidecarAvailable
-               ? 'bg-malachite/10 text-malachite dark:text-malachite-light border-malachite/20'
-               : 'bg-white dark:bg-graphite text-flint dark:text-flint-light border-border-light dark:border-border-dark'}"
+               ? 'bg-malachite/10 text-malachite-dark dark:text-malachite-light border-malachite/20'
+               : 'bg-white dark:bg-graphite text-flint-dark dark:text-flint-light border-border-light dark:border-border-dark'}"
       role="status"
       aria-label={sidecarAvailable ? 'Analysis services connected' : 'Analysis services offline'}
     >
@@ -1299,7 +1299,7 @@
 
     {#if checked && result}
       <button
-        class="text-xs text-flint dark:text-flint-light hover:text-obsidian dark:hover:text-quartz transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded px-2 py-1"
+        class="text-xs text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded px-2 py-1"
         onclick={reset}
         aria-label="Clear result and verify a new file"
       >Clear result</button>
@@ -1310,9 +1310,9 @@
   {#if error}
     <div
       class="mb-5 rounded-lg px-4 py-3 text-sm border
-        {errorType === 'sidecar' ? 'bg-amber/10 border-amber/30 text-amber dark:text-amber-light' :
+        {errorType === 'sidecar' ? 'bg-amber/10 border-amber/30 text-amber-dark dark:text-amber-light' :
          errorType === 'format'  ? 'bg-lapis/10 border-lapis/30 text-lapis dark:text-lapis-light' :
-         'bg-cinnabar/10 border-cinnabar/30 text-cinnabar dark:text-cinnabar-light'}"
+         'bg-cinnabar/10 border-cinnabar/30 text-cinnabar-dark dark:text-cinnabar-light'}"
       role="alert"
       aria-live="assertive"
     >
@@ -1334,8 +1334,8 @@
           <button
             class="px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5
                    {activeTab === tab.id
-                     ? 'text-lapis-light border-lapis-light'
-                     : 'text-flint dark:text-flint-light border-transparent hover:text-obsidian dark:hover:text-quartz'}
+                     ? 'text-lapis dark:text-lapis-light border-lapis-light'
+                     : 'text-flint-dark dark:text-flint-light border-transparent hover:text-obsidian dark:hover:text-quartz'}
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis-light"
             role="tab"
             aria-selected={activeTab === tab.id}
@@ -1345,7 +1345,7 @@
           >
             {tab.label}
             {#if (tab as any).badge}
-              <span class="text-[10px] text-flint dark:text-flint-light" aria-label="{(tab as any).badge} files queued">({(tab as any).badge})</span>
+              <span class="text-[10px] text-flint-dark dark:text-flint-light" aria-label="{(tab as any).badge} files queued">({(tab as any).badge})</span>
             {/if}
           </button>
         {/each}
@@ -1363,7 +1363,6 @@
             ondragleave={handleDragLeave}
             ondrop={handleDrop}
             onclick={handleFileClick}
-            aria-label="Drop a file here or click to browse — supported formats: JPEG, PNG, TIFF, WebP, PDF, MP4, MOV"
             aria-busy={loading}
           >
             {#if loading}
@@ -1375,28 +1374,28 @@
                    : 'Running standard analysis…'}
                 </p>
                 {#if fileName}
-                  <p class="text-xs text-flint dark:text-flint-light">{fileName}</p>
+                  <p class="text-xs text-flint-dark dark:text-flint-light">{fileName}</p>
                 {/if}
                 {#if analysisElapsed > 2}
-                  <p class="text-xs text-flint/60 dark:text-flint-light/60 tabular-nums">{analysisElapsed}s elapsed</p>
+                  <p class="text-xs text-flint-dark dark:text-flint-light tabular-nums">{analysisElapsed}s elapsed</p>
                 {/if}
               </div>
             {:else}
               <div class="flex flex-col items-center gap-2">
-                <svg class="w-10 h-10 text-flint dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <svg class="w-10 h-10 text-flint-dark dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                     d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                 </svg>
                 <p class="text-obsidian dark:text-quartz font-medium">Drop a file to verify</p>
-                <p class="text-xs text-flint dark:text-flint-light">or click to browse</p>
-                <p class="text-xs text-flint/70 dark:text-flint-light/70 mt-1">JPEG · PNG · TIFF · WebP · PDF · MP4 · MOV · WAV · MP3</p>
+                <p class="text-xs text-flint-dark dark:text-flint-light">or click to browse</p>
+                <p class="text-xs text-flint-dark dark:text-flint-light mt-1">JPEG · PNG · TIFF · WebP · PDF · MP4 · MOV · WAV · MP3</p>
               </div>
             {/if}
           </button>
           {#if loading}
             <div class="mt-3 flex justify-center">
               <button
-                class="text-xs text-flint dark:text-flint-light hover:text-cinnabar dark:hover:text-cinnabar-light transition-colors px-3 py-1.5 min-h-[36px]
+                class="text-xs text-flint-dark dark:text-flint-light hover:text-cinnabar-dark dark:text-cinnabar-light dark:hover:text-cinnabar-light transition-colors px-3 py-1.5 min-h-[36px]
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
                 onclick={cancelAnalysis}
               >Cancel analysis</button>
@@ -1408,7 +1407,7 @@
       <!-- URL tab -->
       {#if activeTab === 'url'}
         <div id="v2-tab-url" role="tabpanel" aria-labelledby="v2-tab-btn-url" class="p-4">
-          <label for="v2-url-input" class="block text-xs text-flint dark:text-flint-light mb-2">
+          <label for="v2-url-input" class="block text-xs text-flint-dark dark:text-flint-light mb-2">
             Image or media URL
           </label>
           <div class="flex gap-2">
@@ -1419,7 +1418,7 @@
               placeholder="https://example.com/image.jpg"
               disabled={loading}
               onkeydown={(e) => { if (e.key === 'Enter' && urlInput.trim() && !loading) runUrlVerification(); }}
-              class="flex-1 bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm text-obsidian dark:text-quartz placeholder:text-flint/50 dark:placeholder:text-flint-light/50
+              class="flex-1 bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm text-obsidian dark:text-quartz placeholder:text-flint-dark dark:text-flint-light dark:placeholder:text-flint-light/50
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light disabled:opacity-50"
             />
             <button
@@ -1445,15 +1444,15 @@
             ondragleave={() => { batchDragOver = false; }}
             ondrop={handleBatchDrop}
             onclick={handleBatchBrowse}
-            aria-label="Drop multiple files here or click to browse for batch verification"
+            aria-label="Drop multiple files to verify, or click to browse for batch verification"
           >
             <div class="flex flex-col items-center gap-2">
-              <svg class="w-8 h-8 text-flint dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <svg class="w-8 h-8 text-flint-dark dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
               <p class="text-obsidian dark:text-quartz font-medium">Drop multiple files to verify</p>
-              <p class="text-xs text-flint dark:text-flint-light">or click to browse — files are queued for sequential verification</p>
+              <p class="text-xs text-flint-dark dark:text-flint-light">or click to browse — files are queued for sequential verification</p>
             </div>
           </button>
 
@@ -1470,13 +1469,13 @@
                 >
                   {batchRunning ? 'Running…' : 'Run Batch'}
                 </button>
-                <span class="text-xs text-flint dark:text-flint-light">{batchCompleted} of {batchItems.length} complete</span>
+                <span class="text-xs text-flint-dark dark:text-flint-light">{batchCompleted} of {batchItems.length} complete</span>
               </div>
               <div class="flex items-center gap-2">
                 {#if batchCompleted > 0}
                   <button
                     class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-malachite/50
-                           text-malachite dark:text-malachite-light hover:bg-malachite/10 transition-colors
+                           text-malachite-dark dark:text-malachite-light hover:bg-malachite/10 transition-colors
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
                     onclick={downloadBatchReport}
                     aria-label="Download batch verification results as a CSV spreadsheet"
@@ -1488,7 +1487,7 @@
                   </button>
                 {/if}
                 <button
-                  class="text-xs text-flint dark:text-flint-light hover:text-obsidian dark:hover:text-quartz transition-colors px-2 py-1 rounded
+                  class="text-xs text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz transition-colors px-2 py-1 rounded
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
                   onclick={clearBatch}
                   disabled={batchRunning}
@@ -1499,7 +1498,7 @@
             <!-- Results table -->
             <div class="mt-4 bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded-lg overflow-x-auto">
               <div class="grid grid-cols-[1fr_90px_70px_70px_36px] gap-3 px-4 py-2 border-b border-border-light dark:border-border-dark
-                          text-[10px] text-flint dark:text-flint-light uppercase tracking-wide min-w-[480px]">
+                          text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wide min-w-[480px]">
                 <span>File</span>
                 <span>Status</span>
                 <span>Trust</span>
@@ -1521,39 +1520,39 @@
                     <span class="text-sm text-obsidian dark:text-quartz truncate self-center" title={item.filePath}>{item.fileName}</span>
                     <span class="text-xs self-center">
                       {#if item.status === 'queued'}
-                        <span class="text-flint dark:text-flint-light">Queued</span>
+                        <span class="text-flint-dark dark:text-flint-light">Queued</span>
                       {:else if item.status === 'running'}
                         <span class="flex items-center gap-1.5">
                           <span class="w-3 h-3 border-2 border-lapis-light border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Verifying"></span>
-                          <span class="text-lapis-light">Running</span>
+                          <span class="text-lapis dark:text-lapis-light">Running</span>
                         </span>
                       {:else if item.status === 'done'}
                         {@const lv = getTrustLevel(item.result?.overallTrust ?? 0)}
                         <span class="font-medium px-1.5 py-0.5 rounded
-                          {lv === 'high' ? 'text-malachite dark:text-malachite-light bg-malachite/10'
-                           : lv === 'medium' ? 'text-amber dark:text-amber-light bg-amber/10'
-                           : 'text-cinnabar dark:text-cinnabar-light bg-cinnabar/10'}">Done</span>
+                          {lv === 'high' ? 'text-malachite-dark dark:text-malachite-light bg-malachite/10'
+                           : lv === 'medium' ? 'text-amber-dark dark:text-amber-light bg-amber/10'
+                           : 'text-cinnabar-dark dark:text-cinnabar-light bg-cinnabar/10'}">Done</span>
                       {:else}
-                        <span class="text-cinnabar dark:text-cinnabar-light">Error</span>
+                        <span class="text-cinnabar-dark dark:text-cinnabar-light">Error</span>
                       {/if}
                     </span>
                     <span class="text-xs tabular-nums self-center">
                       {#if item.status === 'done' && item.result}
                         {@const lv = getTrustLevel(item.result.overallTrust)}
-                        <span class="{lv === 'high' ? 'text-malachite dark:text-malachite-light' : lv === 'medium' ? 'text-amber dark:text-amber-light' : 'text-cinnabar dark:text-cinnabar-light'}">
+                        <span class="{lv === 'high' ? 'text-malachite-dark dark:text-malachite-light' : lv === 'medium' ? 'text-amber-dark dark:text-amber-light' : 'text-cinnabar-dark dark:text-cinnabar-light'}">
                           {Math.round(item.result.overallTrust * 100)}%
                         </span>
                       {:else}
-                        <span class="text-flint/50 dark:text-flint-light/50">—</span>
+                        <span class="text-flint-dark dark:text-flint-light">—</span>
                       {/if}
                     </span>
-                    <span class="text-xs text-flint dark:text-flint-light tabular-nums self-center">
+                    <span class="text-xs text-flint-dark dark:text-flint-light tabular-nums self-center">
                       {#if item.startedAt && item.finishedAt}
                         {formatDuration(item.startedAt, item.finishedAt)}
                       {:else}—{/if}
                     </span>
                     <button
-                      class="w-9 h-9 flex items-center justify-center rounded hover:bg-white/10 text-flint dark:text-flint-light hover:text-cinnabar-light transition-colors self-center
+                      class="w-9 h-9 flex items-center justify-center rounded hover:bg-white/10 text-flint-dark dark:text-flint-light hover:text-cinnabar-light transition-colors self-center
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
                       onclick={(e) => { e.stopPropagation(); removeBatchItem(item.id); }}
                       aria-label="Remove {item.fileName} from queue"
@@ -1567,23 +1566,23 @@
                   <!-- Expanded result row -->
                   {#if expandedBatchId === item.id && item.result}
                     <div class="px-4 py-3 border-t border-border-light dark:border-border-dark/40 bg-gray-50 dark:bg-obsidian/50 text-xs space-y-1">
-                      <p class="text-flint dark:text-flint-light">
+                      <p class="text-flint-dark dark:text-flint-light">
                         Detectors:
                         {[item.result.exifAnalysis, item.result.elaResult, item.result.noiseResult, item.result.copyMoveResult, item.result.deepfakeResult].filter(Boolean).length} ran
                         {#if item.result.exifAnalysis?.findings.some((f: AnomalyFinding) => f.severity === 'high' || f.severity === 'critical')}
-                          · <span class="text-amber dark:text-amber-light">EXIF anomalies</span>
+                          · <span class="text-amber-dark dark:text-amber-light">EXIF anomalies</span>
                         {/if}
                         {#if item.result.elaResult?.suspicious}
-                          · <span class="text-amber dark:text-amber-light">ELA concern</span>
+                          · <span class="text-amber-dark dark:text-amber-light">ELA concern</span>
                         {/if}
                         {#if item.result.deepfakeResult?.suspicious}
-                          · <span class="text-amber dark:text-amber-light">AI detection concern</span>
+                          · <span class="text-amber-dark dark:text-amber-light">AI detection concern</span>
                         {/if}
                       </p>
                     </div>
                   {/if}
                   {#if item.status === 'error' && item.error}
-                    <div class="px-4 py-2 border-t border-cinnabar/20 bg-cinnabar/5 text-xs text-cinnabar dark:text-cinnabar-light">
+                    <div class="px-4 py-2 border-t border-cinnabar/20 bg-cinnabar/5 text-xs text-cinnabar-dark dark:text-cinnabar-light">
                       {item.error}
                     </div>
                   {/if}
@@ -1620,14 +1619,14 @@
               content (confidence: {Math.round(result.contentTypeResult.confidence * 100)}%). AI-detection models are calibrated for photographs and may produce unreliable results for this content type.
             </p>
             <details class="mt-2 group">
-              <summary class="list-none text-xs text-amber/70 cursor-pointer flex items-center gap-1.5 hover:text-amber-light transition-colors min-h-[24px]
+              <summary class="list-none text-xs text-amber-dark dark:text-amber-light/70 cursor-pointer flex items-center gap-1.5 hover:text-amber-light transition-colors min-h-[24px]
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber rounded" aria-label="Why was AI detection suppressed?">
                 <svg class="w-3 h-3 motion-safe:group-open:rotate-90 transition-transform duration-150 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M9 5l7 7-7 7"/>
                 </svg>
                 Why?
               </summary>
-              <p class="mt-2 text-xs text-amber/65 leading-relaxed">{result.contentTypeResult.reasoning}</p>
+              <p class="mt-2 text-xs text-amber-dark dark:text-amber-light/65 leading-relaxed">{result.contentTypeResult.reasoning}</p>
             </details>
           </div>
         </div>
@@ -1689,33 +1688,33 @@
             {/if}
           </div>
 
-          <p class="text-sm text-flint dark:text-flint-light mb-3">
+          <p class="text-sm text-flint-dark dark:text-flint-light mb-3">
             {fileName}{#if imageDimensions()} · {imageDimensions()}{/if}
           </p>
 
           <!-- Breakdown row -->
           <div class="flex items-center gap-4 flex-wrap border-t border-border-light dark:border-border-dark/60 pt-3" role="list" aria-label="Verification summary">
             <div role="listitem" class="flex flex-col gap-0.5">
-              <span class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Detectors run</span>
+              <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Detectors run</span>
               <span class="text-sm text-obsidian dark:text-quartz font-medium">{detectorsRun()} / 15</span>
             </div>
             <div role="separator" aria-hidden="true" class="w-px h-6 bg-border-light dark:bg-border-dark"></div>
             <div role="listitem" class="flex flex-col gap-0.5">
-              <span class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Findings</span>
-              <span class="text-sm font-medium {totalFindings > 0 ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}">
+              <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Findings</span>
+              <span class="text-sm font-medium {totalFindings > 0 ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}">
                 {totalFindings === 0 ? 'None' : totalFindings === 1 ? '1 concern' : `${totalFindings} concerns`}
               </span>
             </div>
             {#if cameraLabel()}
               <div role="separator" aria-hidden="true" class="w-px h-6 bg-border-light dark:bg-border-dark"></div>
               <div role="listitem" class="flex flex-col gap-0.5">
-                <span class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Camera</span>
+                <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Camera</span>
                 <span class="text-sm text-obsidian dark:text-quartz font-medium">{cameraLabel()}</span>
               </div>
             {/if}
             <div role="separator" aria-hidden="true" class="w-px h-6 bg-border-light dark:bg-border-dark"></div>
             <div role="listitem" class="flex flex-col gap-0.5">
-              <span class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Content Credentials</span>
+              <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Content Credentials</span>
               <!--
                 Status labels per C2PA UX Rec v1.4 Table 4:
                   invalid -> "Content Credential unavailable or invalid" (verbatim).
@@ -1734,7 +1733,7 @@
                 nuance preserved from Table 4 Valid, not a new state.
               -->
               <span
-                class="text-sm font-medium {result.c2paValid === true ? 'text-malachite dark:text-malachite-light' : result.c2paValid === false ? 'text-cinnabar dark:text-cinnabar-light' : 'text-flint dark:text-flint-light'}"
+                class="text-sm font-medium {result.c2paValid === true ? 'text-malachite-dark dark:text-malachite-light' : result.c2paValid === false ? 'text-cinnabar-dark dark:text-cinnabar-light' : 'text-flint-dark dark:text-flint-light'}"
                 title={result.c2paValid === false
                   ? C2PA_STATUS_INVALID
                   : isValidAtSigning() ? C2PA_MSG_VALID_AT_SIGNING_DETAIL : undefined}
@@ -1756,13 +1755,13 @@
     <!-- ── 2. Signal Map Strip ────────────────────────────────────── -->
     <section aria-label="Signal overview — all detectors at a glance" class="mb-5">
       <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl px-5 py-4">
-        <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-widest mb-3">Signal Map — click any detector to view detail</p>
+        <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-widest mb-3">Signal Map — click any detector to view detail</p>
 
         <div class="flex items-start gap-0" role="group" aria-label="Detector signals grouped by category">
 
           <!-- Provenance group -->
           <div class="flex-1 pr-4">
-            <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider font-semibold mb-2" id="sm-prov">Provenance</p>
+            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold mb-2" id="sm-prov">Provenance</p>
             <div class="flex flex-wrap gap-x-4 gap-y-2" role="list" aria-labelledby="sm-prov">
               {#each signalDots().provenance as dot}
                 <button
@@ -1777,7 +1776,7 @@
                            {dotPulse(dot.state) ? 'motion-safe:animate-pulse' : ''}"
                     aria-hidden="true"
                   ></span>
-                  <span class="text-xs text-flint dark:text-flint-light {dot.state === 'suspicious' ? 'text-amber-light font-medium' : ''}">{dot.label}</span>
+                  <span class="text-xs text-flint-dark dark:text-flint-light {dot.state === 'suspicious' ? 'text-amber-light font-medium' : ''}">{dot.label}</span>
                 </button>
               {/each}
             </div>
@@ -1787,7 +1786,7 @@
 
           <!-- Integrity group -->
           <div class="flex-[2] px-4">
-            <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider font-semibold mb-2" id="sm-int">Integrity</p>
+            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold mb-2" id="sm-int">Integrity</p>
             <div class="flex flex-wrap gap-x-4 gap-y-2" role="list" aria-labelledby="sm-int">
               {#each signalDots().integrity as dot}
                 <button
@@ -1802,7 +1801,7 @@
                            {dotPulse(dot.state) ? 'motion-safe:animate-pulse' : ''}"
                     aria-hidden="true"
                   ></span>
-                  <span class="text-xs text-flint dark:text-flint-light {dot.state === 'suspicious' ? 'text-amber-light font-medium' : ''}">{dot.label}</span>
+                  <span class="text-xs text-flint-dark dark:text-flint-light {dot.state === 'suspicious' ? 'text-amber-light font-medium' : ''}">{dot.label}</span>
                 </button>
               {/each}
             </div>
@@ -1812,7 +1811,7 @@
 
           <!-- AI Detection group -->
           <div class="flex-1 pl-4">
-            <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider font-semibold mb-2" id="sm-ai">AI Detection</p>
+            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold mb-2" id="sm-ai">AI Detection</p>
             <div class="flex flex-wrap gap-x-4 gap-y-2" role="list" aria-labelledby="sm-ai">
               {#each signalDots().ai as dot}
                 <button
@@ -1827,7 +1826,7 @@
                            {dotPulse(dot.state) ? 'motion-safe:animate-pulse' : ''}"
                     aria-hidden="true"
                   ></span>
-                  <span class="text-xs {dot.state === 'suppressed' ? 'text-flint/50 dark:text-flint-light/50 line-through' : 'text-flint dark:text-flint-light'} {dot.state === 'suspicious' ? 'text-amber-light font-medium' : ''}">{dot.label}</span>
+                  <span class="text-xs {dot.state === 'suppressed' ? 'text-flint-dark dark:text-flint-light line-through' : 'text-flint-dark dark:text-flint-light'} {dot.state === 'suspicious' ? 'text-amber-light font-medium' : ''}">{dot.label}</span>
                 </button>
               {/each}
             </div>
@@ -1841,7 +1840,7 @@
     <section aria-label="Forensic analysis by question" class="space-y-2 mb-5">
       <div class="flex items-baseline gap-2 mb-3">
         <h2 class="font-serif text-lg text-obsidian dark:text-quartz">All Checks</h2>
-        <span class="text-xs text-flint dark:text-flint-light">Click a question to expand the full analysis</span>
+        <span class="text-xs text-flint-dark dark:text-flint-light">Click a question to expand the full analysis</span>
       </div>
 
       <!-- Card 1: Does the provenance hold? -->
@@ -1859,14 +1858,14 @@
           onclick={() => openCard = openCard === 'provenance' ? null : 'provenance'}
         >
           <svg
-            class="w-4 h-4 text-flint dark:text-flint-light flex-shrink-0 motion-safe:transition-transform motion-safe:duration-200 {openCard === 'provenance' ? 'rotate-90' : ''}"
+            class="w-4 h-4 text-flint-dark dark:text-flint-light flex-shrink-0 motion-safe:transition-transform motion-safe:duration-200 {openCard === 'provenance' ? 'rotate-90' : ''}"
             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             aria-hidden="true"
           ><path d="M9 5l7 7-7 7"/></svg>
 
           <span class="flex-1 font-serif text-base text-obsidian dark:text-quartz">Does the provenance hold?</span>
 
-          <span class="text-xs text-flint dark:text-flint-light mr-2">
+          <span class="text-xs text-flint-dark dark:text-flint-light mr-2">
             {provenanceFindings === 0 ? '2 of 2 passed' : `${2 - provenanceFindings} of 2 passed`}
           </span>
 
@@ -1891,19 +1890,19 @@
                       <div class="flex items-center gap-2 mb-1 flex-wrap">
                         <span class="text-sm font-medium text-obsidian dark:text-quartz">Filename Analysis</span>
                         <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium border
-                          {fa.pattern === 'camera' ? 'bg-malachite/15 text-malachite dark:text-malachite-light border-malachite/30'
-                           : fa.pattern === 'ai_generated' ? 'bg-amber/15 text-amber dark:text-amber-light border-amber/30'
+                          {fa.pattern === 'camera' ? 'bg-malachite/15 text-malachite-dark dark:text-malachite-light border-malachite/30'
+                           : fa.pattern === 'ai_generated' ? 'bg-amber/15 text-amber-dark dark:text-amber-light border-amber/30'
                            : fa.pattern === 'screenshot' ? 'bg-lapis/15 text-lapis dark:text-lapis-light border-lapis/30'
-                           : 'bg-gray-100 dark:bg-graphite-light text-flint dark:text-flint-light border-border-light dark:border-border-dark'}">
+                           : 'bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light border-border-light dark:border-border-dark'}">
                           {fa.pattern.replace('_', ' ')}
                         </span>
-                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light border border-border-light dark:border-border-dark text-flint dark:text-flint-light tabular-nums">
+                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light tabular-nums">
                           {Math.round(fa.confidence * 100)}% confidence
                         </span>
                       </div>
-                      <p class="text-xs text-flint dark:text-flint-light leading-relaxed">{fa.summary}</p>
+                      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">{fa.summary}</p>
                       {#if fa.matchedPattern}
-                        <p class="text-[11px] mt-1 font-mono text-flint/70 dark:text-flint-light/70 break-all">{fa.matchedPattern}</p>
+                        <p class="text-[11px] mt-1 font-mono text-flint-dark dark:text-flint-light break-all">{fa.matchedPattern}</p>
                       {/if}
                     </div>
                   </div>
@@ -1924,7 +1923,7 @@
                     <div class="flex items-center gap-2 mb-1">
                       <span class="text-sm font-medium text-obsidian dark:text-quartz">EXIF Metadata Analysis</span>
                       {#if result.exifAnalysis}
-                        <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light border border-border-light dark:border-border-dark text-flint dark:text-flint-light">
+                        <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light">
                           {result.exifAnalysis.fieldsPopulated} / {result.exifAnalysis.fieldsTotal} fields
                         </span>
                       {/if}
@@ -1937,14 +1936,14 @@
                           role="note"
                           aria-label="Camera MakerNote authenticity signal"
                         >
-                          <span class="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-malachite/15 text-malachite dark:text-malachite-light border border-malachite/30">
+                          <span class="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-malachite/15 text-malachite-dark dark:text-malachite-light border border-malachite/30">
                             Authentic
                           </span>
                           <div class="flex-1 min-w-0">
-                            <p class="text-xs font-medium text-malachite dark:text-malachite-light leading-snug">
+                            <p class="text-xs font-medium text-malachite-dark dark:text-malachite-light leading-snug">
                               Camera MakerNote signature verified
                             </p>
-                            <p class="text-[11px] text-flint dark:text-flint-light leading-relaxed mt-0.5">
+                            <p class="text-[11px] text-flint-dark dark:text-flint-light leading-relaxed mt-0.5">
                               Vendor-proprietary MakerNote blob detected — AI generators virtually never synthesise these.
                               Confidence: <span class="tabular-nums font-medium">{Math.round((result.exifAnalysis as any).cameraAuthenticityBonus * 100)}%</span>.
                             </p>
@@ -1953,100 +1952,100 @@
                       {/if}
 
                       {#if result.exifAnalysis.findings.length === 0}
-                        <p class="text-xs text-malachite dark:text-malachite-light">No anomalies detected</p>
+                        <p class="text-xs text-malachite-dark dark:text-malachite-light">No anomalies detected</p>
                       {:else}
                         <ul class="space-y-1.5 mt-1">
                           {#each highestSeverityFindings(result.exifAnalysis.findings).slice(0, 5) as finding}
                             <li class="text-xs leading-relaxed">
-                              <span class="font-medium {finding.severity === 'critical' || finding.severity === 'high' ? 'text-amber dark:text-amber-light' : finding.severity === 'medium' ? 'text-amber/70 dark:text-amber-light/70' : 'text-flint dark:text-flint-light'}">
+                              <span class="font-medium {finding.severity === 'critical' || finding.severity === 'high' ? 'text-amber-dark dark:text-amber-light' : finding.severity === 'medium' ? 'text-amber-dark/70 dark:text-amber-light/70' : 'text-flint-dark dark:text-flint-light'}">
                                 [{finding.severity.toUpperCase()}]
                               </span>
                               <span class="text-obsidian dark:text-quartz ml-1">{finding.title}</span>
-                              <span class="text-flint dark:text-flint-light ml-1">— {finding.description}</span>
+                              <span class="text-flint-dark dark:text-flint-light ml-1">— {finding.description}</span>
                             </li>
                           {/each}
                           {#if result.exifAnalysis.findings.length > 5}
-                            <li class="text-xs text-flint dark:text-flint-light">
-                              + {result.exifAnalysis.findings.length - 5} more — <a href="/verify" class="text-lapis-light underline hover:text-obsidian dark:hover:text-quartz">view all in classic view</a>
+                            <li class="text-xs text-flint-dark dark:text-flint-light">
+                              + {result.exifAnalysis.findings.length - 5} more — <a href="/verify" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz">view all in classic view</a>
                             </li>
                           {/if}
                         </ul>
                       {/if}
                     {:else}
-                      <p class="text-xs text-flint dark:text-flint-light">EXIF data not available for this file type.</p>
+                      <p class="text-xs text-flint-dark dark:text-flint-light">EXIF data not available for this file type.</p>
                     {/if}
 
                     <!-- Expandable raw EXIF metadata fields -->
                     {#if result.imageMetadata}
                       {@const meta = result.imageMetadata}
                       <details class="mt-2">
-                        <summary class="text-[11px] text-lapis cursor-pointer hover:text-lapis-light">
+                        <summary class="text-[11px] text-lapis cursor-pointer hover:text-lapis dark:text-lapis-light">
                           View EXIF metadata fields
                         </summary>
                         <div class="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
                           {#if meta.cameraMake || meta.cameraModel}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Camera</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Camera</p>
                               <p class="text-obsidian dark:text-quartz">{[meta.cameraMake, meta.cameraModel].filter(Boolean).join(' ')}</p>
                             </div>
                           {/if}
                           {#if meta.software}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Software</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Software</p>
                               <p class="text-obsidian dark:text-quartz">{meta.software}</p>
                             </div>
                           {/if}
                           {#if meta.datetimeOriginal}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Date taken</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Date taken</p>
                               <p class="text-obsidian dark:text-quartz">{meta.datetimeOriginal}</p>
                             </div>
                           {/if}
                           {#if meta.datetimeModified}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Date modified</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Date modified</p>
                               <p class="text-obsidian dark:text-quartz">{meta.datetimeModified}</p>
                             </div>
                           {/if}
                           {#if meta.iso}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">ISO</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">ISO</p>
                               <p class="text-obsidian dark:text-quartz">{meta.iso}</p>
                             </div>
                           {/if}
                           {#if meta.focalLength}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Focal length</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Focal length</p>
                               <p class="text-obsidian dark:text-quartz">{meta.focalLength}</p>
                             </div>
                           {/if}
                           {#if meta.exposureTime}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Exposure</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Exposure</p>
                               <p class="text-obsidian dark:text-quartz">{meta.exposureTime}</p>
                             </div>
                           {/if}
                           {#if meta.fNumber}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Aperture</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Aperture</p>
                               <p class="text-obsidian dark:text-quartz">{meta.fNumber}</p>
                             </div>
                           {/if}
                           {#if meta.colorSpace}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Colour space</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Colour space</p>
                               <p class="text-obsidian dark:text-quartz">{meta.colorSpace}</p>
                             </div>
                           {/if}
                           {#if meta.exifWidth && meta.exifHeight}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">EXIF dimensions</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">EXIF dimensions</p>
                               <p class="text-obsidian dark:text-quartz">{meta.exifWidth} x {meta.exifHeight}</p>
                             </div>
                           {/if}
                           {#if meta.gpsLatitude != null && meta.gpsLongitude != null}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">GPS</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">GPS</p>
                               <p class="text-obsidian dark:text-quartz">
                                 {meta.gpsLatitude.toFixed(6)}, {meta.gpsLongitude.toFixed(6)}
                                 <a
@@ -2060,37 +2059,37 @@
                           {/if}
                           {#if meta.iccProfileDescription}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">ICC Profile</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">ICC Profile</p>
                               <p class="text-obsidian dark:text-quartz">{meta.iccProfileDescription}</p>
                             </div>
                           {/if}
                           {#if meta.jpegQuantTables?.estimatedQuality != null}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">JPEG Quality</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">JPEG Quality</p>
                               <p class="text-obsidian dark:text-quartz tabular-nums">{meta.jpegQuantTables.estimatedQuality} / 100</p>
                             </div>
                           {/if}
                           {#if meta.jpegQuantTables?.knownSource}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Q-table encoder</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Q-table encoder</p>
                               <p class="text-obsidian dark:text-quartz">{meta.jpegQuantTables.knownSource}</p>
                             </div>
                           {/if}
                           {#if meta.artist}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Artist</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Artist</p>
                               <p class="text-obsidian dark:text-quartz">{meta.artist}</p>
                             </div>
                           {/if}
                           {#if meta.copyright}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Copyright</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Copyright</p>
                               <p class="text-obsidian dark:text-quartz">{meta.copyright}</p>
                             </div>
                           {/if}
                           {#if meta.description}
                             <div class="col-span-2">
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Description</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Description</p>
                               <p class="text-obsidian dark:text-quartz">{meta.description}</p>
                             </div>
                           {/if}
@@ -2104,7 +2103,7 @@
                         {Math.round(result.exifAnalysis.trustScore * 100)}%
                       </span>
                       {#if showRawScores}
-                        <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">trust score</span>
+                        <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">trust score</span>
                       {/if}
                     </div>
                   {/if}
@@ -2123,9 +2122,9 @@
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2 mb-2">
                         <span class="text-sm font-medium text-obsidian dark:text-quartz">Weather Context</span>
-                        <span class="text-[10px] px-1.5 py-px rounded-full bg-amber/15 text-amber border border-amber/30">Enhanced</span>
+                        <span class="text-[10px] px-1.5 py-px rounded-full bg-amber/15 text-amber-dark dark:text-amber-light border border-amber/30">Enhanced</span>
                       </div>
-                      <p class="text-xs text-flint dark:text-flint-light mb-3">
+                      <p class="text-xs text-flint-dark dark:text-flint-light mb-3">
                         Historical weather at {gpsCoords.lat.toFixed(4)}, {gpsCoords.lon.toFixed(4)} on {exifDate()} ~{exifHour()}:00 UTC.
                         Useful for verifying visible conditions match the claimed time and location.
                       </p>
@@ -2133,45 +2132,45 @@
                       {#if weatherData}
                         <dl class="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-xs" aria-label="Historical weather conditions">
                           <div>
-                            <dt class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Temperature</dt>
+                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Temperature</dt>
                             <dd class="text-obsidian dark:text-quartz font-medium">{weatherData.temperature.toFixed(1)} °C</dd>
                           </div>
                           <div>
-                            <dt class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Cloud cover</dt>
+                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Cloud cover</dt>
                             <dd class="text-obsidian dark:text-quartz font-medium">{weatherData.cloudCover.toFixed(0)}%
                               {#if weatherData.cloudCover > 80}
-                                <span class="text-flint/70 dark:text-flint-light/70 ml-1">(overcast — no sharp shadows expected)</span>
+                                <span class="text-flint-dark dark:text-flint-light ml-1">(overcast — no sharp shadows expected)</span>
                               {:else if weatherData.cloudCover > 50}
-                                <span class="text-flint/70 dark:text-flint-light/70 ml-1">(partly cloudy)</span>
+                                <span class="text-flint-dark dark:text-flint-light ml-1">(partly cloudy)</span>
                               {:else}
-                                <span class="text-flint/70 dark:text-flint-light/70 ml-1">(clear)</span>
+                                <span class="text-flint-dark dark:text-flint-light ml-1">(clear)</span>
                               {/if}
                             </dd>
                           </div>
                           <div>
-                            <dt class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Precipitation</dt>
+                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Precipitation</dt>
                             <dd class="text-obsidian dark:text-quartz font-medium">{weatherData.precipitation.toFixed(1)} mm</dd>
                           </div>
                           <div>
-                            <dt class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Visibility</dt>
+                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Visibility</dt>
                             <dd class="text-obsidian dark:text-quartz font-medium">{(weatherData.visibility / 1000).toFixed(1)} km
                               {#if weatherData.visibility < 1000}
-                                <span class="text-amber ml-1">(fog/mist)</span>
+                                <span class="text-amber-dark dark:text-amber-light ml-1">(fog/mist)</span>
                               {/if}
                             </dd>
                           </div>
                           <div>
-                            <dt class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Wind speed</dt>
+                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Wind speed</dt>
                             <dd class="text-obsidian dark:text-quartz font-medium">{weatherData.windSpeed.toFixed(1)} km/h</dd>
                           </div>
                         </dl>
                         {#if result.shadowConsistencyResult && weatherData.cloudCover > 80}
-                          <p class="mt-2 text-xs text-amber dark:text-amber-light">
+                          <p class="mt-2 text-xs text-amber-dark dark:text-amber-light">
                             Shadow consistency analysis may be unreliable — cloud cover was {weatherData.cloudCover.toFixed(0)}% (overcast), producing diffuse lighting without distinct shadows.
                           </p>
                         {/if}
                       {:else if weatherError}
-                        <p class="text-xs text-cinnabar dark:text-cinnabar-light" role="alert">{weatherError}</p>
+                        <p class="text-xs text-cinnabar-dark dark:text-cinnabar-light" role="alert">{weatherError}</p>
                       {:else}
                         <button
                           type="button"
@@ -2191,7 +2190,7 @@
                             Fetch historical weather
                           {/if}
                         </button>
-                        <p class="mt-1.5 text-[10px] text-flint/60 dark:text-flint-light/60">Requires internet connection. Data from Open-Meteo (CC-BY).</p>
+                        <p class="mt-1.5 text-[10px] text-flint-dark dark:text-flint-light">Requires internet connection. Data from Open-Meteo (CC-BY).</p>
                       {/if}
                     </div>
                   </div>
@@ -2203,29 +2202,29 @@
                 {@const pf = result.platformFingerprintResult}
                 <li class="px-5 py-4 {pf.detected ? 'bg-amber/[0.03]' : ''}">
                   <div class="flex items-start gap-3">
-                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {pf.detected ? 'text-amber dark:text-amber-light' : 'text-flint dark:text-flint-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {pf.detected ? 'text-amber-dark dark:text-amber-light' : 'text-flint-dark dark:text-flint-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
                     </svg>
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2 mb-1 flex-wrap">
                         <span class="text-sm font-medium text-obsidian dark:text-quartz">Platform Fingerprint</span>
                         {#if pf.detected && pf.platform}
-                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-amber/15 text-amber dark:text-amber-light border border-amber/30">
+                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-amber/15 text-amber-dark dark:text-amber-light border border-amber/30">
                             {pf.platform}
                           </span>
                           {#if pf.confidence != null}
-                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light border border-border-light dark:border-border-dark text-flint dark:text-flint-light tabular-nums">
+                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light tabular-nums">
                               {Math.round(pf.confidence * 100)}% confidence
                             </span>
                           {/if}
                         {/if}
                       </div>
                       {#if pf.detected}
-                        <p class="text-xs text-amber dark:text-amber-light leading-relaxed">{pf.summary}</p>
+                        <p class="text-xs text-amber-dark dark:text-amber-light leading-relaxed">{pf.summary}</p>
                       {:else}
-                        <p class="text-xs text-flint dark:text-flint-light">No social media processing detected.</p>
+                        <p class="text-xs text-flint-dark dark:text-flint-light">No social media processing detected.</p>
                         {#if pf.summary && pf.summary !== 'No social media processing detected.'}
-                          <p class="text-xs text-flint dark:text-flint-light mt-0.5">{pf.summary}</p>
+                          <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5">{pf.summary}</p>
                         {/if}
                       {/if}
                       {#if pf.detected && pf.allCandidates && pf.allCandidates.length > 1}
@@ -2238,7 +2237,7 @@
                           <ul class="mt-1.5 space-y-1" aria-label="Platform fingerprint candidates">
                             {#each pf.allCandidates as candidate}
                               <li class="flex items-center justify-between gap-3 text-[11px]">
-                                <span class="text-flint dark:text-flint-light">{candidate.platform}</span>
+                                <span class="text-flint-dark dark:text-flint-light">{candidate.platform}</span>
                                 <span class="tabular-nums text-obsidian dark:text-quartz">{Math.round(candidate.score * 100)}%</span>
                               </li>
                             {/each}
@@ -2280,7 +2279,7 @@
                     <!-- L1 one-line summary -->
                     {#if result.c2paValid === true && result.c2paManifest}
                       {@const manifest = result.c2paManifest}
-                      <p class="text-xs text-malachite dark:text-malachite-light leading-relaxed">
+                      <p class="text-xs text-malachite-dark dark:text-malachite-light leading-relaxed">
                         {#if c2paSignerName && c2paSignedDate()}
                           Issued by {c2paSignerName} on {c2paSignedDate()}
                         {:else if c2paSignerName}
@@ -2303,11 +2302,11 @@
                            per C2PA UX Rec v1.4: timestamped credentials are Valid, not a separate state.
                            Adobe's verify.contentauthenticity.org shows no caveat for this case. -->
                     {:else if result.c2paValid === false}
-                      <p class="text-xs text-cinnabar dark:text-cinnabar-light leading-relaxed">
+                      <p class="text-xs text-cinnabar-dark dark:text-cinnabar-light leading-relaxed">
                         Content Credential unavailable or invalid — the record may have been altered.
                       </p>
                     {:else}
-                      <p class="text-xs text-flint dark:text-flint-light leading-relaxed">
+                      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
                         No Content Credentials attached.
                       </p>
                     {/if}
@@ -2349,19 +2348,19 @@
                           <!-- App or device used — prominent standalone field like Adobe -->
                           {#if result.c2paManifest.appOrDevice}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider mb-0.5">App or device used</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-0.5">App or device used</p>
                               <p class="text-xs text-obsidian dark:text-quartz font-medium">{result.c2paManifest.appOrDevice}</p>
                             </div>
                           {/if}
 
                           <!-- Issued by — mandatory per C2PA UX Rec v1.4 §4.2 -->
                           <div>
-                            <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider mb-0.5">Issued by</p>
+                            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-0.5">Issued by</p>
                             <p class="text-xs text-obsidian dark:text-quartz">
                               {c2paSignerName ?? 'Unknown'}
                             </p>
                             {#if result.c2paManifest.signedByIssuer}
-                              <p class="text-[11px] text-flint dark:text-flint-light mt-0.5">
+                              <p class="text-[11px] text-flint-dark dark:text-flint-light mt-0.5">
                                 via {result.c2paManifest.signedByIssuer}
                               </p>
                             {/if}
@@ -2370,7 +2369,7 @@
                           <!-- Signed date -->
                           {#if c2paSignedDate()}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider mb-0.5">Date</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-0.5">Date</p>
                               <p class="text-xs text-obsidian dark:text-quartz">{c2paSignedDate()}</p>
                             </div>
                           {/if}
@@ -2378,7 +2377,7 @@
                           <!-- Edits and activity — per C2PA UX Rec v1.4 §4.3 -->
                           {#if c2paActions().length > 0}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider mb-1.5">Edits and activity</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-1.5">Edits and activity</p>
                               <ul class="space-y-2" aria-label="Recorded edits and activity">
                                 {#each c2paActions() as action}
                                   <li class="flex items-start gap-2">
@@ -2391,17 +2390,17 @@
                                         <p class="text-obsidian dark:text-quartz">{action.description}</p>
                                       {/if}
                                       {#if action.sourceType}
-                                        <p class="text-flint dark:text-flint-light">
+                                        <p class="text-flint-dark dark:text-flint-light">
                                           Source: {action.sourceType}
                                         </p>
                                       {/if}
                                       {#if action.softwareAgent}
-                                        <p class="text-flint dark:text-flint-light">
+                                        <p class="text-flint-dark dark:text-flint-light">
                                           Tool: {action.softwareAgent}
                                         </p>
                                       {/if}
                                       {#if !action.description && !action.sourceType && !action.softwareAgent}
-                                        <p class="text-flint/60 dark:text-flint-light/60 italic">No additional detail recorded</p>
+                                        <p class="text-flint-dark dark:text-flint-light italic">No additional detail recorded</p>
                                       {/if}
                                     </div>
                                   </li>
@@ -2413,7 +2412,7 @@
                           <!-- Digital source type — per C2PA UX Rec v1.4 §4.4 -->
                           {#if c2paDigitalSourceType()}
                             <div>
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider mb-0.5">Digital source type</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-0.5">Digital source type</p>
                               <p class="text-xs text-obsidian dark:text-quartz">{c2paDigitalSourceType()}</p>
                             </div>
                           {/if}
@@ -2425,7 +2424,7 @@
                             {@const middleIngredients = chain.ingredients.slice(0, -1)}
                             {@const shouldCollapse = chain.manifestCount >= 4}
                             <div class="mt-1 pt-3 border-t border-border-light dark:border-border-dark/40">
-                              <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider mb-2">Provenance chain</p>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-2">Provenance chain</p>
                               <ol
                                 class="relative ml-1.5"
                                 aria-label="Content Credentials provenance chain"
@@ -2449,13 +2448,13 @@
                                     {/if}
                                     <div>
                                       <!-- "Active" label per C2PA UX Rec v1.4 §5.3 and §5.4. -->
-                                      <p class="text-[10px] font-semibold text-flint dark:text-flint-light uppercase tracking-wider leading-none mb-0.5">Active</p>
+                                      <p class="text-[10px] font-semibold text-flint-dark dark:text-flint-light uppercase tracking-wider leading-none mb-0.5">Active</p>
                                       <p class="text-xs text-obsidian dark:text-quartz leading-snug">{chain.active.appOrDevice ?? chainSignerName(chain.active)}</p>
                                       {#if chainSignedDate(chain.active)}
-                                        <p class="text-[11px] text-flint dark:text-flint-light">{chainSignedDate(chain.active)}</p>
+                                        <p class="text-[11px] text-flint-dark dark:text-flint-light">{chainSignedDate(chain.active)}</p>
                                       {/if}
                                       {#if chainActionSummary(chain.active)}
-                                        <p class="text-[11px] text-flint dark:text-flint-light italic">{chainActionSummary(chain.active)}</p>
+                                        <p class="text-[11px] text-flint-dark dark:text-flint-light italic">{chainActionSummary(chain.active)}</p>
                                       {/if}
                                     </div>
                                   </div>
@@ -2473,7 +2472,7 @@
                                       type="button"
                                       onclick={() => { c2paChainExpanded = true; }}
                                       class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium
-                                             bg-gray-100 dark:bg-obsidian border border-border-light dark:border-border-dark text-flint dark:text-flint-light
+                                             bg-gray-100 dark:bg-obsidian border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light
                                              hover:text-obsidian dark:hover:text-quartz hover:border-lapis/50 transition-colors
                                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 dark:focus-visible:ring-offset-obsidian"
                                       aria-label="Show {middleIngredients.length} additional manifest{middleIngredients.length === 1 ? '' : 's'} in chain"
@@ -2497,10 +2496,10 @@
                                       ></span>
                                       <p class="text-xs text-obsidian dark:text-quartz leading-snug">{chainSignerName(ingredient)}</p>
                                       {#if chainSignedDate(ingredient)}
-                                        <p class="text-[11px] text-flint dark:text-flint-light">{chainSignedDate(ingredient)}</p>
+                                        <p class="text-[11px] text-flint-dark dark:text-flint-light">{chainSignedDate(ingredient)}</p>
                                       {/if}
                                       {#if chainActionSummary(ingredient)}
-                                        <p class="text-[11px] text-flint dark:text-flint-light italic">{chainActionSummary(ingredient)}</p>
+                                        <p class="text-[11px] text-flint-dark dark:text-flint-light italic">{chainActionSummary(ingredient)}</p>
                                       {/if}
                                     </li>
                                   {/each}
@@ -2536,13 +2535,13 @@
                                     {/if}
                                     <div>
                                       <!-- "Origin" label per C2PA UX Rec v1.4 §5.4 and Figure 12. -->
-                                      <p class="text-[10px] font-semibold text-flint dark:text-flint-light uppercase tracking-wider leading-none mb-0.5">Origin</p>
+                                      <p class="text-[10px] font-semibold text-flint-dark dark:text-flint-light uppercase tracking-wider leading-none mb-0.5">Origin</p>
                                       <p class="text-xs text-obsidian dark:text-quartz leading-snug">{originManifest.appOrDevice ?? chainSignerName(originManifest)}</p>
                                       {#if chainSignedDate(originManifest)}
-                                        <p class="text-[11px] text-flint dark:text-flint-light">{chainSignedDate(originManifest)}</p>
+                                        <p class="text-[11px] text-flint-dark dark:text-flint-light">{chainSignedDate(originManifest)}</p>
                                       {/if}
                                       {#if chainActionSummary(originManifest)}
-                                        <p class="text-[11px] text-flint dark:text-flint-light italic">{chainActionSummary(originManifest)}</p>
+                                        <p class="text-[11px] text-flint-dark dark:text-flint-light italic">{chainActionSummary(originManifest)}</p>
                                       {/if}
                                     </div>
                                   </div>
@@ -2600,7 +2599,7 @@
                                              focus-visible:ring-offset-1 dark:focus-visible:ring-offset-obsidian
                                              {isSelected
                                                ? 'bg-lapis/20 text-lapis dark:bg-lapis/30 dark:text-lapis-light'
-                                               : 'bg-gray-100 dark:bg-graphite-light/40 text-flint dark:text-flint-light hover:bg-gray-200 dark:hover:bg-graphite-light/70 hover:text-obsidian dark:hover:text-quartz'}"
+                                               : 'bg-gray-100 dark:bg-graphite-light/40 text-flint-dark dark:text-flint-light hover:bg-gray-200 dark:hover:bg-graphite-light/70 hover:text-obsidian dark:hover:text-quartz'}"
                                       onclick={() => { selectedManifestIndex = idx; }}
                                     >
                                       <span
@@ -2624,13 +2623,13 @@
                                     <div class="flex gap-4 flex-wrap">
                                       {#if sm.title}
                                         <div>
-                                          <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider mb-0.5">Title</p>
+                                          <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-0.5">Title</p>
                                           <p class="text-xs text-obsidian dark:text-quartz">{sm.title}</p>
                                         </div>
                                       {/if}
                                       {#if sm.format}
                                         <div>
-                                          <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider mb-0.5">Format</p>
+                                          <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-0.5">Format</p>
                                           <p class="text-xs text-obsidian dark:text-quartz font-mono">{sm.format}</p>
                                         </div>
                                       {/if}
@@ -2649,10 +2648,10 @@
                                     {@const failCount = checks.filter(c => c.outcome === 'fail').length}
                                     {@const infoCount = checks.filter(c => c.outcome === 'info').length}
                                     <div>
-                                      <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider mb-2">Validation summary</p>
+                                      <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-2">Validation summary</p>
                                       <div class="space-y-1.5">
                                         <div class="flex items-center gap-2 text-xs">
-                                          <span class="w-4 text-center {sigValid ? 'text-malachite dark:text-malachite-light' : 'text-cinnabar dark:text-cinnabar-light'}">{sigValid ? '\u2713' : '\u2717'}</span>
+                                          <span class="w-4 text-center {sigValid ? 'text-malachite-dark dark:text-malachite-light' : 'text-cinnabar-dark dark:text-cinnabar-light'}">{sigValid ? '\u2713' : '\u2717'}</span>
                                           <!-- Spec copy: pass is "Signature valid" (Table 2 Signer
                                                vocabulary + Table 4 valid/invalid state pair, §5.3).
                                                Fail is the verbatim Table 4 row 1 string — mandatory,
@@ -2661,12 +2660,12 @@
                                           <span class="text-obsidian dark:text-quartz">{sigValid ? 'Signature valid' : C2PA_STATUS_INVALID}</span>
                                         </div>
                                         <div class="flex items-center gap-2 text-xs">
-                                          <span class="w-4 text-center {dataValid ? 'text-malachite dark:text-malachite-light' : hashFail ? 'text-cinnabar dark:text-cinnabar-light' : 'text-flint dark:text-flint-light'}">{dataValid ? '\u2713' : hashFail ? '\u2717' : '\u2014'}</span>
+                                          <span class="w-4 text-center {dataValid ? 'text-malachite-dark dark:text-malachite-light' : hashFail ? 'text-cinnabar-dark dark:text-cinnabar-light' : 'text-flint-dark dark:text-flint-light'}">{dataValid ? '\u2713' : hashFail ? '\u2717' : '\u2014'}</span>
                                           <span class="text-obsidian dark:text-quartz">{dataValid ? 'Data integrity confirmed — file has not been modified' : hashFail ? 'Data integrity failed — file has been modified since signing' : 'Data hash not checked'}</span>
                                         </div>
                                         {#if tsValid}
                                           <div class="flex items-center gap-2 text-xs">
-                                            <span class="w-4 text-center text-malachite dark:text-malachite-light">{'\u2713'}</span>
+                                            <span class="w-4 text-center text-malachite-dark dark:text-malachite-light">{'\u2713'}</span>
                                             <span class="text-obsidian dark:text-quartz">Timestamp verified</span>
                                           </div>
                                         {/if}
@@ -2691,7 +2690,7 @@
                                           {@const certFrom = formatCertDate(sm.certNotBefore)}
                                           {@const tsAsserted = formatCertDate(sm.signedAt)}
                                           <div class="flex items-start gap-2 text-xs">
-                                            <span class="w-4 text-center text-amber dark:text-amber-light shrink-0" aria-hidden="true">{'ⓘ'}</span>
+                                            <span class="w-4 text-center text-amber-dark dark:text-amber-light shrink-0" aria-hidden="true">{'ⓘ'}</span>
                                             <span class="text-obsidian/90 dark:text-quartz/90 leading-relaxed">
                                               {C2PA_MSG_VALID_AT_SIGNING_DETAIL}
                                             </span>
@@ -2699,15 +2698,15 @@
                                           {#if certUntil || certFrom || tsAsserted}
                                             <dl class="ml-6 mt-1 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 text-[11px]">
                                               {#if certFrom}
-                                                <dt class="text-flint dark:text-flint-light">Certificate valid from</dt>
+                                                <dt class="text-flint-dark dark:text-flint-light">Certificate valid from</dt>
                                                 <dd class="text-obsidian dark:text-quartz">{certFrom}</dd>
                                               {/if}
                                               {#if certUntil}
-                                                <dt class="text-flint dark:text-flint-light">Certificate valid until</dt>
+                                                <dt class="text-flint-dark dark:text-flint-light">Certificate valid until</dt>
                                                 <dd class="text-obsidian dark:text-quartz">{certUntil}</dd>
                                               {/if}
                                               {#if tsAsserted}
-                                                <dt class="text-flint dark:text-flint-light">Timestamp asserted</dt>
+                                                <dt class="text-flint-dark dark:text-flint-light">Timestamp asserted</dt>
                                                 <dd class="text-obsidian dark:text-quartz">{tsAsserted}</dd>
                                               {/if}
                                             </dl>
@@ -2725,7 +2724,7 @@
 
                                       <!-- L4: Raw validation codes (collapsible) -->
                                       <details class="mt-2">
-                                        <summary class="text-[11px] text-lapis cursor-pointer hover:text-lapis-light">
+                                        <summary class="text-[11px] text-lapis cursor-pointer hover:text-lapis dark:text-lapis-light">
                                           Show raw validation codes
                                         </summary>
                                         <ul class="mt-1.5 space-y-1 ml-1" aria-label="Raw C2PA validation codes">
@@ -2739,7 +2738,7 @@
                                                 aria-hidden="true"
                                               ></span>
                                               <div>
-                                                <span class="text-[11px] font-mono text-flint dark:text-flint-light">{check.code}</span>
+                                                <span class="text-[11px] font-mono text-flint-dark dark:text-flint-light">{check.code}</span>
                                                 {#if check.explanation}
                                                   <p class="text-[11px] text-obsidian/70 dark:text-quartz/70 mt-0.5">{check.explanation}</p>
                                                 {/if}
@@ -2757,19 +2756,19 @@
                                        and why (e.g. "Rights-holder request"). -->
                                   {#if sm && sm.redactions && sm.redactions.length > 0}
                                     <div>
-                                      <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider mb-1.5">
+                                      <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-1.5">
                                         Redactions ({sm.redactions.length})
                                       </p>
                                       <ul class="space-y-2" aria-label="Redacted assertions">
                                         {#each sm.redactions as redaction}
                                           <li class="text-[11px] border-l-2 border-amber/60 pl-2">
-                                            <span class="font-mono text-flint dark:text-flint-light break-all">
+                                            <span class="font-mono text-flint-dark dark:text-flint-light break-all">
                                               {redaction.target}
                                             </span>
                                             {#if redaction.reason}
                                               <p class="text-obsidian/80 dark:text-quartz/80 mt-0.5 italic">{redaction.reason}</p>
                                             {:else}
-                                              <p class="text-flint/70 dark:text-flint-light/70 mt-0.5 italic">No rationale provided</p>
+                                              <p class="text-flint-dark dark:text-flint-light mt-0.5 italic">No rationale provided</p>
                                             {/if}
                                           </li>
                                         {/each}
@@ -2780,11 +2779,11 @@
                                   <!-- Assertions -->
                                   {#if sm && sm.assertions.length > 0}
                                     <div>
-                                      <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider mb-1.5">Assertions</p>
+                                      <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-1.5">Assertions</p>
                                       <ul class="space-y-1" aria-label="Manifest assertions">
                                         {#each sm.assertions as assertion}
                                           <li class="text-[11px]">
-                                            <span class="font-mono text-flint dark:text-flint-light">{assertion.label}</span>
+                                            <span class="font-mono text-flint-dark dark:text-flint-light">{assertion.label}</span>
                                           </li>
                                         {/each}
                                       </ul>
@@ -2815,33 +2814,33 @@
               {#if result.watermarkExtractResult}
                 <li class="px-5 py-4 {result.watermarkExtractResult.hasWatermark ? 'bg-malachite/[0.03]' : ''}">
                   <div class="flex items-start gap-3">
-                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 text-malachite dark:text-malachite-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 text-malachite-dark dark:text-malachite-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
                     </svg>
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2 mb-1">
                         <span class="text-sm font-medium text-obsidian dark:text-quartz">Watermark Detection</span>
                         {#if result.watermarkExtractResult.hasWatermark}
-                          <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-malachite/15 text-malachite dark:text-malachite-light border border-malachite/30">
+                          <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-malachite/15 text-malachite-dark dark:text-malachite-light border border-malachite/30">
                             Found
                           </span>
                         {/if}
                       </div>
                       {#if result.watermarkExtractResult.hasWatermark}
-                        <p class="text-xs text-malachite dark:text-malachite-light">
+                        <p class="text-xs text-malachite-dark dark:text-malachite-light">
                           Jura Trace watermark detected
                           {#if result.watermarkExtractResult.confidence != null}
                             — confidence: {Math.round(result.watermarkExtractResult.confidence * 100)}%
                           {/if}
                         </p>
                         {#if result.watermarkExtractResult.extractedPayload}
-                          <p class="text-xs text-flint dark:text-flint-light mt-0.5 font-mono break-all">{result.watermarkExtractResult.extractedPayload}</p>
+                          <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5 font-mono break-all">{result.watermarkExtractResult.extractedPayload}</p>
                         {/if}
                       {:else}
-                        <p class="text-xs text-flint dark:text-flint-light">No Jura Trace watermark detected. This is normal for files not protected via Jura Trace.</p>
+                        <p class="text-xs text-flint-dark dark:text-flint-light">No Jura Trace watermark detected. This is normal for files not protected via Jura Trace.</p>
                       {/if}
                       {#if showRawScores && result.watermarkExtractResult.confidence != null}
-                        <p class="text-[10px] text-flint/60 dark:text-flint-light/60 mt-1 tabular-nums">
+                        <p class="text-[10px] text-flint-dark dark:text-flint-light mt-1 tabular-nums">
                           confidence: {result.watermarkExtractResult.confidence.toFixed(4)}
                         </p>
                       {/if}
@@ -2862,50 +2861,50 @@
                       <div class="flex items-center gap-2 mb-2 flex-wrap">
                         <span class="text-sm font-medium text-obsidian dark:text-quartz">PDF Provenance</span>
                         {#if pdf.hasDigitalSignature}
-                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-malachite/15 text-malachite dark:text-malachite-light border border-malachite/30">Digitally Signed</span>
+                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-malachite/15 text-malachite-dark dark:text-malachite-light border border-malachite/30">Digitally Signed</span>
                         {/if}
                         {#if pdf.isPdfA}
-                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-malachite/15 text-malachite dark:text-malachite-light border border-malachite/30">PDF/A</span>
+                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-malachite/15 text-malachite-dark dark:text-malachite-light border border-malachite/30">PDF/A</span>
                         {/if}
                         {#if pdf.hasIncrementalSaves}
-                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-amber/15 text-amber dark:text-amber-light border border-amber/30">Incremental Saves</span>
+                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-amber/15 text-amber-dark dark:text-amber-light border border-amber/30">Incremental Saves</span>
                         {/if}
                         {#if pdf.hasRedactionAnnotations}
-                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-amber/15 text-amber dark:text-amber-light border border-amber/30">Redactions</span>
+                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-amber/15 text-amber-dark dark:text-amber-light border border-amber/30">Redactions</span>
                         {/if}
                       </div>
-                      <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-2">{pdf.summary}</p>
+                      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-2">{pdf.summary}</p>
                       <dl class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
                         {#if pdf.producer}
                           <div>
-                            <dt class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Producer</dt>
+                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Producer</dt>
                             <dd class="text-obsidian dark:text-quartz">{pdf.producer}</dd>
                           </div>
                         {/if}
                         {#if pdf.creator}
                           <div>
-                            <dt class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Creator</dt>
+                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Creator</dt>
                             <dd class="text-obsidian dark:text-quartz">{pdf.creator}</dd>
                           </div>
                         {/if}
                         {#if pdf.creationDate}
                           <div>
-                            <dt class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Created</dt>
+                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Created</dt>
                             <dd class="text-obsidian dark:text-quartz">{pdf.creationDate}</dd>
                           </div>
                         {/if}
                         {#if pdf.modDate}
                           <div>
-                            <dt class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Modified</dt>
+                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Modified</dt>
                             <dd class="text-obsidian dark:text-quartz">{pdf.modDate}</dd>
                           </div>
                         {/if}
                         <div>
-                          <dt class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Pages</dt>
+                          <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Pages</dt>
                           <dd class="text-obsidian dark:text-quartz tabular-nums">{pdf.pageCount}</dd>
                         </div>
                         <div>
-                          <dt class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">PDF Version</dt>
+                          <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">PDF Version</dt>
                           <dd class="text-obsidian dark:text-quartz font-mono">{pdf.pdfVersion}</dd>
                         </div>
                       </dl>
@@ -2919,42 +2918,42 @@
                 {@const enf = result.enfAnalysisResult}
                 <li class="px-5 py-4">
                   <div class="flex items-start gap-3">
-                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {enf.detected ? 'text-malachite dark:text-malachite-light' : 'text-flint dark:text-flint-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {enf.detected ? 'text-malachite-dark dark:text-malachite-light' : 'text-flint-dark dark:text-flint-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                     </svg>
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2 mb-1 flex-wrap">
                         <span class="text-sm font-medium text-obsidian dark:text-quartz">Audio ENF Analysis</span>
                         {#if enf.detected && enf.gridRegion}
-                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-malachite/15 text-malachite dark:text-malachite-light border border-malachite/30">
+                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-malachite/15 text-malachite-dark dark:text-malachite-light border border-malachite/30">
                             {enf.gridRegion}
                           </span>
                         {/if}
                       </div>
-                      <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-1">{enf.summary}</p>
+                      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-1">{enf.summary}</p>
                       {#if enf.detected}
                         <dl class="grid grid-cols-2 gap-x-6 gap-y-1 text-xs mt-1">
                           {#if enf.meanFrequency != null}
                             <div>
-                              <dt class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Mean frequency</dt>
+                              <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Mean frequency</dt>
                               <dd class="text-obsidian dark:text-quartz tabular-nums">{enf.meanFrequency.toFixed(3)} Hz</dd>
                             </div>
                           {/if}
                           {#if enf.snr != null}
                             <div>
-                              <dt class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">SNR</dt>
+                              <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">SNR</dt>
                               <dd class="text-obsidian dark:text-quartz tabular-nums">{enf.snr.toFixed(1)} dB</dd>
                             </div>
                           {/if}
                           {#if enf.durationSeconds != null}
                             <div>
-                              <dt class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Duration analysed</dt>
+                              <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Duration analysed</dt>
                               <dd class="text-obsidian dark:text-quartz tabular-nums">{enf.durationSeconds.toFixed(1)} s</dd>
                             </div>
                           {/if}
                           {#if enf.sampleCount != null}
                             <div>
-                              <dt class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider">Samples</dt>
+                              <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Samples</dt>
                               <dd class="text-obsidian dark:text-quartz tabular-nums">{enf.sampleCount}</dd>
                             </div>
                           {/if}
@@ -2988,14 +2987,14 @@
           onclick={() => openCard = openCard === 'integrity' ? null : 'integrity'}
         >
           <svg
-            class="w-4 h-4 text-flint dark:text-flint-light flex-shrink-0 motion-safe:transition-transform motion-safe:duration-200 {openCard === 'integrity' ? 'rotate-90' : ''}"
+            class="w-4 h-4 text-flint-dark dark:text-flint-light flex-shrink-0 motion-safe:transition-transform motion-safe:duration-200 {openCard === 'integrity' ? 'rotate-90' : ''}"
             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             aria-hidden="true"
           ><path d="M9 5l7 7-7 7"/></svg>
 
           <span class="flex-1 font-serif text-base text-obsidian dark:text-quartz">Is the content intact?</span>
 
-          <span class="text-xs text-flint dark:text-flint-light mr-2">
+          <span class="text-xs text-flint-dark dark:text-flint-light mr-2">
             {(() => {
               const total = [result.elaResult, result.noiseResult, result.copyMoveResult, result.jpegGhostResult, result.segmentedElaResult, result.colourTemperatureResult, result.shadowConsistencyResult, result.spliceBoundaryResult].filter(Boolean).length;
               return `${total - integrityFindings} of ${total} passed`;
@@ -3014,7 +3013,7 @@
               {#if result.elaResult}
                 <li class="px-5 py-3 {result.elaResult.suspicious ? 'bg-amber/[0.04]' : ''}">
                   <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.elaResult.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.elaResult.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       {#if result.elaResult.suspicious}
                         <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}
@@ -3023,7 +3022,7 @@
                     </svg>
                     <span class="text-sm {result.elaResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">Error Level Analysis</span>
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {result.elaResult.score.toFixed(4)} · threshold: {(result.elaResult as any).threshold?.toFixed(4) ?? '—'}</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.elaResult.score.toFixed(4)} · threshold: {(result.elaResult as any).threshold?.toFixed(4) ?? '—'}</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.elaResult.score)}">{Math.round(result.elaResult.score * 100)}%</span>
                     {#if result.elaResult.elaImageBase64}
@@ -3036,7 +3035,7 @@
               {#if result.noiseResult}
                 <li class="px-5 py-3 {result.noiseResult.suspicious ? 'bg-amber/[0.04]' : ''}">
                   <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.noiseResult.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.noiseResult.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       {#if result.noiseResult.suspicious}
                         <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}
@@ -3045,12 +3044,12 @@
                     </svg>
                     <span class="text-sm {result.noiseResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">Noise Pattern Analysis</span>
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {result.noiseResult.score.toFixed(4)}</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.noiseResult.score.toFixed(4)}</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.noiseResult.score)}">{Math.round(result.noiseResult.score * 100)}%</span>
                   </div>
                   {#if result.noiseResult.suspicious}
-                    <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{result.noiseResult.anomalousBlocks} of {result.noiseResult.totalBlocks} blocks flagged</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{result.noiseResult.anomalousBlocks} of {result.noiseResult.totalBlocks} blocks flagged</p>
                   {/if}
                 </li>
               {/if}
@@ -3058,7 +3057,7 @@
               {#if result.copyMoveResult}
                 <li class="px-5 py-3 {result.copyMoveResult.suspicious ? 'bg-amber/[0.04]' : ''}">
                   <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.copyMoveResult.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.copyMoveResult.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       {#if result.copyMoveResult.suspicious}
                         <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}
@@ -3067,7 +3066,7 @@
                     </svg>
                     <span class="text-sm {result.copyMoveResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">Copy-Move Detection</span>
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {result.copyMoveResult.score.toFixed(4)}</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.copyMoveResult.score.toFixed(4)}</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.copyMoveResult.score)}">{Math.round(result.copyMoveResult.score * 100)}%</span>
                     {#if result.copyMoveResult.visualisationBase64}
@@ -3075,7 +3074,7 @@
                     {/if}
                   </div>
                   {#if result.copyMoveResult.suspicious && result.copyMoveResult.cloneRegions.length > 0}
-                    <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{result.copyMoveResult.cloneRegions.length} cloned region{result.copyMoveResult.cloneRegions.length === 1 ? '' : 's'} detected</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{result.copyMoveResult.cloneRegions.length} cloned region{result.copyMoveResult.cloneRegions.length === 1 ? '' : 's'} detected</p>
                   {/if}
                 </li>
               {/if}
@@ -3083,7 +3082,7 @@
               {#if result.jpegGhostResult}
                 <li class="px-5 py-3 {result.jpegGhostResult.suspicious ? 'bg-amber/[0.04]' : ''}">
                   <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.jpegGhostResult.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.jpegGhostResult.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       {#if result.jpegGhostResult.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
@@ -3092,7 +3091,7 @@
                       <ExperimentalPill variant="uncalibrated" tooltip="JPEG Ghost is weighted at 0.5× in the trust score. See methodology." />
                     </span>
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {result.jpegGhostResult.score.toFixed(4)} · weight: 0.5×</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.jpegGhostResult.score.toFixed(4)} · weight: 0.5×</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.jpegGhostResult.score)}">{Math.round(result.jpegGhostResult.score * 100)}%</span>
                     {#if (result.jpegGhostResult as any).ghostImageBase64}
@@ -3105,13 +3104,13 @@
               {#if result.segmentedElaResult}
                 <li class="px-5 py-3 {result.segmentedElaResult.suspicious ? 'bg-amber/[0.04]' : ''}">
                   <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.segmentedElaResult.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.segmentedElaResult.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       {#if result.segmentedElaResult.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
                     <span class="text-sm {result.segmentedElaResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">Segmented ELA</span>
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {result.segmentedElaResult.score.toFixed(4)}</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.segmentedElaResult.score.toFixed(4)}</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.segmentedElaResult.score)}">{Math.round(result.segmentedElaResult.score * 100)}%</span>
                     {#if (result.segmentedElaResult as any).visualizationBase64}
@@ -3119,7 +3118,7 @@
                     {/if}
                   </div>
                   {#if result.segmentedElaResult.suspicious}
-                    <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{result.segmentedElaResult.anomalousRegions} of {result.segmentedElaResult.totalRegions} regions flagged</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{result.segmentedElaResult.anomalousRegions} of {result.segmentedElaResult.totalRegions} regions flagged</p>
                   {/if}
                 </li>
               {/if}
@@ -3127,18 +3126,18 @@
               {#if result.colourTemperatureResult}
                 <li class="px-5 py-3 {result.colourTemperatureResult.suspicious ? 'bg-amber/[0.04]' : ''}">
                   <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.colourTemperatureResult.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.colourTemperatureResult.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       {#if result.colourTemperatureResult.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
                     <span class="text-sm {result.colourTemperatureResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">Colour Temperature</span>
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {result.colourTemperatureResult.score.toFixed(4)}</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.colourTemperatureResult.score.toFixed(4)}</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.colourTemperatureResult.score)}">{Math.round(result.colourTemperatureResult.score * 100)}%</span>
                   </div>
                   {#if result.colourTemperatureResult.suspicious}
-                    <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{result.colourTemperatureResult.anomalousRegions} of {result.colourTemperatureResult.totalRegions} regions flagged</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{result.colourTemperatureResult.anomalousRegions} of {result.colourTemperatureResult.totalRegions} regions flagged</p>
                   {/if}
                   {#if result.colourTemperatureResult.heatmapBase64}
                     <div class="mt-2 ml-6">
@@ -3150,7 +3149,7 @@
                     </div>
                   {/if}
                   {#if showRawScores}
-                    <div class="mt-1 ml-6 grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px] text-flint dark:text-flint-light tabular-nums">
+                    <div class="mt-1 ml-6 grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px] text-flint-dark dark:text-flint-light tabular-nums">
                       <span>Global A (green-red): {result.colourTemperatureResult.globalMeanA.toFixed(2)}</span>
                       <span>Global B (blue-yellow): {result.colourTemperatureResult.globalMeanB.toFixed(2)}</span>
                     </div>
@@ -3163,18 +3162,18 @@
                 {@const sh = result.shadowConsistencyResult}
                 <li class="px-5 py-3 {sh.suspicious ? 'bg-amber/[0.04]' : ''}">
                   <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {sh.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {sh.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       {#if sh.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
                     <span class="text-sm {sh.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">Shadow Consistency</span>
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {sh.score.toFixed(4)} · light dir: {sh.globalLightDirection.toFixed(1)}&deg;</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {sh.score.toFixed(4)} · light dir: {sh.globalLightDirection.toFixed(1)}&deg;</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(sh.score)}">{Math.round(sh.score * 100)}%</span>
                   </div>
                   {#if sh.suspicious}
-                    <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{sh.inconsistentRegions} of {sh.totalRegions} regions inconsistent · global light {sh.globalLightDirection.toFixed(0)}&deg;</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{sh.inconsistentRegions} of {sh.totalRegions} regions inconsistent · global light {sh.globalLightDirection.toFixed(0)}&deg;</p>
                   {/if}
                   {#if sh.heatmapBase64}
                     <div class="mt-2 ml-6">
@@ -3193,18 +3192,18 @@
                 {@const sb = result.spliceBoundaryResult}
                 <li class="px-5 py-3 {sb.suspicious ? 'bg-amber/[0.04]' : ''}">
                   <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {sb.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {sb.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       {#if sb.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
                     <span class="text-sm {sb.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">Splice Boundary</span>
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {sb.score.toFixed(4)} · {sb.suspiciousBoundaries}/{sb.totalBoundariesChecked} boundaries</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {sb.score.toFixed(4)} · {sb.suspiciousBoundaries}/{sb.totalBoundariesChecked} boundaries</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(sb.score)}">{Math.round(sb.score * 100)}%</span>
                   </div>
                   {#if sb.suspicious}
-                    <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{sb.suspiciousBoundaries} of {sb.totalBoundariesChecked} boundaries flagged</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{sb.suspiciousBoundaries} of {sb.totalBoundariesChecked} boundaries flagged</p>
                   {/if}
                   {#if sb.heatmapBase64}
                     <div class="mt-2 ml-6">
@@ -3224,12 +3223,12 @@
                       </summary>
                       <ul class="mt-1.5 space-y-1" aria-label="Splice boundary candidates">
                         {#each sb.boundaries as boundary, i (i)}
-                          <li class="text-[11px] text-flint dark:text-flint-light flex items-center justify-between gap-2">
+                          <li class="text-[11px] text-flint-dark dark:text-flint-light flex items-center justify-between gap-2">
                             <span class="font-mono">({boundary.x}, {boundary.y}) {boundary.width}&times;{boundary.height}px</span>
                             <span class="flex items-center gap-1.5 shrink-0">
-                              {#if boundary.jpegGridAligned}<span class="text-[10px] px-1 py-px rounded bg-amber/10 text-amber dark:text-amber-light">JPEG grid</span>{/if}
-                              {#if boundary.noiseAsymmetric}<span class="text-[10px] px-1 py-px rounded bg-amber/10 text-amber dark:text-amber-light">Noise</span>{/if}
-                              {#if boundary.featheringDetected}<span class="text-[10px] px-1 py-px rounded bg-amber/10 text-amber dark:text-amber-light">Feathering</span>{/if}
+                              {#if boundary.jpegGridAligned}<span class="text-[10px] px-1 py-px rounded bg-amber/10 text-amber-dark dark:text-amber-light">JPEG grid</span>{/if}
+                              {#if boundary.noiseAsymmetric}<span class="text-[10px] px-1 py-px rounded bg-amber/10 text-amber-dark dark:text-amber-light">Noise</span>{/if}
+                              {#if boundary.featheringDetected}<span class="text-[10px] px-1 py-px rounded bg-amber/10 text-amber-dark dark:text-amber-light">Feathering</span>{/if}
                               <span class="tabular-nums">{(boundary.confidence * 100).toFixed(0)}%</span>
                             </span>
                           </li>
@@ -3245,7 +3244,7 @@
                 {@const npr = result.nprResult}
                 <li class="px-5 py-3 {npr.suspicious ? 'bg-amber/[0.04]' : ''}">
                   <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {npr.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {npr.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       {#if npr.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
@@ -3254,12 +3253,12 @@
                       <span class="ml-1.5 text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">On-demand</span>
                     </span>
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">score: {npr.score.toFixed(4)} · threshold: 40%</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {npr.score.toFixed(4)} · threshold: 40%</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(npr.score)}">{Math.round(npr.score * 100)}%</span>
                   </div>
                   {#if npr.suspicious}
-                    <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{npr.summary}</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{npr.summary}</p>
                   {/if}
                   {#if npr.heatmapBase64}
                     <div class="mt-2 ml-6">
@@ -3271,7 +3270,7 @@
                     </div>
                   {/if}
                   {#if showRawScores}
-                    <div class="mt-1 ml-6 grid grid-cols-3 gap-x-4 gap-y-0.5 text-[10px] text-flint dark:text-flint-light tabular-nums">
+                    <div class="mt-1 ml-6 grid grid-cols-3 gap-x-4 gap-y-0.5 text-[10px] text-flint-dark dark:text-flint-light tabular-nums">
                       <span>H-V correlation: {npr.hvCorrelation.toFixed(4)}</span>
                       <span>Diff variance ratio: {npr.diffVarianceRatio.toFixed(4)}</span>
                       <span>HF energy ratio: {npr.hfEnergyRatio.toFixed(4)}</span>
@@ -3285,7 +3284,7 @@
                 {@const dct = result.dctAnalysisResult}
                 <li class="px-5 py-3 {dct.suspicious ? 'bg-amber/[0.04]' : ''}">
                   <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {dct.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {dct.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       {#if dct.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
@@ -3294,7 +3293,7 @@
                       <span class="ml-1.5 text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">Deep</span>
                     </span>
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">AC CV: {dct.acCoefficientOfVariation.toFixed(4)}</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">AC CV: {dct.acCoefficientOfVariation.toFixed(4)}</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(dct.score)}">{Math.round(dct.score * 100)}%</span>
                     {#if dct.heatmapBase64}
@@ -3302,10 +3301,10 @@
                     {/if}
                   </div>
                   {#if dct.suspicious}
-                    <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{dct.summary}</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{dct.summary}</p>
                   {/if}
                   {#if showRawScores}
-                    <div class="mt-1 ml-6 grid grid-cols-3 gap-x-4 gap-y-0.5 text-[10px] text-flint dark:text-flint-light tabular-nums">
+                    <div class="mt-1 ml-6 grid grid-cols-3 gap-x-4 gap-y-0.5 text-[10px] text-flint-dark dark:text-flint-light tabular-nums">
                       <span>DC std: {dct.dcStd.toFixed(4)}</span>
                       <span>AC mean: {dct.acMean.toFixed(4)}</span>
                       <span>AC std: {dct.acStd.toFixed(4)}</span>
@@ -3319,7 +3318,7 @@
                 {@const fou = result.fourierAnalysisResult}
                 <li class="px-5 py-3 {fou.suspicious ? 'bg-amber/[0.04]' : ''}">
                   <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {fou.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 {fou.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       {#if fou.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
@@ -3328,7 +3327,7 @@
                       <span class="ml-1.5 text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">Deep</span>
                     </span>
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint dark:text-flint-light tabular-nums">peaks: {fou.peakCount}</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">peaks: {fou.peakCount}</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(fou.score)}">{Math.round(fou.score * 100)}%</span>
                     {#if fou.spectrumBase64}
@@ -3336,19 +3335,19 @@
                     {/if}
                   </div>
                   {#if fou.suspicious}
-                    <p class="text-xs text-flint dark:text-flint-light mt-1 ml-6">{fou.summary}</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{fou.summary}</p>
                   {/if}
                   {#if showRawScores}
-                    <p class="mt-1 ml-6 text-[10px] text-flint dark:text-flint-light tabular-nums">peak count: {fou.peakCount}</p>
+                    <p class="mt-1 ml-6 text-[10px] text-flint-dark dark:text-flint-light tabular-nums">peak count: {fou.peakCount}</p>
                   {/if}
                 </li>
               {/if}
 
               {#if !result.elaResult && !result.noiseResult && !result.copyMoveResult}
                 <li class="px-5 py-4">
-                  <p class="text-sm text-flint dark:text-flint-light">
+                  <p class="text-sm text-flint-dark dark:text-flint-light">
                     Integrity checks require the Analysis Engine. {sidecarAvailable ? 'No data returned for this file type.' : 'Start the sidecar to enable forensic analysis.'}
-                    <a href="/settings" class="text-lapis-light underline hover:text-obsidian dark:hover:text-quartz ml-1">Check service status</a>
+                    <a href="/settings" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz ml-1">Check service status</a>
                   </p>
                 </li>
               {/if}
@@ -3358,8 +3357,8 @@
             <!-- Deep-mode detectors note -->
             {#if !result.shadowConsistencyResult && !result.spliceBoundaryResult && !result.nprResult}
               <div class="px-5 py-3 border-t border-border-light dark:border-border-dark/40 bg-white/[0.01] flex items-center gap-3 flex-wrap">
-                <span class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider font-semibold">On-demand tools</span>
-                <span class="text-xs text-flint dark:text-flint-light">
+                <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold">On-demand tools</span>
+                <span class="text-xs text-flint-dark dark:text-flint-light">
                   Shadow Consistency, Splice Boundary, and NPR require deep or archival mode.
                 </span>
               </div>
@@ -3388,7 +3387,7 @@
             onclick={() => openCard = openCard === 'ai' ? null : 'ai'}
           >
             <svg
-              class="w-4 h-4 text-flint dark:text-flint-light flex-shrink-0 motion-safe:transition-transform motion-safe:duration-200 {openCard === 'ai' ? 'rotate-90' : ''}"
+              class="w-4 h-4 text-flint-dark dark:text-flint-light flex-shrink-0 motion-safe:transition-transform motion-safe:duration-200 {openCard === 'ai' ? 'rotate-90' : ''}"
               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
               aria-hidden="true"
             ><path d="M9 5l7 7-7 7"/></svg>
@@ -3396,9 +3395,9 @@
             <span class="flex-1 font-serif text-base text-obsidian dark:text-quartz">Is this AI-generated?</span>
 
             {#if aiDetectionSuppressed}
-              <span class="text-xs text-amber dark:text-amber-light mr-2">Suppressed</span>
+              <span class="text-xs text-amber-dark dark:text-amber-light mr-2">Suppressed</span>
             {:else}
-              <span class="text-xs text-flint dark:text-flint-light mr-2">
+              <span class="text-xs text-flint-dark dark:text-flint-light mr-2">
                 {(() => {
                   const total = [result.deepfakeResult, result.clipResult].filter(Boolean).length;
                   return `${total - aiFindings} of ${total} passed`;
@@ -3419,12 +3418,12 @@
           <div id="card-ai-body" class="border-t border-border-light dark:border-border-dark/60">
             {#if aiDetectionSuppressed}
               <div class="px-5 py-4">
-                <p class="text-sm text-amber/80 dark:text-amber-light/80">
+                <p class="text-sm text-amber-dark/80 dark:text-amber-light/80">
                   AI detection signals have been suppressed for this file. The content-type classifier determined that deepfake and CLIP models are not reliable for this content type.
                   Scores were neutralised in the trust calculation.
                 </p>
-                <p class="text-xs text-flint dark:text-flint-light mt-2">
-                  <a href="/verify" class="text-lapis-light underline hover:text-obsidian dark:hover:text-quartz">View raw scores in classic view</a>
+                <p class="text-xs text-flint-dark dark:text-flint-light mt-2">
+                  <a href="/verify" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz">View raw scores in classic view</a>
                 </p>
               </div>
             {:else}
@@ -3433,18 +3432,18 @@
                 {#if result.deepfakeResult}
                   <li class="px-5 py-4 {result.deepfakeResult.suspicious ? 'bg-amber/[0.04]' : ''}">
                     <div class="flex items-start gap-3">
-                      <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {result.deepfakeResult.suspicious ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {result.deepfakeResult.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         {#if result.deepfakeResult.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                         {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                       </svg>
                       <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-1 flex-wrap">
                           <span class="text-sm font-medium {result.deepfakeResult.suspicious ? 'text-amber-light' : 'text-obsidian dark:text-quartz'}">AI Generation (GBM Deepfake)</span>
-                          <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light border border-border-light dark:border-border-dark text-flint dark:text-flint-light">{result.deepfakeResult.confidence} confidence</span>
+                          <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light">{result.deepfakeResult.confidence} confidence</span>
                         </div>
-                        <p class="text-xs text-flint dark:text-flint-light">{result.deepfakeResult.summary}</p>
+                        <p class="text-xs text-flint-dark dark:text-flint-light">{result.deepfakeResult.summary}</p>
                         {#if result.deepfakeResult.verdictLevel}
-                          <p class="text-xs mt-1 font-medium {result.deepfakeResult.verdictLevel === 'synthetic' ? 'text-cinnabar dark:text-cinnabar-light' : result.deepfakeResult.verdictLevel === 'inconclusive' ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}">
+                          <p class="text-xs mt-1 font-medium {result.deepfakeResult.verdictLevel === 'synthetic' ? 'text-cinnabar-dark dark:text-cinnabar-light' : result.deepfakeResult.verdictLevel === 'inconclusive' ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}">
                             Verdict: {result.deepfakeResult.verdictLevel.charAt(0).toUpperCase() + result.deepfakeResult.verdictLevel.slice(1)}
                           </p>
                         {/if}
@@ -3459,8 +3458,8 @@
                             <ul class="mt-1.5 space-y-1 ml-4" aria-label="Deepfake detector signals">
                               {#each result.deepfakeResult.signals as sig}
                                 <li class="flex items-center justify-between gap-3 text-[11px]">
-                                  <span class="text-flint dark:text-flint-light">{sig.name}</span>
-                                  <span class="{sig.triggered ? 'text-amber dark:text-amber-light font-medium' : 'text-malachite dark:text-malachite-light'}">
+                                  <span class="text-flint-dark dark:text-flint-light">{sig.name}</span>
+                                  <span class="{sig.triggered ? 'text-amber-dark dark:text-amber-light font-medium' : 'text-malachite-dark dark:text-malachite-light'}">
                                     {sig.triggered ? 'Triggered' : 'Clear'} · w={sig.weight.toFixed(2)}
                                   </span>
                                 </li>
@@ -3469,7 +3468,7 @@
                           </details>
                         {/if}
                         {#if showRawScores}
-                          <p class="text-[10px] text-flint/60 dark:text-flint-light/60 mt-1 tabular-nums font-mono">
+                          <p class="text-[10px] text-flint-dark dark:text-flint-light mt-1 tabular-nums font-mono">
                             score: {result.deepfakeResult.score.toFixed(6)} · threshold: {(result.deepfakeResult as any).threshold?.toFixed(6) ?? '—'}
                           </p>
                         {/if}
@@ -3482,7 +3481,7 @@
                 {#if result.clipResult}
                   <li class="px-5 py-4 {result.clipResult.verdictLevel === 'synthetic' ? 'bg-amber/[0.04]' : ''}">
                     <div class="flex items-start gap-3">
-                      <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {result.clipResult.verdictLevel === 'synthetic' ? 'text-amber dark:text-amber-light' : 'text-malachite dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {result.clipResult.verdictLevel === 'synthetic' ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         {#if result.clipResult.verdictLevel === 'synthetic'}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                         {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                       </svg>
@@ -3491,13 +3490,13 @@
                           <span class="text-sm font-medium {result.clipResult.verdictLevel === 'synthetic' ? 'text-amber-light' : 'text-obsidian dark:text-quartz'}">CLIP / UnivFD Probe</span>
                           <ExperimentalPill variant="uncalibrated" tooltip="CLIP probe AUC 0.9933. See methodology for limitations." />
                         </div>
-                        <p class="text-xs text-flint dark:text-flint-light">{result.clipResult.summary}</p>
+                        <p class="text-xs text-flint-dark dark:text-flint-light">{result.clipResult.summary}</p>
                         <!-- Class probability distribution -->
                         {#if result.clipResult.classProbs && Object.keys(result.clipResult.classProbs).length > 0}
                           <div class="mt-2 space-y-1" aria-label="CLIP class probability distribution">
                             {#each Object.entries(result.clipResult.classProbs) as [cls, prob]}
                               <div class="flex items-center gap-2">
-                                <span class="text-[10px] text-flint dark:text-flint-light w-20 shrink-0 truncate" title={cls}>{cls}</span>
+                                <span class="text-[10px] text-flint-dark dark:text-flint-light w-20 shrink-0 truncate" title={cls}>{cls}</span>
                                 <div class="flex-1 bg-gray-200 dark:bg-graphite-light/50 rounded-full h-1.5 overflow-hidden" role="progressbar" aria-valuenow={Math.round(prob * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="{cls}: {Math.round(prob * 100)}%">
                                   <div
                                     class="h-full rounded-full {prob > 0.5 ? 'bg-amber dark:bg-amber-light' : 'bg-lapis dark:bg-lapis-light'}"
@@ -3510,7 +3509,7 @@
                           </div>
                         {/if}
                         {#if showRawScores}
-                          <p class="text-[10px] text-flint/60 dark:text-flint-light/60 mt-1 tabular-nums font-mono">
+                          <p class="text-[10px] text-flint-dark dark:text-flint-light mt-1 tabular-nums font-mono">
                             score: {result.clipResult.score.toFixed(6)} · confidence: {result.clipResult.confidence}
                           </p>
                         {/if}
@@ -3522,9 +3521,9 @@
 
                 {#if !result.deepfakeResult && !result.clipResult}
                   <li class="px-5 py-4">
-                    <p class="text-sm text-flint dark:text-flint-light">
+                    <p class="text-sm text-flint-dark dark:text-flint-light">
                       AI detection requires the Analysis Engine.
-                      {#if !sidecarAvailable}<a href="/settings" class="text-lapis-light underline hover:text-obsidian dark:hover:text-quartz">Check service status</a>{/if}
+                      {#if !sidecarAvailable}<a href="/settings" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz">Check service status</a>{/if}
                     </p>
                   </li>
                 {/if}
@@ -3535,9 +3534,9 @@
             <!-- Video deepfake placeholder -->
             {#if result.videoDeepfakeResult}
               <div class="px-5 py-3 border-t border-border-light dark:border-border-dark/40 bg-white/[0.01]">
-                <p class="text-xs text-flint dark:text-flint-light">
+                <p class="text-xs text-flint-dark dark:text-flint-light">
                   Video deepfake analysis available.
-                  <a href="/verify" class="text-lapis-light underline hover:text-obsidian dark:hover:text-quartz ml-1">View per-frame detail in classic view</a>
+                  <a href="/verify" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz ml-1">View per-frame detail in classic view</a>
                 </p>
               </div>
             {/if}
@@ -3564,14 +3563,14 @@
           onclick={() => openCard = openCard === 'claims' ? null : 'claims'}
         >
           <svg
-            class="w-4 h-4 text-flint dark:text-flint-light flex-shrink-0 motion-safe:transition-transform motion-safe:duration-200 {openCard === 'claims' ? 'rotate-90' : ''}"
+            class="w-4 h-4 text-flint-dark dark:text-flint-light flex-shrink-0 motion-safe:transition-transform motion-safe:duration-200 {openCard === 'claims' ? 'rotate-90' : ''}"
             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             aria-hidden="true"
           ><path d="M9 5l7 7-7 7"/></svg>
 
           <span class="flex-1 font-serif text-base text-obsidian dark:text-quartz">What does it claim?</span>
 
-          <span class="text-xs text-flint dark:text-flint-light mr-2">
+          <span class="text-xs text-flint-dark dark:text-flint-light mr-2">
             {hasClaimsData ? 'Audio / video only' : 'Not applicable'}
           </span>
         </button>
@@ -3580,30 +3579,30 @@
           <div id="card-claims-body" class="border-t border-border-light dark:border-border-dark/60 px-5 py-4">
             {#if result.transcriptionResult}
               <div class="mb-4">
-                <h3 class="text-xs text-flint dark:text-flint-light uppercase tracking-wider mb-2">Transcription</h3>
+                <h3 class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wider mb-2">Transcription</h3>
                 <p class="text-sm text-obsidian dark:text-quartz leading-relaxed">{result.transcriptionResult.text}</p>
               </div>
             {/if}
 
             {#if result.claimCheckResult}
               <div>
-                <h3 class="text-xs text-flint dark:text-flint-light uppercase tracking-wider mb-2">Claim Check</h3>
+                <h3 class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wider mb-2">Claim Check</h3>
                 <p class="text-sm text-obsidian dark:text-quartz">{result.claimCheckResult.overallVerdict}</p>
                 {#if result.claimCheckResult.summary}
-                  <p class="text-xs text-flint dark:text-flint-light mt-1">{result.claimCheckResult.summary}</p>
+                  <p class="text-xs text-flint-dark dark:text-flint-light mt-1">{result.claimCheckResult.summary}</p>
                 {/if}
               </div>
             {/if}
 
             {#if result.ragClaimResult}
               <div>
-                <h3 class="text-xs text-flint dark:text-flint-light uppercase tracking-wider mb-2">RAG Claim Verification</h3>
+                <h3 class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wider mb-2">RAG Claim Verification</h3>
                 <p class="text-sm text-obsidian dark:text-quartz leading-relaxed">{result.ragClaimResult.explanation}</p>
               </div>
             {/if}
 
             {#if !hasClaimsData}
-              <p class="text-sm text-flint dark:text-flint-light">
+              <p class="text-sm text-flint-dark dark:text-flint-light">
                 Transcription and claim checking are only applicable to audio and video files.
                 For images, use the EXIF and Content Credentials sections above to assess provenance claims.
               </p>
@@ -3621,7 +3620,7 @@
       >
         <h2 id="v2-ai-desc-heading" class="font-serif text-base text-obsidian dark:text-quartz mb-2">AI Image Description</h2>
         <p class="text-sm text-obsidian dark:text-quartz leading-relaxed italic break-words whitespace-pre-wrap">"{result.aiDescription}"</p>
-        <p class="mt-2 text-xs text-flint dark:text-flint-light">Generated by LLaVA 7B via Ollama. This is an AI-generated description and is not a verified fact.</p>
+        <p class="mt-2 text-xs text-flint-dark dark:text-flint-light">Generated by LLaVA 7B via Ollama. This is an AI-generated description and is not a verified fact.</p>
       </section>
     {/if}
 
@@ -3653,19 +3652,19 @@
             {/if}
           </button>
         </div>
-        <p class="text-xs text-flint dark:text-flint-light leading-relaxed mb-3">
+        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-3">
           Transcribe all visible text in this image using LLaVA. Useful for screenshots, social media posts, and document images.
         </p>
         {#if extractTextError}
-          <div role="alert" aria-live="assertive" class="rounded border border-cinnabar/30 bg-cinnabar/10 px-4 py-3 text-xs text-cinnabar dark:text-cinnabar-light leading-relaxed">
+          <div role="alert" aria-live="assertive" class="rounded border border-cinnabar/30 bg-cinnabar/10 px-4 py-3 text-xs text-cinnabar-dark dark:text-cinnabar-light leading-relaxed">
             {extractTextError}
           </div>
         {/if}
         {#if extractedText}
           <div role="status" aria-live="polite" class="rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/50 px-4 py-3">
-            <p class="text-[10px] text-flint dark:text-flint-light uppercase tracking-wider mb-2">Extracted Text</p>
+            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-2">Extracted Text</p>
             <pre class="text-sm text-obsidian dark:text-quartz whitespace-pre-wrap font-mono leading-relaxed">{extractedText}</pre>
-            <p class="mt-3 text-xs text-flint dark:text-flint-light">Extracted by LLaVA 7B via Ollama. Review carefully — AI models can misread text in low-resolution or heavily compressed images.</p>
+            <p class="mt-3 text-xs text-flint-dark dark:text-flint-light">Extracted by LLaVA 7B via Ollama. Review carefully — AI models can misread text in low-resolution or heavily compressed images.</p>
           </div>
         {/if}
       </section>
@@ -3677,11 +3676,11 @@
         <summary class="list-none flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-white/[0.02] transition-colors min-h-[56px]
                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis-light"
                  aria-label="Signal Agreement — cross-detector summary table">
-          <svg class="w-4 h-4 text-flint dark:text-flint-light flex-shrink-0 motion-safe:group-open:rotate-90 transition-transform duration-200"
+          <svg class="w-4 h-4 text-flint-dark dark:text-flint-light flex-shrink-0 motion-safe:group-open:rotate-90 transition-transform duration-200"
                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
           <span class="font-serif text-base text-obsidian dark:text-quartz flex-1">Signal Agreement</span>
-          <span class="text-xs text-flint dark:text-flint-light">Cross-detector overview</span>
+          <span class="text-xs text-flint-dark dark:text-flint-light">Cross-detector overview</span>
         </summary>
         <div class="border-t border-border-light dark:border-border-dark/60 px-5 py-4">
           <SignalAgreement {result} />
@@ -3718,7 +3717,7 @@
       </button>
 
       <button
-        class="flex items-center gap-2 px-4 py-2.5 min-h-[44px] border border-border-light dark:border-border-dark text-flint dark:text-flint-light text-sm rounded-lg hover:text-obsidian dark:hover:text-quartz hover:bg-white/5 transition-colors
+        class="flex items-center gap-2 px-4 py-2.5 min-h-[44px] border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light text-sm rounded-lg hover:text-obsidian dark:hover:text-quartz hover:bg-white/5 transition-colors
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
         onclick={() => showFalsePositiveModal = true}
         aria-label="Report a false positive result"
@@ -3728,7 +3727,7 @@
 
       <a
         href="/verify"
-        class="ml-auto text-xs text-flint dark:text-flint-light hover:text-obsidian dark:hover:text-quartz transition-colors underline underline-offset-2 flex items-center gap-1 min-h-[44px] px-2
+        class="ml-auto text-xs text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz transition-colors underline underline-offset-2 flex items-center gap-1 min-h-[44px] px-2
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
       >
         View full detail in classic view
@@ -3737,9 +3736,9 @@
     </div>
 
     <!-- Deferred features note -->
-    <p class="mt-4 text-xs text-flint/60 dark:text-flint-light/60 text-center">
+    <p class="mt-4 text-xs text-flint-dark dark:text-flint-light text-center">
       Region-of-interest analysis, per-frame video deepfake detail, sun position estimation, and annotation tools are available in the
-      <a href="/verify" class="underline hover:text-flint dark:text-flint-light dark:hover:text-flint dark:text-flint-light-light">classic view</a>.
+      <a href="/verify" class="underline hover:text-flint-dark dark:text-flint-light dark:hover:text-flint-dark dark:text-flint-light-light">classic view</a>.
     </p>
 
     <!-- ── Methodology Panel ────────────────────────────────────────── -->

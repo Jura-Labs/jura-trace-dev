@@ -153,26 +153,26 @@
     if (cat === 'ai-generated') return {
       border: 'border-cinnabar/40',
       bg: 'bg-cinnabar/5 dark:bg-cinnabar/8',
-      headline: 'text-cinnabar dark:text-cinnabar-light',
+      headline: 'text-cinnabar-dark dark:text-cinnabar-light',
       dot: 'bg-cinnabar',
-      bullet: 'border-cinnabar/50 text-cinnabar dark:text-cinnabar-light',
-      cta: 'border-cinnabar/40 text-cinnabar dark:text-cinnabar-light hover:bg-cinnabar/10',
+      bullet: 'border-cinnabar/50 text-cinnabar-dark dark:text-cinnabar-light',
+      cta: 'border-cinnabar/40 text-cinnabar-dark dark:text-cinnabar-light hover:bg-cinnabar/10',
     };
     if (cat === 'inconclusive') return {
       border: 'border-amber/40',
       bg: 'bg-amber/5 dark:bg-amber/8',
-      headline: 'text-amber dark:text-amber-light',
+      headline: 'text-amber-dark dark:text-amber-light',
       dot: 'bg-amber',
-      bullet: 'border-amber/50 text-amber dark:text-amber-light',
-      cta: 'border-amber/40 text-amber dark:text-amber-light hover:bg-amber/10',
+      bullet: 'border-amber/50 text-amber-dark dark:text-amber-light',
+      cta: 'border-amber/40 text-amber-dark dark:text-amber-light hover:bg-amber/10',
     };
     return {
       border: 'border-malachite/40',
       bg: 'bg-malachite/5 dark:bg-malachite/8',
-      headline: 'text-malachite dark:text-malachite-light',
+      headline: 'text-malachite-dark dark:text-malachite-light',
       dot: 'bg-malachite',
-      bullet: 'border-malachite/50 text-malachite dark:text-malachite-light',
-      cta: 'border-malachite/40 text-malachite dark:text-malachite-light hover:bg-malachite/10',
+      bullet: 'border-malachite/50 text-malachite-dark dark:text-malachite-light',
+      cta: 'border-malachite/40 text-malachite-dark dark:text-malachite-light hover:bg-malachite/10',
     };
   });
 
@@ -396,15 +396,15 @@
       <p class="text-sm text-text-light dark:text-quartz mt-1 truncate" title={fileName}>
         {fileName}
         {#if result.mode && result.mode !== 'standard'}
-          <span class="ml-1.5 text-xs text-flint dark:text-flint-light">({result.mode} analysis)</span>
+          <span class="ml-1.5 text-xs text-flint-dark dark:text-flint-light">({result.mode} analysis)</span>
         {/if}
       </p>
 
       <!-- Analysis completeness indicator -->
       <p
         class="text-xs mt-2 font-medium {completenessIsLimited
-          ? 'text-amber dark:text-amber-light'
-          : 'text-flint dark:text-flint-light'}"
+          ? 'text-amber-dark dark:text-amber-light'
+          : 'text-flint-dark dark:text-flint-light'}"
         aria-label="{completenessText()}"
       >
         {#if completenessIsLimited}
@@ -439,7 +439,7 @@
 
   <!-- ── Recommended next step ─────────────────────────────────── -->
   <div class="px-6 py-3 border-t {colorScheme().border} bg-black/5 dark:bg-black/10">
-    <p class="text-xs text-flint dark:text-flint-light">
+    <p class="text-xs text-flint-dark dark:text-flint-light">
       <span class="font-medium text-text-light dark:text-quartz">Recommended action: </span>
       {nextStep()}
     </p>
@@ -447,7 +447,7 @@
 
   <!-- ── Footer: see detailed analysis ─────────────────────────── -->
   <div class="px-6 py-4 flex items-center justify-between gap-4 border-t {colorScheme().border}">
-    <p class="text-xs text-flint dark:text-flint-light">
+    <p class="text-xs text-flint-dark dark:text-flint-light">
       All analysis ran locally on your device.
     </p>
     <button

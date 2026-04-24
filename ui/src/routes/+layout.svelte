@@ -204,7 +204,7 @@
             class="nav-link transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded
                    {currentPath === item.href
                      ? 'text-lapis dark:text-[#8AABBF]'
-                     : 'text-flint dark:text-flint-light hover:text-lapis dark:hover:text-[#8AABBF]'}"
+                     : 'text-flint-dark dark:text-flint-light hover:text-lapis dark:hover:text-[#8AABBF]'}"
             title={item.title}
             aria-current={currentPath === item.href ? 'page' : undefined}
           >
@@ -217,7 +217,7 @@
           href="https://juralabs.org"
           target="_blank"
           rel="noopener noreferrer"
-          class="text-xs text-flint dark:text-flint-light hover:text-lapis dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
+          class="text-xs text-flint-dark dark:text-flint-light hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
         >
           Juralabs.org
           <span class="sr-only">(opens in new tab)</span>
@@ -226,7 +226,7 @@
         <!-- Dark mode toggle -->
         <button
           onclick={toggleDarkMode}
-          class="min-w-[44px] min-h-[44px] flex items-center justify-center text-flint dark:text-flint-light hover:text-lapis dark:hover:text-lapis-light transition-colors text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded px-2"
+          class="min-w-[44px] min-h-[44px] flex items-center justify-center text-flint-dark dark:text-flint-light hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded px-2"
           title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           aria-pressed={darkMode}
@@ -240,7 +240,7 @@
         <!-- Dark mode toggle (mobile) -->
         <button
           onclick={toggleDarkMode}
-          class="min-w-[44px] min-h-[44px] flex items-center justify-center text-flint dark:text-flint-light hover:text-lapis dark:hover:text-lapis-light transition-colors text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
+          class="min-w-[44px] min-h-[44px] flex items-center justify-center text-flint-dark dark:text-flint-light hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
           aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           aria-pressed={darkMode}
         >
@@ -250,7 +250,7 @@
         <!-- Hamburger button -->
         <button
           onclick={toggleMobileMenu}
-          class="min-w-[44px] min-h-[44px] flex items-center justify-center text-flint dark:text-flint-light hover:text-text-light dark:hover:text-text-dark transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
+          class="min-w-[44px] min-h-[44px] flex items-center justify-center text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-text-dark transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
           aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
           aria-expanded={mobileMenuOpen}
           aria-controls="mobile-menu"
@@ -281,7 +281,7 @@
               class="flex items-center h-[44px] px-2 text-sm nav-link transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis rounded
                      {currentPath === item.href
                        ? 'text-lapis dark:text-lapis-light'
-                       : 'text-flint dark:text-flint-light hover:text-lapis dark:hover:text-lapis-light'}"
+                       : 'text-flint-dark dark:text-flint-light hover:text-lapis dark:hover:text-lapis dark:text-lapis-light'}"
               aria-current={currentPath === item.href ? 'page' : undefined}
             >
               {item.label}
@@ -291,7 +291,7 @@
             href="https://juralabs.org"
             target="_blank"
             rel="noopener noreferrer"
-            class="flex items-center h-[44px] px-2 text-sm text-flint dark:text-flint-light hover:text-lapis dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis rounded"
+            class="flex items-center h-[44px] px-2 text-sm text-flint-dark dark:text-flint-light hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis rounded"
           >
             Juralabs.org
             <span class="sr-only">(opens in new tab)</span>
@@ -322,7 +322,7 @@
           <p class="text-sm font-medium text-text-light dark:text-quartz">
             Analysis Engine is offline
           </p>
-          <p class="text-xs text-flint dark:text-flint-light mt-0.5">
+          <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5">
             Full forensic analysis (AI detection, noise analysis, copy-move detection) requires the Analysis Engine.
             Core features like C2PA signing and EXIF metadata still work without it.
           </p>
@@ -337,14 +337,14 @@
           </button>
           <button
             onclick={handleSidecarNotNow}
-            class="px-4 py-2 min-h-[44px] rounded text-xs font-medium border border-border-light dark:border-border-dark text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+            class="px-4 py-2 min-h-[44px] rounded text-xs font-medium border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
           >
             Not now
           </button>
           <button
             onclick={handleSidecarDontRemind}
-            class="px-4 py-2 min-h-[44px] rounded text-xs text-flint dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+            class="px-4 py-2 min-h-[44px] rounded text-xs text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
           >
             Don't remind me
@@ -357,17 +357,17 @@
   <!-- Footer -->
   <footer class="border-t border-border-light dark:border-[rgba(122,119,112,0.15)] mt-auto">
     <div class="max-w-4xl mx-auto px-6 lg:px-8 py-8">
-      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-flint dark:text-flint-light">
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-flint-dark dark:text-flint-light">
         <div class="flex items-center gap-3">
           <LogoMark size={16} />
           <span class="brand-name text-xs text-text-light dark:text-text-dark">Jura Trace</span>
           <span class="text-xs">v0.9.0</span>
         </div>
-        <p class="text-xs text-center text-flint dark:text-flint-light">Reclaiming Technology for Society</p>
+        <p class="text-xs text-center text-flint-dark dark:text-flint-light">Reclaiming Technology for Society</p>
         <div class="flex items-center gap-4 text-xs">
           <button
             onclick={() => showFeedback = true}
-            class="text-xs text-flint dark:text-flint-light hover:text-lapis dark:hover:text-lapis-light transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
+            class="text-xs text-flint-dark dark:text-flint-light hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
           >
             Feedback
           </button>
@@ -375,7 +375,7 @@
             href="https://juralabs.org"
             target="_blank"
             rel="noopener noreferrer"
-            class="hover:text-lapis dark:hover:text-lapis-light transition-colors underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            class="hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
             Jura Labs CIC
             <span class="sr-only">(opens in new tab)</span>
@@ -384,7 +384,7 @@
             href="https://juralabs.org/jura-trace"
             target="_blank"
             rel="noopener noreferrer"
-            class="hover:text-lapis dark:hover:text-lapis-light transition-colors underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            class="hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
             About
             <span class="sr-only">(opens in new tab)</span>

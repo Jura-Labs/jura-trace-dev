@@ -35,14 +35,14 @@
 
   <!-- Hero -->
   <section class="text-center py-16 pb-12">
-    <p class="text-xs text-flint dark:text-[#A09D95] uppercase tracking-widest mb-5">12 forensic detectors. Everything stays on your device.</p>
+    <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] uppercase tracking-widest mb-5">12 forensic detectors. Everything stays on your device.</p>
     <h1
       class="text-4xl font-heading text-text-light dark:text-quartz mb-5 font-normal"
       style="letter-spacing: -0.01em; line-height: 1.3;"
     >
       Know What's Real
     </h1>
-    <p class="text-base text-flint dark:text-[#9B9890] max-w-md mx-auto mb-3 leading-relaxed">
+    <p class="text-base text-flint-dark dark:text-flint-light dark:text-[#9B9890] max-w-md mx-auto mb-3 leading-relaxed">
       AI-generated content has made verification essential. Jura Trace gives you 12 forensic detectors, C2PA provenance verification, and invisible watermarking — all running locally, with no cloud and no accounts.
     </p>
   </section>
@@ -57,46 +57,46 @@
   >
     <div class="text-center">
       <p
-        class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
+        class="font-heading text-3xl font-normal text-lapis dark:text-lapis-light dark:text-[#8AABBF] tracking-tight"
         style="letter-spacing: -0.02em;"
         aria-label="{stats.totalAssets.toLocaleString()} assets protected"
       >
         {stats.totalAssets.toLocaleString()}
       </p>
-      <p class="text-xs text-flint dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">assets protected</p>
+      <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">assets protected</p>
     </div>
 
     <div class="text-center">
       <p
-        class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
+        class="font-heading text-3xl font-normal text-lapis dark:text-lapis-light dark:text-[#8AABBF] tracking-tight"
         style="letter-spacing: -0.02em;"
         aria-label="{stats.c2paSignedCount.toLocaleString()} C2PA-signed files"
       >
         {stats.c2paSignedCount.toLocaleString()}
       </p>
-      <p class="text-xs text-flint dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">C2PA-signed files</p>
+      <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">C2PA-signed files</p>
     </div>
 
     <div class="text-center">
       <p
-        class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
+        class="font-heading text-3xl font-normal text-lapis dark:text-lapis-light dark:text-[#8AABBF] tracking-tight"
         style="letter-spacing: -0.02em;"
         aria-label="{stats.totalFingerprints.toLocaleString()} fingerprints"
       >
         {stats.totalFingerprints.toLocaleString()}
       </p>
-      <p class="text-xs text-flint dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">fingerprints</p>
+      <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">fingerprints</p>
     </div>
 
     <div class="text-center">
       <p
-        class="font-heading text-3xl font-normal text-lapis-light dark:text-[#8AABBF] tracking-tight"
+        class="font-heading text-3xl font-normal text-lapis dark:text-lapis-light dark:text-[#8AABBF] tracking-tight"
         style="letter-spacing: -0.02em;"
         aria-label="{stats.totalVerifications.toLocaleString()} verifications"
       >
         {stats.totalVerifications.toLocaleString()}
       </p>
-      <p class="text-xs text-flint dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">verifications</p>
+      <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">verifications</p>
     </div>
   </section>
 
@@ -119,10 +119,10 @@
           Welcome to Jura Trace
         </h2>
         <div class="earth-line mb-6" aria-hidden="true"></div>
-        <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed mb-2">
+        <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed mb-2">
           Start by verifying an image or protecting your content.
         </p>
-        <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed mb-8">
+        <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed mb-8">
           Your activity will appear here as you use the tool.
         </p>
         <div class="flex flex-col sm:flex-row gap-3 justify-center">
@@ -153,7 +153,7 @@
       </span>
     {:else}
       <span
-        class="inline-flex items-center gap-2 text-xs px-5 py-2 rounded-full border text-flint dark:text-flint border-border-light dark:border-border-dark"
+        class="inline-flex items-center gap-2 text-xs px-5 py-2 rounded-full border text-flint-dark dark:text-flint-light border-border-light dark:border-border-dark"
       >
         <span class="w-1.5 h-1.5 rounded-full bg-flint/40" aria-hidden="true"></span>
         Analysis services offline
@@ -175,20 +175,20 @@
     <!-- Verify -->
     <div class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]">
       <div class="flex items-baseline gap-4 mb-4">
-        <span class="text-xs uppercase tracking-widest text-flint dark:text-[#A09D95] flex-shrink-0 w-20">Verify</span>
+        <span class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20">Verify</span>
         <h2
           class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
           style="letter-spacing: -0.01em;"
         >
           <a
             href="/verify"
-            class="hover:text-lapis dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            class="hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
             Check what you're looking at
           </a>
         </h2>
       </div>
-      <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
+      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
         Drop an image, paste a URL, or describe a claim. Jura Trace examines the evidence
         layer by layer — forensic analysis, metadata inspection, region-based composite
         detection — and tells you what it finds. Honestly. No certainty where none exists.
@@ -198,20 +198,20 @@
     <!-- Monitor -->
     <div class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]">
       <div class="flex items-baseline gap-4 mb-4">
-        <span class="text-xs uppercase tracking-widest text-flint dark:text-[#A09D95] flex-shrink-0 w-20">Monitor</span>
+        <span class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20">Monitor</span>
         <h2
           class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
           style="letter-spacing: -0.01em;"
         >
           <a
             href="/monitor"
-            class="hover:text-lapis dark:hover:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            class="hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
             See what has happened to your work
           </a>
         </h2>
       </div>
-      <p class="text-sm text-flint dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
+      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
         Review your content's protection history, track verification outcomes, and follow
         the complete audit trail of every action taken. A narrative record of your archive,
         kept entirely on your machine.
