@@ -679,6 +679,42 @@
                     {healthChecking ? 'Checking…' : 'Re-check'}
                   </button>
                 </div>
+
+                <!-- Windows-specific direct-download fallback for environments without
+                     winget (Windows Server SKUs, locked-down enterprise builds).
+                     Surfaces gyan.dev's pre-built static binaries — the same source
+                     winget would install from — with a brief PATH instruction. -->
+                {#if platform === 'windows'}
+                  <details class="mt-3">
+                    <summary class="text-xs text-lapis-light cursor-pointer hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
+                      No winget? Direct download for FFmpeg (Windows)
+                    </summary>
+                    <div class="mt-2 pl-3 border-l-2 border-lapis/30 space-y-2">
+                      <p class="text-xs text-flint-light leading-relaxed">
+                        Windows Server and some enterprise SKUs ship without
+                        <code class="font-mono">winget</code>.  Download the pre-built FFmpeg essentials build
+                        directly from gyan.dev and add it to your PATH:
+                      </p>
+                      <ol class="text-xs text-flint-light space-y-1 list-decimal pl-4 leading-relaxed">
+                        <li>
+                          Download
+                          <a
+                            href="https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+                            target="_blank" rel="noopener noreferrer"
+                            class="text-lapis-light underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                          >ffmpeg-release-essentials.zip</a>
+                        </li>
+                        <li>Extract to <code class="font-mono">C:\ffmpeg\</code></li>
+                        <li>
+                          Open PowerShell as Administrator and run:
+                          <code class="block mt-1 font-mono text-[11px] px-2 py-1.5 rounded whitespace-pre-wrap" style="background: rgba(30,33,40,0.8); color: #EDEAE4; border: 1px solid rgba(122,119,112,0.2);">[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "Machine") + ";C:\ffmpeg\bin", "Machine")</code>
+                        </li>
+                        <li>Restart Jura Trace, then click <strong>Re-check</strong> above.</li>
+                      </ol>
+                    </div>
+                  </details>
+                {/if}
+
                 <p class="text-xs text-flint-light mt-2">
                   This is optional — image verification works without FFmpeg. You can install it later from Settings.
                 </p>
