@@ -78,7 +78,8 @@
     },
     "windows": {
       "nsis": {
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "installerHooks": "installer-hooks.nsi"
       }
     },
     "category": "Utility"
