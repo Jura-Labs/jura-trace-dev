@@ -527,12 +527,13 @@ export interface VerificationResult {
    * Present for image content when the sidecar is available.
    */
   platformFingerprintResult?: PlatformFingerprintResult | null;
-  /**
-   * Electrical Network Frequency (ENF) analysis result.
-   * Extracts and analyses the mains-frequency hum embedded in audio recordings
-   * to provide a temporal provenance signal. Only present for audio/video content.
-   */
-  enfAnalysisResult?: EnfAnalysisResult | null;
+  // ENF analysis + audio deepfake fields removed from VerificationResult on
+  // 2026-04-25 — the verify pipeline never invoked these detectors so the
+  // fields were always null.  Shipping null fields to a UI that displays
+  // them creates a "tested and clean" disclosure problem.  The Python
+  // services (sidecar/app/services/enf_analysis.py, audio_deepfake.py) and
+  // the Rust client method (sidecar.rs::detect_audio_deepfake) are
+  // preserved for the May Week 1 wire-up — see Plane JTV-85.
 }
 
 /** Methodology metadata captured at verification time for reproducibility. */
@@ -608,29 +609,9 @@ export interface PlatformFingerprintResult {
   summary: string;
 }
 
-/**
- * Electrical Network Frequency (ENF) analysis result.
- * Mirrors `enf_analysis::EnfAnalysisResult` in the Rust backend.
- * Only present for audio/video content when the sidecar is available.
- */
-export interface EnfAnalysisResult {
-  /** Whether an ENF signal was detected in the recording. */
-  detected: boolean;
-  /** Mean instantaneous frequency of the detected ENF signal (Hz). */
-  meanFrequency?: number | null;
-  /** Standard deviation of the frequency estimates (Hz). */
-  frequencyStd?: number | null;
-  /** Signal-to-noise ratio of the ENF component (dB). */
-  snr?: number | null;
-  /** Estimated grid region (e.g. "50 Hz — Europe/Africa/Asia", "60 Hz — Americas/Japan"). */
-  gridRegion?: string | null;
-  /** Duration of audio analysed (seconds). */
-  durationSeconds?: number | null;
-  /** Number of frequency samples extracted. */
-  sampleCount?: number | null;
-  /** Human-readable summary. */
-  summary: string;
-}
+// EnfAnalysisResult interface removed 2026-04-25 alongside the verify-result
+// field — see comment above the field-removal site.  Restore both when JTV-85
+// wires the audio detection pipeline.
 
 /**
  * PDF internal provenance signals.
