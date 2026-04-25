@@ -22,7 +22,7 @@
     C2PA_MSG_VALID_AT_SIGNING_DETAIL,
   } from '$lib/c2pa-labels';
   import LimitationBanner from '$lib/components/LimitationBanner.svelte';
-  import EnhancedModeBanner from '$lib/components/EnhancedModeBanner.svelte';
+  // EnhancedModeBanner removed — see comment near its previous mount point.
   import ExperimentalPill from '$lib/components/ExperimentalPill.svelte';
   import ContentCredentialsSeal from '$lib/components/ContentCredentialsSeal.svelte';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
@@ -1255,9 +1255,10 @@
     <h1 class="font-serif text-2xl text-obsidian dark:text-quartz">Verify</h1>
   </div>
 
-  <!-- First-run nudge: suggest Enhanced mode for full C2PA validation.
-       Auto-hides when the user enables Enhanced or dismisses. -->
-  <EnhancedModeBanner />
+  <!-- EnhancedModeBanner removed 2026-04-25 — Enhanced is now the
+       default NetworkMode (set in src-tauri/src/network_mode.rs::Default
+       and the get_network_mode fallbacks), so first-run users already
+       get full validation without a nudge. -->
 
   <!-- Mode selector + sidecar status row -->
   <div class="flex items-center gap-3 mb-5 flex-wrap">
@@ -2913,56 +2914,11 @@
                 </li>
               {/if}
 
-              <!-- Audio ENF Analysis -->
-              {#if result.enfAnalysisResult}
-                {@const enf = result.enfAnalysisResult}
-                <li class="px-5 py-4">
-                  <div class="flex items-start gap-3">
-                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {enf.detected ? 'text-malachite-dark dark:text-malachite-light' : 'text-flint-dark dark:text-flint-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-                    </svg>
-                    <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-2 mb-1 flex-wrap">
-                        <span class="text-sm font-medium text-obsidian dark:text-quartz">Audio ENF Analysis</span>
-                        {#if enf.detected && enf.gridRegion}
-                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-malachite/15 text-malachite-dark dark:text-malachite-light border border-malachite/30">
-                            {enf.gridRegion}
-                          </span>
-                        {/if}
-                      </div>
-                      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-1">{enf.summary}</p>
-                      {#if enf.detected}
-                        <dl class="grid grid-cols-2 gap-x-6 gap-y-1 text-xs mt-1">
-                          {#if enf.meanFrequency != null}
-                            <div>
-                              <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Mean frequency</dt>
-                              <dd class="text-obsidian dark:text-quartz tabular-nums">{enf.meanFrequency.toFixed(3)} Hz</dd>
-                            </div>
-                          {/if}
-                          {#if enf.snr != null}
-                            <div>
-                              <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">SNR</dt>
-                              <dd class="text-obsidian dark:text-quartz tabular-nums">{enf.snr.toFixed(1)} dB</dd>
-                            </div>
-                          {/if}
-                          {#if enf.durationSeconds != null}
-                            <div>
-                              <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Duration analysed</dt>
-                              <dd class="text-obsidian dark:text-quartz tabular-nums">{enf.durationSeconds.toFixed(1)} s</dd>
-                            </div>
-                          {/if}
-                          {#if enf.sampleCount != null}
-                            <div>
-                              <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Samples</dt>
-                              <dd class="text-obsidian dark:text-quartz tabular-nums">{enf.sampleCount}</dd>
-                            </div>
-                          {/if}
-                        </dl>
-                      {/if}
-                    </div>
-                  </div>
-                </li>
-              {/if}
+              <!-- Audio ENF Analysis card removed 2026-04-25 — the verify
+                   pipeline never invoked enf_analysis (zero call-sites in
+                   lib.rs) so the field was always null.  Restore both this
+                   block and the enfAnalysisResult field on VerificationResult
+                   when JTV-85 wires the audio detection pipeline (May Week 1). -->
 
             </ul>
             {#if result.inputQuality}

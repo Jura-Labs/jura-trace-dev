@@ -1,10 +1,9 @@
 //! Product-wide network access control.
 //!
-//! `NetworkMode::Standard` (default) is fully local / air-gapped: zero outbound
-//! HTTP calls are made to any external host.  `NetworkMode::Enhanced` is an
-//! explicit user opt-in that enables online verification features such as C2PA
-//! OCSP/CRL revocation checks, remote manifest fetching, false-positive
-//! telemetry, and URL watchlist HTTP fetches.
+//! `NetworkMode::Enhanced` (default) enables online verification features —
+//! C2PA OCSP/CRL revocation checks, remote manifest fetching, FP telemetry,
+//! URL watchlist HTTP fetches.  `NetworkMode::Standard` is an explicit user
+//! opt-in for fully local / air-gapped operation.
 //!
 //! Localhost calls (Ollama on port 11434, Python sidecar on port 8200, the
 //! local REST API on port 8300) are **not** outbound network traffic and are
@@ -13,6 +12,16 @@
 //! All network-touching code paths call [`is_enhanced`] before making any
 //! external request.  That function is the single choke point — every future
 //! gated feature must use it.
+//!
+//! # Default change — 2026-04-25
+//!
+//! Default flipped from `Standard` to `Enhanced` after the C2PA Validator
+//! evaluation found that real-world content credentials (Pixel manifests,
+//! Adobe-issued certs, remote manifest URLs) require network access for
+//! correct trust assessment.  The local-first USP is preserved as an
+//! explicit user choice (Settings → Network Access → Standard) rather than
+//! the default; surveys of pilot interviewees indicated near-zero demand
+//! for offline-only operation outside specialist archival contexts.
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -21,16 +30,17 @@ use std::path::Path;
 
 /// Controls whether the application may make outbound HTTP calls.
 ///
-/// `Standard` (default): fully local / air-gapped.  No outbound requests
-/// of any kind are made to external hosts.
+/// `Enhanced` (default): online verification features enabled (OCSP/CRL
+/// revocation, remote manifest fetch, FP telemetry, URL watchlist HTTP
+/// checks).
 ///
-/// `Enhanced`: user opt-in.  Enables online features (OCSP/CRL revocation,
-/// remote manifest fetch, FP telemetry, URL watchlist HTTP checks).
+/// `Standard`: explicit user opt-in for fully local / air-gapped operation.
+/// No outbound requests of any kind are made to external hosts.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum NetworkMode {
-    #[default]
     Standard,
+    #[default]
     Enhanced,
 }
 
@@ -50,16 +60,16 @@ fn config_path(data_dir: &Path) -> std::path::PathBuf {
 
 /// Read the current `NetworkMode` from `<data_dir>/network_mode.json`.
 ///
-/// Returns `NetworkMode::Standard` when the file is absent (first-run default)
+/// Returns `NetworkMode::Enhanced` when the file is absent (first-run default)
 /// or when it cannot be parsed.  Never panics.
 pub fn get_network_mode(data_dir: &Path) -> NetworkMode {
     let path = config_path(data_dir);
     if !path.exists() {
-        return NetworkMode::Standard;
+        return NetworkMode::Enhanced;
     }
     let raw = match std::fs::read_to_string(&path) {
         Ok(s) => s,
-        Err(_) => return NetworkMode::Standard,
+        Err(_) => return NetworkMode::Enhanced,
     };
     serde_json::from_str::<NetworkModeConfig>(&raw)
         .map(|c| c.mode)
@@ -110,15 +120,15 @@ mod tests {
     }
 
     #[test]
-    fn default_is_standard_when_file_absent() {
+    fn default_is_enhanced_when_file_absent() {
         let dir = tmp();
-        assert_eq!(get_network_mode(dir.path()), NetworkMode::Standard);
+        assert_eq!(get_network_mode(dir.path()), NetworkMode::Enhanced);
     }
 
     #[test]
-    fn is_enhanced_false_by_default() {
+    fn is_enhanced_true_by_default() {
         let dir = tmp();
-        assert!(!is_enhanced(dir.path()));
+        assert!(is_enhanced(dir.path()));
     }
 
     #[test]
@@ -138,20 +148,22 @@ mod tests {
     }
 
     #[test]
-    fn toggle_back_to_standard() {
+    fn toggle_to_standard_then_back_to_enhanced() {
         let dir = tmp();
-        set_network_mode(dir.path(), NetworkMode::Enhanced).expect("set enhanced");
-        set_network_mode(dir.path(), NetworkMode::Standard).expect("toggle back");
+        set_network_mode(dir.path(), NetworkMode::Standard).expect("set standard");
         assert_eq!(get_network_mode(dir.path()), NetworkMode::Standard);
+        set_network_mode(dir.path(), NetworkMode::Enhanced).expect("toggle back");
+        assert_eq!(get_network_mode(dir.path()), NetworkMode::Enhanced);
     }
 
     #[test]
-    fn corrupted_file_defaults_to_standard() {
+    fn corrupted_file_defaults_to_enhanced() {
         let dir = tmp();
-        // Write garbage so parse fails.
+        // Write garbage so parse fails — falls back to the typed Default
+        // (Enhanced) via unwrap_or_default().
         std::fs::write(dir.path().join("network_mode.json"), b"not json").unwrap();
-        assert_eq!(get_network_mode(dir.path()), NetworkMode::Standard);
-        assert!(!is_enhanced(dir.path()));
+        assert_eq!(get_network_mode(dir.path()), NetworkMode::Enhanced);
+        assert!(is_enhanced(dir.path()));
     }
 
     #[test]

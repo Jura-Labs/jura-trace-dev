@@ -2,7 +2,10 @@
   import { onMount } from 'svelte';
   import { getStats, checkSidecarHealth } from '$lib/api';
   import type { AppStats, SidecarHealth } from '$lib/types';
-  import EnhancedModeBanner from '$lib/components/EnhancedModeBanner.svelte';
+  // EnhancedModeBanner removed 2026-04-25 — Enhanced is now the
+  // default NetworkMode, so the banner only ever fired for users
+  // who actively switched to Standard.  That's not first-run
+  // nudge territory.
 
   let stats: AppStats = $state({
     totalAssets: 0,
@@ -26,12 +29,6 @@
 </script>
 
 <div class="space-y-0">
-
-  <!-- First-run nudge to enable Enhanced mode for full C2PA validation.
-       Shown above the hero so evaluators see it on first landing. -->
-  <div class="pt-6">
-    <EnhancedModeBanner />
-  </div>
 
   <!-- Hero -->
   <section class="text-center py-16 pb-12">
