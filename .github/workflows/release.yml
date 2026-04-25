@@ -99,11 +99,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS Apple Silicon (M1/M2/M3) — re-enabled rc.21 (2026-04-23)
-          # with the 6 Apple Developer ID secrets (APPLE_CERTIFICATE etc.)
-          # now configured on juralabs/jura-archive.
+          # macOS Apple Silicon — runs on the self-hosted runner registered
+          # on Paul's Mac mini (M4) since 2026-04-24.  Self-hosted is free
+          # (uses the host's CPU + electricity) and ~30% faster than the
+          # GitHub-hosted macos-latest runner thanks to warm caches and
+          # zero spin-up latency.
+          #
+          # If the Mac mini is offline when a tag is pushed, the job will
+          # queue until either (a) the runner comes back online or (b) the
+          # 6-hour job timeout fires.  To temporarily fall back to cloud,
+          # change `runner` to `macos-latest` for the affected build.
+          #
+          # The signing path is identical: Paul's login keychain holds the
+          # Developer ID Application cert, AND the GitHub-secret APPLE_*
+          # variables remain configured for the cloud-runner code path.
+          # tauri-action picks whichever is present.
           - label: macOS (Apple Silicon)
-            runner: macos-latest
+            runner: [self-hosted, macOS, ARM64, m4]
             target: aarch64-apple-darwin
             sidecar_name: jura-sidecar-aarch64-apple-darwin
 
