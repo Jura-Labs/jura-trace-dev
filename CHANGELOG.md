@@ -6,6 +6,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 25 April 2026 — Release Candidate rc.23 — Accessibility + Enhanced default + audit hygiene
+
+A four-agent codebase audit (Explore, tech-debt-analyst, project-manager, grant-writer) on 25 April produced a converged set of pilot-readiness recommendations. This RC ships the immediate fixes; structural items (e.g. `jura-core` Apache-2.0 dual-licence, audio detection wire-up) are scheduled for May Week 1 in Plane (JTV-44 bumped to urgent, JTV-85 created).
+
+### Added
+
+- **Lighthouse 100 across all key pages in both light and dark mode.** WCAG 2.2 AA compliance verified via Chrome DevTools MCP iteration loop. Dashboard, Verify, Settings, Monitor, Help, How-It-Works, Methodology — all 100 / 100 / 100 (Accessibility / Best Practices / SEO).
+
+### Changed
+
+- **NetworkMode default flipped from Standard to Enhanced.** First-run users now get full Content Credentials validation (OCSP/CRL revocation, remote manifest fetch) out of the box. The local-first USP is preserved as an explicit Settings choice rather than the default. The `EnhancedModeBanner` component is removed from Dashboard and Verify (no longer needed). Reversed the rc.21 design after the C2PA Validator evaluation showed real-world Pixel and Adobe-signed content requires network access for correct trust assessment.
+- **Palette adjustments** for WCAG AA contrast on cream / graphite surfaces:
+  - `flint.dark` (new) `#5C5A55` — light-mode body secondary text (~6.7:1 on `#FAFAF7`)
+  - `flint.light` `#9B9890` → `#ABA8A0` — dark-mode body secondary text (~5.4:1 on `#272B34`)
+  - `lapis.light` `#5A85B5` → `#7AA0CC` — dark-mode lapis accent
+  - `cinnabar.light` `#D47870` → `#DD8C84` — dark-mode cinnabar accent
+  - `malachite.light` `#6B8F5F` → `#7DA771` — dark-mode malachite accent
+  - `amber.dark` `#B87D2E` → `#8C5F22` — light-mode amber strong text
+- **Class-level mass updates** to enforce the new contrast pairs (~2,400 substitutions across ~40 files): `text-flint` → `text-flint-dark`, `text-cinnabar` → `text-cinnabar-dark`, `text-amber` → `text-amber-dark`, `text-malachite` → `text-malachite-dark`. Opacity-modified tokens (`/N`) on the same colours stripped to solid. Inline body links given `underline underline-offset-2 hover:no-underline` to satisfy link-distinguishability.
+- **Verify mode tab selected state** uses `bg-lapis text-white` (was `bg-lapis/20 text-lapis` — failed contrast).
+- **Settings "Switch to Enhanced" button** is `bg-lapis text-white` (was border-amber + text-amber-dark — failed contrast).
+- **`/help/how-it-works`**: replaced semantically-invalid `<dl>`/`<dt>`/`<dd>` (with wrapping `<div>`s) with `<ul>`/`<li>`/`<h3>`/`<p>`.
+- **macOS CI builds** now run on a self-hosted runner registered on Paul's Mac mini (M4). Cost ≈ £0 per macOS build (vs ~£0.50 cloud) and ~30% faster from warm caches. Cloud signing secrets retained for hotfix fallback to `macos-latest`.
+
+### Removed
+
+- **`enfAnalysisResult` field** from `VerificationResult` and the `EnfAnalysisResult` interface. The verify pipeline never invoked `enf_analysis` (zero call-sites in `lib.rs`), so the field was always null but the UI rendered an "Audio ENF Analysis" card from it — a silent disclosure problem flagged by the audit. Python service (`sidecar/app/services/enf_analysis.py`) and the Rust client `AudioDeepfakeResult` + `detect_audio_deepfake` are preserved on disk; the May Week 1 ticket (JTV-85) wires them into the verify pipeline with calibration evidence.
+
+### Fixed
+
+- Verify upload button: removed conflicting `aria-label` so visible text serves as the accessible name (label-content-name-mismatch).
+- Monitor "Add URL" button: removed redundant aria-label.
+- Monitor "Learn more" link: descriptive text ("Learn more about content monitoring limits") satisfies link-text rule.
+
+### Tests
+
+487 Rust lib tests pass, clippy clean, svelte-check 0 errors, Lighthouse 100 across all audited pages.
+
+---
+
 ## 24 April 2026 — Release Candidate rc.22 — Pilot-readiness fixes
 
 Eight fixes triggered by the rc.21 Windows VM smoke test on 23 April. The C2PA Validator approver's review build now produces well-calibrated trust scores on real-world Pixel photos, displays images correctly on Windows, surfaces the Enhanced-mode upgrade contextually, handles installer collisions cleanly, and gives users a working FFmpeg path on Windows Server SKUs.
