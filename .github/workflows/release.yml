@@ -154,11 +154,47 @@ jobs:
         if: runner.environment != 'github-hosted' && runner.os == 'macOS'
         shell: bash
         run: |
+          # ── 1. Tool cache override ─────────────────────────────────────
+          # GHA actions default RUNNER_TOOL_CACHE to /Users/runner/...,
+          # which doesn't exist on this machine (runner user is
+          # paulgriffiths).  Point it at $HOME.
           TOOL_CACHE="$HOME/.runner-tool-cache"
           mkdir -p "$TOOL_CACHE"
           echo "RUNNER_TOOL_CACHE=$TOOL_CACHE" >> "$GITHUB_ENV"
           echo "AGENT_TOOLSDIRECTORY=$TOOL_CACHE" >> "$GITHUB_ENV"
-          echo "Self-hosted RUNNER_TOOL_CACHE=$TOOL_CACHE"
+
+          # ── 2. CARGO_HOME isolation (TCC workaround) ──────────────────
+          # Runner.Listener is launchd-spawned and ad-hoc signed.  macOS
+          # Sequoia's tightened TCC denies it access to user-data paths
+          # under ~/.cargo even though file mode bits allow it
+          # (`Operation not permitted` / EPERM, not EACCES).  A
+          # user-Terminal shell with the same UID can read the same file
+          # fine — the difference is process TCC context, not POSIX perms.
+          # Granting Runner.Listener Full Disk Access in System Settings
+          # would also work but isn't reproducible after a runner reinstall.
+          # Isolating CARGO_HOME under the runner installation dir avoids
+          # the TCC perimeter entirely (paths managed by the runner agent's
+          # own filesystem context).  ~285 MB of registry will repopulate
+          # on first run; subsequent runs hit the cache step below.
+          RUNNER_CARGO="$HOME/actions-runner/.cargo-home"
+          mkdir -p "$RUNNER_CARGO"
+          echo "CARGO_HOME=$RUNNER_CARGO" >> "$GITHUB_ENV"
+
+          # ── 3. CARGO_TARGET_DIR pin ───────────────────────────────────
+          # Runner inherits the user's shell env which exports
+          # CARGO_TARGET_DIR=/Volumes/MAC SSD/dev/cargo-target (a local
+          # disk-saving override).  That bypasses the workflow's cache
+          # path (src-tauri/target/) and risks colliding with stale
+          # local-build artefacts left there by `make build` runs.
+          echo "CARGO_TARGET_DIR=$GITHUB_WORKSPACE/src-tauri/target" >> "$GITHUB_ENV"
+
+          # ── 4. Defensive cleanup ──────────────────────────────────────
+          rm -rf "$GITHUB_WORKSPACE/src-tauri/target/release/bundle" 2>/dev/null || true
+
+          echo "Self-hosted env pinned:"
+          echo "  RUNNER_TOOL_CACHE=$TOOL_CACHE"
+          echo "  CARGO_HOME=$RUNNER_CARGO"
+          echo "  CARGO_TARGET_DIR=$GITHUB_WORKSPACE/src-tauri/target"
 
       # ── Linux: free disk space before anything else ──────────────────────
       # ubuntu-22.04 runners start with ~25 GB free. The ML sidecar deps
@@ -201,7 +237,12 @@ jobs:
           targets: ${{ matrix.target }}
 
       # Cache per target triple — macOS arm64 and x64 produce different artefacts.
-      - name: Cache Cargo
+      # Cloud runners cache the conventional ~/.cargo/* paths.
+      # Self-hosted macOS uses an isolated CARGO_HOME (TCC workaround) so
+      # nothing under ~/.cargo is touched there — its caching is handled
+      # by the macOS-only step below that targets the isolated path.
+      - name: Cache Cargo (cloud runners)
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v4
         with:
           path: |
@@ -212,6 +253,19 @@ jobs:
             src-tauri/target/
           key: cargo-release-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.lock') }}
           restore-keys: cargo-release-${{ matrix.target }}-
+
+      - name: Cache Cargo (self-hosted macOS)
+        if: runner.environment != 'github-hosted' && runner.os == 'macOS'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/actions-runner/.cargo-home/bin/
+            ~/actions-runner/.cargo-home/registry/index/
+            ~/actions-runner/.cargo-home/registry/cache/
+            ~/actions-runner/.cargo-home/git/db/
+            src-tauri/target/
+          key: cargo-release-selfhosted-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-release-selfhosted-${{ matrix.target }}-
 
       # ── Python: build the frozen sidecar binary ──────────────────────────
       # On GitHub-hosted runners we install Python 3.12 via setup-python.
