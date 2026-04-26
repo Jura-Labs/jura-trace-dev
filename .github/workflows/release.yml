@@ -219,13 +219,32 @@ jobs:
           # local-build artefacts left there by `make build` runs.
           echo "CARGO_TARGET_DIR=$GITHUB_WORKSPACE/src-tauri/target" >> "$GITHUB_ENV"
 
-          # ── 4. Defensive cleanup ──────────────────────────────────────
+          # ── 4. Strip user shell's sccache + cargo overrides ──────────
+          # Runner inherits the user's shell env which exports
+          #   RUSTC_WRAPPER=sccache
+          #   SCCACHE_DIR=/Volumes/MAC SSD/dev/sccache
+          #   SCCACHE_CACHE_SIZE=20G
+          # for fast local rebuilds.  Inside CI:
+          #   - sccache wraps every rustc invocation
+          #   - cargo's normal file handling collides with sccache's
+          #     access patterns to the registry, producing EPERM on
+          #     .crate file opens (root cause of rc.24's macOS failure)
+          # Unset these so cargo runs vanilla.  GHA's $GITHUB_ENV doesn't
+          # support unset; setting to empty string + a marker comment
+          # achieves the same result for downstream steps.
+          echo "RUSTC_WRAPPER=" >> "$GITHUB_ENV"
+          echo "SCCACHE_DIR=" >> "$GITHUB_ENV"
+          echo "SCCACHE_CACHE_SIZE=" >> "$GITHUB_ENV"
+
+          # ── 5. Defensive cleanup ──────────────────────────────────────
           rm -rf "$GITHUB_WORKSPACE/src-tauri/target/release/bundle" 2>/dev/null || true
 
           echo "Self-hosted env pinned:"
           echo "  RUNNER_TOOL_CACHE=$TOOL_CACHE"
           echo "  CARGO_HOME=$RUNNER_CARGO"
           echo "  CARGO_TARGET_DIR=$GITHUB_WORKSPACE/src-tauri/target"
+          echo "  RUSTC_WRAPPER=(unset, was sccache)"
+          echo "  SCCACHE_DIR=(unset)"
 
       # ── Linux: free disk space before anything else ──────────────────────
       # ubuntu-22.04 runners start with ~25 GB free. The ML sidecar deps
