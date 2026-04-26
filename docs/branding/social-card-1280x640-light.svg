@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Jura Trace social card — LIGHT-MODE variant.
+  For surfaces that prefer a cream background (light-themed websites,
+  print collateral, brochures).  1280 × 640.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+
+  <rect width="1280" height="640" fill="#FAFAF7"/>
+
+  <!-- Subtle warm strata -->
+  <rect width="1280" height="640" fill="url(#stratumLight)"/>
+
+  <!-- Earth-line -->
+  <rect x="0" y="232" width="1280" height="2" fill="url(#earthline)" opacity="0.4"/>
+
+  <!-- Eye-mark -->
+  <g transform="translate(176, 320) scale(1.10)" stroke-linejoin="round">
+    <path d="M -114 -1 C -38.67 -99.67, 38.67 -99.67, 114 -1 C 38.67 97.67, -38.67 97.67, -114 -1 Z"
+          fill="none" stroke="#5A85B5" stroke-width="16"/>
+    <circle cx="1.62" cy="-0.62" r="54.62" fill="#7DA771" stroke="#5A85B5" stroke-width="12"/>
+    <circle cx="2" cy="-1" r="22" fill="#000000"/>
+    <circle cx="9.97" cy="-16.68" r="4.32" fill="#EDEAE4"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="328" y="280"
+        font-family="'Source Serif 4', Georgia, serif"
+        font-size="100" font-weight="700"
+        fill="#1E2128">Jura Trace</text>
+
+  <!-- Tagline -->
+  <text x="332" y="352"
+        font-family="'Source Serif 4', Georgia, serif"
+        font-size="56" font-style="italic"
+        fill="#5A85B5">Know What's Real.</text>
+
+  <!-- Sub-header -->
+  <text x="334" y="420"
+        font-family="'Source Sans 3', 'Avenir Next', sans-serif"
+        font-size="28" font-weight="500" letter-spacing="0.5"
+        fill="#5C5A55">Forensic media verification  ·  Local-first  ·  Free for not-for-profits</text>
+
+  <!-- Version pill -->
+  <g transform="translate(56, 542)">
+    <rect width="220" height="40" rx="20"
+          fill="#5A85B5" fill-opacity="0.10"
+          stroke="#5A85B5" stroke-opacity="0.5" stroke-width="1"/>
+    <text x="110" y="26" text-anchor="middle"
+          font-family="'Source Sans 3', sans-serif"
+          font-size="20" font-weight="500"
+          fill="#5A85B5">v0.9 release candidate</text>
+  </g>
+
+  <!-- URL -->
+  <text x="1224" y="582" text-anchor="end"
+        font-family="'Source Sans 3', sans-serif"
+        font-size="22" font-weight="500"
+        fill="#5C5A55">juralabs.org</text>
+
+  <defs>
+    <pattern id="stratumLight" x="0" y="0" width="1280" height="80" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="1280" height="1" fill="#1E2128" opacity="0.04"/>
+      <rect x="0" y="40" width="1280" height="1" fill="#1E2128" opacity="0.02"/>
+    </pattern>
+    <linearGradient id="earthline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#5A85B5"/>
+      <stop offset="50%" stop-color="#7DA771"/>
+      <stop offset="100%" stop-color="#5A85B5"/>
+    </linearGradient>
+  </defs>
+</svg>

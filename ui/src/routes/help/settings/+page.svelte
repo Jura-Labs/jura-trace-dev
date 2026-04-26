@@ -142,7 +142,7 @@
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4 mb-8">
     <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">Everything else works without Ollama</p>
     <ul class="space-y-1 text-sm text-flint-dark dark:text-flint-light">
-      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> All 21 forensic detectors (ELA, noise, copy-move, deepfake, and more)</li>
+      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> All 12 automatic forensic detectors (ELA, noise, copy-move, deepfake, and more) plus 3 on-demand investigation tools</li>
       <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> C2PA provenance verification</li>
       <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> Invisible watermark embedding and detection</li>
       <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> EXIF anomaly analysis</li>
@@ -769,9 +769,9 @@
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         Checks whether Ollama is running and whether the vision model (LLaVA) and text
-        model (Qwen2.5) are installed. These models are optional — all 12 forensic
-        detectors work without them. If Ollama is unavailable, the wizard confirms which
-        features will be skipped.
+        model (Qwen2.5) are installed. These models are optional — all 12 automatic
+        forensic detectors work without them. If Ollama is unavailable, the wizard
+        confirms which features will be skipped.
       </p>
     </div>
 

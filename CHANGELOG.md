@@ -6,6 +6,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 26 April 2026 — Release Candidate rc.24 — Brand refresh + C2PA Origin fix + tester focus
+
+A brand and tester-experience pass alongside a meaningful C2PA correctness fix uncovered while reproducing the Google Pixel "Zoom Enhance" verification result.
+
+### Added
+
+- **Brand kit in `docs/branding/`** — editable SVG masters (`logo-eye-mark.svg`, three social-card composition variants, palette swatches), an Adobe Fonts setup guide (`BRAND_KIT.md`), a self-contained interactive review page (`brand-page.html`) with live palette adjuster + light/dark toggle, and a macOS app-icon set rendered at the standard sizes (16/32/64/128/256/512/1024 PNGs).
+- **Almond-form eye-mark** with malachite iris, lapis stroke and quartz catchlight — replaces the previous concentric-circles favicon. Pupil at 40% of the iris; the catchlight is sub-pixel below 32 px and drops out by design.
+- **Self-hosted macOS CI fix** — `actions/setup-python@v5` is now skipped on the Mac mini self-hosted runner (its hard-coded `mkdir /Users/runner/hostedtoolcache` bootstrap pre-empts any `RUNNER_TOOL_CACHE` override and fails before any user step runs). The runner now uses the host's miniconda Python 3.13 directly. Cloud `macos-latest` fallback path retained unchanged.
+
+### Changed
+
+- **Top-nav header logo** doubled (32 → 64 px) and the **"Jura Trace" wordmark** beside it bumped 50% (14 → 21 px) — proportionate visual weight for the new mark in the chrome.
+- **Footer logo** sized up 50% (16 → 24 px) for parity with the header.
+- **Monitor surface hidden** from the top nav, dashboard chapters, and Help index for the pilot-tester build. The `/monitor` and `/help/monitor` routes remain reachable by URL; all hides are comment-tagged for trivial restoration. Same pattern as the Protect hide for the C2PA Validator evaluation build.
+- **Detector-count messaging reconciled** to the post-Sprint-28 truth across all user-facing surfaces: "12 automatic forensic detectors plus 3 on-demand investigation tools" replaces the stale "21 forensic detectors" copy in Berkeley Protocol page (3 spots), Help → Settings (2 spots), and `docs/information-security-summary.md` (2 spots, plus a fuller named-list breakdown).
+
+### Fixed
+
+- **C2PA Origin "Content Credential unavailable or invalid" misreport on Google Pixel images.** The L3 manifest panel was rendering an X with only `ingredient.manifest.validated` as the visible code on Pixel-shaped chains (camera-capture → Google Photos Zoom Enhance edit). Root cause: c2pa-rs emits a single `validation_results.ingredientDeltas[]` entry whose URI is keyed on the **parent** manifest's label + the parent's `c2pa.ingredient` assertion path, not the child manifest's label. The previous matcher searched for `child_label` in the URI and never matched; positional fallback then picked up the parent-keyed summary delta which contained only `ingredient.manifest.validated` plus cert-soft failures, dropping the eight success codes (`claimSignature.validated`, `assertion.dataHash.match`, `timeStamp.validated`, ×3 `assertion.hashedURI.match`, `claimSignature.insideValidity`) the panel needs to render "Signature valid" + "Data integrity confirmed".
+
+  Fix: extracted the resolution logic into `resolve_ingredient_validation_source()` and reordered priority — embedded `ingredient.validation_results.activeManifest` first (authoritative for the ingredient's own outcomes), then URI-matched delta searching for the **parent** label, then positional fallback. Three new regression tests lock the behaviour: `pixel_zoom_enhance_uses_embedded_ingredient_validation`, `ingredient_delta_uri_match_uses_parent_label`, `ingredient_resolver_positional_last_resort`.
+
+### Tests
+
+490 Rust lib tests pass (3 new), clippy + fmt clean.
+
+---
+
 ## 25 April 2026 — Release Candidate rc.23 — Accessibility + Enhanced default + audit hygiene
 
 A four-agent codebase audit (Explore, tech-debt-analyst, project-manager, grant-writer) on 25 April produced a converged set of pilot-readiness recommendations. This RC ships the immediate fixes; structural items (e.g. `jura-core` Apache-2.0 dual-licence, audio detection wire-up) are scheduled for May Week 1 in Plane (JTV-44 bumped to urgent, JTV-85 created).

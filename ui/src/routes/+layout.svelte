@@ -162,10 +162,15 @@
   // that Content Credentials signing is not part of the Validator
   // conformance submission — it's a separate Generator-track workstream.
   // Restore the nav entry here after Generator-track approval lands.
+  // Monitor hidden from the top nav for the pilot-tester build (2026-04-26).
+  // Tester feedback indicates the Monitor surface adds noise to the
+  // evaluation walkthrough — Verify is the workflow under review. The
+  // route still works if typed directly (`/monitor`) and the page itself
+  // is unchanged. Restore the nav entry below once tester feedback says
+  // Monitor is ready for the foreground.
   const navItems = [
     { href: '/',         label: 'Dashboard', title: 'Overview and statistics' },
     { href: '/verify',   label: 'Verify',    title: 'Check content authenticity' },
-    { href: '/monitor',  label: 'Monitor',   title: 'Track content protection and verification' },
     { href: '/settings', label: 'Settings',  title: 'Application preferences' },
     { href: '/help',     label: 'Help',      title: 'Documentation and guidance' },
   ];
@@ -191,8 +196,8 @@
         class="flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
         aria-label="Jura Trace — home"
       >
-        <LogoMark size={32} />
-        <span class="brand-name text-sm text-text-light dark:text-text-dark">Jura Trace</span>
+        <LogoMark size={64} />
+        <span class="brand-name text-[21px] text-text-light dark:text-text-dark">Jura Trace</span>
       </a>
 
       <!-- Desktop nav -->
@@ -359,7 +364,7 @@
     <div class="max-w-4xl mx-auto px-6 lg:px-8 py-8">
       <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-flint-dark dark:text-flint-light">
         <div class="flex items-center gap-3">
-          <LogoMark size={16} />
+          <LogoMark size={24} />
           <span class="brand-name text-xs text-text-light dark:text-text-dark">Jura Trace</span>
           <span class="text-xs">v0.9.0</span>
         </div>

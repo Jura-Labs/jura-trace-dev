@@ -194,7 +194,7 @@
         <tr>
           <td class="py-2.5 pr-6 text-text-light dark:text-text-dark font-medium">Methodology documentation</td>
           <td class="py-2.5 pr-6 tabular-nums text-flint-dark dark:text-flint-light">§6.2</td>
-          <td class="py-2.5 text-flint-dark dark:text-flint-light">21 forensic detectors documented in-app; trust score formula fully disclosed</td>
+          <td class="py-2.5 text-flint-dark dark:text-flint-light">12 automatic forensic detectors plus 3 on-demand investigation tools documented in-app; trust score formula fully disclosed</td>
         </tr>
         <tr>
           <td class="py-2.5 pr-6 text-text-light dark:text-text-dark font-medium">Analyst accountability</td>
@@ -401,8 +401,9 @@
            class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:text-lapis/80 dark:hover:text-lapis dark:text-lapis-light/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian motion-safe:transition-colors">
           How Analysis Works
         </a>
-        page documents all 21 forensic detectors: what each one measures, how it works,
-        its known false-positive triggers, and the investigation modes in which it runs.
+        page documents all 12 automatic forensic detectors plus the 3 on-demand
+        investigation tools: what each one measures, how it works, its known
+        false-positive triggers, and the investigation modes in which it runs.
       </span>
     </li>
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
@@ -828,7 +829,7 @@
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         How Analysis Works
       </a>
-      <span class="text-flint-dark dark:text-flint-light"> — full documentation of all 21 forensic detectors, the trust score formula, and known limitations</span>
+      <span class="text-flint-dark dark:text-flint-light"> — full documentation of all 12 automatic forensic detectors plus 3 on-demand investigation tools, the trust score formula, and known limitations</span>
     </li>
     <li>
       <a href="/help/verify"

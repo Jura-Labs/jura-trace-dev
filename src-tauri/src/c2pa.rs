@@ -446,6 +446,60 @@ fn derive_validity(json: &serde_json::Value) -> (bool, bool) {
 ///
 /// The `delta` argument is the `validationDeltas` object for a single ingredient,
 /// containing optional `success`, `informational`, and `failure` arrays.
+/// Resolve the validation-checks source for an ingredient manifest in a chain.
+///
+/// Source priority (revised 2026-04-26 after the Google Pixel Zoom Enhance
+/// "Content Credential unavailable or invalid" misreport):
+///
+/// 1. The ingredient's own embedded `validation_results.activeManifest` block
+///    — the AUTHORITATIVE source for the ingredient's own claim signature,
+///    data hash, timestamp and assertion-hash outcomes.
+///
+/// 2. Top-level `validation_results.ingredientDeltas[]` matched by URI. The
+///    URI is keyed on the PARENT manifest's label + the parent's
+///    `c2pa.ingredient` assertion path (not the child's label), so the
+///    matcher must search for the parent label, not the child label.
+///
+/// 3. Positional fallback — the nth top-level ingredient delta corresponds
+///    to the nth ingredient in walk order. Last-resort only because c2pa-rs
+///    occasionally emits a single summary delta (`ingredient.manifest.validated`
+///    + cert-state failures) which, taken alone, drops the full success-code
+///    set the user needs to see in the L3 panel.
+///
+/// Embedded is preferred because the delta is a c2pa-rs *summary* of the
+/// ingredient's status from the parent's signing-time perspective, while the
+/// embedded block is the FULL validation outcome.
+fn resolve_ingredient_validation_source<'a>(
+    ingredient: &'a serde_json::Value,
+    parent_label: &str,
+    ingredient_deltas: &[&'a serde_json::Value],
+    ingredient_order: usize,
+) -> Option<&'a serde_json::Value> {
+    ingredient
+        .get("validation_results")
+        .and_then(|vr| vr.get("activeManifest"))
+        .or_else(|| {
+            // URI match: look for a delta whose ingredientAssertionURI references
+            // this parent claim's ingredient assertion. c2pa-rs URIs are of the form
+            //   self#jumbf=/c2pa/<parent_label>/c2pa.assertions/c2pa.ingredient[.vN]
+            ingredient_deltas
+                .iter()
+                .find(|d| {
+                    d.get("ingredientAssertionURI")
+                        .and_then(|u| u.as_str())
+                        .map(|uri| uri.contains(parent_label))
+                        .unwrap_or(false)
+                })
+                .copied()
+                .and_then(|d| d.get("validationDeltas"))
+        })
+        .or_else(|| {
+            ingredient_deltas
+                .get(ingredient_order)
+                .and_then(|d| d.get("validationDeltas"))
+        })
+}
+
 fn extract_validation_checks_from_delta(delta: &serde_json::Value) -> Vec<ValidationCheck> {
     let mut checks = Vec::new();
     for (outcome, key) in [
@@ -1428,41 +1482,12 @@ pub fn read_manifest_chain(path: &Path, enhanced: bool) -> Result<Option<Manifes
                             continue; // guard against cycles
                         }
                         if let Some(child_manifest) = manifests.get(child_label) {
-                            // Try to find a matching ingredient delta.
-                            // Strategy 1: URI contains the manifest label as a substring.
-                            // Strategy 2: fall back to positional order.
-                            // Strategy 3 (added 2026-04-24 for the Pixel Zoom Enhance
-                            //   case): when no top-level ingredientDelta matches, the
-                            //   ingredient may carry its OWN
-                            //   `validation_results.activeManifest` block — same
-                            //   success/failure/informational shape as a delta.
-                            //   Without this fallback the chain ingredient renders as
-                            //   "Content Credential unavailable or invalid" in the L3
-                            //   panel because validation_checks ends up empty even
-                            //   when the parent ingredient was actually validated.
-                            let matched_delta: Option<&serde_json::Value> = ingredient_deltas
-                                .iter()
-                                .find(|d| {
-                                    d.get("ingredientAssertionURI")
-                                        .and_then(|u| u.as_str())
-                                        .map(|uri| uri.contains(child_label))
-                                        .unwrap_or(false)
-                                })
-                                .copied()
-                                .and_then(|d| d.get("validationDeltas"))
-                                .or_else(|| {
-                                    // Positional fallback: nth ingredient delta.
-                                    ingredient_deltas
-                                        .get(ingredient_order)
-                                        .and_then(|d| d.get("validationDeltas"))
-                                })
-                                .or_else(|| {
-                                    // Fallback: ingredient's own validation_results
-                                    // (same wire shape as a delta — success / failure /
-                                    // informational arrays of {code, explanation, url}).
-                                    ing.get("validation_results")
-                                        .and_then(|vr| vr.get("activeManifest"))
-                                });
+                            let matched_delta = resolve_ingredient_validation_source(
+                                ing,
+                                label.as_str(),
+                                &ingredient_deltas,
+                                ingredient_order,
+                            );
 
                             let info = extract_manifest_info(
                                 child_manifest,
@@ -3506,6 +3531,154 @@ mod tests {
             "failure": [{ "code": "assertion.dataHash.mismatch" }]
         });
         assert_eq!(derive_validity_from_delta(&delta), (false, false));
+    }
+
+    /// Regression test for the Google Pixel Zoom Enhance "Content Credential
+    /// unavailable or invalid" misreport (2026-04-26).
+    ///
+    /// Shape of the bug: c2pa-rs emits a single `ingredientDeltas[]` entry whose
+    /// URI is keyed on the PARENT manifest's label + the parent's
+    /// `c2pa.ingredient` assertion path — NOT the child manifest's label. The
+    /// previous matcher searched for the child label inside the URI and never
+    /// matched, falling through to a positional fallback that picked up the
+    /// summary-only delta (`ingredient.manifest.validated` + cert-state
+    /// failures). The L3 panel then rendered "Content Credential unavailable
+    /// or invalid" because none of `claimSignature.validated`,
+    /// `assertion.dataHash.match`, etc. were present.
+    ///
+    /// Fix: prefer the ingredient's own embedded `validation_results.activeManifest`
+    /// block, which carries the full success-code set.
+    #[test]
+    fn pixel_zoom_enhance_uses_embedded_ingredient_validation() {
+        let parent_label = "urn:c2pa:53649c45-9acd-3405-c4e8-419144ec9657";
+        let child_label = "urn:c2pa:eecfbd16-c3ee-4ea0-4337-45682d534294";
+
+        // The ingredient as it appears inside the active manifest's
+        // `ingredients[]` — full success-code set inside its own
+        // validation_results.activeManifest block.
+        let ingredient = serde_json::json!({
+            "active_manifest": child_label,
+            "validation_results": {
+                "activeManifest": {
+                    "success": [
+                        { "code": "timeStamp.validated" },
+                        { "code": "timeStamp.trusted" },
+                        { "code": "signingCredential.trusted" },
+                        { "code": "claimSignature.insideValidity" },
+                        { "code": "claimSignature.validated" },
+                        { "code": "assertion.hashedURI.match" },
+                        { "code": "assertion.hashedURI.match" },
+                        { "code": "assertion.dataHash.match" }
+                    ],
+                    "informational": [],
+                    "failure": []
+                }
+            }
+        });
+
+        // The top-level ingredient delta — keyed on PARENT's label, summary
+        // only. This is the trap the old matcher fell into.
+        let parent_keyed_delta = serde_json::json!({
+            "ingredientAssertionURI": format!(
+                "self#jumbf=/c2pa/{}/c2pa.assertions/c2pa.ingredient.v3",
+                parent_label
+            ),
+            "validationDeltas": {
+                "success": [{ "code": "ingredient.manifest.validated" }],
+                "informational": [],
+                "failure": [
+                    { "code": "signingCredential.expired" },
+                    { "code": "signingCredential.untrusted" }
+                ]
+            }
+        });
+        let deltas: Vec<&serde_json::Value> = vec![&parent_keyed_delta];
+
+        let resolved =
+            resolve_ingredient_validation_source(&ingredient, parent_label, &deltas, 0)
+                .expect("should resolve to a validation source");
+
+        let checks = extract_validation_checks_from_delta(resolved);
+        let codes: Vec<&str> = checks.iter().map(|c| c.code.as_str()).collect();
+
+        // The full success set must be present — this is what the Origin
+        // tab's Validation Summary needs to render "Signature valid" +
+        // "Data integrity confirmed" instead of the fail copy.
+        assert!(
+            codes.contains(&"claimSignature.validated"),
+            "must include claimSignature.validated; got {:?}",
+            codes
+        );
+        assert!(
+            codes.contains(&"assertion.dataHash.match"),
+            "must include assertion.dataHash.match; got {:?}",
+            codes
+        );
+        assert!(
+            codes.contains(&"timeStamp.validated"),
+            "must include timeStamp.validated; got {:?}",
+            codes
+        );
+        // The summary delta's bare `ingredient.manifest.validated` must NOT be
+        // the only signal — the bug was rendering exactly that one code.
+        assert!(
+            !codes.contains(&"ingredient.manifest.validated"),
+            "embedded source must override the parent-keyed summary delta; got {:?}",
+            codes
+        );
+    }
+
+    /// When the ingredient has no embedded `validation_results`, the resolver
+    /// falls back to a top-level delta whose URI references the parent label.
+    #[test]
+    fn ingredient_delta_uri_match_uses_parent_label() {
+        let parent_label = "urn:c2pa:abc";
+        let ingredient = serde_json::json!({ "active_manifest": "urn:c2pa:def" });
+        let delta = serde_json::json!({
+            "ingredientAssertionURI": format!(
+                "self#jumbf=/c2pa/{}/c2pa.assertions/c2pa.ingredient",
+                parent_label
+            ),
+            "validationDeltas": {
+                "success": [{ "code": "claimSignature.validated" }],
+                "failure": []
+            }
+        });
+        let deltas = vec![&delta];
+
+        let resolved =
+            resolve_ingredient_validation_source(&ingredient, parent_label, &deltas, 0)
+                .expect("uri-matched delta should resolve");
+        assert_eq!(
+            resolved
+                .get("success")
+                .and_then(|s| s.as_array())
+                .map(|a| a.len()),
+            Some(1)
+        );
+    }
+
+    /// Positional fallback only kicks in when both embedded and URI-match fail.
+    #[test]
+    fn ingredient_resolver_positional_last_resort() {
+        let ingredient = serde_json::json!({ "active_manifest": "urn:c2pa:def" });
+        let delta = serde_json::json!({
+            "ingredientAssertionURI": "self#jumbf=/c2pa/wrong/c2pa.assertions/c2pa.ingredient",
+            "validationDeltas": {
+                "success": [{ "code": "ingredient.manifest.validated" }],
+                "failure": []
+            }
+        });
+        let deltas = vec![&delta];
+
+        let resolved = resolve_ingredient_validation_source(
+            &ingredient,
+            "urn:c2pa:does-not-match",
+            &deltas,
+            0,
+        )
+        .expect("positional fallback should resolve");
+        assert!(resolved.get("success").is_some());
     }
 
     /// `extract_validation_checks_from_delta` extracts checks from all outcome arrays.

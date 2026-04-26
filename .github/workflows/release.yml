@@ -214,13 +214,37 @@ jobs:
           restore-keys: cargo-release-${{ matrix.target }}-
 
       # ── Python: build the frozen sidecar binary ──────────────────────────
-      # The sidecar targets Python 3.13 but we use 3.12 here because macOS
-      # and Windows GHA runners ship 3.12 as the latest stable version available
-      # via setup-python as of 2026-Q1. Update to 3.13 once runners ship it.
-      - name: Setup Python 3.12
+      # On GitHub-hosted runners we install Python 3.12 via setup-python.
+      # Sidecar targets 3.13; cloud runners only ship 3.12 as of 2026-Q1.
+      #
+      # On the self-hosted Mac mini we DO NOT use setup-python because
+      # actions/setup-python@v5 hard-codes a `mkdir /Users/runner/hostedtoolcache`
+      # bootstrap that pre-dates any RUNNER_TOOL_CACHE override and fails
+      # before any user step runs (the runner user on this machine is
+      # `paulgriffiths`, not `runner`).  We instead use the host's
+      # miniconda Python 3.13 which is always present and fully featured.
+      # See `docs/development-workflow.md` for the runner setup contract.
+      - name: Setup Python 3.12 (cloud runners only)
+        if: runner.environment == 'github-hosted'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Configure host Python (self-hosted macOS)
+        if: runner.environment != 'github-hosted' && runner.os == 'macOS'
+        shell: bash
+        run: |
+          # Pin to the miniconda Python 3.13 that ships with the Mac mini.
+          # Resolve via `command -v` so we still error loudly if it's missing.
+          PY="$(command -v python3 || true)"
+          if [ -z "$PY" ]; then
+            echo "::error::No python3 on PATH on the self-hosted runner"
+            exit 1
+          fi
+          echo "Using $($PY --version) at $PY"
+          # Prepend its bin dir to PATH for subsequent steps so `python`,
+          # `python3`, `pip`, and `pip3` all resolve to the same install.
+          echo "$(dirname "$PY")" >> "$GITHUB_PATH"
 
       # Cache the pip download cache keyed on the pinned lock file so the
       # heavy ML library downloads (torch, opencv, etc.) are skipped on

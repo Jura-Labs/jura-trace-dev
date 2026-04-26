@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jura Trace — Brand Review</title>
+
+<!-- Live brand fonts:  Source Serif 4 (serif) + Source Sans 3 (sans).
+     These are Adobe-authored type families released free on Google Fonts;
+     they are the same fonts available via Adobe Fonts / Creative Cloud.
+     Falls back gracefully to Georgia + Avenir Next if offline. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Serif+4:ital,wght@0,400;0,600;0,700;1,400&display=swap">
+
+<style>
+  :root {
+    /* mineral palette */
+    --obsidian: #1E2128;
+    --graphite: #272B34;
+    --quartz: #EDEAE4;
+    --quartz-dim: #D8D5CE;
+    --bone: #FAFAF7;
+    --flint-dark: #5C5A55;
+    --flint-light: #ABA8A0;
+    --lapis: #5A85B5;
+    --lapis-light: #7AA0CC;
+    --malachite: #7DA771;
+    --cinnabar: #DD8C84;
+    --amber-dark: #8C5F22;
+
+    /* theme tokens (overridden in [data-theme="dark"]) */
+    --bg: var(--bone);
+    --surface: #ffffff;
+    --text: var(--obsidian);
+    --text-muted: var(--flint-dark);
+    --border: var(--quartz-dim);
+    --accent: var(--lapis);
+  }
+
+  [data-theme="dark"] {
+    --bg: var(--obsidian);
+    --surface: var(--graphite);
+    --text: var(--quartz);
+    --text-muted: var(--flint-light);
+    --border: rgba(122, 119, 112, 0.20);
+    --accent: var(--lapis-light);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Source Sans 3", "Avenir Next", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    transition: background 240ms ease, color 240ms ease;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 56px 32px 96px;
+  }
+
+  /* ── Topbar ─────────────────────────────────────────────────── */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .topbar h1 {
+    font: 600 16px/1 "Source Sans 3", "Source Sans 3", "Avenir Next", system-ui, sans-serif;
+    margin: 0;
+    color: var(--text);
+    letter-spacing: 0.02em;
+  }
+  .topbar .spacer { flex: 1; }
+  .topbar .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font: 500 13px/1 "Source Sans 3", "Avenir Next", system-ui;
+  }
+  .topbar .toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Headings ───────────────────────────────────────────────── */
+  h2 {
+    font: 400 32px/1.2 "Source Serif 4", Georgia, serif;
+    margin: 56px 0 8px;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  h3 {
+    font: 400 20px/1.3 "Source Serif 4", Georgia, serif;
+    margin: 24px 0 8px;
+    color: var(--text);
+  }
+  .lede {
+    color: var(--text-muted);
+    font-size: 15px;
+    margin: 0 0 28px;
+    max-width: 70ch;
+  }
+  .earth-line {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--lapis), var(--malachite), transparent);
+    opacity: 0.4;
+    margin: 16px 0 32px;
+  }
+  .small {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  /* ── Logo display ───────────────────────────────────────────── */
+  .logo-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+  .logo-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .logo-card.light { background: var(--bone); }
+  .logo-card.dark { background: var(--obsidian); }
+  .logo-card .label {
+    font-size: 12px;
+    color: var(--flint-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .logo-card.dark .label { color: var(--flint-light); }
+  .logo-card .sizes {
+    display: flex;
+    align-items: baseline;
+    gap: 32px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .logo-card .sizes > div { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .logo-card .sizes .px {
+    font-size: 11px;
+    color: var(--flint-dark);
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .logo-card.dark .sizes .px { color: var(--flint-light); }
+
+  /* ── Palette ─────────────────────────────────────────────────── */
+  .palette {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+  }
+  .swatch {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .swatch .chip {
+    height: 100px;
+    display: flex;
+    align-items: flex-end;
+    padding: 12px;
+    color: rgba(0,0,0,0.55);
+    font-size: 11px;
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .swatch .chip.light-text { color: rgba(255,255,255,0.85); }
+  .swatch .meta {
+    padding: 12px 14px 14px;
+  }
+  .swatch .name {
+    font: 500 14px/1.2 "Source Sans 3", "Avenir Next", system-ui;
+    color: var(--text);
+    margin: 0 0 4px;
+  }
+  .swatch .hex {
+    font: 500 12px/1.2 ui-monospace, Menlo, monospace;
+    color: var(--text-muted);
+    cursor: copy;
+  }
+  .swatch .hex::before { content: "📋  "; opacity: 0.5; font-size: 10px; }
+  .swatch .use {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 6px 0 0;
+  }
+
+  /* ── Typography ─────────────────────────────────────────────── */
+  .type-stack {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px 28px;
+    background: var(--surface);
+    margin-bottom: 16px;
+  }
+  .type-stack .meta {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 14px;
+  }
+  .display-1 { font: 700 72px/1.05 "Source Serif 4", Georgia, "Freight Text Pro", serif; letter-spacing: -0.015em; color: var(--text); }
+  .display-2 { font: italic 400 36px/1.25 "Source Serif 4", Georgia, serif; color: var(--accent); margin-top: 4px; }
+  .body-lg   { font: 400 18px/1.55 "Source Sans 3", "Source Sans 3", "Avenir Next", sans-serif; color: var(--text); margin-top: 14px; max-width: 60ch; }
+  .body-sm   { font: 400 14px/1.55 "Source Sans 3", "Source Sans 3", "Avenir Next", sans-serif; color: var(--text-muted); margin-top: 8px; max-width: 60ch; }
+  .caption   { font: 500 12px/1.4 "Source Sans 3", "Avenir Next", sans-serif; text-transform: uppercase; letter-spacing: 0.16em; color: var(--text-muted); margin-top: 14px; }
+
+  /* ── Social card preview ────────────────────────────────────── */
+  .social-card {
+    width: 100%;
+    aspect-ratio: 2 / 1;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    display: block;
+    background: #1E2128;
+  }
+  .social-card img { width: 100%; display: block; }
+
+  /* ── Buttons (sample) ───────────────────────────────────────── */
+  .btn-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 18px;
+    border-radius: 6px;
+    font: 500 14px/1 "Source Sans 3", "Avenir Next", sans-serif;
+    text-decoration: none;
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+  .btn.primary { background: var(--lapis); color: #fff; }
+  .btn.primary:hover { background: var(--lapis-light); }
+  .btn.ghost { background: transparent; color: var(--accent); border-color: var(--accent); }
+  .btn.ghost:hover { background: var(--accent); color: #fff; }
+
+  /* ── State pills ────────────────────────────────────────────── */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font: 500 12px/1 "Source Sans 3", "Avenir Next", sans-serif;
+    border: 1px solid;
+  }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .pill.success { color: var(--malachite); border-color: rgba(125,167,113,0.4); background: rgba(125,167,113,0.10); }
+  .pill.success .dot { background: var(--malachite); }
+  .pill.warn    { color: var(--amber-dark); border-color: rgba(140,95,34,0.4); background: rgba(140,95,34,0.10); }
+  .pill.warn .dot { background: var(--amber-dark); }
+  .pill.fail    { color: var(--cinnabar); border-color: rgba(221,140,132,0.4); background: rgba(221,140,132,0.12); }
+  .pill.fail .dot { background: var(--cinnabar); }
+
+  /* ── Palette adjuster ───────────────────────────────────────── */
+  .adjuster {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px 24px;
+    background: var(--surface);
+  }
+  .adjuster table { width: 100%; border-collapse: collapse; }
+  .adjuster td { padding: 8px 8px; vertical-align: middle; }
+  .adjuster td:first-child { width: 110px; font-size: 13px; color: var(--text-muted); }
+  .adjuster input[type="color"] {
+    width: 44px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+  }
+  .adjuster code {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: 10px;
+  }
+  .adjuster .hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 12px;
+  }
+
+  /* ── Footer ─────────────────────────────────────────────────── */
+  footer {
+    margin-top: 80px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  /* responsive */
+  @media (max-width: 720px) {
+    .logo-grid { grid-template-columns: 1fr; }
+    .display-1 { font-size: 48px; }
+    .display-2 { font-size: 26px; }
+  }
+</style>
+</head>
+
+<body data-theme="light">
+
+  <header class="topbar">
+    <h1>Jura Trace · Brand Review</h1>
+    <span class="spacer"></span>
+    <button class="toggle" onclick="toggleTheme()">
+      <span id="themeLabel">Switch to dark</span>
+    </button>
+  </header>
+
+  <div class="wrap">
+
+    <p class="lede">
+      Live brand review surface. The logo, palette, typography pairings and
+      sample components below render with the same CSS tokens used across
+      the desktop app. Use the palette adjuster at the bottom to dry-run a
+      colour change everywhere on this page in real time.
+    </p>
+
+    <!-- ─── 1. Logo ──────────────────────────────────────────── -->
+    <h2>Eye-mark</h2>
+    <p class="lede">
+      Almond/lens form. Lapis stroke + obsidian pupil + quartz catchlight.
+      Source: <code>docs/branding/logo-eye-mark.svg</code>.
+    </p>
+    <div class="earth-line"></div>
+
+    <div class="logo-grid">
+      <div class="logo-card light">
+        <div class="label">on Bone (#FAFAF7)</div>
+        <div class="sizes">
+          <div><img src="logo-eye-mark.svg" width="160" height="160" alt=""/><span class="px">160 px</span></div>
+          <div><img src="logo-eye-mark.svg" width="80"  height="80"  alt=""/><span class="px">80 px</span></div>
+          <div><img src="logo-eye-mark.svg" width="40"  height="40"  alt=""/><span class="px">40 px</span></div>
+          <div><img src="logo-eye-mark.svg" width="24"  height="24"  alt=""/><span class="px">24 px (min)</span></div>
+        </div>
+      </div>
+      <div class="logo-card dark">
+        <div class="label">on Obsidian (#1E2128)</div>
+        <div class="sizes">
+          <div><img src="logo-eye-mark.svg" width="160" height="160" alt=""/><span class="px">160 px</span></div>
+          <div><img src="logo-eye-mark.svg" width="80"  height="80"  alt=""/><span class="px">80 px</span></div>
+          <div><img src="logo-eye-mark.svg" width="40"  height="40"  alt=""/><span class="px">40 px</span></div>
+          <div><img src="logo-eye-mark.svg" width="24"  height="24"  alt=""/><span class="px">24 px (min)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Wordmark + lock-up</h3>
+    <div class="logo-card light" style="background: var(--surface);">
+      <div style="display: flex; align-items: center; gap: 28px;">
+        <img src="logo-eye-mark.svg" width="72" height="72" alt=""/>
+        <div>
+          <div class="display-1" style="font-size: 56px;">Jura Trace</div>
+          <div class="display-2" style="font-size: 24px; margin-top: 0;">Know What's Real.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── 2. Colour palette ─────────────────────────────────── -->
+    <h2>Mineral palette</h2>
+    <p class="lede">
+      Click any hex to copy. All accent + text pairings are validated against
+      WCAG 2.2 AA contrast on both Bone and Graphite backgrounds.
+    </p>
+    <div class="earth-line"></div>
+
+    <div class="palette" id="palette">
+      <!-- swatches injected by script -->
+    </div>
+
+    <!-- ─── 3. Typography ─────────────────────────────────────── -->
+    <h2>Typography</h2>
+    <p class="lede">
+      Wordmark and editorial display in Georgia (system fallback) — upgrade
+      to Source Serif 4 / Freight Text via Adobe Fonts. UI sample uses
+      Avenir Next / Source Sans 3 fallback chain. See
+      <code>BRAND_KIT.md</code> for foundry options and licence cost.
+    </p>
+    <div class="earth-line"></div>
+
+    <div class="type-stack">
+      <div class="meta"><span>Display 1 — wordmark</span><span>Georgia Bold · 72 / 700 · -0.015em</span></div>
+      <div class="display-1">Jura Trace</div>
+      <div class="display-2">Know What's Real.</div>
+      <div class="body-lg">Forensic media verification, run entirely on your device. Designed for cultural institutions, journalists, educators and civil-society organisations. Free for non-commercial use under the PolyForm Noncommercial 1.0.0 licence.</div>
+      <div class="body-sm">Body small: secondary information, captions, in-line metadata. Avenir Next 14 / 400 / 1.55 leading. The flint-dark and flint-light tokens guarantee ≥ 4.5 : 1 contrast.</div>
+      <div class="caption">Caption · all-caps · 0.16em tracking</div>
+    </div>
+
+    <h3>Component samples</h3>
+    <div class="type-stack">
+      <div class="meta"><span>State pills + buttons</span><span>colour token preview</span></div>
+      <div class="btn-row" style="margin-bottom: 18px;">
+        <a class="btn primary">Verify content</a>
+        <a class="btn ghost">Open settings</a>
+      </div>
+      <div class="btn-row">
+        <span class="pill success"><span class="dot"></span> Verified</span>
+        <span class="pill warn"><span class="dot"></span> Mixed signals</span>
+        <span class="pill fail"><span class="dot"></span> AI-generated</span>
+      </div>
+    </div>
+
+    <!-- ─── 4. Social card preview ────────────────────────────── -->
+    <h2>Social / Open Graph card</h2>
+    <p class="lede">
+      1280 × 640 — what GitHub, X/Twitter, LinkedIn, Bluesky, Slack, Discord,
+      and iMessage will display when someone shares the repo URL. Source:
+      <code>docs/branding/social-card-1280x640.svg</code>.
+    </p>
+    <div class="earth-line"></div>
+
+    <div class="social-card">
+      <img src="social-card-1280x640.svg" alt="Jura Trace social preview"/>
+    </div>
+
+    <!-- ─── 5. Palette adjuster ───────────────────────────────── -->
+    <h2>Try a different palette</h2>
+    <p class="lede">
+      Edit any colour token below — the entire page rerenders instantly.
+      Use this to dry-run alternative palettes before committing them to
+      <code>tailwind.config.js</code>. <strong>Reload the page to revert.</strong>
+    </p>
+    <div class="earth-line"></div>
+
+    <div class="adjuster">
+      <table id="adjuster">
+        <!-- inputs injected by script -->
+      </table>
+      <p class="hint">
+        Tip: open DevTools → Elements → :root, edit the CSS custom
+        properties directly for finer control (alpha, named colours, etc.).
+      </p>
+    </div>
+
+    <footer>
+      <p>
+        Single self-contained file · open with any browser · works offline ·
+        no build step required.
+        <br>
+        Edit <code>docs/branding/logo-eye-mark.svg</code> in Illustrator
+        and reload this page to see the result. The SVG is loaded with
+        <code>&lt;img&gt;</code> so file changes are picked up immediately.
+      </p>
+    </footer>
+
+  </div>
+
+<script>
+  // ── Palette tokens (must match :root) ─────────────────────────
+  const PALETTE = [
+    { token: "obsidian",    hex: "#1E2128", name: "Obsidian",    use: "Dark background, body text on cream",      onLight: false },
+    { token: "graphite",    hex: "#272B34", name: "Graphite",    use: "Dark surfaces (cards in dark mode)",       onLight: false },
+    { token: "quartz",      hex: "#EDEAE4", name: "Quartz",      use: "Light surfaces, body text on dark",        onLight: true  },
+    { token: "quartz-dim",  hex: "#D8D5CE", name: "Quartz dim",  use: "Inner texture, dividers",                  onLight: true  },
+    { token: "bone",        hex: "#FAFAF7", name: "Bone",        use: "Page background light mode",               onLight: true  },
+    { token: "flint-dark",  hex: "#5C5A55", name: "Flint dark",  use: "Secondary text light mode",                onLight: false },
+    { token: "flint-light", hex: "#ABA8A0", name: "Flint light", use: "Secondary text dark mode",                 onLight: false },
+    { token: "lapis",       hex: "#5A85B5", name: "Lapis",       use: "Primary accent (links, brand mark)",       onLight: false },
+    { token: "lapis-light", hex: "#7AA0CC", name: "Lapis light", use: "Dark-mode lapis variant",                  onLight: false },
+    { token: "malachite",   hex: "#7DA771", name: "Malachite",   use: "Verified / success state",                 onLight: false },
+    { token: "cinnabar",    hex: "#DD8C84", name: "Cinnabar",    use: "AI-generated / failure state",             onLight: true  },
+    { token: "amber-dark",  hex: "#8C5F22", name: "Amber dark",  use: "Mixed-signals / caution state",            onLight: false },
+  ];
+
+  // ── Build swatches ──────────────────────────────────────────────
+  const palette = document.getElementById("palette");
+  PALETTE.forEach(p => {
+    const card = document.createElement("div");
+    card.className = "swatch";
+    card.innerHTML = `
+      <div class="chip ${p.onLight ? '' : 'light-text'}" style="background:${p.hex}">${p.hex}</div>
+      <div class="meta">
+        <p class="name">${p.name}</p>
+        <p class="hex" data-hex="${p.hex}">${p.hex}</p>
+        <p class="use">${p.use}</p>
+      </div>`;
+    palette.appendChild(card);
+  });
+
+  // ── Click-to-copy hex codes ────────────────────────────────────
+  document.querySelectorAll(".hex").forEach(el => {
+    el.addEventListener("click", async () => {
+      const hex = el.dataset.hex;
+      try {
+        await navigator.clipboard.writeText(hex);
+        const orig = el.textContent;
+        el.textContent = "copied!";
+        setTimeout(() => { el.textContent = orig; }, 900);
+      } catch (e) { console.warn("clipboard write failed", e); }
+    });
+  });
+
+  // ── Build palette adjuster ─────────────────────────────────────
+  const adjuster = document.getElementById("adjuster");
+  PALETTE.forEach(p => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${p.name}</td>
+      <td>
+        <input type="color" value="${p.hex}" data-token="--${p.token}">
+        <code>--${p.token}</code>
+      </td>`;
+    adjuster.appendChild(row);
+  });
+  adjuster.addEventListener("input", e => {
+    if (e.target.matches('input[type="color"]')) {
+      document.documentElement.style.setProperty(e.target.dataset.token, e.target.value);
+    }
+  });
+
+  // ── Theme toggle ───────────────────────────────────────────────
+  function toggleTheme() {
+    const cur = document.body.dataset.theme || "light";
+    const next = cur === "light" ? "dark" : "light";
+    document.body.dataset.theme = next;
+    document.getElementById("themeLabel").textContent =
+      next === "light" ? "Switch to dark" : "Switch to light";
+  }
+
+  // ── Cache-bust SVGs on reload so Illustrator edits show up
+  document.querySelectorAll('img[src$=".svg"]').forEach(img => {
+    img.src = img.src + "?t=" + Date.now();
+  });
+</script>
+</body>
+</html>

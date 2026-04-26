@@ -192,7 +192,11 @@
       </p>
     </div>
 
-    <!-- Monitor -->
+    <!-- Monitor chapter hidden for the pilot-tester build (2026-04-26).
+         Same rationale as the top-nav hide: keep tester focus on Verify.
+         The /monitor route remains reachable by URL.
+         Restore this block when Monitor is ready to be foregrounded. -->
+    <!--
     <div class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]">
       <div class="flex items-baseline gap-4 mb-4">
         <span class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20">Monitor</span>
@@ -214,6 +218,8 @@
         kept entirely on your machine.
       </p>
     </div>
+    -->
+
 
   </section>
 

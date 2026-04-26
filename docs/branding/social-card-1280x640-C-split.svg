@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Jura Trace social card — Variant C (split composition).
+  Left half: graphite panel with large eye-mark.
+  Right half: obsidian panel with wordmark + tagline + sub.
+  Strong vertical division evokes a printed plate / book cover.
+  1280 × 640.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+
+  <!-- Left panel — graphite -->
+  <rect x="0" y="0" width="512" height="640" fill="#272B34"/>
+  <!-- Right panel — obsidian -->
+  <rect x="512" y="0" width="768" height="640" fill="#1E2128"/>
+
+  <!-- Subtle strata on the right panel only -->
+  <rect x="512" y="0" width="768" height="640" fill="url(#stratum)"/>
+
+  <!-- Vertical earth-line at the seam -->
+  <rect x="510" y="80" width="2" height="480" fill="url(#earthlineV)" opacity="0.6"/>
+
+  <!-- Eye-mark, centred in left panel, large -->
+  <g transform="translate(256, 320) scale(1.6)" stroke-linejoin="round">
+    <path d="M -114 -1 C -38.67 -99.67, 38.67 -99.67, 114 -1 C 38.67 97.67, -38.67 97.67, -114 -1 Z"
+          fill="none" stroke="#5A85B5" stroke-width="16"/>
+    <circle cx="1.62" cy="-0.62" r="54.62" fill="#7DA771" stroke="#5A85B5" stroke-width="12"/>
+    <circle cx="2" cy="-1" r="22" fill="#000000"/>
+    <circle cx="9.97" cy="-16.68" r="4.32" fill="#EDEAE4"/>
+  </g>
+
+  <!-- Right-panel content -->
+  <text x="568" y="276"
+        font-family="'Source Sans 3', sans-serif"
+        font-size="14" font-weight="600" letter-spacing="3"
+        fill="#7AA0CC">JURA LABS · DESKTOP</text>
+
+  <text x="568" y="350"
+        font-family="'Source Serif 4', Georgia, serif"
+        font-size="80" font-weight="700"
+        fill="#EDEAE4">Jura Trace</text>
+
+  <text x="568" y="412"
+        font-family="'Source Serif 4', Georgia, serif"
+        font-size="38" font-style="italic"
+        fill="#7AA0CC">Know What's Real.</text>
+
+  <line x1="568" y1="450" x2="660" y2="450" stroke="#7DA771" stroke-width="2"/>
+
+  <text x="568" y="494"
+        font-family="'Source Sans 3', 'Avenir Next', sans-serif"
+        font-size="20" font-weight="500"
+        fill="#ABA8A0">Forensic media verification</text>
+  <text x="568" y="522"
+        font-family="'Source Sans 3', 'Avenir Next', sans-serif"
+        font-size="20" font-weight="500"
+        fill="#ABA8A0">Local-first  ·  Free for not-for-profits</text>
+
+  <text x="568" y="588"
+        font-family="'Source Sans 3', sans-serif"
+        font-size="18" font-weight="500" letter-spacing="1.5"
+        fill="#5A85B5">juralabs.org</text>
+
+  <defs>
+    <pattern id="stratum" x="0" y="0" width="768" height="80" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="768" height="1" fill="#EDEAE4" opacity="0.04"/>
+      <rect x="0" y="40" width="768" height="1" fill="#EDEAE4" opacity="0.02"/>
+    </pattern>
+    <linearGradient id="earthlineV" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#5A85B5" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#7AA0CC"/>
+      <stop offset="100%" stop-color="#7DA771" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+</svg>

@@ -68,7 +68,7 @@ Jura Trace is a native desktop application built on the Tauri v2 framework (Rust
 | Desktop shell | Tauri v2 (Rust) | Application window, IPC bridge, file system access |
 | Frontend | SvelteKit 5, TailwindCSS | User interface (PROTECT, VERIFY, MONITOR, SETTINGS) |
 | Core engine | Rust (c2pa-rs, rusqlite, image_hasher) | C2PA signing/verification, perceptual hashing, EXIF analysis, metadata extraction |
-| ML sidecar | Python 3.13, FastAPI | 21 forensic detectors — image forensics, deepfake detection, watermark operations |
+| ML sidecar | Python 3.13, FastAPI | 12 automatic forensic detectors plus 3 on-demand investigation tools — image forensics, deepfake detection, watermark operations |
 | Database | SQLite | Local storage of asset metadata, analysis results, audit log |
 | LLM runtime | Ollama (optional) | Local language model for content descriptions and claim verification |
 
@@ -95,7 +95,13 @@ When a user submits an image, video, audio file, or PDF to Jura Trace:
 
 ### Forensic detectors
 
-All 21 forensic detectors run locally via the Python sidecar. No detector sends data to an external service. The full detector list includes: Error Level Analysis (ELA), noise analysis, copy-move detection, deepfake detection (image and video), NPR (neighbouring pixel relationships), chromatic aberration analysis, JPEG ghost detection, segmented ELA, shadow consistency, colour temperature analysis, splice boundary detection, CLIP zero-shot AI/authentic classification, C2PA manifest verification, perceptual fingerprinting, EXIF anomaly detection, audio metadata extraction, video metadata extraction, video frame extraction, watermark embed/extract, audio transcription, and RAG claim verification.
+All 12 automatic forensic detectors plus 3 on-demand investigation tools run locally via the Python sidecar. No detector sends data to an external service.
+
+**12 automatic detectors (contribute to trust scoring)**: EXIF anomaly + XMP AI-provenance, C2PA manifest verification, Error Level Analysis (ELA), noise analysis, copy-move (SIFT) detection, deepfake (GBM v4 + UnivFD v9 ensemble), JPEG ghost, segmented ELA, colour temperature consistency, CLIP zero-shot AI/authentic classification, watermark embed/extract, video deepfake (per-frame + temporal).
+
+**3 on-demand investigation tools (do not contribute to trust score)**: NPR (neighbouring pixel relationships), shadow consistency, splice boundary.
+
+Supporting non-detector services run alongside: perceptual fingerprinting, audio metadata extraction, video metadata extraction, video frame extraction, audio transcription via faster-whisper, and RAG claim verification.
 
 ### C2PA signing
 

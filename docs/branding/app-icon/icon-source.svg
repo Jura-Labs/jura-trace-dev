@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- macOS app icon plate.  Round corners are applied by macOS automatically.
+       Background uses a vertical mineral gradient (graphite → obsidian)
+       so the eye sits on a recognisable surface. -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#272B34"/>
+      <stop offset="100%" stop-color="#1E2128"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="180" fill="url(#bg)"/>
+  <!-- Eye-mark, centred, 56% of canvas -->
+  <g transform="translate(512, 512) scale(2.25)" stroke-linejoin="round">
+    <path d="M -114 -1 C -38.67 -99.67, 38.67 -99.67, 114 -1 C 38.67 97.67, -38.67 97.67, -114 -1 Z"
+          fill="none" stroke="#5A85B5" stroke-width="16"/>
+    <circle cx="1.62" cy="-0.62" r="54.62" fill="#7DA771" stroke="#5A85B5" stroke-width="12"/>
+    <circle cx="2" cy="-1" r="22" fill="#000000"/>
+    <circle cx="9.97" cy="-16.68" r="4.32" fill="#EDEAE4"/>
+  </g>
+</svg>

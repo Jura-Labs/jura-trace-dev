@@ -12,11 +12,14 @@
       title: 'Verify',
       description: 'Understand the forensic analysis pipeline, how trust scores are computed, and the difference between investigation modes.',
     },
-    {
-      href: '/help/monitor',
-      title: 'Monitor',
-      description: 'Review your Protection Chronicle, explore the Trust Landscape distribution, and browse the full activity record.',
-    },
+    // Monitor help entry hidden for the pilot-tester build (2026-04-26)
+    // to mirror the top-nav and dashboard hides. /help/monitor remains
+    // reachable by URL.
+    // {
+    //   href: '/help/monitor',
+    //   title: 'Monitor',
+    //   description: 'Review your Protection Chronicle, explore the Trust Landscape distribution, and browse the full activity record.',
+    // },
     {
       href: '/help/settings',
       title: 'Settings',
