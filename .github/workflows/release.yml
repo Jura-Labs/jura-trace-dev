@@ -141,7 +141,18 @@ jobs:
           PLATFORMS="${{ github.event.inputs.platforms }}"
           [ -z "$PLATFORMS" ] && PLATFORMS="all"
 
-          MAC='{"label":"macOS (Apple Silicon)","runner":["self-hosted","macOS","ARM64","m4"],"target":"aarch64-apple-darwin","sidecar_name":"jura-sidecar-aarch64-apple-darwin","platform":"macos-only"}'
+          # macOS reverted from self-hosted Mac mini to GitHub-hosted
+          # macos-latest (2026-04-26).  Self-hosted hit two blockers that
+          # neither library-validation entitlements nor a full TCC re-grant
+          # could close: macOS Sequoia denies launchd-spawned ad-hoc-signed
+          # processes (Runner.Listener) keychain access for codesign even
+          # after re-signing with Developer ID.  The cost (~£0.30/build,
+          # macos-latest minutes) is trivial against the time spent
+          # debugging.  rc.21/rc.22 used cloud macos-latest successfully —
+          # this is a return to the known-working configuration.
+          # When self-hosted is fixed (see backlog), restore:
+          #   "runner":["self-hosted","macOS","ARM64","m4"]
+          MAC='{"label":"macOS (Apple Silicon)","runner":"macos-latest","target":"aarch64-apple-darwin","sidecar_name":"jura-sidecar-aarch64-apple-darwin","platform":"macos-only"}'
           WIN='{"label":"Windows (x64)","runner":"windows-latest","target":"x86_64-pc-windows-msvc","sidecar_name":"jura-sidecar-x86_64-pc-windows-msvc.exe","platform":"windows-only"}'
           # Linux x64 paused (not under active testing, re-enable post-v1.0):
           # LIN='{"label":"Linux (x64)","runner":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","sidecar_name":"jura-sidecar-x86_64-unknown-linux-gnu","platform":"linux-only"}'
