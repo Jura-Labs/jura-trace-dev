@@ -123,60 +123,45 @@ jobs:
         env:
           CHANGELOG_BODY: ${{ steps.changelog.outputs.body }}
 
-  # ── Phase 2: Build platform artefacts in parallel ────────────────────────
+  # ── Phase 2a: Compute the platform matrix for this run ──────────────────
+  # GitHub Actions doesn't allow `matrix.*` references in job-level `if:`,
+  # so we can't gate matrix entries directly.  Instead we build the matrix
+  # dynamically here based on the workflow_dispatch `platforms` input.
+  # Tag-push runs (and workflow_dispatch with platforms=all or empty) get
+  # the full matrix; explicit macos-only / windows-only narrows it.
+  prepare-matrix:
+    name: Prepare build matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        shell: bash
+        run: |
+          PLATFORMS="${{ github.event.inputs.platforms }}"
+          [ -z "$PLATFORMS" ] && PLATFORMS="all"
+
+          MAC='{"label":"macOS (Apple Silicon)","runner":["self-hosted","macOS","ARM64","m4"],"target":"aarch64-apple-darwin","sidecar_name":"jura-sidecar-aarch64-apple-darwin","platform":"macos-only"}'
+          WIN='{"label":"Windows (x64)","runner":"windows-latest","target":"x86_64-pc-windows-msvc","sidecar_name":"jura-sidecar-x86_64-pc-windows-msvc.exe","platform":"windows-only"}'
+          # Linux x64 paused (not under active testing, re-enable post-v1.0):
+          # LIN='{"label":"Linux (x64)","runner":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","sidecar_name":"jura-sidecar-x86_64-unknown-linux-gnu","platform":"linux-only"}'
+
+          case "$PLATFORMS" in
+            macos-only)   INCLUDE="[$MAC]" ;;
+            windows-only) INCLUDE="[$WIN]" ;;
+            all|*)        INCLUDE="[$MAC,$WIN]" ;;
+          esac
+          echo "Selected platforms: $PLATFORMS"
+          echo "matrix={\"include\":$INCLUDE}" >> "$GITHUB_OUTPUT"
+
+  # ── Phase 2b: Build platform artefacts in parallel ──────────────────────
   build:
     name: Build (${{ matrix.label }})
-    needs: create-release
-    # workflow_dispatch can target a single platform via the `platforms`
-    # input.  Tag-push runs always build everything (no input set →
-    # github.event.inputs.platforms is empty string, which falls through
-    # to "build this entry").  Used to validate macOS-only fixes without
-    # burning a paid Windows build (e.g. self-hosted runner debugging).
-    if: |
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.platforms == '' ||
-      github.event.inputs.platforms == 'all' ||
-      github.event.inputs.platforms == matrix.platform
+    needs: [create-release, prepare-matrix]
     strategy:
       # Continue building other platforms even if one fails.
       fail-fast: false
-      matrix:
-        include:
-          # macOS Apple Silicon — runs on the self-hosted runner registered
-          # on Paul's Mac mini (M4) since 2026-04-24.  Self-hosted is free
-          # (uses the host's CPU + electricity) and ~30% faster than the
-          # GitHub-hosted macos-latest runner thanks to warm caches and
-          # zero spin-up latency.
-          #
-          # If the Mac mini is offline when a tag is pushed, the job will
-          # queue until either (a) the runner comes back online or (b) the
-          # 6-hour job timeout fires.  To temporarily fall back to cloud,
-          # change `runner` to `macos-latest` for the affected build.
-          #
-          # The signing path is identical: Paul's login keychain holds the
-          # Developer ID Application cert, AND the GitHub-secret APPLE_*
-          # variables remain configured for the cloud-runner code path.
-          # tauri-action picks whichever is present.
-          - label: macOS (Apple Silicon)
-            runner: [self-hosted, macOS, ARM64, m4]
-            target: aarch64-apple-darwin
-            sidecar_name: jura-sidecar-aarch64-apple-darwin
-            platform: macos-only
-
-          # Windows x64 — produces both MSI and NSIS installers
-          - label: Windows (x64)
-            runner: windows-latest
-            target: x86_64-pc-windows-msvc
-            # Windows: Tauri looks for the .exe-suffixed name.
-            sidecar_name: jura-sidecar-x86_64-pc-windows-msvc.exe
-            platform: windows-only
-
-          # Linux x64 — paused (not under active testing, re-enable post-v1.0)
-          # - label: Linux (x64)
-          #   runner: ubuntu-22.04
-          #   target: x86_64-unknown-linux-gnu
-          #   sidecar_name: jura-sidecar-x86_64-unknown-linux-gnu
-          #   platform: linux-only
+      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
 
     runs-on: ${{ matrix.runner }}
     # The sidecar build (torch + open_clip) can take 10-20 minutes alone on
