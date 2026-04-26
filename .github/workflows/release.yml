@@ -143,6 +143,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ── Self-hosted macOS runner: writable tool cache ───────────────────
+      # GHA's setup-* actions default to RUNNER_TOOL_CACHE=/Users/runner/hostedtoolcache,
+      # the path baked into the cloud `macos-latest` image where the runner user is
+      # `runner`. On Paul's Mac mini the runner user is `paulgriffiths`, so the
+      # default path is unwritable and `mkdir: /Users/runner: Permission denied`
+      # kills setup-python. Point both the tool cache and the runner workspace at
+      # paths under $HOME — set BEFORE setup-python so it picks them up.
+      - name: Configure self-hosted runner paths (macOS)
+        if: runner.environment != 'github-hosted' && runner.os == 'macOS'
+        shell: bash
+        run: |
+          TOOL_CACHE="$HOME/.runner-tool-cache"
+          mkdir -p "$TOOL_CACHE"
+          echo "RUNNER_TOOL_CACHE=$TOOL_CACHE" >> "$GITHUB_ENV"
+          echo "AGENT_TOOLSDIRECTORY=$TOOL_CACHE" >> "$GITHUB_ENV"
+          echo "Self-hosted RUNNER_TOOL_CACHE=$TOOL_CACHE"
+
       # ── Linux: free disk space before anything else ──────────────────────
       # ubuntu-22.04 runners start with ~25 GB free. The ML sidecar deps
       # (torch, opencv, etc.) plus the Tauri Rust build together exceed that.
