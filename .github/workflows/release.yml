@@ -9,6 +9,15 @@ on:
       tag:
         description: "Tag to release (e.g. v0.9.0-rc.14)"
         required: true
+      platforms:
+        description: "Which platforms to build"
+        type: choice
+        required: false
+        default: all
+        options:
+          - all
+          - macos-only
+          - windows-only
 
 # contents: write is still needed for checking out source from jura-archive.
 # All release creation/publishing targets juralabs/jura-trace via RELEASE_PAT.
@@ -76,6 +85,31 @@ jobs:
             // users cannot browse it.
             const body = process.env.CHANGELOG_BODY
               || `## Jura Trace ${tag}\n\nSee [CHANGELOG.md](https://github.com/juralabs/jura-trace/blob/main/CHANGELOG.md) for details.`;
+            const prerelease = /-(rc|beta|alpha)/.test(tag);
+
+            // Idempotent: workflow_dispatch can re-run this workflow on an
+            // existing tag (e.g. to validate a single-platform fix without
+            // burning the other platform's CI minutes).  In that case the
+            // release on jura-trace already exists; reuse it instead of
+            // failing with HTTP 422.  Only the body is refreshed — everything
+            // else is left as-is so previously-uploaded assets survive.
+            try {
+              const { data: existing } = await github.rest.repos.getReleaseByTag({
+                owner: 'juralabs',
+                repo: 'jura-trace',
+                tag,
+              });
+              console.log(`Reusing existing release ${existing.id} for tag ${tag}`);
+              await github.rest.repos.updateRelease({
+                owner: 'juralabs',
+                repo: 'jura-trace',
+                release_id: existing.id,
+                body,
+              });
+              return existing.id;
+            } catch (e) {
+              if (e.status !== 404) throw e;
+            }
             const { data } = await github.rest.repos.createRelease({
               owner: 'juralabs',
               repo: 'jura-trace',
@@ -83,8 +117,7 @@ jobs:
               name: `Jura Trace ${tag}`,
               body,
               draft: true,
-              // Mark as pre-release if the tag contains -rc, -beta, or -alpha.
-              prerelease: /-(rc|beta|alpha)/.test(tag),
+              prerelease,
             });
             return data.id;
         env:
@@ -94,6 +127,16 @@ jobs:
   build:
     name: Build (${{ matrix.label }})
     needs: create-release
+    # workflow_dispatch can target a single platform via the `platforms`
+    # input.  Tag-push runs always build everything (no input set →
+    # github.event.inputs.platforms is empty string, which falls through
+    # to "build this entry").  Used to validate macOS-only fixes without
+    # burning a paid Windows build (e.g. self-hosted runner debugging).
+    if: |
+      github.event_name != 'workflow_dispatch' ||
+      github.event.inputs.platforms == '' ||
+      github.event.inputs.platforms == 'all' ||
+      github.event.inputs.platforms == matrix.platform
     strategy:
       # Continue building other platforms even if one fails.
       fail-fast: false
@@ -118,6 +161,7 @@ jobs:
             runner: [self-hosted, macOS, ARM64, m4]
             target: aarch64-apple-darwin
             sidecar_name: jura-sidecar-aarch64-apple-darwin
+            platform: macos-only
 
           # Windows x64 — produces both MSI and NSIS installers
           - label: Windows (x64)
@@ -125,12 +169,14 @@ jobs:
             target: x86_64-pc-windows-msvc
             # Windows: Tauri looks for the .exe-suffixed name.
             sidecar_name: jura-sidecar-x86_64-pc-windows-msvc.exe
+            platform: windows-only
 
           # Linux x64 — paused (not under active testing, re-enable post-v1.0)
           # - label: Linux (x64)
           #   runner: ubuntu-22.04
           #   target: x86_64-unknown-linux-gnu
           #   sidecar_name: jura-sidecar-x86_64-unknown-linux-gnu
+          #   platform: linux-only
 
     runs-on: ${{ matrix.runner }}
     # The sidecar build (torch + open_clip) can take 10-20 minutes alone on
