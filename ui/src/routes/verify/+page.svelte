@@ -659,15 +659,43 @@
   }
 
   // ── Preview URL ────────────────────────────────────────────────────
+  // Generate a Tauri asset:// URL for any media we can render in-webview.
+  // Images go through <img>; mp4/mov/webm go through <video controls>;
+  // unsupported codecs (mkv/avi) and non-media types fall back to a
+  // text-only placeholder downstream.  We still emit the URL for video
+  // so the renderer can decide; the URL itself is cheap.
   $effect(() => {
     const path = filePath;
     const res = result;
     previewUrl = null;
-    if (!path || !res || res.contentType !== 'image' || !inTauri) return;
+    if (!path || !res || !inTauri) return;
+    if (res.contentType !== 'image' && res.contentType !== 'video' && res.contentType !== 'audio') return;
     import('@tauri-apps/api/core').then(({ convertFileSrc }) => {
       previewUrl = convertFileSrc(path);
     }).catch(() => {});
   });
+
+  // ── Preview kind ───────────────────────────────────────────────────
+  // Decide which renderer to use in the trust-score banner.  Webview
+  // codec support varies by platform — see project memory and the
+  // CLAUDE.md backlog notes — so unsupported video codecs fall back to
+  // a "preview unavailable" tile rather than a broken <video> element.
+  function previewKind(name: string | null, contentType: string | undefined): 'image' | 'video' | 'audio' | 'unsupported' {
+    if (!name) return 'unsupported';
+    if (contentType === 'image' || /\.(jpe?g|png|webp|tiff?|avif|heic|heif|gif)$/i.test(name)) return 'image';
+    if (contentType === 'video' || /\.(mp4|mov|webm|m4v)$/i.test(name)) {
+      // mkv and avi are rejected — neither WKWebView (macOS) nor
+      // WebView2 (Windows) plays them reliably.  Sidecar still
+      // analyses them; only the preview is unavailable.
+      if (/\.(mkv|avi)$/i.test(name)) return 'unsupported';
+      return 'video';
+    }
+    if (contentType === 'audio' || /\.(mp3|wav|m4a|flac|ogg|aac)$/i.test(name)) return 'audio';
+    return 'unsupported';
+  }
+  const currentPreviewKind = $derived<'image' | 'video' | 'audio' | 'unsupported'>(
+    previewKind(fileName, result?.contentType)
+  );
 
   // ── Playwright test hook ───────────────────────────────────────────
   if (typeof window !== 'undefined' && import.meta.env.DEV) {
@@ -1642,8 +1670,10 @@
     <section aria-label="Verification result summary" class="mb-4">
       <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl p-6 flex items-center gap-6 flex-wrap sm:flex-nowrap">
 
-        <!-- Image preview thumbnail -->
-        {#if previewUrl}
+        <!-- Media preview — kind-aware: image (clickable enlarge), video
+             (native controls + native fullscreen), audio (native controls),
+             or a placeholder when the codec isn't webview-renderable. -->
+        {#if currentPreviewKind === 'image' && previewUrl}
           <button
             class="flex-shrink-0 w-[200px] h-[150px] rounded-lg overflow-hidden border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian relative group
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
@@ -1660,6 +1690,57 @@
               aria-hidden="true"
             >Enlarge</span>
           </button>
+        {:else if currentPreviewKind === 'video' && previewUrl}
+          <div
+            class="flex-shrink-0 w-[200px] h-[150px] rounded-lg overflow-hidden border border-border-light dark:border-border-dark bg-black relative"
+          >
+            <!-- preload="metadata" only fetches the moov atom (~hundreds of
+                 KB); fullscreen and seeking come from the webview controls. -->
+            <!-- svelte-ignore a11y_media_has_caption — local user-supplied media,
+                 captions not authored by us; transcription appears in the
+                 "What does it claim?" card when available. -->
+            <video
+              src={previewUrl}
+              controls
+              preload="metadata"
+              muted
+              class="w-full h-full object-contain bg-black"
+              aria-label="Video preview of {fileName}"
+            ></video>
+          </div>
+        {:else if currentPreviewKind === 'audio' && previewUrl}
+          <div
+            class="flex-shrink-0 w-[200px] h-[150px] rounded-lg overflow-hidden border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian flex flex-col items-center justify-center gap-2 px-3"
+          >
+            <svg class="w-8 h-8 text-flint-dark dark:text-flint-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 18V5l12-2v13" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="18" cy="16" r="3" />
+            </svg>
+            <!-- svelte-ignore a11y_media_has_caption — see video note above. -->
+            <audio
+              src={previewUrl}
+              controls
+              preload="metadata"
+              class="w-full"
+              aria-label="Audio preview of {fileName}"
+            ></audio>
+          </div>
+        {:else if fileName && (currentPreviewKind === 'unsupported' || (!previewUrl && (result?.contentType === 'video' || result?.contentType === 'audio' || result?.contentType === 'image')))}
+          <div
+            class="flex-shrink-0 w-[200px] h-[150px] rounded-lg overflow-hidden border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian flex flex-col items-center justify-center gap-2 px-4 text-center"
+            role="img"
+            aria-label="Preview unavailable for this file format"
+          >
+            <svg class="w-7 h-7 text-flint-dark dark:text-flint-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <line x1="3" y1="9" x2="21" y2="9" />
+              <line x1="9" y1="21" x2="9" y2="9" />
+            </svg>
+            <p class="text-[11px] text-flint-dark dark:text-flint-light leading-tight">
+              Preview unavailable for this codec.<br />Analysis still ran.
+            </p>
+          </div>
         {/if}
 
         <!-- Trust ring -->
