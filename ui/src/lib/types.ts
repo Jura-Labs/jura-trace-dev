@@ -308,6 +308,15 @@ export interface ClipDetectionResult {
   confidence: string;
   classProbs: Record<string, number>;
   summary: string;
+  /** Trained UnivFD logistic-regression probe score on CLIP ViT-B/32
+      embeddings (AUC 0.9933).  When present, this is the load-bearing
+      signal driving `score`; the zero-shot `classProbs` become
+      auxiliary text-similarity scores that are not arithmetically
+      related to the probe score. */
+  univfdScore?: number | null;
+  /** True when the UnivFD probe ran successfully and `score` reflects
+      its output rather than zero-shot text similarity. */
+  univfdAvailable?: boolean;
 }
 
 /** RAG claim verification source reference */

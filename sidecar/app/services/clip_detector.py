@@ -271,31 +271,57 @@ def perform_clip_detection(image_bytes: bytes) -> ClipDetectionResponse:
     else:
         confidence = "low"
 
-    # Summary
-    method = "UnivFD probe" if univfd_available else "zero-shot"
-    if verdict_level == "synthetic":
-        summary = (
-            f"CLIP {method} classifies this image as likely AI-generated "
-            f"(score={score:.2f}, ai_generated={class_probs.get('ai_generated', 0):.2f}, "
-            f"synthetic={class_probs.get('synthetic', 0):.2f})"
-        )
-    elif verdict_level == "authentic":
-        summary = (
-            f"CLIP {method} classifies this image as likely a real photograph "
-            f"(score={score:.2f}, photograph={class_probs.get('photograph', 0):.2f}, "
-            f"real_scene={class_probs.get('real_scene', 0):.2f})"
-        )
-    else:
-        if univfd_available:
+    # Summary.
+    #
+    # When the trained UnivFD probe is available it is the load-bearing
+    # signal: a binary logistic regression on CLIP embeddings (AUC 0.9933)
+    # producing the headline `score`.  The zero-shot `class_probs` are
+    # softmax over CLIP text-similarity to the label prompts and are not
+    # arithmetically related to the probe score — quoting them next to the
+    # probe score implies a relationship that does not exist (a 0.87 probe
+    # output and ~0.20 per-class zero-shot scores are perfectly consistent).
+    # So we only quote class_probs when zero-shot is the source.
+    if univfd_available:
+        if verdict_level == "synthetic":
+            summary = (
+                f"CLIP UnivFD probe classifies this image as likely "
+                f"AI-generated (probe score={score:.2f}, AUC 0.9933). "
+                f"Zero-shot CLIP labels below are auxiliary text-similarity "
+                f"scores and are not arithmetically related to the probe score."
+            )
+        elif verdict_level == "authentic":
+            summary = (
+                f"CLIP UnivFD probe classifies this image as likely a real "
+                f"photograph (probe score={score:.2f}, AUC 0.9933). "
+                f"Zero-shot CLIP labels below are auxiliary text-similarity "
+                f"scores and are not arithmetically related to the probe score."
+            )
+        else:
             summary = (
                 f"CLIP UnivFD probe classification is inconclusive "
-                f"(score={score:.2f})"
+                f"(probe score={score:.2f})"
+            )
+    else:
+        # Zero-shot is the only signal — class_probs do explain the score.
+        if verdict_level == "synthetic":
+            summary = (
+                f"CLIP zero-shot classifies this image as likely AI-generated "
+                f"(score={score:.2f}, ai_generated={class_probs.get('ai_generated', 0):.2f}, "
+                f"synthetic={class_probs.get('synthetic', 0):.2f})"
+            )
+        elif verdict_level == "authentic":
+            summary = (
+                f"CLIP zero-shot classifies this image as likely a real "
+                f"photograph "
+                f"(score={score:.2f}, photograph={class_probs.get('photograph', 0):.2f}, "
+                f"real_scene={class_probs.get('real_scene', 0):.2f})"
             )
         else:
             summary = (
                 f"CLIP zero-shot classification is inconclusive "
-                f"(score={score:.2f}) — zero-shot classification has limited discriminative power. "
-                f"A trained UnivFD linear probe is needed for reliable results."
+                f"(score={score:.2f}) — zero-shot has limited discriminative "
+                f"power; a trained UnivFD linear probe is needed for "
+                f"reliable results."
             )
 
     return ClipDetectionResponse(

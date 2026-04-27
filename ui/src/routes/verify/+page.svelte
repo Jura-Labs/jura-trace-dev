@@ -3576,9 +3576,26 @@
                           <ExperimentalPill variant="uncalibrated" tooltip="CLIP probe AUC 0.9933. See methodology for limitations." />
                         </div>
                         <p class="text-xs text-flint-dark dark:text-flint-light">{result.clipResult.summary}</p>
-                        <!-- Class probability distribution -->
+                        <!-- Class probability distribution.
+                             When the UnivFD probe is the headline signal (AUC
+                             0.9933 binary classifier on CLIP embeddings) these
+                             zero-shot bars are AUXILIARY text-similarity
+                             scores — they are not arithmetically related to
+                             the probe score, and a 0.87 probe output sitting
+                             alongside ~0.20 per-class zero-shot bars is the
+                             expected, consistent pattern.  Label and visually
+                             de-emphasise accordingly so the two scoring
+                             systems do not appear to contradict each other. -->
                         {#if result.clipResult.classProbs && Object.keys(result.clipResult.classProbs).length > 0}
-                          <div class="mt-2 space-y-1" aria-label="CLIP class probability distribution">
+                          {@const isAuxiliary = result.clipResult.univfdAvailable === true}
+                          <div class="mt-2 space-y-1 {isAuxiliary ? 'opacity-70' : ''}" aria-label="CLIP class probability distribution">
+                            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-1">
+                              {#if isAuxiliary}
+                                Zero-shot CLIP labels (auxiliary, not used for score)
+                              {:else}
+                                Zero-shot class probabilities
+                              {/if}
+                            </p>
                             {#each Object.entries(result.clipResult.classProbs) as [cls, prob]}
                               <div class="flex items-center gap-2">
                                 <span class="text-[10px] text-flint-dark dark:text-flint-light w-20 shrink-0 truncate" title={cls}>{cls}</span>
@@ -3592,6 +3609,11 @@
                               </div>
                             {/each}
                           </div>
+                        {/if}
+                        {#if result.clipResult.univfdAvailable && showRawScores && result.clipResult.univfdScore != null}
+                          <p class="text-[10px] text-flint-dark dark:text-flint-light mt-1 tabular-nums font-mono">
+                            UnivFD probe score: {result.clipResult.univfdScore.toFixed(6)}
+                          </p>
                         {/if}
                         {#if showRawScores}
                           <p class="text-[10px] text-flint-dark dark:text-flint-light mt-1 tabular-nums font-mono">

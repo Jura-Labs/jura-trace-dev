@@ -976,14 +976,35 @@ def _perform_deepfake_detection_impl(
     else:
         confidence = "low"
 
-    # Summary
+    # Summary.  The score comes from the GBM classifier on the 84-feature
+    # vector; the per-signal flags are explanatory thresholded checks on
+    # individual features.  The classifier can output a high probability
+    # without any single signal crossing its own threshold (multivariate
+    # evidence).  Phrase the summary honestly so we do not claim "Strong
+    # indicators" alongside "0 signals triggered".
     triggered_count = sum(1 for s in signals if s.triggered)
     if score > 0.55:
-        summary = f"Strong synthetic indicators ({triggered_count} of {len(signals)} signals triggered)"
+        if triggered_count > 0:
+            summary = (
+                f"Strong synthetic indicators "
+                f"({triggered_count} of {len(signals)} signals triggered)"
+            )
+        else:
+            summary = (
+                f"Classifier flags as synthetic via multivariate evidence "
+                f"(0 of {len(signals)} per-feature signals individually triggered; "
+                f"the GBM uses the full 84-feature vector)"
+            )
     elif score > 0.35:
-        summary = f"Mixed indicators ({triggered_count} of {len(signals)} signals triggered)"
+        summary = (
+            f"Mixed indicators "
+            f"({triggered_count} of {len(signals)} signals triggered)"
+        )
     else:
-        summary = f"Image appears authentic ({triggered_count} of {len(signals)} signals triggered)"
+        summary = (
+            f"Image appears authentic "
+            f"({triggered_count} of {len(signals)} signals triggered)"
+        )
 
     # Detect invisible AI watermarks (SD v1, SDXL, Flux)
     watermarks = detect_sd_watermark(image_bytes)
