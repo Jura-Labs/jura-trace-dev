@@ -26,6 +26,7 @@
   import ExperimentalPill from '$lib/components/ExperimentalPill.svelte';
   import ContentCredentialsSeal from '$lib/components/ContentCredentialsSeal.svelte';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
+  import ImageZoom from '$lib/components/ImageZoom.svelte';
   import SignalAgreement from '$lib/components/SignalAgreement.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
   import { generateTrustReport } from '$lib/pdf';
@@ -84,6 +85,9 @@
   let extractingText = $state(false);
   let extractedText = $state<string | null>(null);
   let extractTextError = $state<string | null>(null);
+
+  // Video analysis — index of the frame whose detail accordion is expanded.
+  let expandedFrameIndex = $state<number | null>(null);
 
   // Test hook store
   const _testResultStore = writable<VerificationResult | null>(null);
@@ -2338,10 +2342,10 @@
                                could be mistaken for the current asset state. -->
                           {#if result.c2paManifest.thumbnailBase64 && !result.c2paManifest.isUpdateManifest}
                             <div class="mb-1">
-                              <img
+                              <ImageZoom
                                 src="data:{result.c2paManifest.thumbnailMime ?? 'image/jpeg'};base64,{result.c2paManifest.thumbnailBase64}"
                                 alt="Content Credentials thumbnail"
-                                class="w-24 h-auto rounded border border-border-light dark:border-border-dark"
+                                thumbClass="w-24 h-auto rounded border border-border-light dark:border-border-dark"
                               />
                             </div>
                           {/if}
@@ -2445,7 +2449,11 @@
                                   <div class="flex items-start gap-2">
                                     <!-- Thumbnail suppressed on update manifests per §6. -->
                                     {#if chain.active.thumbnailBase64 && !chain.active.isUpdateManifest}
-                                      <img src="data:{chain.active.thumbnailMime ?? 'image/jpeg'};base64,{chain.active.thumbnailBase64}" alt="" class="w-10 h-10 rounded border border-border-light dark:border-border-dark object-cover flex-shrink-0" />
+                                      <ImageZoom
+                                        src="data:{chain.active.thumbnailMime ?? 'image/jpeg'};base64,{chain.active.thumbnailBase64}"
+                                        alt="Active manifest thumbnail"
+                                        thumbClass="w-10 h-10 rounded border border-border-light dark:border-border-dark object-cover flex-shrink-0"
+                                      />
                                     {/if}
                                     <div>
                                       <!-- "Active" label per C2PA UX Rec v1.4 §5.3 and §5.4. -->
@@ -2532,7 +2540,11 @@
                                   <div class="flex items-start gap-2">
                                     <!-- Thumbnail suppressed on update manifests per §6. -->
                                     {#if originManifest.thumbnailBase64 && !originManifest.isUpdateManifest}
-                                      <img src="data:{originManifest.thumbnailMime ?? 'image/jpeg'};base64,{originManifest.thumbnailBase64}" alt="" class="w-10 h-10 rounded border border-border-light dark:border-border-dark object-cover flex-shrink-0" />
+                                      <ImageZoom
+                                        src="data:{originManifest.thumbnailMime ?? 'image/jpeg'};base64,{originManifest.thumbnailBase64}"
+                                        alt="Origin manifest thumbnail"
+                                        thumbClass="w-10 h-10 rounded border border-border-light dark:border-border-dark object-cover flex-shrink-0"
+                                      />
                                     {/if}
                                     <div>
                                       <!-- "Origin" label per C2PA UX Rec v1.4 §5.4 and Figure 12. -->
@@ -2981,10 +2993,16 @@
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.elaResult.score.toFixed(4)} · threshold: {(result.elaResult as any).threshold?.toFixed(4) ?? '—'}</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.elaResult.score)}">{Math.round(result.elaResult.score * 100)}%</span>
-                    {#if result.elaResult.elaImageBase64}
-                      <img src="data:image/png;base64,{result.elaResult.elaImageBase64}" alt="ELA heatmap showing compression artefact distribution" class="w-16 h-10 rounded object-cover border border-border-light dark:border-border-dark flex-shrink-0" />
-                    {/if}
                   </div>
+                  {#if result.elaResult.elaImageBase64}
+                    <div class="mt-2 ml-6">
+                      <ImageZoom
+                        src="data:image/png;base64,{result.elaResult.elaImageBase64}"
+                        alt="ELA heatmap showing compression artefact distribution"
+                        caption="Click to enlarge — bright regions indicate higher compression-error mismatch"
+                      />
+                    </div>
+                  {/if}
                 </li>
               {/if}
 
@@ -3025,12 +3043,18 @@
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.copyMoveResult.score.toFixed(4)}</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.copyMoveResult.score)}">{Math.round(result.copyMoveResult.score * 100)}%</span>
-                    {#if result.copyMoveResult.visualisationBase64}
-                      <img src="data:image/png;base64,{result.copyMoveResult.visualisationBase64}" alt="Copy-move detection visualisation showing cloned regions" class="w-16 h-10 rounded object-cover border border-border-light dark:border-border-dark flex-shrink-0" />
-                    {/if}
                   </div>
                   {#if result.copyMoveResult.suspicious && result.copyMoveResult.cloneRegions.length > 0}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{result.copyMoveResult.cloneRegions.length} cloned region{result.copyMoveResult.cloneRegions.length === 1 ? '' : 's'} detected</p>
+                  {/if}
+                  {#if result.copyMoveResult.visualisationBase64}
+                    <div class="mt-2 ml-6">
+                      <ImageZoom
+                        src="data:image/png;base64,{result.copyMoveResult.visualisationBase64}"
+                        alt="Copy-move detection visualisation showing cloned regions"
+                        caption="Click to enlarge — matched coloured pairs indicate duplicated regions"
+                      />
+                    </div>
                   {/if}
                 </li>
               {/if}
@@ -3050,10 +3074,16 @@
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.jpegGhostResult.score.toFixed(4)} · weight: 0.5×</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.jpegGhostResult.score)}">{Math.round(result.jpegGhostResult.score * 100)}%</span>
-                    {#if (result.jpegGhostResult as any).ghostImageBase64}
-                      <img src="data:image/png;base64,{(result.jpegGhostResult as any).ghostImageBase64}" alt="JPEG Ghost heatmap showing re-compression artefact regions" class="w-16 h-10 rounded object-cover border border-border-light dark:border-border-dark flex-shrink-0" />
-                    {/if}
                   </div>
+                  {#if (result.jpegGhostResult as any).ghostImageBase64}
+                    <div class="mt-2 ml-6">
+                      <ImageZoom
+                        src="data:image/png;base64,{(result.jpegGhostResult as any).ghostImageBase64}"
+                        alt="JPEG Ghost heatmap showing re-compression artefact regions"
+                        caption="Click to enlarge — dark regions deviate from the dominant compression history"
+                      />
+                    </div>
+                  {/if}
                 </li>
               {/if}
 
@@ -3069,12 +3099,18 @@
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.segmentedElaResult.score.toFixed(4)}</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.segmentedElaResult.score)}">{Math.round(result.segmentedElaResult.score * 100)}%</span>
-                    {#if (result.segmentedElaResult as any).visualizationBase64}
-                      <img src="data:image/png;base64,{(result.segmentedElaResult as any).visualizationBase64}" alt="Segmented ELA region heatmap" class="w-16 h-10 rounded object-cover border border-border-light dark:border-border-dark flex-shrink-0" />
-                    {/if}
                   </div>
                   {#if result.segmentedElaResult.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{result.segmentedElaResult.anomalousRegions} of {result.segmentedElaResult.totalRegions} regions flagged</p>
+                  {/if}
+                  {#if (result.segmentedElaResult as any).visualizationBase64}
+                    <div class="mt-2 ml-6">
+                      <ImageZoom
+                        src="data:image/png;base64,{(result.segmentedElaResult as any).visualizationBase64}"
+                        alt="Segmented ELA region heatmap"
+                        caption="Click to enlarge — flagged regions show locally anomalous compression error"
+                      />
+                    </div>
                   {/if}
                 </li>
               {/if}
@@ -3097,10 +3133,10 @@
                   {/if}
                   {#if result.colourTemperatureResult.heatmapBase64}
                     <div class="mt-2 ml-6">
-                      <img
+                      <ImageZoom
                         src={blobs.url(result.colourTemperatureResult.heatmapBase64, 'image/png')}
                         alt="Colour temperature heatmap showing regions deviating from the global colour balance"
-                        class="w-full max-h-48 object-contain rounded border border-border-light dark:border-border-dark"
+                        caption="Click to enlarge — flagged regions deviate in CIELAB colour balance from the global average"
                       />
                     </div>
                   {/if}
@@ -3133,10 +3169,10 @@
                   {/if}
                   {#if sh.heatmapBase64}
                     <div class="mt-2 ml-6">
-                      <img
+                      <ImageZoom
                         src={blobs.url(sh.heatmapBase64, 'image/png')}
                         alt="Shadow consistency heatmap showing regions with inconsistent light direction"
-                        class="w-full max-h-48 object-contain rounded border border-border-light dark:border-border-dark"
+                        caption="Click to enlarge — flagged regions cast shadows inconsistent with the global light direction"
                       />
                     </div>
                   {/if}
@@ -3163,10 +3199,10 @@
                   {/if}
                   {#if sb.heatmapBase64}
                     <div class="mt-2 ml-6">
-                      <img
+                      <ImageZoom
                         src={blobs.url(sb.heatmapBase64, 'image/png')}
                         alt="Splice boundary heatmap showing candidate cut edges between composited regions"
-                        class="w-full max-h-48 object-contain rounded border border-border-light dark:border-border-dark"
+                        caption="Click to enlarge — bright lines mark candidate composite-edge boundaries"
                       />
                     </div>
                   {/if}
@@ -3218,10 +3254,10 @@
                   {/if}
                   {#if npr.heatmapBase64}
                     <div class="mt-2 ml-6">
-                      <img
+                      <ImageZoom
                         src={blobs.url(npr.heatmapBase64, 'image/png')}
                         alt="Neighbouring pixel relationship heatmap showing local correlation anomalies"
-                        class="w-full max-h-48 object-contain rounded border border-border-light dark:border-border-dark"
+                        caption="Click to enlarge — anomalies indicate atypical local pixel correlations versus natural images"
                       />
                     </div>
                   {/if}
@@ -3252,12 +3288,18 @@
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">AC CV: {dct.acCoefficientOfVariation.toFixed(4)}</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(dct.score)}">{Math.round(dct.score * 100)}%</span>
-                    {#if dct.heatmapBase64}
-                      <img src="data:image/png;base64,{dct.heatmapBase64}" alt="DCT coefficient energy heatmap showing per-block AC distribution" class="w-16 h-10 rounded object-cover border border-border-light dark:border-border-dark flex-shrink-0" />
-                    {/if}
                   </div>
                   {#if dct.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{dct.summary}</p>
+                  {/if}
+                  {#if dct.heatmapBase64}
+                    <div class="mt-2 ml-6">
+                      <ImageZoom
+                        src="data:image/png;base64,{dct.heatmapBase64}"
+                        alt="DCT coefficient energy heatmap showing per-block AC distribution"
+                        caption="Click to enlarge — per-block AC energy across the JPEG grid"
+                      />
+                    </div>
                   {/if}
                   {#if showRawScores}
                     <div class="mt-1 ml-6 grid grid-cols-3 gap-x-4 gap-y-0.5 text-[10px] text-flint-dark dark:text-flint-light tabular-nums">
@@ -3286,12 +3328,18 @@
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">peaks: {fou.peakCount}</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(fou.score)}">{Math.round(fou.score * 100)}%</span>
-                    {#if fou.spectrumBase64}
-                      <img src="data:image/png;base64,{fou.spectrumBase64}" alt="Fourier spectrum showing log-magnitude FFT with detected periodic peaks" class="w-16 h-10 rounded object-cover border border-border-light dark:border-border-dark flex-shrink-0" />
-                    {/if}
                   </div>
                   {#if fou.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{fou.summary}</p>
+                  {/if}
+                  {#if fou.spectrumBase64}
+                    <div class="mt-2 ml-6">
+                      <ImageZoom
+                        src="data:image/png;base64,{fou.spectrumBase64}"
+                        alt="Fourier spectrum showing log-magnitude FFT with detected periodic peaks"
+                        caption="Click to enlarge — periodic peaks reveal regular structures (e.g. demosaicing or upscaling artefacts)"
+                      />
+                    </div>
                   {/if}
                   {#if showRawScores}
                     <p class="mt-1 ml-6 text-[10px] text-flint-dark dark:text-flint-light tabular-nums">peak count: {fou.peakCount}</p>
@@ -3487,14 +3535,175 @@
               </ul>
             {/if}
 
-            <!-- Video deepfake placeholder -->
-            {#if result.videoDeepfakeResult}
-              <div class="px-5 py-3 border-t border-border-light dark:border-border-dark/40 bg-white/[0.01]">
-                <p class="text-xs text-flint-dark dark:text-flint-light">
-                  Video deepfake analysis available.
-                  <a href="/verify" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz ml-1">View per-frame detail in classic view</a>
-                </p>
-              </div>
+            <!-- ── Video Analysis ──────────────────────────────────────
+                 Per-frame deepfake timeline with expandable frame detail
+                 (classifier score, frequency-spectrum heatmap, signals).
+                 Ported from classic verify view 2026-04-28 — previously a
+                 stub that punted to /verify (classic). -->
+            {#if result.videoDeepfakeResult?.success}
+              {@const vd = result.videoDeepfakeResult}
+              <section
+                class="px-5 py-4 border-t border-border-light dark:border-border-dark/40"
+                aria-labelledby="video-analysis-heading"
+              >
+                <div class="flex items-center gap-3 mb-3 flex-wrap">
+                  <h3 id="video-analysis-heading" class="text-sm font-medium text-obsidian dark:text-quartz">Video Analysis</h3>
+                  <span
+                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                      {vd.aggregateVerdict === 'authentic' ? 'bg-malachite/10 text-malachite-dark dark:text-malachite-light' :
+                       vd.aggregateVerdict === 'synthetic' ? 'bg-cinnabar/10 text-cinnabar-dark dark:text-cinnabar-light' :
+                       'bg-amber/10 text-amber-dark dark:text-amber-light'}"
+                  >
+                    {vd.aggregateVerdict === 'authentic' ? 'Authentic' :
+                     vd.aggregateVerdict === 'synthetic' ? 'Synthetic' : 'Inconclusive'}
+                  </span>
+                  <span class="text-xs text-flint-dark dark:text-flint-light">
+                    Score: {(vd.aggregateScore * 100).toFixed(0)}%
+                    &middot; {vd.framesAnalysed} frame{vd.framesAnalysed !== 1 ? 's' : ''} analysed
+                    {#if vd.duration != null}
+                      &middot; {Math.floor(vd.duration / 60)}:{String(Math.round(vd.duration % 60)).padStart(2, '0')} duration
+                    {/if}
+                  </span>
+                </div>
+
+                <!-- Temporal consistency line -->
+                {#if vd.temporalAvailable}
+                  <p class="text-xs text-flint-dark dark:text-flint-light mb-3">
+                    {#if (vd.temporalNoiseDrift ?? 0) > 0.4 || (vd.temporalSpectralDrift ?? 0) > 0.4 || (vd.temporalLbpDrift ?? 0) > 0.4}
+                      Frame-to-frame drift detected in forensic features.
+                    {:else}
+                      Temporal signals: stable across frames.
+                    {/if}
+                  </p>
+                {/if}
+
+                <!-- Frame timeline -->
+                {#if vd.frameResults.length > 0}
+                  <div
+                    class="grid gap-2 mb-3"
+                    style="grid-template-columns: repeat({Math.min(vd.frameResults.length, 6)}, minmax(0, 1fr));"
+                    role="list"
+                    aria-label="Video frame deepfake analysis timeline"
+                  >
+                    {#each vd.frameResults as fr, i (i)}
+                      {@const isExpanded = expandedFrameIndex === i}
+                      <div
+                        class="relative rounded-md overflow-hidden border motion-safe:transition-colors motion-safe:duration-150
+                          {isExpanded ? 'border-lapis ring-1 ring-lapis/30' : 'border-border-light dark:border-border-dark'}
+                          bg-gray-50 dark:bg-obsidian"
+                        role="listitem"
+                      >
+                        <button
+                          type="button"
+                          class="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis-light"
+                          aria-expanded={isExpanded}
+                          aria-controls="v2-frame-detail-{i}"
+                          onclick={() => { expandedFrameIndex = isExpanded ? null : i; }}
+                        >
+                          <div class="aspect-video flex items-center justify-center">
+                            <span class="text-xs text-flint-dark dark:text-flint-light">F{i + 1}</span>
+                          </div>
+
+                          <span
+                            class="absolute bottom-1 right-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium
+                              {fr.verdictLevel === 'authentic'
+                                ? 'text-malachite-light bg-malachite/20'
+                                : fr.verdictLevel === 'synthetic'
+                                  ? 'text-cinnabar-light bg-cinnabar/20'
+                                  : 'text-amber-light bg-amber/20'}"
+                          >
+                            {(fr.score * 100).toFixed(0)}%
+                          </span>
+
+                          <div class="h-1.5 w-full bg-gray-200 dark:bg-graphite/40">
+                            <div
+                              class="h-full motion-safe:transition-all
+                                {fr.verdictLevel === 'authentic' ? 'bg-malachite dark:bg-malachite-light' :
+                                 fr.verdictLevel === 'synthetic' ? 'bg-cinnabar dark:bg-cinnabar-light' :
+                                 'bg-amber dark:bg-amber-light'}"
+                              style="width: {Math.max(2, fr.score * 100)}%;"
+                            ></div>
+                          </div>
+                        </button>
+
+                        {#if isExpanded}
+                          <div
+                            id="v2-frame-detail-{i}"
+                            class="p-3 border-t border-border-light dark:border-border-dark bg-white dark:bg-graphite space-y-2"
+                          >
+                            <div class="flex items-center justify-between">
+                              <span class="text-xs font-medium text-obsidian dark:text-quartz">
+                                Frame {fr.frameIndex + 1} at {fr.timestamp.toFixed(1)}s
+                              </span>
+                              <span class="text-xs tabular-nums {fr.verdictLevel === 'authentic' ? 'text-malachite-dark dark:text-malachite-light' : fr.verdictLevel === 'synthetic' ? 'text-cinnabar-dark dark:text-cinnabar-light' : 'text-amber-dark dark:text-amber-light'}">
+                                {fr.verdictLevel.charAt(0).toUpperCase() + fr.verdictLevel.slice(1)} ({(fr.score * 100).toFixed(1)}%)
+                              </span>
+                            </div>
+
+                            {#if fr.classifierAvailable && fr.classifierScore != null}
+                              <div class="text-xs text-flint-dark dark:text-flint-light">
+                                GBM classifier: {(fr.classifierScore * 100).toFixed(1)}%
+                              </div>
+                            {/if}
+
+                            {#if fr.heatmapBase64}
+                              <ImageZoom
+                                src={blobs.url(fr.heatmapBase64, 'image/png')}
+                                alt="Frequency-spectrum heatmap for frame {fr.frameIndex + 1}"
+                                caption="Click to enlarge — frequency-domain energy distribution for this frame"
+                              />
+                            {/if}
+
+                            {#if fr.signals.length > 0}
+                              <div class="space-y-1">
+                                <span class="text-[10px] font-medium text-flint-dark dark:text-flint-light uppercase tracking-wider">Signals</span>
+                                {#each fr.signals as signal}
+                                  <div class="flex items-center gap-2 text-xs">
+                                    <span
+                                      class="w-1.5 h-1.5 rounded-full flex-shrink-0
+                                        {signal.triggered ? 'bg-cinnabar dark:bg-cinnabar-light' : 'bg-malachite dark:bg-malachite-light'}"
+                                      aria-hidden="true"
+                                    ></span>
+                                    <span class="text-flint-dark dark:text-flint-light flex-1">{signal.name}</span>
+                                    <span class="tabular-nums text-obsidian dark:text-quartz">{(signal.weight * 100).toFixed(0)}%</span>
+                                  </div>
+                                {/each}
+                              </div>
+                            {/if}
+                          </div>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+
+                  <!-- Colour key -->
+                  <div
+                    class="flex flex-wrap items-center gap-4 text-xs text-flint-dark dark:text-flint-light mb-2"
+                    role="img"
+                    aria-label="Score badge colour key: Authentic below 35%, Inconclusive 35 to 60%, Synthetic above 60%"
+                  >
+                    <span class="flex items-center gap-1" aria-hidden="true">
+                      <span class="inline-block w-2 h-2 rounded-full bg-malachite dark:bg-malachite-light"></span>
+                      Authentic (&lt;35%)
+                    </span>
+                    <span class="flex items-center gap-1" aria-hidden="true">
+                      <span class="inline-block w-2 h-2 rounded-full bg-amber dark:bg-amber-light"></span>
+                      Inconclusive (35–60%)
+                    </span>
+                    <span class="flex items-center gap-1" aria-hidden="true">
+                      <span class="inline-block w-2 h-2 rounded-full bg-cinnabar dark:bg-cinnabar-light"></span>
+                      Synthetic (&gt;60%)
+                    </span>
+                  </div>
+                {/if}
+
+                <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">{vd.message}</p>
+              </section>
+            {:else if result.videoDeepfakeResult && !result.videoDeepfakeResult.success}
+              <section class="px-5 py-4 border-t border-border-light dark:border-border-dark/40">
+                <h3 class="text-sm font-medium text-obsidian dark:text-quartz mb-1">Video Analysis</h3>
+                <p class="text-xs text-flint-dark dark:text-flint-light">{result.videoDeepfakeResult.message}</p>
+              </section>
             {/if}
 
             {#if result.inputQuality}
@@ -3693,7 +3902,7 @@
 
     <!-- Deferred features note -->
     <p class="mt-4 text-xs text-flint-dark dark:text-flint-light text-center">
-      Region-of-interest analysis, per-frame video deepfake detail, sun position estimation, and annotation tools are available in the
+      Region-of-interest analysis, sun position estimation, and annotation tools are available in the
       <a href="/verify" class="underline hover:text-flint-dark dark:text-flint-light dark:hover:text-flint-dark dark:text-flint-light-light">classic view</a>.
     </p>
 
