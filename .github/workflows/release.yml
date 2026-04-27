@@ -534,7 +534,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
         run: |
-          tag="${{ github.ref_name }}"
+          # github.ref_name resolves to the BRANCH (e.g. "main") on
+          # workflow_dispatch runs, NOT to the tag input.  Prefer the
+          # workflow_dispatch input when present, fall back to ref_name
+          # for tag-push runs (where ref_name is the tag).
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
           bundle_dir="src-tauri/target/${{ matrix.target }}/release/bundle"
 
           echo "Scanning bundle directory: $bundle_dir"
@@ -649,7 +653,8 @@ jobs:
       #
       # gh release upload with --clobber silently replaces an asset that
       # already exists (idempotent re-runs after a partial failure).
-      # The tag is available as github.ref_name (e.g. "v0.9.0-rc.3").
+      # On workflow_dispatch, github.ref_name is the branch ("main"), not
+      # the tag input — fall back via the tag input first.
       - name: Upload signed Windows artefacts to jura-trace
         if: runner.os == 'Windows'
         shell: pwsh
@@ -657,7 +662,7 @@ jobs:
           # RELEASE_PAT has repo scope on juralabs/jura-trace — gh uses this env var.
           GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
         run: |
-          $tag   = "${{ github.ref_name }}"
+          $tag = if ("${{ github.event.inputs.tag }}") { "${{ github.event.inputs.tag }}" } else { "${{ github.ref_name }}" }
           $bundle = "src-tauri\target\${{ matrix.target }}\release\bundle"
 
           # Collect signed installers and updater artefacts.
