@@ -3703,9 +3703,25 @@
                           aria-controls="v2-frame-detail-{i}"
                           onclick={() => { expandedFrameIndex = isExpanded ? null : i; }}
                         >
-                          <div class="aspect-video flex items-center justify-center">
-                            <span class="text-xs text-flint-dark dark:text-flint-light">F{i + 1}</span>
-                          </div>
+                          <!-- Real frame thumbnail when the sidecar emitted
+                               one; falls back to the "F{n}" text label so
+                               older sidecar builds and any frame whose
+                               thumbnail generation failed still render
+                               cleanly. -->
+                          {#if fr.frameImageBase64}
+                            <div class="aspect-video">
+                              <img
+                                src="data:image/jpeg;base64,{fr.frameImageBase64}"
+                                alt="Thumbnail of frame {fr.frameIndex + 1} at {fr.timestamp.toFixed(1)} seconds"
+                                class="w-full h-full object-cover block"
+                                loading="lazy"
+                              />
+                            </div>
+                          {:else}
+                            <div class="aspect-video flex items-center justify-center">
+                              <span class="text-xs text-flint-dark dark:text-flint-light">F{i + 1}</span>
+                            </div>
+                          {/if}
 
                           <span
                             class="absolute bottom-1 right-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium

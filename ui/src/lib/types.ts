@@ -1124,6 +1124,10 @@ export interface FrameDeepfakeResult {
   classifierScore?: number | null;
   classifierAvailable?: boolean;
   heatmapBase64?: string;
+  /** Downscaled JPEG thumbnail of the analysed frame, base64-encoded.
+      Optional / may be empty — the v2 verify UI renders the "F{n}"
+      text label as a fallback. */
+  frameImageBase64?: string;
 }
 
 /** Video-level deepfake analysis result aggregated from per-frame scoring */

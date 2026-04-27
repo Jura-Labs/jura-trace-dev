@@ -342,6 +342,11 @@ class FrameDeepfakeResult(BaseModel):
     classifier_score: float | None = None
     classifier_available: bool = False
     heatmap_base64: str = ""
+    # Downscaled JPEG thumbnail of the analysed frame (~200 px wide).
+    # Empty string when omitted to keep the payload bounded; the v2 verify
+    # UI renders this as the frame tile when present and falls back to a
+    # text label ("F1, F2, ...") when empty.
+    frame_image_base64: str = ""
 
 
 class VideoDeepfakeResponse(BaseModel):

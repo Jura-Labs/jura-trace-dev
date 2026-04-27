@@ -7,9 +7,11 @@ Per-frame scores are aggregated into a video-level verdict.
 """
 
 import base64
+import io
 import logging
 
 import numpy as np
+from PIL import Image
 
 from app.models.schemas import (
     DeepfakeSignal,
@@ -18,6 +20,14 @@ from app.models.schemas import (
 )
 from app.services.deepfake import perform_deepfake_detection_with_features
 from app.services.video_frames import perform_frame_extraction
+
+# Width in pixels of the downscaled per-frame thumbnail emitted on every
+# FrameDeepfakeResult.  200 px matches the v2 verify timeline tile width
+# at typical viewport scaling — large enough to read content, small
+# enough that 20 frames at JPEG q=70 add ~150-300 KB to the response
+# rather than the multi-MB cost of full-size frames.
+FRAME_THUMBNAIL_WIDTH_PX = 200
+FRAME_THUMBNAIL_JPEG_QUALITY = 70
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +68,6 @@ def deduplicate_frames(
     """
     if not frames_b64 or buffer_size < 1:
         return list(frames_b64)
-
-    from PIL import Image
-    import io
 
     def _decode_frame(b64_str: str) -> np.ndarray:
         """Decode a base64 JPEG string to a grayscale numpy array."""
@@ -114,6 +121,36 @@ def deduplicate_frames(
         len(frames_b64), len(kept_b64), buffer_size, threshold,
     )
     return kept_b64
+
+
+def _make_frame_thumbnail(jpeg_bytes: bytes) -> str | None:
+    """Decode a frame's JPEG bytes, downscale to FRAME_THUMBNAIL_WIDTH_PX
+    while preserving aspect ratio, and re-encode as base64 JPEG.
+
+    Returns None on any decoding/encoding failure so the caller can fall
+    back to an empty string — the v2 UI tolerates that gracefully and
+    renders the existing "F{n}" text label.
+    """
+    try:
+        with Image.open(io.BytesIO(jpeg_bytes)) as img:
+            img.load()
+            # Convert to RGB so palettised or alpha JPEGs encode cleanly.
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+            w, h = img.size
+            if w <= 0 or h <= 0:
+                return None
+            if w > FRAME_THUMBNAIL_WIDTH_PX:
+                new_h = max(1, round(h * FRAME_THUMBNAIL_WIDTH_PX / w))
+                img = img.resize(
+                    (FRAME_THUMBNAIL_WIDTH_PX, new_h), Image.Resampling.LANCZOS
+                )
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=FRAME_THUMBNAIL_JPEG_QUALITY, optimize=True)
+            return base64.b64encode(buf.getvalue()).decode("ascii")
+    except Exception as exc:
+        logger.debug("Frame thumbnail generation failed: %s", exc)
+        return None
 
 
 def perform_video_deepfake_analysis(
@@ -190,6 +227,11 @@ def perform_video_deepfake_analysis(
             # Compute approximate timestamp
             timestamp = duration * (i + 1) / (num_frames + 1) if duration > 0 else 0.0
 
+            # Build a small thumbnail of the frame for the UI timeline.
+            # Failure here must not break analysis — fall back to empty
+            # string so the v2 UI renders the "F{n}" text label.
+            thumbnail_b64 = _make_frame_thumbnail(frame_bytes) or ""
+
             frame_results.append(FrameDeepfakeResult(
                 frame_index=i,
                 timestamp=round(timestamp, 2),
@@ -200,6 +242,7 @@ def perform_video_deepfake_analysis(
                 classifier_score=response.classifier_score,
                 classifier_available=response.classifier_available,
                 heatmap_base64="",  # Omit per-frame heatmaps to reduce payload
+                frame_image_base64=thumbnail_b64,
             ))
             feature_dicts.append(features)
         except Exception as exc:

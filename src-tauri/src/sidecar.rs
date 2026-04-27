@@ -495,6 +495,11 @@ pub struct FrameDeepfakeResult {
     pub classifier_available: bool,
     #[serde(default, alias = "heatmap_base64")]
     pub heatmap_base64: String,
+    /// Downscaled JPEG thumbnail of the analysed frame, base64-encoded.
+    /// Empty when omitted by the sidecar; the v2 verify UI then renders
+    /// the existing "F{n}" text label.
+    #[serde(default, alias = "frame_image_base64")]
+    pub frame_image_base64: String,
 }
 
 /// Video-level deepfake analysis result aggregated from per-frame scoring.
