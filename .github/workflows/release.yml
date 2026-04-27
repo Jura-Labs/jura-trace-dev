@@ -68,8 +68,18 @@ jobs:
             in_section { print }
           ' CHANGELOG.md || echo "See CHANGELOG.md for details.")
 
+          # Compose download URLs from the tag.  Filename pattern is
+          #   JuraTrace-<semver>-<rc-suffix>-<platform>-<arch>.<ext>
+          # which we derive by stripping the leading "v" from the tag.
+          ver="${tag#v}"
+          base="https://github.com/Jura-Labs/jura-trace/releases/download/${tag}"
+          dmg_name="JuraTrace-${ver}-macOS-AppleSilicon.dmg"
+          msi_name="JuraTrace-${ver}-Windows-x64.msi"
+          exe_name="JuraTrace-${ver}-Windows-x64-setup.exe"
+          tar_name="JuraTrace-${ver}-macOS-AutoUpdater.app.tar.gz"
+
           # Write the full body via heredoc — no shell interpolation
-          # of the changelog text (single-quoted heredoc).
+          # of the changelog text (single-quoted FOOTER heredoc).
           cat > "$body_file" <<HEADER
           ![Jura Trace — Know What's Real.](https://raw.githubusercontent.com/Jura-Labs/jura-trace/main/docs/branding/jura-trace-og-1280x640.png)
 
@@ -81,13 +91,16 @@ jobs:
 
           ## Download
 
-          | If you have… | Download |
-          |---|---|
-          | **Mac** (Apple Silicon) | \`JuraTrace-*-macOS-AppleSilicon.dmg\` |
-          | **Windows** (64-bit) — *recommended* | \`JuraTrace-*-Windows-x64.msi\` |
-          | **Windows** (64-bit) — *NSIS installer* | \`JuraTrace-*-Windows-x64-setup.exe\` |
+          | If you have… | Download | Signed by |
+          |---|---|---|
+          | **Mac** (Apple Silicon — M1/M2/M3/M4) | **[${dmg_name}](${base}/${dmg_name})** | Apple Developer ID (notarised) |
+          | **Windows** (64-bit) — *recommended* | **[${msi_name}](${base}/${msi_name})** | Azure Trusted Signing |
+          | **Windows** (64-bit) — *NSIS installer* | **[${exe_name}](${base}/${exe_name})** | Azure Trusted Signing |
+          | Auto-updater archive (advanced) | **[${tar_name}](${base}/${tar_name})** | Apple Developer ID |
 
-          Verify your download against \`SHA256SUMS.txt\`. Full install + first-test walkthrough: **[GETTING_STARTED.md](https://github.com/Jura-Labs/jura-trace/blob/main/GETTING_STARTED.md)**.
+          **Verify your download:** grab **[SHA256SUMS.txt](${base}/SHA256SUMS.txt)** and run \`shasum -a 256 -c SHA256SUMS.txt\` (macOS / Linux) or \`certutil -hashfile <filename> SHA256\` (Windows).
+
+          Full install + first-test walkthrough: **[GETTING_STARTED.md](https://github.com/Jura-Labs/jura-trace/blob/main/GETTING_STARTED.md)**.
 
           ---
 
@@ -99,7 +112,7 @@ jobs:
           # Append the changelog section verbatim
           printf '%s\n' "$changelog_section" >> "$body_file"
 
-          # Footer
+          # Footer (single-quoted heredoc — no shell interpolation)
           cat >> "$body_file" <<'FOOTER'
 
           </details>
