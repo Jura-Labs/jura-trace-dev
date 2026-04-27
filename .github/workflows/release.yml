@@ -37,38 +37,91 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Extract the most recent sprint section from CHANGELOG.md as the release
-      # body. The CHANGELOG uses "## Sprint N — ..." headings (not semver
-      # headings), so we pull everything from the first "## " heading down to
-      # the line before the next "## " heading. The result is truncated at 8 000
-      # characters to stay within the GitHub API body limit.
-      - name: Extract changelog section
+      # Build the release body to a FILE, not an output variable.  Writing
+      # via `${{ steps.x.outputs.y }}` round-trips the body through
+      # GHA expression interpolation → env var → JS env → REST API JSON,
+      # which mangles non-ASCII characters (em-dashes, smart quotes) and
+      # truncates Markdown bullets at unexpected boundaries.  rc.24
+      # shipped a body that was 88% shorter than the source CHANGELOG
+      # entry because of this — the file-based approach below avoids
+      # every escape boundary.
+      #
+      # The body is composed of three parts (in order):
+      #   1. A pinned tester-friendly header (overview + download
+      #      table + GETTING_STARTED link + social card)
+      #   2. The latest CHANGELOG.md section (extracted via awk —
+      #      first `## ` block to the next `## `, no Python regex)
+      #   3. A pinned footer (privacy / licence / feedback)
+      - name: Build release body
         id: changelog
         shell: bash
         run: |
-          python3 - <<'PYEOF'
-          import os, re, pathlib
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          body_file="${RUNNER_TEMP}/release-body.md"
 
-          text = pathlib.Path("CHANGELOG.md").read_text()
-          # Find the first ## heading and capture until the next ## heading.
-          # CHANGELOG.md uses "## Sprint N — ..." headings, not semver headings.
-          m = re.search(r'(^## .+?)(?=^## |\Z)', text, re.MULTILINE | re.DOTALL)
-          if m:
-              body = m.group(1).strip()
-          else:
-              body = "See CHANGELOG.md for details."
+          # Extract the most recent CHANGELOG section.  awk approach
+          # avoids the unicode-stripping bugs of the previous Python
+          # regex pipeline.
+          changelog_section=$(awk '
+            /^## / { if (in_section) exit; in_section=1 }
+            in_section { print }
+          ' CHANGELOG.md || echo "See CHANGELOG.md for details.")
 
-          # Truncate so the GitHub API does not reject an oversized body.
-          if len(body) > 8000:
-              body = body[:7950] + "\n\n...(truncated - see CHANGELOG.md for full details)"
+          # Write the full body via heredoc — no shell interpolation
+          # of the changelog text (single-quoted heredoc).
+          cat > "$body_file" <<HEADER
+          ![Jura Trace — Know What's Real.](https://raw.githubusercontent.com/Jura-Labs/jura-trace/main/docs/branding/jura-trace-og-1280x640.png)
 
-          # Write to GITHUB_OUTPUT as a multiline value.
-          # GitHub Actions injects GITHUB_OUTPUT into the environment automatically.
-          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
-              fh.write("body<<BODY_EOF\n")
-              fh.write(body + "\n")
-              fh.write("BODY_EOF\n")
-          PYEOF
+          ## Jura Trace ${tag}
+
+          > **First-time pilot tester?** Read the **[Getting Started guide](https://github.com/Jura-Labs/jura-trace/blob/main/GETTING_STARTED.md)** — install + your first Content Credentials verification in 10 minutes.
+
+          **Jura Trace** examines images, videos and documents and tells you what it finds — honestly, and without certainty where none exists. Twelve forensic detectors plus full C2PA Content Credentials verification, running entirely on your device. No cloud, no accounts, no telemetry.
+
+          ## Download
+
+          | If you have… | Download |
+          |---|---|
+          | **Mac** (Apple Silicon) | \`JuraTrace-*-macOS-AppleSilicon.dmg\` |
+          | **Windows** (64-bit) — *recommended* | \`JuraTrace-*-Windows-x64.msi\` |
+          | **Windows** (64-bit) — *NSIS installer* | \`JuraTrace-*-Windows-x64-setup.exe\` |
+
+          Verify your download against \`SHA256SUMS.txt\`. Full install + first-test walkthrough: **[GETTING_STARTED.md](https://github.com/Jura-Labs/jura-trace/blob/main/GETTING_STARTED.md)**.
+
+          ---
+
+          <details>
+          <summary><b>Technical changelog</b></summary>
+
+          HEADER
+
+          # Append the changelog section verbatim
+          printf '%s\n' "$changelog_section" >> "$body_file"
+
+          # Footer
+          cat >> "$body_file" <<'FOOTER'
+
+          </details>
+
+          ---
+
+          - **Privacy:** everything runs on your device. No telemetry, no accounts.
+          - **Licence:** [PolyForm Noncommercial 1.0.0](https://github.com/Jura-Labs/jura-trace/blob/main/LICENSE) — free for non-commercial use.
+          - **Security:** [SECURITY.md](https://github.com/Jura-Labs/jura-trace/blob/main/SECURITY.md)
+          - **Bugs:** [open an issue](https://github.com/Jura-Labs/jura-trace/issues/new/choose)
+          - **General:** [hello@juralabs.org](mailto:hello@juralabs.org) • [juralabs.org](https://juralabs.org)
+          FOOTER
+
+          # Truncate to 124 KB (well under GitHub's 125 KB body limit)
+          if [ "$(wc -c < "$body_file")" -gt 125000 ]; then
+            head -c 124500 "$body_file" > "$body_file.tmp"
+            printf '\n\n...(truncated — see [CHANGELOG.md](https://github.com/juralabs/jura-trace/blob/main/CHANGELOG.md) for full details)\n' >> "$body_file.tmp"
+            mv "$body_file.tmp" "$body_file"
+          fi
+
+          echo "body_file=$body_file" >> "$GITHUB_OUTPUT"
+          echo "Built release body: $(wc -c < "$body_file") bytes"
 
       - name: Create draft release
         id: create
@@ -76,15 +129,18 @@ jobs:
         # (the PUBLIC releases-only repo), not on juralabs/jura-archive
         # (the PRIVATE source repo). Users who download installers must never
         # need access to jura-archive.
+        #
+        # Reads the body from a file via fs.readFileSync — bypasses the
+        # GHA expression / env var escape pipeline that mangled rc.24.
         uses: actions/github-script@v7
+        env:
+          RELEASE_BODY_FILE: ${{ steps.changelog.outputs.body_file }}
         with:
           github-token: ${{ secrets.RELEASE_PAT }}
           script: |
+            const fs = require('fs');
             const tag = ('${{ github.event.inputs.tag }}' || context.ref.replace('refs/tags/', ''));
-            // Fallback body points to jura-trace — jura-archive is private and
-            // users cannot browse it.
-            const body = process.env.CHANGELOG_BODY
-              || `## Jura Trace ${tag}\n\nSee [CHANGELOG.md](https://github.com/juralabs/jura-trace/blob/main/CHANGELOG.md) for details.`;
+            const body = fs.readFileSync(process.env.RELEASE_BODY_FILE, 'utf8');
             const prerelease = /-(rc|beta|alpha)/.test(tag);
 
             // Idempotent: workflow_dispatch can re-run this workflow on an
@@ -120,8 +176,6 @@ jobs:
               prerelease,
             });
             return data.id;
-        env:
-          CHANGELOG_BODY: ${{ steps.changelog.outputs.body }}
 
   # ── Phase 2a: Compute the platform matrix for this run ──────────────────
   # GitHub Actions doesn't allow `matrix.*` references in job-level `if:`,
