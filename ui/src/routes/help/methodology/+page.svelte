@@ -276,19 +276,13 @@
             <td class="py-2.5 pr-6 text-flint-dark dark:text-flint-light">All detectors, including regional analysis</td>
             <td class="py-2.5 text-flint-dark dark:text-flint-light">Investigating specific concerns or disputed content</td>
           </tr>
-          <tr>
-            <td class="py-2.5 pr-6 font-medium text-text-light dark:text-quartz">Archival</td>
-            <td class="py-2.5 pr-6 tabular-nums text-flint-dark dark:text-flint-light">~90 s+</td>
-            <td class="py-2.5 pr-6 text-flint-dark dark:text-flint-light">Deep analysis with scanner-calibrated tolerances; full audit trail</td>
-            <td class="py-2.5 text-flint-dark dark:text-flint-light">Preservation workflows, institutional archives, evidence preservation</td>
-          </tr>
         </tbody>
       </table>
     </div>
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       Regional detectors (Segmented ELA, Shadow Consistency, Colour Temperature,
-      Splice Boundary) are only active in Deep and Archival modes. Standard mode leaves those sections blank.
+      Splice Boundary) are only active in Deep mode. Standard mode leaves those sections blank.
     </p>
 
   </section>
@@ -417,7 +411,7 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
+              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
@@ -472,7 +466,7 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
+              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
@@ -527,7 +521,7 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
+              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
@@ -582,7 +576,7 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
+              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
@@ -637,7 +631,7 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
+              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
@@ -692,7 +686,7 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
+              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
@@ -747,7 +741,7 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
+              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
@@ -809,7 +803,7 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint-dark dark:text-flint-light">Deep &#183; Archival</dd>
+              <dd class="text-flint-dark dark:text-flint-light">Deep</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
@@ -864,7 +858,7 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint-dark dark:text-flint-light">Deep &#183; Archival</dd>
+              <dd class="text-flint-dark dark:text-flint-light">Deep</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
@@ -922,7 +916,7 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint-dark dark:text-flint-light">Deep &#183; Archival — only when the optional model is installed</dd>
+              <dd class="text-flint-dark dark:text-flint-light">Deep — only when the optional model is installed</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
@@ -983,7 +977,7 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep &#183; Archival</dd>
+              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
@@ -1021,7 +1015,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Extracts evenly-spaced frames (6 in Standard mode, 20 in Deep, 40 in Archival) and runs the full AI Generation Detection pipeline on each frame. Three temporal consistency signals are then computed across the frame sequence: noise drift, spectral drift, and LBP texture drift. The overall score aggregates as: 50% mean frame score + 30% worst-case frame score + 20% temporal drift score.
+                Extracts evenly-spaced frames (6 in Standard mode, 20 in Deep) and runs the full AI Generation Detection pipeline on each frame. Three temporal consistency signals are then computed across the frame sequence: noise drift, spectral drift, and LBP texture drift. The overall score aggregates as: 50% mean frame score + 30% worst-case frame score + 20% temporal drift score.
               </dd>
             </div>
             <div>
@@ -1038,12 +1032,12 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep &#183; Archival — video files only</dd>
+              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep — video files only</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Analyses a sample of frames (6 in Standard, 20 in Deep, 40 in Archival) — not every frame. Manipulation confined to un-sampled frames may be missed. Temporal consistency signals (noise drift, spectral drift, LBP drift) require sufficient frame count for meaningful measurement. Requires FFmpeg for frame extraction.
+                Analyses a sample of frames (6 in Standard, 20 in Deep) — not every frame. Manipulation confined to un-sampled frames may be missed. Temporal consistency signals (noise drift, spectral drift, LBP drift) require sufficient frame count for meaningful measurement. Requires FFmpeg for frame extraction.
               </dd>
             </div>
           </dl>
@@ -1057,7 +1051,7 @@
         Moved out of the automatic detectors list in the Sprint 28 follow-up
         reconciliation: this is not a forensic signal and does not contribute
         to the numeric trust score. It runs automatically on audio/video
-        content in Deep and Archival modes when Ollama and faster-whisper are
+        content in Deep mode when Ollama and faster-whisper are
         present, but its output is rendered separately from the detector
         verdicts and has an explicit non-warranty statement on the model
         card. Visually distinct from the on-demand panel below (lapis-tinted,
@@ -1077,7 +1071,7 @@
 
         <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
           An advisory tool that runs automatically on audio and video content
-          in Deep and Archival modes when Ollama and faster-whisper are
+          in Deep mode when Ollama and faster-whisper are
           installed. It is
           <strong class="font-medium text-text-light dark:text-quartz">not a forensic detector</strong>
           and does
@@ -1135,7 +1129,7 @@
               </div>
               <div>
                 <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-                <dd class="text-flint-dark dark:text-flint-light">Deep &#183; Archival — only when Ollama is running and faster-whisper is installed</dd>
+                <dd class="text-flint-dark dark:text-flint-light">Deep — only when Ollama is running and faster-whisper is installed</dd>
               </div>
             </dl>
           </div>

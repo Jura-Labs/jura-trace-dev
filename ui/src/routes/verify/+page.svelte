@@ -1527,9 +1527,7 @@
               <div class="flex flex-col items-center gap-3">
                 <div class="w-6 h-6 border-2 border-lapis-light border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Analysing"></div>
                 <p class="text-sm text-obsidian dark:text-quartz font-medium">
-                  {verifyMode === 'archival' ? 'Running archival analysis — up to 2 minutes…'
-                   : verifyMode === 'deep' ? 'Running deep analysis — up to 60 seconds…'
-                   : 'Running standard analysis…'}
+                  {verifyMode === 'deep' ? 'Running deep analysis — up to 60 seconds…' : 'Running standard analysis…'}
                 </p>
                 {#if fileName}
                   <p class="text-xs text-flint-dark dark:text-flint-light">{fileName}</p>

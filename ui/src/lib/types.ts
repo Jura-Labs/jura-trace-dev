@@ -22,10 +22,16 @@ export interface AppErrorResponse {
  * Verify pipeline investigation modes:
  * - standard: EXIF + C2PA + ELA + deepfake ensemble (~15s) — default
  * - deep: Full pipeline including all detectors (~60s)
- * - archival: Deep with scanner-calibrated tolerances
  *
- * Legacy 'quick'/'fast' values remain accepted by the Rust backend for
- * backwards compatibility but are no longer exposed in the UI.
+ * Legacy values retained for backwards compatibility but no longer exposed
+ * in the UI:
+ * - archival — retired 2026-04-22, silently aliased to 'deep' by the Rust
+ *   backend. The advertised differentiation (scanner-calibrated tolerances,
+ *   uncapped video frames) was never implemented and the third button has
+ *   been removed from the mode selector. localStorage migration in the
+ *   verify page lands stale 'archival' selections on 'deep' on next mount.
+ *   Re-introducing a true archival mode is tracked as a backlog item.
+ * - quick / fast — older API contract, accepted by Rust, never UI-exposed.
  */
 export type VerifyMode = 'standard' | 'deep' | 'archival';
 

@@ -86,9 +86,12 @@ describe('triggerDownload (browser-fallback path)', () => {
   let revokeObjectURL: ReturnType<typeof vi.fn>;
   let originalCreate: typeof URL.createObjectURL;
   let originalRevoke: typeof URL.revokeObjectURL;
-  let appendSpy: ReturnType<typeof vi.spyOn>;
-  let removeSpy: ReturnType<typeof vi.spyOn>;
-  let clickSpy: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let appendSpy: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let removeSpy: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let clickSpy: any;
 
   beforeEach(() => {
     vi.useFakeTimers();

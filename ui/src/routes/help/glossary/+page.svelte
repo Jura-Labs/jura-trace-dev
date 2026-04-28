@@ -637,8 +637,7 @@
           grid and analyses each region independently. Localised manipulation that a
           whole-image ELA might average out — for example, a small pasted element in a
           scene — becomes visible when the grid approach isolates it. One of four regional
-          forensic detectors that contribute to composite image detection in Deep and
-          Archival modes.
+          forensic detectors that contribute to composite image detection in Deep mode.
         </dd>
       </div>
 
@@ -697,8 +696,7 @@
           verification, whole-image ELA, noise analysis, copy-move detection, and the
           deepfake ensemble. Typically completes in 10–20 seconds. Regional detectors
           (segmented ELA, shadow consistency, colour temperature, splice boundary) are
-          not included — use Deep or Archival mode when investigating possible composite
-          images.
+          not included — use Deep mode when investigating possible composite images.
         </dd>
       </div>
 

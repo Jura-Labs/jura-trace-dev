@@ -529,10 +529,10 @@
 
     <div>
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
-        Region analysis (Deep and Archival modes only)
+        Region analysis (Deep mode only)
       </h3>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        When you run Deep or Archival mode, a region analysis section appears showing
+        When you run Deep mode, a region analysis section appears showing
         results from the four regional detectors: segmented ELA, shadow consistency, colour
         temperature, and splice boundary. These detectors divide the image into a grid and
         look for inconsistencies between regions — a key signal for composite images where
@@ -616,15 +616,10 @@
               <td class="py-2 pr-4">6</td>
               <td class="py-2">~12 s</td>
             </tr>
-            <tr class="border-b border-border-light/50 dark:border-border-dark/50">
+            <tr>
               <td class="py-2 pr-4">Deep</td>
               <td class="py-2 pr-4">20</td>
               <td class="py-2">~40 s</td>
-            </tr>
-            <tr>
-              <td class="py-2 pr-4">Archival</td>
-              <td class="py-2 pr-4">40</td>
-              <td class="py-2">~80 s</td>
             </tr>
           </tbody>
         </table>
@@ -782,8 +777,8 @@
       </h3>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         If Standard mode returned inconclusive and you want the full set of regional
-        detectors, use the mode selector to switch to Deep or Archival and run the analysis
-        again. You do not need to re-import the file.
+        detectors, use the mode selector to switch to Deep and run the analysis again. You
+        do not need to re-import the file.
       </p>
     </div>
 
