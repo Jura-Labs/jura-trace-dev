@@ -3563,12 +3563,19 @@
 
             </ul>
 
-            <!-- Deep-mode detectors note -->
+            <!-- On-demand detectors note.
+                 Shadow Consistency, Splice Boundary, and NPR do NOT auto-run
+                 in any mode — see src-tauri/src/lib.rs:1621-1627 where they
+                 are explicitly pinned to None even in deep mode.  They are
+                 surfaced via dedicated on-demand sidecar endpoints which
+                 currently have no v2 UI affordance (the trigger lived in
+                 classic view, retired commit 5a9eb4f).  Be honest about
+                 that rather than implying mode-gated availability. -->
             {#if !result.shadowConsistencyResult && !result.spliceBoundaryResult && !result.nprResult}
               <div class="px-5 py-3 border-t border-border-light dark:border-border-dark/40 bg-white/[0.01] flex items-center gap-3 flex-wrap">
                 <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold">On-demand tools</span>
                 <span class="text-xs text-flint-dark dark:text-flint-light">
-                  Shadow Consistency, Splice Boundary, and NPR require deep mode.
+                  Shadow Consistency, Splice Boundary, and NPR are on-demand investigation tools — not currently auto-run in any verify mode.
                 </span>
               </div>
             {/if}
