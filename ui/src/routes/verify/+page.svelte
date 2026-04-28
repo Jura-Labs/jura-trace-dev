@@ -3444,7 +3444,7 @@
               <div class="px-5 py-3 border-t border-border-light dark:border-border-dark/40 bg-white/[0.01] flex items-center gap-3 flex-wrap">
                 <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold">On-demand tools</span>
                 <span class="text-xs text-flint-dark dark:text-flint-light">
-                  Shadow Consistency, Splice Boundary, and NPR require deep or archival mode.
+                  Shadow Consistency, Splice Boundary, and NPR require deep mode.
                 </span>
               </div>
             {/if}
