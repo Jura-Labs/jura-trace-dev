@@ -119,6 +119,10 @@
   let watermarking = $state(false);
   let watermarkResult = $state<WatermarkEmbedResult | null>(null);
 
+  // ── Batch panel element refs (JTV-126: focus management) ─────────
+  let batchSignPanelEl: HTMLElement | null = $state(null);
+  let batchWatermarkPanelEl: HTMLElement | null = $state(null);
+
   // ── Batch C2PA sign state ─────────────────────────────────────────
   let showBatchSign = $state(false);
   let batchSignCreatorName = $state('');
@@ -537,6 +541,7 @@
   }
 
   function openBatchWatermark() {
+    showBatchSign = false; // JTV-126: mutual exclusion
     showBatchWatermark = true;
     batchDone = false;
     batchProgress = 0;
@@ -549,6 +554,23 @@
     batchPayload = watermarkPayload || batchPayload;
   }
 
+  // JTV-126: focus management — move keyboard focus to the panel heading
+  // when a batch panel opens so screen readers and keyboard users land in
+  // the right context without extra Tab presses.
+  $effect(() => {
+    if (showBatchSign && batchSignPanelEl) {
+      const heading = batchSignPanelEl.querySelector<HTMLElement>('h2');
+      heading?.focus();
+    }
+  });
+
+  $effect(() => {
+    if (showBatchWatermark && batchWatermarkPanelEl) {
+      const heading = batchWatermarkPanelEl.querySelector<HTMLElement>('h2');
+      heading?.focus();
+    }
+  });
+
   function closeBatchWatermark() {
     if (batchRunning) return; // block dismiss while running
     showBatchWatermark = false;
@@ -556,6 +578,7 @@
 
   // ── Batch C2PA sign handlers ──────────────────────────────────────
   function openBatchSign() {
+    showBatchWatermark = false; // JTV-126: mutual exclusion
     showBatchSign = true;
     batchSignDone = false;
     batchSignProgress = 0;
@@ -1109,6 +1132,7 @@
   <!-- Batch C2PA sign panel -->
   {#if showBatchSign}
     <div
+      bind:this={batchSignPanelEl}
       class="bg-white dark:bg-graphite rounded-lg border border-lapis/30 dark:border-lapis/20 shadow-sm overflow-hidden"
       role="region"
       aria-label="Batch content credential signing panel"
@@ -1116,7 +1140,7 @@
     >
       <!-- Panel header -->
       <div class="px-5 py-4 border-b border-border-light dark:border-graphite-light/50 flex items-center justify-between gap-4">
-        <h2 class="text-base text-text-light dark:text-quartz">
+        <h2 class="text-base text-text-light dark:text-quartz" tabindex="-1">
           Add Credentials to All
         </h2>
         {#if !batchSignRunning}
@@ -1318,13 +1342,44 @@
               </div>
             {/if}
 
-            <button
-              class="px-4 py-2.5 min-h-[44px] text-sm text-lapis dark:text-lapis-light border border-lapis/40 rounded hover:bg-lapis/10 transition-colors
-                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
-              onclick={closeBatchSign}
-            >
-              Close
-            </button>
+            <!-- JTV-126: Sign Remaining — re-opens the config form so the
+                 user can resume with the same creator name, useful when
+                 signing was cancelled mid-run. Only shown when there are
+                 still unsigned assets left. -->
+            <div class="flex gap-3">
+              {#if unsignedAssets.length > 0}
+                <button
+                  class="px-4 py-2.5 min-h-[44px] text-sm bg-lapis text-white rounded hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                  onclick={() => {
+                    batchSignDone = false;
+                    batchSignRunning = false;
+                    batchSignProgress = 0;
+                    batchSignSuccessCount = 0;
+                    batchSignFailCount = 0;
+                    batchSignCancelled = false;
+                    batchSignCurrentFile = '';
+                    batchSignEta = null;
+                    batchSignErrors = [];
+                    showBatchSignErrors = false;
+                    _batchSignTimes = [];
+                  }}
+                  aria-label="Sign remaining {unsignedAssets.length} {unsignedAssets.length === 1 ? 'image' : 'images'}"
+                >
+                  Sign Remaining
+                  <span class="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-white/20 text-[10px] font-medium px-1">
+                    {unsignedAssets.length}
+                  </span>
+                </button>
+              {/if}
+              <button
+                class="px-4 py-2.5 min-h-[44px] text-sm text-lapis dark:text-lapis-light border border-lapis/40 rounded hover:bg-lapis/10 transition-colors
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                onclick={closeBatchSign}
+              >
+                Close
+              </button>
+            </div>
           </div>
         {/if}
       </div>
@@ -1334,6 +1389,7 @@
   <!-- Batch watermark panel -->
   {#if showBatchWatermark}
     <div
+      bind:this={batchWatermarkPanelEl}
       class="bg-white dark:bg-graphite rounded-lg border border-lapis/30 dark:border-lapis/20 shadow-sm overflow-hidden"
       role="region"
       aria-label="Batch watermark panel"
@@ -1342,7 +1398,7 @@
       <!-- Panel header -->
       <div class="px-5 py-4 border-b border-border-light dark:border-graphite-light/50 flex items-center justify-between gap-4">
         <div class="flex items-center gap-1.5">
-          <h2 class="text-base text-text-light dark:text-quartz">
+          <h2 class="text-base text-text-light dark:text-quartz" tabindex="-1">
             Watermark All Images
           </h2>
           <ContextualHelpLink href="/help/protect#watermarking" label="Learn about invisible watermarking" />
@@ -1643,13 +1699,42 @@
               </div>
             {/if}
 
-            <button
-              class="px-5 py-2.5 min-h-[44px] inline-flex items-center bg-lapis text-white text-sm rounded hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
-                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
-              onclick={closeBatchWatermark}
-            >
-              Done
-            </button>
+            <!-- JTV-126: Watermark Remaining — reset to config form so the
+                 user can resume after a cancelled run. -->
+            <div class="flex gap-3">
+              {#if unwatermarkedImages.length > 0}
+                <button
+                  class="px-4 py-2.5 min-h-[44px] text-sm bg-lapis text-white rounded hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite inline-flex items-center"
+                  onclick={() => {
+                    batchDone = false;
+                    batchRunning = false;
+                    batchProgress = 0;
+                    batchSuccessCount = 0;
+                    batchFailCount = 0;
+                    batchCancelled = false;
+                    batchCurrentFile = '';
+                    batchEta = null;
+                    batchErrors = [];
+                    showBatchErrors = false;
+                    _batchTimes = [];
+                  }}
+                  aria-label="Watermark remaining {unwatermarkedImages.length} {unwatermarkedImages.length === 1 ? 'image' : 'images'}"
+                >
+                  Watermark Remaining
+                  <span class="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-white/20 text-[10px] font-medium px-1">
+                    {unwatermarkedImages.length}
+                  </span>
+                </button>
+              {/if}
+              <button
+                class="px-5 py-2.5 min-h-[44px] inline-flex items-center bg-lapis text-white text-sm rounded hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                onclick={closeBatchWatermark}
+              >
+                Done
+              </button>
+            </div>
           </div>
         {/if}
 
