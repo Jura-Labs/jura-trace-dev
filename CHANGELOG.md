@@ -6,6 +6,63 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 28 April 2026 — Format truth-grid honesty pass + Protect page polish (JTV-105 + JTV-114 + JTV-129)
+
+A two-front polish day driven by the 28 April 2026 four-agent audits. **Pilot rollout extended to Week 3 June 2026** (~2026-06-15) to absorb scope expansion (Reverse Image Search proper, ML model training, Track 3 corpus completion).
+
+### Format support truth-grid (JTV-105 → JTV-112) — 7 items
+
+The marketed format list outran what the pipeline can meaningfully analyse. Four agents (Explore, content-authenticity-expert, persona-testing, tech-debt-analyst) converged on a truth-grid; seven remediation items landed in commit `fa56562`:
+
+- **HEIC dependency fix** — `pillow-heif==1.2.0` added to `sidecar/requirements.txt` + `requirements-ci.txt`; lifespan handler registers HEIF opener with CRITICAL log fallback. iPhone photos on Linux production builds no longer silently fail.
+- **Video deepfake trust wiring** — `lib.rs:2486` `compute_trust` for video files now substitutes `video_deepfake_result.aggregate_score` for the always-None image GBM score. Pristine deepfake videos no longer return "Likely authentic" headlines.
+- **File picker trim** — extracted `PROTECT_FILE_FILTERS` / `VERIFY_FILE_FILTERS` constants in `ui/src/lib/api.ts`; dropped WebM, MKV, AVI, DOCX, animated GIF, audio (WAV/MP3/FLAC/OGG/AAC/M4A), and 3D types. Audio deferred to JTV-113 (v1.1, AASIST + ASVspoof retraining, 10–12 weeks).
+- **Codec-aware ELA + JPEG Ghost gating** — new `format_router::should_run_ela()` / `should_run_jpeg_ghost()` helpers (true only for `image/jpeg`); `lib.rs` clears scores to None for non-JPEG mimes before `compute_trust`. ELA + JPEG Ghost no longer contribute uncalibrated noise on PNG / WebP / AVIF / HEIC / TIFF / BMP / GIF.
+- **PDF panel relabel** — "Origin metadata only" pill + italic scope note on the PDF Provenance section; verify-page picker filter + error copy aligned to truth-grid.
+- **/help/format-support route** — user-visible reference table covering supported / partial / provenance-only / not-supported families with reasoning for each exclusion.
+
+### Protect page v1.0 polish (JTV-114 → JTV-126) — 12 items
+
+Four-agent Protect-page review (persona-testing, ux-frontend-designer, content-authenticity-expert, security-auditor) produced 12 actionable items. **All 12 landed for v1.0**:
+
+- **Sovereign/Conformant signing-mode badge** — read-only badge on both batch and per-asset Sign panels showing the active mode and linking to Settings → Signing Mode. Closes the Amara persona's blocker for ICC-tribunal evidence submissions.
+- **Beta notice rewrite** — drops the "Content Credentials" Adobe trademark; clarifies Validator-track was submitted 14 April 2026 and Generator-track is v1.1; names the active signing mode at the point of disclosure.
+- **Watermark robustness claims rewrite** — replaces hand-wavy "near-invisible / survives cropping" with PSNR (≈48/42/36 dB) and SSIM (>0.99/0.98/0.96) numbers per Cox/Miller/Bloom 2008 ch.9. Adds explicit "Limits — common to all strengths" pip naming the failure modes (screenshots, crops >10%, JPEG <50, AI regen, adversarial removal).
+- **Watermark PNG-output advisory** — both batch and per-asset panels show "Output: saved as a new PNG alongside the original" before the user clicks Begin Watermarking / Embed.
+- **`Iptc4xmpExt:DigitalSourceType` URI** — `c2pa.rs:361` now writes `http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture` per C2PA spec for human-captured content.
+- **schema-org.CreativeWork licence URI** — emits a `stds.schema-org.CreativeWork` assertion with `license` as URI alongside the existing `c2pa.rights` string for the 5 CC licences (Adobe Inspect interop). "All Rights Reserved" stays string-only — no invented URI.
+- **Creator-name self-attestation copy** — both Sign panels now disclose that the creator name is unverified (Farid 2016 ch.3 cross-examination defence).
+- **Bulk-actions section extraction** — "Add Credentials to All" + "Watermark All" buttons moved out of the `role="search"` filter bar into a dedicated `<section aria-labelledby="bulk-actions-heading">` — separates "configure my view" from "start destructive operation".
+- **Drop zone collapse** — empty-state `p-14` zone retained; populated state collapses to a `p-3` "Import more files" bar.
+- **Asset row chrome aligned with DetectorRow** — leading 10×10 status dot (malachite=both, lapis=partial, amber=imported only); signing-mode badge ("Sovereign" / "Conformant") when `c2paSigned`. Status column widened 170 → 220 px.
+- **Verify cross-link** — "Verify this asset" CTA in the expanded asset detail panel; new `ui/src/lib/stores/verifyHandoff.ts` module-scope handoff; `/verify` `onMount` consumes the handoff and calls `runFileVerification()` immediately.
+- **Batch panel UX hardening** — focus moves into panel on open via `$effect` + `bind:this`; mutual exclusion (opening Sign closes Watermark and vice versa); "Sign Remaining" / "Watermark Remaining" resume buttons after batchCancelled completion screen.
+
+### Bug fix — Export Asset Database silently failing in Tauri (JTV-129)
+
+The three CSV exports on the Protect page (asset database, batch watermark errors, batch sign errors) used the bare `document.createElement('a'); a.click(); URL.revokeObjectURL()` synchronous pattern, which the Tauri webview blocks. Pilot users clicked Export and nothing happened.
+
+- Lifted the `triggerDownload(blob, filename)` helper from `verify/+page.svelte` into `$lib/blob` so both pages now use the same path: native save dialog via `@tauri-apps/plugin-dialog` + `plugin-fs` in Tauri, with a properly DOM-attached anchor and deferred URL revoke as the browser fallback.
+- Closes the MEDIUM CSV formula-injection finding from the 28 April security audit by adding `escapeCsvField()` which prepends a tab character to fields starting with `=`, `+`, `-`, `@` before quote-wrapping (OWASP CSV-injection guidance).
+- 14 new Vitest cases pin the escape contract and the browser-fallback DOM behaviour (anchor-attached-before-click, deferred revoke timing, formula-injection neutralisation).
+
+### Tickets opened (Plane, JTV)
+
+- **JTV-113** — v1.1 audio deepfake AASIST + ASVspoof retraining (Backlog, 10–12 weeks, Q3 2026)
+- **JTV-127** — Track 3 corpus completion (~1,000 Global Majority handset photos, Todo, v1.0 stretch)
+- **JTV-128** — UnivFD v10 retraining cycle (Todo, blocked by JTV-127)
+- **JTV-130** — Settings → Backup & Restore (Todo, ~3d, full DB snapshot + CSV catalogue import)
+- **JTV-98** — Reverse image search (TinEye + Google Vision, BYOK) — promoted from v1.1 to v1.0
+
+### Tests
+
+- Rust: 498 lib tests, 0 failures
+- Python sidecar: 420 tests, 0 failures
+- Vitest: 102 tests across 5 files (was 88 — added `api.filters.test.ts` 45 cases + `blob.test.ts` 14 cases)
+- svelte-check: 0 errors across 464 files
+
+---
+
 ## 26 April 2026 — Release Candidate rc.24 — Brand refresh + C2PA Origin fix + tester focus
 
 A brand and tester-experience pass alongside a meaningful C2PA correctness fix uncovered while reproducing the Google Pixel "Zoom Enhance" verification result.
