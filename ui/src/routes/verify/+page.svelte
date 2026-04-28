@@ -3746,7 +3746,12 @@
                          Settings raw-scores switch. -->
                     {#if clip.classProbs && Object.keys(clip.classProbs).length > 0}
                       {@const isAuxiliary = clip.univfdAvailable === true}
-                      {@const showZeroShot = showRawScores || showClipZeroShot}
+                      <!-- Bars are hidden by default ONLY when UnivFD is the
+                           headline signal (auxiliary case).  When UnivFD is
+                           unavailable, the zero-shot bars ARE the headline
+                           signal and must render by default — the toggle
+                           below only applies to the auxiliary case. -->
+                      {@const showZeroShot = !isAuxiliary || showRawScores || showClipZeroShot}
                       {#if !showZeroShot && isAuxiliary}
                         <button
                           type="button"
