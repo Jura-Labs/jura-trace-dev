@@ -415,7 +415,7 @@ pub struct AppState {
 fn compute_file_sha256(path: &std::path::Path) -> Option<String> {
     let data = std::fs::read(path).ok()?;
     let hash = Sha256::digest(&data);
-    Some(format!("{:x}", hash))
+    Some(format!("{hash:x}"))
 }
 
 // ===== Tauri Commands =====
@@ -475,7 +475,7 @@ fn import_files(
         let path = match PathBuf::from(path_str).canonicalize() {
             Ok(p) => p,
             Err(e) => {
-                log::warn!("Skipping unresolvable path ({}): {e}", path_str);
+                log::warn!("Skipping unresolvable path ({path_str}): {e}");
                 continue;
             }
         };
@@ -506,8 +506,7 @@ fn import_files(
         if file_size == 0 {
             log::warn!("Skipping empty file: file is zero bytes");
             return Err(AppError::Validation(format!(
-                "The file '{}' is empty (zero bytes). Please select a valid file.",
-                file_name_display
+                "The file '{file_name_display}' is empty (zero bytes). Please select a valid file."
             )));
         }
         if file_size < 12 {
@@ -516,8 +515,7 @@ fn import_files(
                  is smaller than any valid media header"
             );
             return Err(AppError::Validation(format!(
-                "The file '{}' is too small to be a valid media file ({file_size} bytes).",
-                file_name_display
+                "The file '{file_name_display}' is too small to be a valid media file ({file_size} bytes)."
             )));
         }
         if file_size > MAX_IMPORT_FILE_SIZE_BYTES {
@@ -1672,7 +1670,7 @@ fn verify_content_inner(
     let path = std::path::PathBuf::from(source)
         .canonicalize()
         .map_err(|e| {
-            log::error!("Path canonicalisation failed for '{}': {}", source, e);
+            log::error!("Path canonicalisation failed for '{source}': {e}");
             AppError::Validation("File not found or inaccessible".to_string())
         })?;
 
@@ -1962,23 +1960,20 @@ fn verify_content_inner(
     // non-PDF files gracefully by returning Err, so no MIME guard is needed,
     // but we restrict to the document content type to avoid the parsing cost
     // on image/video/audio files.
-    let pdf_provenance_result: Option<pdf_provenance::PdfProvenance> =
-        if info.content_type == format_router::ContentType::Document
-            && info.mime_type.contains("pdf")
-        {
-            match pdf_provenance::analyse_pdf(&path) {
-                Some(p) => Some(p),
-                None => {
-                    log::warn!(
-                        "PDF provenance analysis failed for {}",
-                        path.display()
-                    );
-                    None
-                }
+    let pdf_provenance_result: Option<pdf_provenance::PdfProvenance> = if info.content_type
+        == format_router::ContentType::Document
+        && info.mime_type.contains("pdf")
+    {
+        match pdf_provenance::analyse_pdf(&path) {
+            Some(p) => Some(p),
+            None => {
+                log::warn!("PDF provenance analysis failed for {}", path.display());
+                None
             }
-        } else {
-            None
-        };
+        }
+    } else {
+        None
+    };
 
     // ── C2PA verification ────────────────────────────────────────────────
     // Verification mode: always Standard (local-only) here because
@@ -2015,7 +2010,7 @@ fn verify_content_inner(
     //   deep       → all detectors
     //   archival   → retired; silently aliased to "deep" below
     let app = state.lock().map_err(|e| {
-        log::error!("AppState mutex poisoned in verify pipeline: {}", e);
+        log::error!("AppState mutex poisoned in verify pipeline: {e}");
         AppError::Internal("Failed to acquire application state".to_string())
     })?;
     // 'archival' was retired 2026-04-22 because it shared the Deep code path
@@ -2037,12 +2032,7 @@ fn verify_content_inner(
     let sidecar_up = is_image && sidecar_available;
     let is_deep = effective_mode == "deep";
     log::info!(
-        "Verify pipeline: is_image={}, mode={:?}, effective={}, sidecar_up={}, is_deep={}",
-        is_image,
-        mode,
-        effective_mode,
-        sidecar_up,
-        is_deep
+        "Verify pipeline: is_image={is_image}, mode={mode:?}, effective={effective_mode}, sidecar_up={sidecar_up}, is_deep={is_deep}"
     );
 
     // ── Whether the image has camera-origin EXIF ────────────────────────
@@ -2724,10 +2714,7 @@ fn verify_content(
     mode: Option<String>,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<VerificationResult, AppError> {
-    log::info!(
-        "Verifying content: {source} ({source_type}) [mode={:?}]",
-        mode
-    );
+    log::info!("Verifying content: {source} ({source_type}) [mode={mode:?}]");
     verify_content_inner(
         &source,
         &source_type,
@@ -3196,11 +3183,11 @@ fn verify_url(
             u.to_string()
         })
         .unwrap_or_else(|_| "<invalid URL>".to_string());
-    log::info!("Verifying URL: {log_url} [mode={:?}]", mode);
+    log::info!("Verifying URL: {log_url} [mode={mode:?}]");
 
     // SECURITY: Validate URL to prevent SSRF attacks
     let parsed = url::Url::parse(&url).map_err(|e| {
-        log::warn!("URL parse failure: {}", e);
+        log::warn!("URL parse failure: {e}");
         AppError::Validation(format!("Invalid URL: {e}"))
     })?;
 
@@ -3246,13 +3233,13 @@ fn verify_url(
         .get(&url)
         .send()
         .map_err(|e| {
-            log::error!("HTTP request failed for URL {}: {}", log_url, e);
+            log::error!("HTTP request failed for URL {log_url}: {e}");
             AppError::Sidecar("Failed to download the URL content".to_string())
         })?;
 
     if !response.status().is_success() {
         let status = response.status();
-        log::warn!("URL {} returned HTTP {}", log_url, status);
+        log::warn!("URL {log_url} returned HTTP {status}");
         return Err(AppError::Validation(format!(
             "URL returned status {status}"
         )));
@@ -3293,18 +3280,18 @@ fn verify_url(
     };
 
     let bytes = response.bytes().map_err(|e| {
-        log::error!("Failed to read body from URL {}: {}", log_url, e);
+        log::error!("Failed to read body from URL {log_url}: {e}");
         AppError::Sidecar("Failed to read the URL content".to_string())
     })?;
 
     // Write to temp file using a randomised name to prevent TOCTOU races.
     let temp_dir = tempfile::tempdir().map_err(|e| {
-        log::error!("Failed to create temp dir: {}", e);
+        log::error!("Failed to create temp dir: {e}");
         AppError::FileSystem("Failed to create temporary directory".to_string())
     })?;
     let temp_path = temp_dir.path().join(format!("url_content.{safe_ext}"));
     std::fs::write(&temp_path, &bytes).map_err(|e| {
-        log::error!("Failed to write temp file: {}", e);
+        log::error!("Failed to write temp file: {e}");
         AppError::FileSystem("Failed to write temporary file".to_string())
     })?;
 
@@ -3356,11 +3343,14 @@ fn analyse_video_deepfake(
     let valid_modes = ["standard", "deep", "archival"];
     if !valid_modes.contains(&mode.as_str()) {
         return Err(AppError::Validation(format!(
-            "Invalid mode '{}'. Must be one of: standard, deep",
-            mode
+            "Invalid mode '{mode}'. Must be one of: standard, deep"
         )));
     }
-    let effective_mode = if mode == "archival" { "deep" } else { mode.as_str() };
+    let effective_mode = if mode == "archival" {
+        "deep"
+    } else {
+        mode.as_str()
+    };
 
     let app = state
         .lock()
@@ -3411,9 +3401,7 @@ fn run_npr_on_demand(
         return Err(AppError::Sidecar("ML sidecar is not available".into()));
     }
 
-    app.sidecar
-        .analyse_npr(&path)
-        .map_err(AppError::Sidecar)
+    app.sidecar.analyse_npr(&path).map_err(AppError::Sidecar)
 }
 
 /// Run shadow consistency analysis on demand.
@@ -4020,7 +4008,7 @@ fn set_licence_tier(
         .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.licence_tier = tier;
 
-    log::info!("Licence tier updated to {:?}", tier);
+    log::info!("Licence tier updated to {tier:?}");
     Ok(())
 }
 
@@ -4065,7 +4053,7 @@ fn set_ai_description_enabled(
         .map_err(|_| AppError::Internal("State lock failed".into()))?;
     app.ai_description_enabled = enabled;
 
-    log::info!("AI image description preference updated to {:?}", enabled);
+    log::info!("AI image description preference updated to {enabled:?}");
     Ok(())
 }
 
@@ -4424,9 +4412,8 @@ fn resolve_db_path(app: &tauri::App) -> PathBuf {
                 return env_path;
             } else {
                 log::warn!(
-                    "JURA_DB_PATH set to '{}' but parent directory is not writable; \
-                     falling through to config.json",
-                    env_val
+                    "JURA_DB_PATH set to '{env_val}' but parent directory is not writable; \
+                     falling through to config.json"
                 );
             }
         }
@@ -4445,9 +4432,8 @@ fn resolve_db_path(app: &tauri::App) -> PathBuf {
                 return cfg_path;
             } else {
                 log::warn!(
-                    "config.json db_path '{}' parent directory is not writable; \
-                     falling through to default",
-                    cfg_val
+                    "config.json db_path '{cfg_val}' parent directory is not writable; \
+                     falling through to default"
                 );
             }
         }
@@ -4858,7 +4844,7 @@ pub fn run() {
                 .expect("failed to resolve app data directory");
             let startup_config = read_app_config(&data_dir);
             let licence_tier = startup_config.licence_tier;
-            log::info!("Licence tier: {:?}", licence_tier);
+            log::info!("Licence tier: {licence_tier:?}");
             let ai_description_enabled = startup_config.ai_description_enabled;
             log::info!(
                 "AI image description preference: {}",
@@ -4936,12 +4922,11 @@ pub fn run() {
                             unsafe {
                                 std::env::set_var("JURA_MODELS_DIR", &models_dir);
                             }
-                            log::info!("JURA_MODELS_DIR set to {:?}", models_dir);
+                            log::info!("JURA_MODELS_DIR set to {models_dir:?}");
                         } else {
                             log::warn!(
-                                "Models directory not found at {:?} — classifier \
-                                 and UnivFD probe will be unavailable",
-                                models_dir
+                                "Models directory not found at {models_dir:?} — classifier \
+                                 and UnivFD probe will be unavailable"
                             );
                         }
                     }
@@ -5129,9 +5114,8 @@ pub fn run() {
                                 // is shown once in the Settings → API Keys panel.
                                 let prefix = &key[..key.len().min(8)];
                                 log::info!(
-                                    "API server bootstrap key created (jt_{}...). \
-                                     Retrieve the full key from Settings → API Keys.",
-                                    prefix
+                                    "API server bootstrap key created (jt_{prefix}...). \
+                                     Retrieve the full key from Settings → API Keys."
                                 );
                             }
                             Ok(None) => {
@@ -5271,9 +5255,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5298,9 +5282,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5325,9 +5309,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5352,9 +5336,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5379,9 +5363,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5408,9 +5392,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5429,9 +5413,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5445,8 +5429,8 @@ mod tests {
     fn trust_no_forensics_falls_back_to_exif() {
         let trust = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false, None,
-            None, None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None, None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5470,9 +5454,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5500,9 +5484,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5530,9 +5514,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5563,9 +5547,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5593,9 +5577,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5622,9 +5606,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5652,9 +5636,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5802,9 +5786,9 @@ mod tests {
             None, // no regional detectors
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -5840,7 +5824,7 @@ mod tests {
             None,
             None,
             true,
-            true, // ai_declared_by_xmp: TRUE (the new behaviour)
+            true,  // ai_declared_by_xmp: TRUE (the new behaviour)
             false, // ai_declared_composite: false (default)
         );
         assert!(
@@ -5947,7 +5931,7 @@ mod tests {
             None,
             None,
             true,
-            true, // ai_declared_by_xmp: TRUE
+            true,  // ai_declared_by_xmp: TRUE
             false, // ai_declared_composite: false (default)
         );
         assert!(
@@ -6035,9 +6019,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -6056,9 +6040,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -6086,9 +6070,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -6118,9 +6102,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -6148,9 +6132,9 @@ mod tests {
             None,      // splice boundary — absent
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -6178,9 +6162,9 @@ mod tests {
             Some(0.03),
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -6199,9 +6183,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -6233,9 +6217,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -6277,8 +6261,8 @@ mod tests {
             Some(95),  // jpeg_quality_estimate → effective_weight=0.475
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
-            false, // ai_declared_by_xmp: false (default)
-            false, // ai_declared_composite: false (default)
+            false,     // ai_declared_by_xmp: false (default)
+            false,     // ai_declared_composite: false (default)
         );
         let trust_base = compute_trust(
             Some(0.1), // same ELA
@@ -6298,8 +6282,8 @@ mod tests {
             None,      // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
-            false, // ai_declared_by_xmp: false (default)
-            false, // ai_declared_composite: false (default)
+            false,     // ai_declared_by_xmp: false (default)
+            false,     // ai_declared_composite: false (default)
         );
         // At Q=95, effective_weight=0.475 vs base=0.5 — small difference (< 3pp)
         assert!(
@@ -6331,8 +6315,8 @@ mod tests {
             Some(75),  // jpeg_quality_estimate → effective_weight=0.375
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
-            false, // ai_declared_by_xmp: false (default)
-            false, // ai_declared_composite: false (default)
+            false,     // ai_declared_by_xmp: false (default)
+            false,     // ai_declared_composite: false (default)
         );
         let trust_base = compute_trust(
             Some(0.1), // same ELA
@@ -6352,8 +6336,8 @@ mod tests {
             None,      // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
-            false, // ai_declared_by_xmp: false (default)
-            false, // ai_declared_composite: false (default)
+            false,     // ai_declared_by_xmp: false (default)
+            false,     // ai_declared_composite: false (default)
         );
         // Q=75 → effective_weight=0.375 < 0.5 → ghost penalises less → higher trust
         assert!(
@@ -6386,8 +6370,8 @@ mod tests {
             Some(30),  // jpeg_quality_estimate — floor exactly engaged
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
-            false, // ai_declared_by_xmp: false (default)
-            false, // ai_declared_composite: false (default)
+            false,     // ai_declared_by_xmp: false (default)
+            false,     // ai_declared_composite: false (default)
         );
         let trust_q20 = compute_trust(
             Some(0.1), // same ELA
@@ -6407,8 +6391,8 @@ mod tests {
             Some(20),  // jpeg_quality_estimate — floor also engaged
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
-            false, // ai_declared_by_xmp: false (default)
-            false, // ai_declared_composite: false (default)
+            false,     // ai_declared_by_xmp: false (default)
+            false,     // ai_declared_composite: false (default)
         );
         // Both floor at quality_factor=0.30 → effective_weight=0.15 → same trust
         assert!(
@@ -6440,15 +6424,15 @@ mod tests {
             None,      // jpeg_quality_estimate: None → quality_factor=1.0
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
-            false, // ai_declared_by_xmp: false (default)
-            false, // ai_declared_composite: false (default)
+            false,     // ai_declared_by_xmp: false (default)
+            false,     // ai_declared_composite: false (default)
         );
         let trust_no_ghost = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false,
-            None, // no JPEG Ghost score at all
-            None, // jpeg_quality_estimate: None uses 0.5 base weight
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // no JPEG Ghost score at all
+            None,  // jpeg_quality_estimate: None uses 0.5 base weight
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -6484,8 +6468,8 @@ mod tests {
             Some(95),  // direct camera upload → effective_weight=0.475
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
-            false, // ai_declared_by_xmp: false (default)
-            false, // ai_declared_composite: false (default)
+            false,     // ai_declared_by_xmp: false (default)
+            false,     // ai_declared_composite: false (default)
         );
         let trust_low_q = compute_trust(
             Some(0.1), // same ELA
@@ -6505,8 +6489,8 @@ mod tests {
             Some(20),  // heavy compression → effective_weight=0.15 (floor at q/100=0.30)
             None,      // content_type_category: None → no suppression
             true,      // ai_detection_suitable: true → no suppression
-            false, // ai_declared_by_xmp: false (default)
-            false, // ai_declared_composite: false (default)
+            false,     // ai_declared_by_xmp: false (default)
+            false,     // ai_declared_composite: false (default)
         );
         assert!(
             trust_low_q > trust_high_q,
@@ -6663,9 +6647,9 @@ mod tests {
             None,
             true, // AI declared
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -6684,9 +6668,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -6716,16 +6700,16 @@ mod tests {
             None,
             true,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
         let trust_none = compute_trust(
             None, None, None, None, None, None, 0.8, None, None, None, None, None, false, None,
-            None, None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None, None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -6754,9 +6738,9 @@ mod tests {
             None,
             false,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -6775,9 +6759,9 @@ mod tests {
             None,
             true,
             None,
-            None, // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
-            None, // content_type_category: None → no suppression
-            true, // ai_detection_suitable: true → no suppression
+            None,  // jpeg_quality_estimate: None → quality_factor=1.0, effective_weight=0.5
+            None,  // content_type_category: None → no suppression
+            true,  // ai_detection_suitable: true → no suppression
             false, // ai_declared_by_xmp: false (default)
             false, // ai_declared_composite: false (default)
         );
@@ -6987,8 +6971,7 @@ mod tests {
             );
             assert!(
                 err.to_string().contains("empty (zero bytes)"),
-                "Error should mention 'empty (zero bytes)', got: {}",
-                err
+                "Error should mention 'empty (zero bytes)', got: {err}"
             );
         } else {
             panic!("Expected file_size == 0 for path {path_str}");

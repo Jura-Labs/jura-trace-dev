@@ -224,7 +224,7 @@ pub fn estimate_time_from_shadow(
                     let m = ((hour - h as f64) * 60.0).round() as u32 % 60;
                     candidates.push(TimeEstimate {
                         hour_utc: hour,
-                        time_formatted: format!("{:02}:{:02} UTC", h, m),
+                        time_formatted: format!("{h:02}:{m:02} UTC"),
                         sun_elevation: pos.elevation,
                         azimuth_error: diff,
                     });

@@ -54,12 +54,12 @@ impl AppError {
     /// the IPC boundary.
     pub fn log(self) -> Self {
         match &self {
-            AppError::Database(detail) => log::error!("Database error: {}", detail),
-            AppError::FileSystem(detail) => log::error!("FileSystem error: {}", detail),
-            AppError::Sidecar(detail) => log::error!("Sidecar error: {}", detail),
-            AppError::Validation(detail) => log::warn!("Validation error: {}", detail),
-            AppError::C2pa(detail) => log::error!("C2PA error: {}", detail),
-            AppError::Internal(detail) => log::error!("Internal error: {}", detail),
+            AppError::Database(detail) => log::error!("Database error: {detail}"),
+            AppError::FileSystem(detail) => log::error!("FileSystem error: {detail}"),
+            AppError::Sidecar(detail) => log::error!("Sidecar error: {detail}"),
+            AppError::Validation(detail) => log::warn!("Validation error: {detail}"),
+            AppError::C2pa(detail) => log::error!("C2PA error: {detail}"),
+            AppError::Internal(detail) => log::error!("Internal error: {detail}"),
         }
         self
     }
@@ -185,8 +185,7 @@ mod tests {
             let parsed: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
             assert_eq!(
                 parsed["code"], expected_code,
-                "wrong code for {}",
-                expected_code
+                "wrong code for {expected_code}"
             );
             assert!(parsed["message"].is_string(), "message should be a string");
         }

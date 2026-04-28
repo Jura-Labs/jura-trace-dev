@@ -118,9 +118,7 @@ fn extract_info_string(doc: &Document, key: &[u8]) -> Option<String> {
     let info_dict = doc.get_object(info_ref).ok()?.as_dict().ok()?;
     let value = info_dict.get(key).ok()?;
     match value {
-        Object::String(bytes, _) => {
-            Some(String::from_utf8_lossy(bytes).trim().to_string())
-        }
+        Object::String(bytes, _) => Some(String::from_utf8_lossy(bytes).trim().to_string()),
         _ => None,
     }
 }
@@ -312,7 +310,10 @@ fn build_summary(
     }
 
     if page_count > 0 {
-        parts.push(format!("{page_count} page{}", if page_count == 1 { "" } else { "s" }));
+        parts.push(format!(
+            "{page_count} page{}",
+            if page_count == 1 { "" } else { "s" }
+        ));
     }
 
     if has_digital_signature {
@@ -369,7 +370,10 @@ mod tests {
     fn build_summary_zero_pages_no_metadata() {
         // page_count=0 is skipped; with no other signals the fallback message fires.
         let s = build_summary(None, None, 0, false, false, false, false, 0);
-        assert!(s.contains("No provenance"), "fallback message when all signals absent");
+        assert!(
+            s.contains("No provenance"),
+            "fallback message when all signals absent"
+        );
     }
 
     #[test]

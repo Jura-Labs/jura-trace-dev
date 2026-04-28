@@ -464,7 +464,7 @@ fn derive_validity(json: &serde_json::Value) -> (bool, bool) {
 ///    to the nth ingredient in walk order. Last-resort only because c2pa-rs
 ///    occasionally emits a single summary delta (`ingredient.manifest.validated`
 ///    + cert-state failures) which, taken alone, drops the full success-code
-///    set the user needs to see in the L3 panel.
+///      set the user needs to see in the L3 panel.
 ///
 /// Embedded is preferred because the delta is a c2pa-rs *summary* of the
 /// ingredient's status from the parent's signing-time perspective, while the
@@ -3594,9 +3594,8 @@ mod tests {
         });
         let deltas: Vec<&serde_json::Value> = vec![&parent_keyed_delta];
 
-        let resolved =
-            resolve_ingredient_validation_source(&ingredient, parent_label, &deltas, 0)
-                .expect("should resolve to a validation source");
+        let resolved = resolve_ingredient_validation_source(&ingredient, parent_label, &deltas, 0)
+            .expect("should resolve to a validation source");
 
         let checks = extract_validation_checks_from_delta(resolved);
         let codes: Vec<&str> = checks.iter().map(|c| c.code.as_str()).collect();
@@ -3606,25 +3605,21 @@ mod tests {
         // "Data integrity confirmed" instead of the fail copy.
         assert!(
             codes.contains(&"claimSignature.validated"),
-            "must include claimSignature.validated; got {:?}",
-            codes
+            "must include claimSignature.validated; got {codes:?}"
         );
         assert!(
             codes.contains(&"assertion.dataHash.match"),
-            "must include assertion.dataHash.match; got {:?}",
-            codes
+            "must include assertion.dataHash.match; got {codes:?}"
         );
         assert!(
             codes.contains(&"timeStamp.validated"),
-            "must include timeStamp.validated; got {:?}",
-            codes
+            "must include timeStamp.validated; got {codes:?}"
         );
         // The summary delta's bare `ingredient.manifest.validated` must NOT be
         // the only signal — the bug was rendering exactly that one code.
         assert!(
             !codes.contains(&"ingredient.manifest.validated"),
-            "embedded source must override the parent-keyed summary delta; got {:?}",
-            codes
+            "embedded source must override the parent-keyed summary delta; got {codes:?}"
         );
     }
 
@@ -3646,9 +3641,8 @@ mod tests {
         });
         let deltas = vec![&delta];
 
-        let resolved =
-            resolve_ingredient_validation_source(&ingredient, parent_label, &deltas, 0)
-                .expect("uri-matched delta should resolve");
+        let resolved = resolve_ingredient_validation_source(&ingredient, parent_label, &deltas, 0)
+            .expect("uri-matched delta should resolve");
         assert_eq!(
             resolved
                 .get("success")

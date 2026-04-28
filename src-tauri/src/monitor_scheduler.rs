@@ -134,11 +134,7 @@ async fn run_scheduler(state: Arc<Mutex<AppState>>, handle: SchedulerHandle, dat
             }
         }
         LicenceTier::Professional | LicenceTier::Team | LicenceTier::Enterprise => {
-            log::info!(
-                "Monitor scheduler: started (cadence {}s, tier {:?}).",
-                POLL_CADENCE_SECS,
-                tier
-            );
+            log::info!("Monitor scheduler: started (cadence {POLL_CADENCE_SECS}s, tier {tier:?}).");
         }
     }
 
@@ -465,8 +461,7 @@ pub fn is_due(last_event_at: Option<DateTime<Utc>>, frequency: &str, now: DateTi
                 "weekly" => elapsed >= chrono::Duration::weeks(1),
                 other => {
                     log::warn!(
-                        "Monitor scheduler: unknown check_frequency {:?} — treating as daily",
-                        other
+                        "Monitor scheduler: unknown check_frequency {other:?} — treating as daily"
                     );
                     elapsed >= chrono::Duration::days(1)
                 }

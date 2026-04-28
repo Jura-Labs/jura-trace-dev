@@ -1876,7 +1876,9 @@ mod tests {
             }
         }"#;
         let result: DeepfakeResult = serde_json::from_str(json).unwrap();
-        let thresholds = result.verdict_thresholds.expect("verdict_thresholds populated");
+        let thresholds = result
+            .verdict_thresholds
+            .expect("verdict_thresholds populated");
         assert!((thresholds.synthetic_min - 0.55).abs() < 1e-9);
         assert!((thresholds.authentic_max - 0.25).abs() < 1e-9);
         assert_eq!(thresholds.model_version, "gbm-v4");
@@ -1903,7 +1905,9 @@ mod tests {
             }
         }"#;
         let result: ClipDetectionResult = serde_json::from_str(json).unwrap();
-        let thresholds = result.verdict_thresholds.expect("verdict_thresholds populated");
+        let thresholds = result
+            .verdict_thresholds
+            .expect("verdict_thresholds populated");
         assert!((thresholds.synthetic_min - 0.60).abs() < 1e-9);
         assert!((thresholds.authentic_max - 0.35).abs() < 1e-9);
         assert_eq!(thresholds.model_version, "univfd-probe-v9");

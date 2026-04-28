@@ -90,7 +90,11 @@ pub(crate) fn classify(file_name: &str, stem: &str, ext: &str) -> FilenameAnalys
 
     // Apple iPhone / Samsung / generic: IMG_NNNN or IMG_NNNNN
     if stem_upper.starts_with("IMG_") && stem[4..].chars().all(|c| c.is_ascii_digit()) {
-        return camera("camera", 0.85, "IMG_NNNN (Apple iPhone / Samsung / generic)");
+        return camera(
+            "camera",
+            0.85,
+            "IMG_NNNN (Apple iPhone / Samsung / generic)",
+        );
     }
 
     // Panasonic Lumix: P + 7 digits, or PA + 6 digits
@@ -167,19 +171,15 @@ pub(crate) fn classify(file_name: &str, stem: &str, ext: &str) -> FilenameAnalys
             pattern: "social_media".to_string(),
             confidence: 0.70,
             matched_pattern: Some("Twitter/X base62 media ID".to_string()),
-            summary:
-                "Filename matches Twitter/X media ID pattern — this image was likely \
+            summary: "Filename matches Twitter/X media ID pattern — this image was likely \
                  downloaded from or shared via Twitter/X."
-                    .to_string(),
+                .to_string(),
         };
     }
 
     // Facebook: numeric IDs, typically 15-19 digits
     // e.g. "123456789012345"
-    if stem.len() >= 15
-        && stem.len() <= 20
-        && stem.chars().all(|c| c.is_ascii_digit())
-    {
+    if stem.len() >= 15 && stem.len() <= 20 && stem.chars().all(|c| c.is_ascii_digit()) {
         return FilenameAnalysis {
             pattern: "social_media".to_string(),
             confidence: 0.65,
@@ -197,18 +197,21 @@ pub(crate) fn classify(file_name: &str, stem: &str, ext: &str) -> FilenameAnalys
         return FilenameAnalysis {
             pattern: "ai_generated".to_string(),
             confidence: 0.75,
-            matched_pattern: Some("UUID / hash filename (AI generator or web download)".to_string()),
-            summary:
-                "Filename is a UUID or hash string — typical of AI image generators, CDN \
+            matched_pattern: Some(
+                "UUID / hash filename (AI generator or web download)".to_string(),
+            ),
+            summary: "Filename is a UUID or hash string — typical of AI image generators, CDN \
                  downloads, and web content management pipelines."
-                    .to_string(),
+                .to_string(),
         };
     }
 
     // Long hex strings (32–64 chars) — common from stable diffusion outputs, DALL-E
     if stem.len() >= 32
         && stem.len() <= 64
-        && stem.chars().all(|c| c.is_ascii_hexdigit() || c == '-' || c == '_')
+        && stem
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() || c == '-' || c == '_')
     {
         return FilenameAnalysis {
             pattern: "ai_generated".to_string(),
@@ -262,9 +265,20 @@ pub(crate) fn classify(file_name: &str, stem: &str, ext: &str) -> FilenameAnalys
 
     // Common edit suffixes: -edit, -edited, _edit, _copy, (1), copy, -final, -v2
     let edit_keywords = [
-        "-edit", "_edit", "-edited", "_edited", "-copy", "_copy",
-        "-final", "_final", "-v2", "_v2", "-export", "_export",
-        "-processed", "_processed",
+        "-edit",
+        "_edit",
+        "-edited",
+        "_edited",
+        "-copy",
+        "_copy",
+        "-final",
+        "_final",
+        "-v2",
+        "_v2",
+        "-export",
+        "_export",
+        "-processed",
+        "_processed",
     ];
     for kw in &edit_keywords {
         if stem_lower.ends_with(kw)
@@ -286,7 +300,13 @@ pub(crate) fn classify(file_name: &str, stem: &str, ext: &str) -> FilenameAnalys
     // Windows copy pattern: "Filename (N)" where N is a digit
     if stem.ends_with(')')
         && stem.contains(" (")
-        && stem.rsplit(" (").next().unwrap_or("").trim_end_matches(')').chars().all(|c| c.is_ascii_digit())
+        && stem
+            .rsplit(" (")
+            .next()
+            .unwrap_or("")
+            .trim_end_matches(')')
+            .chars()
+            .all(|c| c.is_ascii_digit())
     {
         return FilenameAnalysis {
             pattern: "edited".to_string(),
@@ -299,8 +319,16 @@ pub(crate) fn classify(file_name: &str, stem: &str, ext: &str) -> FilenameAnalys
     // ── Generic / web download patterns ──────────────────────────────────
 
     let generic_names = [
-        "image", "photo", "picture", "download", "untitled", "file",
-        "img", "pic", "thumbnail", "preview",
+        "image",
+        "photo",
+        "picture",
+        "download",
+        "untitled",
+        "file",
+        "img",
+        "pic",
+        "thumbnail",
+        "preview",
     ];
     for gn in &generic_names {
         if stem_lower == *gn
@@ -312,9 +340,7 @@ pub(crate) fn classify(file_name: &str, stem: &str, ext: &str) -> FilenameAnalys
                 pattern: "web_download".to_string(),
                 confidence: 0.55,
                 matched_pattern: Some(format!("Generic filename '{gn}*'")),
-                summary: format!(
-                    "Generic filename starting with '{gn}' — no provenance signal."
-                ),
+                summary: format!("Generic filename starting with '{gn}' — no provenance signal."),
             };
         }
     }
@@ -376,9 +402,11 @@ fn matches_regex_like(
     time_len: usize,
 ) -> bool {
     let _ = (prefix_len, sep, time_len); // unused in simplified version
-    // Simplified: just check prefix + all-digits-or-underscores remainder
+                                         // Simplified: just check prefix + all-digits-or-underscores remainder
     s.starts_with(prefix)
-        && s[prefix.len()..].chars().all(|c| c.is_ascii_digit() || c == '_')
+        && s[prefix.len()..]
+            .chars()
+            .all(|c| c.is_ascii_digit() || c == '_')
         && s.len() > prefix.len() + 10
 }
 
@@ -468,11 +496,7 @@ mod tests {
 
     #[test]
     fn ai_explicit_name() {
-        let r = classify(
-            "dalle-output-01.png",
-            "dalle-output-01",
-            "png",
-        );
+        let r = classify("dalle-output-01.png", "dalle-output-01", "png");
         assert_eq!(r.pattern, "ai_generated");
         assert!(r.confidence >= 0.9);
     }

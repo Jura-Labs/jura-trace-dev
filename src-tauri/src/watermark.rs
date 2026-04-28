@@ -319,10 +319,7 @@ pub fn extract_watermark(
                 Some(exact_match),
                 conf,
                 if exact_match {
-                    format!(
-                        "Watermark matched: {}/{} bytes identical",
-                        matching_bytes, total
-                    )
+                    format!("Watermark matched: {matching_bytes}/{total} bytes identical")
                 } else {
                     format!(
                         "Watermark mismatch: {}/{} bytes matched ({:.0}%)",
@@ -344,10 +341,7 @@ pub fn extract_watermark(
     };
 
     log::info!(
-        "Watermark extraction complete: extracted={}, matches={:?}, confidence={:.2}",
-        extracted_hex,
-        matches,
-        confidence
+        "Watermark extraction complete: extracted={extracted_hex}, matches={matches:?}, confidence={confidence:.2}"
     );
 
     Ok(ExtractResult {

@@ -753,11 +753,11 @@ fn locate_icc_payload(buf: &[u8]) -> Option<&[u8]> {
         // PNG chunk layout: 4-byte length | 4-byte type | data | 4-byte CRC
         // The length field is 4 bytes *before* the type field.
         let data_start = iccp_pos + 4; // skip chunk type
-        // Skip null-terminated profile name then 1-byte compression method.
+                                       // Skip null-terminated profile name then 1-byte compression method.
         if let Some(null_pos) = buf[data_start..].iter().position(|&b| b == 0) {
             let compressed_start = data_start + null_pos + 1 + 1; // null + method byte
-            // The data is zlib-compressed; skip decompression and fall through
-            // to the generic `acsp` search which will still find raw profiles.
+                                                                  // The data is zlib-compressed; skip decompression and fall through
+                                                                  // to the generic `acsp` search which will still find raw profiles.
             let _ = compressed_start; // suppress unused warning
         }
     }
@@ -824,10 +824,8 @@ fn parse_icc_description(data: &[u8]) -> Option<String> {
             if tag_data.len() < 16 {
                 break;
             }
-            let record_count =
-                u32::from_be_bytes(tag_data[8..12].try_into().ok()?) as usize;
-            let record_size =
-                u32::from_be_bytes(tag_data[12..16].try_into().ok()?) as usize;
+            let record_count = u32::from_be_bytes(tag_data[8..12].try_into().ok()?) as usize;
+            let record_size = u32::from_be_bytes(tag_data[12..16].try_into().ok()?) as usize;
             if record_count == 0 || record_size < 12 {
                 break;
             }
@@ -835,10 +833,8 @@ fn parse_icc_description(data: &[u8]) -> Option<String> {
             if rec.len() < 12 {
                 break;
             }
-            let str_len =
-                u32::from_be_bytes(rec[4..8].try_into().ok()?) as usize;
-            let str_off =
-                u32::from_be_bytes(rec[8..12].try_into().ok()?) as usize;
+            let str_len = u32::from_be_bytes(rec[4..8].try_into().ok()?) as usize;
+            let str_off = u32::from_be_bytes(rec[8..12].try_into().ok()?) as usize;
             if str_off + str_len > tag_data.len() || str_len < 2 {
                 break;
             }
@@ -859,8 +855,7 @@ fn parse_icc_description(data: &[u8]) -> Option<String> {
             if tag_data.len() < 12 {
                 break;
             }
-            let ascii_len =
-                u32::from_be_bytes(tag_data[8..12].try_into().ok()?) as usize;
+            let ascii_len = u32::from_be_bytes(tag_data[8..12].try_into().ok()?) as usize;
             if ascii_len == 0 || 12 + ascii_len > tag_data.len() {
                 break;
             }
@@ -887,14 +882,9 @@ fn parse_icc_description(data: &[u8]) -> Option<String> {
 ///
 /// Reference: Independent JPEG Group `jctrans.c` / `jdct.h` default tables.
 const IJG_LUMA_Q50: [u16; 64] = [
-    16, 11, 10, 16, 24, 40, 51, 61,
-    12, 12, 14, 19, 26, 58, 60, 55,
-    14, 13, 16, 24, 40, 57, 69, 56,
-    14, 17, 22, 29, 51, 87, 80, 62,
-    18, 22, 37, 56, 68, 109, 103, 77,
-    24, 35, 55, 64, 81, 104, 113, 92,
-    49, 64, 78, 87, 103, 121, 120, 101,
-    72, 92, 95, 98, 112, 100, 103, 99,
+    16, 11, 10, 16, 24, 40, 51, 61, 12, 12, 14, 19, 26, 58, 60, 55, 14, 13, 16, 24, 40, 57, 69, 56,
+    14, 17, 22, 29, 51, 87, 80, 62, 18, 22, 37, 56, 68, 109, 103, 77, 24, 35, 55, 64, 81, 104, 113,
+    92, 49, 64, 78, 87, 103, 121, 120, 101, 72, 92, 95, 98, 112, 100, 103, 99,
 ];
 
 /// Small built-in Q-table fingerprint database.
@@ -921,7 +911,10 @@ const QTABLE_SIGNATURES: &[([u16; 4], &str)] = &[
     ([6, 4, 4, 5], "Photoshop Save for Web Q70"),
     ([8, 6, 5, 8], "Photoshop Save for Web Q60"),
     // Google Photos / Pixel Camera (aggressive chroma subsampling + custom table)
-    ([1, 1, 1, 1], "Google Photos / Pixel Camera (very high quality)"),
+    (
+        [1, 1, 1, 1],
+        "Google Photos / Pixel Camera (very high quality)",
+    ),
     ([2, 1, 1, 2], "Google Photos Q85-95 range"),
     // Apple HEIC-to-JPEG transcoding
     ([2, 1, 1, 2], "Apple HEIC-to-JPEG export (high quality)"),
@@ -942,9 +935,7 @@ pub fn extract_jpeg_quant_tables(path: &Path) -> Option<JpegQuantTables> {
     // 128 KB is more than enough to find DQT markers (they appear before the
     // SOS marker in any compliant JPEG, typically within the first 4 KB).
     let mut buf = Vec::with_capacity(128 * 1024);
-    file.take(128 * 1024)
-        .read_to_end(&mut buf)
-        .ok()?;
+    file.take(128 * 1024).read_to_end(&mut buf).ok()?;
 
     // Verify JPEG SOI marker.
     if buf.len() < 2 || buf[0] != 0xFF || buf[1] != 0xD8 {
@@ -1020,7 +1011,9 @@ pub fn extract_jpeg_quant_tables(path: &Path) -> Option<JpegQuantTables> {
     }
 
     let estimated_quality = luminance.as_ref().map(|luma| estimate_jpeg_quality(luma));
-    let known_source = luminance.as_ref().and_then(|luma| match_qtable_signature(luma));
+    let known_source = luminance
+        .as_ref()
+        .and_then(|luma| match_qtable_signature(luma));
 
     Some(JpegQuantTables {
         luminance,
