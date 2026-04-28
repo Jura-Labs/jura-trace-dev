@@ -961,40 +961,6 @@
       </button>
     {/if}
 
-    <!-- Batch action triggers -->
-    {#if unsignedAssets.length > 0}
-      <button
-        class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian flex-shrink-0"
-        onclick={openBatchSign}
-        aria-label="Add credentials to all unsigned assets ({unsignedAssets.length} eligible)"
-      >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-            d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        Add Credentials to All
-        <span class="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-lapis/20 text-lapis dark:text-lapis-light text-[10px] font-medium px-1">
-          {unsignedAssets.length}
-        </span>
-      </button>
-    {/if}
-    {#if unwatermarkedImages.length > 0}
-      <button
-        class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian flex-shrink-0"
-        onclick={openBatchWatermark}
-        aria-label="Watermark all unwatermarked images ({unwatermarkedImages.length} eligible)"
-      >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-            d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.955 11.955 0 010 12c0 6.627 5.373 12 12 12s12-5.373 12-12c0-2.416-.714-4.668-1.952-6.56m-8.048.56A4 4 0 0112 8v4m0 0v4m0-4h4m-4 0H8" />
-        </svg>
-        Watermark All
-        <span class="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-lapis/20 text-lapis dark:text-lapis-light text-[10px] font-medium px-1">
-          {unwatermarkedImages.length}
-        </span>
-      </button>
-    {/if}
-
     <!-- View toggle: List / Grid -->
     <div
       class="ml-auto flex-shrink-0 flex items-center rounded border border-border-light dark:border-border-dark overflow-hidden text-xs"
@@ -1039,6 +1005,61 @@
       </button>
     </div>
   </div>
+
+  <!-- Bulk actions — shown only when eligible assets exist.
+       Extracted from the filter bar (JTV-122): batch triggers are
+       destructive operations and must not live in a role="search" region. -->
+  {#if unsignedAssets.length > 0 || unwatermarkedImages.length > 0}
+    <section
+      aria-labelledby="bulk-actions-heading"
+      class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl px-4 py-3 flex flex-wrap items-center gap-3"
+    >
+      <h2
+        id="bulk-actions-heading"
+        class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide flex-shrink-0 mr-1"
+      >
+        Bulk Actions
+      </h2>
+
+      {#if unsignedAssets.length > 0}
+        <button
+          class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian flex-shrink-0"
+          onclick={openBatchSign}
+          aria-label="Add credentials to all unsigned assets — {unsignedAssets.length} eligible"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Add Credentials to All
+          <span class="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-lapis/20 text-lapis dark:text-lapis-light text-[10px] font-medium px-1" aria-hidden="true">
+            {unsignedAssets.length}
+          </span>
+          <span class="sr-only">({unsignedAssets.length} eligible)</span>
+        </button>
+      {/if}
+
+      {#if unwatermarkedImages.length > 0}
+        <button
+          class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian flex-shrink-0"
+          onclick={openBatchWatermark}
+          aria-label="Watermark all unwatermarked images — {unwatermarkedImages.length} eligible"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.955 11.955 0 010 12c0 6.627 5.373 12 12 12s12-5.373 12-12c0-2.416-.714-4.668-1.952-6.56m-8.048.56A4 4 0 0112 8v4m0 0v4m0-4h4m-4 0H8" />
+          </svg>
+          Watermark All
+          <span class="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-lapis/20 text-lapis dark:text-lapis-light text-[10px] font-medium px-1" aria-hidden="true">
+            {unwatermarkedImages.length}
+          </span>
+          <span class="sr-only">({unwatermarkedImages.length} eligible)</span>
+        </button>
+      {/if}
+    </section>
+  {/if}
 
   <!-- Batch C2PA sign panel -->
   {#if showBatchSign}
