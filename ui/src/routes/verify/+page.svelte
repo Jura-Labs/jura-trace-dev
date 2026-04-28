@@ -6,6 +6,7 @@
     parseAppError, getLicenceTier, getVersion,
     openBatchFileDialog, extractTextFromImage,
     getNetworkMode,
+    runNprOnDemand, runShadowConsistencyOnDemand, runSpliceBoundaryOnDemand,
   } from '$lib/api';
   import { getTrustLevel, formatFileSize, formatDuration } from '$lib/types';
   import type {
@@ -98,6 +99,39 @@
   // power user can inspect without flipping the global Settings raw-scores
   // toggle.  The global toggle still reveals them automatically.
   let showClipZeroShot = $state(false);
+
+  // On-demand detector loading state — set per detector while the
+  // sidecar request is in-flight, cleared when the result merges back
+  // into `result` (which then triggers the row to render in place of
+  // the on-demand-tools footer).  String-keyed so a single error
+  // message can be surfaced if the sidecar refuses, without bloating
+  // the result shape.
+  type OnDemandKey = 'npr' | 'shadow' | 'splice';
+  let onDemandLoading = $state<Record<OnDemandKey, boolean>>({ npr: false, shadow: false, splice: false });
+  let onDemandError = $state<Record<OnDemandKey, string | null>>({ npr: null, shadow: null, splice: null });
+
+  async function runOnDemand(kind: OnDemandKey): Promise<void> {
+    if (!filePath || !result) return;
+    onDemandLoading[kind] = true;
+    onDemandError[kind] = null;
+    try {
+      if (kind === 'npr') {
+        const r = await runNprOnDemand(filePath);
+        result = { ...result, nprResult: r };
+      } else if (kind === 'shadow') {
+        const r = await runShadowConsistencyOnDemand(filePath);
+        result = { ...result, shadowConsistencyResult: r };
+      } else {
+        const r = await runSpliceBoundaryOnDemand(filePath);
+        result = { ...result, spliceBoundaryResult: r };
+      }
+    } catch (err) {
+      const parsed = parseAppError(err);
+      onDemandError[kind] = parsed?.message ?? String(err);
+    } finally {
+      onDemandLoading[kind] = false;
+    }
+  }
 
   // GBM Deepfake synthetic verdict boundary fallback.
   //
@@ -3563,20 +3597,74 @@
 
             </ul>
 
-            <!-- On-demand detectors note.
+            <!-- On-demand detectors footer.
                  Shadow Consistency, Splice Boundary, and NPR do NOT auto-run
-                 in any mode — see src-tauri/src/lib.rs:1621-1627 where they
-                 are explicitly pinned to None even in deep mode.  They are
-                 surfaced via dedicated on-demand sidecar endpoints which
-                 currently have no v2 UI affordance (the trigger lived in
-                 classic view, retired commit 5a9eb4f).  Be honest about
-                 that rather than implying mode-gated availability. -->
-            {#if !result.shadowConsistencyResult && !result.spliceBoundaryResult && !result.nprResult}
-              <div class="px-5 py-3 border-t border-border-light dark:border-border-dark/40 bg-white/[0.01] flex items-center gap-3 flex-wrap">
-                <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold">On-demand tools</span>
-                <span class="text-xs text-flint-dark dark:text-flint-light">
-                  Shadow Consistency, Splice Boundary, and NPR are on-demand investigation tools — not currently auto-run in any verify mode.
-                </span>
+                 in any verify mode (see src-tauri/src/lib.rs:1621-1627 — the
+                 deep group pins their results to None).  Each button below
+                 invokes the dedicated Tauri command which calls the sidecar
+                 endpoint and merges the result back into the active
+                 VerificationResult.  When a detector returns, its row
+                 appears above and disappears from this footer (gated on
+                 result.<detector>Result presence per-button).
+            -->
+            {#if !result.shadowConsistencyResult || !result.spliceBoundaryResult || !result.nprResult}
+              <div class="px-5 py-3 border-t border-border-light dark:border-border-dark/40 bg-white/[0.01]">
+                <div class="flex items-center gap-2 mb-2 flex-wrap">
+                  <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold">On-demand investigation tools</span>
+                  <span class="text-[11px] text-flint-dark dark:text-flint-light">
+                    Run individually — these detectors do not auto-run in any verify mode.
+                  </span>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  {#if !result.nprResult}
+                    <button
+                      type="button"
+                      class="text-xs px-3 py-1.5 rounded-md border border-border-light dark:border-border-dark bg-white dark:bg-graphite hover:border-lapis hover:text-lapis dark:hover:text-lapis-light transition-colors min-h-[32px]
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!filePath || !sidecarAvailable || onDemandLoading.npr}
+                      onclick={() => runOnDemand('npr')}
+                    >
+                      {onDemandLoading.npr ? 'Running NPR…' : 'Run NPR'}
+                    </button>
+                  {/if}
+                  {#if !result.shadowConsistencyResult}
+                    <button
+                      type="button"
+                      class="text-xs px-3 py-1.5 rounded-md border border-border-light dark:border-border-dark bg-white dark:bg-graphite hover:border-lapis hover:text-lapis dark:hover:text-lapis-light transition-colors min-h-[32px]
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!filePath || !sidecarAvailable || onDemandLoading.shadow}
+                      onclick={() => runOnDemand('shadow')}
+                    >
+                      {onDemandLoading.shadow ? 'Running Shadow Consistency…' : 'Run Shadow Consistency'}
+                    </button>
+                  {/if}
+                  {#if !result.spliceBoundaryResult}
+                    <button
+                      type="button"
+                      class="text-xs px-3 py-1.5 rounded-md border border-border-light dark:border-border-dark bg-white dark:bg-graphite hover:border-lapis hover:text-lapis dark:hover:text-lapis-light transition-colors min-h-[32px]
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!filePath || !sidecarAvailable || onDemandLoading.splice}
+                      onclick={() => runOnDemand('splice')}
+                    >
+                      {onDemandLoading.splice ? 'Running Splice Boundary…' : 'Run Splice Boundary'}
+                    </button>
+                  {/if}
+                </div>
+                {#if onDemandError.npr || onDemandError.shadow || onDemandError.splice}
+                  <p class="mt-2 text-xs text-cinnabar-dark dark:text-cinnabar-light" role="alert">
+                    {onDemandError.npr ?? onDemandError.shadow ?? onDemandError.splice}
+                  </p>
+                {/if}
+                {#if !sidecarAvailable}
+                  <p class="mt-2 text-[11px] text-flint-dark dark:text-flint-light">
+                    Analysis Engine unavailable — start the sidecar to enable these tools.
+                  </p>
+                {/if}
+                {#if !filePath}
+                  <p class="mt-2 text-[11px] text-flint-dark dark:text-flint-light">
+                    Original file path not retained — re-verify the file to enable on-demand analysis.
+                  </p>
+                {/if}
               </div>
             {/if}
 

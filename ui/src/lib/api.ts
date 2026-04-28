@@ -6,7 +6,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, ConformantCertificateInfo, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, NetworkMode, RoiAnalysisResult, SidecarHealth, SigningMode, SimilarAsset, SolarPosition, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
+import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, ConformantCertificateInfo, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, NetworkMode, NprResult, RoiAnalysisResult, ShadowConsistencyResult, SidecarHealth, SigningMode, SimilarAsset, SolarPosition, SpliceBoundaryResult, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -1185,4 +1185,75 @@ export async function setNetworkMode(mode: NetworkMode): Promise<NetworkMode> {
     }
   }
   return mode;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// On-demand investigation tools (NPR, Shadow Consistency, Splice
+// Boundary).  These detectors do not auto-run in any verify mode —
+// see src-tauri/src/lib.rs:1620 — and are surfaced via dedicated
+// IPC commands so the v2 verify page's on-demand-tools footer can
+// trigger them without re-running the full pipeline.  Each command
+// expects a previously-verified file path; the caller is responsible
+// for merging the returned result back into the active
+// VerificationResult so subsequent renders pick up the new row.
+// ──────────────────────────────────────────────────────────────────
+
+/**
+ * Run NPR (Neighbouring Pixel Relationships) analysis on demand.
+ */
+export async function runNprOnDemand(filePath: string): Promise<NprResult> {
+  if (isTauri) {
+    return await invoke<NprResult>('run_npr_on_demand', { filePath });
+  }
+  // Browser mock — returns a benign clean-state result so dev preview
+  // does not visually claim manipulation when no sidecar is attached.
+  return {
+    score: 0.05,
+    suspicious: false,
+    hvCorrelation: 0.91,
+    diffVarianceRatio: 0.6,
+    hfEnergyRatio: 0.4,
+    heatmapBase64: '',
+    summary: 'Browser preview — no analysis run.',
+  };
+}
+
+/**
+ * Run shadow consistency analysis on demand.
+ */
+export async function runShadowConsistencyOnDemand(
+  filePath: string,
+): Promise<ShadowConsistencyResult> {
+  if (isTauri) {
+    return await invoke<ShadowConsistencyResult>('run_shadow_consistency_on_demand', { filePath });
+  }
+  return {
+    score: 0.05,
+    suspicious: false,
+    inconsistentRegions: 0,
+    totalRegions: 12,
+    globalLightDirection: 90.0,
+    heatmapBase64: '',
+    summary: 'Browser preview — no analysis run.',
+  } as ShadowConsistencyResult;
+}
+
+/**
+ * Run splice boundary analysis on demand.
+ */
+export async function runSpliceBoundaryOnDemand(
+  filePath: string,
+): Promise<SpliceBoundaryResult> {
+  if (isTauri) {
+    return await invoke<SpliceBoundaryResult>('run_splice_boundary_on_demand', { filePath });
+  }
+  return {
+    score: 0.05,
+    suspicious: false,
+    suspiciousBoundaries: 0,
+    totalBoundariesChecked: 0,
+    boundaries: [],
+    heatmapBase64: '',
+    summary: 'Browser preview — no analysis run.',
+  } as SpliceBoundaryResult;
 }

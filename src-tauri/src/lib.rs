@@ -3374,6 +3374,98 @@ fn analyse_video_deepfake(
         .map_err(AppError::Sidecar)
 }
 
+// ===== On-demand investigation tools =====
+//
+// NPR, shadow consistency, and splice boundary do not auto-run in any
+// verify mode (see verify_content_inner around line 1620 — the deep
+// group explicitly pins their results to None).  These commands let
+// the v2 UI invoke them on demand from the integrity card's
+// "On-demand tools" footer; the result is merged back into the
+// VerificationResult by the frontend so subsequent re-renders show
+// the new row chrome.
+//
+// Each command follows the same shape as `analyse_video_deepfake`:
+// path validation, sidecar availability check, then a direct call
+// to the existing client method on `sidecar::Client`.  No new
+// sidecar work — the Python endpoints (/forensics/npr,
+// /forensics/shadow-consistency, /forensics/splice-boundary) have
+// shipped since v0.6 and are exercised by the sidecar test suite.
+
+/// Run NPR (Neighbouring Pixel Relationships) analysis on demand.
+#[tauri::command]
+fn run_npr_on_demand(
+    file_path: String,
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<sidecar::NprResult, AppError> {
+    if file_path.contains('\0') {
+        return Err(AppError::Validation("Invalid file path".into()));
+    }
+    let path = std::path::PathBuf::from(&file_path)
+        .canonicalize()
+        .map_err(|_| AppError::Validation("File not found or inaccessible".into()))?;
+
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
+    if !app.sidecar.is_available() {
+        return Err(AppError::Sidecar("ML sidecar is not available".into()));
+    }
+
+    app.sidecar
+        .analyse_npr(&path)
+        .map_err(AppError::Sidecar)
+}
+
+/// Run shadow consistency analysis on demand.
+#[tauri::command]
+fn run_shadow_consistency_on_demand(
+    file_path: String,
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<sidecar::ShadowConsistencyResult, AppError> {
+    if file_path.contains('\0') {
+        return Err(AppError::Validation("Invalid file path".into()));
+    }
+    let path = std::path::PathBuf::from(&file_path)
+        .canonicalize()
+        .map_err(|_| AppError::Validation("File not found or inaccessible".into()))?;
+
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
+    if !app.sidecar.is_available() {
+        return Err(AppError::Sidecar("ML sidecar is not available".into()));
+    }
+
+    app.sidecar
+        .check_shadow_consistency(&path)
+        .map_err(AppError::Sidecar)
+}
+
+/// Run splice boundary analysis on demand.
+#[tauri::command]
+fn run_splice_boundary_on_demand(
+    file_path: String,
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<sidecar::SpliceBoundaryResult, AppError> {
+    if file_path.contains('\0') {
+        return Err(AppError::Validation("Invalid file path".into()));
+    }
+    let path = std::path::PathBuf::from(&file_path)
+        .canonicalize()
+        .map_err(|_| AppError::Validation("File not found or inaccessible".into()))?;
+
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
+    if !app.sidecar.is_available() {
+        return Err(AppError::Sidecar("ML sidecar is not available".into()));
+    }
+
+    app.sidecar
+        .check_splice_boundary(&path)
+        .map_err(AppError::Sidecar)
+}
+
 /// Extract and transcribe all visible text from an image using Ollama LLaVA.
 ///
 /// Sends the image at `file_path` to the sidecar's `/forensics/extract-text`
@@ -5096,6 +5188,9 @@ pub fn run() {
             embed_watermark_asset,
             extract_watermark_from_path,
             analyse_video_deepfake,
+            run_npr_on_demand,
+            run_shadow_consistency_on_demand,
+            run_splice_boundary_on_demand,
             extract_text_from_image,
             get_db_path,
             set_db_path,
