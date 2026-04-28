@@ -236,64 +236,55 @@
 <div class="space-y-0">
 
   <!-- ── Hero ──────────────────────────────────────────────────── -->
+  <!--
+    Hero copy reset 2026-04-28 after pilot UX agent review.  The previous
+    headline "What has happened to your work" was poetic but read as a
+    promise the page does not keep — pilots arrived expecting reverse-
+    image-search-style scanning of the open web.  The replacement names
+    the boundary positively first ("what this machine knows") and then
+    closes the gap explicitly so the user is not blindsided by the
+    Watched Locations section below.
+
+    The previous top-level AI-training-detection notice was moved into
+    the Watched Locations section as a contextual sub-note, where it is
+    accurate rather than globally alarming on first paint.
+  -->
   <section class="text-center py-16 pb-12">
     <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] uppercase tracking-widest mb-5">
-      Content story
+      Your local record
     </p>
     <h1
       class="text-4xl font-heading text-text-light dark:text-quartz mb-5 font-normal"
       style="letter-spacing: -0.01em; line-height: 1.3;"
     >
-      What has happened to your work
+      What this machine knows about your content
     </h1>
-    <p class="text-base text-flint-dark dark:text-flint-light dark:text-[#9B9890] max-w-md mx-auto mb-3 leading-relaxed">
-      A record of every file you have protected and every claim you have examined.
+    <p class="text-base text-flint-dark dark:text-flint-light dark:text-[#9B9890] max-w-xl mx-auto mb-3 leading-relaxed">
+      Monitor shows what Jura Trace has done here — files protected, claims examined, and any
+      URLs you have asked it to watch. It does not scan the open web or detect whether your
+      content has been reused without your knowledge.
     </p>
     <p class="text-sm text-flint-dark dark:text-flint-light max-w-sm mx-auto italic leading-relaxed">
       Everything stored locally. Nothing leaves this machine.
     </p>
   </section>
 
-  <!-- ── AI training limitation notice ────────────────────────── -->
-  <div
-    role="note"
-    aria-label="AI training detection limitation"
-    class="mx-auto max-w-2xl mb-8 rounded-lg border border-lapis/30 bg-lapis/10 px-5 py-4"
-  >
-    <div class="flex gap-3">
-      <!-- Circle-i info icon -->
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 20 20"
-        fill="currentColor"
-        class="mt-0.5 h-4 w-4 flex-shrink-0 text-lapis dark:text-lapis-light"
-        aria-hidden="true"
-      >
-        <path
-          fill-rule="evenodd"
-          d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z"
-          clip-rule="evenodd"
-        />
-      </svg>
-      <p class="text-xs leading-relaxed text-lapis dark:text-lapis-light">
-        Content monitoring cannot detect whether your content has been used to train AI models.
-        Watermarks and C2PA provenance manifests do not survive AI model training — they are
-        designed to detect republication and unauthorised hosting, not extraction into training
-        datasets.{' '}
-        <a
-          href="/help/methodology"
-          class="underline underline-offset-2 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded-sm"
-        >
-          Learn more about content monitoring limits
-        </a>
-      </p>
-    </div>
-  </div>
-
   <!-- ── Earth line ────────────────────────────────────────────── -->
   <div class="earth-line" aria-hidden="true"></div>
 
-  <!-- ── URL Watchlist ─────────────────────────────────────────── -->
+  <!-- ── Watched locations ─────────────────────────────────────── -->
+  <!--
+    Renamed from "URL Watchlist" 2026-04-28 — the previous label
+    carried a policing connotation and did not telegraph the
+    user-effort needed (the user must already know which URLs to
+    seed).  "Watched locations" is neutral and human-scaled.
+
+    The introductory paragraph now states the manual-curation
+    constraint up front, and the AI-training notice (previously a
+    page-level banner above the hero) has been moved into this
+    section as a contextual sub-note since it is specifically about
+    the limits of what URL polling can detect.
+  -->
   <section
     class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]"
     aria-labelledby="watchlist-heading"
@@ -311,15 +302,16 @@
           class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
           style="letter-spacing: -0.01em;"
         >
-          URL Watchlist
+          Watched locations
         </h2>
-        <ContextualHelpLink href="/help/monitor#url-watchlist" label="Learn about URL monitoring and watchlists" />
+        <ContextualHelpLink href="/help/monitor#url-watchlist" label="Learn about watched locations" />
       </div>
     </div>
 
     <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-6">
-      Register URLs where your protected content is published. Jura Trace will periodically check
-      for changes to content, credentials, and watermarks.
+      You tell Jura Trace where your protected content is published. It checks those locations
+      on a schedule you set, and alerts you if credentials or watermarks have changed. This
+      does not scan the open web — you must know the URL in advance.
     </p>
 
     <div class="pl-24">
@@ -344,7 +336,7 @@
           onclick={() => { showAddForm = true; addError = null; }}
           class="min-h-[44px] px-5 py-2.5 text-sm rounded-full border border-lapis/40 text-lapis dark:text-lapis-light dark:border-lapis-light/40 hover:bg-lapis/10 dark:hover:bg-lapis-light/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian mb-6"
         >
-          Add URL to monitor
+          Add a location to watch
         </button>
       {:else}
         <div
@@ -431,16 +423,16 @@
             class="font-heading text-lg font-normal text-text-light dark:text-quartz mb-3"
             style="letter-spacing: -0.01em;"
           >
-            No URLs being monitored
+            No locations added yet
           </h3>
           <div class="earth-line mb-5" aria-hidden="true"></div>
           <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed mb-2">
-            Register URLs where your protected content is published.
+            Add the URL of any page where your protected content is published.
             Jura Trace will track changes and verify that your content
             credentials remain intact.
           </p>
           <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mt-4">
-            Add your first URL using the form above.
+            Use the button above to add your first location.
           </p>
         </div>
       {:else}
@@ -628,6 +620,54 @@
           {/each}
         </ul>
       {/if}
+
+      <!-- AI training notice — moved here from a page-level banner.
+           The limit is specifically about what URL polling and
+           watermark / C2PA detection can surface, so it belongs in
+           context with the watchlist rather than as a global alarm. -->
+      <div
+        role="note"
+        aria-label="AI training detection limitation"
+        class="mt-8 max-w-2xl rounded-lg border border-lapis/20 bg-lapis/5 px-4 py-3"
+      >
+        <p class="text-xs leading-relaxed text-flint-dark dark:text-flint-light">
+          <span class="font-medium text-lapis dark:text-lapis-light">Note:</span>
+          Watching a URL cannot detect whether your content has been used to train AI models.
+          Watermarks and C2PA provenance manifests do not survive AI model training — they are
+          designed to detect republication and unauthorised hosting, not extraction into training
+          datasets.
+          <a
+            href="/help/methodology"
+            class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded-sm"
+          >
+            Learn more about content monitoring limits
+          </a>.
+        </p>
+      </div>
+
+      <!-- Reverse-image-search roadmap callout (JTV-98 / backlog #19).
+           Pilot testers consistently arrive at this page expecting
+           open-web scanning; document the gap so the surprise is
+           addressed up front rather than encountered after they've
+           added URLs and seen no hits. -->
+      <div
+        role="note"
+        aria-label="Reverse image search availability"
+        class="mt-3 max-w-2xl rounded-lg border border-lapis/20 bg-lapis/5 px-4 py-3"
+      >
+        <p class="text-sm font-medium text-lapis dark:text-lapis-light mb-1">
+          What Monitor does not do yet
+        </p>
+        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+          Jura Trace cannot search the open web for your content. If you want to find out whether
+          an image has been republished without your knowledge — on social media, news sites, or
+          image aggregators — you currently need to use a reverse image search service such as
+          TinEye or Google Images manually.
+        </p>
+        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-1.5">
+          Automated reverse image search (BYOK API key) is planned for a future release.
+        </p>
+      </div>
     </div>
   </section>
 
