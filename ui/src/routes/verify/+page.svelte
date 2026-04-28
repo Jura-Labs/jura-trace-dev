@@ -27,6 +27,7 @@
   import ContentCredentialsSeal from '$lib/components/ContentCredentialsSeal.svelte';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import DetectorRow from '$lib/components/DetectorRow.svelte';
+  import AiDetectorRow from '$lib/components/AiDetectorRow.svelte';
   import ImageZoom from '$lib/components/ImageZoom.svelte';
   import { forensicScoreClass } from '$lib/scoring';
   import SignalAgreement from '$lib/components/SignalAgreement.svelte';
@@ -3648,176 +3649,160 @@
               <ul class="divide-y divide-border-light/70 dark:divide-border-dark/40 mt-3" aria-label="AI detection checks">
 
                 {#if result.deepfakeResult}
-                  {@const gbmSignals = result.deepfakeResult.signals ?? []}
+                  {@const gbm = result.deepfakeResult}
+                  {@const gbmSignals = gbm.signals ?? []}
                   {@const gbmTriggered = gbmSignals.filter((s) => s.triggered).length}
-                  {@const gbmHighScoreNoSignals = gbmTriggered === 0 && (result.deepfakeResult.suspicious || result.deepfakeResult.verdictLevel === 'synthetic' || result.deepfakeResult.verdictLevel === 'inconclusive')}
-                  <li class="px-5 py-4 {result.deepfakeResult.suspicious ? 'bg-amber/[0.04]' : ''}">
-                    <div class="flex items-start gap-3">
-                      <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {result.deepfakeResult.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        {#if result.deepfakeResult.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                        {:else}<polyline points="20 6 9 17 4 12"/>{/if}
-                      </svg>
-                      <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 mb-1 flex-wrap">
-                          <span class="text-sm font-medium {result.deepfakeResult.suspicious ? 'text-amber-light' : 'text-obsidian dark:text-quartz'}">AI Generation (GBM Deepfake)</span>
-                          <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light">{result.deepfakeResult.confidence} confidence</span>
-                          <!-- Threshold (JTV-93 / JTV-97): live value from
-                               the sidecar response when present, else the
-                               version-pinned fallback.  See comment on the
-                               constant above for the rollout policy. -->
-                          <span class="text-xs text-flint-dark dark:text-flint-light tabular-nums" aria-label="Synthetic verdict boundary">
-                            threshold {Math.round((result.deepfakeResult.verdictThresholds?.syntheticMin ?? GBM_SYNTHETIC_THRESHOLD_FALLBACK) * 100)}%
-                          </span>
-                        </div>
-                        <p class="text-xs text-flint-dark dark:text-flint-light">{result.deepfakeResult.summary}</p>
-                        <!-- Verdict text is gated behind raw-scores (JTV-91):
-                             the row already communicates the verdict via three
-                             redundant signals (amber/cinnabar background tint,
-                             coloured icon, coloured title).  A fourth duplicate
-                             text label was the surface that made "Synthetic"
-                             read as a separate claim from the signal accordion
-                             when 0 indicators triggered. -->
-                        {#if showRawScores && result.deepfakeResult.verdictLevel}
-                          <p class="text-xs mt-1 font-medium {result.deepfakeResult.verdictLevel === 'synthetic' ? 'text-cinnabar-dark dark:text-cinnabar-light' : result.deepfakeResult.verdictLevel === 'inconclusive' ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}">
-                            Verdict: {result.deepfakeResult.verdictLevel.charAt(0).toUpperCase() + result.deepfakeResult.verdictLevel.slice(1)}
-                          </p>
-                        {/if}
-                        <!-- Bridging sentence (JTV-88): when the headline
-                             verdict is non-authentic but no per-feature signal
-                             individually tripped, explain the architecture so
-                             the accordion below does not read as a contradiction.
-                             The GBM scores on an 84-feature vector; the named
-                             signals are explanatory thresholded checks on a
-                             subset of those features. -->
-                        {#if gbmHighScoreNoSignals && gbmSignals.length > 0}
-                          <p class="text-[11px] text-flint-dark dark:text-flint-light italic mt-1.5 leading-snug">
-                            Score reflects statistical patterns across the model's 84-feature vector. None of the {gbmSignals.length} named indicators triggered individually.
-                          </p>
-                        {/if}
-                        <!-- Signal breakdown.  Visually de-emphasised when 0
-                             triggered (per JTV-88) — the accordion is then
-                             explanatory, not load-bearing. -->
-                        {#if gbmSignals.length > 0}
-                          <details class="mt-2 group {gbmTriggered === 0 ? 'opacity-60' : ''}">
-                            <summary class="list-none text-[11px] text-lapis dark:text-lapis-light cursor-pointer hover:text-obsidian dark:hover:text-quartz flex items-center gap-1 min-h-[24px]
-                                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded">
-                              <svg class="w-3 h-3 motion-safe:group-open:rotate-90 transition-transform duration-150" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
-                              {#if gbmTriggered === 0}
-                                {gbmSignals.length} named indicator{gbmSignals.length === 1 ? '' : 's'} (none triggered)
-                              {:else}
-                                {gbmTriggered} of {gbmSignals.length} indicator{gbmSignals.length === 1 ? '' : 's'} triggered
-                              {/if}
-                            </summary>
-                            <ul class="mt-1.5 space-y-1 ml-4" aria-label="Deepfake detector signals">
-                              {#each gbmSignals as sig}
-                                <li class="flex items-center justify-between gap-3 text-[11px]">
-                                  <span class="text-flint-dark dark:text-flint-light">{sig.name}</span>
-                                  <span class="{sig.triggered ? 'text-amber-dark dark:text-amber-light font-medium' : 'text-malachite-dark dark:text-malachite-light'}">
-                                    {sig.triggered ? 'Triggered' : 'Clear'} · w={sig.weight.toFixed(2)}
-                                  </span>
-                                </li>
-                              {/each}
-                            </ul>
-                          </details>
-                        {/if}
-                        {#if showRawScores}
-                          <p class="text-[10px] text-flint-dark dark:text-flint-light mt-1 tabular-nums font-mono">
-                            score: {result.deepfakeResult.score.toFixed(6)} · threshold: {(result.deepfakeResult as any).threshold?.toFixed(6) ?? '—'}
-                          </p>
-                        {/if}
-                      </div>
-                      <span class="text-sm font-medium tabular-nums flex-shrink-0 {forensicScoreClass(result.deepfakeResult.score)}">{Math.round(result.deepfakeResult.score * 100)}%</span>
-                    </div>
-                  </li>
+                  {@const gbmHighScoreNoSignals = gbmTriggered === 0 && (gbm.suspicious || gbm.verdictLevel === 'synthetic' || gbm.verdictLevel === 'inconclusive')}
+                  <AiDetectorRow
+                    name="AI Generation (GBM Deepfake)"
+                    score={gbm.score}
+                    suspicious={gbm.suspicious}
+                    confidence="{gbm.confidence} confidence"
+                  >
+                    {#snippet badges()}
+                      <!-- Threshold (JTV-93 / JTV-97): live value from
+                           the sidecar response when present, else the
+                           version-pinned fallback.  See comment on the
+                           constant above for the rollout policy. -->
+                      <span class="text-xs text-flint-dark dark:text-flint-light tabular-nums" aria-label="Synthetic verdict boundary">
+                        threshold {Math.round((gbm.verdictThresholds?.syntheticMin ?? GBM_SYNTHETIC_THRESHOLD_FALLBACK) * 100)}%
+                      </span>
+                    {/snippet}
+                    <p class="text-xs text-flint-dark dark:text-flint-light">{gbm.summary}</p>
+                    <!-- Verdict text is gated behind raw-scores (JTV-91):
+                         the row already communicates the verdict via three
+                         redundant signals (amber/cinnabar background tint,
+                         coloured icon, coloured title).  A fourth duplicate
+                         text label was the surface that made "Synthetic"
+                         read as a separate claim from the signal accordion
+                         when 0 indicators triggered. -->
+                    {#if showRawScores && gbm.verdictLevel}
+                      <p class="text-xs mt-1 font-medium {gbm.verdictLevel === 'synthetic' ? 'text-cinnabar-dark dark:text-cinnabar-light' : gbm.verdictLevel === 'inconclusive' ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}">
+                        Verdict: {gbm.verdictLevel.charAt(0).toUpperCase() + gbm.verdictLevel.slice(1)}
+                      </p>
+                    {/if}
+                    <!-- Bridging sentence (JTV-88): when the headline
+                         verdict is non-authentic but no per-feature signal
+                         individually tripped, explain the architecture so
+                         the accordion below does not read as a contradiction. -->
+                    {#if gbmHighScoreNoSignals && gbmSignals.length > 0}
+                      <p class="text-[11px] text-flint-dark dark:text-flint-light italic mt-1.5 leading-snug">
+                        Score reflects statistical patterns across the model's 84-feature vector. None of the {gbmSignals.length} named indicators triggered individually.
+                      </p>
+                    {/if}
+                    {#if gbmSignals.length > 0}
+                      <details class="mt-2 group {gbmTriggered === 0 ? 'opacity-60' : ''}">
+                        <summary class="list-none text-[11px] text-lapis dark:text-lapis-light cursor-pointer hover:text-obsidian dark:hover:text-quartz flex items-center gap-1 min-h-[24px]
+                                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded">
+                          <svg class="w-3 h-3 motion-safe:group-open:rotate-90 transition-transform duration-150" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+                          {#if gbmTriggered === 0}
+                            {gbmSignals.length} named indicator{gbmSignals.length === 1 ? '' : 's'} (none triggered)
+                          {:else}
+                            {gbmTriggered} of {gbmSignals.length} indicator{gbmSignals.length === 1 ? '' : 's'} triggered
+                          {/if}
+                        </summary>
+                        <ul class="mt-1.5 space-y-1 ml-4" aria-label="Deepfake detector signals">
+                          {#each gbmSignals as sig}
+                            <li class="flex items-center justify-between gap-3 text-[11px]">
+                              <span class="text-flint-dark dark:text-flint-light">{sig.name}</span>
+                              <span class="{sig.triggered ? 'text-amber-dark dark:text-amber-light font-medium' : 'text-malachite-dark dark:text-malachite-light'}">
+                                {sig.triggered ? 'Triggered' : 'Clear'} · w={sig.weight.toFixed(2)}
+                              </span>
+                            </li>
+                          {/each}
+                        </ul>
+                      </details>
+                    {/if}
+                    {#if showRawScores}
+                      <p class="text-[10px] text-flint-dark dark:text-flint-light mt-1 tabular-nums font-mono">
+                        score: {gbm.score.toFixed(6)} · threshold: {(gbm as any).threshold?.toFixed(6) ?? '—'}
+                      </p>
+                    {/if}
+                  </AiDetectorRow>
                 {/if}
 
                 {#if result.clipResult}
-                  <li class="px-5 py-4 {result.clipResult.verdictLevel === 'synthetic' ? 'bg-amber/[0.04]' : ''}">
-                    <div class="flex items-start gap-3">
-                      <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {result.clipResult.verdictLevel === 'synthetic' ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        {#if result.clipResult.verdictLevel === 'synthetic'}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                        {:else}<polyline points="20 6 9 17 4 12"/>{/if}
-                      </svg>
-                      <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 mb-1 flex-wrap">
-                          <span class="text-sm font-medium {result.clipResult.verdictLevel === 'synthetic' ? 'text-amber-light' : 'text-obsidian dark:text-quartz'}">CLIP / UnivFD Probe</span>
-                          <ExperimentalPill
-                            variant="informational"
-                            helpHref="/help/how-it-works#two-ai-checks"
-                          />
-                        </div>
-                        <p class="text-xs text-flint-dark dark:text-flint-light">{result.clipResult.summary}</p>
-                        <!-- Class probability distribution (JTV-86).
-                             Hidden by default because the zero-shot bars are
-                             CLIP text-similarity to label prompts and are NOT
-                             arithmetically related to the probe score that
-                             drives the headline percentage.  Showing them by
-                             default produced the pilot complaint that "87% +
-                             ~20% bars" looked self-contradictory.  Surface
-                             via either the per-row toggle or the global
-                             Settings raw-scores switch. -->
-                        {#if result.clipResult.classProbs && Object.keys(result.clipResult.classProbs).length > 0}
-                          {@const isAuxiliary = result.clipResult.univfdAvailable === true}
-                          {@const showZeroShot = showRawScores || showClipZeroShot}
-                          {#if !showZeroShot && isAuxiliary}
-                            <button
-                              type="button"
-                              class="mt-2 text-[11px] text-lapis dark:text-lapis-light underline underline-offset-2 hover:text-obsidian dark:hover:text-quartz min-h-[24px]
-                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
-                              onclick={() => (showClipZeroShot = true)}
-                            >
-                              Show zero-shot label distribution (auxiliary)
-                            </button>
-                          {/if}
-                          {#if showZeroShot}
-                            <div class="mt-2 space-y-1" aria-label="CLIP class probability distribution">
-                              <div class="flex items-center justify-between mb-1">
-                                <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">
-                                  {#if isAuxiliary}
-                                    Zero-shot CLIP labels (auxiliary, not used for score)
-                                  {:else}
-                                    Zero-shot class probabilities
-                                  {/if}
-                                </p>
-                                {#if showClipZeroShot && !showRawScores}
-                                  <button
-                                    type="button"
-                                    class="text-[10px] text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz underline underline-offset-2 min-h-[24px]
-                                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
-                                    onclick={() => (showClipZeroShot = false)}
-                                    aria-label="Hide zero-shot label distribution"
-                                  >Hide</button>
-                                {/if}
+                  {@const clip = result.clipResult}
+                  <AiDetectorRow
+                    name="CLIP / UnivFD Probe"
+                    score={clip.score}
+                    suspicious={clip.verdictLevel === 'synthetic'}
+                  >
+                    {#snippet badges()}
+                      <ExperimentalPill
+                        variant="informational"
+                        helpHref="/help/how-it-works#two-ai-checks"
+                      />
+                    {/snippet}
+                    <p class="text-xs text-flint-dark dark:text-flint-light">{clip.summary}</p>
+                    <!-- Class probability distribution (JTV-86).
+                         Hidden by default because the zero-shot bars are
+                         CLIP text-similarity to label prompts and are NOT
+                         arithmetically related to the probe score that
+                         drives the headline percentage.  Showing them by
+                         default produced the pilot complaint that "87% +
+                         ~20% bars" looked self-contradictory.  Surface
+                         via either the per-row toggle or the global
+                         Settings raw-scores switch. -->
+                    {#if clip.classProbs && Object.keys(clip.classProbs).length > 0}
+                      {@const isAuxiliary = clip.univfdAvailable === true}
+                      {@const showZeroShot = showRawScores || showClipZeroShot}
+                      {#if !showZeroShot && isAuxiliary}
+                        <button
+                          type="button"
+                          class="mt-2 text-[11px] text-lapis dark:text-lapis-light underline underline-offset-2 hover:text-obsidian dark:hover:text-quartz min-h-[24px]
+                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
+                          onclick={() => (showClipZeroShot = true)}
+                        >
+                          Show zero-shot label distribution (auxiliary)
+                        </button>
+                      {/if}
+                      {#if showZeroShot}
+                        <div class="mt-2 space-y-1" aria-label="CLIP class probability distribution">
+                          <div class="flex items-center justify-between mb-1">
+                            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">
+                              {#if isAuxiliary}
+                                Zero-shot CLIP labels (auxiliary, not used for score)
+                              {:else}
+                                Zero-shot class probabilities
+                              {/if}
+                            </p>
+                            {#if showClipZeroShot && !showRawScores}
+                              <button
+                                type="button"
+                                class="text-[10px] text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz underline underline-offset-2 min-h-[24px]
+                                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
+                                onclick={() => (showClipZeroShot = false)}
+                                aria-label="Hide zero-shot label distribution"
+                              >Hide</button>
+                            {/if}
+                          </div>
+                          {#each Object.entries(clip.classProbs) as [cls, prob]}
+                            <div class="flex items-center gap-2">
+                              <span class="text-[10px] text-flint-dark dark:text-flint-light w-20 shrink-0 truncate" title={cls}>{cls}</span>
+                              <div class="flex-1 bg-gray-200 dark:bg-graphite-light/50 rounded-full h-1.5 overflow-hidden" role="progressbar" aria-valuenow={Math.round(prob * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="{cls}: {Math.round(prob * 100)}%">
+                                <div
+                                  class="h-full rounded-full {prob > 0.5 ? 'bg-amber dark:bg-amber-light' : 'bg-lapis dark:bg-lapis-light'}"
+                                  style="width: {Math.round(prob * 100)}%"
+                                ></div>
                               </div>
-                              {#each Object.entries(result.clipResult.classProbs) as [cls, prob]}
-                                <div class="flex items-center gap-2">
-                                  <span class="text-[10px] text-flint-dark dark:text-flint-light w-20 shrink-0 truncate" title={cls}>{cls}</span>
-                                  <div class="flex-1 bg-gray-200 dark:bg-graphite-light/50 rounded-full h-1.5 overflow-hidden" role="progressbar" aria-valuenow={Math.round(prob * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="{cls}: {Math.round(prob * 100)}%">
-                                    <div
-                                      class="h-full rounded-full {prob > 0.5 ? 'bg-amber dark:bg-amber-light' : 'bg-lapis dark:bg-lapis-light'}"
-                                      style="width: {Math.round(prob * 100)}%"
-                                    ></div>
-                                  </div>
-                                  <span class="text-[10px] tabular-nums {forensicScoreClass(prob)} w-8 text-right">{Math.round(prob * 100)}%</span>
-                                </div>
-                              {/each}
+                              <span class="text-[10px] tabular-nums {forensicScoreClass(prob)} w-8 text-right">{Math.round(prob * 100)}%</span>
                             </div>
-                          {/if}
-                        {/if}
-                        {#if result.clipResult.univfdAvailable && showRawScores && result.clipResult.univfdScore != null}
-                          <p class="text-[10px] text-flint-dark dark:text-flint-light mt-1 tabular-nums font-mono">
-                            UnivFD probe score: {result.clipResult.univfdScore.toFixed(6)}
-                          </p>
-                        {/if}
-                        {#if showRawScores}
-                          <p class="text-[10px] text-flint-dark dark:text-flint-light mt-1 tabular-nums font-mono">
-                            score: {result.clipResult.score.toFixed(6)} · confidence: {result.clipResult.confidence}
-                          </p>
-                        {/if}
-                      </div>
-                      <span class="text-sm font-medium tabular-nums flex-shrink-0 {forensicScoreClass(result.clipResult.score)}">{Math.round(result.clipResult.score * 100)}%</span>
-                    </div>
-                  </li>
+                          {/each}
+                        </div>
+                      {/if}
+                    {/if}
+                    {#if clip.univfdAvailable && showRawScores && clip.univfdScore != null}
+                      <p class="text-[10px] text-flint-dark dark:text-flint-light mt-1 tabular-nums font-mono">
+                        UnivFD probe score: {clip.univfdScore.toFixed(6)}
+                      </p>
+                    {/if}
+                    {#if showRawScores}
+                      <p class="text-[10px] text-flint-dark dark:text-flint-light mt-1 tabular-nums font-mono">
+                        score: {clip.score.toFixed(6)} · confidence: {clip.confidence}
+                      </p>
+                    {/if}
+                  </AiDetectorRow>
                 {/if}
 
                 {#if !result.deepfakeResult && !result.clipResult}

@@ -491,4 +491,263 @@ test.describe('Integrity card — detector rows', () => {
     await firstHelpLink.focus();
     await expect(firstHelpLink).toBeFocused();
   });
+
+  // ── Stage 4 — Visual regression baselines ─────────────────────────
+  // Playwright's toHaveScreenshot() captures the integrity card body
+  // for each fixture and compares against a snapshot stored alongside
+  // this spec.  First run creates the baseline; subsequent runs fail
+  // on pixel drift above the configured threshold.
+  //
+  // Visual diffs catch CSS regressions that functional assertions
+  // miss — padding shifts, focus-ring drift, dark-mode opacity
+  // changes — particularly important after the DetectorRow extraction
+  // (commit a700f2d) where the row chrome moved into a child component.
+
+  test('visual: integrity card with all detectors suspicious', async ({ page }) => {
+    await injectAndOpenIntegrityCard(page, allSuspiciousFixture());
+    const card = page.locator('#card-integrity-body');
+    await expect(card).toHaveScreenshot('integrity-card-all-suspicious.png', {
+      maxDiffPixelRatio: 0.02,
+    });
+  });
+
+  test('visual: integrity card with all detectors clean', async ({ page }) => {
+    await injectAndOpenIntegrityCard(page, allCleanFixture());
+    const card = page.locator('#card-integrity-body');
+    await expect(card).toHaveScreenshot('integrity-card-all-clean.png', {
+      maxDiffPixelRatio: 0.02,
+    });
+  });
+
+  test('visual: integrity card with the pilot fish scenario', async ({ page }) => {
+    await injectAndOpenIntegrityCard(page, pilotFishFixture());
+    const card = page.locator('#card-integrity-body');
+    await expect(card).toHaveScreenshot('integrity-card-pilot-fish.png', {
+      maxDiffPixelRatio: 0.02,
+    });
+  });
 });
+
+// ──────────────────────────────────────────────────────────────────
+// Stage 5 — DetectorRow prop-matrix coverage.
+//
+// In lieu of component-level unit tests (vitest + @testing-library
+// infrastructure not currently wired), exercise each meaningful
+// DetectorRow prop combination through fixtures that isolate that
+// variant.  Each test asserts on the rendered DOM contract — the
+// surface that matters to consumers of the component, not its
+// internal markup.
+// ──────────────────────────────────────────────────────────────────
+
+test.describe('DetectorRow — prop-matrix', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-setup-complete', 'true');
+    });
+  });
+
+  test('row title bears amber tint and warning icon when suspicious', async ({ page }) => {
+    const fx = baseResult();
+    fx.elaResult = {
+      score: 0.78,
+      suspicious: true,
+      elaImageBase64: TINY_PNG_BASE64,
+      summary: 'Flagged',
+    };
+    await injectAndOpenIntegrityCard(page, fx);
+
+    const cardBody = page.locator('#card-integrity-body');
+    // The amber tint applies via bg-amber/[0.04] to the <li> wrapper.
+    // We assert by selecting the <li> containing the title.
+    const elaTitle = cardBody.getByText('Error Level Analysis').first();
+    await expect(elaTitle).toBeVisible();
+    // Title text colour switches to amber-light when suspicious.
+    await expect(elaTitle).toHaveClass(/text-amber-light/);
+  });
+
+  test('row title is neutral when not suspicious', async ({ page }) => {
+    const fx = baseResult();
+    fx.elaResult = {
+      score: 0.05,
+      suspicious: false,
+      elaImageBase64: TINY_PNG_BASE64,
+      summary: 'Clean',
+    };
+    await injectAndOpenIntegrityCard(page, fx);
+
+    const cardBody = page.locator('#card-integrity-body');
+    const elaTitle = cardBody.getByText('Error Level Analysis').first();
+    await expect(elaTitle).toHaveClass(/text-obsidian|text-quartz/);
+    await expect(elaTitle).not.toHaveClass(/text-amber-light/);
+  });
+
+  test('badges slot renders the experimental pill on JPEG Ghost', async ({ page }) => {
+    const fx = baseResult();
+    fx.jpegGhostResult = {
+      score: 0.4,
+      suspicious: false,
+      ghostImageBase64: TINY_PNG_BASE64,
+      summary: '',
+    };
+    await injectAndOpenIntegrityCard(page, fx);
+
+    const cardBody = page.locator('#card-integrity-body');
+    // The ExperimentalPill text begins with "EXPERIMENTAL"; the
+    // uncalibrated variant suffix is "weight uncalibrated".
+    const pill = cardBody.locator(
+      'span[role="note"]',
+      { hasText: /weight uncalibrated/ },
+    );
+    await expect(pill).toBeVisible();
+  });
+
+  test('badges slot renders "On-demand" chip on NPR row', async ({ page }) => {
+    const fx = baseResult();
+    fx.nprResult = {
+      score: 0.4,
+      suspicious: false,
+      hvCorrelation: 0.5,
+      diffVarianceRatio: 1.0,
+      hfEnergyRatio: 0.5,
+      heatmapBase64: TINY_PNG_BASE64,
+      summary: '',
+    };
+    await injectAndOpenIntegrityCard(page, fx);
+
+    const cardBody = page.locator('#card-integrity-body');
+    const onDemandChip = cardBody.getByText('On-demand', { exact: true });
+    await expect(onDemandChip).toBeVisible();
+  });
+
+  test('badges slot renders "Deep" chip on DCT row', async ({ page }) => {
+    const fx = baseResult();
+    fx.dctAnalysisResult = {
+      score: 0.4,
+      suspicious: false,
+      acCoefficientOfVariation: 0.5,
+      dcStd: 1.0,
+      acMean: 1.0,
+      acStd: 1.0,
+      heatmapBase64: TINY_PNG_BASE64,
+      summary: '',
+    };
+    await injectAndOpenIntegrityCard(page, fx);
+
+    const cardBody = page.locator('#card-integrity-body');
+    const deepChip = cardBody.getByText('Deep', { exact: true });
+    await expect(deepChip).toBeVisible();
+  });
+
+  test('alwaysVisibleHint renders even when suspicious=false', async ({ page }) => {
+    const fx = baseResult();
+    fx.noiseResult = {
+      score: 0.05,
+      suspicious: false,
+      anomalousBlocks: 0,
+      totalBlocks: 64,
+      summary: 'Clean',
+    };
+    await injectAndOpenIntegrityCard(page, fx);
+
+    const cardBody = page.locator('#card-integrity-body');
+    await expect(
+      cardBody.getByText(
+        /Measures whether noise distribution is uniform across the photo/,
+      ),
+    ).toBeVisible();
+  });
+
+  test('rawScore snippet only renders when showRawScores is enabled', async ({ page }) => {
+    // Default: raw scores OFF.  The "score: 0.xxxx" detail line should
+    // NOT appear on a row.
+    const fx = baseResult();
+    fx.elaResult = {
+      score: 0.4,
+      suspicious: false,
+      elaImageBase64: TINY_PNG_BASE64,
+      summary: 'Test',
+    };
+    await injectAndOpenIntegrityCard(page, fx);
+
+    const cardBody = page.locator('#card-integrity-body');
+    // Match the literal "score: 0." prefix of the raw-score line — it
+    // is gated on showRawScores so should be absent.
+    await expect(
+      cardBody.locator('span').filter({ hasText: /^score: 0\./ }),
+    ).toHaveCount(0);
+  });
+
+  test('rawScore snippet renders when showRawScores localStorage is set', async ({ page, context }) => {
+    await context.addInitScript(() => {
+      localStorage.setItem('jura-raw-scores-default', 'true');
+    });
+    const fx = baseResult();
+    fx.elaResult = {
+      score: 0.4,
+      suspicious: false,
+      elaImageBase64: TINY_PNG_BASE64,
+      summary: 'Test',
+    };
+    await injectAndOpenIntegrityCard(page, fx);
+
+    const cardBody = page.locator('#card-integrity-body');
+    await expect(
+      cardBody.locator('span').filter({ hasText: /^score: 0\.4/ }).first(),
+    ).toBeVisible();
+  });
+
+  test('score percentage is colour-coded by forensicScoreClass', async ({ page }) => {
+    // Three rows with score in each band:
+    //   <0.30 → malachite (low / authentic-looking)
+    //   0.30–0.60 → amber (borderline)
+    //   ≥0.60 → cinnabar (suspicious)
+    const fx = baseResult();
+    fx.elaResult = {
+      score: 0.1,
+      suspicious: false,
+      elaImageBase64: TINY_PNG_BASE64,
+      summary: '',
+    };
+    fx.noiseResult = {
+      score: 0.45,
+      suspicious: false,
+      anomalousBlocks: 0,
+      totalBlocks: 64,
+      summary: '',
+    };
+    fx.copyMoveResult = {
+      score: 0.75,
+      suspicious: true,
+      cloneRegions: [],
+      visualisationBase64: TINY_PNG_BASE64,
+      summary: '',
+    };
+    await injectAndOpenIntegrityCard(page, fx);
+
+    const cardBody = page.locator('#card-integrity-body');
+    // 10% — malachite class
+    const tenPct = cardBody.locator('span.tabular-nums', { hasText: '10%' }).first();
+    await expect(tenPct).toHaveClass(/text-malachite/);
+    // 45% — amber class
+    const fortyFive = cardBody.locator('span.tabular-nums', { hasText: '45%' }).first();
+    await expect(fortyFive).toHaveClass(/text-amber/);
+    // 75% — cinnabar class
+    const seventyFive = cardBody.locator('span.tabular-nums', { hasText: '75%' }).first();
+    await expect(seventyFive).toHaveClass(/text-cinnabar/);
+  });
+
+  test('every row exposes a help link with size-sm class (5x5 px circle)', async ({ page }) => {
+    await injectAndOpenIntegrityCard(page, allSuspiciousFixture());
+    const cardBody = page.locator('#card-integrity-body');
+    // size-sm renders w-5 h-5 (vs default md = w-6 h-6).
+    const helpLinks = cardBody.locator(
+      'a.w-5.h-5[href^="/help/forensic-detectors#"]',
+    );
+    // 11 detectors all firing → 11 help links.
+    await expect(helpLinks).toHaveCount(11);
+  });
+});
+
