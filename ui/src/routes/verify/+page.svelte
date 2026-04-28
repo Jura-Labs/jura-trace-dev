@@ -3172,7 +3172,9 @@
                         <polyline points="20 6 9 17 4 12"/>
                       {/if}
                     </svg>
-                    <span class="text-sm {result.elaResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">Error Level Analysis</span>
+                    <span class="text-sm {result.elaResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Error Level Analysis</span>
+                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#ela" label="What does Error Level Analysis check?" />
+                    <span class="flex-1"></span>
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.elaResult.score.toFixed(4)} · threshold: {(result.elaResult as any).threshold?.toFixed(4) ?? '—'}</span>
                     {/if}
@@ -3183,7 +3185,9 @@
                       <ImageZoom
                         src="data:image/png;base64,{result.elaResult.elaImageBase64}"
                         alt="ELA heatmap showing compression artefact distribution"
-                        caption="Click to enlarge — bright regions indicate higher compression-error mismatch"
+                        caption={result.elaResult.suspicious
+                          ? 'Click to enlarge — bright regions indicate higher compression-error mismatch'
+                          : 'Click to enlarge — no significant compression anomalies detected'}
                       />
                     </div>
                   {/if}
@@ -3200,12 +3204,20 @@
                         <polyline points="20 6 9 17 4 12"/>
                       {/if}
                     </svg>
-                    <span class="text-sm {result.noiseResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">Noise Pattern Analysis</span>
+                    <span class="text-sm {result.noiseResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Noise Pattern Analysis</span>
+                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#noise-pattern" label="What does Noise Pattern Analysis check?" />
+                    <span class="flex-1"></span>
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.noiseResult.score.toFixed(4)}</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.noiseResult.score)}">{Math.round(result.noiseResult.score * 100)}%</span>
                   </div>
+                  <!-- Always-visible explanation: this detector has no
+                       visualisation, so the row would otherwise be a bare
+                       percentage with no context.  See JTV review 2026-04-28. -->
+                  <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6 leading-snug">
+                    Measures whether noise distribution is uniform across the photo — uneven noise across regions can indicate compositing.
+                  </p>
                   {#if result.noiseResult.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{result.noiseResult.anomalousBlocks} of {result.noiseResult.totalBlocks} blocks flagged</p>
                   {/if}
@@ -3222,7 +3234,9 @@
                         <polyline points="20 6 9 17 4 12"/>
                       {/if}
                     </svg>
-                    <span class="text-sm {result.copyMoveResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">Copy-Move Detection</span>
+                    <span class="text-sm {result.copyMoveResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Copy-Move Detection</span>
+                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#copy-move" label="What does Copy-Move Detection check?" />
+                    <span class="flex-1"></span>
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.copyMoveResult.score.toFixed(4)}</span>
                     {/if}
@@ -3230,13 +3244,19 @@
                   </div>
                   {#if result.copyMoveResult.suspicious && result.copyMoveResult.cloneRegions.length > 0}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{result.copyMoveResult.cloneRegions.length} cloned region{result.copyMoveResult.cloneRegions.length === 1 ? '' : 's'} detected</p>
+                  {:else if result.copyMoveResult.visualisationBase64}
+                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">No cloned regions detected.</p>
                   {/if}
                   {#if result.copyMoveResult.visualisationBase64}
                     <div class="mt-2 ml-6">
                       <ImageZoom
                         src="data:image/png;base64,{result.copyMoveResult.visualisationBase64}"
-                        alt="Copy-move detection visualisation showing cloned regions"
-                        caption="Click to enlarge — matched coloured pairs indicate duplicated regions"
+                        alt={result.copyMoveResult.suspicious
+                          ? 'Copy-move detection visualisation showing cloned regions'
+                          : 'Copy-move analysis — no cloned regions detected'}
+                        caption={result.copyMoveResult.suspicious
+                          ? 'Click to enlarge — matched coloured pairs join the cloned regions'
+                          : 'Click to enlarge — no cloned regions detected, image shown unmarked'}
                       />
                     </div>
                   {/if}
@@ -3250,10 +3270,10 @@
                       {#if result.jpegGhostResult.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
-                    <span class="text-sm {result.jpegGhostResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">
-                      JPEG Ghost
-                      <ExperimentalPill variant="uncalibrated" tooltip="JPEG Ghost is weighted at 0.5× in the trust score. See methodology." />
-                    </span>
+                    <span class="text-sm {result.jpegGhostResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">JPEG Ghost</span>
+                    <ExperimentalPill variant="uncalibrated" tooltip="JPEG Ghost is weighted at 0.5× in the trust score. See methodology." />
+                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#jpeg-ghost" label="What does JPEG Ghost check?" />
+                    <span class="flex-1"></span>
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.jpegGhostResult.score.toFixed(4)} · weight: 0.5×</span>
                     {/if}
@@ -3264,7 +3284,9 @@
                       <ImageZoom
                         src="data:image/png;base64,{(result.jpegGhostResult as any).ghostImageBase64}"
                         alt="JPEG Ghost heatmap showing re-compression artefact regions"
-                        caption="Click to enlarge — dark regions deviate from the dominant compression history"
+                        caption={result.jpegGhostResult.suspicious
+                          ? 'Click to enlarge — dark regions deviate from the dominant compression history'
+                          : 'Click to enlarge — no compression-history anomalies detected'}
                       />
                     </div>
                   {/if}
@@ -3278,21 +3300,27 @@
                       {#if result.segmentedElaResult.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
-                    <span class="text-sm {result.segmentedElaResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">Segmented ELA</span>
+                    <span class="text-sm {result.segmentedElaResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Segmented ELA</span>
+                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#segmented-ela" label="What does Segmented ELA check?" />
+                    <span class="flex-1"></span>
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.segmentedElaResult.score.toFixed(4)}</span>
                     {/if}
                     <span class="text-xs tabular-nums {forensicScoreClass(result.segmentedElaResult.score)}">{Math.round(result.segmentedElaResult.score * 100)}%</span>
                   </div>
                   {#if result.segmentedElaResult.suspicious}
-                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{result.segmentedElaResult.anomalousRegions} of {result.segmentedElaResult.totalRegions} regions flagged</p>
+                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">
+                      {result.segmentedElaResult.anomalousRegions} of {result.segmentedElaResult.totalRegions} image blocks show unusual compression — see <span aria-hidden="true">?</span> for what this means.
+                    </p>
                   {/if}
                   {#if (result.segmentedElaResult as any).visualizationBase64}
                     <div class="mt-2 ml-6">
                       <ImageZoom
                         src="data:image/png;base64,{(result.segmentedElaResult as any).visualizationBase64}"
                         alt="Segmented ELA region heatmap"
-                        caption="Click to enlarge — flagged regions show locally anomalous compression error"
+                        caption={result.segmentedElaResult.suspicious
+                          ? 'Click to enlarge — flagged blocks show locally anomalous compression error'
+                          : 'Click to enlarge — no localised compression anomalies detected'}
                       />
                     </div>
                   {/if}
@@ -3306,7 +3334,9 @@
                       {#if result.colourTemperatureResult.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
-                    <span class="text-sm {result.colourTemperatureResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">Colour Temperature</span>
+                    <span class="text-sm {result.colourTemperatureResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Colour Temperature</span>
+                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#colour-temperature" label="What does Colour Temperature analysis check?" />
+                    <span class="flex-1"></span>
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.colourTemperatureResult.score.toFixed(4)}</span>
                     {/if}
@@ -3320,7 +3350,9 @@
                       <ImageZoom
                         src={blobs.url(result.colourTemperatureResult.heatmapBase64, 'image/png')}
                         alt="Colour temperature heatmap showing regions deviating from the global colour balance"
-                        caption="Click to enlarge — flagged regions deviate in CIELAB colour balance from the global average"
+                        caption={result.colourTemperatureResult.suspicious
+                          ? 'Click to enlarge — flagged regions deviate in colour balance from the global average'
+                          : 'Click to enlarge — no colour-balance anomalies detected'}
                       />
                     </div>
                   {/if}
@@ -3342,7 +3374,9 @@
                       {#if sh.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
-                    <span class="text-sm {sh.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">Shadow Consistency</span>
+                    <span class="text-sm {sh.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Shadow Consistency</span>
+                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#shadow-consistency" label="What does Shadow Consistency check?" />
+                    <span class="flex-1"></span>
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {sh.score.toFixed(4)} · light dir: {sh.globalLightDirection.toFixed(1)}&deg;</span>
                     {/if}
@@ -3356,7 +3390,9 @@
                       <ImageZoom
                         src={blobs.url(sh.heatmapBase64, 'image/png')}
                         alt="Shadow consistency heatmap showing regions with inconsistent light direction"
-                        caption="Click to enlarge — flagged regions cast shadows inconsistent with the global light direction"
+                        caption={sh.suspicious
+                          ? 'Click to enlarge — flagged regions cast shadows inconsistent with the global light direction'
+                          : 'Click to enlarge — shadow directions consistent across the image'}
                       />
                     </div>
                   {/if}
@@ -3372,7 +3408,9 @@
                       {#if sb.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
-                    <span class="text-sm {sb.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">Splice Boundary</span>
+                    <span class="text-sm {sb.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Splice Boundary</span>
+                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#splice-boundary" label="What does Splice Boundary check?" />
+                    <span class="flex-1"></span>
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {sb.score.toFixed(4)} · {sb.suspiciousBoundaries}/{sb.totalBoundariesChecked} boundaries</span>
                     {/if}
@@ -3386,7 +3424,9 @@
                       <ImageZoom
                         src={blobs.url(sb.heatmapBase64, 'image/png')}
                         alt="Splice boundary heatmap showing candidate cut edges between composited regions"
-                        caption="Click to enlarge — bright lines mark candidate composite-edge boundaries"
+                        caption={sb.suspicious
+                          ? 'Click to enlarge — bright lines mark candidate composite-edge boundaries'
+                          : 'Click to enlarge — no splice-boundary candidates detected'}
                       />
                     </div>
                   {/if}
@@ -3424,10 +3464,10 @@
                       {#if npr.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
-                    <span class="text-sm {npr.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">
-                      Neighbouring Pixel Relationships
-                      <span class="ml-1.5 text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">On-demand</span>
-                    </span>
+                    <span class="text-sm {npr.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Neighbouring Pixel Relationships</span>
+                    <span class="text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">On-demand</span>
+                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#npr" label="What does Neighbouring Pixel Relationships check?" />
+                    <span class="flex-1"></span>
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {npr.score.toFixed(4)} · threshold: 40%</span>
                     {/if}
@@ -3441,7 +3481,9 @@
                       <ImageZoom
                         src={blobs.url(npr.heatmapBase64, 'image/png')}
                         alt="Neighbouring pixel relationship heatmap showing local correlation anomalies"
-                        caption="Click to enlarge — anomalies indicate atypical local pixel correlations versus natural images"
+                        caption={npr.suspicious
+                          ? 'Click to enlarge — anomalies indicate atypical local pixel correlations versus natural images'
+                          : 'Click to enlarge — pixel correlations consistent with a natural photograph'}
                       />
                     </div>
                   {/if}
@@ -3464,10 +3506,10 @@
                       {#if dct.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
-                    <span class="text-sm {dct.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">
-                      DCT Analysis
-                      <span class="ml-1.5 text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">Deep</span>
-                    </span>
+                    <span class="text-sm {dct.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">DCT Analysis</span>
+                    <span class="text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">Deep</span>
+                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#dct-analysis" label="What does DCT Analysis check?" />
+                    <span class="flex-1"></span>
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">AC CV: {dct.acCoefficientOfVariation.toFixed(4)}</span>
                     {/if}
@@ -3481,7 +3523,9 @@
                       <ImageZoom
                         src="data:image/png;base64,{dct.heatmapBase64}"
                         alt="DCT coefficient energy heatmap showing per-block AC distribution"
-                        caption="Click to enlarge — per-block AC energy across the JPEG grid"
+                        caption={dct.suspicious
+                          ? 'Click to enlarge — uneven AC energy across JPEG blocks'
+                          : 'Click to enlarge — uniform compression energy across the image'}
                       />
                     </div>
                   {/if}
@@ -3504,10 +3548,10 @@
                       {#if fou.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                       {:else}<polyline points="20 6 9 17 4 12"/>{/if}
                     </svg>
-                    <span class="text-sm {fou.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'} flex-1">
-                      Fourier Analysis
-                      <span class="ml-1.5 text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">Deep</span>
-                    </span>
+                    <span class="text-sm {fou.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Fourier Analysis</span>
+                    <span class="text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">Deep</span>
+                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#fourier-analysis" label="What does Fourier Analysis check?" />
+                    <span class="flex-1"></span>
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">peaks: {fou.peakCount}</span>
                     {/if}
@@ -3521,7 +3565,9 @@
                       <ImageZoom
                         src="data:image/png;base64,{fou.spectrumBase64}"
                         alt="Fourier spectrum showing log-magnitude FFT with detected periodic peaks"
-                        caption="Click to enlarge — periodic peaks reveal regular structures (e.g. demosaicing or upscaling artefacts)"
+                        caption={fou.suspicious
+                          ? 'Click to enlarge — periodic peaks reveal regular structures (e.g. demosaicing or upscaling artefacts)'
+                          : 'Click to enlarge — frequency spectrum consistent with a natural photograph'}
                       />
                     </div>
                   {/if}
