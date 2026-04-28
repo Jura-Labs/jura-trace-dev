@@ -272,6 +272,317 @@
   <!-- ── Earth line ────────────────────────────────────────────── -->
   <div class="earth-line" aria-hidden="true"></div>
 
+  <!-- ── Activity Record ───────────────────────────────────────── -->
+  <section
+    class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]"
+    aria-labelledby="activity-heading"
+  >
+    <div class="flex items-baseline gap-4 mb-6">
+      <span
+        class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20"
+        aria-hidden="true"
+      >
+        Record
+      </span>
+      <div class="flex items-center gap-2">
+        <h2
+          id="activity-heading"
+          class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
+          style="letter-spacing: -0.01em;"
+        >
+          Everything that happened here
+        </h2>
+        <ContextualHelpLink href="/help/monitor" label="Learn about the monitor" />
+      </div>
+    </div>
+
+    <!-- Filter tabs -->
+    <div
+      class="pl-24 flex gap-2 mb-6 flex-wrap"
+      role="group"
+      aria-label="Filter activity by action type"
+    >
+      {#each filterTabs as tab}
+        <button
+          onclick={() => { activeFilter = tab.key; }}
+          class="min-h-[44px] px-4 py-2 text-xs rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                 {activeFilter === tab.key
+                   ? 'bg-lapis text-white dark:bg-lapis-light dark:text-obsidian'
+                   : 'text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz bg-transparent hover:bg-gray-100 dark:hover:bg-graphite-light/40'}"
+          aria-pressed={activeFilter === tab.key}
+        >
+          {tab.label}
+        </button>
+      {/each}
+    </div>
+
+    <!-- Entries -->
+    <div class="pl-24">
+      {#if filteredAudit.length === 0}
+        <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] py-4">
+          {activeFilter === 'all' ? 'No activity recorded yet.' : `No ${activeFilter} activity recorded.`}
+        </p>
+      {:else}
+        <ul aria-label="Activity log entries" class="list-none p-0 m-0">
+          {#each filteredAudit as entry (entry.logId)}
+            <li class="py-3 border-b border-border-light dark:border-[rgba(122,119,112,0.12)] last:border-0">
+              <div class="flex items-baseline gap-3">
+                <span class="text-xs text-flint-dark dark:text-flint-light flex-shrink-0 w-28">
+                  <time datetime={entry.createdAt}>{formatDateTime(entry.createdAt)}</time>
+                </span>
+                <span class="text-sm text-text-light dark:text-quartz leading-relaxed">
+                  {formatAction(entry)}
+                </span>
+              </div>
+              {#if entry.details}
+                <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-31 pl-[calc(theme(spacing.28)+theme(spacing.3))] leading-relaxed">
+                  {entry.details}
+                </p>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+
+        <!-- Show more -->
+        {#if auditEntries.length >= PAGE_SIZE}
+          <div class="mt-6">
+            <button
+              onclick={loadMore}
+              disabled={loadingMore}
+              class="min-h-[44px] px-5 py-2.5 text-sm text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors rounded-full border border-border-light dark:border-[rgba(122,119,112,0.3)] hover:border-flint/40 dark:hover:border-flint-light/40 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+              aria-label="Load more activity entries"
+            >
+              {loadingMore ? 'Loading…' : 'Show more'}
+            </button>
+          </div>
+        {/if}
+      {/if}
+    </div>
+  </section>
+
+  <!-- ── Earth line ────────────────────────────────────────────── -->
+  <div class="earth-line" aria-hidden="true"></div>
+
+  <!-- ── Protection Chronicle ──────────────────────────────────── -->
+  <section
+    class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]"
+    aria-labelledby="chronicle-heading"
+  >
+    <div class="flex items-baseline gap-4 mb-4">
+      <span
+        class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20"
+        aria-hidden="true"
+      >
+        Archive
+      </span>
+      <h2
+        id="chronicle-heading"
+        class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
+        style="letter-spacing: -0.01em;"
+      >
+        <a
+          href="/protect"
+          class="hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+        >
+          Your protected collection
+        </a>
+      </h2>
+    </div>
+
+    {#if overview && overview.protection.totalAssets > 0}
+      {@const p = overview.protection}
+      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-8">
+        {p.totalAssets.toLocaleString()} {p.totalAssets === 1 ? 'file' : 'files'} in your archive,
+        {p.c2paSigned.toLocaleString()} with C2PA provenance,
+        {p.fingerprinted.toLocaleString()} fingerprinted.
+        {#if p.earliestAt}
+          First protected {formatDate(p.earliestAt)}.
+        {/if}
+      </p>
+
+      <!-- Quiet figures -->
+      <div
+        class="pl-24 flex gap-12 flex-wrap"
+        aria-label="Protection statistics"
+      >
+        <div class="text-center">
+          <p
+            class="font-heading text-3xl font-normal text-lapis dark:text-lapis-light dark:text-[#8AABBF] tracking-tight"
+            style="letter-spacing: -0.02em;"
+            aria-label="{p.totalAssets.toLocaleString()} total assets"
+          >
+            {p.totalAssets.toLocaleString()}
+          </p>
+          <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
+            assets
+          </p>
+        </div>
+
+        <div class="text-center">
+          <p
+            class="font-heading text-3xl font-normal text-lapis dark:text-lapis-light dark:text-[#8AABBF] tracking-tight"
+            style="letter-spacing: -0.02em;"
+            aria-label="{p.c2paSigned.toLocaleString()} with C2PA provenance"
+          >
+            {p.c2paSigned.toLocaleString()}
+          </p>
+          <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
+            C2PA signed
+          </p>
+        </div>
+
+        <div class="text-center">
+          <p
+            class="font-heading text-3xl font-normal text-lapis dark:text-lapis-light dark:text-[#8AABBF] tracking-tight"
+            style="letter-spacing: -0.02em;"
+            aria-label="{p.fingerprinted.toLocaleString()} fingerprinted"
+          >
+            {p.fingerprinted.toLocaleString()}
+          </p>
+          <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
+            fingerprinted
+          </p>
+        </div>
+      </div>
+
+      <!-- Content type breakdown -->
+      {#if Object.keys(p.byContentType).length > 0}
+        <div class="pl-24 mt-8 flex flex-wrap gap-2" aria-label="Content types in collection">
+          {#each Object.entries(p.byContentType) as [type, count]}
+            <span class="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light">
+              <span class="font-medium text-text-light dark:text-quartz">{count}</span>
+              {type}
+            </span>
+          {/each}
+        </div>
+      {/if}
+
+    {:else}
+      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
+        No files protected yet.
+        <a
+          href="/protect"
+          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+        >
+          Visit the Protect page
+        </a>
+        to import your first content.
+      </p>
+    {/if}
+  </section>
+
+  <!-- ── Earth line ────────────────────────────────────────────── -->
+  <div class="earth-line" aria-hidden="true"></div>
+
+  <!-- ── Trust Landscape ───────────────────────────────────────── -->
+  <section
+    class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]"
+    aria-labelledby="trust-heading"
+  >
+    <div class="flex items-baseline gap-4 mb-4">
+      <span
+        class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20"
+        aria-hidden="true"
+      >
+        Trust
+      </span>
+      <h2
+        id="trust-heading"
+        class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
+        style="letter-spacing: -0.01em;"
+      >
+        How verified content is holding up
+      </h2>
+    </div>
+
+    {#if overview && overview.trust.total > 0}
+      {@const t = overview.trust}
+
+      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-6">
+        Of {t.total.toLocaleString()} {t.total === 1 ? 'verification' : 'verifications'},
+        {t.highCount.toLocaleString()} returned high confidence,
+        {t.mediumCount.toLocaleString()} {t.mediumCount === 1 ? 'was' : 'were'} reviewed,
+        and {t.lowCount.toLocaleString()} raised {t.lowCount === 1 ? 'a concern' : 'concerns'}.
+        {#if t.latestAt}
+          Last checked {formatDate(t.latestAt)}.
+        {/if}
+      </p>
+
+      <!-- Trust distribution bar -->
+      <div class="pl-24 max-w-lg" aria-label="Trust distribution">
+        <div
+          class="flex h-2 rounded-full overflow-hidden mb-3 bg-gray-100 dark:bg-graphite-light/30"
+          role="img"
+          aria-label="Trust distribution: {t.highCount} high, {t.mediumCount} medium, {t.lowCount} low"
+        >
+          {#if t.highCount > 0}
+            <div
+              class="bg-malachite dark:bg-malachite-light"
+              style="width: {(t.highCount / t.total) * 100}%"
+            ></div>
+          {/if}
+          {#if t.mediumCount > 0}
+            <div
+              class="bg-amber dark:bg-amber-light"
+              style="width: {(t.mediumCount / t.total) * 100}%"
+            ></div>
+          {/if}
+          {#if t.lowCount > 0}
+            <div
+              class="bg-cinnabar dark:bg-cinnabar-light"
+              style="width: {(t.lowCount / t.total) * 100}%"
+            ></div>
+          {/if}
+        </div>
+
+        <!-- Bar legend -->
+        <div class="flex gap-4 text-xs text-flint-dark dark:text-flint-light" aria-hidden="true">
+          <span class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-malachite dark:bg-malachite-light flex-shrink-0"></span>
+            High ({t.highCount})
+          </span>
+          <span class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-amber dark:bg-amber-light flex-shrink-0"></span>
+            Review ({t.mediumCount})
+          </span>
+          <span class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-cinnabar dark:bg-cinnabar-light flex-shrink-0"></span>
+            Concern ({t.lowCount})
+          </span>
+        </div>
+      </div>
+
+      <!-- Average trust -->
+      <div class="pl-24 mt-8">
+        <p
+          class="font-heading text-4xl font-normal tracking-tight {trustColour(t.averageTrust)}"
+          style="letter-spacing: -0.02em;"
+          aria-label="Average trust score: {Math.round(t.averageTrust * 100)} per cent"
+        >
+          {Math.round(t.averageTrust * 100)}%
+        </p>
+        <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
+          average trust score
+        </p>
+      </div>
+
+    {:else}
+      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
+        No verifications yet.
+        <a
+          href="/verify"
+          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+        >
+          Visit the Verify page
+        </a>
+        to examine your first file.
+      </p>
+    {/if}
+  </section>
+
+  <!-- ── Earth line ────────────────────────────────────────────── -->
+  <div class="earth-line" aria-hidden="true"></div>
+
   <!-- ── Watched locations ─────────────────────────────────────── -->
   <!--
     Renamed from "URL Watchlist" 2026-04-28 — the previous label
@@ -668,317 +979,6 @@
           Automated reverse image search (BYOK API key) is planned for a future release.
         </p>
       </div>
-    </div>
-  </section>
-
-  <!-- ── Earth line ────────────────────────────────────────────── -->
-  <div class="earth-line" aria-hidden="true"></div>
-
-  <!-- ── Protection Chronicle ──────────────────────────────────── -->
-  <section
-    class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]"
-    aria-labelledby="chronicle-heading"
-  >
-    <div class="flex items-baseline gap-4 mb-4">
-      <span
-        class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20"
-        aria-hidden="true"
-      >
-        Archive
-      </span>
-      <h2
-        id="chronicle-heading"
-        class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
-        style="letter-spacing: -0.01em;"
-      >
-        <a
-          href="/protect"
-          class="hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-        >
-          Your protected collection
-        </a>
-      </h2>
-    </div>
-
-    {#if overview && overview.protection.totalAssets > 0}
-      {@const p = overview.protection}
-      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-8">
-        {p.totalAssets.toLocaleString()} {p.totalAssets === 1 ? 'file' : 'files'} in your archive,
-        {p.c2paSigned.toLocaleString()} with C2PA provenance,
-        {p.fingerprinted.toLocaleString()} fingerprinted.
-        {#if p.earliestAt}
-          First protected {formatDate(p.earliestAt)}.
-        {/if}
-      </p>
-
-      <!-- Quiet figures -->
-      <div
-        class="pl-24 flex gap-12 flex-wrap"
-        aria-label="Protection statistics"
-      >
-        <div class="text-center">
-          <p
-            class="font-heading text-3xl font-normal text-lapis dark:text-lapis-light dark:text-[#8AABBF] tracking-tight"
-            style="letter-spacing: -0.02em;"
-            aria-label="{p.totalAssets.toLocaleString()} total assets"
-          >
-            {p.totalAssets.toLocaleString()}
-          </p>
-          <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
-            assets
-          </p>
-        </div>
-
-        <div class="text-center">
-          <p
-            class="font-heading text-3xl font-normal text-lapis dark:text-lapis-light dark:text-[#8AABBF] tracking-tight"
-            style="letter-spacing: -0.02em;"
-            aria-label="{p.c2paSigned.toLocaleString()} with C2PA provenance"
-          >
-            {p.c2paSigned.toLocaleString()}
-          </p>
-          <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
-            C2PA signed
-          </p>
-        </div>
-
-        <div class="text-center">
-          <p
-            class="font-heading text-3xl font-normal text-lapis dark:text-lapis-light dark:text-[#8AABBF] tracking-tight"
-            style="letter-spacing: -0.02em;"
-            aria-label="{p.fingerprinted.toLocaleString()} fingerprinted"
-          >
-            {p.fingerprinted.toLocaleString()}
-          </p>
-          <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
-            fingerprinted
-          </p>
-        </div>
-      </div>
-
-      <!-- Content type breakdown -->
-      {#if Object.keys(p.byContentType).length > 0}
-        <div class="pl-24 mt-8 flex flex-wrap gap-2" aria-label="Content types in collection">
-          {#each Object.entries(p.byContentType) as [type, count]}
-            <span class="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light">
-              <span class="font-medium text-text-light dark:text-quartz">{count}</span>
-              {type}
-            </span>
-          {/each}
-        </div>
-      {/if}
-
-    {:else}
-      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
-        No files protected yet.
-        <a
-          href="/protect"
-          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-        >
-          Visit the Protect page
-        </a>
-        to import your first content.
-      </p>
-    {/if}
-  </section>
-
-  <!-- ── Earth line ────────────────────────────────────────────── -->
-  <div class="earth-line" aria-hidden="true"></div>
-
-  <!-- ── Trust Landscape ───────────────────────────────────────── -->
-  <section
-    class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]"
-    aria-labelledby="trust-heading"
-  >
-    <div class="flex items-baseline gap-4 mb-4">
-      <span
-        class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20"
-        aria-hidden="true"
-      >
-        Trust
-      </span>
-      <h2
-        id="trust-heading"
-        class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
-        style="letter-spacing: -0.01em;"
-      >
-        How verified content is holding up
-      </h2>
-    </div>
-
-    {#if overview && overview.trust.total > 0}
-      {@const t = overview.trust}
-
-      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-6">
-        Of {t.total.toLocaleString()} {t.total === 1 ? 'verification' : 'verifications'},
-        {t.highCount.toLocaleString()} returned high confidence,
-        {t.mediumCount.toLocaleString()} {t.mediumCount === 1 ? 'was' : 'were'} reviewed,
-        and {t.lowCount.toLocaleString()} raised {t.lowCount === 1 ? 'a concern' : 'concerns'}.
-        {#if t.latestAt}
-          Last checked {formatDate(t.latestAt)}.
-        {/if}
-      </p>
-
-      <!-- Trust distribution bar -->
-      <div class="pl-24 max-w-lg" aria-label="Trust distribution">
-        <div
-          class="flex h-2 rounded-full overflow-hidden mb-3 bg-gray-100 dark:bg-graphite-light/30"
-          role="img"
-          aria-label="Trust distribution: {t.highCount} high, {t.mediumCount} medium, {t.lowCount} low"
-        >
-          {#if t.highCount > 0}
-            <div
-              class="bg-malachite dark:bg-malachite-light"
-              style="width: {(t.highCount / t.total) * 100}%"
-            ></div>
-          {/if}
-          {#if t.mediumCount > 0}
-            <div
-              class="bg-amber dark:bg-amber-light"
-              style="width: {(t.mediumCount / t.total) * 100}%"
-            ></div>
-          {/if}
-          {#if t.lowCount > 0}
-            <div
-              class="bg-cinnabar dark:bg-cinnabar-light"
-              style="width: {(t.lowCount / t.total) * 100}%"
-            ></div>
-          {/if}
-        </div>
-
-        <!-- Bar legend -->
-        <div class="flex gap-4 text-xs text-flint-dark dark:text-flint-light" aria-hidden="true">
-          <span class="flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-malachite dark:bg-malachite-light flex-shrink-0"></span>
-            High ({t.highCount})
-          </span>
-          <span class="flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-amber dark:bg-amber-light flex-shrink-0"></span>
-            Review ({t.mediumCount})
-          </span>
-          <span class="flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-cinnabar dark:bg-cinnabar-light flex-shrink-0"></span>
-            Concern ({t.lowCount})
-          </span>
-        </div>
-      </div>
-
-      <!-- Average trust -->
-      <div class="pl-24 mt-8">
-        <p
-          class="font-heading text-4xl font-normal tracking-tight {trustColour(t.averageTrust)}"
-          style="letter-spacing: -0.02em;"
-          aria-label="Average trust score: {Math.round(t.averageTrust * 100)} per cent"
-        >
-          {Math.round(t.averageTrust * 100)}%
-        </p>
-        <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
-          average trust score
-        </p>
-      </div>
-
-    {:else}
-      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
-        No verifications yet.
-        <a
-          href="/verify"
-          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-        >
-          Visit the Verify page
-        </a>
-        to examine your first file.
-      </p>
-    {/if}
-  </section>
-
-  <!-- ── Earth line ────────────────────────────────────────────── -->
-  <div class="earth-line" aria-hidden="true"></div>
-
-  <!-- ── Activity Record ───────────────────────────────────────── -->
-  <section
-    class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]"
-    aria-labelledby="activity-heading"
-  >
-    <div class="flex items-baseline gap-4 mb-6">
-      <span
-        class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20"
-        aria-hidden="true"
-      >
-        Record
-      </span>
-      <div class="flex items-center gap-2">
-        <h2
-          id="activity-heading"
-          class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
-          style="letter-spacing: -0.01em;"
-        >
-          Everything that happened here
-        </h2>
-        <ContextualHelpLink href="/help/monitor" label="Learn about the monitor" />
-      </div>
-    </div>
-
-    <!-- Filter tabs -->
-    <div
-      class="pl-24 flex gap-2 mb-6 flex-wrap"
-      role="group"
-      aria-label="Filter activity by action type"
-    >
-      {#each filterTabs as tab}
-        <button
-          onclick={() => { activeFilter = tab.key; }}
-          class="min-h-[44px] px-4 py-2 text-xs rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
-                 {activeFilter === tab.key
-                   ? 'bg-lapis text-white dark:bg-lapis-light dark:text-obsidian'
-                   : 'text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz bg-transparent hover:bg-gray-100 dark:hover:bg-graphite-light/40'}"
-          aria-pressed={activeFilter === tab.key}
-        >
-          {tab.label}
-        </button>
-      {/each}
-    </div>
-
-    <!-- Entries -->
-    <div class="pl-24">
-      {#if filteredAudit.length === 0}
-        <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] py-4">
-          {activeFilter === 'all' ? 'No activity recorded yet.' : `No ${activeFilter} activity recorded.`}
-        </p>
-      {:else}
-        <ul aria-label="Activity log entries" class="list-none p-0 m-0">
-          {#each filteredAudit as entry (entry.logId)}
-            <li class="py-3 border-b border-border-light dark:border-[rgba(122,119,112,0.12)] last:border-0">
-              <div class="flex items-baseline gap-3">
-                <span class="text-xs text-flint-dark dark:text-flint-light flex-shrink-0 w-28">
-                  <time datetime={entry.createdAt}>{formatDateTime(entry.createdAt)}</time>
-                </span>
-                <span class="text-sm text-text-light dark:text-quartz leading-relaxed">
-                  {formatAction(entry)}
-                </span>
-              </div>
-              {#if entry.details}
-                <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-31 pl-[calc(theme(spacing.28)+theme(spacing.3))] leading-relaxed">
-                  {entry.details}
-                </p>
-              {/if}
-            </li>
-          {/each}
-        </ul>
-
-        <!-- Show more -->
-        {#if auditEntries.length >= PAGE_SIZE}
-          <div class="mt-6">
-            <button
-              onclick={loadMore}
-              disabled={loadingMore}
-              class="min-h-[44px] px-5 py-2.5 text-sm text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors rounded-full border border-border-light dark:border-[rgba(122,119,112,0.3)] hover:border-flint/40 dark:hover:border-flint-light/40 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
-              aria-label="Load more activity entries"
-            >
-              {loadingMore ? 'Loading…' : 'Show more'}
-            </button>
-          </div>
-        {/if}
-      {/if}
     </div>
   </section>
 
