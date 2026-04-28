@@ -106,9 +106,9 @@
     Recommended investigation mode
   </h3>
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
-    <strong class="text-text-light dark:text-text-dark">Archival</strong> — designed for
-    preservation workflows with scanner-calibrated tolerances that account for the
-    artefacts common in digitised heritage material.
+    <strong class="text-text-light dark:text-text-dark">Deep</strong> — runs the full
+    detector suite, including the four regional detectors needed for composite-image
+    analysis (Segmented ELA, Shadow Consistency, Colour Temperature, Splice Boundary).
   </p>
 
   <!-- Key features -->
@@ -393,9 +393,9 @@
     </li>
     <li>
       Run verification in
-      <strong class="text-text-light dark:text-text-dark">Deep</strong> or
-      <strong class="text-text-light dark:text-text-dark">Archival</strong> mode for
-      maximum signal coverage.
+      <strong class="text-text-light dark:text-text-dark">Deep</strong> mode for
+      maximum signal coverage — this includes the regional detectors needed for
+      composite analysis.
     </li>
     <li>
       Review the Signal Agreement dashboard to understand detector consensus — it shows
@@ -427,10 +427,10 @@
     Recommended investigation mode
   </h3>
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
-    <strong class="text-text-light dark:text-text-dark">Deep</strong> or
-    <strong class="text-text-light dark:text-text-dark">Archival</strong> — both provide
-    maximum detector coverage. Archival additionally applies scanner-calibrated tolerances
-    suited to digitised heritage material and enables chain-of-custody logging.
+    <strong class="text-text-light dark:text-text-dark">Deep</strong> — runs the full
+    detector suite including the four regional detectors (Segmented ELA, Shadow
+    Consistency, Colour Temperature, Splice Boundary) needed for composite-image
+    analysis.
   </p>
 
   <!-- Key features -->
@@ -465,20 +465,15 @@
         The current GBM (Gradient Boosting Machine) classifier is v4, trained on a
         10,709-image corpus (5,724 authentic, 4,985 AI-generated from 14 generator
         families) with a cross-validation AUC-ROC of 0.9868 and authentic false-positive
-        rate of 4.54%. It is combined with the UnivFD v8 probe (AUC-ROC 0.9911) into an
-        ensemble score. Be aware of its training data scope when drawing conclusions
-        about content types or generators outside that distribution.
+        rate of 4.54%. It is combined with the UnivFD v9 probe (AUC-ROC 0.9933,
+        authentic FP 4.12%) into an ensemble score. Be aware of the training-data scope
+        when drawing conclusions about content types or generators outside that
+        distribution.
       </li>
       <li>
         Use the false positive report button on verification results to flag
         incorrectly-classified items. Reports are stored locally in the database and
         can help inform future model calibration.
-      </li>
-      <li>
-        Archival mode uses scanner-calibrated tolerances that account for digitisation
-        artefacts common in heritage materials — useful when working with scanned
-        analogue photographs or documents that would otherwise trigger noise-based
-        detectors.
       </li>
     </ul>
   </div>
@@ -517,8 +512,8 @@
     </li>
     <li>
       Run verification in
-      <strong class="text-text-light dark:text-text-dark">Deep</strong> or
-      <strong class="text-text-light dark:text-text-dark">Archival</strong> mode.
+      <strong class="text-text-light dark:text-text-dark">Deep</strong> mode for full
+      detector coverage including the four regional detectors.
     </li>
     <li>
       Review the verdict and per-detector signal scores.
@@ -539,9 +534,10 @@
     Recommended investigation mode
   </h3>
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
-    <strong class="text-text-light dark:text-text-dark">Deep</strong> for standard matters.
-    <strong class="text-text-light dark:text-text-dark">Archival</strong> for high-stakes
-    litigation where maximum detector coverage is required.
+    <strong class="text-text-light dark:text-text-dark">Deep</strong> — runs the full
+    detector suite including the four regional detectors needed for composite-image
+    analysis. Use Standard only for initial triage where regional coverage is not yet
+    required.
   </p>
 
   <!-- Key features -->
@@ -835,8 +831,9 @@
     </li>
     <li>
       Run verification in
-      <strong class="text-text-light dark:text-text-dark">Archival</strong> mode for
-      maximum forensic depth.
+      <strong class="text-text-light dark:text-text-dark">Deep</strong> mode for full
+      detector coverage including the four regional detectors needed for composite
+      analysis.
     </li>
     <li>
       Review the full signal breakdown — for evidence destined for legal proceedings,
@@ -858,9 +855,10 @@
     Recommended investigation mode
   </h3>
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
-    <strong class="text-text-light dark:text-text-dark">Archival</strong> — maximum
-    detector coverage with calibrated tolerances suited to field-captured material and
-    chain-of-custody logging.
+    <strong class="text-text-light dark:text-text-dark">Deep</strong> — full detector
+    suite including the four regional detectors (Segmented ELA, Shadow Consistency,
+    Colour Temperature, Splice Boundary) needed for composite analysis. Field-captured
+    material with chain-of-custody requirements should always run in Deep mode.
   </p>
 
   <!-- Key features -->

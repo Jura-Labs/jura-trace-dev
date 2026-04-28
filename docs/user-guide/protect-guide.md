@@ -180,7 +180,7 @@ The catalogue is available from the PROTECT section. You can search by filename,
 - Sign new digital acquisitions with C2PA at the point of ingest. This establishes an unbroken provenance chain from the moment the file enters your system.
 - Use Medium or High watermark strength for files that will be made available for public download or licensed for external use.
 - Keep your local database backed up. The watermark UUID links back to your catalogue — without the catalogue, the UUID cannot be matched to a specific asset.
-- Use Archival mode when verifying files that you have received from external sources. It creates a full chain-of-custody log that can be referenced in acquisition records.
+- Use Deep mode when verifying files received from external sources. Every analysis writes a hash-chained audit-log entry to your local database that can be referenced in acquisition records.
 
 ### For journalists and documentary makers
 

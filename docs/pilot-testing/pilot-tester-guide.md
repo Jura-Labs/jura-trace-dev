@@ -336,8 +336,7 @@ Once you are comfortable with the basic verification, try these variations:
 | Mode      | Analysis depth             | Approximate time |
 |-----------|----------------------------|------------------|
 | Standard  | Core detectors             | 10–20 seconds    |
-| Deep      | All detectors              | 30–60 seconds    |
-| Archival  | Maximum — all detectors and extended temporal analysis | 60–120 seconds |
+| Deep      | All detectors including the four regional detectors (Segmented ELA, Shadow Consistency, Colour Temperature, Splice Boundary) | 30–60 seconds    |
 
 Try the same image in both Standard and Deep modes and compare the results.
 

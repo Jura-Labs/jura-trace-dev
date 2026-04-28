@@ -267,7 +267,7 @@
           <td class="py-3 pr-4 align-top whitespace-nowrap">~15 s</td>
           <td class="py-3">
             EXIF anomaly analysis, C2PA credential check, ELA (Error Level Analysis),
-            AI-generation detection (GBM v4 + UnivFD v8 ensemble), watermark extraction,
+            AI-generation detection (GBM v4 + UnivFD v9 ensemble), watermark extraction,
             noise analysis, copy-move detection, JPEG ghost
           </td>
         </tr>

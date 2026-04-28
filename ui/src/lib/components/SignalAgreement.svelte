@@ -113,7 +113,7 @@
         : null,
     },
 
-    // NPR (Neighbouring Pixel Relationships) — deep/archival mode only
+    // NPR (Neighbouring Pixel Relationships) — deep mode only
     {
       id: 'npr',
       detector: 'Pixel Relationships (NPR)',
@@ -125,7 +125,7 @@
       confidence: result.nprResult != null ? 1 - result.nprResult.score : null,
     },
 
-    // JPEG Ghost Detection — deep/archival mode only
+    // JPEG Ghost Detection — deep mode only
     {
       id: 'jpegGhost',
       detector: 'JPEG Ghost',

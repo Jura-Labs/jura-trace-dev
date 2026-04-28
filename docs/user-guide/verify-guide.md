@@ -33,16 +33,13 @@ Every verification starts with choosing an investigation mode. The mode controls
 | Mode | Analysis depth | Approximate time | When to use |
 |---|---|---|---|
 | Standard | Core pipeline only | 3–10 seconds | Quick triage — initial assessment of whether a file warrants closer attention |
-| Deep | All detectors, including region-based analysis | 30–60 seconds | When you plan to act on the result — write a story, publish, include in a report |
-| Archival | Maximum depth + chain-of-custody log | 60–90 seconds | When the result will be cited in a formal record, legal document, or institutional archive |
+| Deep | All detectors, including region-based analysis | 30–60 seconds | When you plan to act on the result — write a story, publish, include in a report, or submit to a formal record |
 
 **Standard mode** runs the essential checks: EXIF metadata analysis, Error Level Analysis (a technique that reveals compression inconsistencies), noise analysis, copy-move detection, perceptual fingerprinting, and C2PA credential verification.
 
-**Deep mode** adds four region-based forensic detectors that identify composite images — cases where different parts of an image originate from different sources. It also runs the full deepfake classification pipeline, including the trained AI classifier.
+**Deep mode** adds four region-based forensic detectors that identify composite images — cases where different parts of an image originate from different sources. It also runs the full deepfake classification pipeline, including the trained AI classifier. Every analysis (Standard or Deep) writes a hash-chained audit-log entry to your local database; if the result will be cited in a formal record or legal document, run Deep mode and export the ZIP case file alongside the audit-log entry.
 
-**Archival mode** runs everything in Deep mode and additionally creates a full chain-of-custody log in your local database. This log records every step of the analysis with timestamps and a hash chain that confirms the log has not been altered. Use this mode when you need evidence that will withstand scrutiny.
-
-For video files, the mode also determines how many frames are sampled for deepfake analysis: 6 frames (Standard), 20 frames (Deep), or 40 frames (Archival).
+For video files, the mode also determines how many frames are sampled for deepfake analysis: 6 frames (Standard) or 20 frames (Deep).
 
 ---
 
@@ -98,7 +95,7 @@ Metadata flags contribute to the trust score but are not individually determinat
 
 ## Forensic signals
 
-The forensic signals section shows the output of each individual detector. In Standard mode you will see the core signals; Deep and Archival modes add the regional detectors.
+The forensic signals section shows the output of each individual detector. In Standard mode you will see the core signals; Deep mode adds the regional detectors.
 
 [Screenshot: Forensic signals panel showing a list of detectors with scores and status badges]
 
@@ -110,13 +107,13 @@ The forensic signals section shows the output of each individual detector. In St
 
 **Copy-Move Detection** — looks for regions within the image that have been duplicated and moved to another position. This is a common technique in image manipulation, used to cover up or duplicate elements. Matched regions are highlighted in the visualisation.
 
-**Deepfake and AI Detection** — an ensemble of two trained classifiers. GBM v4 (Gradient Boosting Machine) extracts an 84-feature vector covering noise statistics, spectral patterns, texture descriptors, and demosaic coherence, then assigns a probability score based on a corpus of 10,709 training images from 14 generator families (AUC-ROC 0.9868). UnivFD v8 runs in parallel as a LogisticRegression probe on CLIP ViT-B/32 embeddings (AUC-ROC 0.9911, recall 96.01%). Their ensemble score drives the verdict.
+**Deepfake and AI Detection** — an ensemble of two trained classifiers. GBM v4 (Gradient Boosting Machine) extracts an 84-feature vector covering noise statistics, spectral patterns, texture descriptors, and demosaic coherence, then assigns a probability score based on a corpus of 10,709 training images from 14 generator families (AUC-ROC 0.9868, authentic FP 4.54%, AI recall 92.52%). UnivFD v9 runs in parallel as a LogisticRegression probe on CLIP ViT-B/32 embeddings (AUC-ROC 0.9933, authentic FP 4.12%, recall 95.70% — trained on 39,016 platform-forwarded-augmented samples). Their ensemble score drives the verdict.
 
 The verdict reflects the probability that the image was generated or significantly manipulated by AI. A score above 0.65 returns a 'Synthetic' classification; below 0.30 returns 'Authentic'; between 0.30 and 0.65 returns 'Inconclusive'.
 
 **JPEG Ghost Analysis** — analyses the image at multiple compression quality levels and looks for regions that appear to originate from a different compression history. A region that was copied from a JPEG file and pasted into another JPEG file will typically show a characteristic "ghost" at certain quality levels. Contributes to the trust score at half the weight of ELA, noise, and copy-move pending empirical calibration.
 
-### Regional detectors (Deep and Archival modes only)
+### Regional detectors (Deep mode only)
 
 **Segmented ELA** — divides the image into an 8×8 grid and runs Error Level Analysis on each region independently. This reveals inconsistencies between regions that might not be visible in a whole-image analysis — for example, a sky that was generated separately from the foreground.
 
@@ -128,7 +125,7 @@ When Segmented ELA and Colour Temperature fire simultaneously, the trust score r
 
 Three detectors were demoted from the automatic scoring pipeline in April 2026 after a forensic audit rated their discriminative power too low to contribute reliably, but they remain available as manual investigation tools in Expert View. They do **not** contribute to the numeric trust score.
 
-**Neighbouring Pixel Relationships (NPR)** — examines the statistical relationships between adjacent pixels. Demoted because the Tan et al. AAAI 2024 paper on which the signal is based uses NPR features as input to a learned classifier rather than a standalone threshold, and the UnivFD v8 probe already encodes upsampling artefacts at a higher level of abstraction.
+**Neighbouring Pixel Relationships (NPR)** — examines the statistical relationships between adjacent pixels. Demoted because the Tan et al. AAAI 2024 paper on which the signal is based uses NPR features as input to a learned classifier rather than a standalone threshold, and the UnivFD v9 probe already encodes upsampling artefacts at a higher level of abstraction.
 
 **Shadow Consistency** — estimates the direction of the dominant light source in each region. Demoted because the gradient-weighted estimate is noisy on textured scenes; the canonical Kee-O'Brien-Farid 2013 shadow-constraint technique requires user-placed shadow/object point pairs and is better suited as a manual ROI tool.
 
@@ -184,7 +181,7 @@ This information can reveal inconsistencies — for example, a video that claims
 
 ### Video deepfake analysis
 
-Jura Trace samples frames from the video at even intervals and runs the full deepfake pipeline on each frame. The number of frames depends on the investigation mode (6 for Standard, 20 for Deep, 40 for Archival).
+Jura Trace samples frames from the video at even intervals and runs the full deepfake pipeline on each frame. The number of frames depends on the investigation mode (6 for Standard, 20 for Deep).
 
 The frame timeline shows each sampled frame with a colour-coded deepfake score badge:
 - Green: score below 0.30 (no significant concern)
@@ -298,7 +295,7 @@ The deepfake classifier was trained on a corpus of images from tools available u
 Heavy JPEG compression, social media processing, and screen-capture re-encoding all degrade the forensic signals that detectors rely on. A heavily compressed image may return an 'Inconclusive' verdict not because it is authentic, but because the evidence has been eroded. When possible, work from the highest-quality copy available.
 
 **The regional detectors do not run in Standard mode.**
-If you need to detect composite images — where different regions of an image come from different sources — you must use Deep or Archival mode. Standard mode is not sufficient for this use case.
+If you need to detect composite images — where different regions of an image come from different sources — you must use Deep mode. Standard mode is not sufficient for this use case.
 
 **Metadata can be fabricated.**
 EXIF data can be written or rewritten by any image editing application. The presence of realistic-looking EXIF data does not confirm a photograph is genuine — it confirms that EXIF data is present.

@@ -357,7 +357,7 @@
 
       Removed entirely:
         Chromatic Aberration — S28-1 (April 2026), audit 1/5 accuracy
-        Diffusion artefacts — S28-2 (April 2026), superseded by UnivFD v8
+        Diffusion artefacts — S28-2 (April 2026), superseded by UnivFD probe (now v9)
         Seasonal indicators — Sprint 27 April 2026, pseudoscience
         Weather cross-reference — Sprint 27 April 2026, was browser-mock
     -->
@@ -927,7 +927,7 @@
             <div id="clip-detection">
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Note: class probabilities are currently experimental</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                The class probability bars shown in the verify results are produced by feeding raw cosine similarity scores directly into a softmax function without applying the CLIP logit scale multiplier. This causes near-uniform distributions (~20% per class) regardless of the image content — the values do not reliably discriminate between authentic and AI-generated images. The UnivFD v8 probe — a trained logistic regression classifier on the same CLIP ViT&#8209;B/32 embeddings — is the production-grade path and contributes to the trust score separately. The class probability display is retained as an exploratory signal pending a fix to the softmax temperature and is marked <em>Experimental — informational only</em> in the verify interface.
+                The class probability bars shown in the verify results are produced by feeding raw cosine similarity scores directly into a softmax function without applying the CLIP logit scale multiplier. This causes near-uniform distributions (~20% per class) regardless of the image content — the values do not reliably discriminate between authentic and AI-generated images. The UnivFD v9 probe — a trained logistic regression classifier on the same CLIP ViT&#8209;B/32 embeddings, AUC-ROC 0.9933, authentic FP 4.12%, AI recall 95.70% — is the production-grade path and contributes to the trust score separately. The class probability display is retained as an exploratory signal pending a fix to the softmax temperature and is marked <em>Experimental — informational only</em> in the verify interface.
               </dd>
             </div>
           </dl>
@@ -1204,7 +1204,7 @@
               <div>
                 <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
                 <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                  Demoted to on-demand in Sprint 28 (April 2026). Content-authenticity-expert cross-review noted that the Tan et al. AAAI 2024 paper uses NPR features as input to a learned classifier, not as a standalone threshold, and that a hand-tuned NPR statistic is partially redundant with the UnivFD v8 probe which encodes upsampling artefacts at a higher level of abstraction via CLIP features. The sidecar endpoint remains available for manual investigation. Also computationally intensive and less effective on highly compressed content where pixel neighbour relationships are already disrupted by quantisation.
+                  Demoted to on-demand in Sprint 28 (April 2026). Content-authenticity-expert cross-review noted that the Tan et al. AAAI 2024 paper uses NPR features as input to a learned classifier, not as a standalone threshold, and that a hand-tuned NPR statistic is partially redundant with the UnivFD v9 probe which encodes upsampling artefacts at a higher level of abstraction via CLIP features. The sidecar endpoint remains available for manual investigation. Also computationally intensive and less effective on highly compressed content where pixel neighbour relationships are already disrupted by quantisation.
                 </dd>
               </div>
             </dl>

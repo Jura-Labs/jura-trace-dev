@@ -366,7 +366,7 @@
           corpus of 10,709 images (5,724 authentic, 4,985 AI-generated from 14
           generator families). Achieves a cross-validation AUC-ROC of 0.9868 with
           an authentic false-positive rate of 4.54% at the calibrated threshold.
-          Combined with the UnivFD v8 CLIP probe (AUC-ROC 0.9911) into an ensemble
+          Combined with the UnivFD v9 CLIP probe (AUC-ROC 0.9933) into an ensemble
           score. Degrades gracefully — analysis continues with heuristic scoring
           alone if the model file is not present.
         </dd>

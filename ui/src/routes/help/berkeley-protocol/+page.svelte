@@ -717,11 +717,12 @@
                    text-lapis dark:text-lapis-light text-xs font-semibold
                    flex items-center justify-center mt-0.5">4</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">Run verification in Deep or Archival mode.</strong>
-        Submit each file for verification. Use Deep mode (20 frames for video; full
-        detector suite for images) or Archival mode for the most comprehensive analysis
-        record. Standard mode is suitable for initial triage. The results are recorded
-        in the audit log.
+        <strong class="text-text-light dark:text-text-dark">Run verification in Deep mode.</strong>
+        Submit each file for verification using Deep mode — 20 frames for video, the
+        full detector suite for images, including the four regional detectors (segmented
+        ELA, shadow consistency, colour temperature, splice boundary). Standard mode is
+        suitable for initial triage but does not include the regional detectors needed
+        for composite-image analysis. The results are recorded in the audit log.
       </span>
     </li>
 

@@ -880,7 +880,11 @@ export async function extractTextFromImage(filePath: string): Promise<string | n
 /**
  * Analyse a video file for AI-generated or manipulated frames.
  * @param filePath  Path to the video file.
- * @param mode      Analysis mode: 'standard' (6 frames), 'deep' (20), 'archival' (40).
+ * @param mode      Analysis mode: 'standard' (6 frames) or 'deep' (20).
+ *                  Legacy 'archival' is accepted by the Rust backend and
+ *                  aliased to 'deep' (retired 2026-04-22); the previously
+ *                  advertised 40-frame extraction was never realised — the
+ *                  sidecar capped at 20.
  */
 export async function analyseVideoDeepfake(
   filePath: string,

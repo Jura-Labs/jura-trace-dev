@@ -123,8 +123,7 @@ To verify a web image, paste the URL into the URL field and press Enter. Jura Tr
 Select a mode from the dropdown:
 
 - **Standard** — runs the core pipeline in a few seconds. Good for quick checks.
-- **Deep** — runs all forensic detectors including region-based analysis. Takes 30–60 seconds. Recommended for anything you plan to act on.
-- **Archival** — the most thorough analysis. Creates a full chain-of-custody log. Use this when the result will be cited in a report or legal record.
+- **Deep** — runs all forensic detectors including region-based analysis. Takes 30–60 seconds. Recommended for anything you plan to act on, cite in a report, or submit as evidence. Every analysis writes a hash-chained audit-log entry to your local database regardless of mode.
 
 For your first test, choose **Standard**.
 
@@ -229,9 +228,9 @@ Video and audio analysis requires FFmpeg to be installed. See the [install guide
 
 **How accurate is the AI detection?**
 
-The deepfake and AI-generation detector is an ensemble of two trained classifiers: GBM v4 (trained on 10,709 images, cross-validation AUC-ROC 0.9868, authentic false-positive rate 4.54%) and the UnivFD v8 probe on CLIP embeddings (AUC-ROC 0.9911, recall 96.01%). In plain terms: it correctly identifies most AI-generated images across 14 generator families, and flags authentic images as fake roughly 5% of the time — typically on heavily-compressed phone photos, social media re-uploads, and extreme macro or wildlife shots.
+The deepfake and AI-generation detector is an ensemble of two trained classifiers: GBM v4 (trained on 10,709 images, cross-validation AUC-ROC 0.9868, authentic false-positive rate 4.54%) and the UnivFD v9 probe on CLIP embeddings (AUC-ROC 0.9933, FP 4.12%, recall 95.70%). In plain terms: it correctly identifies most AI-generated images across 14 generator families, and flags authentic images as fake roughly 4% of the time — typically on heavily-compressed phone photos, social media re-uploads, and extreme macro or wildlife shots.
 
-However, no detector is infallible. Detection accuracy depends on image quality, the AI tool used to generate the content, and how much the image has been compressed or edited since generation. Jura Trace gives you evidence — not certainty. Always combine results with your own judgement and, where the stakes are high, use Deep or Archival mode for a fuller picture.
+However, no detector is infallible. Detection accuracy depends on image quality, the AI tool used to generate the content, and how much the image has been compressed or edited since generation. Jura Trace gives you evidence — not certainty. Always combine results with your own judgement and, where the stakes are high, use Deep mode for the full detector suite.
 
 **Does it work with video?**
 

@@ -15,7 +15,7 @@ This test plan validates Jura Trace's forensic detection pipeline against real-w
 2. **Detection rate by generator** -- which AI generators are reliably detected and which evade detection.
 3. **Per-detector reliability** -- which of the 21 forensic signals are most and least informative for real-world content.
 4. **Pipeline robustness** -- how the full verify pipeline (C2PA + EXIF + deepfake + regional + CLIP) behaves on diverse inputs.
-5. **Analysis mode consistency** -- whether Standard, Deep, and Archival modes produce materially different verdicts for the same content.
+5. **Analysis mode consistency** -- whether Standard and Deep modes produce materially different verdicts for the same content.
 
 ### Relationship to Existing Work
 
@@ -575,7 +575,7 @@ def analyse_image(file_path: Path, mode: str = "standard") -> dict:
     except Exception:
         result["copy_move_detected"] = None
 
-    # Regional forensics (Deep/Archival modes)
+    # Regional forensics (Deep mode; archival is back-compat alias for deep)
     if mode in ("deep", "archival"):
         for endpoint in [
             "/forensics/segmented-ela",
@@ -982,12 +982,9 @@ python scripts/run_real_world_tests.py --corpus test-corpus/ --mode standard --o
 
 # Deep mode (all detectors + regional, ~10-15 seconds per image)
 python scripts/run_real_world_tests.py --corpus test-corpus/ --mode deep --output results-deep.csv
-
-# Archival mode (all detectors + CLIP + regional, ~20-30 seconds per image)
-python scripts/run_real_world_tests.py --corpus test-corpus/ --mode archival --output results-archival.csv
 ```
 
-Compare whether Deep and Archival modes improve detection without increasing FP rate.
+Compare whether Deep mode improves detection over Standard without increasing FP rate.
 
 ---
 

@@ -37,7 +37,7 @@
     if (result.noiseResult) count++;
     if (result.copyMoveResult) count++;
     if (result.deepfakeResult) count++;
-    // Extended detectors (deep/archival mode)
+    // Extended detectors (deep mode; archival is a back-compat alias)
     if (result.nprResult) count++;
     if (result.jpegGhostResult) count++;
     if (result.clipResult) count++;

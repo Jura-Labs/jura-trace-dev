@@ -476,9 +476,14 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
   if (reportFormat === 'berkeley') {
     heading('Capture Environment');
 
+    // Mode label normalisation: 'archival' was retired 2026-04-22 and
+    // aliased to 'deep' in the Rust backend. Render legacy archival
+    // result records as "Deep" so the PDF doesn't claim a mode the
+    // current build no longer offers — the analysis was the same.
+    const berkeleyRawMode = result.mode ?? 'standard';
     const berkeleyAnalysisMode =
-      (result.mode ?? 'standard') === 'archival' ? 'Archival' :
-      (result.mode ?? 'standard') === 'deep' ? 'Deep' :
+      berkeleyRawMode === 'archival' ? 'Deep' :
+      berkeleyRawMode === 'deep' ? 'Deep' :
       'Standard';
 
     const berkeleyDetectors: string[] = [];
@@ -1123,7 +1128,7 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
     }
   }
 
-  // Regional Analysis subsection (deep / archival mode only)
+  // Regional Analysis subsection (deep mode only; legacy archival aliased to deep)
   if (hasRegionalRows || hasRegionalScores) {
     checkPage(12);
     doc.setFontSize(9);
@@ -1182,10 +1187,13 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
   // ── Methodology ─────────────────────────────────────────────
   heading('Methodology');
 
-  // Structured pipeline metadata block
+  // Structured pipeline metadata block. 'archival' was retired
+  // 2026-04-22 and aliased to 'deep' in the Rust backend; render
+  // legacy records as "Deep" rather than naming a mode the current
+  // build no longer offers.
   const analysisMode = result.mode ?? 'standard';
   const modeLabel =
-    analysisMode === 'archival' ? 'Archival' :
+    analysisMode === 'archival' ? 'Deep' :
     analysisMode === 'deep' ? 'Deep' :
     'Standard';
 

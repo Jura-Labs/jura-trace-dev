@@ -506,13 +506,13 @@ export interface VerificationResult {
   thumbnailCheck?: ThumbnailCheck | null;
   /**
    * 8×8 block DCT coefficient map analysis result.
-   * Only populated in deep/archival mode when the sidecar is available.
+   * Only populated in deep mode when the sidecar is available.
    * Only present for image content.
    */
   dctAnalysisResult?: DctAnalysisResult | null;
   /**
    * 2D Fourier periodic pattern detection result.
-   * Only populated in deep/archival mode when the sidecar is available.
+   * Only populated in deep mode when the sidecar is available.
    * Only present for image content.
    */
   fourierAnalysisResult?: FourierAnalysisResult | null;

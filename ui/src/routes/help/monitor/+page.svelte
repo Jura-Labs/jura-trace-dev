@@ -214,7 +214,7 @@
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         A high proportion of "inconclusive" results often indicates a collection of highly
         compressed or heavily processed images. Consider running those files through the
-        Verify page on Deep or Archival mode for a more thorough analysis.
+        Verify page on Deep mode for a more thorough analysis.
       </p>
     </div>
 
