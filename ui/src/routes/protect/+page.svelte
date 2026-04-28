@@ -1836,7 +1836,7 @@
 
       <!-- Column headers (sortable) — desktop only -->
       <div
-        class="hidden sm:grid grid-cols-[1fr_80px_170px_90px_130px] gap-4 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
+        class="hidden sm:grid grid-cols-[1fr_80px_220px_90px_130px] gap-4 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
         role="row"
         aria-label="Asset list column headers"
       >
@@ -1930,7 +1930,7 @@
 
         <!-- Desktop row -->
         <button
-          class="hidden sm:grid w-full grid-cols-[1fr_80px_170px_90px_130px] gap-4 px-4 py-3 border-b border-border-light/50 dark:border-graphite-light/50
+          class="hidden sm:grid w-full grid-cols-[1fr_80px_220px_90px_130px] gap-4 px-4 py-3 border-b border-border-light/50 dark:border-graphite-light/50
                  hover:bg-gray-50 dark:hover:bg-graphite-light/30 transition-colors text-left
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                  {selectedAsset?.assetId === asset.assetId
@@ -1972,10 +1972,29 @@
             {CONTENT_TYPE_LABELS[asset.contentType] || asset.contentType}
           </span>
 
-          <!-- Status badges cell -->
-          <div class="self-center flex flex-wrap gap-1" aria-label="Protection status">
+          <!-- Status cell: leading dot + badges + optional signing-mode badge.
+               JTV-124: aligns with the DetectorRow [icon · name · badges] pattern. -->
+          <div class="self-center flex items-center gap-2 flex-wrap" aria-label="Protection status">
+            <!-- 10×10 status dot -->
+            <span
+              class="w-2.5 h-2.5 rounded-full flex-shrink-0
+                     {asset.c2paSigned && asset.watermarked
+                       ? 'bg-malachite dark:bg-malachite-light'
+                       : (asset.c2paSigned || asset.watermarked)
+                         ? 'bg-lapis dark:bg-lapis-light'
+                         : 'bg-amber dark:bg-amber-light'}"
+              aria-hidden="true"
+            ></span>
+
             {#if asset.c2paSigned}
               <span class="text-[10px] px-1.5 py-0.5 rounded bg-malachite/15 text-malachite-dark dark:text-malachite-light leading-tight">Signed</span>
+              <!-- Signing-mode badge: "Sovereign" or "Conformant" -->
+              <span
+                class="text-[10px] px-1.5 py-0.5 rounded bg-lapis/10 text-lapis-dark dark:text-lapis-light leading-tight"
+                title="Signing mode used when this credential was created"
+              >
+                {signingMode === 'conformant' ? 'Conformant' : 'Sovereign'}
+              </span>
             {/if}
             {#if asset.watermarked}
               <span class="text-[10px] px-1.5 py-0.5 rounded bg-lapis/15 text-lapis dark:text-lapis-light leading-tight">Watermarked</span>
