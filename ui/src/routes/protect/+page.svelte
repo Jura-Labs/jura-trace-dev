@@ -4,7 +4,7 @@
   import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode } from '$lib/api';
   import { setVerifyHandoff } from '$lib/stores/verifyHandoff';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
-  import { createBlobTracker } from '$lib/blob';
+  import { createBlobTracker, triggerDownload, escapeCsvField } from '$lib/blob';
   import {
     type Asset,
     type ContentType,
@@ -422,7 +422,14 @@
   }
 
   // ── CSV export ────────────────────────────────────────────────────
-  function exportCsv() {
+  // JTV-129 fix — the previous implementation used the bare anchor-click
+  // pattern (createElement('a') + .click() with synchronous URL revoke)
+  // which the Tauri webview silently blocks. Now routes through
+  // triggerDownload() in $lib/blob, which opens the native save dialog
+  // in Tauri and falls back to a properly DOM-attached anchor in the
+  // browser. escapeCsvField() also patches the formula-injection
+  // MEDIUM finding from the 2026-04-28 security audit.
+  async function exportCsv() {
     const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     const headers = [
       'File Name',
@@ -437,36 +444,22 @@
       'Created',
     ];
 
-    function escapeCsv(value: string | number | boolean | undefined | null): string {
-      if (value == null) return '';
-      const str = String(value);
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    }
-
     const rows = displayedAssets.map(a => [
-      escapeCsv(a.fileName),
-      escapeCsv(CONTENT_TYPE_LABELS[a.contentType] || a.contentType),
-      escapeCsv(a.mimeType),
-      escapeCsv(a.fileSize),
-      escapeCsv(a.width ?? ''),
-      escapeCsv(a.height ?? ''),
-      escapeCsv(a.c2paSigned ? 'Yes' : 'No'),
-      escapeCsv(a.watermarked ? 'Yes' : 'No'),
-      escapeCsv(a.filePath),
-      escapeCsv(new Date(a.createdAt).toISOString()),
+      escapeCsvField(a.fileName),
+      escapeCsvField(CONTENT_TYPE_LABELS[a.contentType] || a.contentType),
+      escapeCsvField(a.mimeType),
+      escapeCsvField(a.fileSize),
+      escapeCsvField(a.width ?? ''),
+      escapeCsvField(a.height ?? ''),
+      escapeCsvField(a.c2paSigned ? 'Yes' : 'No'),
+      escapeCsvField(a.watermarked ? 'Yes' : 'No'),
+      escapeCsvField(a.filePath),
+      escapeCsvField(new Date(a.createdAt).toISOString()),
     ].join(','));
 
     const csv = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `jura_assets_${dateStr}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    await triggerDownload(blob, `jura_assets_${dateStr}.csv`);
   }
 
   // ── Batch watermark handler ───────────────────────────────────────
@@ -528,16 +521,19 @@
     batchEta = null;
   }
 
-  function exportBatchErrors() {
+  async function exportBatchErrors() {
     if (batchErrors.length === 0) return;
-    const csv = ['File Name,Error', ...batchErrors.map(e => `"${e.fileName.replace(/"/g, '""')}","${e.error.replace(/"/g, '""')}"`)].join('\n');
+    const csv = [
+      'File Name,Error',
+      ...batchErrors.map(e =>
+        [escapeCsvField(e.fileName), escapeCsvField(e.error)].join(','),
+      ),
+    ].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `jura_batch_errors_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    await triggerDownload(
+      blob,
+      `jura_batch_errors_${new Date().toISOString().slice(0, 10)}.csv`,
+    );
   }
 
   function openBatchWatermark() {
@@ -654,19 +650,19 @@
     batchSignEta = null;
   }
 
-  function exportBatchSignErrors() {
+  async function exportBatchSignErrors() {
     if (batchSignErrors.length === 0) return;
     const csv = [
       'File Name,Error',
-      ...batchSignErrors.map(e => `"${e.fileName.replace(/"/g, '""')}","${e.error.replace(/"/g, '""')}"`),
+      ...batchSignErrors.map(e =>
+        [escapeCsvField(e.fileName), escapeCsvField(e.error)].join(','),
+      ),
     ].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `jura_sign_errors_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    await triggerDownload(
+      blob,
+      `jura_sign_errors_${new Date().toISOString().slice(0, 10)}.csv`,
+    );
   }
 
   // ── Format video/audio duration as mm:ss ──────────────────────────
