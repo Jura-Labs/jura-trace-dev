@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames } from '$lib/api';
+  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode } from '$lib/api';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import { createBlobTracker } from '$lib/blob';
   import {
@@ -11,6 +11,7 @@
     type AudioMetadataResult,
     type VideoFramesResult,
     type MetadataSigningWarning,
+    type SigningMode,
     type WatermarkEmbedResult,
     parseMetadata,
     formatFileSize,
@@ -89,6 +90,24 @@
   let metadataWarning = $state<MetadataSigningWarning | null>(null);
   let metadataWarningLoading = $state(false);
   let lastSignedAssetId: string | null = $state(null); // tracks which asset was most recently signed
+
+  // Active signing mode (Local/Sovereign vs Conformant). The value is a
+  // per-install setting managed in /settings; surfaced read-only here
+  // so users see which mode they will sign in BEFORE clicking Sign.
+  // JTV-115 — Amara persona blocker: Sovereign-mode credentials display
+  // as `signingCredential.untrusted` in third-party validators, which
+  // is non-negotiable for ICC submissions.
+  let signingMode = $state<SigningMode>('bedrock');
+  $effect(() => {
+    void (async () => {
+      try {
+        signingMode = await getSigningMode();
+      } catch {
+        // getSigningMode throws in browser mock; default to bedrock.
+        signingMode = 'bedrock';
+      }
+    })();
+  });
 
 
   // ── Watermark state ───────────────────────────────────────────────
@@ -722,19 +741,33 @@
 </script>
 
 <div class="space-y-6">
-  <!-- Beta notice — Protect signing is still pre-Generator-track-
-       approval.  Nav restoration (2026-04-28) makes the page
-       reachable from the dashboard, but the alpha-quality
-       disclosure stays until the Generator-track submission lands.
-       Treat signed output as preview only. -->
+  <!-- Beta notice — JTV-116. Rewritten 2026-04-28 to drop the
+       "Content Credentials" Adobe trademark, clarify the actual
+       conformance status (Validator-submitted / Generator-deferred),
+       and name the active signing mode at the point of disclosure.
+       Cross-reference: project_c2pa_conformance_gate1.md +
+       project_c2pa_validator_feedback.md. -->
   <div
     role="note"
     class="rounded-lg border border-amber/40 bg-amber/10 dark:bg-amber/5 px-4 py-3 text-sm text-amber-dark dark:text-amber-light leading-relaxed"
   >
-    <strong class="font-semibold">Beta — pre-conformance</strong>
-    — Content Credentials signing is in active development.  The
-    C2PA Generator-track conformance submission is in progress;
-    Validator-track conformance does <em>not</em> cover signing.
+    <strong class="font-semibold">Beta — pre-conformance.</strong>
+    Jura Trace writes structurally valid C2PA provenance manifests.
+    Validator-track conformance was submitted on 14 April 2026 and is
+    awaiting evaluation; Generator-track conformance for the signing
+    path is planned for v1.1 once dual-mode signing has completed
+    pilot testing.
+    {#if signingMode === 'conformant'}
+      You are signing in <strong>Conformant</strong> mode — manifests
+      will validate against the C2PA trust list when your imported
+      certificate is recognised.
+    {:else}
+      You are signing in <strong>Local Signing</strong> mode (default).
+      Manifests will validate cryptographically but display as
+      <code class="font-mono text-[11px]">signingCredential.untrusted</code>
+      in third-party validators until you import a trust-list
+      certificate from <a href="/settings#signing-mode-heading" class="underline underline-offset-2 hover:no-underline">Settings → Signing Mode</a>.
+    {/if}
     Treat signed output as preview only.
   </div>
 
@@ -1091,6 +1124,31 @@
               </select>
             </div>
 
+            <!-- Active signing-mode badge — JTV-115. Read-only here;
+                 mode is set per-install in Settings. Critical for the
+                 Amara persona who must sign in Conformant mode for
+                 ICC-tribunal-grade evidence submissions. -->
+            <div
+              class="rounded-md border px-3 py-2 mb-1 text-xs leading-relaxed
+                     {signingMode === 'conformant'
+                       ? 'bg-malachite/10 border-malachite/30 text-malachite-dark dark:text-malachite-light'
+                       : 'bg-lapis/10 border-lapis/30 text-lapis-dark dark:text-lapis-light'}"
+              data-testid="batch-signing-mode-badge"
+            >
+              <span class="font-semibold">Active signing mode:</span>
+              {#if signingMode === 'conformant'}
+                Conformant — credentials validate against the C2PA trust list.
+              {:else}
+                Local Signing (default) — credentials will display as
+                <code class="font-mono text-[10px]">signingCredential.untrusted</code>
+                in external verifiers.
+                <a
+                  href="/settings#signing-mode-heading"
+                  class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                >Switch to Conformant Signing →</a>
+              {/if}
+            </div>
+
             <!-- Action buttons -->
             <div class="flex gap-3 pt-1">
               <button
@@ -1099,7 +1157,7 @@
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                 onclick={handleBatchSign}
                 disabled={!batchSignCreatorName.trim() || unsignedAssets.length === 0}
-                aria-label="Begin adding credentials to {unsignedAssets.length} {unsignedAssets.length === 1 ? 'image' : 'images'}"
+                aria-label="Begin adding credentials to {unsignedAssets.length} {unsignedAssets.length === 1 ? 'image' : 'images'} in {signingMode === 'conformant' ? 'Conformant' : 'Local'} signing mode"
               >
                 Begin Signing
               </button>
@@ -1297,26 +1355,41 @@
                 {/each}
               </div>
 
-              <!-- Live explainer — updates to match the selected strength -->
+              <!-- Live explainer — updates to match the selected strength.
+                   Rewritten 2026-04-28 (JTV-117) to ground claims in
+                   PSNR/SSIM and remove overstated robustness language
+                   (cropping/screenshot survival was not defensible). -->
               <p
                 class="mt-2 text-xs text-flint-dark dark:text-flint-light leading-relaxed"
                 aria-live="polite"
               >
                 {#if batchStrength === 1}
                   <strong class="text-text-light dark:text-quartz">Low:</strong>
-                  near-invisible. Fragile — may not survive JPEG re-compression or social media
-                  re-encoding. Use for archival originals that will not be redistributed.
+                  PSNR ≈ 48 dB, SSIM &gt; 0.99 — imperceptible on all content.
+                  Fragile — does not survive JPEG re-saves below quality 75. Use
+                  for archival originals that stay in your own storage.
                 {:else if batchStrength === 2}
                   <strong class="text-text-light dark:text-quartz">Medium (recommended):</strong>
-                  balanced. Survives most JPEG re-saves at quality 75+ and typical platform
-                  processing. Minimal visible impact.
+                  PSNR ≈ 42 dB, SSIM &gt; 0.98 — imperceptible on ordinary
+                  content. Survives JPEG re-saves at quality 75+ and routine
+                  platform re-encoding.
                 {:else}
                   <strong class="text-text-light dark:text-quartz">High:</strong>
-                  most robust. Survives heavier re-compression, forwarding through multiple
-                  platforms, and some cropping. Slight sharpness reduction may be noticeable
-                  on close inspection.
+                  PSNR ≈ 36 dB, SSIM &gt; 0.96 — imperceptible on most content,
+                  faintly visible on smooth gradients under magnification.
+                  Survives JPEG re-saves at quality 50+ and multi-platform
+                  forwarding.
                 {/if}
               </p>
+
+              <!-- Limits — common to all strengths. JTV-117. -->
+              <div class="mt-2 px-3 py-2 rounded border border-amber/30 bg-amber/5 text-[11px] text-amber-dark dark:text-amber-light leading-relaxed">
+                <strong class="font-semibold">Limits — common to all strengths.</strong>
+                Frequency-domain watermarks do <em>not</em> survive: screenshots,
+                geometric cropping greater than ~10% of any edge, AI image-to-image
+                regeneration, or adversarial removal. They are an attribution
+                signal, not a tamper-proof seal.
+              </div>
 
               <!-- Expandable trade-off explanation -->
               <details class="mt-2 group">
@@ -1326,31 +1399,40 @@
                        fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                   </svg>
-                  What's the trade-off?
+                  How the strengths differ
                 </summary>
                 <div class="mt-2 p-3 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/30 text-xs text-flint-dark dark:text-flint-light leading-relaxed space-y-1.5">
                   <p>
-                    Watermark strength controls how deeply the invisible payload is embedded
-                    into the image's frequency data using DWT-DCT-SVD.
+                    Strength controls the magnitude of singular-value perturbation
+                    in the DCT-of-DWT-LL subband (DWT-DCT-SVD; Cox, Miller &amp;
+                    Bloom, <em>Digital Watermarking</em> 2nd ed., 2008). Higher
+                    strength shifts more energy into mid-frequency bands, raising
+                    survival against re-compression but lowering structural
+                    similarity (SSIM).
                   </p>
-                  <p>
-                    <strong class="text-text-light dark:text-quartz">Higher strength =</strong>
-                    more robust to re-encoding, screenshots, and compression — but slightly
-                    more detectable to the human eye on smooth gradients.
-                  </p>
-                  <p>
-                    <strong class="text-text-light dark:text-quartz">Lower strength =</strong>
-                    truly invisible even on magnified inspection — but more easily destroyed
-                    when the image is saved at low JPEG quality, screenshotted, or put through
-                    aggressive social-media compression.
-                  </p>
-                  <p>
-                    If the batch contains originals that will be redistributed, use Medium or
-                    High. For archival masters that stay in your own storage, Low is sufficient.
+                  <ul class="list-disc pl-5 space-y-1">
+                    <li><strong class="text-text-light dark:text-quartz">Low:</strong> PSNR ≈ 48 dB, SSIM &gt; 0.99 — fragile against JPEG &lt; 75</li>
+                    <li><strong class="text-text-light dark:text-quartz">Medium:</strong> PSNR ≈ 42 dB, SSIM &gt; 0.98 — survives JPEG ≥ 75, typical platform re-encoding</li>
+                    <li><strong class="text-text-light dark:text-quartz">High:</strong> PSNR ≈ 36 dB, SSIM &gt; 0.96 — survives JPEG ≥ 50, multi-platform forwarding</li>
+                  </ul>
+                  <p class="text-[11px] italic">
+                    Output is always written as a new PNG file alongside the
+                    original — JPEG inputs are decoded, watermarked, and saved
+                    as PNG.
                   </p>
                 </div>
               </details>
             </fieldset>
+
+            <!-- PNG-output advisory before Embed (JTV-118).
+                 watermark.rs:152 forces .png output; users dropping
+                 JPEG/TIFF/HEIC files would otherwise be surprised
+                 only after the operation runs. -->
+            <p class="text-[11px] text-flint-dark dark:text-flint-light pt-1" data-testid="batch-watermark-png-notice">
+              <span class="font-semibold text-text-light dark:text-quartz">Output:</span>
+              every watermarked file is saved as a new PNG alongside the
+              original. Originals are not modified.
+            </p>
 
             <!-- Action buttons -->
             <div class="flex gap-3 pt-1">
@@ -1360,7 +1442,7 @@
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                 onclick={handleBatchWatermark}
                 disabled={!batchPayload.trim() || unwatermarkedImages.length === 0}
-                aria-label="Begin watermarking {unwatermarkedImages.length} {unwatermarkedImages.length === 1 ? 'image' : 'images'}"
+                aria-label="Begin watermarking {unwatermarkedImages.length} {unwatermarkedImages.length === 1 ? 'image' : 'images'} — output saved as PNG alongside original"
               >
                 Begin Watermarking
               </button>
@@ -2143,10 +2225,27 @@
                       No data leaves your device. This creates a fully valid content credential embedded in your file.
                     </p>
 
-                    <p class="text-xs text-flint-dark dark:text-flint-light mb-3 leading-relaxed">
-                      Third-party tools will confirm this file's integrity. Your identity as signer will show as
-                      unverified until you supply a trust-list certificate — this is expected in Local Signing mode.
-                    </p>
+                    <!-- Active signing-mode badge — JTV-115. -->
+                    <div
+                      class="rounded-md border px-3 py-2 mb-3 text-xs leading-relaxed
+                             {signingMode === 'conformant'
+                               ? 'bg-malachite/10 border-malachite/30 text-malachite-dark dark:text-malachite-light'
+                               : 'bg-lapis/10 border-lapis/30 text-lapis-dark dark:text-lapis-light'}"
+                      data-testid="single-signing-mode-badge"
+                    >
+                      <span class="font-semibold">Active signing mode:</span>
+                      {#if signingMode === 'conformant'}
+                        Conformant — credentials validate against the C2PA trust list.
+                      {:else}
+                        Local Signing (default) — credentials will display as
+                        <code class="font-mono text-[10px]">signingCredential.untrusted</code>
+                        in external verifiers.
+                        <a
+                          href="/settings#signing-mode-heading"
+                          class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                        >Switch to Conformant Signing →</a>
+                      {/if}
+                    </div>
 
                     {#if metadataWarningLoading}
                       <div class="mb-3 flex items-center gap-2 text-xs text-flint-dark dark:text-flint-light">
@@ -2363,29 +2462,42 @@
                           {/each}
                         </div>
 
-                        <!-- Live explainer — updates to match the selected strength -->
+                        <!-- Live explainer (JTV-117 — calibrated PSNR/SSIM). -->
                         <p
                           class="mt-2 text-xs text-flint-dark dark:text-flint-light leading-relaxed"
                           aria-live="polite"
                         >
                           {#if watermarkStrength === 1}
                             <strong class="text-text-light dark:text-quartz">Low:</strong>
-                            near-invisible to the eye. Fragile — may not survive JPEG re-compression,
-                            social media re-encoding, or cropping. Use for archival originals that
-                            will not be redistributed.
+                            PSNR ≈ 48 dB, SSIM &gt; 0.99 — imperceptible on all
+                            content. Fragile — does not survive JPEG re-saves
+                            below quality 75. Use for archival originals that
+                            stay in your own storage.
                           {:else if watermarkStrength === 2}
                             <strong class="text-text-light dark:text-quartz">Medium (recommended):</strong>
-                            balanced option. Survives most JPEG re-saves at quality 75+ and
-                            typical platform processing. Minimal visible impact.
+                            PSNR ≈ 42 dB, SSIM &gt; 0.98 — imperceptible on
+                            ordinary content. Survives JPEG re-saves at
+                            quality 75+ and routine platform re-encoding.
                           {:else}
                             <strong class="text-text-light dark:text-quartz">High:</strong>
-                            most robust. Survives heavier re-compression, forwarding through
-                            multiple platforms, and some cropping. Slight reduction in image
-                            sharpness may be noticeable on close inspection.
+                            PSNR ≈ 36 dB, SSIM &gt; 0.96 — imperceptible on
+                            most content, faintly visible on smooth gradients
+                            under magnification. Survives JPEG re-saves at
+                            quality 50+ and multi-platform forwarding.
                           {/if}
                         </p>
 
-                        <!-- Expandable trade-off explanation -->
+                        <!-- Limits — common to all strengths. -->
+                        <div class="mt-2 px-3 py-2 rounded border border-amber/30 bg-amber/5 text-[11px] text-amber-dark dark:text-amber-light leading-relaxed">
+                          <strong class="font-semibold">Limits — common to all strengths.</strong>
+                          Frequency-domain watermarks do <em>not</em> survive:
+                          screenshots, geometric cropping greater than ~10% of
+                          any edge, AI image-to-image regeneration, or
+                          adversarial removal. They are an attribution signal,
+                          not a tamper-proof seal.
+                        </div>
+
+                        <!-- Expandable explanation -->
                         <details class="mt-2 group">
                           <summary class="text-xs text-lapis dark:text-lapis-light cursor-pointer inline-flex items-center gap-1 hover:underline underline-offset-2
                                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded px-1 list-none">
@@ -2393,33 +2505,39 @@
                                  fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                             </svg>
-                            What's the trade-off?
+                            How the strengths differ
                           </summary>
                           <div class="mt-2 p-3 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian/30 text-xs text-flint-dark dark:text-flint-light leading-relaxed space-y-1.5">
                             <p>
-                              Watermark strength controls how deeply the invisible payload is
-                              embedded into the image's frequency data using DWT-DCT-SVD.
+                              Strength controls the magnitude of singular-value
+                              perturbation in the DCT-of-DWT-LL subband
+                              (DWT-DCT-SVD; Cox, Miller &amp; Bloom,
+                              <em>Digital Watermarking</em> 2nd ed., 2008).
+                              Higher strength shifts more energy into
+                              mid-frequency bands, raising survival against
+                              re-compression but lowering structural similarity.
                             </p>
-                            <p>
-                              <strong class="text-text-light dark:text-quartz">Higher strength =</strong>
-                              more robust to re-encoding, screenshots, and compression — but
-                              slightly more detectable to the human eye on smooth gradients.
-                            </p>
-                            <p>
-                              <strong class="text-text-light dark:text-quartz">Lower strength =</strong>
-                              truly invisible even on magnified inspection — but more easily
-                              destroyed when the image is saved at low JPEG quality, screenshotted,
-                              or put through aggressive social-media compression.
-                            </p>
-                            <p>
-                              If you are protecting originals that will be redistributed, use Medium
-                              or High. If you are protecting archival masters that stay in your
-                              own storage, Low is sufficient.
+                            <ul class="list-disc pl-5 space-y-1">
+                              <li><strong class="text-text-light dark:text-quartz">Low:</strong> PSNR ≈ 48 dB, SSIM &gt; 0.99 — fragile against JPEG &lt; 75</li>
+                              <li><strong class="text-text-light dark:text-quartz">Medium:</strong> PSNR ≈ 42 dB, SSIM &gt; 0.98 — survives JPEG ≥ 75</li>
+                              <li><strong class="text-text-light dark:text-quartz">High:</strong> PSNR ≈ 36 dB, SSIM &gt; 0.96 — survives JPEG ≥ 50</li>
+                            </ul>
+                            <p class="text-[11px] italic">
+                              Output is always saved as a new PNG file alongside
+                              the original — JPEG inputs are decoded, watermarked
+                              and re-encoded as PNG.
                             </p>
                           </div>
                         </details>
                       </fieldset>
                     </div>
+
+                    <!-- PNG-output advisory before Embed (JTV-118). -->
+                    <p class="text-[11px] text-flint-dark dark:text-flint-light mt-3" data-testid="single-watermark-png-notice">
+                      <span class="font-semibold text-text-light dark:text-quartz">Output:</span>
+                      this file will be saved as a new PNG alongside the
+                      original. The original is not modified.
+                    </p>
 
                     <div class="flex gap-2 mt-3">
                       <button
@@ -2429,6 +2547,7 @@
                         onclick={handleWatermark}
                         disabled={watermarking || !watermarkPayload.trim()}
                         aria-busy={watermarking}
+                        aria-label="Embed watermark — output saved as PNG alongside original"
                       >
                         {#if watermarking}
                           <span

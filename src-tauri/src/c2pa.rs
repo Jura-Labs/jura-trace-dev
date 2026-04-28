@@ -358,7 +358,19 @@ pub fn sign_file(
             {
                 "label": "stds.iptc",
                 "data": {
-                    "Iptc4xmpExt:DigitalSourceType": "",
+                    // Per C2PA spec, this field carries the canonical
+                    // provenance signal. We default to "digitalCapture"
+                    // for files signed via this code path because Jura
+                    // Trace's Sign action is the human declaring
+                    // authorship of a captured photograph. Verifiers
+                    // (including our own Verify pipeline) check this
+                    // field positively for human-capture provenance —
+                    // an empty string degrades to absence-of-signal.
+                    // For AI-composite or trained-algorithmic-media
+                    // assertions, callers should mint a separate
+                    // assertion via a future `sign_file_composite`
+                    // entry-point rather than overload this default.
+                    "Iptc4xmpExt:DigitalSourceType": "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture",
                     "plus:DataMining": "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-EXCEPTSEARCHENGINEINDEXING"
                 }
             }
@@ -3020,6 +3032,25 @@ mod tests {
         assert!(readback.is_some(), "signed file should contain a manifest");
         let readback = readback.unwrap();
         assert!(readback.is_valid, "readback manifest should be valid");
+
+        // Step 5 (JTV-119) — verify the stds.iptc assertion now carries
+        // a non-empty DigitalSourceType URI. An empty value would
+        // degrade to absence-of-signal in downstream verifiers.
+        let iptc = readback
+            .assertions
+            .iter()
+            .find(|a| a.label == "stds.iptc")
+            .expect("stds.iptc assertion must be present in signed manifest");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&iptc.value).expect("stds.iptc value must be valid JSON");
+        let digital_source = parsed
+            .get("Iptc4xmpExt:DigitalSourceType")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        assert_eq!(
+            digital_source, "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture",
+            "DigitalSourceType must positively assert digitalCapture (JTV-119)"
+        );
     }
 
     /// Verify that ensure_certificate returns consistent results on second call (loads from disk).
