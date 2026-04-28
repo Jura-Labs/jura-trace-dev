@@ -7,8 +7,8 @@
  * If a future change weakens this rule, this spec fails before pilots
  * see the regression.
  */
-import { describe, expect, it } from 'vitest';
-import { escapeCsvField } from './blob';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { escapeCsvField, triggerDownload } from './blob';
 
 describe('escapeCsvField', () => {
   it('returns empty string for null and undefined', () => {
@@ -65,5 +65,95 @@ describe('escapeCsvField', () => {
   it('does not prefix fields that contain but do not start with formula chars', () => {
     expect(escapeCsvField('total = 5')).toBe('total = 5');
     expect(escapeCsvField('a-b')).toBe('a-b');
+  });
+});
+
+/**
+ * triggerDownload — browser-fallback path.
+ *
+ * The original Protect-page bug (JTV-129) was that the anchor was never
+ * attached to the DOM and the blob URL was revoked synchronously,
+ * causing the Tauri webview to ignore the click. These tests pin the
+ * fixed behaviour so a future change cannot silently re-break the
+ * pattern.
+ *
+ * The Tauri-runtime branch is not exercised here (it requires the
+ * `__TAURI_INTERNALS__` global and the dynamic import of the Tauri
+ * plugin modules); manual verification in the Tauri dev app covers it.
+ */
+describe('triggerDownload (browser-fallback path)', () => {
+  let createObjectURL: ReturnType<typeof vi.fn>;
+  let revokeObjectURL: ReturnType<typeof vi.fn>;
+  let originalCreate: typeof URL.createObjectURL;
+  let originalRevoke: typeof URL.revokeObjectURL;
+  let appendSpy: ReturnType<typeof vi.spyOn>;
+  let removeSpy: ReturnType<typeof vi.spyOn>;
+  let clickSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    createObjectURL = vi.fn(() => 'blob:mock-url-123');
+    revokeObjectURL = vi.fn();
+    originalCreate = URL.createObjectURL;
+    originalRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = createObjectURL as unknown as typeof URL.createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL as unknown as typeof URL.revokeObjectURL;
+
+    appendSpy = vi.spyOn(document.body, 'appendChild');
+    removeSpy = vi.spyOn(document.body, 'removeChild');
+    clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    URL.createObjectURL = originalCreate;
+    URL.revokeObjectURL = originalRevoke;
+    appendSpy.mockRestore();
+    removeSpy.mockRestore();
+    clickSpy.mockRestore();
+  });
+
+  it('attaches the anchor to document.body before clicking it', async () => {
+    const blob = new Blob(['hello,world'], { type: 'text/csv' });
+
+    await triggerDownload(blob, 'test.csv');
+
+    // The fix: the anchor MUST be in the DOM when click() fires.
+    expect(appendSpy).toHaveBeenCalledTimes(1);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(appendSpy.mock.invocationCallOrder[0]).toBeLessThan(
+      clickSpy.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('sets the download attribute to the requested filename', async () => {
+    const blob = new Blob(['x'], { type: 'text/csv' });
+
+    await triggerDownload(blob, 'jura_assets_2026-04-28.csv');
+
+    const anchor = appendSpy.mock.calls[0][0] as HTMLAnchorElement;
+    expect(anchor.tagName).toBe('A');
+    expect(anchor.download).toBe('jura_assets_2026-04-28.csv');
+    expect(anchor.href).toBe('blob:mock-url-123');
+  });
+
+  it('defers URL.revokeObjectURL by ~1s so the download has time to start', async () => {
+    const blob = new Blob(['x'], { type: 'text/csv' });
+
+    await triggerDownload(blob, 't.csv');
+
+    // The original bug: revoke was synchronous — blob URL was gone
+    // before the browser/webview could fetch it. Now deferred via
+    // setTimeout(..., 1000).
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(999);
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(revokeObjectURL).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-url-123');
+    // Anchor cleaned up at the same point.
+    expect(removeSpy).toHaveBeenCalledOnce();
   });
 });
