@@ -313,6 +313,28 @@ pub fn ensure_certificate(data_dir: &Path) -> Result<(Vec<u8>, Vec<u8>), String>
 
 // ===== Signing =====
 
+/// Map a human-readable licence string to its canonical URI.
+///
+/// Returns `Some(uri)` for the five Creative Commons licences and CC0.
+/// Returns `None` for `"All Rights Reserved"` and any unrecognised string.
+///
+/// For "All Rights Reserved" we intentionally omit the `stds.schema-org.CreativeWork`
+/// assertion rather than inventing a URI, because Adobe Inspect and other URI-form
+/// verifiers have no standardised URI for proprietary unlicenced content and will
+/// silently ignore or reject a made-up one.  The opaque `c2pa.rights` string assertion
+/// is still emitted in all cases, so verifiers that only read that field are unaffected.
+fn license_to_uri(license: &str) -> Option<&'static str> {
+    match license {
+        "CC BY 4.0" => Some("https://creativecommons.org/licenses/by/4.0/"),
+        "CC BY-SA 4.0" => Some("https://creativecommons.org/licenses/by-sa/4.0/"),
+        "CC BY-NC 4.0" => Some("https://creativecommons.org/licenses/by-nc/4.0/"),
+        "CC BY-ND 4.0" => Some("https://creativecommons.org/licenses/by-nd/4.0/"),
+        "CC0 1.0" => Some("https://creativecommons.org/publicdomain/zero/1.0/"),
+        // "All Rights Reserved" and any unknown string: no URI emitted.
+        _ => None,
+    }
+}
+
 /// Sign a file with a C2PA provenance manifest.
 ///
 /// Creates a new file at `output` with an embedded C2PA manifest containing
@@ -332,49 +354,67 @@ pub fn sign_file(
 
     let license_value = license.unwrap_or("All Rights Reserved");
 
+    // Build the base assertions array, then conditionally append the schema-org
+    // CreativeWork assertion when a canonical licence URI is available (JTV-120).
+    let mut assertions = vec![
+        serde_json::json!({
+            "label": "c2pa.actions",
+            "data": {
+                "actions": [{
+                    "action": "c2pa.created",
+                    "softwareAgent": "Jura Trace 0.9.0",
+                    "parameters": {
+                        "name": creator_name
+                    }
+                }]
+            }
+        }),
+        serde_json::json!({
+            "label": "c2pa.rights",
+            "data": {
+                "rights": license_value,
+                "ai_training": "notAllowed"
+            }
+        }),
+        serde_json::json!({
+            "label": "stds.iptc",
+            "data": {
+                // Per C2PA spec, this field carries the canonical
+                // provenance signal. We default to "digitalCapture"
+                // for files signed via this code path because Jura
+                // Trace's Sign action is the human declaring
+                // authorship of a captured photograph. Verifiers
+                // (including our own Verify pipeline) check this
+                // field positively for human-capture provenance —
+                // an empty string degrades to absence-of-signal.
+                // For AI-composite or trained-algorithmic-media
+                // assertions, callers should mint a separate
+                // assertion via a future `sign_file_composite`
+                // entry-point rather than overload this default.
+                "Iptc4xmpExt:DigitalSourceType": "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture",
+                "plus:DataMining": "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-EXCEPTSEARCHENGINEINDEXING"
+            }
+        }),
+    ];
+
+    // Append stds.schema-org.CreativeWork only when we have a canonical URI.
+    // "All Rights Reserved" and unknown strings are intentionally excluded — see
+    // license_to_uri() doc comment for the rationale.
+    if let Some(uri) = license_to_uri(license_value) {
+        assertions.push(serde_json::json!({
+            "label": "stds.schema-org.CreativeWork",
+            "data": {
+                "@context": "https://schema.org",
+                "@type": "CreativeWork",
+                "license": uri
+            }
+        }));
+    }
+
     let manifest_def = serde_json::json!({
         "claim_generator": "Jura Trace/0.9.0",
         "title": file_name,
-        "assertions": [
-            {
-                "label": "c2pa.actions",
-                "data": {
-                    "actions": [{
-                        "action": "c2pa.created",
-                        "softwareAgent": "Jura Trace 0.9.0",
-                        "parameters": {
-                            "name": creator_name
-                        }
-                    }]
-                }
-            },
-            {
-                "label": "c2pa.rights",
-                "data": {
-                    "rights": license_value,
-                    "ai_training": "notAllowed"
-                }
-            },
-            {
-                "label": "stds.iptc",
-                "data": {
-                    // Per C2PA spec, this field carries the canonical
-                    // provenance signal. We default to "digitalCapture"
-                    // for files signed via this code path because Jura
-                    // Trace's Sign action is the human declaring
-                    // authorship of a captured photograph. Verifiers
-                    // (including our own Verify pipeline) check this
-                    // field positively for human-capture provenance —
-                    // an empty string degrades to absence-of-signal.
-                    // For AI-composite or trained-algorithmic-media
-                    // assertions, callers should mint a separate
-                    // assertion via a future `sign_file_composite`
-                    // entry-point rather than overload this default.
-                    "Iptc4xmpExt:DigitalSourceType": "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture",
-                    "plus:DataMining": "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-EXCEPTSEARCHENGINEINDEXING"
-                }
-            }
-        ]
+        "assertions": assertions
     });
 
     let mut builder = c2pa::Builder::from_json(&manifest_def.to_string())
@@ -3050,6 +3090,33 @@ mod tests {
         assert_eq!(
             digital_source, "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture",
             "DigitalSourceType must positively assert digitalCapture (JTV-119)"
+        );
+
+        // Step 6 (JTV-120) — verify stds.schema-org.CreativeWork is present with
+        // the canonical CC BY 4.0 URI (the test signs with Some("CC BY 4.0")).
+        let schema_org = readback
+            .assertions
+            .iter()
+            .find(|a| a.label == "stds.schema-org.CreativeWork")
+            .expect("stds.schema-org.CreativeWork assertion must be present for CC BY 4.0 (JTV-120)");
+        let schema_parsed: serde_json::Value =
+            serde_json::from_str(&schema_org.value).expect("schema-org value must be valid JSON");
+        let license_uri = schema_parsed
+            .get("license")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        assert_eq!(
+            license_uri,
+            "https://creativecommons.org/licenses/by/4.0/",
+            "schema-org CreativeWork.license must be the canonical CC BY 4.0 URI (JTV-120)"
+        );
+        let schema_type = schema_parsed
+            .get("@type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        assert_eq!(
+            schema_type, "CreativeWork",
+            "schema-org assertion @type must be CreativeWork (JTV-120)"
         );
     }
 
