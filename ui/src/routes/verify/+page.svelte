@@ -89,6 +89,13 @@
   // Video analysis — index of the frame whose detail accordion is expanded.
   let expandedFrameIndex = $state<number | null>(null);
 
+  // CLIP zero-shot bars are hidden by default (per JTV-86 / agent review
+  // 2026-04-28: 4 of 5 personas read them as contradicting the headline
+  // probe score).  This local toggle exposes them on a per-row basis so a
+  // power user can inspect without flipping the global Settings raw-scores
+  // toggle.  The global toggle still reveals them automatically.
+  let showClipZeroShot = $state(false);
+
   // Test hook store
   const _testResultStore = writable<VerificationResult | null>(null);
   let _testApplied = false;
@@ -545,6 +552,47 @@
   const aiPass = $derived(() => {
     if (!result || aiDetectionSuppressed) return null;
     return !result.deepfakeResult?.suspicious && result.clipResult?.verdictLevel !== 'synthetic';
+  });
+
+  // Plain-English one-liner shown as the first element inside the AI card
+  // body (JTV-89, agent review 2026-04-28).  Goal: a non-technical reader
+  // gets the conclusion before encountering scores, percentages, or signal
+  // breakdowns.  Derived from the two detector verdicts so it never drifts
+  // from what the rows below claim.
+  const aiVerdictSentence = $derived(() => {
+    if (!result || aiDetectionSuppressed) return null;
+    const gbm = result.deepfakeResult;
+    const clip = result.clipResult;
+    const gbmSyn = gbm?.suspicious === true || gbm?.verdictLevel === 'synthetic';
+    const clipSyn = clip?.verdictLevel === 'synthetic';
+    const gbmAuth = gbm?.verdictLevel === 'authentic';
+    const clipAuth = clip?.verdictLevel === 'authentic';
+    const ranCount = [gbm, clip].filter(Boolean).length;
+    if (ranCount === 0) return null;
+    if (ranCount === 1) {
+      // Only one of the two detectors ran.  Use whichever's verdict is
+      // present.  GBM has `suspicious`; CLIP does not — fall back to the
+      // verdictLevel comparison which both expose.
+      const singleSyn = gbmSyn || clipSyn;
+      const singleAuth = gbmAuth || clipAuth;
+      if (singleSyn) {
+        return 'One AI check ran and identified characteristics consistent with AI-generated content. Cross-checking with a second detector was unavailable.';
+      }
+      if (singleAuth) {
+        return 'One AI check ran and indicates this is consistent with a real photograph. Cross-checking with a second detector was unavailable.';
+      }
+      return 'One AI check ran with an inconclusive result. Cross-checking with a second detector was unavailable.';
+    }
+    if (gbmSyn && clipSyn) {
+      return 'Both AI checks identified characteristics consistent with AI-generated content.';
+    }
+    if (gbmAuth && clipAuth) {
+      return 'Both AI checks indicate this is consistent with a real photograph.';
+    }
+    if (gbmSyn !== clipSyn) {
+      return 'AI checks disagree — one detector flagged synthetic features, the other did not. Treat the result as inconclusive and inspect the per-detector evidence below.';
+    }
+    return 'AI checks ran with mixed or inconclusive results. Inspect the per-detector evidence below.';
   });
 
   const hasClaimsData = $derived(
@@ -3529,9 +3577,23 @@
                 </p>
               </div>
             {:else}
-              <ul class="divide-y divide-border-light/70 dark:divide-border-dark/40" aria-label="AI detection checks">
+              <!-- Plain-English verdict sentence — first element inside the
+                   AI card body so a non-technical reader gets the conclusion
+                   before any score, badge, or signal list (JTV-89). -->
+              {#if aiVerdictSentence()}
+                <p
+                  class="px-5 pt-4 text-sm text-obsidian dark:text-quartz leading-snug"
+                  data-testid="ai-verdict-sentence"
+                >
+                  {aiVerdictSentence()}
+                </p>
+              {/if}
+              <ul class="divide-y divide-border-light/70 dark:divide-border-dark/40 mt-3" aria-label="AI detection checks">
 
                 {#if result.deepfakeResult}
+                  {@const gbmSignals = result.deepfakeResult.signals ?? []}
+                  {@const gbmTriggered = gbmSignals.filter((s) => s.triggered).length}
+                  {@const gbmHighScoreNoSignals = gbmTriggered === 0 && (result.deepfakeResult.suspicious || result.deepfakeResult.verdictLevel === 'synthetic' || result.deepfakeResult.verdictLevel === 'inconclusive')}
                   <li class="px-5 py-4 {result.deepfakeResult.suspicious ? 'bg-amber/[0.04]' : ''}">
                     <div class="flex items-start gap-3">
                       <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {result.deepfakeResult.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -3549,16 +3611,34 @@
                             Verdict: {result.deepfakeResult.verdictLevel.charAt(0).toUpperCase() + result.deepfakeResult.verdictLevel.slice(1)}
                           </p>
                         {/if}
-                        <!-- Signal breakdown (always shown when signals present) -->
-                        {#if result.deepfakeResult.signals && result.deepfakeResult.signals.length > 0}
-                          <details class="mt-2 group">
+                        <!-- Bridging sentence (JTV-88): when the headline
+                             verdict is non-authentic but no per-feature signal
+                             individually tripped, explain the architecture so
+                             the accordion below does not read as a contradiction.
+                             The GBM scores on an 84-feature vector; the named
+                             signals are explanatory thresholded checks on a
+                             subset of those features. -->
+                        {#if gbmHighScoreNoSignals && gbmSignals.length > 0}
+                          <p class="text-[11px] text-flint-dark dark:text-flint-light italic mt-1.5 leading-snug">
+                            Score reflects statistical patterns across the model's 84-feature vector. None of the {gbmSignals.length} named indicators triggered individually.
+                          </p>
+                        {/if}
+                        <!-- Signal breakdown.  Visually de-emphasised when 0
+                             triggered (per JTV-88) — the accordion is then
+                             explanatory, not load-bearing. -->
+                        {#if gbmSignals.length > 0}
+                          <details class="mt-2 group {gbmTriggered === 0 ? 'opacity-60' : ''}">
                             <summary class="list-none text-[11px] text-lapis dark:text-lapis-light cursor-pointer hover:text-obsidian dark:hover:text-quartz flex items-center gap-1 min-h-[24px]
                                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded">
                               <svg class="w-3 h-3 motion-safe:group-open:rotate-90 transition-transform duration-150" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
-                              {result.deepfakeResult.signals.length} signal{result.deepfakeResult.signals.length === 1 ? '' : 's'}
+                              {#if gbmTriggered === 0}
+                                {gbmSignals.length} named indicator{gbmSignals.length === 1 ? '' : 's'} (none triggered)
+                              {:else}
+                                {gbmTriggered} of {gbmSignals.length} indicator{gbmSignals.length === 1 ? '' : 's'} triggered
+                              {/if}
                             </summary>
                             <ul class="mt-1.5 space-y-1 ml-4" aria-label="Deepfake detector signals">
-                              {#each result.deepfakeResult.signals as sig}
+                              {#each gbmSignals as sig}
                                 <li class="flex items-center justify-between gap-3 text-[11px]">
                                   <span class="text-flint-dark dark:text-flint-light">{sig.name}</span>
                                   <span class="{sig.triggered ? 'text-amber-dark dark:text-amber-light font-medium' : 'text-malachite-dark dark:text-malachite-light'}">
@@ -3590,42 +3670,68 @@
                       <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-1 flex-wrap">
                           <span class="text-sm font-medium {result.clipResult.verdictLevel === 'synthetic' ? 'text-amber-light' : 'text-obsidian dark:text-quartz'}">CLIP / UnivFD Probe</span>
-                          <ExperimentalPill variant="uncalibrated" tooltip="CLIP probe AUC 0.9933. See methodology for limitations." />
+                          <ExperimentalPill
+                            variant="informational"
+                            helpHref="/help/how-it-works#two-ai-checks"
+                          />
                         </div>
                         <p class="text-xs text-flint-dark dark:text-flint-light">{result.clipResult.summary}</p>
-                        <!-- Class probability distribution.
-                             When the UnivFD probe is the headline signal (AUC
-                             0.9933 binary classifier on CLIP embeddings) these
-                             zero-shot bars are AUXILIARY text-similarity
-                             scores — they are not arithmetically related to
-                             the probe score, and a 0.87 probe output sitting
-                             alongside ~0.20 per-class zero-shot bars is the
-                             expected, consistent pattern.  Label and visually
-                             de-emphasise accordingly so the two scoring
-                             systems do not appear to contradict each other. -->
+                        <!-- Class probability distribution (JTV-86).
+                             Hidden by default because the zero-shot bars are
+                             CLIP text-similarity to label prompts and are NOT
+                             arithmetically related to the probe score that
+                             drives the headline percentage.  Showing them by
+                             default produced the pilot complaint that "87% +
+                             ~20% bars" looked self-contradictory.  Surface
+                             via either the per-row toggle or the global
+                             Settings raw-scores switch. -->
                         {#if result.clipResult.classProbs && Object.keys(result.clipResult.classProbs).length > 0}
                           {@const isAuxiliary = result.clipResult.univfdAvailable === true}
-                          <div class="mt-2 space-y-1 {isAuxiliary ? 'opacity-70' : ''}" aria-label="CLIP class probability distribution">
-                            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-1">
-                              {#if isAuxiliary}
-                                Zero-shot CLIP labels (auxiliary, not used for score)
-                              {:else}
-                                Zero-shot class probabilities
-                              {/if}
-                            </p>
-                            {#each Object.entries(result.clipResult.classProbs) as [cls, prob]}
-                              <div class="flex items-center gap-2">
-                                <span class="text-[10px] text-flint-dark dark:text-flint-light w-20 shrink-0 truncate" title={cls}>{cls}</span>
-                                <div class="flex-1 bg-gray-200 dark:bg-graphite-light/50 rounded-full h-1.5 overflow-hidden" role="progressbar" aria-valuenow={Math.round(prob * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="{cls}: {Math.round(prob * 100)}%">
-                                  <div
-                                    class="h-full rounded-full {prob > 0.5 ? 'bg-amber dark:bg-amber-light' : 'bg-lapis dark:bg-lapis-light'}"
-                                    style="width: {Math.round(prob * 100)}%"
-                                  ></div>
-                                </div>
-                                <span class="text-[10px] tabular-nums {forensicScoreClass(prob)} w-8 text-right">{Math.round(prob * 100)}%</span>
+                          {@const showZeroShot = showRawScores || showClipZeroShot}
+                          {#if !showZeroShot && isAuxiliary}
+                            <button
+                              type="button"
+                              class="mt-2 text-[11px] text-lapis dark:text-lapis-light underline underline-offset-2 hover:text-obsidian dark:hover:text-quartz min-h-[24px]
+                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
+                              onclick={() => (showClipZeroShot = true)}
+                            >
+                              Show zero-shot label distribution (auxiliary)
+                            </button>
+                          {/if}
+                          {#if showZeroShot}
+                            <div class="mt-2 space-y-1" aria-label="CLIP class probability distribution">
+                              <div class="flex items-center justify-between mb-1">
+                                <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">
+                                  {#if isAuxiliary}
+                                    Zero-shot CLIP labels (auxiliary, not used for score)
+                                  {:else}
+                                    Zero-shot class probabilities
+                                  {/if}
+                                </p>
+                                {#if showClipZeroShot && !showRawScores}
+                                  <button
+                                    type="button"
+                                    class="text-[10px] text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz underline underline-offset-2 min-h-[24px]
+                                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
+                                    onclick={() => (showClipZeroShot = false)}
+                                    aria-label="Hide zero-shot label distribution"
+                                  >Hide</button>
+                                {/if}
                               </div>
-                            {/each}
-                          </div>
+                              {#each Object.entries(result.clipResult.classProbs) as [cls, prob]}
+                                <div class="flex items-center gap-2">
+                                  <span class="text-[10px] text-flint-dark dark:text-flint-light w-20 shrink-0 truncate" title={cls}>{cls}</span>
+                                  <div class="flex-1 bg-gray-200 dark:bg-graphite-light/50 rounded-full h-1.5 overflow-hidden" role="progressbar" aria-valuenow={Math.round(prob * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="{cls}: {Math.round(prob * 100)}%">
+                                    <div
+                                      class="h-full rounded-full {prob > 0.5 ? 'bg-amber dark:bg-amber-light' : 'bg-lapis dark:bg-lapis-light'}"
+                                      style="width: {Math.round(prob * 100)}%"
+                                    ></div>
+                                  </div>
+                                  <span class="text-[10px] tabular-nums {forensicScoreClass(prob)} w-8 text-right">{Math.round(prob * 100)}%</span>
+                                </div>
+                              {/each}
+                            </div>
+                          {/if}
                         {/if}
                         {#if result.clipResult.univfdAvailable && showRawScores && result.clipResult.univfdScore != null}
                           <p class="text-[10px] text-flint-dark dark:text-flint-light mt-1 tabular-nums font-mono">
