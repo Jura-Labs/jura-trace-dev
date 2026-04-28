@@ -812,46 +812,89 @@
     </div>
   {/if}
 
-  <!-- Drop zone / import button -->
-  <button
-    class="w-full border-2 border-dashed rounded-lg p-14 text-center transition-all duration-200 cursor-pointer
-           {dragOver
-             ? 'border-lapis bg-lapis/5 scale-[1.01]'
-             : 'border-border-light dark:border-[rgba(122,119,112,0.2)] hover:border-lapis/40 dark:hover:border-lapis/30'}
-           {importingCount > 0 ? 'opacity-60 pointer-events-none' : ''}
-           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
-    ondragover={handleDragOver}
-    ondragleave={handleDragLeave}
-    ondrop={handleDrop}
-    onclick={handleFilePicker}
-    disabled={importingCount > 0}
-    aria-label={importingCount > 0 ? 'Importing files, please wait' : 'Drop files here or click to browse and import files'}
-  >
-    {#if importingCount > 0}
-      <div class="flex flex-col items-center gap-3">
+  <!-- Drop zone / import button.
+       JTV-123: collapses to a compact bar when assets are present so the
+       large dead zone doesn't dominate a populated collection. The Tauri
+       drag-drop listener attached in setupTauriProtectDragDrop() fires
+       regardless of the visual variant — both variants carry the same
+       ondragover/ondragleave/ondrop handlers. -->
+  {#if assets.length === 0}
+    <!-- Empty-state variant: full-height drop zone -->
+    <button
+      class="w-full border-2 border-dashed rounded-lg p-14 text-center transition-all duration-200 cursor-pointer
+             {dragOver
+               ? 'border-lapis bg-lapis/5 scale-[1.01]'
+               : 'border-border-light dark:border-[rgba(122,119,112,0.2)] hover:border-lapis/40 dark:hover:border-lapis/30'}
+             {importingCount > 0 ? 'opacity-60 pointer-events-none' : ''}
+             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+      ondragover={handleDragOver}
+      ondragleave={handleDragLeave}
+      ondrop={handleDrop}
+      onclick={handleFilePicker}
+      disabled={importingCount > 0}
+      aria-label={importingCount > 0 ? 'Importing files, please wait' : 'Drop files here or click to browse and import files'}
+    >
+      {#if importingCount > 0}
+        <div class="flex flex-col items-center gap-3">
+          <div
+            class="w-6 h-6 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
+            aria-hidden="true"
+          ></div>
+          <p class="text-sm text-flint-dark dark:text-flint-light" aria-live="polite">
+            {importingCount > 1
+              ? `Importing ${importingCount} file${importingCount !== 1 ? 's' : ''}...`
+              : 'Importing files...'}
+          </p>
+        </div>
+      {:else}
+        <div class="flex flex-col items-center gap-2">
+          <svg class="w-10 h-10 text-flint-dark dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M12 16V4m0 0L8 8m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4" />
+          </svg>
+          <p class="font-heading text-text-light dark:text-quartz">Drop files or folders here</p>
+          <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
+            or click to browse &mdash; JPEG, PNG, TIFF, WebP, PDF, MP4, WAV, and more
+          </p>
+        </div>
+      {/if}
+    </button>
+  {:else}
+    <!-- Populated-state variant: compact import bar -->
+    <button
+      class="w-full border border-dashed rounded-lg p-3 flex items-center gap-3 transition-all duration-200 cursor-pointer text-left
+             {dragOver
+               ? 'border-lapis bg-lapis/5'
+               : 'border-border-light dark:border-[rgba(122,119,112,0.2)] hover:border-lapis/40 dark:hover:border-lapis/30'}
+             {importingCount > 0 ? 'opacity-60 pointer-events-none' : ''}
+             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+      ondragover={handleDragOver}
+      ondragleave={handleDragLeave}
+      ondrop={handleDrop}
+      onclick={handleFilePicker}
+      disabled={importingCount > 0}
+      aria-label={importingCount > 0 ? 'Importing files, please wait' : 'Import more files — drop here or click to browse'}
+    >
+      {#if importingCount > 0}
         <div
-          class="w-6 h-6 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
+          class="w-4 h-4 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin flex-shrink-0"
           aria-hidden="true"
         ></div>
         <p class="text-sm text-flint-dark dark:text-flint-light" aria-live="polite">
           {importingCount > 1
-            ? `Importing ${importingCount} file${importingCount !== 1 ? 's' : ''}...`
+            ? `Importing ${importingCount} files...`
             : 'Importing files...'}
         </p>
-      </div>
-    {:else}
-      <div class="flex flex-col items-center gap-2">
-        <svg class="w-10 h-10 text-flint-dark dark:text-flint-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      {:else}
+        <svg class="w-4 h-4 text-flint-dark dark:text-flint-light flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
             d="M12 16V4m0 0L8 8m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4" />
         </svg>
-        <p class="font-heading text-text-light dark:text-quartz">Drop files or folders here</p>
-        <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
-          or click to browse &mdash; JPEG, PNG, TIFF, WebP, PDF, MP4, WAV, and more
-        </p>
-      </div>
-    {/if}
-  </button>
+        <span class="text-sm text-flint-dark dark:text-flint-light">Import more files</span>
+        <span class="text-xs text-flint-dark/60 dark:text-flint-light/60 hidden sm:inline">— drop here or click to browse</span>
+      {/if}
+    </button>
+  {/if}
 
   <!-- Filter bar -->
   <div
