@@ -768,7 +768,7 @@
     const lower = message.toLowerCase();
     if (lower.includes('unsupported') || lower.includes('format') || lower.includes('mime')) {
       errorType = 'format';
-      error = 'Unsupported file format. Jura Trace supports JPEG, PNG, TIFF, WebP, PDF, MP4, MOV, WAV and MP3.';
+      error = 'Unsupported file format. Jura Trace v1.0 supports JPEG, PNG, TIFF, WebP, HEIC, AVIF, PDF, MP4 and MOV.';
     } else if (lower.includes('sidecar') || lower.includes('connection refused')) {
       errorType = 'sidecar';
       error = 'The Analysis Engine is not running. Core checks are still available.';
@@ -962,7 +962,7 @@
         multiple: false,
         title: 'Select File to Verify',
         filters: [
-          { name: 'Supported Files', extensions: ['jpg','jpeg','png','tiff','tif','webp','avif','heic','heif','pdf','docx','mp4','mov','webm'] },
+          { name: 'Supported Files', extensions: ['jpg','jpeg','png','tiff','tif','webp','avif','heic','heif','pdf','mp4','mov'] },
         ],
       });
       if (selected && typeof selected === 'string') {
@@ -1538,7 +1538,7 @@
                 </svg>
                 <p class="text-obsidian dark:text-quartz font-medium">Drop a file to verify</p>
                 <p class="text-xs text-flint-dark dark:text-flint-light">or click to browse</p>
-                <p class="text-xs text-flint-dark dark:text-flint-light mt-1">JPEG · PNG · TIFF · WebP · PDF · MP4 · MOV · WAV · MP3</p>
+                <p class="text-xs text-flint-dark dark:text-flint-light mt-1">JPEG · PNG · TIFF · WebP · HEIC · AVIF · PDF · MP4 · MOV</p>
               </div>
             {/if}
           </button>
@@ -3088,6 +3088,7 @@
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2 mb-2 flex-wrap">
                         <span class="text-sm font-medium text-obsidian dark:text-quartz">PDF Provenance</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-lapis/15 text-lapis-dark dark:text-lapis-light border border-lapis/30">Origin metadata only</span>
                         {#if pdf.hasDigitalSignature}
                           <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-malachite/15 text-malachite-dark dark:text-malachite-light border border-malachite/30">Digitally Signed</span>
                         {/if}
@@ -3101,6 +3102,9 @@
                           <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-amber/15 text-amber-dark dark:text-amber-light border border-amber/30">Redactions</span>
                         {/if}
                       </div>
+                      <p class="text-[11px] text-flint-dark dark:text-flint-light italic mb-1.5" data-testid="pdf-scope-note">
+                        Origin metadata only — image manipulation detection is not available for PDF files.
+                      </p>
                       <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-2">{pdf.summary}</p>
                       <dl class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
                         {#if pdf.producer}

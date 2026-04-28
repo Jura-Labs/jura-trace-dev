@@ -41,6 +41,11 @@
       description: 'Transparency on every detector, how scores are weighted, composite signal amplification, and known limitations.',
     },
     {
+      href: '/help/format-support',
+      title: 'Format Support',
+      description: 'Which file formats Jura Trace v1.0 can verify and protect, what each format gets in the pipeline, and what is explicitly out of scope.',
+    },
+    {
       href: '/help/glossary',
       title: 'Glossary',
       description: 'Definitions of technical terms used throughout the application — from ELA and C2PA to perceptual hashing and DWT watermarking.',

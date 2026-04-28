@@ -35,7 +35,21 @@ async def lifespan(application: FastAPI):
 
     Currently warms up:
     - The GBM deepfake classifier (joblib model file, ~50 ms if present)
+    - HEIC/HEIF codec registration via pillow-heif (Linux build hardening;
+      iPhone photos are the most common pilot input)
     """
+    try:
+        import pillow_heif  # noqa: PLC0415
+
+        pillow_heif.register_heif_opener()
+        logger.info("HEIC/HEIF codec registered (pillow-heif present)")
+    except ImportError:
+        logger.critical(
+            "pillow-heif unavailable — .heic / .heif files will fail to "
+            "decode. Add pillow-heif to the runtime environment "
+            "(it is in requirements.txt and requirements-ci.txt)."
+        )
+
     try:
         from app.services.deepfake import _load_classifier  # noqa: PLC0415
 

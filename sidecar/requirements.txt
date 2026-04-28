@@ -20,6 +20,13 @@ imagehash==4.3.2
 numpy==2.2.4
 opencv-python-headless==4.11.0.86
 
+# HEIC/HEIF support — required for iPhone photos on Linux production builds.
+# macOS often works without this via system ImageIO but Linux PyInstaller
+# bundles will silently fail to open .heic/.heif files. The sidecar calls
+# pillow_heif.register_heif_opener() at startup; if the import fails we
+# log CRITICAL and continue (HEIC verification will fail, other formats OK).
+pillow-heif==1.2.0
+
 # Copy-move detection clustering
 scikit-learn==1.8.0
 

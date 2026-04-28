@@ -2111,8 +2111,8 @@ fn verify_content_inner(
     }
 
     let (
-        ela_score,
-        ela_result,
+        ela_score_raw,
+        ela_result_raw,
         deepfake_score,
         deepfake_result,
         watermark_extract_result,
@@ -2127,6 +2127,24 @@ fn verify_content_inner(
         )
     } else {
         (None, None, None, None, None, None)
+    };
+
+    // Codec-aware gating: ELA is JPEG-DCT-specific. On PNG / WebP / AVIF /
+    // HEIC / TIFF / BMP / GIF the score is uncalibrated noise, so drop it
+    // before it reaches compute_trust. The result struct is preserved as
+    // None to keep the detectors_run accounting honest. See
+    // format_router::should_run_ela for the rationale.
+    let (ela_score, ela_result) = if format_router::should_run_ela(&info.mime_type) {
+        (ela_score_raw, ela_result_raw)
+    } else {
+        if ela_score_raw.is_some() {
+            log::info!(
+                "Codec gate: dropping ELA score for non-JPEG mime '{}' (was {:?})",
+                info.mime_type,
+                ela_score_raw
+            );
+        }
+        (None, None)
     };
 
     // ── Deep parallel group ──────────────────────────────────────────────
@@ -2443,7 +2461,15 @@ fn verify_content_inner(
     let shadow_consistency_score = shadow_consistency_result.as_ref().map(|r| r.score);
     let colour_temperature_score = colour_temperature_result.as_ref().map(|r| r.score);
     let splice_boundary_score = splice_boundary_result.as_ref().map(|r| r.score);
-    let jpeg_ghost_score = jpeg_ghost_result.as_ref().map(|r| r.score);
+    // Codec-aware gating: JPEG Ghost is JPEG-DCT-specific (see
+    // format_router::should_run_jpeg_ghost). The detector itself early-exits
+    // on non-JPEG codecs but the result-struct path can still emit a noise
+    // score; drop it before compute_trust to keep the verdict clean.
+    let jpeg_ghost_score = if format_router::should_run_jpeg_ghost(&info.mime_type) {
+        jpeg_ghost_result.as_ref().map(|r| r.score)
+    } else {
+        None
+    };
     // PDFs and other documents have no applicable forensic detectors.
     // Use a lightweight C2PA-only path rather than defaulting to 0.50 from
     // the unwrap_or on missing EXIF data.
@@ -2476,6 +2502,27 @@ fn verify_content_inner(
         })
         .unwrap_or(false);
     let ai_declared_composite = ai_declared_composite_by_c2pa || ai_declared_composite_by_xmp;
+
+    // For video files, substitute the video deepfake aggregate for the
+    // image GBM score (which is always None on video — GBM only runs on
+    // still images). Without this substitution `compute_trust` for video
+    // is C2PA + EXIF only and a pristine deepfake produces a "Likely
+    // authentic" headline. See JTV-107 / JTV-105 truth-grid pass.
+    let (effective_deepfake_score, effective_deepfake_confidence, effective_deepfake_verdict) =
+        if is_video {
+            (
+                video_deepfake_result.as_ref().map(|r| r.aggregate_score),
+                video_deepfake_result
+                    .as_ref()
+                    .map(|r| r.aggregate_confidence.as_str()),
+                video_deepfake_result
+                    .as_ref()
+                    .map(|r| r.aggregate_verdict.as_str()),
+            )
+        } else {
+            (deepfake_score, deepfake_confidence, deepfake_verdict)
+        };
+
     let overall_trust = if !is_image && !is_video && !is_audio {
         document_trust(c2pa_valid, ai_declared_by_c2pa || ai_declared_by_xmp)
     } else {
@@ -2483,9 +2530,9 @@ fn verify_content_inner(
             ela_score,
             noise_score,
             copy_move_score,
-            deepfake_score,
-            deepfake_confidence,
-            deepfake_verdict,
+            effective_deepfake_score,
+            effective_deepfake_confidence,
+            effective_deepfake_verdict,
             exif_trust,
             c2pa_valid,
             segmented_ela_score,
@@ -5586,6 +5633,72 @@ mod tests {
         assert!(
             trust <= 0.45,
             "Synthetic+low should cap at 0.45, got {trust:.3}"
+        );
+    }
+
+    /// Item 2 of JTV-105 truth-grid pass — pins the video-trust wiring fix.
+    /// `compute_trust` for video files now receives `aggregate_score` from
+    /// the per-frame deepfake aggregate (not the always-None image GBM
+    /// score). A high-deepfake video must produce a low trust headline.
+    #[test]
+    fn trust_video_high_deepfake_score() {
+        // Pristine deepfake video: aggregate_score 0.92 + synthetic + high
+        // confidence. Image manipulation signals are all None for video.
+        let trust = compute_trust(
+            None, // ela_score (video — None)
+            None, // noise_score
+            None, // copy_move_score
+            Some(0.92),
+            Some("high"),
+            Some("synthetic"),
+            0.5,  // exif_trust (video EXIF)
+            None, // c2pa_valid
+            None, // segmented_ela_score
+            None, // shadow_consistency_score
+            None, // colour_temperature_score
+            None, // splice_boundary_score
+            false,
+            None, // jpeg_ghost_score (video — None)
+            None,
+            None,
+            true,
+            false,
+            false,
+        );
+        assert!(
+            trust < 0.25,
+            "High video deepfake (0.92, synthetic, high) should cap trust < 0.25, got {trust:.3}"
+        );
+    }
+
+    /// Item 2 of JTV-105 — clean video with low aggregate_score must
+    /// produce a high trust headline (no false synthetic verdict).
+    #[test]
+    fn trust_video_clean_deepfake_score() {
+        let trust = compute_trust(
+            None,
+            None,
+            None,
+            Some(0.08),
+            Some("high"),
+            Some("authentic"),
+            0.5,
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            None,
+            None,
+            None,
+            true,
+            false,
+            false,
+        );
+        assert!(
+            trust > 0.75,
+            "Clean video deepfake (0.08, authentic, high) should yield trust > 0.75, got {trust:.3}"
         );
     }
 

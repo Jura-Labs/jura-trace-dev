@@ -72,6 +72,54 @@ export async function getStats(): Promise<AppStats> {
   }
 }
 
+// ── File picker filters ─────────────────────────────────────────────
+//
+// Single source of truth for which file extensions Jura Trace accepts in
+// the Protect (import) and Verify (batch) workflows. Extracted for unit
+// testability so future regressions that re-add unsupported formats
+// trigger a Vitest failure before reaching pilots.
+//
+// Format support truth-grid (JTV-105 / 2026-04-28 four-agent audit):
+//   * image/jpeg, png, tiff, webp, avif, heic — full pipeline
+//   * pdf — provenance only
+//   * mp4, mov — C2PA experimental + per-frame deepfake
+// Excluded for v1.0:
+//   * webm, mkv, avi — no C2PA, no watermark, no fingerprint, no trust
+//   * docx, odt, epub, txt — returns 0.50 trust with zero analysis
+//   * gif — animated GIFs have no C2PA / watermark / fingerprint
+//   * audio (wav/mp3/flac/ogg/aac/m4a) — model overfitted (AUC 1.0 on
+//     2 speakers + 1 TTS engine). Drop until v1.1 AASIST retraining.
+//   * 3D (stl/obj/gltf/glb) — no detector path, fall through to Unknown.
+
+export const PROTECT_FILE_FILTERS: { name: string; extensions: string[] }[] = [
+  {
+    name: 'All Supported',
+    extensions: [
+      'jpg', 'jpeg', 'png', 'tiff', 'tif', 'webp', 'heic', 'heif', 'bmp', 'avif',
+      'pdf',
+      'mp4', 'mov',
+    ],
+  },
+  {
+    name: 'Images',
+    extensions: ['jpg', 'jpeg', 'png', 'tiff', 'tif', 'webp', 'heic', 'heif', 'bmp', 'avif'],
+  },
+  { name: 'Documents', extensions: ['pdf'] },
+  { name: 'Video', extensions: ['mp4', 'mov'] },
+];
+
+export const VERIFY_FILE_FILTERS: { name: string; extensions: string[] }[] = [
+  {
+    name: 'Supported Files',
+    extensions: [
+      'jpg', 'jpeg', 'png', 'tiff', 'tif', 'webp', 'avif',
+      'heic', 'heif',
+      'pdf',
+      'mp4', 'mov',
+    ],
+  },
+];
+
 // ── Import ─────────────────────────────────────────────────────────
 
 /**
@@ -126,22 +174,7 @@ export async function openFileDialog(): Promise<Asset[]> {
   const selected = await open({
     multiple: true,
     title: 'Import Files',
-    filters: [
-      {
-        name: 'All Supported',
-        extensions: [
-          'jpg', 'jpeg', 'png', 'tiff', 'tif', 'webp', 'heic', 'heif', 'bmp', 'gif', 'svg', 'avif',
-          'pdf', 'docx', 'odt', 'epub', 'txt',
-          'mp4', 'mov', 'webm', 'avi', 'mkv',
-          'wav', 'mp3', 'flac', 'ogg', 'aac',
-          'stl', 'obj', 'gltf', 'glb',
-        ],
-      },
-      { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'tiff', 'tif', 'webp', 'heic', 'bmp', 'gif', 'svg', 'avif'] },
-      { name: 'Documents', extensions: ['pdf', 'docx', 'odt', 'epub', 'txt'] },
-      { name: 'Video', extensions: ['mp4', 'mov', 'webm', 'avi', 'mkv'] },
-      { name: 'Audio', extensions: ['wav', 'mp3', 'flac', 'ogg', 'aac'] },
-    ],
+    filters: PROTECT_FILE_FILTERS,
   });
 
   if (!selected) return [];
@@ -285,15 +318,7 @@ export async function openBatchFileDialog(): Promise<{ filePath: string; fileNam
   const selected = await open({
     multiple: true,
     title: 'Select Files to Verify',
-    filters: [
-      {
-        name: 'Supported Files',
-        extensions: [
-          'jpg', 'jpeg', 'png', 'tiff', 'tif', 'webp', 'avif',
-          'heic', 'heif', 'pdf', 'docx', 'mp4', 'mov', 'webm',
-        ],
-      },
-    ],
+    filters: VERIFY_FILE_FILTERS,
   });
 
   if (!selected) return [];

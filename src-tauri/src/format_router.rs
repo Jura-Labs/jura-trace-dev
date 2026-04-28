@@ -62,6 +62,31 @@ pub fn detect(path: &Path) -> FormatInfo {
     }
 }
 
+/// Should ELA run on this MIME type?
+///
+/// ELA is JPEG-DCT-specific: it works by re-saving an image at a known
+/// quality and measuring the residual energy. On non-JPEG codecs there
+/// is no quantisation residual to recover, so the score is uncalibrated
+/// noise. This includes PNG (lossless), WebP / AVIF / HEIC (different
+/// codec families that re-quantise uniformly on encode), TIFF (typically
+/// lossless), and BMP/GIF (no DCT at all).
+///
+/// Returning `false` here causes `verify_content_inner` to drop the
+/// ELA score before it reaches `compute_trust`, preventing uncalibrated
+/// noise from contributing to the trust verdict.
+pub fn should_run_ela(mime: &str) -> bool {
+    mime == "image/jpeg"
+}
+
+/// Should JPEG Ghost run on this MIME type?
+///
+/// Same JPEG-only constraint as ELA — the technique relies on detecting
+/// regions that have been compressed at a different JPEG quality than
+/// the surrounding image. On non-JPEG codecs there is no ghost to find.
+pub fn should_run_jpeg_ghost(mime: &str) -> bool {
+    mime == "image/jpeg"
+}
+
 /// Classify a MIME string into a content type.
 fn classify_mime(mime: &str) -> ContentType {
     if mime.starts_with("image/") {
@@ -291,5 +316,35 @@ mod tests {
         let path = PathBuf::from("/tmp/nonexistent_test_file.xyz123");
         let info = detect(&path);
         assert_eq!(info.content_type, ContentType::Unknown);
+    }
+
+    // ── Codec-aware detector gating (item 4 of JTV-105 truth-grid pass) ──
+
+    #[test]
+    fn codec_gate_jpeg_runs_ela_and_ghost() {
+        assert!(should_run_ela("image/jpeg"));
+        assert!(should_run_jpeg_ghost("image/jpeg"));
+    }
+
+    #[test]
+    fn codec_gate_png_skips_ela_and_ghost() {
+        assert!(!should_run_ela("image/png"));
+        assert!(!should_run_jpeg_ghost("image/png"));
+    }
+
+    #[test]
+    fn codec_gate_modern_lossy_codecs_skip_ela_and_ghost() {
+        for mime in &["image/webp", "image/avif", "image/heic", "image/heif"] {
+            assert!(!should_run_ela(mime), "{mime} must skip ELA");
+            assert!(!should_run_jpeg_ghost(mime), "{mime} must skip JPEG Ghost");
+        }
+    }
+
+    #[test]
+    fn codec_gate_lossless_formats_skip_ela_and_ghost() {
+        for mime in &["image/tiff", "image/bmp", "image/gif"] {
+            assert!(!should_run_ela(mime), "{mime} must skip ELA");
+            assert!(!should_run_jpeg_ghost(mime), "{mime} must skip JPEG Ghost");
+        }
     }
 }
