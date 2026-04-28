@@ -67,16 +67,19 @@ cd ui && npx svelte-check
 # Check Rust compilation
 cd src-tauri && cargo check
 
-# Run Rust tests (183 tests)
+# Run Rust tests (492 lib + 15 API integration)
 cd src-tauri && cargo test
 
 # Run Rust linter
 cd src-tauri && cargo clippy -- -D warnings
 
-# Run Python sidecar tests (292 tests; 3 skipped without ffprobe, 14 CLIP skipped when open_clip unavailable)
+# Run Python sidecar tests (418 tests; 3 skipped without ffprobe, 14 CLIP skipped when open_clip unavailable)
 cd sidecar && python -m pytest tests/ -v
 
-# Run Playwright e2e tests (104 tests)
+# Run Vitest component unit tests (15 tests)
+cd ui && npm test
+
+# Run Playwright e2e tests (148 tests)
 cd ui && npx playwright test
 
 # Run SvelteKit type check
@@ -191,7 +194,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 - Composite border detector: 21 candidates flagged on full corpus, HTML preview pending user review.
 - **JPEG Ghost 0.5× weight calibration closed 2026-04-07** — Option 3 (synthetic CC-BY generator) executed; weight retained at 0.5, no code change. CASIA v2 **rejected 2026-04-11** as non-commercial-licensed and unusable for Jura Trace (commercial product); a commercial-cleared splice benchmark remains an open future need per `docs/calibration/s28-jpeg-ghost-weight.md` Section 6.
 
-**Test counts**: 334 Rust lib tests, 375+ Python (47 sidecar deepfake), 164 Playwright e2e, 233 SvelteKit files with 0 svelte-check errors, clippy + fmt clean. Pre-commit hook now runs `cargo fmt`, `cargo check --all-targets`, `cargo clippy --all-targets -- -D warnings`, and `svelte-check` — hardened in commit `0912b14` after two Sprint 30 test-fixture regressions slipped past the lighter `cargo check` alone.
+**Test counts**: 492 Rust lib tests + 15 Rust API integration, 418 Python sidecar (47 sidecar deepfake), 148 Playwright e2e (10 spec files including dedicated integrity-card / ai-card / provenance-card suites with 9 visual baselines), 15 Vitest component unit tests via @testing-library/svelte + happy-dom, 458 SvelteKit files with 0 svelte-check errors, clippy + fmt clean. Pre-commit hook now runs `cargo fmt`, `cargo check --all-targets`, `cargo clippy --all-targets -- -D warnings`, `svelte-check`, and `npm test` (vitest) — hardened across two commits: `0912b14` (Sprint 30 test-fixture regressions) and `6d2161a` (vitest gate added 2026-04-28).
 
 ## Backlog
 
