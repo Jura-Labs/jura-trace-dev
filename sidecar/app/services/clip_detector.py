@@ -29,7 +29,7 @@ import os
 
 from PIL import Image
 
-from app.models.schemas import ClipDetectionResponse
+from app.models.schemas import ClipDetectionResponse, VerdictThresholds
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +57,32 @@ _TEXT_PROMPTS = [
     "a digitally manipulated photograph",
 ]
 
-# Verdict thresholds
+# Verdict thresholds.  These are the load-bearing decision boundaries
+# for the CLIP/UnivFD verdict; the trained UnivFD probe (AUC 0.9933)
+# produces the headline score and these constants determine which
+# verdict_level applies.  Surfaced on every ClipDetectionResponse via
+# `verdict_thresholds` so the UI consumes live values rather than
+# hardcoding.  When the UnivFD probe is retrained (next: v10) bump
+# _MODEL_VERSION and adjust constants together.
 _SYNTHETIC_THRESHOLD = 0.60
 _AUTHENTIC_THRESHOLD = 0.35
+_MODEL_VERSION = "univfd-probe-v9"
+_THRESHOLD_BASIS = (
+    "UnivFD probe v9: LogisticRegression on CLIP ViT-B/32 embeddings, "
+    "AUC 0.9933, FP 4.12% on photographic content, recall 95.7%, "
+    "validated on 39,016 samples including platform-forwarded re-encodes "
+    "(see docs/calibration/univfd-v9-platform-augmentation.md)."
+)
+
+
+def _verdict_thresholds() -> VerdictThresholds:
+    """Build the VerdictThresholds payload from the module constants."""
+    return VerdictThresholds(
+        synthetic_min=_SYNTHETIC_THRESHOLD,
+        authentic_max=_AUTHENTIC_THRESHOLD,
+        model_version=_MODEL_VERSION,
+        threshold_basis=_THRESHOLD_BASIS,
+    )
 
 
 def _ensure_model() -> bool:
@@ -220,6 +243,7 @@ def _unavailable_response() -> ClipDetectionResponse:
         model_name="ViT-B-32 (laion2b_s34b_b79k)",
         model_available=False,
         summary="CLIP model not available — install open-clip-torch for AI image detection.",
+        verdict_thresholds=_verdict_thresholds(),
     )
 
 
@@ -335,4 +359,5 @@ def perform_clip_detection(image_bytes: bytes) -> ClipDetectionResponse:
         summary=summary,
         univfd_score=round(univfd_score, 4) if univfd_score is not None else None,
         univfd_available=univfd_available,
+        verdict_thresholds=_verdict_thresholds(),
     )

@@ -127,6 +127,29 @@ pub struct CopyMoveResult {
     pub suspicious: bool,
 }
 
+/// Decision boundaries that govern an AI-detection verdict.
+///
+/// Emitted by the sidecar on every `DeepfakeResult` and `ClipDetectionResult`
+/// (since the sidecar threshold-emission landing on 2026-04-28 — JTV-97).
+/// `Option` + `serde(default)` so older sidecar builds without the field
+/// still deserialise; the UI keeps a hardcoded fallback for one release
+/// cycle covering dev workflows where an older `uvicorn` runs against a
+/// newer Tauri build.  Production end-users get matched sidecar+Rust+UI
+/// because the sidecar is bundled into the Tauri installer via
+/// PyInstaller.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct VerdictThresholds {
+    #[serde(alias = "synthetic_min")]
+    pub synthetic_min: f64,
+    #[serde(alias = "authentic_max")]
+    pub authentic_max: f64,
+    #[serde(alias = "model_version")]
+    pub model_version: String,
+    #[serde(alias = "threshold_basis")]
+    pub threshold_basis: String,
+}
+
 /// A single signal from the deepfake detection ensemble.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -167,6 +190,8 @@ pub struct DeepfakeResult {
     pub classifier_score: Option<f64>,
     #[serde(default, alias = "classifier_available")]
     pub classifier_available: bool,
+    #[serde(default, alias = "verdict_thresholds")]
+    pub verdict_thresholds: Option<VerdictThresholds>,
 }
 
 /// CLIP-based AI image detection result (UnivFD probe + zero-shot classifier).
@@ -194,6 +219,8 @@ pub struct ClipDetectionResult {
     pub univfd_score: Option<f64>,
     #[serde(default, alias = "univfd_available")]
     pub univfd_available: bool,
+    #[serde(default, alias = "verdict_thresholds")]
+    pub verdict_thresholds: Option<VerdictThresholds>,
 }
 
 /// NPR (Neighbouring Pixel Relationships) analysis result.
@@ -1827,6 +1854,59 @@ mod tests {
         let result: DeepfakeResult = serde_json::from_str(json).unwrap();
         assert_eq!(result.classifier_score, None);
         assert!(!result.classifier_available);
+        // verdict_thresholds defaults to None when absent (old sidecar build).
+        assert!(result.verdict_thresholds.is_none());
+    }
+
+    #[test]
+    fn test_deepfake_result_with_verdict_thresholds() {
+        // Sidecar emits verdict_thresholds since 2026-04-28 (JTV-97).
+        let json = r#"{
+            "score": 0.73,
+            "suspicious": true,
+            "confidence": "high",
+            "signals": [],
+            "heatmap_base64": "",
+            "summary": "Synthetic indicators",
+            "verdict_thresholds": {
+                "synthetic_min": 0.55,
+                "authentic_max": 0.25,
+                "model_version": "gbm-v4",
+                "threshold_basis": "Option C calibration on 150-image confusion matrix"
+            }
+        }"#;
+        let result: DeepfakeResult = serde_json::from_str(json).unwrap();
+        let thresholds = result.verdict_thresholds.expect("verdict_thresholds populated");
+        assert!((thresholds.synthetic_min - 0.55).abs() < 1e-9);
+        assert!((thresholds.authentic_max - 0.25).abs() < 1e-9);
+        assert_eq!(thresholds.model_version, "gbm-v4");
+        assert!(thresholds.threshold_basis.contains("confusion matrix"));
+    }
+
+    #[test]
+    fn test_clip_result_with_verdict_thresholds() {
+        let json = r#"{
+            "score": 0.87,
+            "verdict_level": "synthetic",
+            "confidence": "high",
+            "class_probabilities": {"photograph": 0.21, "ai_generated": 0.20},
+            "model_name": "ViT-B-32",
+            "model_available": true,
+            "summary": "UnivFD probe flags as AI-generated",
+            "univfd_score": 0.87,
+            "univfd_available": true,
+            "verdict_thresholds": {
+                "synthetic_min": 0.60,
+                "authentic_max": 0.35,
+                "model_version": "univfd-probe-v9",
+                "threshold_basis": "AUC 0.9933 on 39,016 samples"
+            }
+        }"#;
+        let result: ClipDetectionResult = serde_json::from_str(json).unwrap();
+        let thresholds = result.verdict_thresholds.expect("verdict_thresholds populated");
+        assert!((thresholds.synthetic_min - 0.60).abs() < 1e-9);
+        assert!((thresholds.authentic_max - 0.35).abs() < 1e-9);
+        assert_eq!(thresholds.model_version, "univfd-probe-v9");
     }
 
     #[test]

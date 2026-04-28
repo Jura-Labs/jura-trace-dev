@@ -271,6 +271,59 @@ class TestVerdictLevel:
                 assert result.verdict_level == "inconclusive"
 
 
+class TestVerdictThresholds:
+    """Tests for the verdict_thresholds field on DeepfakeResponse (JTV-97).
+
+    The boundaries that govern verdict_level must be available on the
+    wire so the Rust IPC layer and SvelteKit UI can display live values
+    rather than hardcoding model-specific numbers.  When the GBM model
+    is retrained the constants update once and propagate via the
+    response payload.
+    """
+
+    def test_verdict_thresholds_field_present(self):
+        """Every DeepfakeResponse populates verdict_thresholds."""
+        result = perform_deepfake_detection(_make_noisy_photo())
+        assert result.verdict_thresholds is not None
+        assert result.verdict_thresholds.synthetic_min > 0.0
+        assert result.verdict_thresholds.authentic_max < result.verdict_thresholds.synthetic_min
+
+    def test_verdict_thresholds_match_module_constants(self):
+        """Wire values must equal the module source-of-truth constants."""
+        from app.services.deepfake import (
+            AUTHENTIC_THRESHOLD,
+            MODEL_VERSION,
+            SYNTHETIC_THRESHOLD,
+        )
+        result = perform_deepfake_detection(_make_noisy_photo())
+        assert result.verdict_thresholds.synthetic_min == SYNTHETIC_THRESHOLD
+        assert result.verdict_thresholds.authentic_max == AUTHENTIC_THRESHOLD
+        assert result.verdict_thresholds.model_version == MODEL_VERSION
+
+    def test_verdict_thresholds_basis_documented(self):
+        """The basis string must be non-empty so reports can cite it."""
+        result = perform_deepfake_detection(_make_noisy_photo())
+        assert result.verdict_thresholds.threshold_basis
+        assert len(result.verdict_thresholds.threshold_basis) > 30
+
+    def test_verdict_level_consistent_with_thresholds(self):
+        """verdict_level decisions must use the published boundaries."""
+        for img_fn in (_make_solid_image, _make_noisy_photo, _make_gradient_image):
+            result = perform_deepfake_detection(img_fn())
+            t = result.verdict_thresholds
+            if result.score > t.synthetic_min:
+                # May still be "synthetic" via the watermark short-circuit
+                # at score>threshold OR any(w.detected for w in watermarks);
+                # solid synthetic image triggers the watermark heuristic.
+                assert result.verdict_level == "synthetic"
+            elif result.score < t.authentic_max:
+                assert result.verdict_level == "authentic"
+            else:
+                # score in the open interval — verdict is inconclusive
+                # unless a watermark forced an upgrade.
+                assert result.verdict_level in ("inconclusive", "synthetic")
+
+
 # ── Codec-aware test image helpers ─────────────────────────────────────
 
 

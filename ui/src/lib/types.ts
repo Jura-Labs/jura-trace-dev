@@ -139,6 +139,23 @@ export interface WatermarkDetection {
 /** Three-way verdict from deepfake detection */
 export type VerdictLevel = 'authentic' | 'inconclusive' | 'synthetic';
 
+/** Decision boundaries that govern an AI-detection verdict.
+    Emitted by the sidecar on every detector response so the UI can
+    display live values rather than hardcoding the boundary.  Field
+    naming chosen for cross-examination defensibility — see the
+    Pydantic class in `sidecar/app/models/schemas.py`. */
+export interface VerdictThresholds {
+  /** Scores at or above this value are classified `synthetic`. */
+  syntheticMin: number;
+  /** Scores at or below this value are classified `authentic`. */
+  authenticMax: number;
+  /** Detector + version label, e.g. `"gbm-v4"` or `"univfd-probe-v9"`. */
+  modelVersion: string;
+  /** Plain-English description of how the boundaries were derived,
+      for citation in methodology statements. */
+  thresholdBasis: string;
+}
+
 /** Deepfake / AI-generated image detection result from the ML sidecar */
 export interface DeepfakeResult {
   score: number;
@@ -151,6 +168,7 @@ export interface DeepfakeResult {
   watermarks?: WatermarkDetection[];
   classifierScore?: number | null;
   classifierAvailable?: boolean;
+  verdictThresholds?: VerdictThresholds | null;
 }
 
 /** NPR (Neighbouring Pixel Relationships) analysis result */
@@ -317,6 +335,11 @@ export interface ClipDetectionResult {
   /** True when the UnivFD probe ran successfully and `score` reflects
       its output rather than zero-shot text similarity. */
   univfdAvailable?: boolean;
+  /** Decision boundaries used to classify this result.  Keep in mind
+      that CLIP/UnivFD probe boundaries differ from GBM (see
+      `modelVersion` and `thresholdBasis`); the two are validated on
+      different corpora and should not be conflated. */
+  verdictThresholds?: VerdictThresholds | null;
 }
 
 /** RAG claim verification source reference */

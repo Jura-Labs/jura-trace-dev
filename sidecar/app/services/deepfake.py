@@ -28,7 +28,12 @@ from scipy.ndimage import laplace
 from skimage.feature import local_binary_pattern, graycomatrix, graycoprops
 from skimage.restoration import denoise_wavelet
 
-from app.models.schemas import DeepfakeResponse, DeepfakeSignal, WatermarkDetection
+from app.models.schemas import (
+    DeepfakeResponse,
+    DeepfakeSignal,
+    VerdictThresholds,
+    WatermarkDetection,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -536,6 +541,37 @@ def is_likely_screenshot(image_bytes: bytes) -> tuple[bool, float, dict[str, flo
 #   - channel_corr: 0.97-0.99 (indoor), AI-generated: > 0.995
 #   - multiscale_gradient: 1.5-2.6 (comp. photo), AI-generated: > 3.0
 #   - benford_div: 0.1-0.3 (JPEG distorts), AI-generated: > 0.4
+# GBM Deepfake verdict boundaries.  Single source of truth for the
+# entire stack — surfaced on every DeepfakeResponse via
+# `verdict_thresholds` so the Rust IPC layer and the SvelteKit UI
+# read live values rather than hardcoding.  When the GBM model is
+# retrained, update these constants and bump MODEL_VERSION; the
+# response field is the authoritative artefact for forensic reports.
+SYNTHETIC_THRESHOLD = 0.55
+AUTHENTIC_THRESHOLD = 0.25
+MODEL_VERSION = "gbm-v4"
+THRESHOLD_BASIS = (
+    "Option C calibration validated on 150-image confusion matrix "
+    "(see CLAUDE.md and docs/calibration). Synthetic verdict at "
+    "scores >0.55, authentic at <0.25; the open interval is inconclusive."
+)
+
+
+def _verdict_thresholds() -> VerdictThresholds:
+    """Build the VerdictThresholds payload from the module constants.
+
+    Centralised so every DeepfakeResponse construction site stays in
+    sync — when the model is retrained the constants update once and
+    the wire payload follows automatically.
+    """
+    return VerdictThresholds(
+        synthetic_min=SYNTHETIC_THRESHOLD,
+        authentic_max=AUTHENTIC_THRESHOLD,
+        model_version=MODEL_VERSION,
+        threshold_basis=THRESHOLD_BASIS,
+    )
+
+
 CODEC_THRESHOLDS: dict[str, dict[str, float]] = {
     "raw": {
         "noise_std": 1.5, "hf_energy": 0.0005, "noise_cv": 1.0,
@@ -680,6 +716,7 @@ def _perform_deepfake_detection_impl(
             summary=f"Image too small for reliable analysis ({orig_w}x{orig_h}). "
                     f"Minimum 128x128 required for forensic detection.",
             watermarks=[],
+            verdict_thresholds=_verdict_thresholds(),
         ), small_image_features
 
     # ── Screenshot pre-classifier ─────────────────────────────────────
@@ -796,6 +833,7 @@ def _perform_deepfake_detection_impl(
                 classifier_available=False,
                 univfd_score=None,
                 univfd_available=False,
+                verdict_thresholds=_verdict_thresholds(),
             )
             # Populate the full feature dict with NaN so that callers of
             # `perform_deepfake_detection_with_features()` — notably
@@ -937,7 +975,7 @@ def _perform_deepfake_detection_impl(
     # at 0.55 (inconclusive) rather than lower to retain a visible signal
     # for analyst review rather than silently clearing it as authentic.
     if has_camera_exif and heuristic_score < 0.6:
-        score = min(score, 0.55)
+        score = min(score, SYNTHETIC_THRESHOLD)
 
     # ── MakerNote authenticity bonus (Sprint 29 Track 1) ──────────────
     # When a vendor-recognised MakerNote is present, suppress the final
@@ -971,7 +1009,7 @@ def _perform_deepfake_detection_impl(
     # Confidence based on score extremity
     if score > 0.70 or score < 0.20:
         confidence = "high"
-    elif score > 0.55 or score < 0.30:
+    elif score > SYNTHETIC_THRESHOLD or score < 0.30:
         confidence = "medium"
     else:
         confidence = "low"
@@ -983,7 +1021,7 @@ def _perform_deepfake_detection_impl(
     # evidence).  Phrase the summary honestly so we do not claim "Strong
     # indicators" alongside "0 signals triggered".
     triggered_count = sum(1 for s in signals if s.triggered)
-    if score > 0.55:
+    if score > SYNTHETIC_THRESHOLD:
         if triggered_count > 0:
             summary = (
                 f"Strong synthetic indicators "
@@ -1019,9 +1057,9 @@ def _perform_deepfake_detection_impl(
     #   Auth: 89.3% authentic, 10.7% inconclusive, 0% FP
     # Narrower inconclusive band (0.30 width vs 0.45) reduces ambiguous results
     # while maintaining zero escapes and zero false positives.
-    if score > 0.55 or any(w.detected for w in watermarks):
+    if score > SYNTHETIC_THRESHOLD or any(w.detected for w in watermarks):
         verdict_level = "synthetic"
-    elif score < 0.25:
+    elif score < AUTHENTIC_THRESHOLD:
         verdict_level = "authentic"
     else:
         verdict_level = "inconclusive"
@@ -1039,6 +1077,7 @@ def _perform_deepfake_detection_impl(
         classifier_available=classifier_available,
         univfd_score=round(univfd_score, 4) if univfd_score is not None else None,
         univfd_available=univfd_available,
+        verdict_thresholds=_verdict_thresholds(),
     )
     return response, features
 

@@ -96,14 +96,17 @@
   // toggle.  The global toggle still reveals them automatically.
   let showClipZeroShot = $state(false);
 
-  // GBM Deepfake synthetic verdict boundary.  Source of truth is
-  // sidecar/app/services/deepfake.py at line ~1022 (current Option C
-  // calibration: synthetic if score > 0.55, authentic if < 0.25).
-  // Surfaced on the GBM row per JTV-93 so the verdict is reportable in
-  // standard view without needing the raw-scores toggle.  When the
-  // model is retrained the value updates in both places — the linked
-  // model card on /help/how-it-works documents the version pairing.
-  const GBM_SYNTHETIC_THRESHOLD = 0.55;
+  // GBM Deepfake synthetic verdict boundary fallback.
+  //
+  // The live value arrives on `result.deepfakeResult.verdictThresholds`
+  // from the sidecar (JTV-97 landed 2026-04-28).  This constant is the
+  // dev-only fallback for the rollout overlap window — only used when
+  // a developer is running an older `uvicorn` sidecar against a newer
+  // Tauri build.  Production end-users always get a matched
+  // sidecar+Rust+UI bundle from the Tauri installer, so the field is
+  // guaranteed present.  Remove the fallback in a follow-up release
+  // once no developer is running pre-2026-04-28 sidecars.
+  const GBM_SYNTHETIC_THRESHOLD_FALLBACK = 0.55;
 
   // Test hook store
   const _testResultStore = writable<VerificationResult | null>(null);
@@ -3638,12 +3641,12 @@
                         <div class="flex items-center gap-2 mb-1 flex-wrap">
                           <span class="text-sm font-medium {result.deepfakeResult.suspicious ? 'text-amber-light' : 'text-obsidian dark:text-quartz'}">AI Generation (GBM Deepfake)</span>
                           <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light">{result.deepfakeResult.confidence} confidence</span>
-                          <!-- Threshold (JTV-93): visible in standard view so
-                               the verdict is reportable ("scored 73%; the
-                               synthetic boundary is 55%") without enabling
-                               raw-scores mode. -->
+                          <!-- Threshold (JTV-93 / JTV-97): live value from
+                               the sidecar response when present, else the
+                               version-pinned fallback.  See comment on the
+                               constant above for the rollout policy. -->
                           <span class="text-xs text-flint-dark dark:text-flint-light tabular-nums" aria-label="Synthetic verdict boundary">
-                            threshold {Math.round(GBM_SYNTHETIC_THRESHOLD * 100)}%
+                            threshold {Math.round((result.deepfakeResult.verdictThresholds?.syntheticMin ?? GBM_SYNTHETIC_THRESHOLD_FALLBACK) * 100)}%
                           </span>
                         </div>
                         <p class="text-xs text-flint-dark dark:text-flint-light">{result.deepfakeResult.summary}</p>

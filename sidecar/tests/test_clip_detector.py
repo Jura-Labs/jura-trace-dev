@@ -213,6 +213,31 @@ class TestClipDetectorWithModel:
             else:
                 assert result.verdict_level == "inconclusive"
 
+    def test_verdict_thresholds_field_present(self):
+        """Every ClipDetectionResponse populates verdict_thresholds (JTV-97)."""
+        from app.services.clip_detector import perform_clip_detection
+
+        result = perform_clip_detection(_make_noisy_photo())
+        assert result.verdict_thresholds is not None
+        assert result.verdict_thresholds.synthetic_min > result.verdict_thresholds.authentic_max
+        assert result.verdict_thresholds.model_version.startswith("univfd-probe-")
+        # Threshold basis must reference the AUC figure for the trained probe.
+        assert "AUC" in result.verdict_thresholds.threshold_basis
+
+    def test_verdict_thresholds_match_module_constants(self):
+        """Wire values must equal the module source-of-truth constants."""
+        from app.services.clip_detector import (
+            _AUTHENTIC_THRESHOLD,
+            _MODEL_VERSION,
+            _SYNTHETIC_THRESHOLD,
+            perform_clip_detection,
+        )
+
+        result = perform_clip_detection(_make_noisy_photo())
+        assert result.verdict_thresholds.synthetic_min == _SYNTHETIC_THRESHOLD
+        assert result.verdict_thresholds.authentic_max == _AUTHENTIC_THRESHOLD
+        assert result.verdict_thresholds.model_version == _MODEL_VERSION
+
     def test_suspicious_consistent_with_score(self):
         """suspicious flag should be True when score > 0.5."""
         from app.services.clip_detector import perform_clip_detection

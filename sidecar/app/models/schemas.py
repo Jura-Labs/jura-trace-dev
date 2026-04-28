@@ -68,6 +68,31 @@ class WatermarkDetection(BaseModel):
     details: str
 
 
+class VerdictThresholds(BaseModel):
+    """Decision boundaries that govern an AI-detection verdict.
+
+    Emitted on every detector response so a forensic-analyst report can
+    cite the exact boundaries used to classify the analysed image.
+    Field naming chosen for cross-examination defensibility:
+    `synthetic_min` reads aloud unambiguously as "scores at or above
+    this value are classified synthetic"; `authentic_max` reads as
+    "scores at or below this value are classified authentic".  The
+    inconclusive band is the open interval between them — derived,
+    not stored, so the two cannot drift independently.
+    """
+
+    synthetic_min: float
+    authentic_max: float
+    # Detector + version label, e.g. "gbm-v4" or "univfd-probe-v9".
+    # Required for longitudinal defensibility — a 2027 re-examination
+    # of a 2026 verification must reproduce the verdict using the
+    # same model and the same thresholds.
+    model_version: str
+    # Plain-English description of how the boundaries were derived,
+    # for citation in methodology statements and reports.
+    threshold_basis: str
+
+
 class DeepfakeResponse(BaseModel):
     """Deepfake / AI-generated image detection result."""
 
@@ -83,6 +108,7 @@ class DeepfakeResponse(BaseModel):
     classifier_available: bool = False
     univfd_score: float | None = None
     univfd_available: bool = False
+    verdict_thresholds: VerdictThresholds | None = None
 
 
 class JpegGhostResponse(BaseModel):
@@ -123,6 +149,7 @@ class ClipDetectionResponse(BaseModel):
     summary: str
     univfd_score: float | None = None
     univfd_available: bool = False
+    verdict_thresholds: VerdictThresholds | None = None
 
 
 class ClaimVerdict(BaseModel):
