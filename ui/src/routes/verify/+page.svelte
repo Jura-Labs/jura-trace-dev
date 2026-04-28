@@ -37,6 +37,7 @@
   import type { ReportContext, ReportFormat } from '$lib/pdf';
   import { exportCaseZip } from '$lib/zip';
   import { saveVerifySession, restoreVerifySession, clearVerifySession } from '$lib/stores/verifySession';
+  import { consumeVerifyHandoff } from '$lib/stores/verifyHandoff';
 
   // ── State ──────────────────────────────────────────────────────────
   let activeTab = $state<'file' | 'batch' | 'url'>('file');
@@ -887,8 +888,15 @@
     analystNote = localStorage.getItem('jura-analyst-note') ?? '';
     analystDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
-    // Restore session
-    if (!result) {
+    // Check for a protect→verify handoff (JTV-125).  consumeVerifyHandoff()
+    // is one-shot: it returns and clears the payload in a single call so a
+    // back-navigation doesn't re-trigger the analysis.
+    const handoff = consumeVerifyHandoff();
+    if (handoff) {
+      // Don't restore a stale session — the handoff takes priority.
+      void runFileVerification(handoff.filePath, handoff.fileName);
+    } else if (!result) {
+      // Restore session
       const saved = restoreVerifySession();
       if (saved) {
         result = saved.result;

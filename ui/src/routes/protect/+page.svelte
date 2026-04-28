@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { goto } from '$app/navigation';
   import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode } from '$lib/api';
+  import { setVerifyHandoff } from '$lib/stores/verifyHandoff';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import { createBlobTracker } from '$lib/blob';
   import {
@@ -2675,6 +2677,30 @@
                     Watermark
                   </button>
                 {/if}
+              {/if}
+
+              <!-- Verify this asset cross-link (JTV-125).
+                   Gate: canSignC2pa confirms this is a supported raster image
+                   format that the forensic pipeline can process. -->
+              {#if canSignC2pa(asset)}
+                <div class="col-span-full mt-2">
+                  <button
+                    class="px-4 py-2 min-h-[44px] inline-flex items-center gap-2 text-sm border border-lapis/30 text-lapis dark:text-lapis-light rounded
+                           hover:bg-lapis/10 transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                    onclick={() => {
+                      setVerifyHandoff({ filePath: asset.filePath, fileName: asset.fileName });
+                      goto('/verify');
+                    }}
+                    aria-label="Verify {asset.fileName} — open in the Verify page and run authenticity analysis"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Verify this asset
+                  </button>
+                </div>
               {/if}
 
               <!-- Delete asset -->
