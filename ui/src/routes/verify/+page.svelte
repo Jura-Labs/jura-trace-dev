@@ -96,6 +96,15 @@
   // toggle.  The global toggle still reveals them automatically.
   let showClipZeroShot = $state(false);
 
+  // GBM Deepfake synthetic verdict boundary.  Source of truth is
+  // sidecar/app/services/deepfake.py at line ~1022 (current Option C
+  // calibration: synthetic if score > 0.55, authentic if < 0.25).
+  // Surfaced on the GBM row per JTV-93 so the verdict is reportable in
+  // standard view without needing the raw-scores toggle.  When the
+  // model is retrained the value updates in both places — the linked
+  // model card on /help/how-it-works documents the version pairing.
+  const GBM_SYNTHETIC_THRESHOLD = 0.55;
+
   // Test hook store
   const _testResultStore = writable<VerificationResult | null>(null);
   let _testApplied = false;
@@ -552,6 +561,32 @@
   const aiPass = $derived(() => {
     if (!result || aiDetectionSuppressed) return null;
     return !result.deepfakeResult?.suspicious && result.clipResult?.verdictLevel !== 'synthetic';
+  });
+
+  // State-label for the AI-card panel header (JTV-92).  Replaces the
+  // mathematically correct but communicatively backwards "X of 2 passed"
+  // — for AI detection, a "pass" means "not flagged as synthetic" and
+  // pass-counting framed positive AI flags as failures.  This label
+  // tells the user the *agreement state* directly.
+  const aiStateLabel = $derived(() => {
+    if (!result || aiDetectionSuppressed) return null;
+    const gbm = result.deepfakeResult;
+    const clip = result.clipResult;
+    const ranCount = [gbm, clip].filter(Boolean).length;
+    if (ranCount === 0) return null;
+    const gbmSyn = gbm?.suspicious === true || gbm?.verdictLevel === 'synthetic';
+    const clipSyn = clip?.verdictLevel === 'synthetic';
+    const gbmAuth = gbm?.verdictLevel === 'authentic';
+    const clipAuth = clip?.verdictLevel === 'authentic';
+    if (ranCount === 1) {
+      if (gbmSyn || clipSyn) return 'Detector flagged AI';
+      if (gbmAuth || clipAuth) return 'Detector clear';
+      return 'Detector inconclusive';
+    }
+    if (gbmSyn && clipSyn) return 'Both detectors flagged AI';
+    if (gbmAuth && clipAuth) return 'Both detectors clear';
+    if (gbmSyn !== clipSyn) return 'Detectors disagree';
+    return 'Both detectors inconclusive';
   });
 
   // Plain-English one-liner shown as the first element inside the AI card
@@ -3547,12 +3582,11 @@
             {#if aiDetectionSuppressed}
               <span class="text-xs text-amber-dark dark:text-amber-light mr-2">Suppressed</span>
             {:else}
-              <span class="text-xs text-flint-dark dark:text-flint-light mr-2">
-                {(() => {
-                  const total = [result.deepfakeResult, result.clipResult].filter(Boolean).length;
-                  return `${total - aiFindings} of ${total} passed`;
-                })()}
-              </span>
+              <!-- State-label (JTV-92): replaces "X of 2 passed" — the old
+                   counter framed a positive AI flag as a failure to "pass". -->
+              {#if aiStateLabel()}
+                <span class="text-xs text-flint-dark dark:text-flint-light mr-2">{aiStateLabel()}</span>
+              {/if}
               <span class="text-xs font-semibold {cardPassClass(aiPass())}">
                 {aiPass() === null ? '—' : aiPass() ? 'Pass' : 'Concern'}
               </span>
@@ -3604,9 +3638,23 @@
                         <div class="flex items-center gap-2 mb-1 flex-wrap">
                           <span class="text-sm font-medium {result.deepfakeResult.suspicious ? 'text-amber-light' : 'text-obsidian dark:text-quartz'}">AI Generation (GBM Deepfake)</span>
                           <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light">{result.deepfakeResult.confidence} confidence</span>
+                          <!-- Threshold (JTV-93): visible in standard view so
+                               the verdict is reportable ("scored 73%; the
+                               synthetic boundary is 55%") without enabling
+                               raw-scores mode. -->
+                          <span class="text-xs text-flint-dark dark:text-flint-light tabular-nums" aria-label="Synthetic verdict boundary">
+                            threshold {Math.round(GBM_SYNTHETIC_THRESHOLD * 100)}%
+                          </span>
                         </div>
                         <p class="text-xs text-flint-dark dark:text-flint-light">{result.deepfakeResult.summary}</p>
-                        {#if result.deepfakeResult.verdictLevel}
+                        <!-- Verdict text is gated behind raw-scores (JTV-91):
+                             the row already communicates the verdict via three
+                             redundant signals (amber/cinnabar background tint,
+                             coloured icon, coloured title).  A fourth duplicate
+                             text label was the surface that made "Synthetic"
+                             read as a separate claim from the signal accordion
+                             when 0 indicators triggered. -->
+                        {#if showRawScores && result.deepfakeResult.verdictLevel}
                           <p class="text-xs mt-1 font-medium {result.deepfakeResult.verdictLevel === 'synthetic' ? 'text-cinnabar-dark dark:text-cinnabar-light' : result.deepfakeResult.verdictLevel === 'inconclusive' ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}">
                             Verdict: {result.deepfakeResult.verdictLevel.charAt(0).toUpperCase() + result.deepfakeResult.verdictLevel.slice(1)}
                           </p>
