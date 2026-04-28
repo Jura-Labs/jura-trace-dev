@@ -2051,8 +2051,25 @@
                             </li>
                           {/each}
                           {#if result.exifAnalysis.findings.length > 5}
-                            <li class="text-xs text-flint-dark dark:text-flint-light">
-                              + {result.exifAnalysis.findings.length - 5} more — <a href="/verify" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz">view all in classic view</a>
+                            <li>
+                              <details class="group">
+                                <summary class="list-none text-xs text-lapis dark:text-lapis-light cursor-pointer hover:text-obsidian dark:hover:text-quartz flex items-center gap-1 min-h-[24px]
+                                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded">
+                                  <svg class="w-3 h-3 motion-safe:group-open:rotate-90 transition-transform duration-150" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+                                  Show {result.exifAnalysis.findings.length - 5} more finding{result.exifAnalysis.findings.length - 5 === 1 ? '' : 's'}
+                                </summary>
+                                <ul class="space-y-1.5 mt-1.5">
+                                  {#each highestSeverityFindings(result.exifAnalysis.findings).slice(5) as finding}
+                                    <li class="text-xs leading-relaxed">
+                                      <span class="font-medium {finding.severity === 'critical' || finding.severity === 'high' ? 'text-amber-dark dark:text-amber-light' : finding.severity === 'medium' ? 'text-amber-dark/70 dark:text-amber-light/70' : 'text-flint-dark dark:text-flint-light'}">
+                                        [{finding.severity.toUpperCase()}]
+                                      </span>
+                                      <span class="text-obsidian dark:text-quartz ml-1">{finding.title}</span>
+                                      <span class="text-flint-dark dark:text-flint-light ml-1">— {finding.description}</span>
+                                    </li>
+                                  {/each}
+                                </ul>
+                              </details>
                             </li>
                           {/if}
                         </ul>
@@ -3508,7 +3525,7 @@
                   Scores were neutralised in the trust calculation.
                 </p>
                 <p class="text-xs text-flint-dark dark:text-flint-light mt-2">
-                  <a href="/verify" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz">View raw scores in classic view</a>
+                  Enable raw scores in Settings to inspect the suppressed values.
                 </p>
               </div>
             {:else}
@@ -4009,21 +4026,7 @@
         Report False Positive
       </button>
 
-      <a
-        href="/verify"
-        class="ml-auto text-xs text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz transition-colors underline underline-offset-2 flex items-center gap-1 min-h-[44px] px-2
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
-      >
-        View full detail in classic view
-        <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-      </a>
     </div>
-
-    <!-- Deferred features note -->
-    <p class="mt-4 text-xs text-flint-dark dark:text-flint-light text-center">
-      Region-of-interest analysis, sun position estimation, and annotation tools are available in the
-      <a href="/verify" class="underline hover:text-flint-dark dark:text-flint-light dark:hover:text-flint-dark dark:text-flint-light-light">classic view</a>.
-    </p>
 
     <!-- ── Methodology Panel ────────────────────────────────────────── -->
     <div class="mt-4">
