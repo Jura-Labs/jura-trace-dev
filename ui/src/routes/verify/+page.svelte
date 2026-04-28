@@ -26,7 +26,9 @@
   import ExperimentalPill from '$lib/components/ExperimentalPill.svelte';
   import ContentCredentialsSeal from '$lib/components/ContentCredentialsSeal.svelte';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
+  import DetectorRow from '$lib/components/DetectorRow.svelte';
   import ImageZoom from '$lib/components/ImageZoom.svelte';
+  import { forensicScoreClass } from '$lib/scoring';
   import SignalAgreement from '$lib/components/SignalAgreement.svelte';
   import MethodologyPanel from '$lib/components/MethodologyPanel.svelte';
   import { generateTrustReport } from '$lib/pdf';
@@ -1108,12 +1110,6 @@
 
   function dotPulse(state: DotState): boolean {
     return state === 'suspicious' || state === 'concern';
-  }
-
-  function forensicScoreClass(score: number): string {
-    if (score < 0.3) return 'text-malachite-dark dark:text-malachite-light';
-    if (score < 0.6) return 'text-amber-dark dark:text-amber-light';
-    return 'text-cinnabar-dark dark:text-cinnabar-light';
   }
 
   function cardPassClass(pass: boolean | null): string {
@@ -3163,194 +3159,176 @@
             <ul class="divide-y divide-border-light/70 dark:divide-border-dark/40" aria-label="Integrity checks">
 
               {#if result.elaResult}
-                <li class="px-5 py-3 {result.elaResult.suspicious ? 'bg-amber/[0.04]' : ''}">
-                  <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.elaResult.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      {#if result.elaResult.suspicious}
-                        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                      {:else}
-                        <polyline points="20 6 9 17 4 12"/>
-                      {/if}
-                    </svg>
-                    <span class="text-sm {result.elaResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Error Level Analysis</span>
-                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#ela" label="What does Error Level Analysis check?" />
-                    <span class="flex-1"></span>
+                {@const ela = result.elaResult}
+                <DetectorRow
+                  name="Error Level Analysis"
+                  score={ela.score}
+                  suspicious={ela.suspicious}
+                  helpAnchor="ela"
+                  helpLabel="What does Error Level Analysis check?"
+                >
+                  {#snippet rawScore()}
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.elaResult.score.toFixed(4)} · threshold: {(result.elaResult as any).threshold?.toFixed(4) ?? '—'}</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {ela.score.toFixed(4)} · threshold: {(ela as any).threshold?.toFixed(4) ?? '—'}</span>
                     {/if}
-                    <span class="text-xs tabular-nums {forensicScoreClass(result.elaResult.score)}">{Math.round(result.elaResult.score * 100)}%</span>
-                  </div>
-                  {#if result.elaResult.elaImageBase64}
+                  {/snippet}
+                  {#if ela.elaImageBase64}
                     <div class="mt-2 ml-6">
                       <ImageZoom
-                        src="data:image/png;base64,{result.elaResult.elaImageBase64}"
+                        src="data:image/png;base64,{ela.elaImageBase64}"
                         alt="ELA heatmap showing compression artefact distribution"
-                        caption={result.elaResult.suspicious
+                        caption={ela.suspicious
                           ? 'Click to enlarge — bright regions indicate higher compression-error mismatch'
                           : 'Click to enlarge — no significant compression anomalies detected'}
                       />
                     </div>
                   {/if}
-                </li>
+                </DetectorRow>
               {/if}
 
               {#if result.noiseResult}
-                <li class="px-5 py-3 {result.noiseResult.suspicious ? 'bg-amber/[0.04]' : ''}">
-                  <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.noiseResult.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      {#if result.noiseResult.suspicious}
-                        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                      {:else}
-                        <polyline points="20 6 9 17 4 12"/>
-                      {/if}
-                    </svg>
-                    <span class="text-sm {result.noiseResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Noise Pattern Analysis</span>
-                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#noise-pattern" label="What does Noise Pattern Analysis check?" />
-                    <span class="flex-1"></span>
+                {@const noise = result.noiseResult}
+                <DetectorRow
+                  name="Noise Pattern Analysis"
+                  score={noise.score}
+                  suspicious={noise.suspicious}
+                  helpAnchor="noise-pattern"
+                  helpLabel="What does Noise Pattern Analysis check?"
+                  alwaysVisibleHint="Measures whether noise distribution is uniform across the photo — uneven noise across regions can indicate compositing."
+                >
+                  {#snippet rawScore()}
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.noiseResult.score.toFixed(4)}</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {noise.score.toFixed(4)}</span>
                     {/if}
-                    <span class="text-xs tabular-nums {forensicScoreClass(result.noiseResult.score)}">{Math.round(result.noiseResult.score * 100)}%</span>
-                  </div>
-                  <!-- Always-visible explanation: this detector has no
-                       visualisation, so the row would otherwise be a bare
-                       percentage with no context.  See JTV review 2026-04-28. -->
-                  <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6 leading-snug">
-                    Measures whether noise distribution is uniform across the photo — uneven noise across regions can indicate compositing.
-                  </p>
-                  {#if result.noiseResult.suspicious}
-                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{result.noiseResult.anomalousBlocks} of {result.noiseResult.totalBlocks} blocks flagged</p>
+                  {/snippet}
+                  {#if noise.suspicious}
+                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{noise.anomalousBlocks} of {noise.totalBlocks} blocks flagged</p>
                   {/if}
-                </li>
+                </DetectorRow>
               {/if}
 
               {#if result.copyMoveResult}
-                <li class="px-5 py-3 {result.copyMoveResult.suspicious ? 'bg-amber/[0.04]' : ''}">
-                  <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.copyMoveResult.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      {#if result.copyMoveResult.suspicious}
-                        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                      {:else}
-                        <polyline points="20 6 9 17 4 12"/>
-                      {/if}
-                    </svg>
-                    <span class="text-sm {result.copyMoveResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Copy-Move Detection</span>
-                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#copy-move" label="What does Copy-Move Detection check?" />
-                    <span class="flex-1"></span>
+                {@const cm = result.copyMoveResult}
+                <DetectorRow
+                  name="Copy-Move Detection"
+                  score={cm.score}
+                  suspicious={cm.suspicious}
+                  helpAnchor="copy-move"
+                  helpLabel="What does Copy-Move Detection check?"
+                >
+                  {#snippet rawScore()}
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.copyMoveResult.score.toFixed(4)}</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {cm.score.toFixed(4)}</span>
                     {/if}
-                    <span class="text-xs tabular-nums {forensicScoreClass(result.copyMoveResult.score)}">{Math.round(result.copyMoveResult.score * 100)}%</span>
-                  </div>
-                  {#if result.copyMoveResult.suspicious && result.copyMoveResult.cloneRegions.length > 0}
-                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{result.copyMoveResult.cloneRegions.length} cloned region{result.copyMoveResult.cloneRegions.length === 1 ? '' : 's'} detected</p>
-                  {:else if result.copyMoveResult.visualisationBase64}
+                  {/snippet}
+                  {#if cm.suspicious && cm.cloneRegions.length > 0}
+                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{cm.cloneRegions.length} cloned region{cm.cloneRegions.length === 1 ? '' : 's'} detected</p>
+                  {:else if cm.visualisationBase64}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">No cloned regions detected.</p>
                   {/if}
-                  {#if result.copyMoveResult.visualisationBase64}
+                  {#if cm.visualisationBase64}
                     <div class="mt-2 ml-6">
                       <ImageZoom
-                        src="data:image/png;base64,{result.copyMoveResult.visualisationBase64}"
-                        alt={result.copyMoveResult.suspicious
+                        src="data:image/png;base64,{cm.visualisationBase64}"
+                        alt={cm.suspicious
                           ? 'Copy-move detection visualisation showing cloned regions'
                           : 'Copy-move analysis — no cloned regions detected'}
-                        caption={result.copyMoveResult.suspicious
+                        caption={cm.suspicious
                           ? 'Click to enlarge — matched coloured pairs join the cloned regions'
                           : 'Click to enlarge — no cloned regions detected, image shown unmarked'}
                       />
                     </div>
                   {/if}
-                </li>
+                </DetectorRow>
               {/if}
 
               {#if result.jpegGhostResult}
-                <li class="px-5 py-3 {result.jpegGhostResult.suspicious ? 'bg-amber/[0.04]' : ''}">
-                  <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.jpegGhostResult.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      {#if result.jpegGhostResult.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                      {:else}<polyline points="20 6 9 17 4 12"/>{/if}
-                    </svg>
-                    <span class="text-sm {result.jpegGhostResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">JPEG Ghost</span>
+                {@const jg = result.jpegGhostResult}
+                <DetectorRow
+                  name="JPEG Ghost"
+                  score={jg.score}
+                  suspicious={jg.suspicious}
+                  helpAnchor="jpeg-ghost"
+                  helpLabel="What does JPEG Ghost check?"
+                >
+                  {#snippet badges()}
                     <ExperimentalPill variant="uncalibrated" tooltip="JPEG Ghost is weighted at 0.5× in the trust score. See methodology." />
-                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#jpeg-ghost" label="What does JPEG Ghost check?" />
-                    <span class="flex-1"></span>
+                  {/snippet}
+                  {#snippet rawScore()}
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.jpegGhostResult.score.toFixed(4)} · weight: 0.5×</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {jg.score.toFixed(4)} · weight: 0.5×</span>
                     {/if}
-                    <span class="text-xs tabular-nums {forensicScoreClass(result.jpegGhostResult.score)}">{Math.round(result.jpegGhostResult.score * 100)}%</span>
-                  </div>
-                  {#if (result.jpegGhostResult as any).ghostImageBase64}
+                  {/snippet}
+                  {#if (jg as any).ghostImageBase64}
                     <div class="mt-2 ml-6">
                       <ImageZoom
-                        src="data:image/png;base64,{(result.jpegGhostResult as any).ghostImageBase64}"
+                        src="data:image/png;base64,{(jg as any).ghostImageBase64}"
                         alt="JPEG Ghost heatmap showing re-compression artefact regions"
-                        caption={result.jpegGhostResult.suspicious
+                        caption={jg.suspicious
                           ? 'Click to enlarge — dark regions deviate from the dominant compression history'
                           : 'Click to enlarge — no compression-history anomalies detected'}
                       />
                     </div>
                   {/if}
-                </li>
+                </DetectorRow>
               {/if}
 
               {#if result.segmentedElaResult}
-                <li class="px-5 py-3 {result.segmentedElaResult.suspicious ? 'bg-amber/[0.04]' : ''}">
-                  <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.segmentedElaResult.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      {#if result.segmentedElaResult.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                      {:else}<polyline points="20 6 9 17 4 12"/>{/if}
-                    </svg>
-                    <span class="text-sm {result.segmentedElaResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Segmented ELA</span>
-                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#segmented-ela" label="What does Segmented ELA check?" />
-                    <span class="flex-1"></span>
+                {@const sela = result.segmentedElaResult}
+                <DetectorRow
+                  name="Segmented ELA"
+                  score={sela.score}
+                  suspicious={sela.suspicious}
+                  helpAnchor="segmented-ela"
+                  helpLabel="What does Segmented ELA check?"
+                >
+                  {#snippet rawScore()}
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.segmentedElaResult.score.toFixed(4)}</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {sela.score.toFixed(4)}</span>
                     {/if}
-                    <span class="text-xs tabular-nums {forensicScoreClass(result.segmentedElaResult.score)}">{Math.round(result.segmentedElaResult.score * 100)}%</span>
-                  </div>
-                  {#if result.segmentedElaResult.suspicious}
+                  {/snippet}
+                  {#if sela.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">
-                      {result.segmentedElaResult.anomalousRegions} of {result.segmentedElaResult.totalRegions} image blocks show unusual compression — see <span aria-hidden="true">?</span> for what this means.
+                      {sela.anomalousRegions} of {sela.totalRegions} image blocks show unusual compression — see <span aria-hidden="true">?</span> for what this means.
                     </p>
                   {/if}
-                  {#if (result.segmentedElaResult as any).visualizationBase64}
+                  {#if (sela as any).visualizationBase64}
                     <div class="mt-2 ml-6">
                       <ImageZoom
-                        src="data:image/png;base64,{(result.segmentedElaResult as any).visualizationBase64}"
+                        src="data:image/png;base64,{(sela as any).visualizationBase64}"
                         alt="Segmented ELA region heatmap"
-                        caption={result.segmentedElaResult.suspicious
+                        caption={sela.suspicious
                           ? 'Click to enlarge — flagged blocks show locally anomalous compression error'
                           : 'Click to enlarge — no localised compression anomalies detected'}
                       />
                     </div>
                   {/if}
-                </li>
+                </DetectorRow>
               {/if}
 
               {#if result.colourTemperatureResult}
-                <li class="px-5 py-3 {result.colourTemperatureResult.suspicious ? 'bg-amber/[0.04]' : ''}">
-                  <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {result.colourTemperatureResult.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      {#if result.colourTemperatureResult.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                      {:else}<polyline points="20 6 9 17 4 12"/>{/if}
-                    </svg>
-                    <span class="text-sm {result.colourTemperatureResult.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Colour Temperature</span>
-                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#colour-temperature" label="What does Colour Temperature analysis check?" />
-                    <span class="flex-1"></span>
+                {@const ct = result.colourTemperatureResult}
+                <DetectorRow
+                  name="Colour Temperature"
+                  score={ct.score}
+                  suspicious={ct.suspicious}
+                  helpAnchor="colour-temperature"
+                  helpLabel="What does Colour Temperature analysis check?"
+                >
+                  {#snippet rawScore()}
                     {#if showRawScores}
-                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {result.colourTemperatureResult.score.toFixed(4)}</span>
+                      <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {ct.score.toFixed(4)}</span>
                     {/if}
-                    <span class="text-xs tabular-nums {forensicScoreClass(result.colourTemperatureResult.score)}">{Math.round(result.colourTemperatureResult.score * 100)}%</span>
-                  </div>
-                  {#if result.colourTemperatureResult.suspicious}
-                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{result.colourTemperatureResult.anomalousRegions} of {result.colourTemperatureResult.totalRegions} regions flagged</p>
+                  {/snippet}
+                  {#if ct.suspicious}
+                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{ct.anomalousRegions} of {ct.totalRegions} regions flagged</p>
                   {/if}
-                  {#if result.colourTemperatureResult.heatmapBase64}
+                  {#if ct.heatmapBase64}
                     <div class="mt-2 ml-6">
                       <ImageZoom
-                        src={blobs.url(result.colourTemperatureResult.heatmapBase64, 'image/png')}
+                        src={blobs.url(ct.heatmapBase64, 'image/png')}
                         alt="Colour temperature heatmap showing regions deviating from the global colour balance"
-                        caption={result.colourTemperatureResult.suspicious
+                        caption={ct.suspicious
                           ? 'Click to enlarge — flagged regions deviate in colour balance from the global average'
                           : 'Click to enlarge — no colour-balance anomalies detected'}
                       />
@@ -3358,30 +3336,28 @@
                   {/if}
                   {#if showRawScores}
                     <div class="mt-1 ml-6 grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px] text-flint-dark dark:text-flint-light tabular-nums">
-                      <span>Global A (green-red): {result.colourTemperatureResult.globalMeanA.toFixed(2)}</span>
-                      <span>Global B (blue-yellow): {result.colourTemperatureResult.globalMeanB.toFixed(2)}</span>
+                      <span>Global A (green-red): {ct.globalMeanA.toFixed(2)}</span>
+                      <span>Global B (blue-yellow): {ct.globalMeanB.toFixed(2)}</span>
                     </div>
                   {/if}
-                </li>
+                </DetectorRow>
               {/if}
 
-              <!-- Shadow Consistency — deep/archival mode only -->
+              <!-- Shadow Consistency — deep mode, on-demand -->
               {#if result.shadowConsistencyResult}
                 {@const sh = result.shadowConsistencyResult}
-                <li class="px-5 py-3 {sh.suspicious ? 'bg-amber/[0.04]' : ''}">
-                  <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {sh.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      {#if sh.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                      {:else}<polyline points="20 6 9 17 4 12"/>{/if}
-                    </svg>
-                    <span class="text-sm {sh.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Shadow Consistency</span>
-                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#shadow-consistency" label="What does Shadow Consistency check?" />
-                    <span class="flex-1"></span>
+                <DetectorRow
+                  name="Shadow Consistency"
+                  score={sh.score}
+                  suspicious={sh.suspicious}
+                  helpAnchor="shadow-consistency"
+                  helpLabel="What does Shadow Consistency check?"
+                >
+                  {#snippet rawScore()}
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {sh.score.toFixed(4)} · light dir: {sh.globalLightDirection.toFixed(1)}&deg;</span>
                     {/if}
-                    <span class="text-xs tabular-nums {forensicScoreClass(sh.score)}">{Math.round(sh.score * 100)}%</span>
-                  </div>
+                  {/snippet}
                   {#if sh.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{sh.inconsistentRegions} of {sh.totalRegions} regions inconsistent · global light {sh.globalLightDirection.toFixed(0)}&deg;</p>
                   {/if}
@@ -3396,26 +3372,24 @@
                       />
                     </div>
                   {/if}
-                </li>
+                </DetectorRow>
               {/if}
 
-              <!-- Splice Boundary — deep/archival mode only -->
+              <!-- Splice Boundary — deep mode, on-demand -->
               {#if result.spliceBoundaryResult}
                 {@const sb = result.spliceBoundaryResult}
-                <li class="px-5 py-3 {sb.suspicious ? 'bg-amber/[0.04]' : ''}">
-                  <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {sb.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      {#if sb.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                      {:else}<polyline points="20 6 9 17 4 12"/>{/if}
-                    </svg>
-                    <span class="text-sm {sb.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Splice Boundary</span>
-                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#splice-boundary" label="What does Splice Boundary check?" />
-                    <span class="flex-1"></span>
+                <DetectorRow
+                  name="Splice Boundary"
+                  score={sb.score}
+                  suspicious={sb.suspicious}
+                  helpAnchor="splice-boundary"
+                  helpLabel="What does Splice Boundary check?"
+                >
+                  {#snippet rawScore()}
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {sb.score.toFixed(4)} · {sb.suspiciousBoundaries}/{sb.totalBoundariesChecked} boundaries</span>
                     {/if}
-                    <span class="text-xs tabular-nums {forensicScoreClass(sb.score)}">{Math.round(sb.score * 100)}%</span>
-                  </div>
+                  {/snippet}
                   {#if sb.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{sb.suspiciousBoundaries} of {sb.totalBoundariesChecked} boundaries flagged</p>
                   {/if}
@@ -3452,27 +3426,27 @@
                       </ul>
                     </details>
                   {/if}
-                </li>
+                </DetectorRow>
               {/if}
 
-              <!-- NPR — on-demand, deep/archival mode only -->
+              <!-- NPR — deep mode, on-demand -->
               {#if result.nprResult}
                 {@const npr = result.nprResult}
-                <li class="px-5 py-3 {npr.suspicious ? 'bg-amber/[0.04]' : ''}">
-                  <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {npr.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      {#if npr.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                      {:else}<polyline points="20 6 9 17 4 12"/>{/if}
-                    </svg>
-                    <span class="text-sm {npr.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Neighbouring Pixel Relationships</span>
+                <DetectorRow
+                  name="Neighbouring Pixel Relationships"
+                  score={npr.score}
+                  suspicious={npr.suspicious}
+                  helpAnchor="npr"
+                  helpLabel="What does Neighbouring Pixel Relationships check?"
+                >
+                  {#snippet badges()}
                     <span class="text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">On-demand</span>
-                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#npr" label="What does Neighbouring Pixel Relationships check?" />
-                    <span class="flex-1"></span>
+                  {/snippet}
+                  {#snippet rawScore()}
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {npr.score.toFixed(4)} · threshold: 40%</span>
                     {/if}
-                    <span class="text-xs tabular-nums {forensicScoreClass(npr.score)}">{Math.round(npr.score * 100)}%</span>
-                  </div>
+                  {/snippet}
                   {#if npr.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{npr.summary}</p>
                   {/if}
@@ -3494,27 +3468,27 @@
                       <span>HF energy ratio: {npr.hfEnergyRatio.toFixed(4)}</span>
                     </div>
                   {/if}
-                </li>
+                </DetectorRow>
               {/if}
 
-              <!-- DCT Analysis — deep/archival mode only -->
+              <!-- DCT Analysis — deep mode -->
               {#if result.dctAnalysisResult}
                 {@const dct = result.dctAnalysisResult}
-                <li class="px-5 py-3 {dct.suspicious ? 'bg-amber/[0.04]' : ''}">
-                  <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {dct.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      {#if dct.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                      {:else}<polyline points="20 6 9 17 4 12"/>{/if}
-                    </svg>
-                    <span class="text-sm {dct.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">DCT Analysis</span>
+                <DetectorRow
+                  name="DCT Analysis"
+                  score={dct.score}
+                  suspicious={dct.suspicious}
+                  helpAnchor="dct-analysis"
+                  helpLabel="What does DCT Analysis check?"
+                >
+                  {#snippet badges()}
                     <span class="text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">Deep</span>
-                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#dct-analysis" label="What does DCT Analysis check?" />
-                    <span class="flex-1"></span>
+                  {/snippet}
+                  {#snippet rawScore()}
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">AC CV: {dct.acCoefficientOfVariation.toFixed(4)}</span>
                     {/if}
-                    <span class="text-xs tabular-nums {forensicScoreClass(dct.score)}">{Math.round(dct.score * 100)}%</span>
-                  </div>
+                  {/snippet}
                   {#if dct.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{dct.summary}</p>
                   {/if}
@@ -3536,27 +3510,27 @@
                       <span>AC std: {dct.acStd.toFixed(4)}</span>
                     </div>
                   {/if}
-                </li>
+                </DetectorRow>
               {/if}
 
-              <!-- Fourier Analysis — deep/archival mode only -->
+              <!-- Fourier Analysis — deep mode -->
               {#if result.fourierAnalysisResult}
                 {@const fou = result.fourierAnalysisResult}
-                <li class="px-5 py-3 {fou.suspicious ? 'bg-amber/[0.04]' : ''}">
-                  <div class="flex items-center gap-3">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0 {fou.suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      {#if fou.suspicious}<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                      {:else}<polyline points="20 6 9 17 4 12"/>{/if}
-                    </svg>
-                    <span class="text-sm {fou.suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">Fourier Analysis</span>
+                <DetectorRow
+                  name="Fourier Analysis"
+                  score={fou.score}
+                  suspicious={fou.suspicious}
+                  helpAnchor="fourier-analysis"
+                  helpLabel="What does Fourier Analysis check?"
+                >
+                  {#snippet badges()}
                     <span class="text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">Deep</span>
-                    <ContextualHelpLink size="sm" href="/help/forensic-detectors#fourier-analysis" label="What does Fourier Analysis check?" />
-                    <span class="flex-1"></span>
+                  {/snippet}
+                  {#snippet rawScore()}
                     {#if showRawScores}
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">peaks: {fou.peakCount}</span>
                     {/if}
-                    <span class="text-xs tabular-nums {forensicScoreClass(fou.score)}">{Math.round(fou.score * 100)}%</span>
-                  </div>
+                  {/snippet}
                   {#if fou.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{fou.summary}</p>
                   {/if}
@@ -3574,7 +3548,7 @@
                   {#if showRawScores}
                     <p class="mt-1 ml-6 text-[10px] text-flint-dark dark:text-flint-light tabular-nums">peak count: {fou.peakCount}</p>
                   {/if}
-                </li>
+                </DetectorRow>
               {/if}
 
               {#if !result.elaResult && !result.noiseResult && !result.copyMoveResult}
