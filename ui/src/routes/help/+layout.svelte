@@ -38,9 +38,12 @@
       {#each [
         { href: '/help',                 label: 'Getting Started' },
         { href: '/help/how-it-works',    label: 'How It Works' },
-        // Protect + Signing Modes hidden for Validator evaluation build
-        // (2026-04-23). Restore after Generator-track approval.
+        // Protect + Signing Modes restored 2026-04-28 alongside the
+        // top-nav restoration — Validator evaluation phase complete.
+        { href: '/help/protect',         label: 'Protect' },
+        { href: '/help/bedrock-signing', label: 'Signing Modes' },
         { href: '/help/verify',          label: 'Verify' },
+        { href: '/help/forensic-detectors', label: 'Detector Reference' },
         { href: '/help/monitor',         label: 'Monitor' },
         { href: '/help/settings',        label: 'Settings' },
         { href: '/help/methodology',        label: 'How Analysis Works' },

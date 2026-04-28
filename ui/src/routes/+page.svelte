@@ -131,8 +131,14 @@
           >
             Verify Content
           </a>
-          <!-- Protect CTA hidden for C2PA Validator evaluation build (2026-04-23).
-               Restore after Generator-track approval. -->
+          <a
+            href="/protect"
+            class="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] rounded border border-lapis text-lapis dark:text-lapis-light dark:border-lapis-light text-sm font-medium
+                   hover:bg-lapis hover:text-white dark:hover:bg-lapis-light dark:hover:text-obsidian transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+          >
+            Protect Content
+          </a>
         </div>
       </div>
     </section>
@@ -164,10 +170,29 @@
   <!-- Narrative chapters -->
   <section class="pt-2 pb-12" aria-label="What you can do">
 
-    <!-- Protect chapter hidden for C2PA Validator evaluation build (2026-04-23).
-         Protect is a separate Generator-track submission; keeping it off the
-         dashboard keeps the approver's focus on the Validator workflow.
-         Restore this block after Generator-track approval. -->
+    <!-- Protect -->
+    <div class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]">
+      <div class="flex items-baseline gap-4 mb-4">
+        <span class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20">Protect</span>
+        <h2
+          class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
+          style="letter-spacing: -0.01em;"
+        >
+          <a
+            href="/protect"
+            class="hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          >
+            Sign your work with Content Credentials
+          </a>
+        </h2>
+      </div>
+      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
+        Embed cryptographic Content Credentials (C2PA) and an invisible
+        watermark in your image, then sign with either a per-install local
+        certificate (Sovereign mode) or a trust-list certificate (Conformant
+        mode). The provenance follows the file wherever it goes.
+      </p>
+    </div>
 
     <!-- Verify -->
     <div class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]">
@@ -192,11 +217,7 @@
       </p>
     </div>
 
-    <!-- Monitor chapter hidden for the pilot-tester build (2026-04-26).
-         Same rationale as the top-nav hide: keep tester focus on Verify.
-         The /monitor route remains reachable by URL.
-         Restore this block when Monitor is ready to be foregrounded. -->
-    <!--
+    <!-- Monitor -->
     <div class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]">
       <div class="flex items-baseline gap-4 mb-4">
         <span class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20">Monitor</span>
@@ -218,7 +239,6 @@
         kept entirely on your machine.
       </p>
     </div>
-    -->
 
 
   </section>

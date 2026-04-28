@@ -12,11 +12,13 @@
     },
     {
       groupLabel: 'Features',
-      // Protect + Signing Modes hidden for the C2PA Validator evaluation
-      // build (2026-04-23). Both routes still exist if accessed by URL;
-      // restore these entries after Generator-track approval.
+      // Protect + Signing Modes restored 2026-04-28 alongside the
+      // top-nav restoration — Validator evaluation phase complete.
       items: [
+        { href: '/help/protect',         label: 'Protect',             title: 'Sign content with Content Credentials' },
+        { href: '/help/bedrock-signing', label: 'Signing Modes',       title: 'Sovereign vs Conformant signing' },
         { href: '/help/verify',          label: 'Verify',              title: 'Forensic analysis and trust scores' },
+        { href: '/help/forensic-detectors', label: 'Detector Reference', title: 'Per-detector reference guide' },
         { href: '/help/monitor',         label: 'Monitor',             title: 'Activity log and trust landscape' },
         { href: '/help/settings',        label: 'Settings',            title: 'Configuration and deployment' },
       ],

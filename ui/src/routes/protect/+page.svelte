@@ -722,19 +722,20 @@
 </script>
 
 <div class="space-y-6">
-  <!-- Beta notice — Protect is hidden from nav for the C2PA Validator
-       evaluation build. The signing workflow is a separate Generator-track
-       workstream; this page is reachable by direct URL only for internal
-       testing during alpha. -->
+  <!-- Beta notice — Protect signing is still pre-Generator-track-
+       approval.  Nav restoration (2026-04-28) makes the page
+       reachable from the dashboard, but the alpha-quality
+       disclosure stays until the Generator-track submission lands.
+       Treat signed output as preview only. -->
   <div
     role="note"
     class="rounded-lg border border-amber/40 bg-amber/10 dark:bg-amber/5 px-4 py-3 text-sm text-amber-dark dark:text-amber-light leading-relaxed"
   >
-    <strong class="font-semibold">Beta — internal alpha</strong>
-    — Content Credentials signing is in active development and is
-    <em>not</em> part of the C2PA Validator conformance submission currently
-    under evaluation. A separate Generator-track submission will follow.
-    Do not use signed output in production; treat results as preview only.
+    <strong class="font-semibold">Beta — pre-conformance</strong>
+    — Content Credentials signing is in active development.  The
+    C2PA Generator-track conformance submission is in progress;
+    Validator-track conformance does <em>not</em> cover signing.
+    Treat signed output as preview only.
   </div>
 
   <!-- Page header -->

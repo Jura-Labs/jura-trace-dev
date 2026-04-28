@@ -1,25 +1,25 @@
 <script lang="ts">
   // Topic cards shown on the help index.
   //
-  // Protect is deliberately omitted for the C2PA Validator evaluation build
-  // (2026-04-23). The /help/protect page still exists if linked directly —
-  // it carries its own beta notice — but is hidden from the help index so
-  // the approver's attention stays on verification workflow documentation.
-  // Restore this card after Generator-track approval lands.
+  // Protect + Monitor restored 2026-04-28 alongside the top-nav
+  // restoration — Validator evaluation and pilot-tester walkthrough
+  // phases are complete.
   const cards = [
+    {
+      href: '/help/protect',
+      title: 'Protect',
+      description: 'Sign your work with Content Credentials and an invisible watermark. Choose between Sovereign and Conformant signing modes.',
+    },
     {
       href: '/help/verify',
       title: 'Verify',
       description: 'Understand the forensic analysis pipeline, how trust scores are computed, and the difference between investigation modes.',
     },
-    // Monitor help entry hidden for the pilot-tester build (2026-04-26)
-    // to mirror the top-nav and dashboard hides. /help/monitor remains
-    // reachable by URL.
-    // {
-    //   href: '/help/monitor',
-    //   title: 'Monitor',
-    //   description: 'Review your Protection Chronicle, explore the Trust Landscape distribution, and browse the full activity record.',
-    // },
+    {
+      href: '/help/monitor',
+      title: 'Monitor',
+      description: 'Review your Protection Chronicle, explore the Trust Landscape distribution, and browse the full activity record.',
+    },
     {
       href: '/help/settings',
       title: 'Settings',

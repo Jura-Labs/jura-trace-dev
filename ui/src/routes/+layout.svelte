@@ -156,21 +156,17 @@
 
   // Navigation items.
   //
-  // Protect is intentionally hidden from nav for the C2PA Validator
-  // evaluation build (2026-04-23). The route still works if typed
-  // directly (`/protect`), but the page carries a beta notice clarifying
-  // that Content Credentials signing is not part of the Validator
-  // conformance submission — it's a separate Generator-track workstream.
-  // Restore the nav entry here after Generator-track approval lands.
-  // Monitor hidden from the top nav for the pilot-tester build (2026-04-26).
-  // Tester feedback indicates the Monitor surface adds noise to the
-  // evaluation walkthrough — Verify is the workflow under review. The
-  // route still works if typed directly (`/monitor`) and the page itself
-  // is unchanged. Restore the nav entry below once tester feedback says
-  // Monitor is ready for the foreground.
+  // Protect was hidden during the C2PA Validator evaluation
+  // (2026-04-23) and Monitor was hidden during the pilot-tester
+  // walkthrough (2026-04-26).  Both restored 2026-04-28 — the
+  // evaluation phases are complete and pilots want the full
+  // navigation surface.  Page contents themselves were never
+  // changed; only the nav entries were suppressed.
   const navItems = [
     { href: '/',         label: 'Dashboard', title: 'Overview and statistics' },
+    { href: '/protect',  label: 'Protect',   title: 'Sign content with Content Credentials' },
     { href: '/verify',   label: 'Verify',    title: 'Check content authenticity' },
+    { href: '/monitor',  label: 'Monitor',   title: 'Activity log and trust landscape' },
     { href: '/settings', label: 'Settings',  title: 'Application preferences' },
     { href: '/help',     label: 'Help',      title: 'Documentation and guidance' },
   ];
