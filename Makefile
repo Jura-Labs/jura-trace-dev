@@ -1,4 +1,4 @@
-.PHONY: dev dev-sidecar dev-tauri build check clean install test test-rust test-python test-playwright test-types fmt lint release-check
+.PHONY: dev dev-sidecar dev-tauri build check clean install test test-rust test-python test-playwright test-types test-ui-unit fmt lint release-check
 
 # ── Development ────────────────────────────────────────────────────
 
@@ -26,7 +26,7 @@ dev:
 # ── Testing ────────────────────────────────────────────────────────
 
 # Run all test suites
-test: test-rust test-python test-types
+test: test-rust test-python test-types test-ui-unit
 	@echo "All tests passed."
 
 # Rust tests + clippy + fmt check
@@ -42,6 +42,10 @@ test-python:
 # SvelteKit type check
 test-types:
 	cd ui && npx svelte-check
+
+# Vitest component unit tests (Svelte 5 + @testing-library/svelte)
+test-ui-unit:
+	cd ui && npm test
 
 # Playwright e2e tests (requires dev server running)
 test-playwright:
