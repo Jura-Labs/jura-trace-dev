@@ -1096,8 +1096,8 @@
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                 aria-describedby="batch-sign-creator-hint"
               />
-              <p id="batch-sign-creator-hint" class="mt-1 text-xs text-flint-dark dark:text-flint-light">
-                Embedded in the content credential for each signed file.
+              <p id="batch-sign-creator-hint" class="mt-1 text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+                Written into the manifest as the declared creator. This is a self-attestation — Jura Trace does not verify the name. A third-party validator will display it alongside an "Issuer not trusted" warning until you import a trust-list certificate.
               </p>
             </div>
 
@@ -2285,7 +2285,11 @@
                           class="w-full mt-1 px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm
                                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                           placeholder="e.g. Jane Smith / National Archive UK"
+                          aria-describedby="creator-name-hint"
                         />
+                        <p id="creator-name-hint" class="mt-1 text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+                          Written into the manifest as the declared creator. This is a self-attestation — Jura Trace does not verify the name. A third-party validator will display it alongside an "Issuer not trusted" warning until you import a trust-list certificate.
+                        </p>
                       </div>
                       <div>
                         <label
