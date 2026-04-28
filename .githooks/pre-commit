@@ -35,4 +35,14 @@ echo "Pre-commit: checking SvelteKit types..."
     exit 1
 }
 
+# Vitest unit tests for Svelte components.  Wired into the hook
+# 2026-04-28 alongside the DetectorRow.test.ts landing — fast (~1s
+# for the current suite) and catches component-level regressions
+# the e2e suite would only catch via a full Playwright run.
+echo "Pre-commit: running vitest unit tests..."
+(cd ui && npm test --silent 2>&1 | tail -3) || {
+    echo "ERROR: vitest unit tests failed.  Run 'cd ui && npm test' for detail."
+    exit 1
+}
+
 echo "Pre-commit: all checks passed."
