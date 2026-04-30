@@ -42,6 +42,7 @@ fn build_test_state() -> (Arc<Mutex<AppState>>, tempfile::TempDir) {
         last_heatmap_session: None,
         last_sidecar_request_ts: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
         power_saver_mode: false,
+        respawn_in_progress: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
     };
 
     (Arc::new(Mutex::new(state)), dir)

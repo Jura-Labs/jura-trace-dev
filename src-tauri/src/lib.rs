@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, State};
 use tauri_plugin_shell::ShellExt;
@@ -426,6 +426,12 @@ pub struct AppState {
     /// terminated after `SIDECAR_IDLE_SECONDS_BEFORE_KILL` seconds of inactivity
     /// and respawned on the next verification request. Default `false`.
     pub power_saver_mode: bool,
+    /// Serialises the power-saver respawn sequence so that two concurrent
+    /// verify calls cannot each pass the `sidecar_process.is_none()` check
+    /// and independently spawn duplicate processes. Set with
+    /// `compare_exchange(false, true)` before spawning; cleared once the
+    /// new child handle is stored.
+    pub respawn_in_progress: Arc<AtomicBool>,
 }
 
 /// Compute the SHA-256 hash of a file, returning a lowercase hex string.
@@ -2887,44 +2893,83 @@ fn verify_content(
     app: tauri::AppHandle,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<VerificationResult, AppError> {
-    log::info!("Verifying content: {source} ({source_type}) [mode={mode:?}]");
+    // Log only the file stem at INFO; full path is at DEBUG to protect
+    // operational security for field workers (e.g. journalists, HRDs whose
+    // directory structure could reveal what they are working on).
+    let log_stem = std::path::Path::new(&source)
+        .file_name()
+        .map(|f| f.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "<source>".to_string());
+    log::info!("Verifying content: {log_stem} ({source_type}) [mode={mode:?}]");
+    log::debug!("Verifying content (full path): {source}");
 
     // ── Power-saver respawn ──────────────────────────────────────────────────
     // If power-saver mode killed the sidecar since the last request, respawn
-    // it and wait for readiness before proceeding.  We use a `Mutex` guard
-    // scoped tightly so the lock is not held across the blocking readiness poll.
-    let needs_respawn = {
+    // it and wait for readiness before proceeding.  Two concurrent verify
+    // calls could each pass the `is_none()` check and both call
+    // `spawn_sidecar()` — the second port-bind would fail and the first
+    // child handle would be overwritten with `None`, orphaning a Python
+    // process that consumes 300–500 MB until app exit.  Guard the entire
+    // check+spawn sequence with an `AtomicBool` set by `compare_exchange`
+    // so only one caller proceeds; concurrent callers wait briefly and
+    // then re-check (the winner will have stored a new handle by then).
+    let (needs_respawn, respawn_flag) = {
         match state.lock() {
-            Ok(guard) => guard.power_saver_mode && guard.sidecar_process.is_none(),
-            Err(_) => false,
+            Ok(guard) => (
+                guard.power_saver_mode && guard.sidecar_process.is_none(),
+                Arc::clone(&guard.respawn_in_progress),
+            ),
+            Err(_) => (false, Arc::new(AtomicBool::new(false))),
         }
     };
 
     if needs_respawn {
-        log::info!("Power-saver respawn: restarting sidecar for new verification request");
-        let new_child = spawn_sidecar(&app);
-        if new_child.is_some() {
-            // Blocking readiness poll — up to 120 s (60 attempts × backoff).
-            // Returns false only if the sidecar never becomes healthy; in that
-            // case we proceed anyway and let the pipeline degrade gracefully.
-            const RESPAWN_MAX_ATTEMPTS: u32 = 60;
-            if !wait_for_sidecar_ready(RESPAWN_MAX_ATTEMPTS) {
-                log::warn!(
-                    "Respawned sidecar did not become ready within timeout — \
-                     forensic analysis may be unavailable"
-                );
+        // Try to claim the spawn lease.  `Ok(false)` means we won the race;
+        // `Err(true)` means another caller is already respawning.
+        let won_race = respawn_flag
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok();
+
+        if won_race {
+            log::info!("Power-saver respawn: restarting sidecar for new verification request");
+            let new_child = spawn_sidecar(&app);
+            if new_child.is_some() {
+                // Blocking readiness poll — up to 120 s (60 attempts × backoff).
+                // Returns false only if the sidecar never becomes healthy; in
+                // that case we proceed anyway and let the pipeline degrade.
+                const RESPAWN_MAX_ATTEMPTS: u32 = 60;
+                if !wait_for_sidecar_ready(RESPAWN_MAX_ATTEMPTS) {
+                    log::warn!(
+                        "Respawned sidecar did not become ready within timeout — \
+                         forensic analysis may be unavailable"
+                    );
+                }
             }
-        }
-        // Store the new child handle (or None on failure) in AppState.
-        if let Ok(mut guard) = state.lock() {
-            guard.sidecar_process = new_child;
-            // Reset the idle timestamp so the killer does not immediately
-            // fire again on the next 60-second tick.
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            guard.last_sidecar_request_ts.store(now, Ordering::Relaxed);
+            // Store the new child handle (or None on failure) in AppState.
+            if let Ok(mut guard) = state.lock() {
+                guard.sidecar_process = new_child;
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                guard.last_sidecar_request_ts.store(now, Ordering::Relaxed);
+            }
+            // Release the lease so the next idle cycle can respawn again.
+            respawn_flag.store(false, Ordering::Release);
+        } else {
+            // Another caller is already respawning.  Wait for them to finish
+            // by polling the flag with a short backoff, capped to ~125 s
+            // (the readiness poll's worst case).  If the flag clears we
+            // proceed; if it does not, we still proceed and let the
+            // pipeline degrade gracefully — the sidecar's slow respawn is
+            // not worth blocking the user further.
+            const MAX_WAIT_TICKS: u32 = 125;
+            for _ in 0..MAX_WAIT_TICKS {
+                if !respawn_flag.load(Ordering::Acquire) {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
         }
     }
 
@@ -4419,7 +4464,13 @@ fn create_api_key(
         .lock()
         .map_err(|_| AppError::Internal("State lock failed".into()))?;
     let key_id = uuid::Uuid::new_v4().to_string();
-    let raw_key = format!("jt_{}", uuid::Uuid::new_v4().simple());
+    // 256-bit raw key (two UUID v4 values concatenated) for parity with the
+    // REST API key generation path and the sidecar shared secret pattern.
+    let raw_key = format!(
+        "jt_{}{}",
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple(),
+    );
     let key_hash = crate::api::auth::hash_key(&raw_key);
     let rl = rate_limit.unwrap_or(100);
     guard
@@ -5395,6 +5446,7 @@ pub fn run() {
                 last_heatmap_session: None,
                 last_sidecar_request_ts: Arc::clone(&last_sidecar_request_ts),
                 power_saver_mode,
+                respawn_in_progress: Arc::new(AtomicBool::new(false)),
             }));
 
             // ── Register managed state FIRST ─────────────────────────────────

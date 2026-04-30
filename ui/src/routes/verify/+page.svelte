@@ -826,30 +826,28 @@
    * Convert an on-disk heatmap path to an asset:// URL that the webview can
    * load.  Falls back to passing the value through as-is so data: URLs and
    * empty strings are never broken.
+   *
+   * Module-level closure (no window namespace pollution).  The dynamic
+   * import below populates `_convertFileSrc`; until it resolves we
+   * pass-through the path unchanged, which is fine because the heatmap
+   * `<img>` tags are reactive and will re-render once the closure is set.
    */
+  let _convertFileSrc: ((path: string) => string) = (p) => p;
+  import('@tauri-apps/api/core').then(({ convertFileSrc }) => {
+    _convertFileSrc = convertFileSrc;
+  }).catch(() => {});
+
   function heatmapSrc(pathOrUrl: string | null | undefined): string {
     if (!pathOrUrl) return '';
     if (pathOrUrl.startsWith('data:') || pathOrUrl.startsWith('http') || pathOrUrl.startsWith('asset:')) {
       return pathOrUrl;
     }
     try {
-      // convertFileSrc is synchronous once the module is loaded.  In the
-      // browser mock environment the import will throw, so we guard here.
-      const { convertFileSrc } = (window as any).__tauriCore__ ??
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        { convertFileSrc: (p: string) => p };
-      return convertFileSrc(pathOrUrl);
+      return _convertFileSrc(pathOrUrl);
     } catch {
       return pathOrUrl;
     }
   }
-
-  // Pre-load convertFileSrc so heatmapSrc() can call it synchronously.
-  let _convertFileSrc: ((path: string) => string) | null = null;
-  import('@tauri-apps/api/core').then(({ convertFileSrc }) => {
-    _convertFileSrc = convertFileSrc;
-    (window as any).__tauriCore__ = { convertFileSrc };
-  }).catch(() => {});
 
   // ── Playwright test hooks ──────────────────────────────────────────
   // Both hooks are gated behind import.meta.env.DEV so they tree-shake out of

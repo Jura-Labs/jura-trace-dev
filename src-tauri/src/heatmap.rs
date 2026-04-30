@@ -21,11 +21,32 @@ use crate::sidecar::{
 use base64::Engine;
 use std::path::{Path, PathBuf};
 
-/// Decode a non-empty base64 PNG string and write it to `dest`.
+/// Maximum permitted size for a single decoded heatmap. The largest legitimate
+/// heatmap observed (deep-mode video frame) is well under 5 MiB; this 50 MiB
+/// cap exists to bound writes if the sidecar is ever compromised or returns
+/// malformed payloads.
+const MAX_HEATMAP_BYTES: usize = 50 * 1024 * 1024;
+
+/// PNG magic bytes (RFC 2083 signature).
+const PNG_MAGIC: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+/// JPEG magic bytes (SOI marker prefix). Used for video frame thumbnails
+/// written as `.jpg` files.
+const JPEG_MAGIC: &[u8] = &[0xFF, 0xD8, 0xFF];
+
+/// Decode a non-empty base64 string and write it to `dest`, validating that
+/// the decoded bytes match the expected image format inferred from the
+/// destination's extension.
+///
+/// Defence-in-depth: even though the sidecar is a trusted local subprocess,
+/// validating the magic bytes prevents a compromised sidecar binary or a
+/// malformed response from writing arbitrary content (HTML, scripts) into
+/// the cache dir which is served back to the webview via the asset protocol.
 ///
 /// Returns `Ok(())` when the file was written successfully.
-/// Returns `Err` only on write failure; a missing / empty base64 string is
-/// treated as a no-op and returns `Ok(())`.
+/// Returns `Err` on decode failure, magic mismatch, oversize payload, or
+/// write failure; a missing / empty base64 string is a no-op and returns
+/// `Ok(())`.
 fn decode_and_write(b64: &str, dest: &Path) -> std::io::Result<()> {
     if b64.is_empty() {
         return Ok(());
@@ -38,6 +59,36 @@ fn decode_and_write(b64: &str, dest: &Path) -> std::io::Result<()> {
                 format!("base64 decode error: {e}"),
             )
         })?;
+
+    if bytes.len() > MAX_HEATMAP_BYTES {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "heatmap exceeds {} MiB cap ({} bytes)",
+                MAX_HEATMAP_BYTES / (1024 * 1024),
+                bytes.len()
+            ),
+        ));
+    }
+
+    let ext = dest
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.to_ascii_lowercase());
+    let expected_ok = match ext.as_deref() {
+        Some("png") => bytes.starts_with(PNG_MAGIC),
+        Some("jpg") | Some("jpeg") => bytes.starts_with(JPEG_MAGIC),
+        // Unknown / no extension: accept either magic so future heatmap
+        // formats do not silently break.  Refuse anything else.
+        _ => bytes.starts_with(PNG_MAGIC) || bytes.starts_with(JPEG_MAGIC),
+    };
+    if !expected_ok {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "heatmap bytes do not match expected image magic",
+        ));
+    }
+
     std::fs::write(dest, &bytes)
 }
 
@@ -332,6 +383,55 @@ mod tests {
         };
         writer.apply_segmented_ela(&mut seg);
         assert!(seg.heatmap_url.is_none());
+    }
+
+    #[test]
+    fn test_decode_and_write_rejects_non_png_for_png_dest() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dest = tmp.path().join("not-a-png.png");
+        // Base64-encoded plain text, no PNG magic.
+        let b64 = base64::engine::general_purpose::STANDARD.encode(b"<html>hi</html>");
+        let result = decode_and_write(&b64, &dest);
+        assert!(result.is_err(), "non-PNG bytes must be rejected for .png");
+        assert!(
+            !dest.exists(),
+            "no file should be written on validation fail"
+        );
+    }
+
+    #[test]
+    fn test_decode_and_write_rejects_oversized_payload() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dest = tmp.path().join("big.png");
+        // Build > 50 MiB of arbitrary bytes prefixed with PNG magic.
+        let mut bytes = vec![0u8; MAX_HEATMAP_BYTES + 1];
+        bytes[..PNG_MAGIC.len()].copy_from_slice(PNG_MAGIC);
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        let result = decode_and_write(&b64, &dest);
+        assert!(result.is_err(), "oversized payload must be rejected");
+        assert!(!dest.exists());
+    }
+
+    #[test]
+    fn test_decode_and_write_accepts_jpeg_for_jpg_dest() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dest = tmp.path().join("frame.jpg");
+        // Minimum JPEG: SOI + APP0 + EOI is enough to pass magic check.
+        let bytes: &[u8] = &[0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0xFF, 0xD9];
+        let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+        let result = decode_and_write(&b64, &dest);
+        assert!(result.is_ok(), "valid JPEG bytes must be accepted for .jpg");
+        assert!(dest.exists());
+    }
+
+    #[test]
+    fn test_decode_and_write_rejects_png_for_jpg_dest() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dest = tmp.path().join("wrong-ext.jpg");
+        let b64 = tiny_png_b64();
+        let result = decode_and_write(&b64, &dest);
+        assert!(result.is_err(), "PNG bytes must be rejected for .jpg dest");
+        assert!(!dest.exists());
     }
 
     #[test]
