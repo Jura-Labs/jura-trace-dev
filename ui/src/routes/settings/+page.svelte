@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getVersion, checkSidecarHealth, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert, getNetworkMode, setNetworkMode } from '$lib/api';
+  import { getVersion, checkSidecarHealth, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, getPowerSaverMode, setPowerSaverMode, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert, getNetworkMode, setNetworkMode } from '$lib/api';
   import type { ApiKeyInfo, CreateKeyResult } from '$lib/api';
   import type { ConformantCertificateInfo, LicenceTier, NetworkMode, SidecarHealth, SigningMode, TierInfo } from '$lib/types';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
@@ -188,6 +188,7 @@
     currentDbPath = await getDbPath();
     currentTier = await getLicenceTier();
     aiDescPref = await getAiDescriptionEnabled();
+    powerSaverMode = await getPowerSaverMode();
     await loadApiKeys();
     // Load signing mode + conformant cert (BYOC)
     try {
@@ -396,6 +397,37 @@
       aiDescChanging = false;
       if (aiDescFeedbackTimer !== null) clearTimeout(aiDescFeedbackTimer);
       aiDescFeedbackTimer = setTimeout(() => { aiDescFeedback = null; }, 5000);
+    }
+  }
+
+  // ── Power-saver mode ────────────────────────────────────────────────────
+  let powerSaverMode = $state(false);
+  let powerSaverChanging = $state(false);
+  let powerSaverFeedback = $state<{ ok: boolean; message: string } | null>(null);
+  let powerSaverFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  async function handlePowerSaverToggle(event: Event) {
+    const checkbox = event.currentTarget as HTMLInputElement;
+    const next = checkbox.checked;
+    powerSaverChanging = true;
+    powerSaverFeedback = null;
+    try {
+      await setPowerSaverMode(next);
+      powerSaverMode = next;
+      powerSaverFeedback = {
+        ok: true,
+        message: next
+          ? 'Power-saver mode enabled. The analysis engine will stop after five minutes of inactivity.'
+          : 'Power-saver mode disabled. The analysis engine stays running.',
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      powerSaverFeedback = { ok: false, message: `Failed to update preference: ${msg}` };
+      checkbox.checked = powerSaverMode;
+    } finally {
+      powerSaverChanging = false;
+      if (powerSaverFeedbackTimer !== null) clearTimeout(powerSaverFeedbackTimer);
+      powerSaverFeedbackTimer = setTimeout(() => { powerSaverFeedback = null; }, 5000);
     }
   }
 
@@ -1456,6 +1488,51 @@
         aria-live="polite"
       >
         {aiDescFeedback.message}
+      </p>
+    {/if}
+
+    <!-- Power-saver mode -->
+    <div class="flex items-start justify-between gap-4 p-4 rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 mt-4">
+      <div class="min-w-0 flex-1">
+        <label for="power-saver-toggle" class="block text-sm font-medium text-text-light dark:text-quartz">
+          Power-saver mode
+        </label>
+        <p id="power-saver-hint" class="text-xs text-flint-dark dark:text-flint-light mt-1 leading-relaxed">
+          Stops the analysis engine after five minutes of inactivity to free approximately 300–500 MB of RAM. The first verification afterwards takes 30–90 seconds longer while the engine reloads. Recommended only on machines with under 16 GB of RAM.
+        </p>
+      </div>
+      <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+        <input
+          id="power-saver-toggle"
+          type="checkbox"
+          class="sr-only peer"
+          checked={powerSaverMode}
+          disabled={powerSaverChanging}
+          onchange={handlePowerSaverToggle}
+          aria-describedby="power-saver-hint"
+        />
+        <span
+          class="w-11 h-6 bg-gray-300 dark:bg-flint/40 rounded-full peer peer-checked:bg-lapis dark:peer-checked:bg-lapis-light
+                 peer-focus-visible:ring-2 peer-focus-visible:ring-lapis peer-focus-visible:ring-offset-2
+                 dark:peer-focus-visible:ring-offset-graphite
+                 peer-disabled:opacity-50 peer-disabled:cursor-not-allowed
+                 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full
+                 after:h-5 after:w-5 after:transition-transform peer-checked:after:translate-x-5"
+          aria-hidden="true"
+        ></span>
+      </label>
+    </div>
+
+    {#if powerSaverFeedback !== null}
+      <p
+        class="mt-3 text-sm px-3 py-2 rounded border
+               {powerSaverFeedback.ok
+                 ? 'text-malachite-dark dark:text-malachite-light border-malachite/20 bg-malachite/5'
+                 : 'text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
+        role="status"
+        aria-live="polite"
+      >
+        {powerSaverFeedback.message}
       </p>
     {/if}
   </section>

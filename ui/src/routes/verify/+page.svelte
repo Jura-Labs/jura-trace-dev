@@ -5,7 +5,7 @@
     verifyFile, verifyUrl, checkSidecarHealth, markFalsePositive,
     parseAppError, getLicenceTier, getVersion,
     openBatchFileDialog, extractTextFromImage,
-    getNetworkMode,
+    getNetworkMode, getPowerSaverMode,
     runNprOnDemand, runShadowConsistencyOnDemand, runSpliceBoundaryOnDemand,
   } from '$lib/api';
   import { getTrustLevel, formatFileSize, formatDuration } from '$lib/types';
@@ -54,6 +54,7 @@
   let verifyMode = $state<VerifyMode>('standard');
   let analysisElapsed = $state(0);
   let analysisStartTime = $state<number | null>(null);
+  let powerSaverEnabled = $state(false);
   let cancelled = $state(false);
   let previewUrl = $state<string | null>(null);
   let showImageOverlay = $state(false);
@@ -941,6 +942,7 @@
       sidecarHealth = await checkSidecarHealth();
       appVersion = await getVersion();
       licenceTier = await getLicenceTier();
+      powerSaverEnabled = await getPowerSaverMode();
       await setupTauriDragDrop();
     })();
 
@@ -1556,7 +1558,11 @@
               <div class="flex flex-col items-center gap-3">
                 <div class="w-6 h-6 border-2 border-lapis-light border-t-transparent rounded-full motion-safe:animate-spin" role="status" aria-label="Analysing"></div>
                 <p class="text-sm text-obsidian dark:text-quartz font-medium">
-                  {verifyMode === 'deep' ? 'Running deep analysis — up to 60 seconds…' : 'Running standard analysis…'}
+                  {#if powerSaverEnabled && analysisElapsed >= 5}
+                    Restarting analysis engine…
+                  {:else}
+                    {verifyMode === 'deep' ? 'Running deep analysis — up to 60 seconds…' : 'Running standard analysis…'}
+                  {/if}
                 </p>
                 {#if fileName}
                   <p class="text-xs text-flint-dark dark:text-flint-light">{fileName}</p>

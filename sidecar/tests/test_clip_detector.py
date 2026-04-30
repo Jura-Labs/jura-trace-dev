@@ -279,3 +279,119 @@ class TestClipDetectorWithModel:
         result = perform_clip_detection(_make_solid_image(size=(32, 32)))
         assert result.model_available is True
         assert 0.0 <= result.score <= 1.0
+
+
+class TestClipModelEviction:
+    """Tests for the CLIP model eviction (unload + status) API."""
+
+    def test_unload_returns_correct_schema(self):
+        """unload_clip_model() should return the expected dict keys."""
+        from app.services.clip_detector import unload_clip_model
+
+        result = unload_clip_model()
+        assert "unloaded" in result
+        assert "previously_loaded" in result
+        assert result["unloaded"] is True
+
+    def test_unload_when_not_loaded_reports_not_previously_loaded(self):
+        """Unloading a never-loaded model should report previously_loaded=False."""
+        import app.services.clip_detector as mod
+        from app.services.clip_detector import unload_clip_model
+
+        # Force state to unloaded
+        original_model = mod._model
+        original_attempted = mod._model_load_attempted
+        mod._model = None
+        mod._model_load_attempted = False
+        try:
+            result = unload_clip_model()
+            assert result["previously_loaded"] is False
+            assert result["unloaded"] is True
+        finally:
+            mod._model = original_model
+            mod._model_load_attempted = original_attempted
+
+    def test_unload_clears_globals(self):
+        """After unload_clip_model(), model globals should all be None."""
+        import app.services.clip_detector as mod
+        from app.services.clip_detector import unload_clip_model
+
+        original_model = mod._model
+        original_preprocess = mod._preprocess
+        original_tokenizer = mod._tokenizer
+        original_attempted = mod._model_load_attempted
+        try:
+            unload_clip_model()
+            assert mod._model is None
+            assert mod._preprocess is None
+            assert mod._tokenizer is None
+            assert mod._model_load_attempted is False
+        finally:
+            mod._model = original_model
+            mod._preprocess = original_preprocess
+            mod._tokenizer = original_tokenizer
+            mod._model_load_attempted = original_attempted
+
+    def test_get_last_used_ts_initially_zero(self):
+        """get_last_used_ts() should return 0.0 before any detection has run."""
+        import app.services.clip_detector as mod
+        from app.services.clip_detector import get_last_used_ts
+
+        original_ts = mod._last_used_ts
+        mod._last_used_ts = 0.0
+        try:
+            assert get_last_used_ts() == 0.0
+        finally:
+            mod._last_used_ts = original_ts
+
+    def test_get_last_used_ts_reflects_set_value(self):
+        """get_last_used_ts() should return the value set by the caller."""
+        import time
+
+        import app.services.clip_detector as mod
+        from app.services.clip_detector import get_last_used_ts
+
+        original_ts = mod._last_used_ts
+        sentinel = time.time() - 42.0
+        mod._last_used_ts = sentinel
+        try:
+            assert get_last_used_ts() == pytest.approx(sentinel)
+        finally:
+            mod._last_used_ts = original_ts
+
+    @pytest.fixture
+    def client(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.api.forensics import router
+
+        app = FastAPI()
+        app.include_router(router, prefix="/forensics")
+        return TestClient(app)
+
+    def test_unload_endpoint_returns_200(self, client):
+        """POST /forensics/unload-clip should return HTTP 200."""
+        response = client.post("/forensics/unload-clip")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["unloaded"] is True
+        assert "previously_loaded" in data
+
+    def test_clip_status_endpoint_returns_200(self, client):
+        """GET /forensics/clip-status should return HTTP 200 with expected keys."""
+        response = client.get("/forensics/clip-status")
+        assert response.status_code == 200
+        data = response.json()
+        assert "loaded" in data
+        assert "last_used_ts" in data
+        assert "idle_seconds" in data
+        assert isinstance(data["loaded"], bool)
+
+    def test_clip_status_loaded_false_after_unload(self, client):
+        """After unload, clip-status should report loaded=False."""
+        client.post("/forensics/unload-clip")
+        response = client.get("/forensics/clip-status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["loaded"] is False

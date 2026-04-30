@@ -4,6 +4,7 @@ Jura Trace Sidecar — Forensics endpoints.
 
 import os
 import tempfile
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
@@ -39,7 +40,11 @@ from app.models.schemas import (
 from app.services.describe_image import describe_image as _describe_image
 from app.services.describe_image import extract_text_from_image as _extract_text_from_image
 from app.services.claim_checker import check_claims as _check_claims
-from app.services.clip_detector import perform_clip_detection
+from app.services.clip_detector import (
+    get_last_used_ts,
+    perform_clip_detection,
+    unload_clip_model,
+)
 from app.services.colour_temperature import perform_colour_temperature
 from app.services.copy_move import perform_copy_move_detection
 from app.services.deepfake import perform_deepfake_detection
@@ -921,3 +926,33 @@ async def enf_analysis(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return EnfAnalysisResponse(**result)
+
+
+# ── CLIP model lifecycle management ──────────────────────────────────────────
+
+
+@router.post("/unload-clip")
+async def unload_clip():
+    """Release the CLIP ViT-B/32 model from memory to reclaim RAM.
+
+    The model (~600-700 MB) is dropped immediately; the next CLIP
+    detection request will re-load it from the local open_clip cache.
+
+    Called by the Rust idle-watcher after 10 minutes of no CLIP usage.
+    """
+    return unload_clip_model()
+
+
+@router.get("/clip-status")
+async def clip_status():
+    """Return CLIP model load state and idle time for diagnostic purposes.
+
+    The Rust idle-watcher polls this endpoint every 60 s and triggers
+    unload when ``idle_seconds`` exceeds the configured threshold.
+    """
+    import app.services.clip_detector as _mod
+
+    loaded = _mod._model is not None
+    last_used = get_last_used_ts()
+    idle_seconds = (time.time() - last_used) if last_used > 0.0 else -1.0
+    return {"loaded": loaded, "last_used_ts": last_used, "idle_seconds": idle_seconds}

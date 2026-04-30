@@ -783,6 +783,23 @@ pub struct FourierAnalysisResult {
     pub summary: String,
 }
 
+/// Status of the CLIP model in the Python sidecar.
+///
+/// Returned by `GET /forensics/clip-status` and used by the idle-watcher
+/// in `lib.rs` to decide when to trigger eviction.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ClipStatus {
+    /// Whether the CLIP ViT-B/32 model is currently resident in RAM.
+    pub loaded: bool,
+    /// Unix timestamp of the last CLIP detection call; 0.0 if never used.
+    #[serde(alias = "last_used_ts")]
+    pub last_used_ts: f64,
+    /// Seconds since the last CLIP call; -1.0 if never used.
+    #[serde(alias = "idle_seconds")]
+    pub idle_seconds: f64,
+}
+
 /// Maximum file size eligible for the in-memory file cache.
 ///
 /// Files larger than this threshold are not stored in the cache; sidecar calls
@@ -1570,6 +1587,50 @@ impl SidecarClient {
 
         resp.json::<FourierAnalysisResult>()
             .map_err(|e| format!("Failed to parse Fourier analysis response: {e}"))
+    }
+
+    /// Query the CLIP model load state and idle duration.
+    ///
+    /// Calls `GET /forensics/clip-status`. Used by the idle-watcher in
+    /// `lib.rs` to decide when to trigger eviction.
+    pub fn clip_status(&self) -> Result<ClipStatus, String> {
+        let resp = self
+            .client
+            .get(format!("{}/forensics/clip-status", self.base_url))
+            .timeout(Duration::from_secs(5))
+            .send()
+            .map_err(|e| format!("Sidecar clip-status request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!("Sidecar clip-status returned {status}: {body}"));
+        }
+
+        resp.json::<ClipStatus>()
+            .map_err(|e| format!("Failed to parse clip-status response: {e}"))
+    }
+
+    /// Ask the sidecar to release the CLIP model from RAM.
+    ///
+    /// Calls `POST /forensics/unload-clip`. Returns `Ok(())` on success.
+    /// Silently tolerated by callers — if the sidecar is unreachable the
+    /// idle-watcher simply retries on the next tick.
+    pub fn unload_clip(&self) -> Result<(), String> {
+        let resp = self
+            .client
+            .post(format!("{}/forensics/unload-clip", self.base_url))
+            .timeout(Duration::from_secs(10))
+            .send()
+            .map_err(|e| format!("Sidecar unload-clip request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!("Sidecar unload-clip returned {status}: {body}"));
+        }
+
+        Ok(())
     }
 
     /// avoiding 4–9 redundant disk reads per image.

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, State};
 use tauri_plugin_shell::ShellExt;
@@ -413,6 +414,18 @@ pub struct AppState {
     /// on disk. Cleared when a new session starts (the previous session dir
     /// is deleted before writing new files).
     pub last_heatmap_session: Option<String>,
+    /// Unix timestamp (seconds since epoch) of the last successful HTTP request
+    /// dispatched to the Python sidecar. Updated atomically by the verify pipeline
+    /// on every sidecar call. Used by the power-saver idle-killer to determine
+    /// whether the sidecar has been idle long enough to terminate.
+    ///
+    /// Wrapped in `Arc` so it can be cheaply shared with background tasks
+    /// without holding the `AppState` mutex.
+    pub last_sidecar_request_ts: Arc<AtomicU64>,
+    /// Whether power-saver mode is active. When `true`, the sidecar process is
+    /// terminated after `SIDECAR_IDLE_SECONDS_BEFORE_KILL` seconds of inactivity
+    /// and respawned on the next verification request. Default `false`.
+    pub power_saver_mode: bool,
 }
 
 /// Compute the SHA-256 hash of a file, returning a lowercase hex string.
@@ -445,6 +458,18 @@ const MAX_IMPORT_FILE_SIZE_BYTES: u64 = 200 * 1024 * 1024;
 /// Prevents decompression-bomb PNGs (e.g. 1×1 px that expands to 50 000×50 000)
 /// from exhausting process memory during EXIF extraction and fingerprinting.
 const MAX_IMAGE_DIMENSION_PX: u32 = 20_000;
+
+/// Idle duration (in seconds) after which the CLIP ViT-B/32 model is evicted
+/// from the Python sidecar to reclaim ~600–700 MB of RAM. The idle-watcher
+/// background task (spawned once at startup) checks every 60 s and calls
+/// `/forensics/unload-clip` when the threshold is exceeded.
+const CLIP_IDLE_SECONDS_BEFORE_UNLOAD: u64 = 600;
+
+/// Idle duration (in seconds) after which the sidecar process is terminated
+/// when power-saver mode is enabled by the user. The sidecar holds ~300–500 MB
+/// of RAM (Python interpreter + numpy + cv2 + sklearn + FastAPI) even when idle.
+/// Default OFF — opt-in via Settings to avoid surprising cold-start latency.
+const SIDECAR_IDLE_SECONDS_BEFORE_KILL: u64 = 300;
 
 /// Import files into the PROTECT pipeline.
 ///
@@ -2850,6 +2875,10 @@ fn apply_heatmaps_to_result(
 ///
 /// `mode` is `"fast"` (EXIF + C2PA only, <5 s) or `"deep"` (full pipeline,
 /// 30-60 s). Defaults to `"deep"` when omitted.
+///
+/// When power-saver mode is enabled and the sidecar has been idle-killed, this
+/// command respawns the sidecar before dispatching the verify pipeline.  The
+/// first verify after a kill takes 30–90 s longer while the sidecar reloads.
 #[tauri::command]
 fn verify_content(
     source: String,
@@ -2859,6 +2888,57 @@ fn verify_content(
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<VerificationResult, AppError> {
     log::info!("Verifying content: {source} ({source_type}) [mode={mode:?}]");
+
+    // ── Power-saver respawn ──────────────────────────────────────────────────
+    // If power-saver mode killed the sidecar since the last request, respawn
+    // it and wait for readiness before proceeding.  We use a `Mutex` guard
+    // scoped tightly so the lock is not held across the blocking readiness poll.
+    let needs_respawn = {
+        match state.lock() {
+            Ok(guard) => guard.power_saver_mode && guard.sidecar_process.is_none(),
+            Err(_) => false,
+        }
+    };
+
+    if needs_respawn {
+        log::info!("Power-saver respawn: restarting sidecar for new verification request");
+        let new_child = spawn_sidecar(&app);
+        if new_child.is_some() {
+            // Blocking readiness poll — up to 120 s (60 attempts × backoff).
+            // Returns false only if the sidecar never becomes healthy; in that
+            // case we proceed anyway and let the pipeline degrade gracefully.
+            const RESPAWN_MAX_ATTEMPTS: u32 = 60;
+            if !wait_for_sidecar_ready(RESPAWN_MAX_ATTEMPTS) {
+                log::warn!(
+                    "Respawned sidecar did not become ready within timeout — \
+                     forensic analysis may be unavailable"
+                );
+            }
+        }
+        // Store the new child handle (or None on failure) in AppState.
+        if let Ok(mut guard) = state.lock() {
+            guard.sidecar_process = new_child;
+            // Reset the idle timestamp so the killer does not immediately
+            // fire again on the next 60-second tick.
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            guard.last_sidecar_request_ts.store(now, Ordering::Relaxed);
+        }
+    }
+
+    // ── Bump last-request timestamp ──────────────────────────────────────────
+    // Update unconditionally so the idle-killer resets its window after every
+    // verify call, not just after respawns.
+    if let Ok(guard) = state.lock() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        guard.last_sidecar_request_ts.store(now, Ordering::Relaxed);
+    }
+
     let mut result = verify_content_inner(
         &source,
         &source_type,
@@ -4252,6 +4332,47 @@ fn set_ai_description_enabled(
     Ok(())
 }
 
+// ===== Power-Saver Mode =====
+
+/// Return the current power-saver mode preference from live `AppState`.
+#[tauri::command]
+fn get_power_saver_mode(state: State<'_, Arc<Mutex<AppState>>>) -> Result<bool, AppError> {
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
+    Ok(app.power_saver_mode)
+}
+
+/// Persist the power-saver mode preference to `config.json` and update live state.
+///
+/// When `enabled` is `true`, the sidecar process will be terminated after
+/// `SIDECAR_IDLE_SECONDS_BEFORE_KILL` (300) seconds of inactivity and respawned
+/// on the next verification request. The first verify after idle-kill takes
+/// 30–90 seconds longer while the sidecar reloads.
+#[tauri::command]
+fn set_power_saver_mode(
+    app_handle: tauri::AppHandle,
+    state: State<'_, Arc<Mutex<AppState>>>,
+    enabled: bool,
+) -> Result<(), AppError> {
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let mut config = read_app_config(&data_dir);
+    config.power_saver_mode = enabled;
+    write_app_config(&data_dir, &config).map_err(AppError::FileSystem)?;
+
+    let mut app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
+    app.power_saver_mode = enabled;
+
+    log::info!("Power-saver mode updated to {enabled}");
+    Ok(())
+}
+
 // ===== Setup Wizard Flag =====
 
 /// Return whether the first-run setup wizard should be suppressed.
@@ -4546,6 +4667,10 @@ struct AppConfig {
     /// tri-state so we can distinguish "never set" from "explicitly off".
     #[serde(default)]
     ai_description_enabled: Option<bool>,
+    /// Power-saver mode: terminate the sidecar after 5 minutes of inactivity
+    /// to free ~300–500 MB of RAM. Default `false` — opt-in only.
+    #[serde(default)]
+    power_saver_mode: bool,
 }
 
 /// Read the persisted config.json from app_data_dir.
@@ -4998,6 +5123,98 @@ fn init_logging(app_data_dir: Option<&std::path::Path>) -> Option<PathBuf> {
     }
 }
 
+/// Spawn the PyInstaller sidecar binary and return the child handle.
+///
+/// Used both at startup and by the power-saver respawn path when the sidecar
+/// has been idle-killed and a new verification request arrives.
+///
+/// In debug builds (`cargo tauri dev`) the binary is absent; the function logs
+/// a notice and returns `None` so the developer's manual `uvicorn` process is used.
+///
+/// The caller is responsible for polling `/health` after a successful spawn to
+/// wait for the sidecar to become ready before dispatching requests.
+fn spawn_sidecar(app: &tauri::AppHandle) -> Option<tauri_plugin_shell::process::CommandChild> {
+    if cfg!(debug_assertions) {
+        return None;
+    }
+
+    // Set JURA_MODELS_DIR so the sidecar can find model files.
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let models_dir = resource_dir.join("models");
+        if models_dir.is_dir() {
+            #[allow(unused_unsafe)]
+            unsafe {
+                std::env::set_var("JURA_MODELS_DIR", &models_dir);
+            }
+        }
+    }
+
+    match app.shell().sidecar("jura-sidecar") {
+        Err(e) => {
+            log::warn!(
+                "Could not locate sidecar binary for (re)spawn: {e}. \
+                 Forensic analysis will be unavailable."
+            );
+            None
+        }
+        Ok(cmd) => match cmd.args(["--host", "127.0.0.1", "--port", "8200"]).spawn() {
+            Err(e) => {
+                log::warn!(
+                    "Failed to (re)spawn sidecar: {e}. \
+                     Forensic analysis will be unavailable."
+                );
+                None
+            }
+            Ok((mut rx, child)) => {
+                tauri::async_runtime::spawn(async move {
+                    use tauri_plugin_shell::process::CommandEvent;
+                    while let Some(event) = rx.recv().await {
+                        match event {
+                            CommandEvent::Stdout(line) => {
+                                log::debug!("sidecar: {}", String::from_utf8_lossy(&line));
+                            }
+                            CommandEvent::Stderr(line) => {
+                                log::debug!("sidecar: {}", String::from_utf8_lossy(&line));
+                            }
+                            CommandEvent::Terminated(p) => {
+                                log::info!("Sidecar process terminated (code: {:?})", p.code);
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                });
+                Some(child)
+            }
+        },
+    }
+}
+
+/// Poll the sidecar `/health` endpoint until it responds or the timeout elapses.
+///
+/// Uses exponential back-off: 200 ms → 400 → 800 → 1 600 ms (capped), up to
+/// `max_attempts` total tries. Returns `true` when the sidecar is ready.
+fn wait_for_sidecar_ready(max_attempts: u32) -> bool {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build()
+        .unwrap_or_default();
+    for attempt in 0..max_attempts {
+        let delay_ms = 200u64 * (1u64 << attempt.min(3));
+        std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+        if client
+            .get("http://127.0.0.1:8200/health")
+            .send()
+            .map(|r| r.status().is_success())
+            .unwrap_or(false)
+        {
+            log::info!("Sidecar ready after {} poll attempt(s)", attempt + 1);
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialise logging before anything else.  We do a best-effort resolve of
@@ -5098,121 +5315,37 @@ pub fn run() {
             // `cfg!(debug_assertions)` is true for `cargo tauri dev` and false
             // for `cargo tauri build --release`, which is the right proxy for
             // "are we in dev mode?".
-            let sidecar_child: Option<tauri_plugin_shell::process::CommandChild> =
-                if cfg!(debug_assertions) {
-                    log::info!(
-                        "Dev mode: sidecar assumed to be running manually on \
-                         http://127.0.0.1:8200"
-                    );
-                    None
+            if cfg!(debug_assertions) {
+                log::info!(
+                    "Dev mode: sidecar assumed to be running manually on \
+                     http://127.0.0.1:8200"
+                );
+            } else if let Ok(resource_dir) = app.path().resource_dir() {
+                // Emit a startup-only log for JURA_MODELS_DIR — spawn_sidecar
+                // sets the env var but does not log the path itself, so we log
+                // it here before delegating.
+                let models_dir = resource_dir.join("models");
+                if models_dir.is_dir() {
+                    log::info!("JURA_MODELS_DIR set to {models_dir:?}");
                 } else {
-                    // Set JURA_MODELS_DIR so the sidecar can find the GBM
-                    // classifier and UnivFD probe model files shipped alongside
-                    // the app bundle. The models/ directory lives next to the
-                    // main executable in the installed app.
-                    if let Ok(resource_dir) = app.path().resource_dir() {
-                        let models_dir = resource_dir.join("models");
-                        if models_dir.is_dir() {
-                            #[allow(unused_unsafe)]
-                            unsafe {
-                                std::env::set_var("JURA_MODELS_DIR", &models_dir);
-                            }
-                            log::info!("JURA_MODELS_DIR set to {models_dir:?}");
-                        } else {
-                            log::warn!(
-                                "Models directory not found at {models_dir:?} — classifier \
-                                 and UnivFD probe will be unavailable"
-                            );
-                        }
-                    }
-
-                    match app.shell().sidecar("jura-sidecar") {
-                        Err(e) => {
-                            log::warn!(
-                                "Could not locate sidecar binary: {e}. \
-                                 Forensic analysis will be unavailable."
-                            );
-                            None
-                        }
-                        Ok(cmd) => {
-                            match cmd.args(["--host", "127.0.0.1", "--port", "8200"]).spawn() {
-                                Err(e) => {
-                                    log::warn!(
-                                        "Failed to spawn sidecar: {e}. \
-                                         Forensic analysis will be unavailable."
-                                    );
-                                    None
-                                }
-                                Ok((mut rx, child)) => {
-                                    // Forward sidecar stdout/stderr to the app
-                                    // log at DEBUG level in a background task.
-                                    tauri::async_runtime::spawn(async move {
-                                        use tauri_plugin_shell::process::CommandEvent;
-                                        while let Some(event) = rx.recv().await {
-                                            match event {
-                                                CommandEvent::Stdout(line) => {
-                                                    log::debug!(
-                                                        "sidecar: {}",
-                                                        String::from_utf8_lossy(&line)
-                                                    );
-                                                }
-                                                CommandEvent::Stderr(line) => {
-                                                    log::debug!(
-                                                        "sidecar: {}",
-                                                        String::from_utf8_lossy(&line)
-                                                    );
-                                                }
-                                                CommandEvent::Terminated(p) => {
-                                                    log::info!(
-                                                        "Sidecar process terminated \
-                                                         (code: {:?})",
-                                                        p.code
-                                                    );
-                                                    break;
-                                                }
-                                                _ => {}
-                                            }
-                                        }
-                                    });
-                                    Some(child)
-                                }
-                            }
-                        }
-                    }
-                };
+                    log::warn!(
+                        "Models directory not found at {models_dir:?} — classifier \
+                         and UnivFD probe will be unavailable"
+                    );
+                }
+            }
+            let sidecar_child = spawn_sidecar(app.app_handle());
 
             // ── Sidecar readiness check ──────────────────────────────────────
             // Poll /health with exponential backoff (up to ~10 s total).
             // This is a blocking check on the setup thread, which is
             // acceptable — Tauri's window is not shown until setup returns.
             // We cap the total wait so a missing sidecar never stalls startup.
-            if sidecar_child.is_some() {
-                let client = reqwest::blocking::Client::builder()
-                    .timeout(std::time::Duration::from_secs(2))
-                    .build()
-                    .unwrap_or_default();
-                let mut ready = false;
-                for attempt in 0u32..10 {
-                    // 200 ms → 400 → 800 → 1600 ms (capped at 1600 ms per attempt)
-                    let delay_ms = 200u64 * (1u64 << attempt.min(3));
-                    std::thread::sleep(std::time::Duration::from_millis(delay_ms));
-                    if client
-                        .get("http://127.0.0.1:8200/health")
-                        .send()
-                        .map(|r| r.status().is_success())
-                        .unwrap_or(false)
-                    {
-                        log::info!("Sidecar ready after {} poll attempt(s)", attempt + 1);
-                        ready = true;
-                        break;
-                    }
-                }
-                if !ready {
-                    log::warn!(
-                        "Sidecar did not respond within timeout. \
-                         Forensic analysis will be unavailable."
-                    );
-                }
+            if sidecar_child.is_some() && !wait_for_sidecar_ready(10) {
+                log::warn!(
+                    "Sidecar did not respond within timeout. \
+                     Forensic analysis will be unavailable."
+                );
             }
 
             log::info!(
@@ -5241,6 +5374,15 @@ pub fn run() {
                 log::info!("Classifier model hash: {}", &h[..16]);
             }
 
+            let power_saver_mode = startup_config.power_saver_mode;
+            // Initialise last_sidecar_request_ts to "now" so the idle-killer
+            // does not immediately fire on a freshly started sidecar.
+            let initial_ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let last_sidecar_request_ts = Arc::new(AtomicU64::new(initial_ts));
+
             let shared_state = Arc::new(Mutex::new(AppState {
                 db: database,
                 sidecar: sidecar_client,
@@ -5251,6 +5393,8 @@ pub fn run() {
                 ai_description_enabled,
                 scheduler_handle: None,
                 last_heatmap_session: None,
+                last_sidecar_request_ts: Arc::clone(&last_sidecar_request_ts),
+                power_saver_mode,
             }));
 
             // ── Register managed state FIRST ─────────────────────────────────
@@ -5292,6 +5436,119 @@ pub fn run() {
                 if let Ok(mut guard) = shared_state.lock() {
                     guard.scheduler_handle = Some(handle);
                 }
+            }
+
+            // ── CLIP idle-watcher ────────────────────────────────────────────
+            // Polls the sidecar every 60 s. When the CLIP model has been idle
+            // for CLIP_IDLE_SECONDS_BEFORE_UNLOAD (10 min) and is still loaded,
+            // sends an unload request to reclaim ~600–700 MB of RAM. Errors are
+            // silently swallowed so a temporarily unreachable sidecar never
+            // crashes the task — it will retry on the next tick.
+            {
+                let watcher_state = shared_state.clone();
+                tauri::async_runtime::spawn(async move {
+                    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
+                    loop {
+                        interval.tick().await;
+                        let sidecar = {
+                            match watcher_state.lock() {
+                                Ok(guard) => guard.sidecar.clone(),
+                                Err(_) => continue,
+                            }
+                        };
+                        let status = match sidecar.clip_status() {
+                            Ok(s) => s,
+                            Err(_) => continue, // sidecar unreachable — retry next tick
+                        };
+                        if status.loaded
+                            && status.idle_seconds >= CLIP_IDLE_SECONDS_BEFORE_UNLOAD as f64
+                        {
+                            log::info!(
+                                "CLIP model idle for {:.0}s — requesting eviction",
+                                status.idle_seconds
+                            );
+                            if let Err(e) = sidecar.unload_clip() {
+                                log::warn!("CLIP unload request failed: {e}");
+                            }
+                        }
+                    }
+                });
+            }
+
+            // ── Power-saver idle-killer ──────────────────────────────────────
+            // When power-saver mode is enabled, the sidecar process is terminated
+            // after SIDECAR_IDLE_SECONDS_BEFORE_KILL (300 s) of inactivity to
+            // reclaim ~300–500 MB of RAM.  The watcher checks every 60 s.
+            // Errors are silently swallowed so a temporarily absent sidecar
+            // never crashes the task.
+            {
+                let killer_state = shared_state.clone();
+                let killer_ts = Arc::clone(&last_sidecar_request_ts);
+                let killer_app = app.app_handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
+                    loop {
+                        interval.tick().await;
+
+                        // Read power-saver flag and last-request timestamp atomically.
+                        let (enabled, process_present) = {
+                            match killer_state.lock() {
+                                Ok(guard) => {
+                                    (guard.power_saver_mode, guard.sidecar_process.is_some())
+                                }
+                                Err(_) => continue,
+                            }
+                        };
+
+                        if !enabled || !process_present {
+                            continue;
+                        }
+
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs();
+                        let last_ts = killer_ts.load(Ordering::Relaxed);
+                        let idle_secs = now.saturating_sub(last_ts);
+
+                        if idle_secs < SIDECAR_IDLE_SECONDS_BEFORE_KILL {
+                            continue;
+                        }
+
+                        // Idle threshold exceeded — kill the sidecar.
+                        let child = {
+                            match killer_state.lock() {
+                                Ok(mut guard) => guard.sidecar_process.take(),
+                                Err(_) => continue,
+                            }
+                        };
+
+                        if let Some(child) = child {
+                            if let Err(e) = child.kill() {
+                                log::warn!("Power-saver kill failed: {e}");
+                            } else {
+                                log::info!(
+                                    "Sidecar process killed for RAM reclamation \
+                                     (power-saver mode, idle {idle_secs}s)"
+                                );
+                            }
+                        }
+
+                        // Respawn will be triggered by verify_content on the
+                        // next request.  Update the timestamp so that a
+                        // concurrent respawn request does not race with a
+                        // second kill cycle.
+                        let now2 = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs();
+                        killer_ts.store(now2, Ordering::Relaxed);
+
+                        // Store the app handle clone for potential future
+                        // logging — currently unused but suppresses dead-code.
+                        let _ = &killer_app;
+                    }
+                });
             }
 
             // ── Local REST API server (port 8300) ────────────────────────────
@@ -5395,6 +5652,8 @@ pub fn run() {
             read_manifest_chain,
             get_network_mode,
             set_network_mode,
+            get_power_saver_mode,
+            set_power_saver_mode,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Jura Trace")
@@ -7681,5 +7940,109 @@ mod tests {
     #[test]
     fn empty_string_is_public() {
         assert!(!is_private_or_loopback_host(""));
+    }
+
+    // ── Power-saver mode tests ─────────────────────────────────────────────
+
+    #[test]
+    fn power_saver_mode_default_is_false() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cfg = read_app_config(dir.path());
+        assert!(
+            !cfg.power_saver_mode,
+            "Default power_saver_mode must be false"
+        );
+    }
+
+    #[test]
+    fn power_saver_mode_roundtrip_enabled() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let config = AppConfig {
+            power_saver_mode: true,
+            ..Default::default()
+        };
+        write_app_config(dir.path(), &config).expect("write");
+        let read_back = read_app_config(dir.path());
+        assert!(
+            read_back.power_saver_mode,
+            "power_saver_mode=true should round-trip"
+        );
+    }
+
+    #[test]
+    fn power_saver_mode_roundtrip_disabled() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let config = AppConfig {
+            power_saver_mode: false,
+            ..Default::default()
+        };
+        write_app_config(dir.path(), &config).expect("write");
+        let read_back = read_app_config(dir.path());
+        assert!(
+            !read_back.power_saver_mode,
+            "power_saver_mode=false should round-trip"
+        );
+    }
+
+    #[test]
+    fn last_sidecar_request_ts_atomic_update() {
+        // Simulate what verify_content does: store a new timestamp.
+        let ts = Arc::new(AtomicU64::new(0));
+        let clone = Arc::clone(&ts);
+        let new_val = 1_700_000_000u64;
+        clone.store(new_val, Ordering::Relaxed);
+        assert_eq!(
+            ts.load(Ordering::Relaxed),
+            new_val,
+            "AtomicU64 round-trip failed"
+        );
+    }
+
+    #[test]
+    fn idle_killer_noop_when_power_saver_disabled() {
+        // Verify the guard logic: if power_saver_mode=false, the killer should
+        // not act even when idle exceeds the threshold.
+        let power_saver = false;
+        let now = 1_700_000_000u64;
+        let last_ts = now.saturating_sub(SIDECAR_IDLE_SECONDS_BEFORE_KILL + 60);
+        let idle_secs = now.saturating_sub(last_ts);
+
+        // Simulate the condition check in the watcher: enabled=false → skip.
+        let would_kill = power_saver && idle_secs >= SIDECAR_IDLE_SECONDS_BEFORE_KILL;
+        assert!(
+            !would_kill,
+            "Killer must be no-op when power_saver_mode=false"
+        );
+    }
+
+    #[test]
+    fn idle_killer_fires_when_enabled_and_threshold_exceeded() {
+        let power_saver = true;
+        let now = 1_700_000_000u64;
+        let last_ts = now.saturating_sub(SIDECAR_IDLE_SECONDS_BEFORE_KILL + 1);
+        let idle_secs = now.saturating_sub(last_ts);
+        let would_kill = power_saver && idle_secs >= SIDECAR_IDLE_SECONDS_BEFORE_KILL;
+        assert!(
+            would_kill,
+            "Killer must fire when enabled and idle > threshold"
+        );
+    }
+
+    #[test]
+    fn idle_killer_noop_when_threshold_not_exceeded() {
+        let power_saver = true;
+        let now = 1_700_000_000u64;
+        let last_ts = now.saturating_sub(SIDECAR_IDLE_SECONDS_BEFORE_KILL - 1);
+        let idle_secs = now.saturating_sub(last_ts);
+        let would_kill = power_saver && idle_secs >= SIDECAR_IDLE_SECONDS_BEFORE_KILL;
+        assert!(!would_kill, "Killer must not fire before threshold");
+    }
+
+    #[test]
+    fn sidecar_idle_seconds_constant_is_300() {
+        assert_eq!(
+            SIDECAR_IDLE_SECONDS_BEFORE_KILL, 300,
+            "Idle threshold must be 300 seconds (5 minutes)"
+        );
     }
 }

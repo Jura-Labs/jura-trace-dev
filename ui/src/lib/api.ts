@@ -818,6 +818,31 @@ export async function setAiDescriptionEnabled(enabled: boolean | null): Promise<
   return invoke<void>('set_ai_description_enabled', { enabled });
 }
 
+// ── Power-saver mode ─────────────────────────────────────────────────
+
+/**
+ * Return the current power-saver mode preference.
+ * Defaults to `false` when the setting has not been written to config.json.
+ */
+export async function getPowerSaverMode(): Promise<boolean> {
+  try {
+    return await invoke<boolean>('get_power_saver_mode');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Persist the power-saver mode preference.
+ *
+ * When enabled, the analysis engine is stopped after five minutes of
+ * inactivity. The first verification afterwards takes 30–90 seconds longer
+ * while the engine reloads.
+ */
+export async function setPowerSaverMode(enabled: boolean): Promise<void> {
+  return invoke<void>('set_power_saver_mode', { enabled });
+}
+
 // ── API Key Management ─────────────────────────────────────────────
 
 export interface ApiKeyInfo {

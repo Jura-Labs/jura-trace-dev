@@ -22,10 +22,12 @@ If ``open_clip`` is not installed, the service gracefully degrades
 and returns a response with ``model_available=False``.
 """
 
+import gc
 import hashlib
 import io
 import logging
 import os
+import time
 
 from PIL import Image
 
@@ -42,6 +44,11 @@ _model_load_attempted = False
 # UnivFD probe state — lazy-loaded from models/univfd_probe.joblib
 _univfd_probe = None
 _univfd_probe_loaded = False
+
+# Last-used timestamp — updated every time the model is actually invoked.
+# Read by the /forensics/clip-status endpoint so the Rust idle-watcher
+# can decide when to call /forensics/unload-clip.
+_last_used_ts: float = 0.0
 
 _UNIVFD_PROBE_SHA256 = (
     "ed691b45cbe2903a7e0530fd0ec78ab91eef9f15133af4c1a5c8cf172086dacd"
@@ -73,6 +80,41 @@ _THRESHOLD_BASIS = (
     "validated on 39,016 samples including platform-forwarded re-encodes "
     "(see docs/calibration/univfd-v9-platform-augmentation.md)."
 )
+
+
+def get_last_used_ts() -> float:
+    """Return the Unix timestamp of the last CLIP model invocation (0.0 if never used)."""
+    return _last_used_ts
+
+
+def unload_clip_model() -> dict:
+    """Release the CLIP model from memory to reclaim RAM.
+
+    Sets all model globals to None and runs a GC cycle so Python
+    can return the ~600-700 MB back to the OS.  The next request
+    will re-load via ``_ensure_model()`` as normal.
+
+    Returns a dict with ``unloaded`` (bool) and ``previously_loaded`` (bool).
+    """
+    global _model, _preprocess, _tokenizer, _model_load_attempted
+
+    previously_loaded = _model is not None
+    _model = None
+    _preprocess = None
+    _tokenizer = None
+    _model_load_attempted = False
+
+    gc.collect()
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except ImportError:
+        pass
+
+    logger.info("clip model unloaded for RAM reclamation")
+    return {"unloaded": True, "previously_loaded": previously_loaded}
 
 
 def _verdict_thresholds() -> VerdictThresholds:
@@ -259,8 +301,14 @@ def perform_clip_detection(image_bytes: bytes) -> ClipDetectionResponse:
     Raises:
         ValueError: If image cannot be decoded.
     """
+    global _last_used_ts
+
     if not _ensure_model():
         return _unavailable_response()
+
+    # Stamp last-used timestamp now that the model is confirmed loaded and
+    # about to be invoked — used by the idle-watcher to decide eviction.
+    _last_used_ts = time.time()
 
     try:
         pil_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
