@@ -2530,7 +2530,7 @@
                           <summary class="list-none text-[11px] text-lapis dark:text-lapis-light cursor-pointer hover:text-obsidian dark:hover:text-quartz flex items-center gap-1 min-h-[24px]
                                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded">
                             <svg class="w-3 h-3 motion-safe:group-open:rotate-90 transition-transform duration-150" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
-                            All candidates
+                            Other candidates
                           </summary>
                           <ul class="mt-1.5 space-y-1" aria-label="Platform fingerprint candidates">
                             {#each pf.allCandidates as candidate}

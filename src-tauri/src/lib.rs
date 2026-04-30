@@ -7182,6 +7182,68 @@ mod tests {
     }
 
     #[test]
+    fn csv_import_row_cap_is_exclusive_at_ten_thousand() {
+        // QA GAP-2 (30 April 2026 final QA pass): the 10 000-row hard
+        // cap was untested.  Pin the inclusive/exclusive semantics so
+        // any future change to CSV_IMPORT_MAX_ROWS or the guard
+        // condition (`>=` vs `>`) is caught at review time.
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+
+        // Exactly CSV_IMPORT_MAX_ROWS rows: cap must NOT fire.
+        let csv_path = dir.path().join("at_cap.csv");
+        {
+            let mut f = std::fs::File::create(&csv_path).unwrap();
+            writeln!(f, "file_path").unwrap();
+            for i in 0..CSV_IMPORT_MAX_ROWS {
+                writeln!(f, "/nonexistent/path/{i}").unwrap();
+            }
+        }
+        let mut rdr = csv::ReaderBuilder::new()
+            .has_headers(true)
+            .flexible(true)
+            .from_path(&csv_path)
+            .unwrap();
+        let mut row_count: usize = 0;
+        for (idx, _rec) in rdr.records().enumerate() {
+            assert!(
+                idx < CSV_IMPORT_MAX_ROWS,
+                "Cap should not fire at row {idx} when total rows = CSV_IMPORT_MAX_ROWS"
+            );
+            row_count += 1;
+        }
+        assert_eq!(
+            row_count, CSV_IMPORT_MAX_ROWS,
+            "Exactly {CSV_IMPORT_MAX_ROWS} rows must be processed before cap fires"
+        );
+
+        // CSV_IMPORT_MAX_ROWS + 1: the cap-trigger row must be reachable.
+        let csv_over = dir.path().join("over_cap.csv");
+        {
+            let mut f = std::fs::File::create(&csv_over).unwrap();
+            writeln!(f, "file_path").unwrap();
+            for i in 0..=CSV_IMPORT_MAX_ROWS {
+                writeln!(f, "/nonexistent/path/{i}").unwrap();
+            }
+        }
+        let mut rdr2 = csv::ReaderBuilder::new()
+            .has_headers(true)
+            .flexible(true)
+            .from_path(&csv_over)
+            .unwrap();
+        let over_index = rdr2
+            .records()
+            .enumerate()
+            .find(|(idx, _)| *idx >= CSV_IMPORT_MAX_ROWS)
+            .map(|(idx, _)| idx);
+        assert_eq!(
+            over_index,
+            Some(CSV_IMPORT_MAX_ROWS),
+            "Row at index CSV_IMPORT_MAX_ROWS must be reachable so the cap guard fires"
+        );
+    }
+
+    #[test]
     fn csv_import_handles_quoted_field_with_embedded_comma() {
         // QA EDGE-3 (30 April 2026 final QA pass): RFC 4180 quoting must
         // not interact badly with `flexible(true)`.  A row with a quoted

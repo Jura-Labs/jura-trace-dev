@@ -96,7 +96,8 @@
 
   // ── Backup & Restore state (JTV-130) ──────────────────────────
   let backupBusy        = $state(false);
-  let backupFeedback    = $state<{ ok: boolean; message: string } | null>(null);
+  let backupSuccess     = $state<import('$lib/api').BackupResult | null>(null);
+  let backupError       = $state<string | null>(null);
 
   let restoreBusy       = $state(false);
   let restoreFeedback   = $state<{ ok: boolean; message: string } | null>(null);
@@ -109,7 +110,8 @@
   async function handleBackupDatabase() {
     if (!isTauri()) return;
     backupBusy = true;
-    backupFeedback = null;
+    backupSuccess = null;
+    backupError = null;
     try {
       const { open } = await import('@tauri-apps/plugin-dialog');
       const { backupDatabase } = await import('$lib/api');
@@ -121,16 +123,28 @@
         backupBusy = false;
         return;
       }
-      const result = await backupDatabase(selected);
-      backupFeedback = {
-        ok: true,
-        message: `Backup written to ${result.snapshotPath} (schema v${result.schemaVersion}, SHA-256 ${result.sha256.slice(0, 16)}…).`,
-      };
+      backupSuccess = await backupDatabase(selected);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      backupFeedback = { ok: false, message: `Backup failed: ${msg}` };
+      backupError = err instanceof Error ? err.message : String(err);
     } finally {
       backupBusy = false;
+    }
+  }
+
+  async function copyToClipboard(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Clipboard API may be unavailable in some Tauri webview contexts;
+      // fall back to a hidden textarea + execCommand as a last resort.
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch { /* ignore */ }
+      document.body.removeChild(ta);
     }
   }
 
@@ -1374,16 +1388,41 @@
           Create Snapshot…
         {/if}
       </button>
-      {#if backupFeedback !== null}
-        <p
-          class="mt-3 text-sm px-3 py-2 rounded border break-all
-                 {backupFeedback.ok
-                   ? 'text-malachite-dark dark:text-malachite-light border-malachite/20 bg-malachite/5'
-                   : 'text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
+      {#if backupSuccess !== null}
+        <div
+          class="mt-3 text-sm px-3 py-2 rounded border text-malachite-dark dark:text-malachite-light border-malachite/20 bg-malachite/5"
           role="status"
           aria-live="polite"
         >
-          {backupFeedback.message}
+          <p class="font-medium mb-1">Snapshot written.</p>
+          <dl class="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-xs">
+            <dt class="text-flint-dark dark:text-flint-light">File</dt>
+            <dd class="break-all font-mono select-all">{backupSuccess.snapshotPath}</dd>
+            <dt class="text-flint-dark dark:text-flint-light">Manifest</dt>
+            <dd class="break-all font-mono select-all">{backupSuccess.manifestPath}</dd>
+            <dt class="text-flint-dark dark:text-flint-light">Schema</dt>
+            <dd>v{backupSuccess.schemaVersion}</dd>
+            <dt class="text-flint-dark dark:text-flint-light">SHA-256</dt>
+            <dd class="flex items-start gap-2 min-w-0">
+              <code class="break-all font-mono text-[11px] select-all flex-1">{backupSuccess.sha256}</code>
+              <button
+                type="button"
+                onclick={() => backupSuccess && copyToClipboard(backupSuccess.sha256)}
+                class="shrink-0 px-2 py-0.5 text-[11px] rounded border border-border-light dark:border-border-dark text-lapis dark:text-lapis-light hover:bg-lapis/10
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+                aria-label="Copy SHA-256 to clipboard"
+              >Copy</button>
+            </dd>
+          </dl>
+        </div>
+      {/if}
+      {#if backupError !== null}
+        <p
+          class="mt-3 text-sm px-3 py-2 rounded border text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5"
+          role="status"
+          aria-live="polite"
+        >
+          Backup failed: {backupError}
         </p>
       {/if}
     </div>
@@ -1514,9 +1553,30 @@
           <dt class="text-flint-dark dark:text-flint-light">Audit chain</dt>
           <dd class="text-text-light dark:text-quartz">{pendingRestore.preflight.auditChainValid ? 'Verified' : 'Invalid'}</dd>
         </dl>
-        <p class="text-xs text-flint-dark dark:text-flint-light mb-5">
+        <p class="text-xs text-flint-dark dark:text-flint-light mb-3">
           The application will reload after the restore completes.
         </p>
+        <!-- P1-2: Offer to back up the current database first.
+             Niamh Gallagher persona flagged the destructive replace
+             without an undo path. -->
+        {#if !backupSuccess}
+          <p class="text-xs text-flint-dark dark:text-flint-light mb-5">
+            <button
+              type="button"
+              onclick={handleBackupDatabase}
+              disabled={backupBusy || restoreBusy}
+              class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:text-obsidian dark:hover:text-quartz
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded
+                     {backupBusy || restoreBusy ? 'opacity-50 cursor-not-allowed' : ''}"
+            >
+              {backupBusy ? 'Writing snapshot of current database…' : 'Back up the current database first →'}
+            </button>
+          </p>
+        {:else}
+          <p class="text-xs text-malachite-dark dark:text-malachite-light mb-5">
+            Current database backed up to <span class="font-mono break-all select-all">{backupSuccess.snapshotPath}</span>.
+          </p>
+        {/if}
         <div class="flex gap-3 justify-end">
           <button
             onclick={handleRestoreCancel}
