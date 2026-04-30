@@ -66,7 +66,7 @@ test.describe('Verify batch tab', () => {
 
   test('batch tab shows drop zone', async ({ page }) => {
     await page.getByRole('tab', { name: 'Batch' }).click();
-    const dropZone = page.locator('button[aria-label*="Drop files here"]');
+    const dropZone = page.locator('button[aria-label*="Drop multiple files"]');
     await expect(dropZone).toBeVisible();
   });
 

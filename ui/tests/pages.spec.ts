@@ -29,7 +29,7 @@ test.describe('Page smoke tests', () => {
       const chaptersSection = page.locator('section[aria-label="What you can do"]');
       await expect(chaptersSection).toBeVisible();
 
-      await expect(chaptersSection.getByRole('link', { name: /Safeguard your content/i })).toBeVisible();
+      await expect(chaptersSection.getByRole('link', { name: /Sign your work with Content Credentials/i })).toBeVisible();
       await expect(chaptersSection.getByRole('link', { name: /Check what you're looking at/i })).toBeVisible();
     });
   });
@@ -93,7 +93,7 @@ test.describe('Page smoke tests', () => {
     test('page loads with hero heading', async ({ page }) => {
       await page.goto('/monitor');
       const h1 = page.locator('h1');
-      await expect(h1).toContainText('What has happened');
+      await expect(h1).toContainText('What this machine knows');
     });
 
     test('shows Protection Chronicle section', async ({ page }) => {

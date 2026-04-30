@@ -100,21 +100,16 @@ async function injectMockResult(page: import('@playwright/test').Page) {
     if (fn) fn(mockResult);
   }, MOCK_VIDEO_RESULT);
 
-  // Wait for the results to render (Trust Score section appears)
-  await page.waitForSelector('text=Trust Score', { timeout: 8000 });
-
-  // Switch from Simple to Expert view (default is simple view since Sprint 21)
-  const viewToggle = page.locator('[role="group"][aria-label="Result view mode"]');
-  await viewToggle.waitFor({ state: 'visible', timeout: 5000 });
-  const expertBtn = viewToggle.locator('button', { hasText: 'Expert' });
-  await expertBtn.click();
-
-  // The video analysis is inside "Detailed Forensic Results" which is collapsed.
-  // Click the toggle to expand it.
-  const detailsToggle = page.locator('button', { hasText: 'Detailed Forensic Results' });
-  await detailsToggle.click();
-
-  // Now wait for the video analysis section to render
+  // Wait for the results to render (trust ring uses aria-label, not visible
+  // text). The verify v2 default UI (since 2026-04-16) puts the video
+  // analysis section inside the AI card body, which is collapsed by default
+  // when the mock has no AI findings — expand it to make the timeline visible.
+  await page.waitForSelector('section[aria-label="Verification result summary"]', { timeout: 8000 });
+  const aiCardToggle = page.locator('button[aria-controls="card-ai-body"]');
+  await aiCardToggle.waitFor({ state: 'visible', timeout: 5000 });
+  if ((await aiCardToggle.getAttribute('aria-expanded')) !== 'true') {
+    await aiCardToggle.click();
+  }
   await page.waitForSelector('[aria-labelledby="video-analysis-heading"]', { timeout: 5000 });
 }
 
@@ -156,7 +151,7 @@ test.describe('Video deepfake timeline', () => {
 
     await expect(thirdButton).toHaveAttribute('aria-expanded', 'true');
 
-    const detailPanel = page.locator('#frame-detail-2');
+    const detailPanel = page.locator('#v2-frame-detail-2');
     await expect(detailPanel).toBeVisible();
 
     await expect(detailPanel).toContainText('5.0s');

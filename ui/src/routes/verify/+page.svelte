@@ -851,10 +851,25 @@
     (window as any).__tauriCore__ = { convertFileSrc };
   }).catch(() => {});
 
-  // ── Playwright test hook ───────────────────────────────────────────
+  // ── Playwright test hooks ──────────────────────────────────────────
+  // Both hooks are gated behind import.meta.env.DEV so they tree-shake out of
+  // production builds, closing the arbitrary-injection surface.
   if (typeof window !== 'undefined' && import.meta.env.DEV) {
     (window as any).__juraSetVerifyResult = (data: VerificationResult) => {
       _testResultStore.set(data);
+    };
+    (window as any).__juraSetVerifyError = (msg: string) => {
+      const lower = msg.toLowerCase();
+      if (lower.includes('sidecar') || lower.includes('connection refused') || lower.includes('127.0.0.1:8200')) {
+        errorType = 'sidecar';
+      } else if (lower.includes('unsupported') || lower.includes('format') || lower.includes('mime')) {
+        errorType = 'format';
+      } else if (lower.includes('fetch') || lower.includes('network')) {
+        errorType = 'network';
+      } else {
+        errorType = 'general';
+      }
+      error = msg;
     };
   }
   $effect(() => {
@@ -1473,6 +1488,10 @@
         >{opt.label} <span class="ml-0.5 {verifyMode === opt.mode ? 'text-white dark:text-obsidian' : 'text-flint-dark dark:text-flint-light'}">{opt.description}</span></button>
       {/each}
     </div>
+    <ContextualHelpLink
+      href="/help/verify#investigation-modes"
+      label="Learn about investigation modes"
+    />
 
     <div
       class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border
@@ -1504,8 +1523,10 @@
          'bg-cinnabar/10 border-cinnabar/30 text-cinnabar-dark dark:text-cinnabar-light'}"
       role="alert"
       aria-live="assertive"
+      data-testid="error-banner"
+      data-error-code={errorType}
     >
-      <span class="font-medium">{errorType === 'sidecar' ? 'Analysis Engine offline' : errorType === 'format' ? 'Unsupported format' : 'Error'}:</span>
+      <span class="font-medium">{errorType === 'sidecar' ? 'Analysis Engine offline' : errorType === 'format' ? 'Unsupported format' : errorType === 'network' ? 'Network error' : 'Error'}:</span>
       {error}
     </div>
   {/if}
