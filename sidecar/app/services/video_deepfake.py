@@ -33,14 +33,12 @@ logger = logging.getLogger(__name__)
 
 # Frame counts by analysis mode.
 #
-# "archival" was retired upstream on 2026-04-22 (it ran the identical image
-# pipeline to "deep"); the Rust caller now normalises archival->deep before
-# dispatching.  The key is kept here so any direct-to-sidecar caller still
-# using the old label gets the same behaviour.  When phase-2 differentiation
-# lands (uncapped video frames, scanner-calibrated tolerances) this map will
-# regain a distinct archival entry and the 12-frame cap at
-# `perform_frame_extraction(... count=min(count, 12))` must be lifted.
-FRAME_COUNTS = {"standard": 6, "deep": 20, "archival": 20}
+# The Rust caller normalises the legacy "archival" mode to "deep" before
+# dispatching here (lib.rs:2062-2067), so this map only needs the two
+# current modes.  When phase-2 archival differentiation lands (scanner-
+# calibrated tolerances, higher frame budget), a distinct entry will be
+# added back and the Rust normaliser will be relaxed.
+FRAME_COUNTS = {"standard": 6, "deep": 20}
 
 # Default similarity threshold for frame deduplication (SSIM-like metric)
 DEDUP_SIMILARITY_THRESHOLD = 0.95
@@ -174,19 +172,13 @@ def perform_video_deepfake_analysis(
     """
     count = FRAME_COUNTS.get(mode, 6)
 
-    # Step 1: Extract frames.
-    #
-    # `perform_frame_extraction` has no intrinsic frame-count cap — the
-    # 12-frame ceiling that used to live here was a defensive caller-side
-    # guard from before the deep mode rollout.  `_extract_many_frames`
-    # below duplicates the same logic for larger counts so calling it
-    # unconditionally for count > 12 was double-work.  We now dispatch
-    # once, based on requested count, so Standard (6) and Deep (20) each
-    # get exactly what they asked for with no wasted extraction.
-    if count <= 12:
-        frames_response = perform_frame_extraction(video_bytes, count=count)
-    else:
-        frames_response = _extract_many_frames(video_bytes, count)
+    # Step 1: Extract frames.  `perform_frame_extraction` has no intrinsic
+    # frame-count cap — Standard (6) and Deep (20) both go through the
+    # single dispatch path.  The historical `_extract_many_frames`
+    # duplicate was removed in Sprint 30 (verify mode consolidation):
+    # both code paths produced identical output and the count > 12 branch
+    # was dead defensive code from before the deep-mode rollout.
+    frames_response = perform_frame_extraction(video_bytes, count=count)
 
     if not frames_response.success or not frames_response.frames:
         return VideoDeepfakeResponse(
@@ -376,62 +368,11 @@ def _compute_drift(
     return min(1.0, cv)
 
 
-def _extract_many_frames(video_bytes: bytes, count: int):
-    """
-    Extract more than 12 frames by calling perform_frame_extraction in batches.
-
-    For deep/archival modes that need >12 frames, we call the extraction
-    with count=12 (the max) and accept fewer frames. The frame extraction
-    logic already samples evenly — for higher counts we accept what FFmpeg
-    can provide within the 12-frame limit and note the shortfall.
-    """
-    # The video_frames module caps at 12 — for higher counts, we modify
-    # the call to allow more frames by calling the internal logic directly.
-    import json
-    import os
-    import subprocess
-    import tempfile
-
-    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
-        f.write(video_bytes)
-        tmp_path = f.name
-
-    try:
-        from app.services.video_frames import _get_duration, _extract_frame_at
-        from app.models.schemas import VideoFramesResponse
-
-        duration = _get_duration(tmp_path)
-        if duration is None or duration <= 0:
-            return VideoFramesResponse(
-                frames=[], count=0, duration=None,
-                success=False, message="Could not determine video duration",
-            )
-
-        timestamps = [duration * i / (count + 1) for i in range(1, count + 1)]
-        frames: list[str] = []
-        for ts in timestamps:
-            frame_b64 = _extract_frame_at(tmp_path, ts)
-            if frame_b64 is not None:
-                frames.append(frame_b64)
-
-        return VideoFramesResponse(
-            frames=frames,
-            count=len(frames),
-            duration=duration,
-            success=True,
-            message=f"Extracted {len(frames)} frames from {duration:.1f}s video",
-        )
-    except FileNotFoundError:
-        from app.models.schemas import VideoFramesResponse
-        return VideoFramesResponse(
-            frames=[], count=0, duration=None,
-            success=False, message="FFmpeg is not installed. Install from ffmpeg.org.",
-        )
-    except Exception as e:
-        from app.models.schemas import VideoFramesResponse
-        return VideoFramesResponse(
-            frames=[], count=0, duration=None,
-            success=False, message=f"Frame extraction failed: {e}",
-        )
-    finally:
-        os.unlink(tmp_path)
+# `_extract_many_frames` was removed in Sprint 30 (verify mode consolidation).
+# It was a 60-line duplicate of `perform_frame_extraction` in
+# `app.services.video_frames`, kept under a false belief that the upstream
+# function capped at 12 frames.  It never did — both code paths produced
+# identical output for any positive count.  The single caller in
+# `perform_video_deepfake_analysis` now goes through
+# `perform_frame_extraction` directly for both Standard (6 frames) and Deep
+# (20 frames) modes.

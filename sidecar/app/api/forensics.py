@@ -817,7 +817,7 @@ async def dct_analysis(file: UploadFile = File(...)) -> DctAnalysisResponse:
     image regions were compressed at different quality levels — a strong
     indicator of splice or composite forgery.
 
-    Only runs in deep/archival verification mode.
+    Only runs in deep verification mode.
     Accepted formats: JPEG, PNG, WebP, TIFF, BMP, GIF.
     """
     image_bytes = await _read_and_validate(file)
@@ -848,7 +848,7 @@ async def fourier_analysis(file: UploadFile = File(...)) -> FourierAnalysisRespo
     the DC component indicate periodic artefacts from GAN upsampling,
     screen recapture (moire), or resampling during compositing.
 
-    Only runs in deep/archival verification mode.
+    Only runs in deep verification mode.
     Accepted formats: JPEG, PNG, WebP, TIFF, BMP, GIF.
     """
     image_bytes = await _read_and_validate(file)

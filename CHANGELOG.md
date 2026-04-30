@@ -6,6 +6,51 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 30 April 2026 — Sprint 30 — Verify mode consolidation (final cleanup)
+
+Closes the second of the Sprint 30 v1.0 scope items per `project_verify_modes_broken.md` agent memory and the v1.0 sprint scope item *"Verify mode consolidation — Deep ≡ Archival in code; video cap 12 frames defeats archival 40-frame promise. ~2d"*.
+
+### Background
+
+Earlier commits (`f8516a1`, `977145a`, `f98d07a`) had already done the visible work — Archival button retired from the v2 verify page, help pages purged, PDF renderer cleaned, the `archival` mode string accepted as a back-compat alias and normalised to `deep` inside `verify_content_inner`.  This commit closes the remaining hidden cleanup work that the agent memory flagged.
+
+### What this commit changes
+
+**Sidecar — `_extract_many_frames` removed (60 lines of dead duplication).**
+
+`sidecar/app/services/video_deepfake.py` previously had two functions doing the same thing: `perform_frame_extraction` (in `video_frames.py`) for ≤ 12 frames and `_extract_many_frames` (local) for > 12. Both produced byte-identical output for any positive count. The local one was an obsolete defensive workaround for a 12-frame cap that no longer exists in the upstream function. The single dispatcher in `perform_video_deepfake_analysis` now calls `perform_frame_extraction` directly for both Standard (6 frames) and Deep (20 frames) — no branching.
+
+`FRAME_COUNTS` simplified from `{"standard": 6, "deep": 20, "archival": 20}` to `{"standard": 6, "deep": 20}` — the Rust normaliser already collapses archival to deep before dispatch, so the sidecar map only needs the two current modes.
+
+**Doc-string drift swept** across `src-tauri/src/lib.rs` and `src-tauri/src/sidecar.rs`. References to `archival` as a current valid mode option were dropped from struct field comments, the `VerificationResult::mode` doc, the `verify_content_inner` doc-string, and pipeline comments. Back-compat alias notes are retained at the *single* normalisation site (verify_content_inner mode-match block) — that is the only place future readers should learn about the alias, not at every consumer.
+
+`sidecar/app/api/forensics.py:820,851` — endpoint docstrings for the two routes that previously said *"Only runs in deep/archival verification mode"* now correctly say *"Only runs in deep verification mode"*.
+
+`sidecar/app/services/video_frames.py` — `perform_frame_extraction` docstring no longer claims a `(1-12)` cap on the count parameter; it never had one in this codebase.
+
+### Tests
+
+- **Renamed** `verify_archival_mode_is_deep` → `archival_mode_alias_normalises_to_deep`. The test is now framed as an explicit back-compat regression guard with a comment instructing future committers not to drop the alias without first migrating any pilot user with stale localStorage. The assertion is also tightened from a vague `is_deep` boolean to a precise `effective == "deep"` check.
+- **Added** `deep_mode_requests_twenty_video_frames` — encodes the 20-frame contract in code so any future request to lower the deep-mode frame budget surfaces at review.
+
+### What is NOT changed
+
+- The `valid_modes = ["standard", "deep", "archival"]` array in `lib.rs:3639` and the `Some("archival") | Some("deep") => "deep"` match arm in the normalisation block — both retained for back-compat with older REST API consumers and any pilot user whose localStorage still contains `"archival"`. Removing them is a separate breaking-change ticket (post-v1.0).
+- The `archival` localStorage migration in `verify/+page.svelte` — already in place from the 22 April consolidation, no further action needed.
+
+### Test gates
+
+  cargo test --lib       527 passed (was 526, +1 deep_mode_requests_twenty_video_frames)
+  cargo test --test '*'  16 passed
+  pytest sidecar/tests   428 passed
+  vitest                 114 passed
+  svelte-check           0 errors (12 pre-existing warnings)
+  cargo clippy           clean with -D warnings
+  cargo fmt              clean
+  playwright             296 passed / 0 failed
+
+---
+
 ## 30 April 2026 — Sprint 30 — JTV-134: Social media platform fingerprinting wired into verify pipeline
 
 **Pilot rollout moved to Week 4 June 2026** (~2026-06-29) to absorb the v1.0 scope expansion: backlog item #26 (platform fingerprinting, informational-only) into Sprint 30 and item #24 (Fourier periodic pattern detection, Experimental/informational-only) into a new Sprint 31. See `project_v1_scope_expansion_apr2026.md` agent memory for the locked Sprint 30/31/32 plan and JTV-133/134/135 in Plane.

@@ -23,7 +23,9 @@ def perform_frame_extraction(
 
     Args:
         video_bytes: Raw bytes of the input video file.
-        count: Number of frames to extract (1-12).
+        count: Number of frames to extract.  No intrinsic upper bound —
+            FFmpeg dispatches one extraction per timestamp.  Standard mode
+            asks for 6, Deep mode for 20.
 
     Returns:
         VideoFramesResponse with list of base64 JPEG frames.

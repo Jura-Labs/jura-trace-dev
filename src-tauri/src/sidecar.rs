@@ -1609,7 +1609,7 @@ impl SidecarClient {
     /// mixed compression levels — a strong splice/composite marker.
     ///
     /// Sends the file as a multipart upload to `POST /forensics/dct-analysis`.
-    /// Only called in deep/archival mode.
+    /// Only called in deep mode.
     pub fn analyse_dct(&self, image_path: &Path) -> Result<DctAnalysisResult, String> {
         let form = self.build_image_form(image_path)?;
 
@@ -1638,7 +1638,7 @@ impl SidecarClient {
     /// GAN upsampling, screen recapture, or resampling during compositing.
     ///
     /// Sends the file as a multipart upload to `POST /forensics/fourier-analysis`.
-    /// Only called in deep/archival mode.
+    /// Only called in deep mode.
     pub fn analyse_fourier(&self, image_path: &Path) -> Result<FourierAnalysisResult, String> {
         let form = self.build_image_form(image_path)?;
 

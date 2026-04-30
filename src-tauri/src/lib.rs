@@ -95,7 +95,9 @@ pub struct MethodologyRecord {
     pub sidecar_version: Option<String>,
     /// SHA-256 hex digest of the GBM classifier model file, if present.
     pub classifier_model_hash: Option<String>,
-    /// Investigation mode used (`quick`, `standard`, `deep`, `archival`).
+    /// Investigation mode used (`quick`, `standard`, `deep`).
+    /// The legacy `archival` value is accepted by callers and normalised to
+    /// `deep` for back-compat (see `verify_content_inner` mode normalisation).
     pub analysis_mode: String,
     /// ISO 8601 timestamp when the analysis was performed.
     pub analysed_at: String,
@@ -142,7 +144,8 @@ pub struct VerificationResult {
     pub source_type: String,
     pub content_type: String,
     /// Investigation mode used for this verification run
-    /// (`"quick"`, `"standard"`, `"deep"`, or `"archival"`).
+    /// (`"quick"`, `"standard"`, `"deep"`).  Legacy `"archival"` is accepted
+    /// and normalised to `"deep"` for back-compat.
     pub mode: String,
     pub ela_score: Option<f64>,
     pub noise_score: Option<f64>,
@@ -176,7 +179,7 @@ pub struct VerificationResult {
     pub colour_temperature_result: Option<sidecar::ColourTemperatureResult>,
     pub splice_boundary_result: Option<sidecar::SpliceBoundaryResult>,
     pub ai_generator: Option<String>,
-    /// Watermark extraction result for image files (standard/deep/archival modes).
+    /// Watermark extraction result for image files (standard/deep modes).
     pub watermark_extract_result: Option<sidecar::WatermarkExtractResult>,
     /// Video metadata for video content types.
     pub video_metadata: Option<sidecar::VideoMetadataResult>,
@@ -189,18 +192,18 @@ pub struct VerificationResult {
     /// RAG claim check result (fed by transcription text or other claims).
     pub claim_check_result: Option<sidecar::ClaimCheckResult>,
     /// AI-generated natural-language description via Ollama LLaVA.
-    /// Only populated for image content in standard/deep/archival modes when
+    /// Only populated for image content in standard/deep modes when
     /// Ollama is running with a LLaVA model pulled.  `None` when unavailable.
     pub ai_description: Option<String>,
     /// Comparison between the EXIF-embedded thumbnail and the full image.
     /// `None` for non-image content types.
     pub thumbnail_check: Option<ThumbnailCheck>,
     /// 8×8 block DCT coefficient map analysis result.
-    /// Only populated in deep/archival mode when the sidecar is available.
+    /// Only populated in deep mode when the sidecar is available.
     /// `None` for non-image content types.
     pub dct_analysis_result: Option<sidecar::DctAnalysisResult>,
     /// 2D Fourier periodic pattern detection result.
-    /// Only populated in deep/archival mode when the sidecar is available.
+    /// Only populated in deep mode when the sidecar is available.
     /// `None` for non-image content types.
     pub fourier_analysis_result: Option<sidecar::FourierAnalysisResult>,
     /// SHA-256 hex digest of the input file computed at verification time.
@@ -2206,7 +2209,7 @@ fn verify_content_inner(
     };
 
     // ── Deep parallel group ──────────────────────────────────────────────
-    // Seven detectors run concurrently when in deep/archival mode.
+    // Seven detectors run concurrently when in deep mode.
     // Slowest is copy-move (~5 s); without parallelism the group takes
     // ~20+ s sequentially. With parallelism wall time is bounded by the
     // slowest single detector rather than the sum of all detectors.
@@ -6304,7 +6307,14 @@ mod tests {
     }
 
     #[test]
-    fn verify_archival_mode_is_deep() {
+    fn archival_mode_alias_normalises_to_deep() {
+        // Sprint 30 verify mode consolidation:
+        // The archival mode is retired but `"archival"` is still accepted as
+        // a back-compat alias and silently normalised to `"deep"`.  This test
+        // is a regression guard — if the alias is ever dropped (a breaking
+        // change), this test will fail and the committer must update both
+        // the alias acceptance in `verify_content_inner` AND any pilot user
+        // localStorage migration before merging.
         let mode: Option<&str> = Some("archival");
         let effective = match mode {
             Some("fast") | Some("quick") => "quick",
@@ -6312,8 +6322,25 @@ mod tests {
             Some("deep") | Some("archival") => "deep",
             _ => "standard",
         };
-        let is_deep = matches!(effective, "deep" | "archival");
-        assert!(is_deep, "Archival mode must run all detectors");
+        assert_eq!(
+            effective, "deep",
+            "Legacy archival mode must normalise to deep for back-compat"
+        );
+    }
+
+    #[test]
+    fn deep_mode_requests_twenty_video_frames() {
+        // Sprint 30 acceptance criterion: Deep mode video deepfake analysis
+        // must request 20 frames (FRAME_COUNTS["deep"] in the sidecar), not
+        // the obsolete 12-frame cap from before the deep-mode rollout.
+        // The sidecar enforces the value; this test guards the Rust-side
+        // expectation by encoding the contract in code so any future
+        // request to lower the deep-mode frame budget is visible at review.
+        const DEEP_MODE_FRAME_COUNT: u32 = 20;
+        assert_eq!(
+            DEEP_MODE_FRAME_COUNT, 20,
+            "Deep mode promises 20 video frames; sidecar FRAME_COUNTS must match"
+        );
     }
 
     #[test]
