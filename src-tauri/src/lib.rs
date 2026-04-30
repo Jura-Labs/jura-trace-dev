@@ -7148,6 +7148,68 @@ mod tests {
     }
 
     #[test]
+    fn csv_import_handles_utf8_bom_in_header() {
+        // QA EDGE-2 (30 April 2026 final QA pass): Excel-on-Windows
+        // exports CSVs with a UTF-8 BOM (\xEF\xBB\xBF) by default.  The
+        // csv crate's ReaderBuilder strips the BOM only when configured
+        // correctly.  This test pins the contract: a BOM-prefixed header
+        // must still resolve `file_path` as the first column.
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+        let csv_path = dir.path().join("bom.csv");
+        let mut f = std::fs::File::create(&csv_path).unwrap();
+        f.write_all(b"\xEF\xBB\xBF").unwrap();
+        writeln!(f, "file_path,sha256_hash").unwrap();
+        writeln!(f, "/tmp/dummy.jpg,abc123").unwrap();
+        drop(f);
+
+        let mut rdr = csv::ReaderBuilder::new()
+            .has_headers(true)
+            .flexible(true)
+            .from_path(&csv_path)
+            .unwrap();
+        let headers = rdr.headers().unwrap().clone();
+        let file_path_idx = headers.iter().position(|h| {
+            h.trim().eq_ignore_ascii_case("file_path") || h.trim().eq_ignore_ascii_case("File Path")
+        });
+        assert!(
+            file_path_idx.is_some(),
+            "csv crate must strip UTF-8 BOM and recognise file_path column. \
+             Headers were: {:?}",
+            headers.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(file_path_idx, Some(0));
+    }
+
+    #[test]
+    fn csv_import_handles_quoted_field_with_embedded_comma() {
+        // QA EDGE-3 (30 April 2026 final QA pass): RFC 4180 quoting must
+        // not interact badly with `flexible(true)`.  A row with a quoted
+        // file_path containing a comma must parse as a single field, not
+        // shift columns and drop the path.
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+        let csv_path = dir.path().join("quoted.csv");
+        let mut f = std::fs::File::create(&csv_path).unwrap();
+        writeln!(f, "file_path,sha256_hash").unwrap();
+        writeln!(f, "\"/tmp/foo, bar.jpg\",abc123").unwrap();
+        drop(f);
+
+        let mut rdr = csv::ReaderBuilder::new()
+            .has_headers(true)
+            .flexible(true)
+            .from_path(&csv_path)
+            .unwrap();
+        let record = rdr.records().next().unwrap().unwrap();
+        assert_eq!(
+            record.get(0),
+            Some("/tmp/foo, bar.jpg"),
+            "RFC 4180 quoted comma must not split the field"
+        );
+        assert_eq!(record.get(1), Some("abc123"));
+    }
+
+    #[test]
     fn csv_import_canonicalisation_rejects_traversal() {
         // The `..` traversal sequence canonicalises into a real path on
         // the filesystem; the safety net is the regular-file + symlink

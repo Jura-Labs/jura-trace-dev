@@ -2187,6 +2187,77 @@ mod tests {
     }
 
     #[test]
+    fn vacuum_into_round_trip_with_post_restore_audit_entry() {
+        // QA GAP-1 (30 April 2026 final QA pass): the `backup_restored`
+        // audit entry append in the restore command had zero coverage.
+        // Simulates the full round-trip at the db.rs layer:
+        //   1. Seed DB → snapshot via VACUUM INTO
+        //   2. Reopen the snapshot (proxy for restore — the file is now
+        //      the destination DB after the file copy step)
+        //   3. Append a `backup_restored` audit entry on the restored DB
+        //   4. Confirm the chain still validates AND the new entry is
+        //      present as the most-recent row.
+        let dir = tempfile::tempdir().unwrap();
+        let src_path = dir.path().join("source.db");
+        let snap_path = dir.path().join("snapshot.sqlite");
+
+        let src = Database::open(&src_path).unwrap();
+        src.insert_asset(&make_asset(
+            "rt-asset-1",
+            "rt-test.jpg",
+            "2026-04-30T10:00:00Z",
+        ))
+        .unwrap();
+        src.log_action("import", "asset", "rt-asset-1", None, None, None)
+            .unwrap();
+        src.log_action("verify", "asset", "rt-asset-1", None, None, None)
+            .unwrap();
+
+        src.vacuum_into(&snap_path).unwrap();
+
+        // Reopen the snapshot — represents the restored DB after the
+        // file-copy step in `restore_database`.
+        let restored = Database::open(&snap_path).unwrap();
+        assert!(
+            restored.verify_audit_chain().unwrap(),
+            "Snapshot's audit chain must validate before any post-restore append"
+        );
+
+        restored
+            .log_action(
+                "backup_restored",
+                "database",
+                &snap_path.to_string_lossy(),
+                Some("snapshot restored in test"),
+                None,
+                Some("snapshot_schema=7"),
+            )
+            .unwrap();
+
+        assert!(
+            restored.verify_audit_chain().unwrap(),
+            "Audit chain must remain valid after backup_restored append"
+        );
+
+        // The new entry must be the last one in the chain.
+        let conn = restored
+            .conn
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let last_action: String = conn
+            .query_row(
+                "SELECT action FROM audit_log ORDER BY rowid DESC LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            last_action, "backup_restored",
+            "Most recent audit entry must be `backup_restored`"
+        );
+    }
+
+    #[test]
     fn vacuum_into_preserves_audit_chain_integrity() {
         // The chain-of-custody guarantee that survives backup/restore.
         let dir = tempfile::tempdir().unwrap();

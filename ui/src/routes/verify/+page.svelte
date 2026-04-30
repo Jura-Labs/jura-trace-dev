@@ -1586,6 +1586,16 @@
                 {#if fileName}
                   <p class="text-xs text-flint-dark dark:text-flint-light">{fileName}</p>
                 {/if}
+                <!-- Power-saver disclosure shown immediately (not after 5 s) so a
+                     respawn pause is recognisable as expected behaviour from the
+                     start of the verify, not 5 s in.  Persona-testing 30 April
+                     2026 flagged the silent first 5 s as a crash-look that
+                     drives force-quits during respawn. -->
+                {#if powerSaverEnabled && analysisElapsed < 5}
+                  <p class="text-xs text-flint-dark dark:text-flint-light max-w-xs text-center">
+                    Power-saver mode is on. If the engine was idle, the first verification may take an extra 30–90 seconds.
+                  </p>
+                {/if}
                 {#if analysisElapsed > 2}
                   <p class="text-xs text-flint-dark dark:text-flint-light tabular-nums">{analysisElapsed}s elapsed</p>
                 {/if}
@@ -2477,19 +2487,24 @@
                 </li>
               {/if}
 
-              <!-- Platform Fingerprint -->
+              <!-- Platform Fingerprint — informational-only provenance disclosure.
+                   Renders in neutral flint regardless of detection state to avoid
+                   amber-as-caution misread (persona-testing 30 April 2026: 6/10
+                   B2B personas read amber as a tampering flag).  Amber is reserved
+                   in this product for elevated concern; platform identification is
+                   provenance context, not a tampering signal. -->
               {#if result.platformFingerprintResult}
                 {@const pf = result.platformFingerprintResult}
-                <li class="px-5 py-4 {pf.detected ? 'bg-amber/[0.03]' : ''}">
+                <li class="px-5 py-4">
                   <div class="flex items-start gap-3">
-                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 {pf.detected ? 'text-amber-dark dark:text-amber-light' : 'text-flint-dark dark:text-flint-light'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 text-flint-dark dark:text-flint-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
                     </svg>
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2 mb-1 flex-wrap">
                         <span class="text-sm font-medium text-obsidian dark:text-quartz">Platform Fingerprint</span>
                         {#if pf.detected && pf.platform}
-                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-amber/15 text-amber-dark dark:text-amber-light border border-amber/30">
+                          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-gray-100 dark:bg-graphite-light text-obsidian dark:text-quartz border border-border-light dark:border-border-dark">
                             {pf.platform}
                           </span>
                           {#if pf.confidence != null}
@@ -2497,10 +2512,13 @@
                               {Math.round(pf.confidence * 100)}% confidence
                             </span>
                           {/if}
+                          <span class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-lapis/10 text-lapis dark:text-lapis-light border border-lapis/20">
+                            Informational
+                          </span>
                         {/if}
                       </div>
                       {#if pf.detected}
-                        <p class="text-xs text-amber-dark dark:text-amber-light leading-relaxed">{pf.summary}</p>
+                        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">{pf.summary}</p>
                       {:else}
                         <p class="text-xs text-flint-dark dark:text-flint-light">No social media processing detected.</p>
                         {#if pf.summary && pf.summary !== 'No social media processing detected.'}
