@@ -28,57 +28,17 @@ export interface VerifySession {
 }
 
 /**
- * Strip large base64 heatmap strings and block-variance arrays from a
- * VerificationResult before persisting to sessionStorage.  This reduces
- * the stored payload from ~3-5 MB (deep mode) to under 50 KB while
- * keeping all scores, flags, and text fields intact.  Heatmaps are
- * re-generated from the live result object when the user navigates back.
+ * Strip block-variance arrays from a VerificationResult before persisting to
+ * sessionStorage. Heatmap images are now file paths (not base64 blobs) so they
+ * are cheap to store — only the large numeric arrays need stripping.
  */
 function stripHeatmapsForStorage(result: VerificationResult): VerificationResult {
-  // Shallow-clone the top level, then null out heavy fields on nested objects.
-  // We only touch fields that are known large binary payloads — scores, flags,
-  // text fields, and structural metadata are all preserved.
   const r = { ...result };
 
-  // ELA heatmap
-  if (r.elaResult) {
-    r.elaResult = { ...r.elaResult, elaImageBase64: null as unknown as string };
-  }
-  // Noise heatmap + block variances
+  // Block variances are the only remaining large array; all heatmap data is now
+  // stored on disk and referenced by path so no further stripping is needed.
   if (r.noiseResult) {
-    r.noiseResult = { ...r.noiseResult, heatmapBase64: null as unknown as string, blockVariances: [] };
-  }
-  // Copy-move visualisation
-  if (r.copyMoveResult) {
-    r.copyMoveResult = { ...r.copyMoveResult, visualisationBase64: null as unknown as string };
-  }
-  // Deepfake heatmap
-  if (r.deepfakeResult) {
-    r.deepfakeResult = { ...r.deepfakeResult, heatmapBase64: null as unknown as string };
-  }
-  // NPR heatmap
-  if (r.nprResult) {
-    r.nprResult = { ...r.nprResult, heatmapBase64: null as unknown as string };
-  }
-  // JPEG Ghost heatmap
-  if (r.jpegGhostResult) {
-    r.jpegGhostResult = { ...r.jpegGhostResult, heatmapBase64: null as unknown as string };
-  }
-  // Segmented ELA heatmap
-  if (r.segmentedElaResult) {
-    r.segmentedElaResult = { ...r.segmentedElaResult, heatmapBase64: null as unknown as string };
-  }
-  // Shadow consistency heatmap
-  if (r.shadowConsistencyResult) {
-    r.shadowConsistencyResult = { ...r.shadowConsistencyResult, heatmapBase64: null as unknown as string };
-  }
-  // Colour temperature heatmap
-  if (r.colourTemperatureResult) {
-    r.colourTemperatureResult = { ...r.colourTemperatureResult, heatmapBase64: null as unknown as string };
-  }
-  // Splice boundary heatmap
-  if (r.spliceBoundaryResult) {
-    r.spliceBoundaryResult = { ...r.spliceBoundaryResult, heatmapBase64: null as unknown as string };
+    r.noiseResult = { ...r.noiseResult, blockVariances: [] };
   }
 
   return r;

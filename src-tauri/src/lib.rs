@@ -13,6 +13,7 @@ mod exif_anomaly;
 mod filename_analysis;
 mod fingerprint;
 mod format_router;
+mod heatmap;
 mod metadata;
 mod monitor_scheduler;
 mod network_mode;
@@ -408,6 +409,10 @@ pub struct AppState {
     /// `None` before the scheduler has been started.  Used in the
     /// `RunEvent::Exit` handler to cleanly stop the task.
     pub scheduler_handle: Option<monitor_scheduler::SchedulerHandle>,
+    /// UUID of the most recent verify session whose heatmap files are still
+    /// on disk. Cleared when a new session starts (the previous session dir
+    /// is deleted before writing new files).
+    pub last_heatmap_session: Option<String>,
 }
 
 /// Compute the SHA-256 hash of a file, returning a lowercase hex string.
@@ -2750,6 +2755,97 @@ fn verify_content_inner(
     })
 }
 
+/// Write all heatmap images from a `VerificationResult` to disk under
+/// `$APPCACHE/heatmaps/<session_id>/` and populate the corresponding `*_url`
+/// fields.
+///
+/// Cleans up the *previous* session directory first so that each verify run
+/// releases the prior session's files. The new session ID is returned so the
+/// caller can persist it in `AppState::last_heatmap_session`.
+///
+/// On any failure to resolve the cache dir, logs a warning and returns without
+/// writing — the URL fields remain empty strings and the frontend falls back
+/// gracefully (no image shown).
+fn apply_heatmaps_to_result(
+    result: &mut VerificationResult,
+    app: &tauri::AppHandle,
+    state: &Arc<Mutex<AppState>>,
+) -> Option<String> {
+    let cache_dir = match app.path().app_cache_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            log::warn!("Cannot resolve app cache dir for heatmaps: {e}");
+            return None;
+        }
+    };
+
+    // Evict the previous session's files before writing the new ones.
+    if let Ok(mut guard) = state.lock() {
+        if let Some(ref prev_id) = guard.last_heatmap_session.clone() {
+            heatmap::clear_heatmap_session(&cache_dir, prev_id);
+        }
+        // Clear now; we'll set the new ID after writing.
+        guard.last_heatmap_session = None;
+    }
+
+    let session_id = uuid::Uuid::new_v4().to_string();
+    let writer = match heatmap::HeatmapWriter::new(&cache_dir, &session_id) {
+        Ok(w) => w,
+        Err(e) => {
+            log::warn!("Failed to create heatmap session dir: {e}");
+            return None;
+        }
+    };
+
+    if let Some(ref mut ela) = result.ela_result {
+        writer.apply_ela(ela);
+    }
+    if let Some(ref mut noise) = result.noise_result {
+        writer.apply_noise(noise);
+    }
+    if let Some(ref mut cm) = result.copy_move_result {
+        writer.apply_copy_move(cm);
+    }
+    if let Some(ref mut df) = result.deepfake_result {
+        writer.apply_deepfake(df);
+    }
+    if let Some(ref mut npr) = result.npr_result {
+        writer.apply_npr(npr);
+    }
+    if let Some(ref mut jg) = result.jpeg_ghost_result {
+        writer.apply_jpeg_ghost(jg);
+    }
+    if let Some(ref mut sela) = result.segmented_ela_result {
+        writer.apply_segmented_ela(sela);
+    }
+    if let Some(ref mut shad) = result.shadow_consistency_result {
+        writer.apply_shadow_consistency(shad);
+    }
+    if let Some(ref mut ct) = result.colour_temperature_result {
+        writer.apply_colour_temperature(ct);
+    }
+    if let Some(ref mut sb) = result.splice_boundary_result {
+        writer.apply_splice_boundary(sb);
+    }
+    if let Some(ref mut dct) = result.dct_analysis_result {
+        writer.apply_dct(dct);
+    }
+    if let Some(ref mut fou) = result.fourier_analysis_result {
+        writer.apply_fourier(fou);
+    }
+    if let Some(ref mut vdf) = result.video_deepfake_result {
+        writer.apply_video_deepfake(vdf);
+    }
+
+    // Persist the new session ID.
+    if let Ok(mut guard) = state.lock() {
+        guard.last_heatmap_session = Some(session_id.clone());
+    }
+
+    log::debug!("Heatmaps written to session {session_id}");
+    Some(session_id)
+}
+
 /// Verify a file through the VERIFY pipeline.
 ///
 /// `mode` is `"fast"` (EXIF + C2PA only, <5 s) or `"deep"` (full pipeline,
@@ -2759,15 +2855,18 @@ fn verify_content(
     source: String,
     source_type: String,
     mode: Option<String>,
+    app: tauri::AppHandle,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<VerificationResult, AppError> {
     log::info!("Verifying content: {source} ({source_type}) [mode={mode:?}]");
-    verify_content_inner(
+    let mut result = verify_content_inner(
         &source,
         &source_type,
         mode.as_deref(),
         state.inner().as_ref(),
-    )
+    )?;
+    apply_heatmaps_to_result(&mut result, &app, state.inner());
+    Ok(result)
 }
 
 /// Verify a URL — shared inner body used by both the Tauri command and the API.
@@ -3219,6 +3318,7 @@ fn get_recent_assets(
 fn verify_url(
     url: String,
     mode: Option<String>,
+    app: tauri::AppHandle,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<VerificationResult, AppError> {
     // Redact query string and fragment before logging — URLs may contain
@@ -3348,6 +3448,7 @@ fn verify_url(
     let mut result =
         verify_content_inner(&temp_str, "url", mode.as_deref(), state.inner().as_ref())?;
     result.source_type = "url".to_string();
+    apply_heatmaps_to_result(&mut result, &app, state.inner());
 
     Ok(result)
 }
@@ -3432,6 +3533,7 @@ fn analyse_video_deepfake(
 #[tauri::command]
 fn run_npr_on_demand(
     file_path: String,
+    app_handle: tauri::AppHandle,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<sidecar::NprResult, AppError> {
     if file_path.contains('\0') {
@@ -3441,20 +3543,37 @@ fn run_npr_on_demand(
         .canonicalize()
         .map_err(|_| AppError::Validation("File not found or inaccessible".into()))?;
 
-    let app = state
-        .lock()
-        .map_err(|_| AppError::Internal("State lock failed".into()))?;
-    if !app.sidecar.is_available() {
-        return Err(AppError::Sidecar("ML sidecar is not available".into()));
+    let mut result = {
+        let app = state
+            .lock()
+            .map_err(|_| AppError::Internal("State lock failed".into()))?;
+        if !app.sidecar.is_available() {
+            return Err(AppError::Sidecar("ML sidecar is not available".into()));
+        }
+        app.sidecar.analyse_npr(&path).map_err(AppError::Sidecar)?
+    };
+
+    if let Ok(cache_dir) = app_handle.path().app_cache_dir() {
+        // On-demand NPR shares the current verify session dir if one exists;
+        // otherwise a fresh session dir is created so the file is served.
+        let session_id = state
+            .lock()
+            .ok()
+            .and_then(|g| g.last_heatmap_session.clone())
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        if let Ok(writer) = heatmap::HeatmapWriter::new(&cache_dir, &session_id) {
+            writer.apply_npr(&mut result);
+        }
     }
 
-    app.sidecar.analyse_npr(&path).map_err(AppError::Sidecar)
+    Ok(result)
 }
 
 /// Run shadow consistency analysis on demand.
 #[tauri::command]
 fn run_shadow_consistency_on_demand(
     file_path: String,
+    app_handle: tauri::AppHandle,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<sidecar::ShadowConsistencyResult, AppError> {
     if file_path.contains('\0') {
@@ -3464,22 +3583,37 @@ fn run_shadow_consistency_on_demand(
         .canonicalize()
         .map_err(|_| AppError::Validation("File not found or inaccessible".into()))?;
 
-    let app = state
-        .lock()
-        .map_err(|_| AppError::Internal("State lock failed".into()))?;
-    if !app.sidecar.is_available() {
-        return Err(AppError::Sidecar("ML sidecar is not available".into()));
+    let mut result = {
+        let app = state
+            .lock()
+            .map_err(|_| AppError::Internal("State lock failed".into()))?;
+        if !app.sidecar.is_available() {
+            return Err(AppError::Sidecar("ML sidecar is not available".into()));
+        }
+        app.sidecar
+            .check_shadow_consistency(&path)
+            .map_err(AppError::Sidecar)?
+    };
+
+    if let Ok(cache_dir) = app_handle.path().app_cache_dir() {
+        let session_id = state
+            .lock()
+            .ok()
+            .and_then(|g| g.last_heatmap_session.clone())
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        if let Ok(writer) = heatmap::HeatmapWriter::new(&cache_dir, &session_id) {
+            writer.apply_shadow_consistency(&mut result);
+        }
     }
 
-    app.sidecar
-        .check_shadow_consistency(&path)
-        .map_err(AppError::Sidecar)
+    Ok(result)
 }
 
 /// Run splice boundary analysis on demand.
 #[tauri::command]
 fn run_splice_boundary_on_demand(
     file_path: String,
+    app_handle: tauri::AppHandle,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<sidecar::SpliceBoundaryResult, AppError> {
     if file_path.contains('\0') {
@@ -3489,16 +3623,30 @@ fn run_splice_boundary_on_demand(
         .canonicalize()
         .map_err(|_| AppError::Validation("File not found or inaccessible".into()))?;
 
-    let app = state
-        .lock()
-        .map_err(|_| AppError::Internal("State lock failed".into()))?;
-    if !app.sidecar.is_available() {
-        return Err(AppError::Sidecar("ML sidecar is not available".into()));
+    let mut result = {
+        let app = state
+            .lock()
+            .map_err(|_| AppError::Internal("State lock failed".into()))?;
+        if !app.sidecar.is_available() {
+            return Err(AppError::Sidecar("ML sidecar is not available".into()));
+        }
+        app.sidecar
+            .check_splice_boundary(&path)
+            .map_err(AppError::Sidecar)?
+    };
+
+    if let Ok(cache_dir) = app_handle.path().app_cache_dir() {
+        let session_id = state
+            .lock()
+            .ok()
+            .and_then(|g| g.last_heatmap_session.clone())
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        if let Ok(writer) = heatmap::HeatmapWriter::new(&cache_dir, &session_id) {
+            writer.apply_splice_boundary(&mut result);
+        }
     }
 
-    app.sidecar
-        .check_splice_boundary(&path)
-        .map_err(AppError::Sidecar)
+    Ok(result)
 }
 
 /// Extract and transcribe all visible text from an image using Ollama LLaVA.
@@ -5102,6 +5250,7 @@ pub fn run() {
                 classifier_model_hash: classifier_hash,
                 ai_description_enabled,
                 scheduler_handle: None,
+                last_heatmap_session: None,
             }));
 
             // ── Register managed state FIRST ─────────────────────────────────
@@ -5275,6 +5424,11 @@ pub fn run() {
                             }
                         }
                     }
+                }
+                // Remove all heatmap session directories from the cache dir.
+                if let Ok(cache_dir) = app.path().app_cache_dir() {
+                    heatmap::clear_all_heatmap_sessions(&cache_dir);
+                    log::info!("Heatmap session directories cleared on app exit");
                 }
             }
         });

@@ -40,10 +40,6 @@ invisible-watermark==0.2.0
 # CLIP-based AI image detection (optional — graceful degradation if absent)
 open-clip-torch==3.3.0
 
-# RAG pipeline (Phase 2, Weeks 19-20)
-chromadb==0.5.23
-sentence-transformers==3.4.1
-
 # Audio/video transcription (optional — graceful degradation if absent)
 # faster-whisper>=1.0.0
 

@@ -1242,7 +1242,7 @@ export async function runNprOnDemand(filePath: string): Promise<NprResult> {
     hvCorrelation: 0.91,
     diffVarianceRatio: 0.6,
     hfEnergyRatio: 0.4,
-    heatmapBase64: '',
+    heatmapUrl: '',
     summary: 'Browser preview — no analysis run.',
   };
 }
@@ -1262,7 +1262,7 @@ export async function runShadowConsistencyOnDemand(
     inconsistentRegions: 0,
     totalRegions: 12,
     globalLightDirection: 90.0,
-    heatmapBase64: '',
+    heatmapUrl: '',
     summary: 'Browser preview — no analysis run.',
   } as ShadowConsistencyResult;
 }
@@ -1282,7 +1282,7 @@ export async function runSpliceBoundaryOnDemand(
     suspiciousBoundaries: 0,
     totalBoundariesChecked: 0,
     boundaries: [],
-    heatmapBase64: '',
+    heatmapUrl: '',
     summary: 'Browser preview — no analysis run.',
   } as SpliceBoundaryResult;
 }

@@ -97,18 +97,37 @@ export async function exportCaseZip(
   zip.file('methodology.txt', methodology);
 
   // ── heatmaps/ ───────────────────────────────────────────────
-  const heatmaps: { name: string; data?: string }[] = [
-    { name: 'ela.png', data: result.elaResult?.elaImageBase64 },
-    { name: 'noise.png', data: result.noiseResult?.heatmapBase64 },
-    { name: 'copy_move.png', data: result.copyMoveResult?.visualisationBase64 },
-    { name: 'deepfake.png', data: result.deepfakeResult?.heatmapBase64 },
+  // Heatmaps are now stored on disk and referenced by file path.
+  // Fetch each file via Tauri's asset protocol so JSZip can include the bytes.
+  const heatmapPaths: { name: string; path?: string | null }[] = [
+    { name: 'ela.png', path: result.elaResult?.elaImageUrl },
+    { name: 'noise.png', path: result.noiseResult?.heatmapUrl },
+    { name: 'copy_move.png', path: result.copyMoveResult?.visualisationUrl },
+    { name: 'deepfake.png', path: result.deepfakeResult?.heatmapUrl },
   ];
 
   const heatmapFolder = zip.folder('heatmaps');
-  for (const hm of heatmaps) {
-    if (!hm.data || !heatmapFolder) continue;
-    // Decode base64 to binary
-    heatmapFolder.file(hm.name, hm.data, { base64: true });
+  if (heatmapFolder) {
+    let convertFileSrc: ((path: string) => string) | null = null;
+    try {
+      const mod = await import('@tauri-apps/api/core');
+      convertFileSrc = mod.convertFileSrc;
+    } catch {
+      // Not in Tauri context — heatmaps will be skipped
+    }
+
+    for (const hm of heatmapPaths) {
+      if (!hm.path || !convertFileSrc) continue;
+      try {
+        const resp = await fetch(convertFileSrc(hm.path));
+        if (resp.ok) {
+          const bytes = await resp.arrayBuffer();
+          heatmapFolder.file(hm.name, bytes);
+        }
+      } catch {
+        // File fetch failed — skip this heatmap silently
+      }
+    }
   }
 
   // ── detectors-run.json ──────────────────────────────────────

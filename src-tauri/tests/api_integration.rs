@@ -39,6 +39,7 @@ fn build_test_state() -> (Arc<Mutex<AppState>>, tempfile::TempDir) {
         classifier_model_hash: None,
         ai_description_enabled: None,
         scheduler_handle: None,
+        last_heatmap_session: None,
     };
 
     (Arc::new(Mutex::new(state)), dir)
@@ -782,6 +783,60 @@ async fn test_batch_verify_no_files() {
         .expect("request");
 
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+/// Test 16: Verify endpoint streams the multipart upload to a tempfile rather
+/// than buffering the whole body in memory.  A valid PNG posted to
+/// `POST /api/v1/verify` must reach the verification pipeline and return
+/// a 200 with a JSON body — confirming the streaming fix (Fix 6) does not
+/// regress the happy path.
+#[tokio::test]
+async fn test_verify_file_streaming_returns_200() {
+    let state = build_test_state_async().await;
+    let bootstrap_raw = insert_bootstrap_key(state.clone()).await;
+    let auth = format!("jt_{bootstrap_raw}");
+
+    let (listener, _) = bind_random_port();
+    let base_url = start_test_server(state, listener).await;
+
+    let client = reqwest::Client::new();
+    let form = reqwest::multipart::Form::new().text("mode", "quick").part(
+        "file",
+        reqwest::multipart::Part::bytes(minimal_png())
+            .file_name("test.png")
+            .mime_str("image/png")
+            .unwrap(),
+    );
+
+    let resp = client
+        .post(format!("{base_url}/api/v1/verify"))
+        .header("Authorization", format!("Bearer {auth}"))
+        .multipart(form)
+        .send()
+        .await
+        .expect("request");
+
+    // The sidecar is not available in CI, so we accept either 200 (full result)
+    // or a degraded 200 — the key assertion is that the streaming rewrite does
+    // not break the multipart parse or temp-file routing.
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "verify should return 200 for a valid PNG upload"
+    );
+
+    let body: Value = resp.json().await.expect("json body");
+    // Top-level envelope fields (same shape as test_verify_file_upload).
+    assert_eq!(body["apiVersion"], "1.0", "apiVersion must be 1.0");
+    assert!(
+        body["degraded"].is_boolean(),
+        "degraded field must be present"
+    );
+    // Verify the routing reached the pipeline: overallTrust must be present.
+    assert!(
+        body["data"]["overallTrust"].is_number(),
+        "overallTrust must be present — streaming fix must not break pipeline routing"
+    );
 }
 
 // ── Test image helper ─────────────────────────────────────────────────────────

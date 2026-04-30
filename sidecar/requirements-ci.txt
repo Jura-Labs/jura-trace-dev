@@ -1,5 +1,5 @@
 # CI-safe requirements — excludes heavy optional dependencies
-# open-clip-torch (~2 GB PyTorch), faster-whisper, chromadb, sentence-transformers
+# open-clip-torch (~2 GB PyTorch), faster-whisper
 # All excluded packages are lazy-loaded at runtime and degrade gracefully
 #
 # Transitive dependencies are pinned explicitly to prevent version

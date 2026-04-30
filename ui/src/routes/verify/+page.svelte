@@ -821,6 +821,35 @@
     previewKind(fileName, result?.contentType)
   );
 
+  /**
+   * Convert an on-disk heatmap path to an asset:// URL that the webview can
+   * load.  Falls back to passing the value through as-is so data: URLs and
+   * empty strings are never broken.
+   */
+  function heatmapSrc(pathOrUrl: string | null | undefined): string {
+    if (!pathOrUrl) return '';
+    if (pathOrUrl.startsWith('data:') || pathOrUrl.startsWith('http') || pathOrUrl.startsWith('asset:')) {
+      return pathOrUrl;
+    }
+    try {
+      // convertFileSrc is synchronous once the module is loaded.  In the
+      // browser mock environment the import will throw, so we guard here.
+      const { convertFileSrc } = (window as any).__tauriCore__ ??
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        { convertFileSrc: (p: string) => p };
+      return convertFileSrc(pathOrUrl);
+    } catch {
+      return pathOrUrl;
+    }
+  }
+
+  // Pre-load convertFileSrc so heatmapSrc() can call it synchronously.
+  let _convertFileSrc: ((path: string) => string) | null = null;
+  import('@tauri-apps/api/core').then(({ convertFileSrc }) => {
+    _convertFileSrc = convertFileSrc;
+    (window as any).__tauriCore__ = { convertFileSrc };
+  }).catch(() => {});
+
   // ── Playwright test hook ───────────────────────────────────────────
   if (typeof window !== 'undefined' && import.meta.env.DEV) {
     (window as any).__juraSetVerifyResult = (data: VerificationResult) => {
@@ -3217,10 +3246,10 @@
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {ela.score.toFixed(4)} · threshold: {(ela as any).threshold?.toFixed(4) ?? '—'}</span>
                     {/if}
                   {/snippet}
-                  {#if ela.elaImageBase64}
+                  {#if ela.elaImageUrl}
                     <div class="mt-2 ml-6">
                       <ImageZoom
-                        src="data:image/png;base64,{ela.elaImageBase64}"
+                        src={heatmapSrc(ela.elaImageUrl)}
                         alt="ELA heatmap showing compression artefact distribution"
                         caption={ela.suspicious
                           ? 'Click to enlarge — bright regions indicate higher compression-error mismatch'
@@ -3268,13 +3297,13 @@
                   {/snippet}
                   {#if cm.suspicious && cm.cloneRegions.length > 0}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{cm.cloneRegions.length} cloned region{cm.cloneRegions.length === 1 ? '' : 's'} detected</p>
-                  {:else if cm.visualisationBase64}
+                  {:else if cm.visualisationUrl}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">No cloned regions detected.</p>
                   {/if}
-                  {#if cm.visualisationBase64}
+                  {#if cm.visualisationUrl}
                     <div class="mt-2 ml-6">
                       <ImageZoom
-                        src="data:image/png;base64,{cm.visualisationBase64}"
+                        src={heatmapSrc(cm.visualisationUrl)}
                         alt={cm.suspicious
                           ? 'Copy-move detection visualisation showing cloned regions'
                           : 'Copy-move analysis — no cloned regions detected'}
@@ -3304,10 +3333,10 @@
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">score: {jg.score.toFixed(4)} · weight: 0.5×</span>
                     {/if}
                   {/snippet}
-                  {#if (jg as any).ghostImageBase64}
+                  {#if jg.heatmapUrl}
                     <div class="mt-2 ml-6">
                       <ImageZoom
-                        src="data:image/png;base64,{(jg as any).ghostImageBase64}"
+                        src={heatmapSrc(jg.heatmapUrl)}
                         alt="JPEG Ghost heatmap showing re-compression artefact regions"
                         caption={jg.suspicious
                           ? 'Click to enlarge — dark regions deviate from the dominant compression history'
@@ -3337,10 +3366,10 @@
                       {sela.anomalousRegions} of {sela.totalRegions} image blocks show unusual compression — see <span aria-hidden="true">?</span> for what this means.
                     </p>
                   {/if}
-                  {#if (sela as any).visualizationBase64}
+                  {#if sela.heatmapUrl}
                     <div class="mt-2 ml-6">
                       <ImageZoom
-                        src="data:image/png;base64,{(sela as any).visualizationBase64}"
+                        src={heatmapSrc(sela.heatmapUrl)}
                         alt="Segmented ELA region heatmap"
                         caption={sela.suspicious
                           ? 'Click to enlarge — flagged blocks show locally anomalous compression error'
@@ -3368,10 +3397,10 @@
                   {#if ct.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{ct.anomalousRegions} of {ct.totalRegions} regions flagged</p>
                   {/if}
-                  {#if ct.heatmapBase64}
+                  {#if ct.heatmapUrl}
                     <div class="mt-2 ml-6">
                       <ImageZoom
-                        src={blobs.url(ct.heatmapBase64, 'image/png')}
+                        src={heatmapSrc(ct.heatmapUrl)}
                         alt="Colour temperature heatmap showing regions deviating from the global colour balance"
                         caption={ct.suspicious
                           ? 'Click to enlarge — flagged regions deviate in colour balance from the global average'
@@ -3406,10 +3435,10 @@
                   {#if sh.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{sh.inconsistentRegions} of {sh.totalRegions} regions inconsistent · global light {sh.globalLightDirection.toFixed(0)}&deg;</p>
                   {/if}
-                  {#if sh.heatmapBase64}
+                  {#if sh.heatmapUrl}
                     <div class="mt-2 ml-6">
                       <ImageZoom
-                        src={blobs.url(sh.heatmapBase64, 'image/png')}
+                        src={heatmapSrc(sh.heatmapUrl)}
                         alt="Shadow consistency heatmap showing regions with inconsistent light direction"
                         caption={sh.suspicious
                           ? 'Click to enlarge — flagged regions cast shadows inconsistent with the global light direction'
@@ -3438,10 +3467,10 @@
                   {#if sb.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{sb.suspiciousBoundaries} of {sb.totalBoundariesChecked} boundaries flagged</p>
                   {/if}
-                  {#if sb.heatmapBase64}
+                  {#if sb.heatmapUrl}
                     <div class="mt-2 ml-6">
                       <ImageZoom
-                        src={blobs.url(sb.heatmapBase64, 'image/png')}
+                        src={heatmapSrc(sb.heatmapUrl)}
                         alt="Splice boundary heatmap showing candidate cut edges between composited regions"
                         caption={sb.suspicious
                           ? 'Click to enlarge — bright lines mark candidate composite-edge boundaries'
@@ -3495,10 +3524,10 @@
                   {#if npr.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{npr.summary}</p>
                   {/if}
-                  {#if npr.heatmapBase64}
+                  {#if npr.heatmapUrl}
                     <div class="mt-2 ml-6">
                       <ImageZoom
-                        src={blobs.url(npr.heatmapBase64, 'image/png')}
+                        src={heatmapSrc(npr.heatmapUrl)}
                         alt="Neighbouring pixel relationship heatmap showing local correlation anomalies"
                         caption={npr.suspicious
                           ? 'Click to enlarge — anomalies indicate atypical local pixel correlations versus natural images'
@@ -3537,10 +3566,10 @@
                   {#if dct.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{dct.summary}</p>
                   {/if}
-                  {#if dct.heatmapBase64}
+                  {#if dct.heatmapUrl}
                     <div class="mt-2 ml-6">
                       <ImageZoom
-                        src="data:image/png;base64,{dct.heatmapBase64}"
+                        src={heatmapSrc(dct.heatmapUrl)}
                         alt="DCT coefficient energy heatmap showing per-block AC distribution"
                         caption={dct.suspicious
                           ? 'Click to enlarge — uneven AC energy across JPEG blocks'
@@ -3579,10 +3608,10 @@
                   {#if fou.suspicious}
                     <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{fou.summary}</p>
                   {/if}
-                  {#if fou.spectrumBase64}
+                  {#if fou.spectrumUrl}
                     <div class="mt-2 ml-6">
                       <ImageZoom
-                        src="data:image/png;base64,{fou.spectrumBase64}"
+                        src={heatmapSrc(fou.spectrumUrl)}
                         alt="Fourier spectrum showing log-magnitude FFT with detected periodic peaks"
                         caption={fou.suspicious
                           ? 'Click to enlarge — periodic peaks reveal regular structures (e.g. demosaicing or upscaling artefacts)'
@@ -3997,10 +4026,10 @@
                                older sidecar builds and any frame whose
                                thumbnail generation failed still render
                                cleanly. -->
-                          {#if fr.frameImageBase64}
+                          {#if fr.frameImageUrl}
                             <div class="aspect-video">
                               <img
-                                src="data:image/jpeg;base64,{fr.frameImageBase64}"
+                                src={heatmapSrc(fr.frameImageUrl)}
                                 alt="Thumbnail of frame {fr.frameIndex + 1} at {fr.timestamp.toFixed(1)} seconds"
                                 class="w-full h-full object-cover block"
                                 loading="lazy"
@@ -4054,9 +4083,9 @@
                               </div>
                             {/if}
 
-                            {#if fr.heatmapBase64}
+                            {#if fr.heatmapUrl}
                               <ImageZoom
-                                src={blobs.url(fr.heatmapBase64, 'image/png')}
+                                src={heatmapSrc(fr.heatmapUrl)}
                                 alt="Frequency-spectrum heatmap for frame {fr.frameIndex + 1}"
                                 caption="Click to enlarge — frequency-domain energy distribution for this frame"
                               />

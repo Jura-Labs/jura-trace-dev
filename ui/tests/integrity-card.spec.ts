@@ -100,6 +100,9 @@ function baseResult(): MockVerificationResult {
 const TINY_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/' +
   'lxKUAAAAASUVORK5CYII=';
+// data: URL form — used for *Url fields post-heatmap-RAM-fix so that the
+// template's {#if url} guard is truthy and heatmapSrc() passes it through.
+const TINY_PNG_DATA_URL = `data:image/png;base64,${TINY_PNG_BASE64}`;
 
 // All 11 detectors firing — used to verify every help icon exists,
 // every conditional caption renders the suspicious variant, and every
@@ -110,7 +113,7 @@ function allSuspiciousFixture(): MockVerificationResult {
   r.elaResult = {
     score: 0.74,
     suspicious: true,
-    elaImageBase64: TINY_PNG_BASE64,
+    elaImageUrl: TINY_PNG_DATA_URL,
     summary: 'Elevated compression error detected',
   };
   r.noiseResult = {
@@ -127,13 +130,13 @@ function allSuspiciousFixture(): MockVerificationResult {
       { x: 10, y: 10, width: 50, height: 50 },
       { x: 200, y: 100, width: 50, height: 50 },
     ],
-    visualisationBase64: TINY_PNG_BASE64,
+    visualisationUrl: TINY_PNG_DATA_URL,
     summary: 'Cloned regions found',
   };
   r.jpegGhostResult = {
     score: 0.48,
     suspicious: true,
-    ghostImageBase64: TINY_PNG_BASE64,
+    heatmapUrl: TINY_PNG_DATA_URL,
     summary: 'Mixed compression history',
   };
   r.segmentedElaResult = {
@@ -141,7 +144,7 @@ function allSuspiciousFixture(): MockVerificationResult {
     suspicious: true,
     anomalousRegions: 5,
     totalRegions: 64,
-    visualizationBase64: TINY_PNG_BASE64,
+    heatmapUrl: TINY_PNG_DATA_URL,
     summary: 'Localised compression anomaly',
   };
   r.colourTemperatureResult = {
@@ -151,7 +154,7 @@ function allSuspiciousFixture(): MockVerificationResult {
     totalRegions: 16,
     globalMeanA: 5.2,
     globalMeanB: -3.4,
-    heatmapBase64: TINY_PNG_BASE64,
+    heatmapUrl: TINY_PNG_DATA_URL,
     summary: 'Colour balance discontinuity',
   };
   r.shadowConsistencyResult = {
@@ -160,7 +163,7 @@ function allSuspiciousFixture(): MockVerificationResult {
     inconsistentRegions: 3,
     totalRegions: 12,
     globalLightDirection: 142.5,
-    heatmapBase64: TINY_PNG_BASE64,
+    heatmapUrl: TINY_PNG_DATA_URL,
     summary: 'Shadows inconsistent',
   };
   r.spliceBoundaryResult = {
@@ -171,7 +174,7 @@ function allSuspiciousFixture(): MockVerificationResult {
     boundaries: [
       { x: 100, y: 100, width: 80, height: 60, jpegGridAligned: true, noiseAsymmetric: true, featheringDetected: false, confidence: 0.72 },
     ],
-    heatmapBase64: TINY_PNG_BASE64,
+    heatmapUrl: TINY_PNG_DATA_URL,
     summary: 'Composite-edge candidates',
   };
   r.nprResult = {
@@ -180,7 +183,7 @@ function allSuspiciousFixture(): MockVerificationResult {
     hvCorrelation: 0.42,
     diffVarianceRatio: 1.8,
     hfEnergyRatio: 0.91,
-    heatmapBase64: TINY_PNG_BASE64,
+    heatmapUrl: TINY_PNG_DATA_URL,
     summary: 'Pixel correlations atypical',
   };
   r.dctAnalysisResult = {
@@ -190,14 +193,14 @@ function allSuspiciousFixture(): MockVerificationResult {
     dcStd: 12.3,
     acMean: 8.1,
     acStd: 5.8,
-    heatmapBase64: TINY_PNG_BASE64,
+    heatmapUrl: TINY_PNG_DATA_URL,
     summary: 'Mixed compression energy across blocks',
   };
   r.fourierAnalysisResult = {
     score: 0.52,
     suspicious: true,
     peakCount: 28,
-    spectrumBase64: TINY_PNG_BASE64,
+    spectrumUrl: TINY_PNG_DATA_URL,
     summary: 'Periodic spectral peaks',
   };
   return r;
@@ -211,7 +214,7 @@ function allCleanFixture(): MockVerificationResult {
   r.elaResult = {
     score: 0.05,
     suspicious: false,
-    elaImageBase64: TINY_PNG_BASE64,
+    elaImageUrl: TINY_PNG_DATA_URL,
     summary: 'No compression anomalies',
   };
   r.noiseResult = {
@@ -225,13 +228,13 @@ function allCleanFixture(): MockVerificationResult {
     score: 0,
     suspicious: false,
     cloneRegions: [],
-    visualisationBase64: TINY_PNG_BASE64,
+    visualisationUrl: TINY_PNG_DATA_URL,
     summary: 'No cloned regions',
   };
   r.jpegGhostResult = {
     score: 0,
     suspicious: false,
-    ghostImageBase64: TINY_PNG_BASE64,
+    heatmapUrl: TINY_PNG_DATA_URL,
     summary: 'Uniform compression history',
   };
   return r;
@@ -246,7 +249,7 @@ function pilotFishFixture(): MockVerificationResult {
   r.elaResult = {
     score: 0.18,
     suspicious: false,
-    elaImageBase64: TINY_PNG_BASE64,
+    elaImageUrl: TINY_PNG_DATA_URL,
     summary: 'No compression anomalies',
   };
   r.noiseResult = {
@@ -260,13 +263,13 @@ function pilotFishFixture(): MockVerificationResult {
     score: 0,
     suspicious: false,
     cloneRegions: [],
-    visualisationBase64: TINY_PNG_BASE64,
+    visualisationUrl: TINY_PNG_DATA_URL,
     summary: 'No cloned regions',
   };
   r.jpegGhostResult = {
     score: 0,
     suspicious: false,
-    ghostImageBase64: TINY_PNG_BASE64,
+    heatmapUrl: TINY_PNG_DATA_URL,
     summary: 'Uniform compression history',
   };
   r.segmentedElaResult = {
@@ -274,7 +277,7 @@ function pilotFishFixture(): MockVerificationResult {
     suspicious: true,
     anomalousRegions: 5,
     totalRegions: 64,
-    visualizationBase64: TINY_PNG_BASE64,
+    heatmapUrl: TINY_PNG_DATA_URL,
     summary: 'Localised compression anomaly',
   };
   r.colourTemperatureResult = {
@@ -284,7 +287,7 @@ function pilotFishFixture(): MockVerificationResult {
     totalRegions: 16,
     globalMeanA: 0.5,
     globalMeanB: 0.3,
-    heatmapBase64: TINY_PNG_BASE64,
+    heatmapUrl: TINY_PNG_DATA_URL,
     summary: 'Colour balance consistent',
   };
   return r;
@@ -554,7 +557,7 @@ test.describe('DetectorRow — prop-matrix', () => {
     fx.elaResult = {
       score: 0.78,
       suspicious: true,
-      elaImageBase64: TINY_PNG_BASE64,
+      elaImageUrl: TINY_PNG_DATA_URL,
       summary: 'Flagged',
     };
     await injectAndOpenIntegrityCard(page, fx);
@@ -573,7 +576,7 @@ test.describe('DetectorRow — prop-matrix', () => {
     fx.elaResult = {
       score: 0.05,
       suspicious: false,
-      elaImageBase64: TINY_PNG_BASE64,
+      elaImageUrl: TINY_PNG_DATA_URL,
       summary: 'Clean',
     };
     await injectAndOpenIntegrityCard(page, fx);
@@ -589,7 +592,7 @@ test.describe('DetectorRow — prop-matrix', () => {
     fx.jpegGhostResult = {
       score: 0.4,
       suspicious: false,
-      ghostImageBase64: TINY_PNG_BASE64,
+      heatmapUrl: TINY_PNG_DATA_URL,
       summary: '',
     };
     await injectAndOpenIntegrityCard(page, fx);
@@ -612,7 +615,7 @@ test.describe('DetectorRow — prop-matrix', () => {
       hvCorrelation: 0.5,
       diffVarianceRatio: 1.0,
       hfEnergyRatio: 0.5,
-      heatmapBase64: TINY_PNG_BASE64,
+      heatmapUrl: TINY_PNG_DATA_URL,
       summary: '',
     };
     await injectAndOpenIntegrityCard(page, fx);
@@ -631,7 +634,7 @@ test.describe('DetectorRow — prop-matrix', () => {
       dcStd: 1.0,
       acMean: 1.0,
       acStd: 1.0,
-      heatmapBase64: TINY_PNG_BASE64,
+      heatmapUrl: TINY_PNG_DATA_URL,
       summary: '',
     };
     await injectAndOpenIntegrityCard(page, fx);
@@ -667,7 +670,7 @@ test.describe('DetectorRow — prop-matrix', () => {
     fx.elaResult = {
       score: 0.4,
       suspicious: false,
-      elaImageBase64: TINY_PNG_BASE64,
+      elaImageUrl: TINY_PNG_DATA_URL,
       summary: 'Test',
     };
     await injectAndOpenIntegrityCard(page, fx);
@@ -688,7 +691,7 @@ test.describe('DetectorRow — prop-matrix', () => {
     fx.elaResult = {
       score: 0.4,
       suspicious: false,
-      elaImageBase64: TINY_PNG_BASE64,
+      elaImageUrl: TINY_PNG_DATA_URL,
       summary: 'Test',
     };
     await injectAndOpenIntegrityCard(page, fx);
@@ -708,7 +711,7 @@ test.describe('DetectorRow — prop-matrix', () => {
     fx.elaResult = {
       score: 0.1,
       suspicious: false,
-      elaImageBase64: TINY_PNG_BASE64,
+      elaImageUrl: TINY_PNG_DATA_URL,
       summary: '',
     };
     fx.noiseResult = {
@@ -722,7 +725,7 @@ test.describe('DetectorRow — prop-matrix', () => {
       score: 0.75,
       suspicious: true,
       cloneRegions: [],
-      visualisationBase64: TINY_PNG_BASE64,
+      visualisationUrl: TINY_PNG_DATA_URL,
       summary: '',
     };
     await injectAndOpenIntegrityCard(page, fx);

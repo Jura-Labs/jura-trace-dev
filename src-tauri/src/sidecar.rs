@@ -72,8 +72,16 @@ pub struct SidecarHealth {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ElaResult {
-    #[serde(alias = "ela_image_base64")]
+    /// Raw base64 PNG received from the sidecar. Not forwarded to the
+    /// frontend — the Rust pipeline writes this to disk and populates
+    /// `ela_image_url` with the on-disk path instead.
+    #[serde(alias = "ela_image_base64", skip_serializing)]
     pub ela_image_base64: String,
+    /// Filesystem path to the decoded PNG heatmap written by the Rust
+    /// pipeline. Populated after `write_heatmaps()`; empty string when
+    /// the heatmap was absent or the write failed.
+    #[serde(skip_deserializing, rename = "elaImageUrl")]
+    pub ela_image_url: String,
     #[serde(alias = "max_difference")]
     pub max_difference: f64,
     #[serde(alias = "mean_difference")]
@@ -86,8 +94,10 @@ pub struct ElaResult {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct NoiseResult {
-    #[serde(alias = "heatmap_base64")]
+    #[serde(alias = "heatmap_base64", skip_serializing)]
     pub heatmap_base64: String,
+    #[serde(skip_deserializing, rename = "heatmapUrl")]
+    pub heatmap_url: String,
     #[serde(alias = "block_variances")]
     pub block_variances: Vec<f64>,
     #[serde(alias = "global_variance")]
@@ -117,8 +127,10 @@ pub struct CloneRegion {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CopyMoveResult {
-    #[serde(alias = "visualisation_base64")]
+    #[serde(alias = "visualisation_base64", skip_serializing)]
     pub visualisation_base64: String,
+    #[serde(skip_deserializing, rename = "visualisationUrl")]
+    pub visualisation_url: String,
     #[serde(alias = "clone_regions")]
     pub clone_regions: Vec<CloneRegion>,
     #[serde(alias = "matched_pairs")]
@@ -181,8 +193,10 @@ pub struct DeepfakeResult {
     #[serde(default, alias = "verdict_level")]
     pub verdict_level: Option<String>,
     pub signals: Vec<DeepfakeSignal>,
-    #[serde(alias = "heatmap_base64")]
+    #[serde(alias = "heatmap_base64", skip_serializing)]
     pub heatmap_base64: String,
+    #[serde(skip_deserializing, rename = "heatmapUrl")]
+    pub heatmap_url: String,
     pub summary: String,
     #[serde(default)]
     pub watermarks: Vec<WatermarkDetection>,
@@ -235,8 +249,10 @@ pub struct NprResult {
     pub diff_variance_ratio: f64,
     #[serde(alias = "hf_energy_ratio")]
     pub hf_energy_ratio: f64,
-    #[serde(alias = "heatmap_base64")]
+    #[serde(alias = "heatmap_base64", skip_serializing)]
     pub heatmap_base64: String,
+    #[serde(skip_deserializing, rename = "heatmapUrl")]
+    pub heatmap_url: String,
     pub summary: String,
 }
 
@@ -254,8 +270,10 @@ pub struct JpegGhostResult {
     pub deviating_blocks: u32,
     #[serde(alias = "total_blocks")]
     pub total_blocks: u32,
-    #[serde(alias = "heatmap_base64")]
+    #[serde(alias = "heatmap_base64", skip_serializing)]
     pub heatmap_base64: String,
+    #[serde(skip_deserializing, rename = "heatmapUrl")]
+    pub heatmap_url: String,
     pub summary: String,
 }
 
@@ -279,8 +297,10 @@ pub struct ElaRegion {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SegmentedElaResult {
-    #[serde(alias = "heatmap_base64")]
+    #[serde(alias = "heatmap_base64", skip_serializing)]
     pub heatmap_base64: Option<String>,
+    #[serde(skip_deserializing, rename = "heatmapUrl")]
+    pub heatmap_url: Option<String>,
     pub regions: Vec<ElaRegion>,
     #[serde(alias = "anomalous_regions")]
     pub anomalous_regions: u32,
@@ -316,8 +336,10 @@ pub struct ShadowRegion {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShadowConsistencyResult {
-    #[serde(alias = "heatmap_base64")]
+    #[serde(alias = "heatmap_base64", skip_serializing)]
     pub heatmap_base64: Option<String>,
+    #[serde(skip_deserializing, rename = "heatmapUrl")]
+    pub heatmap_url: Option<String>,
     #[serde(alias = "global_light_direction")]
     pub global_light_direction: f64,
     pub regions: Vec<ShadowRegion>,
@@ -357,8 +379,10 @@ pub struct ColourTempRegion {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ColourTemperatureResult {
-    #[serde(alias = "heatmap_base64")]
+    #[serde(alias = "heatmap_base64", skip_serializing)]
     pub heatmap_base64: Option<String>,
+    #[serde(skip_deserializing, rename = "heatmapUrl")]
+    pub heatmap_url: Option<String>,
     pub regions: Vec<ColourTempRegion>,
     #[serde(alias = "anomalous_regions")]
     pub anomalous_regions: u32,
@@ -405,8 +429,10 @@ pub struct SpliceBoundary {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpliceBoundaryResult {
-    #[serde(alias = "heatmap_base64")]
+    #[serde(alias = "heatmap_base64", skip_serializing)]
     pub heatmap_base64: Option<String>,
+    #[serde(skip_deserializing, rename = "heatmapUrl")]
+    pub heatmap_url: Option<String>,
     pub boundaries: Vec<SpliceBoundary>,
     #[serde(alias = "suspicious_boundaries")]
     pub suspicious_boundaries: u32,
@@ -520,13 +546,17 @@ pub struct FrameDeepfakeResult {
     pub classifier_score: Option<f64>,
     #[serde(default, alias = "classifier_available")]
     pub classifier_available: bool,
-    #[serde(default, alias = "heatmap_base64")]
+    #[serde(default, alias = "heatmap_base64", skip_serializing)]
     pub heatmap_base64: String,
+    #[serde(skip_deserializing, rename = "heatmapUrl")]
+    pub heatmap_url: String,
     /// Downscaled JPEG thumbnail of the analysed frame, base64-encoded.
     /// Empty when omitted by the sidecar; the v2 verify UI then renders
     /// the existing "F{n}" text label.
-    #[serde(default, alias = "frame_image_base64")]
+    #[serde(default, alias = "frame_image_base64", skip_serializing)]
     pub frame_image_base64: String,
+    #[serde(skip_deserializing, rename = "frameImageUrl")]
+    pub frame_image_url: String,
 }
 
 /// Video-level deepfake analysis result aggregated from per-frame scoring.
@@ -699,8 +729,12 @@ pub struct ContentTypeResult {
 #[serde(rename_all = "camelCase")]
 pub struct DctAnalysisResult {
     /// Base64-encoded PNG heatmap of per-block AC energy distribution.
-    #[serde(alias = "heatmap_base64")]
+    /// Not forwarded to the frontend — decoded to disk by `write_heatmaps()`.
+    #[serde(alias = "heatmap_base64", skip_serializing)]
     pub heatmap_base64: String,
+    /// Filesystem path to the decoded PNG written by `write_heatmaps()`.
+    #[serde(skip_deserializing, rename = "heatmapUrl")]
+    pub heatmap_url: String,
     /// Standard deviation of the DC (mean brightness) coefficient across blocks.
     #[serde(alias = "dc_std")]
     pub dc_std: f64,
@@ -732,8 +766,12 @@ pub struct DctAnalysisResult {
 #[serde(rename_all = "camelCase")]
 pub struct FourierAnalysisResult {
     /// Base64-encoded PNG of the log-magnitude spectrum.
-    #[serde(alias = "spectrum_base64")]
+    /// Not forwarded to the frontend — decoded to disk by `write_heatmaps()`.
+    #[serde(alias = "spectrum_base64", skip_serializing)]
     pub spectrum_base64: String,
+    /// Filesystem path to the decoded PNG written by `write_heatmaps()`.
+    #[serde(skip_deserializing, rename = "spectrumUrl")]
+    pub spectrum_url: String,
     /// Number of spectral peaks above the 3-sigma detection threshold.
     #[serde(alias = "peak_count")]
     pub peak_count: u32,
@@ -744,6 +782,15 @@ pub struct FourierAnalysisResult {
     /// Human-readable interpretation.
     pub summary: String,
 }
+
+/// Maximum file size eligible for the in-memory file cache.
+///
+/// Files larger than this threshold are not stored in the cache; sidecar calls
+/// for those files re-read from disk on each request. Re-reading from an SSD
+/// costs <1 ms per detector call, which is negligible compared to the sidecar
+/// request time (5–60 s). The cap prevents holding up to 200 MB of raw file
+/// data in RAM for the full duration of a verify run.
+const SIDECAR_FILE_CACHE_MAX_BYTES: u64 = 20 * 1024 * 1024; // 20 MiB
 
 /// HTTP client for the Python ML sidecar.
 ///
@@ -801,7 +848,13 @@ impl SidecarClient {
     /// Cache file bytes for the given path.  Subsequent `build_image_form`
     /// calls for this path will use the cached bytes instead of re-reading
     /// from disk.  Call `clear_file_cache` when done.
+    ///
+    /// Files exceeding [`SIDECAR_FILE_CACHE_MAX_BYTES`] are silently skipped;
+    /// sidecar calls for those paths fall back to reading from disk.
     pub fn cache_file_bytes(&self, path: &Path, bytes: Vec<u8>) {
+        if bytes.len() as u64 > SIDECAR_FILE_CACHE_MAX_BYTES {
+            return;
+        }
         if let Ok(mut guard) = self.file_cache.lock() {
             *guard = Some((path.to_path_buf(), bytes));
         }
@@ -2800,6 +2853,54 @@ mod tests {
             result.is_ok(),
             "build_image_form should read path_b from disk on cache miss: {:?}",
             result.err()
+        );
+    }
+
+    /// `cache_file_bytes` does NOT populate the cache when the payload exceeds
+    /// `SIDECAR_FILE_CACHE_MAX_BYTES`.  Builds the form from disk instead.
+    #[test]
+    fn cache_file_bytes_skips_oversized_payload() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("small.png");
+        let img = image::RgbImage::from_fn(4, 4, |_, _| image::Rgb([128u8, 0, 128]));
+        img.save(&file_path).unwrap();
+
+        let client = SidecarClient::new("http://localhost:0", "");
+
+        // Attempt to cache a synthetic payload that exceeds the 20 MiB threshold.
+        let oversized = vec![0u8; (SIDECAR_FILE_CACHE_MAX_BYTES + 1) as usize];
+        client.cache_file_bytes(&file_path, oversized);
+
+        // Cache must remain empty.
+        let guard = client.file_cache.lock().unwrap();
+        assert!(
+            guard.is_none(),
+            "oversized payload must not be stored in the file cache"
+        );
+        drop(guard);
+
+        // build_image_form must still succeed by reading from disk.
+        let result = client.build_image_form(&file_path);
+        assert!(
+            result.is_ok(),
+            "build_image_form must read from disk when cache is empty: {:?}",
+            result.err()
+        );
+    }
+
+    /// `cache_file_bytes` DOES populate the cache when the payload is exactly
+    /// at the limit (20 MiB — boundary condition).
+    #[test]
+    fn cache_file_bytes_accepts_at_limit_payload() {
+        let client = SidecarClient::new("http://localhost:0", "");
+        let dummy_path = std::path::PathBuf::from("/tmp/dummy.png");
+        let at_limit = vec![0u8; SIDECAR_FILE_CACHE_MAX_BYTES as usize];
+        client.cache_file_bytes(&dummy_path, at_limit);
+
+        let guard = client.file_cache.lock().unwrap();
+        assert!(
+            guard.is_some(),
+            "payload at exactly the cap should be stored in the file cache"
         );
     }
 }

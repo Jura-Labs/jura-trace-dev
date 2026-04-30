@@ -98,6 +98,7 @@ function baseResult(): MockVerificationResult {
 const TINY_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/' +
   'lxKUAAAAASUVORK5CYII=';
+const TINY_PNG_DATA_URL = `data:image/png;base64,${TINY_PNG_BASE64}`;
 
 interface GbmOpts {
   score?: number;
@@ -123,7 +124,7 @@ function gbmFixture(opts: GbmOpts = {}): any {
     confidence: opts.confidence ?? 'medium',
     verdictLevel: opts.verdictLevel ?? 'authentic',
     signals,
-    heatmapBase64: TINY_PNG_BASE64,
+    heatmapUrl: TINY_PNG_DATA_URL,
     summary: 'GBM detector summary',
     classifierScore: opts.score ?? 0.05,
     classifierAvailable: true,

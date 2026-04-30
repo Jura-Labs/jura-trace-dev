@@ -89,7 +89,8 @@ export type ContentType = 'image' | 'document' | 'video' | 'audio' | 'unknown';
 
 /** Error Level Analysis result from the ML sidecar */
 export interface ElaResult {
-  elaImageBase64: string;
+  /** Filesystem path to the decoded PNG, served via Tauri asset protocol. */
+  elaImageUrl: string;
   maxDifference: number;
   meanDifference: number;
   score: number;
@@ -98,7 +99,8 @@ export interface ElaResult {
 
 /** Block-wise noise variance analysis result from the ML sidecar */
 export interface NoiseResult {
-  heatmapBase64: string;
+  /** Filesystem path to the decoded PNG, served via Tauri asset protocol. */
+  heatmapUrl: string;
   blockVariances: number[];
   globalVariance: number;
   anomalousBlocks: number;
@@ -119,7 +121,8 @@ export interface CloneRegion {
 
 /** Copy-move forgery detection result from the ML sidecar */
 export interface CopyMoveResult {
-  visualisationBase64: string;
+  /** Filesystem path to the decoded PNG, served via Tauri asset protocol. */
+  visualisationUrl: string;
   cloneRegions: CloneRegion[];
   matchedPairs: number;
   score: number;
@@ -169,7 +172,8 @@ export interface DeepfakeResult {
   confidence: string;
   verdictLevel?: VerdictLevel;
   signals: DeepfakeSignal[];
-  heatmapBase64: string;
+  /** Filesystem path to the decoded PNG, served via Tauri asset protocol. */
+  heatmapUrl: string;
   summary: string;
   watermarks?: WatermarkDetection[];
   classifierScore?: number | null;
@@ -184,7 +188,8 @@ export interface NprResult {
   hvCorrelation: number;
   diffVarianceRatio: number;
   hfEnergyRatio: number;
-  heatmapBase64: string;
+  /** Filesystem path to the decoded PNG, served via Tauri asset protocol. */
+  heatmapUrl: string;
   summary: string;
 }
 
@@ -196,7 +201,8 @@ export interface JpegGhostResult {
   qualityVariance: number;
   deviatingBlocks: number;
   totalBlocks: number;
-  heatmapBase64: string;
+  /** Filesystem path to the decoded PNG, served via Tauri asset protocol. */
+  heatmapUrl: string;
   summary: string;
 }
 
@@ -214,7 +220,8 @@ export interface ElaRegion {
 
 /** Segmented (region-aware) Error Level Analysis result */
 export interface SegmentedElaResult {
-  heatmapBase64: string | null;
+  /** Filesystem path to the decoded PNG, or null when absent. */
+  heatmapUrl: string | null;
   regions: ElaRegion[];
   anomalousRegions: number;
   totalRegions: number;
@@ -238,7 +245,8 @@ export interface ShadowRegion {
 
 /** Shadow direction consistency analysis result */
 export interface ShadowConsistencyResult {
-  heatmapBase64: string | null;
+  /** Filesystem path to the decoded PNG, or null when absent. */
+  heatmapUrl: string | null;
   globalLightDirection: number;
   regions: ShadowRegion[];
   inconsistentRegions: number;
@@ -262,7 +270,8 @@ export interface ColourTempRegion {
 
 /** Colour temperature consistency analysis result */
 export interface ColourTemperatureResult {
-  heatmapBase64: string | null;
+  /** Filesystem path to the decoded PNG, or null when absent. */
+  heatmapUrl: string | null;
   regions: ColourTempRegion[];
   anomalousRegions: number;
   totalRegions: number;
@@ -288,7 +297,8 @@ export interface SpliceBoundary {
 
 /** Splice boundary detection result */
 export interface SpliceBoundaryResult {
-  heatmapBase64: string | null;
+  /** Filesystem path to the decoded PNG, or null when absent. */
+  heatmapUrl: string | null;
   boundaries: SpliceBoundary[];
   suspiciousBoundaries: number;
   totalBoundariesChecked: number;
@@ -704,8 +714,8 @@ export interface ThumbnailCheck {
 
 /** 8×8 block DCT coefficient map analysis result. */
 export interface DctAnalysisResult {
-  /** Base64-encoded PNG heatmap of per-block AC energy distribution. */
-  heatmapBase64: string;
+  /** Filesystem path to the decoded PNG, served via Tauri asset protocol. */
+  heatmapUrl: string;
   /** Standard deviation of the DC (mean brightness) coefficient across blocks. */
   dcStd: number;
   /** Mean AC energy across all blocks. */
@@ -725,8 +735,8 @@ export interface DctAnalysisResult {
 
 /** 2D Fourier periodic pattern detection result. */
 export interface FourierAnalysisResult {
-  /** Base64-encoded PNG of the log-magnitude FFT spectrum. */
-  spectrumBase64: string;
+  /** Filesystem path to the decoded PNG, served via Tauri asset protocol. */
+  spectrumUrl: string;
   /** Number of discrete spectral peaks above the 3-sigma detection threshold. */
   peakCount: number;
   suspicious: boolean;
@@ -1152,11 +1162,11 @@ export interface FrameDeepfakeResult {
   signals: DeepfakeSignal[];
   classifierScore?: number | null;
   classifierAvailable?: boolean;
-  heatmapBase64?: string;
-  /** Downscaled JPEG thumbnail of the analysed frame, base64-encoded.
-      Optional / may be empty — the v2 verify UI renders the "F{n}"
-      text label as a fallback. */
-  frameImageBase64?: string;
+  /** Filesystem path to the decoded PNG heatmap, served via Tauri asset protocol. */
+  heatmapUrl?: string;
+  /** Filesystem path to the frame thumbnail JPEG, served via Tauri asset protocol.
+      Optional — the v2 verify UI renders the "F{n}" text label as a fallback. */
+  frameImageUrl?: string;
 }
 
 /** Video-level deepfake analysis result aggregated from per-frame scoring */

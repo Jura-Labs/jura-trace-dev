@@ -15,6 +15,7 @@ use serde_json::json;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use tokio::io::AsyncWriteExt;
 
 use crate::{fingerprint, watermark, AppState};
 
@@ -107,10 +108,16 @@ pub async fn verify_file(
     State(state): State<SharedState>,
     mut multipart: Multipart,
 ) -> Result<Json<ApiResponse<crate::VerificationResult>>, ApiError> {
-    let mut file_bytes: Option<Bytes> = None;
+    // Stream the upload directly to a tempfile — avoids holding the full file
+    // in memory and eliminates the previous `bytes.clone()` that caused a 2×
+    // peak (up to ~400 MB for a 200 MB upload).
+    let mut tmp_file: Option<tempfile::NamedTempFile> = None;
+    // Sniff the first chunk to detect the extension without buffering the
+    // whole body.
+    let mut first_chunk: Option<Bytes> = None;
     let mut mode: Option<String> = None;
 
-    while let Some(field) = multipart
+    while let Some(mut field) = multipart
         .next_field()
         .await
         .map_err(|e| ApiError::bad_request(format!("Invalid multipart data: {e}")))?
@@ -118,9 +125,35 @@ pub async fn verify_file(
         let name = field.name().unwrap_or("").to_string();
         match name.as_str() {
             "file" => {
-                file_bytes = Some(field.bytes().await.map_err(|e| {
-                    ApiError::bad_request(format!("Failed to read file field: {e}"))
-                })?);
+                // Create temp file immediately (no extension yet — we rename later).
+                let tmp = tempfile::NamedTempFile::new()
+                    .map_err(|e| ApiError::internal(format!("Failed to create temp file: {e}")))?;
+                let tmp_tokio =
+                    tokio::fs::File::from_std(tmp.as_file().try_clone().map_err(|e| {
+                        ApiError::internal(format!("Failed to dup temp file handle: {e}"))
+                    })?);
+                let mut writer = tokio::io::BufWriter::new(tmp_tokio);
+
+                let mut is_first = true;
+                while let Some(chunk) = field
+                    .chunk()
+                    .await
+                    .map_err(|e| ApiError::bad_request(format!("Failed to read file chunk: {e}")))?
+                {
+                    if is_first {
+                        first_chunk = Some(chunk.clone());
+                        is_first = false;
+                    }
+                    writer.write_all(&chunk).await.map_err(|e| {
+                        ApiError::internal(format!("Failed to write chunk to temp file: {e}"))
+                    })?;
+                }
+                writer
+                    .flush()
+                    .await
+                    .map_err(|e| ApiError::internal(format!("Failed to flush temp file: {e}")))?;
+                drop(writer);
+                tmp_file = Some(tmp);
             }
             "mode" => {
                 let text = field.text().await.map_err(|e| {
@@ -132,34 +165,31 @@ pub async fn verify_file(
         }
     }
 
-    let bytes = file_bytes.ok_or_else(|| ApiError::bad_request("Missing 'file' field"))?;
+    let tmp = tmp_file.ok_or_else(|| ApiError::bad_request("Missing 'file' field"))?;
+    let magic = first_chunk.ok_or_else(|| ApiError::bad_request("Uploaded file is empty"))?;
 
-    if bytes.is_empty() {
+    if magic.is_empty() {
         return Err(ApiError::bad_request("Uploaded file is empty"));
     }
 
     // Derive extension from magic bytes — verify pipeline (format_router)
     // classifies content type from the file extension. A tempfile with no
     // suffix is classified as Unknown, which skips C2PA + image detectors
-    // entirely. Match the protect/sign path's behaviour.
-    let ext = infer_extension(&bytes);
-    let suffix = format!(".{ext}");
+    // entirely.
+    let ext = infer_extension(&magic);
 
-    // Write to a named temp file with the correct extension so the verify
-    // pipeline can route it through the right detectors.
+    // Persist the temp file to a path with the correct extension so the
+    // verify pipeline can route it through the right detectors.
     let tmp_path = tokio::task::spawn_blocking({
-        let bytes = bytes.clone();
         move || -> Result<std::path::PathBuf, ApiError> {
-            let mut tmp = tempfile::Builder::new()
-                .suffix(&suffix)
-                .tempfile()
-                .map_err(|e| ApiError::internal(format!("Failed to create temp file: {e}")))?;
-            tmp.write_all(&bytes)
-                .map_err(|e| ApiError::internal(format!("Failed to write temp file: {e}")))?;
-            let path = tmp.into_temp_path();
-            // Keep the file alive by converting into a PathBuf (unlinking is deferred).
-            path.keep()
-                .map_err(|e| ApiError::internal(format!("Failed to persist temp file: {e}")))
+            // Rename the existing temp file to a new temp path with the right suffix.
+            let (_, old_path) = tmp
+                .keep()
+                .map_err(|e| ApiError::internal(format!("Failed to persist temp file: {e}")))?;
+            let new_path = old_path.with_extension(ext);
+            std::fs::rename(&old_path, &new_path)
+                .map_err(|e| ApiError::internal(format!("Failed to rename temp file: {e}")))?;
+            Ok(new_path)
         }
     })
     .await
@@ -265,12 +295,15 @@ pub async fn protect_sign(
     State(state): State<SharedState>,
     mut multipart: Multipart,
 ) -> Result<Response, ApiError> {
-    let mut file_bytes: Option<Bytes> = None;
+    // Stream the upload directly to a tempfile — avoids holding the full file
+    // in RAM during the async multipart parse.
+    let mut src_tmp: Option<tempfile::NamedTempFile> = None;
+    let mut first_chunk: Option<Bytes> = None;
     let mut creator_name = String::new();
     let mut license: Option<String> = None;
     let mut original_filename: Option<String> = None;
 
-    while let Some(field) = multipart
+    while let Some(mut field) = multipart
         .next_field()
         .await
         .map_err(|e| ApiError::bad_request(format!("Invalid multipart data: {e}")))?
@@ -280,9 +313,34 @@ pub async fn protect_sign(
             "file" => {
                 // Capture filename hint before consuming the field.
                 original_filename = field.file_name().map(str::to_string);
-                file_bytes = Some(field.bytes().await.map_err(|e| {
-                    ApiError::bad_request(format!("Failed to read file field: {e}"))
-                })?);
+                let tmp = tempfile::NamedTempFile::new()
+                    .map_err(|e| ApiError::internal(format!("Failed to create temp file: {e}")))?;
+                let tmp_tokio =
+                    tokio::fs::File::from_std(tmp.as_file().try_clone().map_err(|e| {
+                        ApiError::internal(format!("Failed to dup temp file handle: {e}"))
+                    })?);
+                let mut writer = tokio::io::BufWriter::new(tmp_tokio);
+
+                let mut is_first = true;
+                while let Some(chunk) = field
+                    .chunk()
+                    .await
+                    .map_err(|e| ApiError::bad_request(format!("Failed to read file chunk: {e}")))?
+                {
+                    if is_first {
+                        first_chunk = Some(chunk.clone());
+                        is_first = false;
+                    }
+                    writer.write_all(&chunk).await.map_err(|e| {
+                        ApiError::internal(format!("Failed to write chunk to temp file: {e}"))
+                    })?;
+                }
+                writer
+                    .flush()
+                    .await
+                    .map_err(|e| ApiError::internal(format!("Failed to flush temp file: {e}")))?;
+                drop(writer);
+                src_tmp = Some(tmp);
             }
             "creator_name" => {
                 creator_name = field.text().await.map_err(|e| {
@@ -300,8 +358,9 @@ pub async fn protect_sign(
         }
     }
 
-    let bytes = file_bytes.ok_or_else(|| ApiError::bad_request("Missing 'file' field"))?;
-    if bytes.is_empty() {
+    let src_tmp = src_tmp.ok_or_else(|| ApiError::bad_request("Missing 'file' field"))?;
+    let magic = first_chunk.ok_or_else(|| ApiError::bad_request("Uploaded file is empty"))?;
+    if magic.is_empty() {
         return Err(ApiError::bad_request("Uploaded file is empty"));
     }
     if creator_name.is_empty() {
@@ -309,23 +368,20 @@ pub async fn protect_sign(
     }
 
     // Derive a safe extension from the first few magic bytes.
-    let ext = infer_extension(&bytes);
+    let ext = infer_extension(&magic);
     let filename_hint = original_filename.as_deref().unwrap_or("upload").to_string();
     let ext_for_tempfile = ext;
 
     let signed_bytes = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, ApiError> {
-        // Write source file to a temp file with the correct extension —
-        // c2pa-rs infers format from the file extension, so a generic
-        // tempfile (no suffix) yields "type is unsupported".
+        // The source file is already on disk in src_tmp; rename it to carry
+        // the correct extension so c2pa-rs can infer the format.
+        let (_, old_src_path) = src_tmp
+            .keep()
+            .map_err(|e| ApiError::internal(format!("Failed to persist source temp file: {e}")))?;
         let suffix = format!(".{ext_for_tempfile}");
-        let mut src_tmp = tempfile::Builder::new()
-            .suffix(&suffix)
-            .tempfile()
-            .map_err(|e| ApiError::internal(format!("Failed to create temp file: {e}")))?;
-        src_tmp
-            .write_all(&bytes)
-            .map_err(|e| ApiError::internal(format!("Failed to write temp file: {e}")))?;
-        let src_path = src_tmp.path().to_path_buf();
+        let src_path = old_src_path.with_extension(ext_for_tempfile);
+        std::fs::rename(&old_src_path, &src_path)
+            .map_err(|e| ApiError::internal(format!("Failed to rename source temp file: {e}")))?;
 
         // Output path for the signed file.
         // c2pa-rs Builder.sign_file refuses to overwrite an existing destination,
@@ -366,8 +422,12 @@ pub async fn protect_sign(
         )
         .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "C2pa", e))?;
 
-        std::fs::read(&out_path)
-            .map_err(|e| ApiError::internal(format!("Failed to read signed output: {e}")))
+        let result = std::fs::read(&out_path)
+            .map_err(|e| ApiError::internal(format!("Failed to read signed output: {e}")));
+        // Clean up both temp paths regardless of outcome.
+        let _ = std::fs::remove_file(&src_path);
+        let _ = std::fs::remove_file(&out_path);
+        result
     })
     .await
     .map_err(|_| ApiError::internal("Signing task panicked"))??;

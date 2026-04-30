@@ -106,17 +106,32 @@ const DETECTOR_THRESHOLDS: Record<string, number | null> = {
 /** Report format: 'standard' for the default report, 'berkeley' for Berkeley Protocol legal evidence format. */
 export type ReportFormat = 'standard' | 'berkeley';
 
-/** Transcode a base64 PNG to a JPEG data URL, downscaled to `maxWidth` px.
- *  Heatmaps are the dominant contributor to report size — a 1024 px lossless
- *  PNG becomes a ~80 kB JPEG at q=0.75, 5–10× smaller. White background is
- *  painted first because JPEG has no alpha. */
+/** Transcode a heatmap image (identified by its on-disk path) to a JPEG data
+ *  URL for PDF embedding, downscaled to `maxWidth` px.
+ *
+ *  In Tauri the path is converted to an asset:// URL via `convertFileSrc()`
+ *  so the webview can load it. An empty or falsy path is rejected immediately.
+ *  White background is painted first because JPEG has no alpha channel.
+ */
 async function transcodePngToJpeg(
-  pngBase64: string,
+  pathOrUrl: string,
   maxWidth = 800,
   quality = 0.75,
 ): Promise<string> {
+  if (!pathOrUrl) throw new Error('empty heatmap path');
+  let src: string;
+  if (pathOrUrl.startsWith('data:') || pathOrUrl.startsWith('http')) {
+    src = pathOrUrl;
+  } else {
+    try {
+      const { convertFileSrc } = await import('@tauri-apps/api/core');
+      src = convertFileSrc(pathOrUrl);
+    } catch {
+      src = pathOrUrl;
+    }
+  }
   const img = new Image();
-  img.src = `data:image/png;base64,${pngBase64}`;
+  img.src = src;
   await new Promise<void>((resolve, reject) => {
     img.onload = () => resolve();
     img.onerror = () => reject(new Error('heatmap decode failed'));
@@ -894,12 +909,12 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
       row('Copy-Move Score', `${(result.copyMoveScore * 100).toFixed(1)}%`);
     }
 
-    // Embed heatmap images
+    // Embed heatmap images (paths resolved via Tauri asset protocol)
     const heatmaps: { label: string; data?: string }[] = [
-      { label: 'ELA Heatmap', data: result.elaResult?.elaImageBase64 },
-      { label: 'Noise Heatmap', data: result.noiseResult?.heatmapBase64 },
-      { label: 'Copy-Move Visualisation', data: result.copyMoveResult?.visualisationBase64 },
-      { label: 'AI Detection Heatmap', data: result.deepfakeResult?.heatmapBase64 },
+      { label: 'ELA Heatmap', data: result.elaResult?.elaImageUrl },
+      { label: 'Noise Heatmap', data: result.noiseResult?.heatmapUrl },
+      { label: 'Copy-Move Visualisation', data: result.copyMoveResult?.visualisationUrl },
+      { label: 'AI Detection Heatmap', data: result.deepfakeResult?.heatmapUrl },
     ];
 
     for (const hm of heatmaps) {

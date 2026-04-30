@@ -10,6 +10,7 @@ Dependencies (optional):
 For video files, audio is extracted via FFmpeg first.
 """
 
+import importlib.util
 import logging
 import os
 import subprocess
@@ -23,13 +24,10 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 _model_cache: dict[str, Any] = {}
 
-_WHISPER_AVAILABLE = False
-try:
-    from faster_whisper import WhisperModel  # noqa: F401
-
-    _WHISPER_AVAILABLE = True
-except ImportError:
-    pass
+# Check availability without importing CTranslate2 shared libraries.
+# The actual `from faster_whisper import WhisperModel` is deferred to
+# _get_model() so it only runs when transcription is first requested.
+_WHISPER_AVAILABLE: bool = importlib.util.find_spec("faster_whisper") is not None
 
 
 def is_whisper_available() -> bool:

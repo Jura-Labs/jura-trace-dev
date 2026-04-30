@@ -3098,7 +3098,9 @@ mod tests {
             .assertions
             .iter()
             .find(|a| a.label == "stds.schema-org.CreativeWork")
-            .expect("stds.schema-org.CreativeWork assertion must be present for CC BY 4.0 (JTV-120)");
+            .expect(
+                "stds.schema-org.CreativeWork assertion must be present for CC BY 4.0 (JTV-120)",
+            );
         let schema_parsed: serde_json::Value =
             serde_json::from_str(&schema_org.value).expect("schema-org value must be valid JSON");
         let license_uri = schema_parsed
@@ -3106,8 +3108,7 @@ mod tests {
             .and_then(|v| v.as_str())
             .unwrap_or("");
         assert_eq!(
-            license_uri,
-            "https://creativecommons.org/licenses/by/4.0/",
+            license_uri, "https://creativecommons.org/licenses/by/4.0/",
             "schema-org CreativeWork.license must be the canonical CC BY 4.0 URI (JTV-120)"
         );
         let schema_type = schema_parsed
