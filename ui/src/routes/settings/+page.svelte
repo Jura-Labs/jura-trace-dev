@@ -94,6 +94,119 @@
     return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
   }
 
+  // ── Backup & Restore state (JTV-130) ──────────────────────────
+  let backupBusy        = $state(false);
+  let backupFeedback    = $state<{ ok: boolean; message: string } | null>(null);
+
+  let restoreBusy       = $state(false);
+  let restoreFeedback   = $state<{ ok: boolean; message: string } | null>(null);
+  let pendingRestore    = $state<{ path: string; preflight: import('$lib/api').RestoreResult } | null>(null);
+
+  let csvImportBusy     = $state(false);
+  let csvImportResult   = $state<import('$lib/api').CsvImportResult | null>(null);
+  let csvImportError    = $state<string | null>(null);
+
+  async function handleBackupDatabase() {
+    if (!isTauri()) return;
+    backupBusy = true;
+    backupFeedback = null;
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const { backupDatabase } = await import('$lib/api');
+      const selected = await open({
+        directory: true,
+        title: 'Choose backup destination',
+      });
+      if (!selected || typeof selected !== 'string') {
+        backupBusy = false;
+        return;
+      }
+      const result = await backupDatabase(selected);
+      backupFeedback = {
+        ok: true,
+        message: `Backup written to ${result.snapshotPath} (schema v${result.schemaVersion}, SHA-256 ${result.sha256.slice(0, 16)}…).`,
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      backupFeedback = { ok: false, message: `Backup failed: ${msg}` };
+    } finally {
+      backupBusy = false;
+    }
+  }
+
+  async function handleRestorePreflight() {
+    if (!isTauri()) return;
+    restoreBusy = true;
+    restoreFeedback = null;
+    pendingRestore = null;
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const { restoreDatabase } = await import('$lib/api');
+      const selected = await open({
+        title: 'Select snapshot to restore',
+        filters: [{ name: 'SQLite snapshot', extensions: ['sqlite', 'db', 'sqlite3'] }],
+      });
+      if (!selected || typeof selected !== 'string') {
+        restoreBusy = false;
+        return;
+      }
+      const preflight = await restoreDatabase(selected, false);
+      pendingRestore = { path: selected, preflight };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      restoreFeedback = { ok: false, message: `Cannot restore: ${msg}` };
+    } finally {
+      restoreBusy = false;
+    }
+  }
+
+  async function handleRestoreConfirmed() {
+    if (!pendingRestore || !isTauri()) return;
+    restoreBusy = true;
+    try {
+      const { restoreDatabase } = await import('$lib/api');
+      const result = await restoreDatabase(pendingRestore.path, true);
+      restoreFeedback = { ok: result.success, message: result.message };
+      pendingRestore = null;
+      // Reload to re-initialise the in-memory app state against the new DB.
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      restoreFeedback = { ok: false, message: `Restore failed: ${msg}` };
+      pendingRestore = null;
+    } finally {
+      restoreBusy = false;
+    }
+  }
+
+  function handleRestoreCancel() {
+    pendingRestore = null;
+  }
+
+  async function handleImportCsv() {
+    if (!isTauri()) return;
+    csvImportBusy = true;
+    csvImportResult = null;
+    csvImportError = null;
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const { importAssetsCsv } = await import('$lib/api');
+      const selected = await open({
+        title: 'Select CSV catalogue file',
+        filters: [{ name: 'CSV', extensions: ['csv'] }],
+      });
+      if (!selected || typeof selected !== 'string') {
+        csvImportBusy = false;
+        return;
+      }
+      csvImportResult = await importAssetsCsv(selected);
+    } catch (err: unknown) {
+      csvImportError = err instanceof Error ? err.message : String(err);
+    } finally {
+      csvImportBusy = false;
+    }
+  }
+
   // ── Deployment profiles state ─────────────────────────────────
   let profiles = $state<DeploymentProfile[]>([]);
 
@@ -1223,6 +1336,216 @@
       {/if}
     </div>
   </section>
+
+  <!-- Data Management (JTV-130) -->
+  <section
+    class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
+    aria-labelledby="data-mgmt-heading"
+  >
+    <div class="flex items-center gap-1.5 mb-1">
+      <h2 id="data-mgmt-heading" class="text-lg font-heading text-text-light dark:text-quartz">Data Management</h2>
+    </div>
+    <p class="text-xs text-flint-dark dark:text-flint-light mb-5">
+      Disaster-recovery tools for institutional deployments. Snapshots include the full asset catalogue, fingerprints, audit log, and verification history.
+    </p>
+
+    <!-- Backup -->
+    <div class="mb-6">
+      <h3 class="text-sm font-medium text-text-light dark:text-quartz mb-1">Backup</h3>
+      <p class="text-xs text-flint-dark dark:text-flint-light mb-2">
+        Write a defragmented snapshot of the current database to a folder of your choice. A JSON manifest sidecar records the schema version and a SHA-256 checksum for later verification.
+      </p>
+      <button
+        onclick={handleBackupDatabase}
+        disabled={backupBusy || !isTauri()}
+        class="px-4 py-2.5 min-h-[44px] rounded border text-sm font-medium transition-colors
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+               {backupBusy || !isTauri()
+                 ? 'border-graphite-light text-flint-dark dark:text-flint-light cursor-not-allowed opacity-50'
+                 : 'border-lapis/60 text-lapis dark:text-lapis-light hover:bg-lapis/10 hover:border-lapis'}"
+        aria-busy={backupBusy}
+      >
+        {#if backupBusy}
+          <span class="flex items-center gap-1.5">
+            <span class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin" aria-hidden="true"></span>
+            Writing snapshot…
+          </span>
+        {:else}
+          Create Snapshot…
+        {/if}
+      </button>
+      {#if backupFeedback !== null}
+        <p
+          class="mt-3 text-sm px-3 py-2 rounded border break-all
+                 {backupFeedback.ok
+                   ? 'text-malachite-dark dark:text-malachite-light border-malachite/20 bg-malachite/5'
+                   : 'text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
+          role="status"
+          aria-live="polite"
+        >
+          {backupFeedback.message}
+        </p>
+      {/if}
+    </div>
+
+    <!-- Restore -->
+    <div class="mb-6 pt-5 border-t border-border-light dark:border-border-dark">
+      <h3 class="text-sm font-medium text-text-light dark:text-quartz mb-1">Restore</h3>
+      <p class="text-xs text-flint-dark dark:text-flint-light mb-2">
+        Replace the current database with a previously-saved snapshot. The audit trail in the snapshot is verified before any destructive change is made. This cannot be undone.
+      </p>
+      <button
+        onclick={handleRestorePreflight}
+        disabled={restoreBusy || !isTauri()}
+        class="px-4 py-2.5 min-h-[44px] rounded border text-sm font-medium transition-colors
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+               {restoreBusy || !isTauri()
+                 ? 'border-graphite-light text-flint-dark dark:text-flint-light cursor-not-allowed opacity-50'
+                 : 'border-cinnabar/60 text-cinnabar dark:text-cinnabar-light hover:bg-cinnabar/10 hover:border-cinnabar'}"
+        aria-busy={restoreBusy}
+      >
+        {#if restoreBusy}
+          <span class="flex items-center gap-1.5">
+            <span class="w-3 h-3 border-2 border-cinnabar border-t-transparent rounded-full motion-safe:animate-spin" aria-hidden="true"></span>
+            Working…
+          </span>
+        {:else}
+          Restore from Snapshot…
+        {/if}
+      </button>
+      {#if restoreFeedback !== null}
+        <p
+          class="mt-3 text-sm px-3 py-2 rounded border
+                 {restoreFeedback.ok
+                   ? 'text-malachite-dark dark:text-malachite-light border-malachite/20 bg-malachite/5'
+                   : 'text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
+          role="status"
+          aria-live="polite"
+        >
+          {restoreFeedback.message}
+        </p>
+      {/if}
+    </div>
+
+    <!-- Import CSV catalogue -->
+    <div class="pt-5 border-t border-border-light dark:border-border-dark">
+      <h3 class="text-sm font-medium text-text-light dark:text-quartz mb-1">Import CSV catalogue</h3>
+      <p class="text-xs text-flint-dark dark:text-flint-light mb-2">
+        Bulk-add assets to the catalogue from a CSV file. The CSV must have a <code class="font-mono text-[11px]">file_path</code> column. Rows whose SHA-256 already exists in the catalogue are skipped silently.
+      </p>
+      <button
+        onclick={handleImportCsv}
+        disabled={csvImportBusy || !isTauri()}
+        class="px-4 py-2.5 min-h-[44px] rounded border text-sm font-medium transition-colors
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+               {csvImportBusy || !isTauri()
+                 ? 'border-graphite-light text-flint-dark dark:text-flint-light cursor-not-allowed opacity-50'
+                 : 'border-lapis/60 text-lapis dark:text-lapis-light hover:bg-lapis/10 hover:border-lapis'}"
+        aria-busy={csvImportBusy}
+      >
+        {#if csvImportBusy}
+          <span class="flex items-center gap-1.5">
+            <span class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin" aria-hidden="true"></span>
+            Importing…
+          </span>
+        {:else}
+          Import from CSV…
+        {/if}
+      </button>
+      {#if csvImportResult !== null}
+        <div
+          class="mt-3 text-sm px-3 py-2 rounded border text-text-light dark:text-quartz border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40"
+          role="status"
+          aria-live="polite"
+        >
+          <p>
+            {csvImportResult.imported} imported,
+            {csvImportResult.skippedDuplicates} skipped (already in catalogue),
+            {csvImportResult.failed} failed.
+          </p>
+          {#if csvImportResult.errors.length > 0}
+            <details class="mt-2">
+              <summary class="cursor-pointer text-xs text-flint-dark dark:text-flint-light">
+                Show {csvImportResult.errors.length} row error{csvImportResult.errors.length === 1 ? '' : 's'}
+              </summary>
+              <ul class="mt-1 text-xs text-cinnabar-dark dark:text-cinnabar-light list-disc list-inside space-y-0.5">
+                {#each csvImportResult.errors as err}
+                  <li>{err}</li>
+                {/each}
+              </ul>
+            </details>
+          {/if}
+        </div>
+      {/if}
+      {#if csvImportError !== null}
+        <p
+          class="mt-3 text-sm px-3 py-2 rounded border text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5"
+          role="status"
+          aria-live="polite"
+        >
+          Import failed: {csvImportError}
+        </p>
+      {/if}
+    </div>
+  </section>
+
+  <!-- Restore confirmation modal (JTV-130) -->
+  {#if pendingRestore !== null}
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="restore-modal-heading"
+    >
+      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark max-w-lg w-full p-6">
+        <h2 id="restore-modal-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-3">
+          Replace database with snapshot?
+        </h2>
+        <p class="text-sm text-text-light dark:text-quartz mb-3">
+          The current database will be replaced with the snapshot you selected. <strong>This cannot be undone.</strong>
+        </p>
+        <dl class="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 text-xs mb-4">
+          <dt class="text-flint-dark dark:text-flint-light">Snapshot path</dt>
+          <dd class="text-text-light dark:text-quartz break-all font-mono">{pendingRestore.path}</dd>
+          <dt class="text-flint-dark dark:text-flint-light">Asset count</dt>
+          <dd class="text-text-light dark:text-quartz">{pendingRestore.preflight.assetCount}</dd>
+          <dt class="text-flint-dark dark:text-flint-light">Schema version</dt>
+          <dd class="text-text-light dark:text-quartz">v{pendingRestore.preflight.snapshotSchemaVersion}{pendingRestore.preflight.snapshotSchemaVersion !== pendingRestore.preflight.currentSchemaVersion ? ` → v${pendingRestore.preflight.currentSchemaVersion} (forward migration on open)` : ''}</dd>
+          <dt class="text-flint-dark dark:text-flint-light">Audit chain</dt>
+          <dd class="text-text-light dark:text-quartz">{pendingRestore.preflight.auditChainValid ? 'Verified' : 'Invalid'}</dd>
+        </dl>
+        <p class="text-xs text-flint-dark dark:text-flint-light mb-5">
+          The application will reload after the restore completes.
+        </p>
+        <div class="flex gap-3 justify-end">
+          <button
+            onclick={handleRestoreCancel}
+            disabled={restoreBusy}
+            class="px-4 py-2.5 min-h-[44px] rounded border border-border-light dark:border-border-dark text-sm text-text-light dark:text-quartz hover:bg-gray-50 dark:hover:bg-obsidian/50
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+          >
+            Cancel
+          </button>
+          <button
+            onclick={handleRestoreConfirmed}
+            disabled={restoreBusy || !pendingRestore.preflight.auditChainValid}
+            class="px-4 py-2.5 min-h-[44px] rounded border text-sm font-medium transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+                   {restoreBusy || !pendingRestore.preflight.auditChainValid
+                     ? 'border-graphite-light text-flint-dark dark:text-flint-light cursor-not-allowed opacity-50'
+                     : 'border-cinnabar bg-cinnabar text-white hover:bg-cinnabar-dark'}"
+            aria-busy={restoreBusy}
+          >
+            {#if restoreBusy}
+              Restoring…
+            {:else}
+              Restore — I understand this will replace all current data
+            {/if}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   <!-- About -->
   <section

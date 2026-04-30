@@ -6,6 +6,83 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 30 April 2026 — Sprint 30 — JTV-130: Backup & Restore + CSV catalogue import
+
+Closes the disaster-recovery story for the Heritage Lead persona on institutional deployments and the third-of-eight Sprint 30 v1.0 scope items. Designed in a four-agent planning round (project-manager, rust-backend-engineer, api-engineer, security-auditor) on 30 April; rust-backend-engineer's Tauri-IPC design followed verbatim.
+
+### What this commit adds
+
+**Three new Tauri commands** in `src-tauri/src/lib.rs`:
+
+- `backup_database(dest_dir)` — writes a defragmented `.sqlite` snapshot via `VACUUM INTO` plus a JSON manifest sidecar (Jura Trace version, schema version, RFC 3339 timestamp, SHA-256 checksum) into a user-chosen directory. Returns a `BackupResult` for display in the confirmation callout. POSIX permissions tightened to 0o600 on both files.
+
+- `restore_database(snapshot_path, confirmed)` — two-phase: when `confirmed: false`, runs validation only and returns a `RestoreResult` for the destructive-action confirmation modal; when `confirmed: true`, replays the validation as a last-second tamper guard, closes the live connection (via a throwaway DB swap on the AppState), cleans stale `-wal` / `-shm` files, copies the snapshot over `db_path`, opens the new live database, and appends a `backup_restored` audit-log entry that becomes the first new entry in the post-restore chain. Validation pre-flight: `Database::open` (catches schema-fork tampering), schema version range check (rejects downgrade from a newer build), `verify_audit_chain` (rejects tampered chains).
+
+- `import_assets_csv(csv_path)` — bulk-add asset metadata from a CSV. Required column `file_path`; optional `sha256_hash`, `file_name`, `content_type`, `c2pa_signed`, `watermarked`. Header names accepted in either snake_case or human-readable form (matching the existing Protect-page CSV export). Per-row path canonicalisation + symlink rejection + regular-file check. Rows whose SHA-256 already exists in the catalogue are skipped silently. 10 000-row hard cap. Up to 20 row-error descriptions returned to the UI.
+
+### Database helpers added (`src-tauri/src/db.rs`)
+
+- `Database::vacuum_into(dest_path)` — load-bearing primitive; single-quote-escapes the path, runs `VACUUM INTO`.
+- `Database::schema_version()` — reads `PRAGMA user_version`.
+- `Database::current_schema_version()` — exposes the const for the restore validator.
+- `Database::count_assets()` — used by the destructive-action modal.
+- `Database::asset_exists_by_hash(hash)` — used by the CSV importer for SHA-256 dedupe.
+
+### Settings UI
+
+`ui/src/routes/settings/+page.svelte` adds a new "Data Management" section between "Database Location" and "About". Three subsections (Backup, Restore, Import CSV) with native dialogs (directory picker for backup; file picker filtered to `.sqlite`/`.db`/`.sqlite3` for restore; `.csv` filter for import). The Restore button surfaces a destructive-action modal listing the snapshot path, asset count, schema version delta, and audit-chain status before the destructive replace. Restore triggers a `window.location.reload()` after completion to re-initialise the in-memory app state against the new database.
+
+### TypeScript wrappers
+
+`ui/src/lib/api.ts` adds `backupDatabase`, `restoreDatabase`, `importAssetsCsv` plus `BackupResult` / `RestoreResult` / `CsvImportResult` interfaces mirroring the Rust structs.
+
+### Tests
+
+Nine new Rust unit tests:
+
+- `vacuum_into_round_trip_preserves_schema_and_rows` — seed → snapshot → reopen → row count.
+- `vacuum_into_rejects_invalid_destination_directory`.
+- `vacuum_into_preserves_audit_chain_integrity` — chain-of-custody guarantee survives backup.
+- `validate_snapshot_accepts_fresh_database`.
+- `validate_snapshot_rejects_future_schema_version` — tampered `user_version` set above the build's max.
+- `validate_snapshot_rejects_tampered_audit_chain` — `entry_hash` mutated post-write.
+- `with_extension_suffix_appends_correctly` — `-wal`/`-shm` path derivation.
+- `csv_import_rejects_missing_file_path_column`.
+- `csv_import_canonicalisation_rejects_traversal`.
+
+### Security hardening
+
+- Null-byte injection guard on every user-supplied path (backup destination, snapshot path, CSV path, per-row CSV `file_path` values).
+- Symlink rejection on backup destination, snapshot path, CSV path, and every CSV `file_path` value.
+- `Database::open` runs the standard schema migration, which rejects any candidate snapshot that does not validate as a Jura Trace database.
+- 10 000-row CSV cap — bounds memory usage on a malicious file.
+- POSIX 0o600 on backup output; on Windows we rely on the parent-directory ACL inherited from the user's chosen folder.
+
+### Dependencies
+
+`csv = "1"` added to `src-tauri/Cargo.toml` for RFC 4180-compliant CSV parsing.
+
+### Test gates
+
+  cargo test --lib       536 passed (was 527, +9)
+  cargo test --test '*'  16 passed
+  pytest sidecar/tests   428 passed
+  vitest                 114 passed
+  svelte-check           0 errors (12 pre-existing warnings)
+  cargo clippy           clean with -D warnings
+  cargo fmt              clean
+  playwright             296 passed / 0 failed
+
+### Sprint 30 progress
+
+- ✅ JTV-134 Platform fingerprinting (commit `1959d8a`)
+- ✅ Verify mode consolidation (commit `2b872df`)
+- ✅ JTV-130 Backup & Restore (this commit)
+
+Three of eight Sprint 30 items shipped. JTV-98 (Reverse Image Search BYOK) deferred to Sprint 32 per the project-manager sequencing decision (Sprint 30 capacity is 8 working days; JTV-98 alone needs 8–10).
+
+---
+
 ## 30 April 2026 — Sprint 30 — Verify mode consolidation (final cleanup)
 
 Closes the second of the Sprint 30 v1.0 scope items per `project_verify_modes_broken.md` agent memory and the v1.0 sprint scope item *"Verify mode consolidation — Deep ≡ Archival in code; video cap 12 frames defeats archival 40-frame promise. ~2d"*.

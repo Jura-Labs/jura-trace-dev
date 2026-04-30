@@ -1247,6 +1247,70 @@ impl Database {
         Ok(())
     }
 
+    /// Write a defragmented snapshot of the live database to `dest_path`
+    /// using SQLite's `VACUUM INTO`.  Holds a shared lock on the source
+    /// database for the duration; concurrent readers proceed normally,
+    /// concurrent writes queue and succeed afterwards (WAL mode).
+    ///
+    /// JTV-130 Phase 1: load-bearing primitive for Settings → Backup.
+    pub fn vacuum_into(&self, dest_path: &Path) -> SqliteResult<()> {
+        let conn = self
+            .conn
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        // rusqlite's prepared statements do not support binding the
+        // VACUUM INTO target path as a parameter; the path is interpreted
+        // as a SQL identifier.  We escape single quotes to mitigate any
+        // path-injection risk even though the path is internally
+        // generated and not user-controlled at this layer.
+        let escaped = dest_path.display().to_string().replace('\'', "''");
+        conn.execute_batch(&format!("VACUUM INTO '{escaped}'"))?;
+        Ok(())
+    }
+
+    /// Read the SQLite `user_version` PRAGMA — used by the backup manifest
+    /// and by the restore validation pre-flight to compare snapshot schema
+    /// against the running app's `SCHEMA_VERSION`.
+    pub fn schema_version(&self) -> SqliteResult<i32> {
+        let conn = self
+            .conn
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        conn.pragma_query_value(None, "user_version", |row| row.get(0))
+    }
+
+    /// Expose the current `SCHEMA_VERSION` constant so callers (e.g. the
+    /// restore command) can compare a snapshot against the build's max.
+    pub fn current_schema_version() -> i32 {
+        Self::SCHEMA_VERSION
+    }
+
+    /// Total number of asset rows.  Used by the restore command's
+    /// pre-flight `RestoreResult` to surface "you are about to restore N
+    /// assets" in the destructive-action confirmation dialog.
+    pub fn count_assets(&self) -> SqliteResult<u64> {
+        let conn = self
+            .conn
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        conn.query_row("SELECT COUNT(*) FROM assets", [], |row| row.get(0))
+    }
+
+    /// Whether an asset with the given SHA-256 hash already exists.
+    /// Used by `import_assets_csv` to skip duplicate rows silently.
+    pub fn asset_exists_by_hash(&self, hash: &str) -> SqliteResult<bool> {
+        let conn = self
+            .conn
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM assets WHERE sha256_hash = ?1",
+            [hash],
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
+    }
+
     /// Verify the integrity of the audit log hash chain.
     ///
     /// Walks every audit log entry in insertion order and recomputes each
@@ -2071,6 +2135,95 @@ mod tests {
             created_at: created_at.to_string(),
             sha256_hash: None,
         }
+    }
+
+    // ── Backup / VACUUM INTO (JTV-130 Phase 1) ─────────────────────
+
+    #[test]
+    fn vacuum_into_round_trip_preserves_schema_and_rows() {
+        // Seed a DB with one asset, snapshot via VACUUM INTO, open the
+        // snapshot, confirm the asset is present and the schema version
+        // matches the source.
+        let dir = tempfile::tempdir().unwrap();
+        let src_path = dir.path().join("source.db");
+        let snap_path = dir.path().join("snapshot.sqlite");
+
+        let db = Database::open(&src_path).unwrap();
+        db.insert_asset(&make_asset(
+            "backup-asset-1",
+            "test.jpg",
+            "2026-04-30T10:00:00Z",
+        ))
+        .unwrap();
+        let src_version = db.schema_version().unwrap();
+        assert_eq!(src_version, Database::current_schema_version());
+
+        db.vacuum_into(&snap_path).unwrap();
+        assert!(snap_path.exists(), "snapshot file should exist");
+        let snap_size = std::fs::metadata(&snap_path).unwrap().len();
+        assert!(snap_size > 0, "snapshot file must be non-empty");
+
+        // Open snapshot via a separate Database instance and confirm
+        // the seeded row + schema version travelled across.
+        let snap = Database::open(&snap_path).unwrap();
+        assert_eq!(snap.schema_version().unwrap(), src_version);
+        let assets = snap.get_all_assets(100, 0).unwrap();
+        assert_eq!(assets.len(), 1);
+        assert_eq!(assets[0].asset_id, "backup-asset-1");
+    }
+
+    #[test]
+    fn vacuum_into_rejects_invalid_destination_directory() {
+        // VACUUM INTO must surface an error when the destination directory
+        // does not exist.  We rely on this so the Tauri-command-side
+        // guard can clean up partial files on any error.
+        let dir = tempfile::tempdir().unwrap();
+        let src_path = dir.path().join("source.db");
+        let bad_dest = dir.path().join("nonexistent_dir").join("snapshot.sqlite");
+
+        let db = Database::open(&src_path).unwrap();
+        let result = db.vacuum_into(&bad_dest);
+        assert!(result.is_err(), "VACUUM INTO into a missing dir must fail");
+    }
+
+    #[test]
+    fn vacuum_into_preserves_audit_chain_integrity() {
+        // The chain-of-custody guarantee that survives backup/restore.
+        let dir = tempfile::tempdir().unwrap();
+        let src_path = dir.path().join("source.db");
+        let snap_path = dir.path().join("snapshot.sqlite");
+
+        let db = Database::open(&src_path).unwrap();
+        db.log_action(
+            "import",
+            "asset",
+            "audit-test-asset",
+            None,
+            Some("test-operator"),
+            None,
+        )
+        .unwrap();
+        db.log_action(
+            "verify",
+            "asset",
+            "audit-test-asset",
+            None,
+            Some("test-operator"),
+            None,
+        )
+        .unwrap();
+        assert!(
+            db.verify_audit_chain().unwrap(),
+            "source chain must be intact"
+        );
+
+        db.vacuum_into(&snap_path).unwrap();
+
+        let snap = Database::open(&snap_path).unwrap();
+        assert!(
+            snap.verify_audit_chain().unwrap(),
+            "snapshot chain must remain intact across VACUUM INTO"
+        );
     }
 
     // ── Schema ─────────────────────────────────────────────────────

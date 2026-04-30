@@ -739,6 +739,72 @@ export async function setDbPath(newPath: string): Promise<string> {
   return invoke<string>('set_db_path', { newPath });
 }
 
+// ── Backup & Restore (JTV-130) ─────────────────────────────────────
+
+/** Result of `backupDatabase`. */
+export interface BackupResult {
+  snapshotPath: string;
+  manifestPath: string;
+  sha256: string;
+  schemaVersion: number;
+  timestamp: string;
+}
+
+/** Result of `restoreDatabase` — returned for both validate-only and confirmed runs. */
+export interface RestoreResult {
+  success: boolean;
+  snapshotSchemaVersion: number;
+  currentSchemaVersion: number;
+  assetCount: number;
+  auditChainValid: boolean;
+  message: string;
+}
+
+/** Result of `importAssetsCsv`. */
+export interface CsvImportResult {
+  imported: number;
+  skippedDuplicates: number;
+  failed: number;
+  errors: string[];
+}
+
+/**
+ * Write a `VACUUM INTO` snapshot of the current database to a user-chosen
+ * directory.  The snapshot file plus a JSON manifest sidecar are placed in
+ * `destDir` with timestamps in their names.  POSIX permissions are set
+ * to 0o600 on the snapshot file.
+ */
+export async function backupDatabase(destDir: string): Promise<BackupResult> {
+  return invoke<BackupResult>('backup_database', { destDir });
+}
+
+/**
+ * Validate or restore a database snapshot.
+ *
+ * Two-phase pattern: call with `confirmed=false` first to populate the
+ * destructive-action confirmation modal, then re-call with `confirmed=true`
+ * if the user proceeds.  The Rust backend re-runs validation on the
+ * confirmed call as a last-second tamper guard.
+ */
+export async function restoreDatabase(
+  snapshotPath: string,
+  confirmed: boolean,
+): Promise<RestoreResult> {
+  return invoke<RestoreResult>('restore_database', { snapshotPath, confirmed });
+}
+
+/**
+ * Import asset metadata rows from a CSV catalogue file.
+ *
+ * The CSV must have a `file_path` column at minimum.  Optional columns:
+ * `sha256_hash`, `file_name`, `content_type`, `c2pa_signed`, `watermarked`.
+ * Rows whose SHA-256 already exists in the catalogue are skipped silently.
+ * Hard cap of 10 000 rows.
+ */
+export async function importAssetsCsv(csvPath: string): Promise<CsvImportResult> {
+  return invoke<CsvImportResult>('import_assets_csv', { csvPath });
+}
+
 // ── Setup Wizard Flag ───────────────────────────────────────────────
 
 /**
