@@ -645,8 +645,8 @@ export interface PlatformFingerprintResult {
   platform?: string | null;
   /** Confidence in the platform identification (0.0–1.0). */
   confidence?: number | null;
-  /** All candidate platforms with scores, ordered by confidence descending. */
-  allCandidates?: Array<{ platform: string; score: number }> | null;
+  /** All candidate platforms with confidences, ordered by confidence descending. */
+  allCandidates?: Array<{ platform: string; confidence: number }> | null;
   /** Maximum dimension of the image in pixels (largest of width/height). */
   maxDimension?: number | null;
   /** Estimated JPEG quality factor from quantisation tables (1–100). */

@@ -6,6 +6,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 30 April 2026 — Sprint 30 — JTV-134: Social media platform fingerprinting wired into verify pipeline
+
+**Pilot rollout moved to Week 4 June 2026** (~2026-06-29) to absorb the v1.0 scope expansion: backlog item #26 (platform fingerprinting, informational-only) into Sprint 30 and item #24 (Fourier periodic pattern detection, Experimental/informational-only) into a new Sprint 31. See `project_v1_scope_expansion_apr2026.md` agent memory for the locked Sprint 30/31/32 plan and JTV-133/134/135 in Plane.
+
+### What this commit adds
+
+The sidecar service for social-media platform fingerprinting (`sidecar/app/services/platform_fingerprint.py`), its `POST /forensics/platform-fingerprint` route, the `PlatformFingerprintResponse` schema, the TypeScript `PlatformFingerprintResult` interface, and the verify v2 UI render block at `verify/+page.svelte:2481` were all already in place — only the Rust bridge was missing. This sprint closes that gap:
+
+- `src-tauri/src/sidecar.rs` — adds `PlatformFingerprintResult` and `PlatformCandidate` structs (camelCase wire format mirroring the sidecar response), and the `SidecarClient::analyse_platform_fingerprint` HTTP client method (15 s timeout, multipart upload through the existing `build_image_form` helper).
+- `src-tauri/src/lib.rs` — adds `platform_fingerprint_result: Option<sidecar::PlatformFingerprintResult>` to `VerificationResult`, threads it through `verify_content_inner` immediately after the content-type classification call (cheap, sequential, image-only when sidecar is reachable), and updates the test fixture construction site.
+- `ui/src/lib/types.ts` — fixes a `score`/`confidence` field-name drift in `PlatformFingerprintResult.allCandidates`: the TypeScript interface had been written speculatively before the Rust struct existed and used `score`, but the sidecar wire format uses `confidence`. Aligned to `confidence` (single source of truth).
+- `ui/src/routes/verify/+page.svelte:2521` — corresponding render-binding fix from `candidate.score` to `candidate.confidence`.
+
+### Informational-only contract
+
+Platform identification is **provenance disclosure, not a tampering signal** — a WhatsApp-forwarded image is not less authentic than a direct upload, just processed by a known re-encoding pipeline. The result populates the verify result for user awareness only; `compute_trust` is unchanged. A new test (`platform_fingerprint_is_informational_only`) calls `compute_trust` twice with identical args and asserts identical output — if a future change adds a platform-fingerprint parameter to the trust formula, the test fails to compile (deliberate tripwire).
+
+### Tests
+
+Three new sidecar deserialisation tests (`test_platform_fingerprint_result_deserialise_camel_case`, `_negative`, `_serialises_to_camel_case` — the last asserts the wire format never reverts to the legacy `score` field name). One new lib test for the informational-only contract. Existing `VerificationResult` JSON serialisation test extended to confirm `platformFingerprintResult` appears as a camelCase key.
+
+### Backlog change
+
+`docs/backlog.md` item #26 marked resolved; v1.0 sprint scope section adds the JTV-133/134/135 promotions and reflects the 29 June pilot date.
+
+---
+
 ## 28 April 2026 — Format truth-grid honesty pass + Protect page polish (JTV-105 + JTV-114 + JTV-129)
 
 A two-front polish day driven by the 28 April 2026 four-agent audits. **Pilot rollout extended to Week 3 June 2026** (~2026-06-15) to absorb scope expansion (Reverse Image Search proper, ML model training, Track 3 corpus completion).

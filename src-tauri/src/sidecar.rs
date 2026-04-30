@@ -783,6 +783,48 @@ pub struct FourierAnalysisResult {
     pub summary: String,
 }
 
+/// A single candidate platform match for the social-media fingerprint result.
+/// (JTV-134, Sprint 30 — promoted from backlog #26 v1.2 to v1.0 informational-only.)
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PlatformCandidate {
+    /// Platform name (e.g. `"WhatsApp"`, `"Twitter/X"`, `"Facebook"`).
+    pub platform: String,
+    /// Confidence in this candidate, 0.0–1.0.
+    pub confidence: f64,
+}
+
+/// Social-media re-upload platform fingerprinting result.
+///
+/// Identifies which platform processed an image from JPEG quantisation
+/// signatures, characteristic resolution caps, and EXIF stripping
+/// patterns. **Informational-only** — does not contribute to
+/// `compute_trust`; populates `VerificationResult.platform_fingerprint_result`
+/// for user awareness as a provenance disclosure.
+///
+/// Mirrors `PlatformFingerprintResponse` in
+/// `sidecar/app/models/schemas.py` (camelCase wire format).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PlatformFingerprintResult {
+    /// Whether a known platform processing signature was detected.
+    pub detected: bool,
+    /// Name of the most likely platform; `None` when nothing matched.
+    pub platform: Option<String>,
+    /// Confidence in the headline platform match, 0.0–1.0.
+    pub confidence: f64,
+    /// All candidates ranked by confidence (descending). Empty when nothing matched.
+    pub all_candidates: Vec<PlatformCandidate>,
+    /// Largest of width / height in pixels.
+    pub max_dimension: Option<u32>,
+    /// Estimated IJG-equivalent quality factor (1–100) for JPEG inputs.
+    pub estimated_quality: Option<u32>,
+    /// Whether any EXIF data is present in the file.
+    pub has_exif: bool,
+    /// Human-readable provenance summary, suitable for direct UI display.
+    pub summary: String,
+}
+
 /// Status of the CLIP model in the Python sidecar.
 ///
 /// Returned by `GET /forensics/clip-status` and used by the idle-watcher
@@ -1094,6 +1136,37 @@ impl SidecarClient {
 
         resp.json::<ClipDetectionResult>()
             .map_err(|e| format!("Failed to parse clip-detect response: {e}"))
+    }
+
+    /// Run social-media platform fingerprinting on an image file.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/platform-fingerprint`.
+    /// **Informational-only** — the result populates the verify result for
+    /// user awareness but does not contribute to `compute_trust`. (JTV-134.)
+    pub fn analyse_platform_fingerprint(
+        &self,
+        image_path: &Path,
+    ) -> Result<PlatformFingerprintResult, String> {
+        let form = self.build_image_form(image_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/platform-fingerprint", self.base_url))
+            .multipart(form)
+            .timeout(Duration::from_secs(15))
+            .send()
+            .map_err(|e| format!("Sidecar platform-fingerprint request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!(
+                "Sidecar platform-fingerprint returned {status}: {body}"
+            ));
+        }
+
+        resp.json::<PlatformFingerprintResult>()
+            .map_err(|e| format!("Failed to parse platform-fingerprint response: {e}"))
     }
 
     /// Run Neighbouring Pixel Relationships analysis on an image file.
@@ -2042,6 +2115,83 @@ mod tests {
         assert!(caps.noise);
         assert!(caps.copy_move);
         assert!(!caps.deepfake);
+    }
+
+    #[test]
+    fn test_platform_fingerprint_result_deserialise_camel_case() {
+        // Python sidecar returns camelCase for this response (PlatformFingerprintResponse).
+        let json = r#"{
+            "detected": true,
+            "platform": "WhatsApp",
+            "confidence": 0.82,
+            "allCandidates": [
+                { "platform": "WhatsApp", "confidence": 0.82 },
+                { "platform": "Instagram", "confidence": 0.41 }
+            ],
+            "maxDimension": 1280,
+            "estimatedQuality": 75,
+            "hasExif": false,
+            "summary": "WhatsApp processing signature detected (Q≈75, max 1280, EXIF stripped)"
+        }"#;
+        let result: PlatformFingerprintResult = serde_json::from_str(json).unwrap();
+        assert!(result.detected);
+        assert_eq!(result.platform.as_deref(), Some("WhatsApp"));
+        assert!((result.confidence - 0.82).abs() < 0.001);
+        assert_eq!(result.all_candidates.len(), 2);
+        assert_eq!(result.all_candidates[0].platform, "WhatsApp");
+        assert!((result.all_candidates[0].confidence - 0.82).abs() < 0.001);
+        assert_eq!(result.max_dimension, Some(1280));
+        assert_eq!(result.estimated_quality, Some(75));
+        assert!(!result.has_exif);
+        assert!(result.summary.contains("WhatsApp"));
+    }
+
+    #[test]
+    fn test_platform_fingerprint_result_deserialise_negative() {
+        // No platform matched.
+        let json = r#"{
+            "detected": false,
+            "platform": null,
+            "confidence": 0.0,
+            "allCandidates": [],
+            "maxDimension": 4032,
+            "estimatedQuality": 92,
+            "hasExif": true,
+            "summary": "No social media processing detected."
+        }"#;
+        let result: PlatformFingerprintResult = serde_json::from_str(json).unwrap();
+        assert!(!result.detected);
+        assert!(result.platform.is_none());
+        assert!(result.all_candidates.is_empty());
+        assert!(result.has_exif);
+    }
+
+    #[test]
+    fn test_platform_fingerprint_result_serialises_to_camel_case() {
+        // Confirm Rust → frontend wire format keeps `confidence` (not `score`)
+        // and uses camelCase for the IPC payload.
+        let result = PlatformFingerprintResult {
+            detected: true,
+            platform: Some("Twitter/X".to_string()),
+            confidence: 0.71,
+            all_candidates: vec![PlatformCandidate {
+                platform: "Twitter/X".to_string(),
+                confidence: 0.71,
+            }],
+            max_dimension: Some(2048),
+            estimated_quality: Some(85),
+            has_exif: false,
+            summary: "Twitter/X re-encoding signature.".to_string(),
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("\"allCandidates\""));
+        assert!(json.contains("\"maxDimension\""));
+        assert!(json.contains("\"estimatedQuality\""));
+        assert!(json.contains("\"hasExif\""));
+        assert!(json.contains("\"confidence\":0.71"));
+        // Must not regress to the historical `score` field name in the
+        // candidate sub-struct (TS interface drift caught during JTV-134).
+        assert!(!json.contains("\"score\""));
     }
 
     #[test]

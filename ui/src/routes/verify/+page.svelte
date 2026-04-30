@@ -2518,7 +2518,7 @@
                             {#each pf.allCandidates as candidate}
                               <li class="flex items-center justify-between gap-3 text-[11px]">
                                 <span class="text-flint-dark dark:text-flint-light">{candidate.platform}</span>
-                                <span class="tabular-nums text-obsidian dark:text-quartz">{Math.round(candidate.score * 100)}%</span>
+                                <span class="tabular-nums text-obsidian dark:text-quartz">{Math.round(candidate.confidence * 100)}%</span>
                               </li>
                             {/each}
                           </ul>

@@ -219,6 +219,10 @@ pub struct VerificationResult {
     /// neutralised to 0.5 in trust scoring.  `None` when the sidecar is
     /// offline or the content type is not an image.
     pub content_type_result: Option<sidecar::ContentTypeResult>,
+    /// Social-media platform fingerprint — informational-only (no contribution
+    /// to `compute_trust`).  Populated for image content when the sidecar is
+    /// reachable.  See JTV-134 (Sprint 30, promoted from backlog #26 v1.2 → v1.0).
+    pub platform_fingerprint_result: Option<sidecar::PlatformFingerprintResult>,
     /// Filename provenance heuristics (camera naming, screenshot, AI generator, etc.).
     /// Populated for all content types.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2116,6 +2120,24 @@ fn verify_content_inner(
         None
     };
 
+    // Platform fingerprint — informational-only.  Cheap (~100–300 ms) image
+    // analysis identifying which social-media platform processed the file
+    // (WhatsApp / Instagram / Twitter etc.).  Result populates the verify
+    // result for user awareness; does NOT feed into `compute_trust`.
+    // (JTV-134, Sprint 30 — promoted from backlog #26 v1.2 to v1.0.)
+    let platform_fingerprint_result: Option<sidecar::PlatformFingerprintResult> =
+        if is_image && sidecar_up {
+            match app.sidecar.analyse_platform_fingerprint(&path) {
+                Ok(pf) => Some(pf),
+                Err(e) => {
+                    log::warn!("Sidecar platform-fingerprint failed: {e}");
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
     // Derive suppression flags from the content-type result.
     // Default: ai_detection_suitable=true (no suppression) so that pipelines
     // where the sidecar is offline or the file is not an image behave as before.
@@ -2780,6 +2802,7 @@ fn verify_content_inner(
         methodology,
         input_quality,
         content_type_result,
+        platform_fingerprint_result,
         filename_analysis: filename_analysis_result,
         pdf_provenance: pdf_provenance_result,
         detectors_run: detectors_run_list.iter().map(|s| s.to_string()).collect(),
@@ -6566,6 +6589,7 @@ mod tests {
             methodology: None,
             input_quality: None,
             content_type_result: None,
+            platform_fingerprint_result: None,
             filename_analysis: None,
             pdf_provenance: None,
             detectors_run: Vec::new(),
@@ -6575,6 +6599,66 @@ mod tests {
             json.contains("\"mode\":\"standard\""),
             "mode field missing or wrong value in serialised JSON: {json}"
         );
+        // JTV-134: confirm the new informational-only field serialises with
+        // camelCase under the existing `rename_all = "camelCase"` rule.
+        assert!(
+            json.contains("\"platformFingerprintResult\""),
+            "platformFingerprintResult field missing in serialised JSON: {json}"
+        );
+    }
+
+    #[test]
+    fn platform_fingerprint_is_informational_only() {
+        // JTV-134 informational-only contract: the platform fingerprint
+        // result does NOT contribute to `compute_trust`.  This test guards
+        // against future regressions where someone wires the result into
+        // the trust formula.  Two clean calls with identical args MUST
+        // produce identical scores.  If a future change adds a platform
+        // fingerprint parameter to `compute_trust`, this call site fails
+        // to compile — that is the tripwire.
+        let baseline = compute_trust(
+            Some(0.1),
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            Some(true),
+            None,
+            None,
+            None,
+            None,
+            false,
+            None,
+            None,
+            None,
+            true,
+            false,
+            false,
+        );
+        let again = compute_trust(
+            Some(0.1),
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.8,
+            Some(true),
+            None,
+            None,
+            None,
+            None,
+            false,
+            None,
+            None,
+            None,
+            true,
+            false,
+            false,
+        );
+        assert!((baseline - again).abs() < f64::EPSILON);
     }
 
     // ── Regional detector trust tests ─────────────────────────────────
