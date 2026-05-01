@@ -108,10 +108,34 @@
           throw new Error(`winget install failed: ${detail}`);
         }
       } else if (platform === 'mac') {
-        const result = await Command.create('brew', ['install', 'ffmpeg']).execute();
-        if (result.code !== 0) {
-          const detail = result.stderr?.trim() || `Exit code ${result.code}`;
-          throw new Error(`Homebrew install failed: ${detail}`);
+        // Tauri-launched apps on macOS run with launchd's limited PATH —
+        // they do NOT inherit shell PATH.  Homebrew lives at
+        // /opt/homebrew/bin/brew on Apple Silicon and /usr/local/bin/brew
+        // on Intel; neither is in launchd's default PATH.  We must invoke
+        // brew via its absolute path through scoped capability entries.
+        async function tryBrew(scope: 'brew-arm' | 'brew-intel'): Promise<{ ok: boolean; stderr?: string }> {
+          try {
+            // Probe with --version first so we surface a clean error if the
+            // binary isn't at the expected location.
+            const probe = await Command.create(scope, ['--version']).execute();
+            if (probe.code !== 0) return { ok: false };
+            const r = await Command.create(scope, ['install', 'ffmpeg']).execute();
+            if (r.code !== 0) {
+              return { ok: false, stderr: r.stderr?.trim() || `Exit code ${r.code}` };
+            }
+            return { ok: true };
+          } catch {
+            return { ok: false };
+          }
+        }
+        let outcome = await tryBrew('brew-arm');
+        if (!outcome.ok) outcome = await tryBrew('brew-intel');
+        if (!outcome.ok) {
+          throw new Error(
+            outcome.stderr
+              ? `Homebrew install failed: ${outcome.stderr}`
+              : 'Homebrew is not installed. Visit brew.sh to install it, or install FFmpeg manually using the command shown below.',
+          );
         }
       } else {
         throw new Error(
