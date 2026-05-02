@@ -5952,6 +5952,14 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Option<tauri_plugin_shell::process::
                 }
             };
             let cmd = cmd.env("PATH", augmented_path);
+            // JTV-142 fix 2 (2026-05-02): without PYTHONUNBUFFERED, Python's
+            // stdout is fully buffered when piped to Tauri's CommandEvent
+            // stream. uvicorn's "Application startup complete" + bind log
+            // can be held in a 64 KB buffer for the entire startup window,
+            // which makes the "process alive but Settings shows Offline"
+            // symptom hard to diagnose. Forcing line-buffered flush makes
+            // startup progress visible in the Rust log reader in real time.
+            let cmd = cmd.env("PYTHONUNBUFFERED", "1");
             match cmd.args(["--host", "127.0.0.1", "--port", "8200"]).spawn() {
                 Err(e) => {
                     log::warn!(
@@ -5966,10 +5974,15 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Option<tauri_plugin_shell::process::
                         while let Some(event) = rx.recv().await {
                             match event {
                                 CommandEvent::Stdout(line) => {
-                                    log::debug!("sidecar: {}", String::from_utf8_lossy(&line));
+                                    // JTV-142 fix 2: surface sidecar startup at
+                                    // info so port-bind / model-warmup progress
+                                    // is visible without raising the global log
+                                    // level. Volume is tolerable because the
+                                    // sidecar prints sparingly post-startup.
+                                    log::info!("sidecar: {}", String::from_utf8_lossy(&line));
                                 }
                                 CommandEvent::Stderr(line) => {
-                                    log::debug!("sidecar: {}", String::from_utf8_lossy(&line));
+                                    log::info!("sidecar: {}", String::from_utf8_lossy(&line));
                                 }
                                 CommandEvent::Terminated(p) => {
                                     log::info!("Sidecar process terminated (code: {:?})", p.code);
@@ -5986,10 +5999,20 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Option<tauri_plugin_shell::process::
     }
 }
 
-/// Poll the sidecar `/health` endpoint until it responds or the timeout elapses.
+/// Poll the sidecar `/health/ready` endpoint until it responds or the timeout
+/// elapses.
 ///
 /// Uses exponential back-off: 200 ms → 400 → 800 → 1 600 ms (capped), up to
 /// `max_attempts` total tries. Returns `true` when the sidecar is ready.
+///
+/// JTV-142 fix 3 (2026-05-02): polls `/health/ready`, not `/health`. The
+/// `/health` endpoint runs `_ensure_model()` per request which can re-import
+/// scikit-image / sklearn modules from `_MEIPASS` on a cold PyInstaller
+/// bundle and block the response for hundreds of ms. `/health/ready` is a
+/// constant-time bool read of a flag set during the FastAPI lifespan, so
+/// every retry burns its full back-off interval rather than serialising on
+/// the lazy CLIP probe. The full capability JSON at `/health` is fetched
+/// separately by `SidecarClient::health()` once readiness is confirmed.
 fn wait_for_sidecar_ready(max_attempts: u32) -> bool {
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(2))
@@ -5999,7 +6022,7 @@ fn wait_for_sidecar_ready(max_attempts: u32) -> bool {
         let delay_ms = 200u64 * (1u64 << attempt.min(3));
         std::thread::sleep(std::time::Duration::from_millis(delay_ms));
         if client
-            .get("http://127.0.0.1:8200/health")
+            .get("http://127.0.0.1:8200/health/ready")
             .send()
             .map(|r| r.status().is_success())
             .unwrap_or(false)
@@ -6133,11 +6156,19 @@ pub fn run() {
             let sidecar_child = spawn_sidecar(app.app_handle());
 
             // ── Sidecar readiness check ──────────────────────────────────────
-            // Poll /health with exponential backoff (up to ~10 s total).
-            // This is a blocking check on the setup thread, which is
-            // acceptable — Tauri's window is not shown until setup returns.
-            // We cap the total wait so a missing sidecar never stalls startup.
-            if sidecar_child.is_some() && !wait_for_sidecar_ready(10) {
+            // Poll /health/ready with exponential back-off. The cap is 60
+            // attempts at startup (~125 s worst case): the previous 10-attempt
+            // / 12.6-second budget was too tight for a PyInstaller onefile
+            // cold start (extract _MEIPASS + Gatekeeper scan + GBM/UnivFD
+            // warmup) on macOS .app launch from Finder, which is the JTV-142
+            // symptom — the process was alive but Settings reported "Analysis
+            // Engine: Offline" because Rust gave up before port 8200 bound.
+            // The respawn site at line ~2972 keeps RESPAWN_MAX_ATTEMPTS — only
+            // the first cold start needs the larger budget. Tauri's window is
+            // shown after setup returns, so this delay is in the setup thread
+            // and the user sees a splash / loading state during it.
+            const STARTUP_READINESS_ATTEMPTS: u32 = 60;
+            if sidecar_child.is_some() && !wait_for_sidecar_ready(STARTUP_READINESS_ATTEMPTS) {
                 log::warn!(
                     "Sidecar did not respond within timeout. \
                      Forensic analysis will be unavailable."

@@ -37,6 +37,8 @@ async def lifespan(application: FastAPI):
     - The GBM deepfake classifier (joblib model file, ~50 ms if present)
     - HEIC/HEIF codec registration via pillow-heif (Linux build hardening;
       iPhone photos are the most common pilot input)
+    - CLIP probe availability (cached on application.state so /health does
+      not pay a per-request cold-import cost — JTV-142 fix 3, 2026-05-02).
     """
     try:
         import pillow_heif  # noqa: PLC0415
@@ -62,6 +64,29 @@ async def lifespan(application: FastAPI):
             )
     except Exception as exc:  # noqa: BLE001
         logger.warning("Deepfake classifier warmup failed (non-fatal): %s", exc)
+
+    # JTV-142 fix 3 (2026-05-02): probe CLIP once at startup and cache the
+    # result on application.state so the per-request /health handler does not
+    # repeatedly re-import scikit-image / sklearn from a cold _MEIPASS dir.
+    # When the Rust readiness poller fires a probe every 200-1600 ms during
+    # the startup window, this cache prevents the lazy-load from serialising
+    # all probes and exhausting the Rust readiness budget.
+    application.state.clip_available = False
+    try:
+        from app.services.clip_detector import _ensure_model  # noqa: PLC0415
+
+        application.state.clip_available = bool(_ensure_model())
+        logger.info(
+            "CLIP probe availability cached: %s",
+            application.state.clip_available,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("CLIP availability probe failed (non-fatal): %s", exc)
+
+    # Mark the application ready *after* all warmup is done. /health/ready
+    # reads this flag and short-circuits without touching any service module.
+    application.state.ready = True
+    logger.info("Sidecar ready — /health/ready will now return 200")
 
     yield  # application runs here
 

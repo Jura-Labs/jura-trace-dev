@@ -59,17 +59,23 @@ from app.services.noise_visualisation import perform_noise_visualisation
 from app.services.clahe import perform_clahe
 from app.services.frequency_visualisation import perform_frequency_visualisation
 from app.services.jpeg_grid import perform_jpeg_grid_visualisation
-from app.services.audio_metadata import perform_audio_metadata
-from app.services.transcription import perform_transcription
-from app.services.video_deepfake import perform_video_deepfake_analysis
-from app.services.video_frames import perform_frame_extraction
-from app.services.video_metadata import perform_video_metadata
+# JTV-138 (2026-05-02) — audio/video service imports commented out for v1.0.
+# The Rust pipeline gates ENABLE_VIDEO_DEEPFAKE_GROUP and ENABLE_AUDIO_GROUP
+# to false, so the routes that wire these services are unreachable from the
+# v1.0 verify path. The imports are commented (not deleted) so JTV-139
+# (Phase A Sprint 21 v1.0.x re-add) restores them with a single revert PR.
+# Schemas remain imported above so the response types continue to compile.
+# from app.services.audio_metadata import perform_audio_metadata
+# from app.services.transcription import perform_transcription
+# from app.services.video_deepfake import perform_video_deepfake_analysis
+# from app.services.video_frames import perform_frame_extraction
+# from app.services.video_metadata import perform_video_metadata
 from app.services.roi_analysis import analyse_roi
 from app.services.gan_fingerprint import visualise_gan_fingerprint
-from app.services.audio_deepfake import score_audio_deepfake
+# from app.services.audio_deepfake import score_audio_deepfake
 from app.services.watermark import perform_watermark_embed, perform_watermark_extract
 from app.services.dct_analysis import analyse_dct
-from app.services.enf_analysis import analyse_enf
+# from app.services.enf_analysis import analyse_enf
 from app.services.fourier_analysis import analyse_fourier
 from app.services.platform_fingerprint import analyse_platform
 
@@ -556,113 +562,64 @@ async def watermark_extract(
     return result
 
 
-@router.post("/video/metadata", response_model=VideoMetadataResponse)
-async def video_metadata(
-    file: UploadFile = File(...),
-) -> VideoMetadataResponse:
-    """
-    Extract video metadata using FFmpeg/ffprobe.
-
-    Returns codec, resolution, frame rate, duration, audio stream info,
-    bitrate, and file size. Requires FFmpeg to be installed on the system.
-    """
-    contents = await _read_media(file, _MAX_VIDEO_SIZE, "video")
-    return perform_video_metadata(contents)
-
-
-@router.post("/audio/metadata", response_model=AudioMetadataResponse)
-async def audio_metadata(
-    file: UploadFile = File(...),
-) -> AudioMetadataResponse:
-    """
-    Extract audio metadata using FFmpeg/ffprobe.
-
-    Returns codec, sample rate, channels, duration, bitrate, and file size.
-    Requires FFmpeg to be installed on the system.
-    """
-    contents = await _read_media(file, _MAX_AUDIO_SIZE, "audio")
-    return perform_audio_metadata(contents)
-
-
-@router.post("/video/deepfake", response_model=VideoDeepfakeResponse)
-async def analyse_video_deepfake(
-    file: UploadFile = File(...),
-    mode: str = Query(default="standard"),
-) -> VideoDeepfakeResponse:
-    """
-    Analyse a video for AI-generated or manipulated frames.
-
-    Extracts evenly-spaced frames and runs the deepfake detector on each.
-    Per-frame scores are aggregated into a video-level verdict.
-
-    Modes: ``standard`` (6 frames), ``deep`` (20), ``archival`` (40).
-    Requires FFmpeg to be installed on the system.
-    """
-    if mode not in ("standard", "deep", "archival"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid mode '{mode}'. Must be one of: standard, deep, archival",
-        )
-
-    contents = await _read_media(file, _MAX_VIDEO_SIZE, "video")
-    return perform_video_deepfake_analysis(contents, mode=mode)
-
-
-@router.post("/video/frames", response_model=VideoFramesResponse)
-async def video_frames(
-    file: UploadFile = File(...),
-    count: int = Query(default=6, ge=1, le=12),
-) -> VideoFramesResponse:
-    """
-    Extract evenly-spaced frames from a video as base64 JPEG strings.
-
-    Returns up to ``count`` frames sampled at equal intervals through the
-    video duration. Requires FFmpeg to be installed on the system.
-    """
-    contents = await _read_media(file, _MAX_VIDEO_SIZE, "video")
-    return perform_frame_extraction(contents, count=count)
-
-
-@router.post("/transcribe", response_model=TranscriptionResponse)
-async def transcribe(
-    file: UploadFile = File(...),
-    language: str | None = Query(default=None),
-    model_size: str = Query(default="base"),
-) -> TranscriptionResponse:
-    """
-    Transcribe speech from an audio or video file using Whisper.
-
-    Accepts audio (WAV, MP3, FLAC) and video (MP4, MOV) files.
-    For video files, the audio track is extracted via FFmpeg first.
-    Uses faster-whisper for efficient CPU inference.
-
-    The ``language`` parameter accepts an ISO 639-1 code (e.g. "en").
-    Leave unset for automatic language detection.
-
-    Model sizes: ``tiny`` (~75 MB), ``base`` (~150 MB), ``small`` (~500 MB).
-    Models are downloaded on first use.
-
-    Requires the optional ``faster-whisper`` package.
-    If not installed, returns ``success=False`` with a descriptive message.
-
-    File size is capped at the video limit (500 MB) since video files are the
-    largest accepted media type.  This prevents OOM via crafted large uploads.
-    """
-    # SECURITY: Apply the video size limit because transcription accepts both
-    # audio and video; without a limit an attacker could submit an arbitrarily
-    # large file and exhaust process memory before any processing begins.
-    contents = await _read_media(file, _MAX_VIDEO_SIZE, "media")
-
-    if model_size not in ("tiny", "base", "small"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid model_size '{model_size}'. Must be one of: tiny, base, small",
-        )
-
-    result = perform_transcription(
-        contents, language=language, model_size=model_size,
-    )
-    return TranscriptionResponse(**result)
+# JTV-138 (2026-05-02) — audio/video routes commented out for v1.0.
+# Restored as a single block under JTV-139 (Phase A Sprint 21 v1.0.x re-add)
+# once Global Majority device coverage and per-generator calibration data
+# are published. The Rust pipeline gates ENABLE_VIDEO_DEEPFAKE_GROUP and
+# ENABLE_AUDIO_GROUP to false, so even if a route was reachable on port
+# 8200 nothing in the v1.0 verify path would call it. Removing the routes
+# closes a reachable-but-ungated HTTP surface on the local sidecar port.
+#
+# @router.post("/video/metadata", response_model=VideoMetadataResponse)
+# async def video_metadata(
+#     file: UploadFile = File(...),
+# ) -> VideoMetadataResponse:
+#     """Extract video metadata via FFprobe — see JTV-139."""
+#     contents = await _read_media(file, _MAX_VIDEO_SIZE, "video")
+#     return perform_video_metadata(contents)
+#
+# @router.post("/audio/metadata", response_model=AudioMetadataResponse)
+# async def audio_metadata(
+#     file: UploadFile = File(...),
+# ) -> AudioMetadataResponse:
+#     """Extract audio metadata via FFprobe — see JTV-139."""
+#     contents = await _read_media(file, _MAX_AUDIO_SIZE, "audio")
+#     return perform_audio_metadata(contents)
+#
+# @router.post("/video/deepfake", response_model=VideoDeepfakeResponse)
+# async def analyse_video_deepfake(
+#     file: UploadFile = File(...),
+#     mode: str = Query(default="standard"),
+# ) -> VideoDeepfakeResponse:
+#     """Per-frame deepfake analysis on extracted video frames — see JTV-139."""
+#     if mode not in ("standard", "deep", "archival"):
+#         raise HTTPException(status_code=400, detail=f"Invalid mode '{mode}'.")
+#     contents = await _read_media(file, _MAX_VIDEO_SIZE, "video")
+#     return perform_video_deepfake_analysis(contents, mode=mode)
+#
+# @router.post("/video/frames", response_model=VideoFramesResponse)
+# async def video_frames(
+#     file: UploadFile = File(...),
+#     count: int = Query(default=6, ge=1, le=12),
+# ) -> VideoFramesResponse:
+#     """Evenly-spaced frame extraction — see JTV-139."""
+#     contents = await _read_media(file, _MAX_VIDEO_SIZE, "video")
+#     return perform_frame_extraction(contents, count=count)
+#
+# @router.post("/transcribe", response_model=TranscriptionResponse)
+# async def transcribe(
+#     file: UploadFile = File(...),
+#     language: str | None = Query(default=None),
+#     model_size: str = Query(default="base"),
+# ) -> TranscriptionResponse:
+#     """Whisper-based transcription — see JTV-139."""
+#     contents = await _read_media(file, _MAX_VIDEO_SIZE, "media")
+#     if model_size not in ("tiny", "base", "small"):
+#         raise HTTPException(status_code=400, detail=f"Invalid model_size '{model_size}'.")
+#     result = perform_transcription(
+#         contents, language=language, model_size=model_size,
+#     )
+#     return TranscriptionResponse(**result)
 
 
 @router.post("/noise-visualisation")
@@ -770,42 +727,27 @@ _AUDIO_EXTENSIONS = {
 }
 
 
-@router.post("/audio/deepfake", response_model=AudioDeepfakeResponse)
-async def audio_deepfake(file: UploadFile = File(...)) -> AudioDeepfakeResponse:
-    """Detect AI-generated speech, voice cloning, and TTS in audio files.
-
-    Runs the two-stage ensemble (MFCC + GradientBoostingClassifier as Stage 1,
-    Wav2Vec2-Base + LogisticRegression as Stage 2).
-
-    **Sprint 35 skeleton**: while no trained probe files are deployed the
-    endpoint returns HTTP 200 with ``model_loaded=false`` and
-    ``verdict="model_not_loaded"``.  MFCC feature extraction is still
-    performed so callers can verify the audio pipeline is working.
-
-    Accepted formats: WAV, MP3, FLAC, OGG, AAC, M4A, AIFF, OPUS.
-    Maximum file size: 100 MB.
-    """
-    contents = await _read_media(file, _MAX_AUDIO_SIZE, "audio")
-
-    suffix = Path(file.filename or "audio.wav").suffix.lower()
-    if suffix not in _AUDIO_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported audio format '{suffix}'. "
-                   f"Accepted: {', '.join(sorted(_AUDIO_EXTENSIONS))}",
-        )
-
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp.write(contents)
-        tmp_path = tmp.name
-
-    try:
-        return score_audio_deepfake(tmp_path)
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
+# JTV-138 (2026-05-02) — audio deepfake route commented out for v1.0.
+# Audio deepfake was already a Sprint 35 skeleton with no deployed model;
+# JTV-110 / JTV-113 v1.1 retraining on ASVspoof + WaveFake will restore.
+#
+# @router.post("/audio/deepfake", response_model=AudioDeepfakeResponse)
+# async def audio_deepfake(file: UploadFile = File(...)) -> AudioDeepfakeResponse:
+#     """Detect AI-generated speech / TTS in audio — see JTV-110/JTV-113."""
+#     contents = await _read_media(file, _MAX_AUDIO_SIZE, "audio")
+#     suffix = Path(file.filename or "audio.wav").suffix.lower()
+#     if suffix not in _AUDIO_EXTENSIONS:
+#         raise HTTPException(status_code=400, detail=f"Unsupported audio format '{suffix}'.")
+#     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+#         tmp.write(contents)
+#         tmp_path = tmp.name
+#     try:
+#         return score_audio_deepfake(tmp_path)
+#     finally:
+#         try:
+#             os.unlink(tmp_path)
+#         except OSError:
+#             pass
 
 
 @router.post("/dct-analysis", response_model=DctAnalysisResponse)
@@ -899,33 +841,21 @@ async def platform_fingerprint(
 # ── ENF (Electrical Network Frequency) analysis ─────────────────────────────
 
 
-@router.post("/enf-analysis", response_model=EnfAnalysisResponse)
-async def enf_analysis(
-    file: UploadFile = File(...),
-    expected_freq: float = Query(default=50.0, description="Expected mains frequency: 50.0 or 60.0 Hz"),
-) -> EnfAnalysisResponse:
-    """Extract and analyse mains hum (ENF) from an audio recording.
-
-    Power grids operate at either 50 Hz (Europe, Asia, Africa, Oceania)
-    or 60 Hz (Americas, parts of Asia). The mains frequency leaves a
-    subtle imprint in audio recordings made near electrical infrastructure.
-
-    ENF analysis can help establish geographic provenance (50 vs 60 Hz
-    grid), temporal consistency, and recording authenticity.
-
-    Accepts WAV audio files. The ``expected_freq`` parameter selects
-    which grid frequency to search for (default 50.0 Hz).
-
-    Maximum file size: 100 MB.
-    """
-    contents = await _read_media(file, _MAX_AUDIO_SIZE, "audio")
-
-    try:
-        result = analyse_enf(contents, expected_freq=expected_freq)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    return EnfAnalysisResponse(**result)
+# JTV-138 (2026-05-02) — ENF (mains-hum) analysis is audio-only and out of
+# v1.0 scope. Restored alongside audio deepfake under JTV-110/JTV-113.
+#
+# @router.post("/enf-analysis", response_model=EnfAnalysisResponse)
+# async def enf_analysis(
+#     file: UploadFile = File(...),
+#     expected_freq: float = Query(default=50.0),
+# ) -> EnfAnalysisResponse:
+#     """Mains-hum ENF analysis on WAV — see JTV-110."""
+#     contents = await _read_media(file, _MAX_AUDIO_SIZE, "audio")
+#     try:
+#         result = analyse_enf(contents, expected_freq=expected_freq)
+#     except ValueError as exc:
+#         raise HTTPException(status_code=400, detail=str(exc)) from exc
+#     return EnfAnalysisResponse(**result)
 
 
 # ── CLIP model lifecycle management ──────────────────────────────────────────

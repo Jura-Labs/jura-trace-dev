@@ -1,5 +1,10 @@
 """Tests for the audio/video transcription service."""
 
+import pytest
+
+# JTV-138 (2026-05-02) — transcription dropped from v1.0.
+pytestmark = pytest.mark.skip(reason="JTV-138 v1.0 drop — re-enable under JTV-139")
+
 import shutil
 import subprocess
 from unittest.mock import patch
