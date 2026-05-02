@@ -5930,36 +5930,54 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Option<tauri_plugin_shell::process::
             );
             None
         }
-        Ok(cmd) => match cmd.args(["--host", "127.0.0.1", "--port", "8200"]).spawn() {
-            Err(e) => {
-                log::warn!(
-                    "Failed to (re)spawn sidecar: {e}. \
+        Ok(cmd) => {
+            // macOS-only: launchd-launched apps inherit a limited PATH that
+            // does NOT include Homebrew directories (/opt/homebrew/bin on
+            // Apple Silicon, /usr/local/bin on Intel).  The sidecar's
+            // ffmpeg/ffprobe health probe uses `shutil.which()` which
+            // only searches PATH, so without this prepend the sidecar
+            // reports "FFmpeg not installed" even when Homebrew has it.
+            // Linux and Windows package managers put ffmpeg in PATH by
+            // default — only macOS needs the augmentation.
+            let augmented_path = {
+                let homebrew = "/opt/homebrew/bin:/usr/local/bin";
+                match std::env::var("PATH") {
+                    Ok(p) if !p.is_empty() => format!("{homebrew}:{p}"),
+                    _ => homebrew.to_string(),
+                }
+            };
+            let cmd = cmd.env("PATH", augmented_path);
+            match cmd.args(["--host", "127.0.0.1", "--port", "8200"]).spawn() {
+                Err(e) => {
+                    log::warn!(
+                        "Failed to (re)spawn sidecar: {e}. \
                      Forensic analysis will be unavailable."
-                );
-                None
-            }
-            Ok((mut rx, child)) => {
-                tauri::async_runtime::spawn(async move {
-                    use tauri_plugin_shell::process::CommandEvent;
-                    while let Some(event) = rx.recv().await {
-                        match event {
-                            CommandEvent::Stdout(line) => {
-                                log::debug!("sidecar: {}", String::from_utf8_lossy(&line));
+                    );
+                    None
+                }
+                Ok((mut rx, child)) => {
+                    tauri::async_runtime::spawn(async move {
+                        use tauri_plugin_shell::process::CommandEvent;
+                        while let Some(event) = rx.recv().await {
+                            match event {
+                                CommandEvent::Stdout(line) => {
+                                    log::debug!("sidecar: {}", String::from_utf8_lossy(&line));
+                                }
+                                CommandEvent::Stderr(line) => {
+                                    log::debug!("sidecar: {}", String::from_utf8_lossy(&line));
+                                }
+                                CommandEvent::Terminated(p) => {
+                                    log::info!("Sidecar process terminated (code: {:?})", p.code);
+                                    break;
+                                }
+                                _ => {}
                             }
-                            CommandEvent::Stderr(line) => {
-                                log::debug!("sidecar: {}", String::from_utf8_lossy(&line));
-                            }
-                            CommandEvent::Terminated(p) => {
-                                log::info!("Sidecar process terminated (code: {:?})", p.code);
-                                break;
-                            }
-                            _ => {}
                         }
-                    }
-                });
-                Some(child)
+                    });
+                    Some(child)
+                }
             }
-        },
+        }
     }
 }
 
