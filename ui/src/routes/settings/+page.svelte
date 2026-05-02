@@ -516,6 +516,208 @@
     sidecarHealth?.ollama != null && sidecarHealth.ollama.length > 0,
   );
 
+  // ── JTV-132: Ollama install + model download (2026-05-02) ──────────────
+  // Bundling Ollama in v1.0 was ruled out by the four-agent evaluation
+  // (rag-ollama-engineer + persona-testing): ROOTED port-conflict, 8GB-RAM
+  // exclusion of pilot personas (Tom IT-manager, Aisha DRRF), 1Mbps-bandwidth
+  // exclusion of field deployment, and Apple notarisation incompatibility
+  // with re-signing third-party binaries are hard blockers. The optional
+  // path therefore needs frictionless install UX in Settings — moved here
+  // from the SetupWizard 2026-05-02 (commit cb87998) so first launch is not
+  // gated on a 9 GB model decision.
+  function detectPlatform(): 'mac' | 'windows' | 'linux' {
+    if (typeof navigator === 'undefined') return 'linux';
+    const p = navigator.userAgent.toLowerCase();
+    if (p.includes('win')) return 'windows';
+    if (p.includes('mac')) return 'mac';
+    return 'linux';
+  }
+  const platform = detectPlatform();
+
+  let ollamaInstalling = $state(false);
+  let ollamaInstallError = $state<string | null>(null);
+  let pullingModel = $state<string | null>(null);
+  let pullProgress = $state<string | null>(null);
+  let pullPercent = $state<number | null>(null);
+  let pullError = $state<string | null>(null);
+
+  /** Model presence flags driven by the live `/health` ollamaModels list. */
+  const ollamaModelsList = $derived(sidecarHealth?.ollamaModels ?? []);
+  const llavaInstalled = $derived(ollamaModelsList.some((m) => m.startsWith('llava')));
+  const qwenInstalled = $derived(ollamaModelsList.some((m) => m.startsWith('qwen2.5')));
+
+  /**
+   * Three-state Ollama summary for the Service Status card.
+   * 'not-installed' — no Ollama process reachable on configured URL
+   * 'installed-no-models' — reachable, but neither llava nor qwen2.5 are pulled
+   * 'partial' — one model present, one missing
+   * 'ready' — both models present
+   */
+  const ollamaState = $derived<'not-installed' | 'installed-no-models' | 'partial' | 'ready'>(
+    !ollamaOnline
+      ? 'not-installed'
+      : llavaInstalled && qwenInstalled
+        ? 'ready'
+        : !llavaInstalled && !qwenInstalled
+          ? 'installed-no-models'
+          : 'partial',
+  );
+
+  /**
+   * Attempt to install Ollama via the platform package manager.
+   * macOS: brew (arm64 first, then Intel fallback).
+   * Windows: winget Ollama.Ollama.
+   * Linux: opens the official curl install instructions in a browser.
+   *
+   * Mirrors the FFmpeg auto-install pattern that previously lived in
+   * SetupWizard.svelte (removed in commit cb87998). Reuses the shell
+   * capability scopes already declared in src-tauri/capabilities/default.json.
+   */
+  async function installOllama() {
+    ollamaInstalling = true;
+    ollamaInstallError = null;
+    try {
+      if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
+        throw new Error('Auto-install is only available in the desktop application.');
+      }
+      const { Command } = await import('@tauri-apps/plugin-shell');
+
+      if (platform === 'windows') {
+        try {
+          const probe = await Command.create('winget', ['--version']).execute();
+          if (probe.code !== 0) throw new Error('winget not found');
+        } catch {
+          throw new Error(
+            'winget is not available on this machine. Open ollama.com to download the installer manually.',
+          );
+        }
+        const r = await Command.create('winget', [
+          'install', 'Ollama.Ollama',
+          '--accept-package-agreements',
+          '--accept-source-agreements',
+          '--silent',
+        ]).execute();
+        if (r.code !== 0) {
+          const detail = r.stderr?.trim() || `Exit code ${r.code}`;
+          throw new Error(`winget install failed: ${detail}`);
+        }
+      } else if (platform === 'mac') {
+        async function tryBrew(scope: 'brew-arm' | 'brew-intel') {
+          try {
+            const probe = await Command.create(scope, ['--version']).execute();
+            if (probe.code !== 0) return { ok: false as const, stderr: probe.stderr?.trim() };
+            const r = await Command.create(scope, ['install', 'ollama']).execute();
+            if (r.code !== 0) return { ok: false as const, stderr: r.stderr?.trim() || `Exit code ${r.code}` };
+            return { ok: true as const };
+          } catch (e) {
+            return { ok: false as const, err: e };
+          }
+        }
+        let outcome = await tryBrew('brew-arm');
+        if (!outcome.ok) outcome = await tryBrew('brew-intel');
+        if (!outcome.ok) {
+          throw new Error(
+            'Homebrew not reachable at /opt/homebrew/bin/brew or /usr/local/bin/brew. ' +
+            'Install Homebrew from brew.sh, or download Ollama from ollama.com.',
+          );
+        }
+      } else {
+        // Linux: no package-manager auto-install path — open the official
+        // curl-install one-liner in the user's browser.
+        const { open } = await import('@tauri-apps/plugin-shell');
+        await open('https://ollama.com/download/linux');
+      }
+      // Re-check health so the green checkmark appears immediately on success.
+      await refreshHealth();
+    } catch (e) {
+      ollamaInstallError = e instanceof Error ? e.message : String(e);
+    } finally {
+      ollamaInstalling = false;
+    }
+  }
+
+  /** Open ollama.com in the user's default browser (manual-install fallback). */
+  async function openOllamaDownload() {
+    try {
+      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        const { open } = await import('@tauri-apps/plugin-shell');
+        await open('https://ollama.com');
+      } else {
+        window.open('https://ollama.com', '_blank', 'noopener,noreferrer');
+      }
+    } catch {
+      window.open('https://ollama.com', '_blank', 'noopener,noreferrer');
+    }
+  }
+
+  /**
+   * Stream a model pull through the sidecar's `/ollama/pull` proxy.
+   * The CSP restricts connect-src to 127.0.0.1:8200, so the Tauri webview
+   * cannot speak to Ollama directly — the sidecar forwards each request to
+   * whatever JURA_OLLAMA_BASE_URL is configured there. SSE chunks emit
+   * `{status, completed, total}` progress that we render as a percentage.
+   */
+  async function pullOllamaModel(modelName: string) {
+    pullingModel = modelName;
+    pullError = null;
+    pullProgress = 'Connecting…';
+    pullPercent = null;
+    try {
+      const resp = await fetch('http://127.0.0.1:8200/ollama/pull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: modelName, stream: true }),
+      });
+      if (!resp.ok) {
+        let detail = `HTTP ${resp.status}`;
+        try {
+          const body = await resp.json();
+          if (body?.message) detail = body.message;
+        } catch { /* ignore */ }
+        throw new Error(detail);
+      }
+      const reader = resp.body?.getReader();
+      const decoder = new TextDecoder();
+      if (reader) {
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.error) throw new Error(data.message || data.error);
+              if (data.status === 'success') {
+                pullProgress = 'Complete';
+                pullPercent = 100;
+              } else if (data.completed && data.total) {
+                pullPercent = Math.round((data.completed / data.total) * 100);
+                const mb = (data.completed / 1_000_000).toFixed(0);
+                const totalMb = (data.total / 1_000_000).toFixed(0);
+                pullProgress = `${data.status || 'Downloading'} — ${mb} / ${totalMb} MB`;
+              } else if (data.status) {
+                pullProgress = data.status;
+              }
+            } catch (parseErr) {
+              if (parseErr instanceof Error && parseErr.message !== line.slice(6)) throw parseErr;
+            }
+          }
+        }
+      }
+      await refreshHealth();
+    } catch (e) {
+      pullError = `Failed to download ${modelName}: ${e instanceof Error ? e.message : String(e)}`;
+    } finally {
+      pullingModel = null;
+      pullProgress = null;
+      pullPercent = null;
+    }
+  }
+
   async function handleAiDescToggle(event: Event) {
     const checkbox = event.currentTarget as HTMLInputElement;
     const next = checkbox.checked;
@@ -1261,34 +1463,144 @@
         {/if}
       </div>
 
-      <!-- Ollama card -->
+      <!-- Ollama card — JTV-132: three-state status + one-click install + model download -->
       <div class="rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 p-4">
         <div class="flex items-center justify-between mb-3">
-          <span class="text-sm font-medium text-text-light dark:text-quartz">Ollama</span>
+          <span class="text-sm font-medium text-text-light dark:text-quartz">Ollama <span class="text-xs font-normal text-flint-dark dark:text-flint-light">(optional)</span></span>
           <span
             class="text-xs px-2 py-0.5 rounded-full
-                   {ollamaOnline
+                   {ollamaState === 'ready'
                      ? 'bg-malachite/15 text-malachite-light border border-malachite/20'
-                     : 'bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light border border-border-light dark:border-graphite-light'}"
+                     : ollamaState === 'partial' || ollamaState === 'installed-no-models'
+                       ? 'bg-amber/15 text-amber-dark dark:text-amber-light border border-amber/30'
+                       : 'bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light border border-border-light dark:border-graphite-light'}"
+            aria-live="polite"
           >
-            {ollamaOnline ? 'Connected' : 'Offline'}
+            {ollamaState === 'ready'
+              ? 'Ready'
+              : ollamaState === 'partial'
+                ? 'Models incomplete'
+                : ollamaState === 'installed-no-models'
+                  ? 'Installed — no models'
+                  : 'Not installed'}
           </span>
         </div>
-        <p class="text-xs text-flint-dark dark:text-flint-light mb-2">{ollamaUrl}</p>
 
-        {#if ollamaOnline && sidecarHealth?.ollama}
-          <p class="text-xs text-flint-dark dark:text-flint-light">
-            Status: <span class="text-text-light dark:text-quartz">{sidecarHealth.ollama}</span>
-          </p>
-        {:else}
-          <p class="text-xs text-flint-dark dark:text-flint-light">
-            Required for auto-cataloguing and claim checking. Install from
+        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+          Optional enrichment: AI image descriptions (LLaVA) and claim verification (Qwen2.5).
+          Core verification, forensic analysis, and AI deepfake detection all work without Ollama.
+          {#if ollamaUrl !== DEFAULT_OLLAMA_URL}
+            <span class="block mt-1">URL: <code class="font-mono text-[11px]">{ollamaUrl}</code></span>
+          {/if}
+        </p>
+
+        {#if ollamaState === 'not-installed'}
+          <!-- Install path -->
+          <div class="flex flex-wrap items-center gap-2 mb-2">
+            {#if platform === 'windows' || platform === 'mac'}
+              <button
+                onclick={installOllama}
+                disabled={ollamaInstalling || healthLoading}
+                class="min-h-[36px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium
+                       bg-lapis hover:bg-lapis-dark text-white transition-colors duration-150
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
+                       disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Install Ollama automatically using {platform === 'windows' ? 'winget' : 'Homebrew'}"
+              >
+                {#if ollamaInstalling}
+                  <svg class="w-3.5 h-3.5 motion-safe:animate-spin" fill="none" viewBox="0 0 16 16" aria-hidden="true">
+                    <circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="2" stroke-dasharray="14 14" />
+                  </svg>
+                  Installing…
+                {:else}
+                  Install Ollama automatically
+                {/if}
+              </button>
+            {/if}
+            <button
+              onclick={openOllamaDownload}
+              class="min-h-[36px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium
+                     border border-lapis/40 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-graphite"
+            >
+              {platform === 'linux' ? 'View install instructions' : 'Download from ollama.com'}
+            </button>
+            <button
+              onclick={refreshHealth}
+              disabled={healthLoading}
+              class="min-h-[36px] px-3 py-1.5 rounded-md text-xs text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
+                     disabled:opacity-50"
+            >
+              {healthLoading ? 'Checking…' : 'Re-check'}
+            </button>
+          </div>
+
+          {#if ollamaInstallError}
+            <div role="alert" class="rounded-md px-3 py-2 mb-2 bg-cinnabar/10 border border-cinnabar/25 text-xs text-cinnabar-dark dark:text-cinnabar-light">
+              {ollamaInstallError}
+            </div>
+          {/if}
+
+          <p class="text-[11px] text-flint-dark dark:text-flint-light leading-relaxed">
             <a
-              href="https://ollama.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="text-lapis dark:text-lapis-light hover:text-lapis-dark dark:hover:text-lapis dark:text-lapis-light underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-            >ollama.com<span class="sr-only"> (opens in new tab)</span></a>.
+              href="/help/ollama"
+              class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            >Read the Ollama install guide →</a>
+          </p>
+
+        {:else}
+          <!-- Reachable: show model checklist + pull buttons -->
+          <ul class="space-y-2 mb-2" aria-label="Ollama models">
+            {#each [{ name: 'llava:7b', label: 'Image descriptions', size: '~4.7 GB', installed: llavaInstalled }, { name: 'qwen2.5:7b-instruct', label: 'Claim verification', size: '~4.4 GB', installed: qwenInstalled }] as model (model.name)}
+              <li class="flex items-center gap-3 rounded px-3 py-2 border {model.installed ? 'bg-malachite/5 border-malachite/20' : 'bg-gray-100 dark:bg-graphite-light/30 border-border-light dark:border-border-dark'}">
+                <span class="flex-shrink-0 w-2 h-2 rounded-full {model.installed ? 'bg-malachite-light' : 'bg-flint-light'}" aria-hidden="true"></span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs font-medium {model.installed ? 'text-malachite-dark dark:text-malachite-light' : 'text-text-light dark:text-quartz'}">
+                    <code class="font-mono">{model.name}</code>
+                    <span class="ml-1.5 font-normal text-flint-dark dark:text-flint-light">{model.size}</span>
+                  </p>
+                  <p class="text-[11px] text-flint-dark dark:text-flint-light mt-0.5">
+                    {model.installed
+                      ? `${model.label} — ready`
+                      : pullingModel === model.name
+                        ? (pullProgress ?? 'Downloading…') + (pullPercent !== null ? ` (${pullPercent}%)` : '')
+                        : `${model.label} — not downloaded`}
+                  </p>
+                  {#if pullingModel === model.name && pullPercent !== null}
+                    <div class="mt-1 h-1 rounded-full overflow-hidden bg-lapis/15" role="progressbar" aria-valuenow={pullPercent} aria-valuemin={0} aria-valuemax={100}>
+                      <div class="h-full bg-lapis-light transition-all duration-300" style="width: {pullPercent}%;"></div>
+                    </div>
+                  {/if}
+                </div>
+                {#if !model.installed && pullingModel !== model.name}
+                  <button
+                    onclick={() => pullOllamaModel(model.name)}
+                    disabled={pullingModel !== null}
+                    class="min-h-[32px] px-2.5 py-1 rounded text-xs font-medium border border-lapis/40 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Download {model.name} ({model.size})"
+                  >
+                    Download
+                  </button>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+
+          {#if pullError}
+            <div role="alert" class="rounded-md px-3 py-2 bg-cinnabar/10 border border-cinnabar/25 text-xs text-cinnabar-dark dark:text-cinnabar-light">
+              {pullError}
+            </div>
+          {/if}
+
+          <p class="text-[11px] text-flint-dark dark:text-flint-light leading-relaxed">
+            If you also use ROOTED these models are shared — you only need to download them once.
+            <a
+              href="/help/ollama"
+              class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            >Install guide →</a>
           </p>
         {/if}
       </div>

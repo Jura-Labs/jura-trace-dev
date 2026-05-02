@@ -1309,10 +1309,13 @@
       if (text) {
         extractedText = text;
       } else {
-        extractTextError = 'Text extraction is unavailable. Ensure Ollama is running and llava:7b is pulled.';
+        // JTV-132 (2026-05-02): passive copy, not warning. Ollama is optional
+        // enrichment for v1.0 — this feature only fails when the user has
+        // partially configured it. Point them to Settings rather than alarm.
+        extractTextError = 'Optional feature — install Ollama and the llava:7b model from Settings to enable this.';
       }
     } catch {
-      extractTextError = 'Text extraction failed. Check that Ollama is running.';
+      extractTextError = 'Optional feature — Ollama appears offline. See Settings to install it.';
     } finally {
       extractingText = false;
     }

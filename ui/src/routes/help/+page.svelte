@@ -26,9 +26,9 @@
       description: 'Configure Ollama, choose a deployment profile, manage data storage, and review the service status panel.',
     },
     {
-      href: '/help/settings#ollama',
-      title: 'Ollama AI Features',
-      description: 'How to use text reading and claim verification powered by local AI models.',
+      href: '/help/ollama',
+      title: 'Ollama (optional)',
+      description: 'Step-by-step install for AI image descriptions and claim verification. Optional enrichment — Jura Trace works fully without Ollama.',
     },
     {
       href: '/help/how-it-works',
@@ -97,7 +97,7 @@
   <ol class="space-y-3">
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">1</span>
-      <span>Complete the <strong class="text-text-light dark:text-text-dark">Setup Wizard</strong> on first launch — it checks the Analysis Engine, FFmpeg, and Ollama so everything is ready before you start.</span>
+      <span>Confirm the <strong class="text-text-light dark:text-text-dark">Analysis Engine</strong> is online during the brief first-launch wizard. Optional <a href="/help/ollama" class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">Ollama setup</a> happens later in <strong class="text-text-light dark:text-text-dark">Settings</strong> when you are ready.</span>
     </li>
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
