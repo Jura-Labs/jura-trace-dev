@@ -66,6 +66,14 @@ pub struct SidecarHealth {
     pub service: String,
     pub capabilities: Capabilities,
     pub ollama: Option<String>,
+    /// Names of models present in the local Ollama instance. The Python
+    /// sidecar emits this as snake-case `ollama_models`; the alias lets
+    /// serde deserialise either form. Re-serialised to the frontend as
+    /// `ollamaModels` per the struct-level `rename_all = "camelCase"`.
+    /// Required by JTV-132 — Settings → Service Status reads this list
+    /// to decide which model rows to mark as installed.
+    #[serde(default, alias = "ollama_models")]
+    pub ollama_models: Option<Vec<String>>,
 }
 
 /// Error Level Analysis result from the sidecar.
