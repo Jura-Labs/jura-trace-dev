@@ -6155,24 +6155,38 @@ pub fn run() {
             }
             let sidecar_child = spawn_sidecar(app.app_handle());
 
-            // ── Sidecar readiness check ──────────────────────────────────────
-            // Poll /health/ready with exponential back-off. The cap is 60
-            // attempts at startup (~125 s worst case): the previous 10-attempt
-            // / 12.6-second budget was too tight for a PyInstaller onefile
-            // cold start (extract _MEIPASS + Gatekeeper scan + GBM/UnivFD
-            // warmup) on macOS .app launch from Finder, which is the JTV-142
-            // symptom — the process was alive but Settings reported "Analysis
-            // Engine: Offline" because Rust gave up before port 8200 bound.
-            // The respawn site at line ~2972 keeps RESPAWN_MAX_ATTEMPTS — only
-            // the first cold start needs the larger budget. Tauri's window is
-            // shown after setup returns, so this delay is in the setup thread
-            // and the user sees a splash / loading state during it.
+            // ── Sidecar readiness check (non-blocking) ───────────────────────
+            // Previously this was a blocking `wait_for_sidecar_ready(N)` call
+            // in the setup thread, which kept the Tauri window hidden until
+            // it returned — fine when N=10 / ~12 s, hostile when N=60 / ~125 s
+            // for the PyInstaller cold-start case (Gatekeeper scan + _MEIPASS
+            // extract on a 181 MB unsigned binary). Users saw the app icon
+            // bounce in the Dock with no window for up to 2 minutes — the
+            // "not responding" symptom from JTV-142, 2 May 2026.
+            //
+            // Fix: spawn the readiness probe as a tokio task. The window
+            // appears immediately. Per-request availability is handled
+            // dynamically by `SidecarClient::is_available()` (verify pipeline
+            // gates `sidecar_available` per call) and by the Settings page
+            // polling `/health` from the frontend. The probe below is purely
+            // diagnostic — it logs when the sidecar comes up so launch-time
+            // performance is observable without holding the main thread.
             const STARTUP_READINESS_ATTEMPTS: u32 = 60;
-            if sidecar_child.is_some() && !wait_for_sidecar_ready(STARTUP_READINESS_ATTEMPTS) {
-                log::warn!(
-                    "Sidecar did not respond within timeout. \
-                     Forensic analysis will be unavailable."
-                );
+            let sidecar_present = sidecar_child.is_some();
+            if sidecar_present {
+                tauri::async_runtime::spawn(async move {
+                    let ready = tauri::async_runtime::spawn_blocking(move || {
+                        wait_for_sidecar_ready(STARTUP_READINESS_ATTEMPTS)
+                    })
+                    .await
+                    .unwrap_or(false);
+                    if !ready {
+                        log::warn!(
+                            "Sidecar did not respond within startup timeout. \
+                             Verify-time availability check will be tried per request."
+                        );
+                    }
+                });
             }
 
             log::info!(
