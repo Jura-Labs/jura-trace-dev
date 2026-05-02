@@ -95,7 +95,8 @@ const MODE_MATRIX: &[MatrixRow] = &[
     },
     // ── standard ──────────────────────────────────────────────────────────
     // Images: ELA + GBM deepfake + CLIP + watermark (no noise/copy-move/ghost).
-    // Video: video deepfake + transcription. Audio: transcription only.
+    // Video / Audio v1.0: container provenance + metadata only — deepfake +
+    // transcription are deferred to v1.0.x (JTV-138/JTV-139).
     MatrixRow {
         mode: "standard",
         category: "image",
@@ -111,12 +112,12 @@ const MODE_MATRIX: &[MatrixRow] = &[
     MatrixRow {
         mode: "standard",
         category: "video",
-        detectors: &["exif_anomaly", "c2pa", "video_deepfake", "transcription"],
+        detectors: &["exif_anomaly", "c2pa"],
     },
     MatrixRow {
         mode: "standard",
         category: "audio",
-        detectors: &["exif_anomaly", "c2pa", "transcription"],
+        detectors: &["exif_anomaly", "c2pa"],
     },
     MatrixRow {
         mode: "standard",
@@ -150,12 +151,12 @@ const MODE_MATRIX: &[MatrixRow] = &[
     MatrixRow {
         mode: "deep",
         category: "video",
-        detectors: &["exif_anomaly", "c2pa", "video_deepfake", "transcription"],
+        detectors: &["exif_anomaly", "c2pa"],
     },
     MatrixRow {
         mode: "deep",
         category: "audio",
-        detectors: &["exif_anomaly", "c2pa", "transcription"],
+        detectors: &["exif_anomaly", "c2pa"],
     },
     MatrixRow {
         mode: "deep",
@@ -168,8 +169,8 @@ const MODE_MATRIX: &[MatrixRow] = &[
         detectors: &["exif_anomaly", "c2pa"],
     },
     // ── archival ──────────────────────────────────────────────────────────
-    // Same as deep — archival adds thoroughness on the video deepfake frame
-    // count and the number of JPEG ghost quality steps, not new detectors.
+    // Same as deep — archival adds thoroughness on JPEG ghost quality steps,
+    // not new detectors. Video deepfake + transcription deferred to v1.0.x.
     MatrixRow {
         mode: "archival",
         category: "image",
@@ -190,12 +191,12 @@ const MODE_MATRIX: &[MatrixRow] = &[
     MatrixRow {
         mode: "archival",
         category: "video",
-        detectors: &["exif_anomaly", "c2pa", "video_deepfake", "transcription"],
+        detectors: &["exif_anomaly", "c2pa"],
     },
     MatrixRow {
         mode: "archival",
         category: "audio",
-        detectors: &["exif_anomaly", "c2pa", "transcription"],
+        detectors: &["exif_anomaly", "c2pa"],
     },
     MatrixRow {
         mode: "archival",

@@ -113,7 +113,13 @@ async function injectMockResult(page: import('@playwright/test').Page) {
   await page.waitForSelector('[aria-labelledby="video-analysis-heading"]', { timeout: 5000 });
 }
 
-test.describe('Video deepfake timeline', () => {
+// Video deepfake analysis is dropped from v1.0 (JTV-138, 2 May 2026) — see
+// CHANGELOG.md and `project_v1_video_audio_drop.md`. The verify page now
+// renders a "Planned — v1.0.x" banner on video files instead of the timeline,
+// so these timeline / accordion / aggregate-verdict tests are skipped at the
+// describe level. Re-enable as part of JTV-139 (v1.0.1 video re-add) once
+// the calibration matrix and Global Majority device gates are met.
+test.describe.skip('Video deepfake timeline (re-enable in JTV-139 v1.0.x re-add)', () => {
   test.use({ viewport: { width: 1280, height: 720 } });
 
   test.beforeEach(async ({ page }) => {

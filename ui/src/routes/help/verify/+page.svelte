@@ -64,7 +64,7 @@
     <li>
       <a href="#video-and-audio"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        7. Video and Audio
+        7. Video (v1.0 scope)
       </a>
     </li>
     <li>
@@ -563,110 +563,48 @@
      ══════════════════════════════════════════════════════════════════ -->
 <section id="video-and-audio" class="mb-12">
   <h2 class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    7. Video and Audio
+    7. Video (v1.0 scope)
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
-    Jura Trace handles video and audio files with dedicated analysis pipelines. Some features
-    require FFmpeg to be installed on your system — the Settings page shows whether FFmpeg
-    is available.
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+    For MP4 and MOV files, v1.0 verifies what Jura Trace can stand behind without
+    overclaiming: container-level provenance, container-level metadata, and a native
+    in-app preview. Video deepfake analysis, audio-visual sync, transcription, and
+    claim verification are <strong class="text-text-light dark:text-text-dark">planned for v1.0.x</strong>
+    once Global Majority device coverage and current-generation generator calibration
+    (Sora, Runway Gen-3, HeyGen, Synthesia) have been published — see
+    <span class="font-mono text-xs">JTV-139</span>.
   </p>
 
-  <div class="space-y-6">
-
-    <div>
-      <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
-        Video metadata
-      </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        For MP4 and MOV files, the metadata section shows codec, resolution, frame rate,
-        duration, and audio track information extracted via FFprobe. Anomalies in these
-        fields — such as a codec that does not match the container, or a resolution
-        inconsistent with the declared camera model — are flagged in the same way as EXIF
-        anomalies.
-      </p>
-    </div>
-
-    <div>
-      <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
-        Frame timeline and per-frame deepfake analysis
-      </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
-        Jura Trace extracts evenly-spaced frames from a video and runs the image deepfake
-        pipeline on each one. The results appear as a timeline strip — each frame is shown
-        as a thumbnail with a coloured score badge.
-      </p>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
-        Click any frame in the timeline to expand it. The expanded view shows the per-frame
-        classifier score, individual signal values, and a heatmap visualisation. This lets
-        you identify specific moments in a video that flag as suspicious.
-      </p>
-      <div class="overflow-x-auto mb-2">
-        <table class="w-full text-sm border-collapse">
-          <thead>
-            <tr class="border-b border-border-light dark:border-border-dark">
-              <th class="text-left py-2 pr-4 text-text-light dark:text-text-dark font-semibold">Mode</th>
-              <th class="text-left py-2 pr-4 text-text-light dark:text-text-dark font-semibold">Frames analysed</th>
-              <th class="text-left py-2 text-text-light dark:text-text-dark font-semibold">Estimated time</th>
-            </tr>
-          </thead>
-          <tbody class="text-flint-dark dark:text-flint-light">
-            <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-              <td class="py-2 pr-4">Standard</td>
-              <td class="py-2 pr-4">6</td>
-              <td class="py-2">~12 s</td>
-            </tr>
-            <tr>
-              <td class="py-2 pr-4">Deep</td>
-              <td class="py-2 pr-4">20</td>
-              <td class="py-2">~40 s</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        The aggregate video verdict combines the per-frame scores using the formula
-        0.5 × mean score + 0.3 × maximum score + 0.2 × temporal consistency score.
-        The temporal consistency signals — noise drift, spectral drift, and LBP drift —
-        detect discontinuities between frames that can indicate stitching or deepfake
-        artefacts.
-      </p>
-    </div>
-
-    <div>
-      <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
-        Audio metadata
-      </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        For WAV and MP3 files, the metadata panel shows codec, sample rate, channels,
-        bitrate, and duration. C2PA signing applies to both audio formats.
-      </p>
-    </div>
-
-    <div>
-      <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
-        Transcription
-      </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        When the <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">faster-whisper</span>
-        package is installed, Jura Trace automatically transcribes audio and video files.
-        The transcript appears in a collapsible panel below the metadata section. If Ollama
-        is running, the transcript is also passed to the RAG claim checker, which looks for
-        verifiable factual claims in the content.
-      </p>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mt-2">
-        Transcription is optional. If
-        <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">faster-whisper</span>
-        is not installed, the analysis pipeline completes normally without a transcript.
-        The first use downloads the speech model automatically — approximately 500 MB.
-      </p>
-    </div>
-
+  <div class="rounded-md border border-lapis/20 bg-lapis/5 px-4 py-3 mb-6">
+    <p class="text-sm text-text-light dark:text-text-dark mb-2">
+      <strong>Available now for video files:</strong>
+    </p>
+    <ul class="list-disc pl-5 text-sm text-flint-dark dark:text-flint-light space-y-1">
+      <li>C2PA Content Credentials (read at the container level — no FFmpeg required)</li>
+      <li>EXIF metadata (read at the container level — no FFmpeg required)</li>
+      <li>Native HTML5 video preview in the verify page</li>
+    </ul>
+    <p class="text-sm text-text-light dark:text-text-dark mt-3 mb-2">
+      <strong>Coming in v1.0.x (JTV-139):</strong>
+    </p>
+    <ul class="list-disc pl-5 text-sm text-flint-dark dark:text-flint-light space-y-1">
+      <li>Per-frame deepfake detection</li>
+      <li>Temporal consistency signals (noise / spectral / LBP drift)</li>
+      <li>Audio-visual sync analysis</li>
+      <li>Audio + video transcription via faster-whisper</li>
+      <li>RAG claim verification on transcripts</li>
+    </ul>
   </div>
 
-  <div class="text-xs text-flint-dark dark:text-flint-light italic my-2" role="note">
-    Visual guide: Video verify results with a frame timeline strip, two frames marked with amber score badges, and an expanded frame showing the per-frame deepfake heatmap.
-  </div>
+  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
+    Audio (v1.0 scope)
+  </h3>
+  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    Standalone audio files (WAV, MP3, FLAC, OGG, AAC, M4A) are not in v1.0 scope.
+    Voice-note evidence (AASIST + ENF + ASVspoof) is on the v1.1 roadmap — see
+    <span class="font-mono text-xs">JTV-110</span>.
+  </p>
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════

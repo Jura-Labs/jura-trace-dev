@@ -3999,192 +3999,44 @@
               </ul>
             {/if}
 
-            <!-- ── Video Analysis ──────────────────────────────────────
-                 Per-frame deepfake timeline with expandable frame detail
-                 (classifier score, frequency-spectrum heatmap, signals).
-                 Ported from classic verify view 2026-04-28 — previously a
-                 stub that punted to /verify (classic). -->
-            {#if result.videoDeepfakeResult?.success}
-              {@const vd = result.videoDeepfakeResult}
+            <!-- ── Video Analysis — DROPPED FROM v1.0 SCOPE (2 May 2026) ───
+                 Three-agent unanimous decision (project-manager + persona-
+                 testing + content-authenticity-expert) to drop video deepfake
+                 analysis from v1.0.  Reasoning: FFmpeg dependency is fragile
+                 in the bundled installer, the per-frame pipeline has not been
+                 calibration-validated against Global Majority devices or new
+                 generators (Sora/Runway/HeyGen), and shipping an
+                 unvalidated forensic result undermines the still-image
+                 trust narrative.  Re-add planned for v1.0.1 with calibration
+                 matrix + Tecno/Infinix/Samsung-A/Xiaomi device gate per
+                 JTV-139.  See `project_v1_video_audio_drop.md` agent memory
+                 for the full decision context.
+                 The render below is a static "Planned — v1.0.x" panel that
+                 appears for any video content type.  The underlying
+                 `videoDeepfakeResult` is intentionally not rendered. -->
+            {#if result.contentType === 'video'}
               <section
                 class="px-5 py-4 border-t border-border-light dark:border-border-dark/40"
                 aria-labelledby="video-analysis-heading"
               >
-                <div class="flex items-center gap-3 mb-3 flex-wrap">
+                <div class="flex items-center gap-3 mb-2 flex-wrap">
                   <h3 id="video-analysis-heading" class="text-sm font-medium text-obsidian dark:text-quartz">Video Analysis</h3>
                   <span
-                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                      {vd.aggregateVerdict === 'authentic' ? 'bg-malachite/10 text-malachite-dark dark:text-malachite-light' :
-                       vd.aggregateVerdict === 'synthetic' ? 'bg-cinnabar/10 text-cinnabar-dark dark:text-cinnabar-light' :
-                       'bg-amber/10 text-amber-dark dark:text-amber-light'}"
+                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-lapis/10 text-lapis dark:text-lapis-light border border-lapis/20"
                   >
-                    {vd.aggregateVerdict === 'authentic' ? 'Authentic' :
-                     vd.aggregateVerdict === 'synthetic' ? 'Synthetic' : 'Inconclusive'}
-                  </span>
-                  <span class="text-xs text-flint-dark dark:text-flint-light">
-                    Score: {(vd.aggregateScore * 100).toFixed(0)}%
-                    &middot; {vd.framesAnalysed} frame{vd.framesAnalysed !== 1 ? 's' : ''} analysed
-                    {#if vd.duration != null}
-                      &middot; {Math.floor(vd.duration / 60)}:{String(Math.round(vd.duration % 60)).padStart(2, '0')} duration
-                    {/if}
+                    Planned — v1.0.x
                   </span>
                 </div>
-
-                <!-- Temporal consistency line -->
-                {#if vd.temporalAvailable}
-                  <p class="text-xs text-flint-dark dark:text-flint-light mb-3">
-                    {#if (vd.temporalNoiseDrift ?? 0) > 0.4 || (vd.temporalSpectralDrift ?? 0) > 0.4 || (vd.temporalLbpDrift ?? 0) > 0.4}
-                      Frame-to-frame drift detected in forensic features.
-                    {:else}
-                      Temporal signals: stable across frames.
-                    {/if}
-                  </p>
-                {/if}
-
-                <!-- Frame timeline -->
-                {#if vd.frameResults.length > 0}
-                  <div
-                    class="grid gap-2 mb-3"
-                    style="grid-template-columns: repeat({Math.min(vd.frameResults.length, 6)}, minmax(0, 1fr));"
-                    role="list"
-                    aria-label="Video frame deepfake analysis timeline"
-                  >
-                    {#each vd.frameResults as fr, i (i)}
-                      {@const isExpanded = expandedFrameIndex === i}
-                      <div
-                        class="relative rounded-md overflow-hidden border motion-safe:transition-colors motion-safe:duration-150
-                          {isExpanded ? 'border-lapis ring-1 ring-lapis/30' : 'border-border-light dark:border-border-dark'}
-                          bg-gray-50 dark:bg-obsidian"
-                        role="listitem"
-                      >
-                        <button
-                          type="button"
-                          class="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis-light"
-                          aria-expanded={isExpanded}
-                          aria-controls="v2-frame-detail-{i}"
-                          onclick={() => { expandedFrameIndex = isExpanded ? null : i; }}
-                        >
-                          <!-- Real frame thumbnail when the sidecar emitted
-                               one; falls back to the "F{n}" text label so
-                               older sidecar builds and any frame whose
-                               thumbnail generation failed still render
-                               cleanly. -->
-                          {#if fr.frameImageUrl}
-                            <div class="aspect-video">
-                              <img
-                                src={heatmapSrc(fr.frameImageUrl)}
-                                alt="Thumbnail of frame {fr.frameIndex + 1} at {fr.timestamp.toFixed(1)} seconds"
-                                class="w-full h-full object-cover block"
-                                loading="lazy"
-                              />
-                            </div>
-                          {:else}
-                            <div class="aspect-video flex items-center justify-center">
-                              <span class="text-xs text-flint-dark dark:text-flint-light">F{i + 1}</span>
-                            </div>
-                          {/if}
-
-                          <span
-                            class="absolute bottom-1 right-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium
-                              {fr.verdictLevel === 'authentic'
-                                ? 'text-malachite-light bg-malachite/20'
-                                : fr.verdictLevel === 'synthetic'
-                                  ? 'text-cinnabar-light bg-cinnabar/20'
-                                  : 'text-amber-light bg-amber/20'}"
-                          >
-                            {(fr.score * 100).toFixed(0)}%
-                          </span>
-
-                          <div class="h-1.5 w-full bg-gray-200 dark:bg-graphite/40">
-                            <div
-                              class="h-full motion-safe:transition-all
-                                {fr.verdictLevel === 'authentic' ? 'bg-malachite dark:bg-malachite-light' :
-                                 fr.verdictLevel === 'synthetic' ? 'bg-cinnabar dark:bg-cinnabar-light' :
-                                 'bg-amber dark:bg-amber-light'}"
-                              style="width: {Math.max(2, fr.score * 100)}%;"
-                            ></div>
-                          </div>
-                        </button>
-
-                        {#if isExpanded}
-                          <div
-                            id="v2-frame-detail-{i}"
-                            class="p-3 border-t border-border-light dark:border-border-dark bg-white dark:bg-graphite space-y-2"
-                          >
-                            <div class="flex items-center justify-between">
-                              <span class="text-xs font-medium text-obsidian dark:text-quartz">
-                                Frame {fr.frameIndex + 1} at {fr.timestamp.toFixed(1)}s
-                              </span>
-                              <span class="text-xs tabular-nums {fr.verdictLevel === 'authentic' ? 'text-malachite-dark dark:text-malachite-light' : fr.verdictLevel === 'synthetic' ? 'text-cinnabar-dark dark:text-cinnabar-light' : 'text-amber-dark dark:text-amber-light'}">
-                                {fr.verdictLevel.charAt(0).toUpperCase() + fr.verdictLevel.slice(1)} ({(fr.score * 100).toFixed(1)}%)
-                              </span>
-                            </div>
-
-                            {#if fr.classifierAvailable && fr.classifierScore != null}
-                              <div class="text-xs text-flint-dark dark:text-flint-light">
-                                GBM classifier: {(fr.classifierScore * 100).toFixed(1)}%
-                              </div>
-                            {/if}
-
-                            {#if fr.heatmapUrl}
-                              <ImageZoom
-                                src={heatmapSrc(fr.heatmapUrl)}
-                                alt="Frequency-spectrum heatmap for frame {fr.frameIndex + 1}"
-                                caption="Click to enlarge — frequency-domain energy distribution for this frame"
-                              />
-                            {/if}
-
-                            {#if fr.signals.length > 0}
-                              <div class="space-y-1">
-                                <span class="text-[10px] font-medium text-flint-dark dark:text-flint-light uppercase tracking-wider">Signals</span>
-                                {#each fr.signals as signal}
-                                  <div class="flex items-center gap-2 text-xs">
-                                    <span
-                                      class="w-1.5 h-1.5 rounded-full flex-shrink-0
-                                        {signal.triggered ? 'bg-cinnabar dark:bg-cinnabar-light' : 'bg-malachite dark:bg-malachite-light'}"
-                                      aria-hidden="true"
-                                    ></span>
-                                    <span class="text-flint-dark dark:text-flint-light flex-1">{signal.name}</span>
-                                    <span class="tabular-nums text-obsidian dark:text-quartz">{(signal.weight * 100).toFixed(0)}%</span>
-                                  </div>
-                                {/each}
-                              </div>
-                            {/if}
-                          </div>
-                        {/if}
-                      </div>
-                    {/each}
-                  </div>
-
-                  <!-- Colour key -->
-                  <div
-                    class="flex flex-wrap items-center gap-4 text-xs text-flint-dark dark:text-flint-light mb-2"
-                    role="img"
-                    aria-label="Score badge colour key: Authentic below 35%, Inconclusive 35 to 60%, Synthetic above 60%"
-                  >
-                    <span class="flex items-center gap-1" aria-hidden="true">
-                      <span class="inline-block w-2 h-2 rounded-full bg-malachite dark:bg-malachite-light"></span>
-                      Authentic (&lt;35%)
-                    </span>
-                    <span class="flex items-center gap-1" aria-hidden="true">
-                      <span class="inline-block w-2 h-2 rounded-full bg-amber dark:bg-amber-light"></span>
-                      Inconclusive (35–60%)
-                    </span>
-                    <span class="flex items-center gap-1" aria-hidden="true">
-                      <span class="inline-block w-2 h-2 rounded-full bg-cinnabar dark:bg-cinnabar-light"></span>
-                      Synthetic (&gt;60%)
-                    </span>
-                  </div>
-                {/if}
-
-                <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">{vd.message}</p>
-              </section>
-            {:else if result.videoDeepfakeResult && !result.videoDeepfakeResult.success}
-              <section class="px-5 py-4 border-t border-border-light dark:border-border-dark/40">
-                <h3 class="text-sm font-medium text-obsidian dark:text-quartz mb-1">Video Analysis</h3>
-                <p class="text-xs text-flint-dark dark:text-flint-light">{result.videoDeepfakeResult.message}</p>
+                <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-2">
+                  Video deepfake analysis is in active development for v1.0.x. It will ship with calibration data covering Global Majority devices and current-generation generators (Sora, Runway Gen-3, HeyGen, Synthesia). v1.0 verifies what we can stand behind: provenance and metadata.
+                </p>
+                <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+                  <strong>Available now for video files:</strong> C2PA content credentials, EXIF metadata extraction, and native video preview above. <strong>Coming in v1.0.x:</strong> per-frame deepfake detection, audio-visual sync analysis, transcription, and claim verification.
+                </p>
               </section>
             {/if}
+
+
 
             {#if result.inputQuality}
               <LimitationBanner quality={result.inputQuality} />

@@ -306,10 +306,13 @@
     </p>
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
-      The reference is divided into three groups. The twelve <strong class="text-text-light dark:text-quartz font-medium">automatic detectors</strong>
+      The reference is divided into three groups. The eleven <strong class="text-text-light dark:text-quartz font-medium">automatic detectors</strong>
       run on every verification at the mode indicated in each entry's
       <em>Active in modes</em> line — their findings feed into the numeric trust
-      score. Below them, a lapis-tinted block lists the
+      score. A twelfth detector — Video Deepfake — is <strong class="text-text-light dark:text-quartz font-medium">planned for v1.0.x</strong>
+      and currently shows as a "Planned" banner on video files; v1.0 verifies
+      provenance and metadata only on video. Below the automatic detectors, a
+      lapis-tinted block lists the
       <strong class="text-text-light dark:text-quartz font-medium">knowledge base retrieval aid</strong>:
       an advisory tool that runs automatically on audio and video content but
       does not contribute to the trust score. Finally, an amber-tinted panel
@@ -325,8 +328,8 @@
       Detector lineup after Sprint 28 tech-debt audit (April 2026) and the
       S28 follow-up Option 2 reconciliation (April 2026):
 
-      Automatic (in trust scoring) — 12 detectors, matching the Rust
-      detectors_run writer vocabulary in src-tauri/src/lib.rs and the
+      Automatic (in trust scoring) — 11 detectors at v1.0, matching the
+      Rust detectors_run writer vocabulary in src-tauri/src/lib.rs and the
       TypeScript DETECTOR_ID_LABELS map in ui/src/lib/detectorLabels.ts
       (modulo `transcription` which is preprocessing infrastructure, not
       a forensic detector, and so lives only in detectorLabels for DB
@@ -342,7 +345,14 @@
         9. Colour Temperature
         10. CLIP Detection (blends into the AI ensemble)
         11. Watermark Extraction (AI-generator + Jura Trace protective)
-        12. Video Deepfake (video only)
+
+      Planned (NOT in v1.0 trust scoring):
+        Video Deepfake — dropped from v1.0 on 2 May 2026 (JTV-138)
+        pending Global Majority device calibration. Re-enabled in
+        v1.0.x (JTV-139) once Sora / Runway Gen-3 / HeyGen / Synthesia
+        recall and platform-forwarded robustness are published. The
+        detector entry remains in the reference below for transparency
+        with a "Planned" tag.
 
       Knowledge base retrieval aid (advisory, NOT in trust scoring):
         Claim checker — formerly RAG Claim Checker, reframed in
@@ -998,6 +1008,11 @@
           <span class="flex items-center gap-3">
             <span class="text-xs font-mono tabular-nums text-flint-dark dark:text-flint-light w-5 flex-shrink-0" aria-hidden="true">12</span>
             <span class="font-medium text-sm text-text-light dark:text-quartz">Video Deepfake Analysis</span>
+            <span
+              class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-lapis/10 text-lapis dark:text-lapis-light border border-lapis/20"
+            >
+              Planned — v1.0.x
+            </span>
           </span>
           <span class="flex-shrink-0 text-xs text-flint-dark dark:text-flint-light select-none">
             <span class="hidden group-open:inline">Close</span>
@@ -1005,6 +1020,12 @@
           </span>
         </summary>
         <div class="px-4 pb-4 pt-3 border-t border-border-light dark:border-border-dark">
+          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-3 italic">
+            Dropped from v1.0 on 2 May 2026 (JTV-138). Re-enabled in v1.0.x
+            (JTV-139) once Global Majority device coverage and per-generator
+            calibration data are published. The methodology below describes
+            the implementation that will ship in v1.0.x.
+          </p>
           <dl class="space-y-3 text-sm">
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>

@@ -6,6 +6,79 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 2 May 2026 — JTV-138: Drop video deepfake + audio analysis from v1.0
+
+Unanimous three-agent review (project-manager + persona-testing + content-authenticity-expert) concluded that the video deepfake and audio analysis pipelines do not meet TRIED Pillar 3 (Inclusive — Global Majority device coverage) or Pillar 5 (Durability — published calibration matrix) and should not ship in v1.0. The decision was made on 2 May 2026 during pilot installer testing, after a five-day FFmpeg installer debugging chain (commits `178f25d`, `d8ffbc7`, `2a88200`, `4a01aeb`, `f0f85f5`) surfaced a sidecar startup hang on macOS `.app` launch (now JTV-142, an independent v1.0 blocker).
+
+### What ships in v1.0 for video / audio
+
+- C2PA verification on mp4 / mov files (container-level, no FFmpeg dep) — kept.
+- EXIF metadata read on video (container-level, no FFmpeg dep) — kept.
+- Native HTML `<video>` preview in the verify page (browser-rendered, no FFmpeg) — kept.
+- mp4 / mov stay in the file picker with a "Planned — v1.0.x" banner above the analysis cards.
+
+### What's dropped from v1.0
+
+- Per-frame video deepfake (GBM + UnivFD + temporal consistency).
+- Audio deepfake (already deferred — JTV-113 v1.1 AASIST retraining).
+- Video metadata via FFprobe.
+- Audio metadata via FFprobe.
+- Transcription (faster-whisper).
+- RAG claim-check on transcripts.
+
+### Why drop, not "Experimental flag"
+
+- **Forensic**: no calibration data on Sora / Runway Gen-3 / HeyGen / Synthesia → cannot defend FP / recall claims in court or journalism. Experimental tags do not survive PDF distribution. Frame-aggregated still detectors miss temporal artefacts; missing audio-visual sync is the highest-yield deepfake signal. Ramanaharan et al. (2025): 46% of deepfake detectors over-fit; reviewers apply that prior unless we publish counter-evidence.
+- **Persona** (14 personas reviewed): 12 / 14 unharmed or relieved by deferral. Trust harm of a sidecar startup hang outweighs absence harm. Aisha (HRD) and James (BBC) are the only affected personas, both with workarounds. An "Experimental" tag would not fix the sidecar hang itself, would invite pilot testers to try a broken path, and would create support burden.
+- **Timeline**: fixing FFmpeg + sidecar startup properly is 3–5 days not in Sprint 31 / 32. Would push RC15 past 2 June and jeopardise the 29 June pilot date.
+
+### Code changes
+
+- `src-tauri/src/bin/gen_detectors.rs` — `MODE_MATRIX` for video / audio in `standard`, `deep`, and `archival` modes reduced to `["exif_anomaly", "c2pa"]`. Generator regenerated; `ui/src/lib/generated/expectedDetectors.ts` reflects the new lineup.
+- `src-tauri/src/lib.rs` — both video and audio sidecar parallel groups gated to `false` via two named `const ENABLE_VIDEO_DEEPFAKE_GROUP: bool = false` / `ENABLE_AUDIO_GROUP: bool = false` blocks. The runtime FFmpeg / FFprobe dependency is therefore removed from the v1.0 verify path. Re-enable in v1.0.x by flipping the consts after the JTV-139 calibration matrix is published.
+- `ui/src/routes/verify/+page.svelte` — video deepfake render replaced with a "Planned — v1.0.x" banner gated on `result.contentType === 'video'`. Original render block deleted (git history preserves it for the v1.0.x re-add work).
+- `ui/src/routes/help/format-support/+page.svelte` — Camera video row downgraded from `partial` to `provenance-only` coverage; verify column now reads "C2PA content credentials, EXIF metadata, native preview. Deepfake analysis and transcription are planned for v1.0.x — see JTV-139". Footer text updated to mention JTV-138 alongside JTV-105.
+- `ui/src/routes/help/methodology/+page.svelte` — automatic detector count corrected from 12 to 11. Detector entry #12 (Video Deepfake Analysis) now carries a "Planned — v1.0.x" pill in the summary header and a v1.0.x deferral note above the detail block. The MODE_MATRIX comment block has a new "Planned" subsection.
+- `ui/src/routes/help/verify/+page.svelte` — Section 7 "Video and Audio" rewritten to "Video (v1.0 scope)" with a clear "Available now" / "Coming in v1.0.x" callout block. The Audio sub-section reduced to a single paragraph noting v1.1 (JTV-110) deferral. TOC entry updated.
+- `docs/backlog.md` — new "Dropped from v1.0 on 2026-05-02" section under v1.0 sprint scope, listing JTV-138 / 139 / 140 / 141 / 142 with hard requirements for the v1.0.x re-add gate.
+
+### Hard requirements for v1.0.1 video re-add (binding — JTV-139)
+
+**TRIED Pillar 3 (Inclusive)** — Global Majority device coverage cannot be optional:
+- Tecno (Spark, Camon, Pop) — Sub-Saharan Africa
+- Infinix (Hot, Note, Smart) — South / Southeast Asia
+- Samsung A-series
+- Xiaomi / Redmi
+- WhatsApp / Signal-forwarded variants of each
+
+**TRIED Pillar 5 (Durability)** — calibration matrix must be published before ship:
+- Per-generator recall: Sora, Runway Gen-3, HeyGen, Synthesia + existing GBM / UnivFD generators
+- Per-codec robustness: H.264, H.265, AV1
+- Per-platform robustness: WhatsApp, Signal, Twitter/X 2× re-encode
+- FP rate < 5% on Global Majority + textile-bait segments
+- Recall > 80% on new-generator segment
+- WhatsApp-forwarded recall ≥ 70% (acknowledging platform re-encoding ceiling)
+- Calibration document published in `docs/calibration/` for peer review
+
+### Plane tickets filed (JTV-138 → JTV-142)
+
+- **JTV-138** — Drop video + audio analysis from v1.0 scope (urgent, ~1 day code+doc ripple — this changelog entry).
+- **JTV-139** — v1.0.1 video re-add with calibration + Global Majority gate (high, ~3 weeks Phase A Sprint 21).
+- **JTV-140** — Update marketing copy + juralabs.org website (medium, ~½ day).
+- **JTV-141** — Pre-pilot DRRF liaison check for Aisha Mwangi video scope (high, founder action).
+- **JTV-142** — Investigate sidecar startup hang on macOS `.app` launch (urgent, ~1–2 days, **independent v1.0 blocker even with the video drop** — image analysis also requires the sidecar to come up).
+
+### Companion debugging commits retained on `main`
+
+The FFmpeg installer chain commits stay on `main` because they are correct fixes regardless of the video drop — they make the install / Show-in-Finder paths robust for any future FFmpeg or shell-exec needs:
+- `178f25d` — added `shell:allow-execute` permission
+- `d8ffbc7` — absolute brew paths (launchd PATH excludes Homebrew)
+- `2a88200` — required `sidecar: false` field per Tauri 2 schema
+- `4a01aeb` — devtools enabled in release + structured diagnostics
+- `f0f85f5` — Rust spawn PATH augmentation (didn't propagate per `ps eww` — root cause to be addressed under JTV-142)
+
+---
+
 ## 30 April 2026 — Sprint 30 — JTV-130: Backup & Restore + CSV catalogue import
 
 Closes the disaster-recovery story for the Heritage Lead persona on institutional deployments and the third-of-eight Sprint 30 v1.0 scope items. Designed in a four-agent planning round (project-manager, rust-backend-engineer, api-engineer, security-auditor) on 30 April; rust-backend-engineer's Tauri-IPC design followed verbatim.

@@ -2238,13 +2238,15 @@ fn verify_content_inner(
     app.sidecar.clear_file_cache();
 
     // ── Video parallel group ─────────────────────────────────────────────
-    // Video metadata, video deepfake analysis, and transcription are all
-    // independent; run them concurrently. Deepfake analysis can take up to
-    // 120 s for long videos; transcription ~10-30 s; metadata ~1 s.
-    // Without parallelism total wall time would be their sum (~150 s worst
-    // case); with parallelism it's bounded by the slowest (~120 s).
+    // v1.0 (JTV-138, 2 May 2026): video deepfake, transcription, and FFprobe
+    // metadata are deferred to v1.0.x (JTV-139). v1.0 ships C2PA + EXIF +
+    // native preview only on video files. The block below is gated on a
+    // const that re-enables the sidecar group when the v1.0.x calibration
+    // matrix and Global Majority device gates are met. Do not loosen this
+    // gate without satisfying the requirements documented in JTV-139.
+    const ENABLE_VIDEO_DEEPFAKE_GROUP: bool = false;
     let (video_metadata, video_deepfake_result, transcription_result) =
-        if is_video && sidecar_available {
+        if is_video && sidecar_available && ENABLE_VIDEO_DEEPFAKE_GROUP {
             let t_video = std::time::Instant::now();
 
             let vm_path = path.to_path_buf();
@@ -2351,10 +2353,13 @@ fn verify_content_inner(
         };
 
     // ── Audio parallel group ──────────────────────────────────────────────
-    // Audio metadata and transcription are independent; run them in parallel.
-    // Metadata is fast (~1 s), transcription ~10-30 s. Without parallelism
-    // wall time is their sum; with parallelism it's bounded by transcription.
-    let (audio_metadata, transcription_result) = if is_audio && sidecar_available {
+    // v1.0 (JTV-138, 2 May 2026): standalone audio is out of scope for v1.0
+    // (and audio deepfake was already deferred under JTV-113 / JTV-110 to
+    // v1.1). Audio metadata + transcription re-enter under the JTV-139
+    // calibration gate. See `ENABLE_VIDEO_DEEPFAKE_GROUP` above for the
+    // matching video gate.
+    const ENABLE_AUDIO_GROUP: bool = false;
+    let (audio_metadata, transcription_result) = if is_audio && sidecar_available && ENABLE_AUDIO_GROUP {
         let t_audio = std::time::Instant::now();
 
         let am_path = path.to_path_buf();

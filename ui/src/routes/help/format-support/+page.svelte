@@ -44,8 +44,10 @@
       protect:
         'Content Credentials (experimental). No watermark, no fingerprint.',
       verify:
-        'Per-frame deepfake aggregate (now wired into the trust score), transcription, video metadata',
-      coverage: 'partial',
+        'C2PA content credentials, EXIF metadata, native preview. Deepfake analysis and transcription are planned for v1.0.x — see JTV-139.',
+      coverage: 'provenance-only',
+      note:
+        'v1.0 ships container-level provenance only. Per-frame deepfake, audio-visual sync, and transcription require Global Majority device calibration before re-enabling.',
     },
     {
       family: 'Documents',
@@ -64,7 +66,7 @@
       protect: '—',
       verify: 'No detector path — excluded from the file picker.',
       coverage: 'none',
-      note: 'Per-frame deepfake runs but no trust signal flows through.',
+      note: 'No detector path. Per-frame deepfake is deferred to v1.0.x (JTV-139) for all video formats.',
     },
     {
       family: 'Audio',
@@ -257,14 +259,17 @@
       the pipeline previously returned 0.50 trust with zero underlying
       analysis &mdash; pilots interpreted that as &ldquo;clean&rdquo; when
       the system had not actually checked anything. The same principle
-      applies to audio: the existing audio-deepfake model trained on a
-      single TTS engine and two speakers cannot defensibly assess a voice
-      note submitted as evidence, so it is better to defer the feature
-      than to ship false confidence.
+      applies to audio and video deepfake: the existing models trained on
+      narrow corpora cannot defensibly assess voice notes or video clips
+      submitted as evidence, so it is better to defer the feature than to
+      ship false confidence. Video deepfake re-enters scope in v1.0.x once
+      Global Majority device calibration and per-generator recall data are
+      published &mdash; see <span class="font-mono text-xs">JTV-139</span>.
     </p>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
       The full audit transcript and remediation tickets are tracked under
-      <span class="font-mono text-xs">JTV-105</span> in the project tracker.
+      <span class="font-mono text-xs">JTV-105</span> and
+      <span class="font-mono text-xs">JTV-138</span> in the project tracker.
     </p>
   </section>
 </article>
