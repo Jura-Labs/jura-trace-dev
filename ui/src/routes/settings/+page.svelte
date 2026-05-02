@@ -39,6 +39,21 @@
   let sidecarHealth = $state<SidecarHealth | null>(null);
   let healthLoading = $state(false);
 
+  // JTV-138 (2026-05-02): capabilities deferred to v1.0.x. The /health
+  // response still reports them as `false` for v1.0.x re-add detection
+  // (Setup Wizard previews ffprobe etc.) but they should not render as
+  // greyed pills in the Settings UI — that reads as "broken" rather
+  // than "intentionally out of scope". JTV-139 v1.0.x re-add will
+  // remove these entries from the set when restoring the routes.
+  const V1_DEFERRED_CAPABILITIES = new Set([
+    'videoMetadata',
+    'audioMetadata',
+    'videoFrames',
+    'videoDeepfake',
+    'transcription',
+    'audioDeepfake',
+  ]);
+
   const sidecarOnline = $derived(sidecarHealth?.status === 'ok');
   const ollamaOnline = $derived(
     sidecarHealth?.ollama != null &&
@@ -1215,18 +1230,18 @@
         {#if sidecarOnline && sidecarHealth}
           <p class="text-xs text-flint-dark dark:text-flint-light mb-2">Version: <span class="text-text-light dark:text-quartz">{sidecarHealth.version}</span></p>
           <div class="flex flex-wrap gap-1.5">
-            {#each Object.entries(sidecarHealth.capabilities) as [cap, enabled]}
+            {#each Object.entries(sidecarHealth.capabilities).filter(([cap]) => !V1_DEFERRED_CAPABILITIES.has(cap)) as [cap, enabled]}
               <span
                 class="text-xs px-2 py-0.5 rounded
                        {enabled
                          ? 'bg-malachite/10 text-malachite-light border border-malachite/20'
                          : 'bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light border border-border-light dark:border-graphite-light'}"
+                title={cap === 'clipDetect' && !enabled
+                  ? 'Optional enrichment — adds a CLIP zero-shot signal to the AI ensemble. Core AI detection (GBM v4 + UnivFD v9) runs without it.'
+                  : ''}
               >
-                {cap === 'videoMetadata' ? 'Video analysis'
-                  : cap === 'transcription' ? 'Speech transcription'
-                  : cap === 'clipDetect' ? 'AI detection'
+                {cap === 'clipDetect' ? 'AI cross-check (CLIP)'
                   : cap === 'rag' ? 'Knowledge base'
-                  : cap === 'audioDeepfake' ? 'Voice clone detection'
                   : cap}
               </span>
             {/each}

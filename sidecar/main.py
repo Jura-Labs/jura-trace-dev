@@ -155,6 +155,19 @@ app.include_router(
 app.include_router(ollama.router, tags=["ollama"])
 
 if __name__ == "__main__":
+    import argparse
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=8200, log_level="info")
+    # Rust spawn_sidecar (src-tauri/src/lib.rs) launches this binary with
+    # `--host 127.0.0.1 --port 8200`. Until 2026-05-02 those arguments were
+    # silently ignored because the entrypoint hard-coded the bind address;
+    # the Rust side and Python side happened to agree on 8200, so the bug
+    # was invisible. Parsing the args makes the contract explicit and lets
+    # operators run multiple sidecars on different ports during diagnosis.
+    parser = argparse.ArgumentParser(description="Jura Trace ML sidecar")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8200)
+    parser.add_argument("--log-level", default="info")
+    args = parser.parse_args()
+
+    uvicorn.run(app, host=args.host, port=args.port, log_level=args.log_level)
