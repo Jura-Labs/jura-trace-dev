@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
-  import { checkSidecarHealth, getAiDescriptionEnabled, setAiDescriptionEnabled } from '$lib/api';
+  import { checkSidecarHealth } from '$lib/api';
   import type { SidecarHealth } from '$lib/types';
 
   // ── Props ──────────────────────────────────────────────────────────
@@ -11,7 +11,15 @@
   const { onComplete }: Props = $props();
 
   // ── Constants ──────────────────────────────────────────────────────
-  const TOTAL_STEPS = 5;
+  // JTV-138 (2026-05-02): wizard reduced from 5 steps to 2 after the
+  // video/audio scope drop. Speech transcription, FFmpeg install, and
+  // Local AI (Ollama) prompts have been moved out of first-launch:
+  //   • Video/Audio + Speech Transcription — out of v1.0 entirely
+  //     (re-add gated under JTV-139 with calibration matrix)
+  //   • Local AI / Ollama — moved to Settings under JTV-132 so the
+  //     install flow can be deferred to a moment of intent rather than
+  //     blocking first launch (Aisha-bandwidth + Tom-RAM personas).
+  const TOTAL_STEPS = 2;
   const HEALTH_TIMEOUT_MS = 3000;
 
   // ── State ──────────────────────────────────────────────────────────
@@ -24,184 +32,14 @@
   // Primary action button on each step — receives focus on step change
   let primaryActionEl: HTMLElement | null = $state(null);
 
-  // ── Model pull state ──────────────────────────────────────────────
-  let pullingModel = $state<string | null>(null);
-  let pullError = $state<string | null>(null);
-  let pullProgress = $state<string | null>(null);
-  let pullPercent = $state<number | null>(null);
-
-  // ── Derived capability flags ───────────────────────────────────────
+  // ── Derived flags ──────────────────────────────────────────────────
   const sidecarOnline = $derived(health !== null);
-  const ffmpegAvailable = $derived(health?.capabilities.videoMetadata === true);
-  const transcriptionAvailable = $derived(health?.capabilities.transcription === true);
-  const ollamaAvailable = $derived(health?.ollama !== null && health?.ollama !== undefined);
-
-  // ── Derived Ollama model flags ─────────────────────────────────────
-  const ollamaModels = $derived(health?.ollamaModels ?? []);
-  const llavaInstalled = $derived(ollamaModels.some((m) => m.startsWith('llava')));
-  const qwenInstalled = $derived(ollamaModels.some((m) => m.startsWith('qwen2.5')));
-  const allModelsReady = $derived(llavaInstalled && qwenInstalled);
-
   const isFirstStep = $derived(currentStep === 0);
   const isLastStep = $derived(currentStep === TOTAL_STEPS - 1);
 
-  // ── FFmpeg auto-install state ─────────────────────────────────────
-  let ffmpegInstalling = $state(false);
-  let ffmpegInstallError = $state<string | null>(null);
-
-  // ── Platform detection ─────────────────────────────────────────────
-  // navigator.platform is deprecated but still functional for this purpose;
-  // we only need a coarse OS hint for the FFmpeg install hint text.
-  function detectPlatform(): 'mac' | 'windows' | 'linux' {
-    if (typeof navigator === 'undefined') return 'linux';
-    const p = navigator.userAgent.toLowerCase();
-    if (p.includes('win')) return 'windows';
-    if (p.includes('mac')) return 'mac';
-    return 'linux';
-  }
-
-  const platform = detectPlatform();
-
-  // ── FFmpeg auto-install ────────────────────────────────────────────
-  /**
-   * Attempt to install FFmpeg automatically using the platform's package
-   * manager (winget on Windows, Homebrew on macOS).
-   *
-   * Uses the Tauri shell plugin's Command API to run the package manager
-   * as a child process.  Falls back gracefully when:
-   *   – the package manager is not found (winget unavailable on older Windows);
-   *   – we're running in a browser (no Tauri).
-   *
-   * After a successful install, refreshes sidecar health so the green
-   * checkmark appears immediately.
-   */
-  async function installFfmpeg() {
-    ffmpegInstalling = true;
-    ffmpegInstallError = null;
-
-    try {
-      if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
-        throw new Error('Auto-install is only available in the desktop application.');
-      }
-
-      const { Command } = await import('@tauri-apps/plugin-shell');
-
-      if (platform === 'windows') {
-        // First check winget is available
-        try {
-          const versionResult = await Command.create('winget', ['--version']).execute();
-          if (versionResult.code !== 0) throw new Error('winget not found');
-        } catch {
-          throw new Error(
-            'winget is not available on this machine. Please install FFmpeg manually using the command shown below, or download it from ffmpeg.org.'
-          );
-        }
-        const result = await Command.create('winget', [
-          'install',
-          'Gyan.FFmpeg',
-          '--accept-package-agreements',
-          '--accept-source-agreements',
-          '--silent',
-        ]).execute();
-        if (result.code !== 0) {
-          const detail = result.stderr?.trim() || `Exit code ${result.code}`;
-          throw new Error(`winget install failed: ${detail}`);
-        }
-      } else if (platform === 'mac') {
-        // Tauri-launched apps on macOS run with launchd's limited PATH —
-        // they do NOT inherit shell PATH.  Homebrew lives at
-        // /opt/homebrew/bin/brew on Apple Silicon and /usr/local/bin/brew
-        // on Intel; neither is in launchd's default PATH.  We must invoke
-        // brew via its absolute path through scoped capability entries.
-        //
-        // Diagnostic logging via console.error: Tauri 2's `devtools` Cargo
-        // feature exposes a right-click → Inspect Element devtools panel
-        // in release builds.  Each failure path emits a structured log so
-        // a pilot user can capture the exact stage that failed without
-        // needing to run a dev build.
-        async function tryBrew(
-          scope: 'brew-arm' | 'brew-intel',
-        ): Promise<{ ok: boolean; stderr?: string; stage?: string; err?: unknown }> {
-          try {
-            // Probe with --version first so we surface a clean error if the
-            // binary isn't at the expected location.
-            const probe = await Command.create(scope, ['--version']).execute();
-            if (probe.code !== 0) {
-              console.error(`[ffmpeg-install] ${scope} probe non-zero exit`, probe);
-              return { ok: false, stage: 'probe', stderr: probe.stderr?.trim() };
-            }
-            const r = await Command.create(scope, ['install', 'ffmpeg']).execute();
-            if (r.code !== 0) {
-              console.error(`[ffmpeg-install] ${scope} install non-zero exit`, r);
-              return { ok: false, stage: 'install', stderr: r.stderr?.trim() || `Exit code ${r.code}` };
-            }
-            console.log(`[ffmpeg-install] ${scope} install completed`, r);
-            return { ok: true };
-          } catch (err) {
-            console.error(`[ffmpeg-install] ${scope} threw`, err);
-            return { ok: false, stage: 'spawn', err };
-          }
-        }
-        let outcome = await tryBrew('brew-arm');
-        if (!outcome.ok) {
-          console.warn('[ffmpeg-install] brew-arm failed, trying brew-intel', outcome);
-          outcome = await tryBrew('brew-intel');
-        }
-        if (!outcome.ok) {
-          const errStr = outcome.err instanceof Error ? outcome.err.message : String(outcome.err ?? '');
-          const detail = outcome.stderr || errStr || 'no detail';
-          throw new Error(
-            outcome.stage === 'spawn'
-              ? `Homebrew not reachable at /opt/homebrew/bin/brew or /usr/local/bin/brew. Spawn error: ${detail}. Run "which brew" in Terminal to find your install path.`
-              : outcome.stage === 'probe'
-              ? `Homebrew probe failed (${detail}). Visit brew.sh to install Homebrew, or run "brew install ffmpeg" manually.`
-              : `Homebrew install failed: ${detail}`,
-          );
-        }
-      } else {
-        throw new Error(
-          'Auto-install is not supported on Linux. Please install FFmpeg using your distribution\'s package manager (e.g. sudo apt install ffmpeg).'
-        );
-      }
-
-      // Re-check health so the FFmpeg status updates immediately
-      await refreshHealth();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      ffmpegInstallError = msg;
-    } finally {
-      ffmpegInstalling = false;
-    }
-  }
-
   // ── Navigation ─────────────────────────────────────────────────────
-
-  /**
-   * Auto-enable AI image descriptions on successful wizard completion,
-   * but only when the user has a working stack AND hasn't already made a
-   * choice. Rationale: if Ollama + a vision model are installed, the user
-   * has opted into the LLM experience and the LLaVA description is the
-   * natural complement to forensic analysis. We only flip the preference
-   * when it's currently `null` (never set) so we don't override a user
-   * who explicitly disabled it and then re-ran the wizard.
-   *
-   * Silently swallows errors — failing to set the preference should not
-   * block wizard completion.
-   */
-  async function autoEnableAiDescriptionIfEligible() {
-    try {
-      if (!llavaInstalled) return;
-      const current = await getAiDescriptionEnabled();
-      if (current !== null) return; // respect any explicit user choice
-      await setAiDescriptionEnabled(true);
-    } catch {
-      // Non-fatal; verify will simply keep its default-off behaviour.
-    }
-  }
-
   async function goNext() {
     if (isLastStep) {
-      await autoEnableAiDescriptionIfEligible();
       onComplete();
       return;
     }
@@ -223,106 +61,6 @@
   async function focusPrimaryAction() {
     await tick();
     primaryActionEl?.focus();
-  }
-
-  // ── External link ──────────────────────────────────────────────────
-  async function openOllamaDownload() {
-    const url = 'https://ollama.com';
-    try {
-      // Use Tauri shell plugin if available, otherwise let the browser handle it
-      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
-        const { open } = await import('@tauri-apps/plugin-shell');
-        await open(url);
-      } else {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      }
-    } catch {
-      // Fallback: open in the current webview as a last resort
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
-  }
-
-  // ── Ollama model pull ──────────────────────────────────────────────
-  // Routed through the sidecar proxy (POST /ollama/pull) rather than
-  // calling Ollama directly.  The CSP restricts connect-src to
-  // 127.0.0.1:8200, so a direct fetch to a remote Ollama instance (e.g.
-  // http://192.168.1.100:11434) would be blocked.  The sidecar forwards
-  // the request to whatever JURA_OLLAMA_BASE_URL is configured there.
-  async function pullOllamaModel(modelName: string) {
-    pullingModel = modelName;
-    pullError = null;
-    pullProgress = 'Connecting...';
-    pullPercent = null;
-
-    try {
-      const resp = await fetch('http://127.0.0.1:8200/ollama/pull', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: modelName, stream: true }),
-      });
-
-      if (!resp.ok) {
-        let detail = `HTTP ${resp.status}`;
-        try {
-          const body = await resp.json();
-          if (body?.message) detail = body.message;
-        } catch { /* ignore */ }
-        throw new Error(detail);
-      }
-
-      // Read SSE stream for progress updates
-      const reader = resp.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (reader) {
-        let buffer = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            try {
-              const data = JSON.parse(line.slice(6));
-
-              if (data.error) {
-                throw new Error(data.message || data.error);
-              }
-
-              if (data.status === 'success') {
-                pullProgress = 'Complete';
-                pullPercent = 100;
-              } else if (data.completed && data.total) {
-                const pct = Math.round((data.completed / data.total) * 100);
-                const mb = (data.completed / 1_000_000).toFixed(0);
-                const totalMb = (data.total / 1_000_000).toFixed(0);
-                pullProgress = `${data.status || 'Downloading'} — ${mb} / ${totalMb} MB`;
-                pullPercent = pct;
-              } else if (data.status) {
-                pullProgress = data.status;
-              }
-            } catch (parseErr) {
-              if (parseErr instanceof Error && parseErr.message !== line.slice(6)) {
-                throw parseErr;
-              }
-            }
-          }
-        }
-      }
-
-      await refreshHealth();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      pullError = `Failed to download ${modelName}: ${msg}`;
-    } finally {
-      pullingModel = null;
-      pullProgress = null;
-      pullPercent = null;
-    }
   }
 
   // ── Keyboard: wizard navigation + focus trap ───────────────────────
@@ -420,9 +158,6 @@
   // Step labels used by the step-indicator nav
   const stepLabels = [
     'Analysis Engine',
-    'Video and Audio',
-    'Speech Transcription',
-    'Local AI',
     'Ready',
   ];
 </script>
@@ -447,7 +182,7 @@
   style="background: rgba(30,33,40,0.95);"
   role="dialog"
   aria-modal="true"
-  aria-label="Jura Trace setup — configure your services"
+  aria-label="Jura Trace setup — confirm your services"
   aria-describedby="wizard-step-description"
   tabindex="-1"
   bind:this={dialogEl}
@@ -508,7 +243,7 @@
           aria-labelledby="step0-heading"
         >
           <p class="text-xs font-medium text-lapis dark:text-lapis-light uppercase tracking-widest mb-3">
-            Step 1 of 5
+            Step 1 of {TOTAL_STEPS}
           </p>
 
           <h2 id="step0-heading" class="font-heading text-xl font-semibold text-quartz leading-tight mb-5" style="letter-spacing: -0.01em;">
@@ -579,586 +314,18 @@
           {/if}
         </div>
 
-      <!-- ── Step 1: Video and Audio ───────────────────────────────── -->
+      <!-- ── Step 1: Ready ─────────────────────────────────────────── -->
       {:else if currentStep === 1}
         <div
           class="flex-1 flex flex-col px-8 pt-6 pb-6 motion-safe:animate-[fadeIn_200ms_ease-out]"
           role="group"
           aria-labelledby="step1-heading"
         >
-          <p class="text-xs font-medium text-lapis dark:text-lapis-light uppercase tracking-widest mb-3">
-            Step 2 of 5
-          </p>
-
-          <h2 id="step1-heading" class="font-heading text-xl font-semibold text-quartz leading-tight mb-5" style="letter-spacing: -0.01em;">
-            Video and Audio
-          </h2>
-
-          {#if !sidecarOnline}
-            <!-- Sidecar offline — can't assess FFmpeg -->
-            <div
-              class="flex items-start gap-3 rounded-lg px-4 py-3.5"
-              style="background: rgba(30,33,40,0.6); border: 1px solid rgba(122,119,112,0.15);"
-            >
-              <svg class="flex-shrink-0 w-5 h-5 text-flint-light mt-0.5" fill="none" viewBox="0 0 20 20" aria-hidden="true">
-                <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.75" />
-                <path stroke="currentColor" stroke-linecap="round" stroke-width="1.75" d="M10 7v4" />
-                <circle cx="10" cy="14" r="0.5" fill="currentColor" stroke="none" />
-              </svg>
-              <p class="text-sm text-flint-light">
-                Video and audio status requires the analysis engine to be running.
-              </p>
-            </div>
-
-          {:else if ffmpegAvailable}
-            <!-- FFmpeg available -->
-            <div
-              class="flex items-center gap-3 rounded-lg px-4 py-3.5"
-              style="background: rgba(91,138,95,0.1); border: 1px solid rgba(91,138,95,0.25);"
-              role="status"
-              aria-live="polite"
-            >
-              <svg class="flex-shrink-0 w-5 h-5 text-malachite-light" fill="none" viewBox="0 0 20 20" aria-hidden="true">
-                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 10l4 4 8-8" />
-              </svg>
-              <div>
-                <p class="text-sm font-medium text-malachite-light">Video and audio analysis ready</p>
-                <p class="text-xs text-flint-light mt-0.5">FFmpeg is available. Video metadata, frame extraction, and audio analysis are enabled.</p>
-              </div>
-            </div>
-
-          {:else}
-            <!-- FFmpeg missing -->
-            <div
-              class="flex items-start gap-3 rounded-lg px-4 py-3.5"
-              style="background: rgba(212,148,58,0.08); border: 1px solid rgba(212,148,58,0.25);"
-              role="status"
-              aria-live="polite"
-            >
-              <svg class="flex-shrink-0 w-5 h-5 text-amber-light mt-0.5" fill="none" viewBox="0 0 20 20" aria-hidden="true">
-                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M10 3L2 16h16L10 3z" />
-                <path stroke="currentColor" stroke-linecap="round" stroke-width="1.75" d="M10 9v4" />
-                <circle cx="10" cy="15" r="0.5" fill="currentColor" stroke="none" />
-              </svg>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-amber-light">FFmpeg needed for video and audio</p>
-                <p class="text-xs text-flint-light mt-1 mb-3 leading-relaxed">
-                  {#if platform === 'windows' || platform === 'mac'}
-                    Click below to install it automatically, or install it manually later from Settings.
-                  {:else}
-                    Install FFmpeg using your package manager, or skip this step and do it later.
-                  {/if}
-                </p>
-
-                <!-- Auto-install button (Windows + macOS only) -->
-                {#if platform === 'windows' || platform === 'mac'}
-                  <button
-                    onclick={installFfmpeg}
-                    disabled={ffmpegInstalling || healthChecking}
-                    class="min-h-[44px] flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
-                           bg-lapis hover:bg-lapis-dark text-white transition-colors duration-150 mb-3
-                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
-                           focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
-                           disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label="Install FFmpeg automatically using {platform === 'windows' ? 'winget' : 'Homebrew'}"
-                  >
-                    {#if ffmpegInstalling}
-                      <!-- Spinner -->
-                      <svg
-                        class="w-4 h-4 motion-safe:animate-spin"
-                        fill="none" viewBox="0 0 16 16" aria-hidden="true"
-                      >
-                        <circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="2" stroke-dasharray="14 14" />
-                      </svg>
-                      Installing FFmpeg…
-                    {:else}
-                      <svg class="w-4 h-4" fill="none" viewBox="0 0 16 16" aria-hidden="true">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 3v7M5 7l3 3 3-3" />
-                        <path stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M3 13h10" />
-                      </svg>
-                      Install FFmpeg automatically
-                    {/if}
-                  </button>
-
-                  <!-- Install error -->
-                  {#if ffmpegInstallError}
-                    <div
-                      class="flex items-start gap-2 rounded-md px-3 py-2.5 mb-3"
-                      style="background: rgba(180,60,60,0.08); border: 1px solid rgba(180,60,60,0.25);"
-                      role="alert"
-                      aria-live="assertive"
-                    >
-                      <svg class="flex-shrink-0 w-4 h-4 text-cinnabar-light mt-0.5" fill="none" viewBox="0 0 16 16" aria-hidden="true">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 2L1 13h14L8 2z" />
-                        <path stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M8 7v3" />
-                        <circle cx="8" cy="12" r="0.5" fill="currentColor" stroke="none" />
-                      </svg>
-                      <p class="text-xs text-cinnabar-light leading-relaxed">{ffmpegInstallError}</p>
-                    </div>
-                  {/if}
-
-                  <p class="text-xs text-flint-light mb-2">Or install manually:</p>
-                {/if}
-
-                <!-- Manual command -->
-                <div class="flex items-center gap-2 flex-wrap">
-                  <code
-                    class="inline-block text-xs font-mono px-2.5 py-1 rounded"
-                    style="background: rgba(30,33,40,0.8); color: #EDEAE4; border: 1px solid rgba(122,119,112,0.2);"
-                  >
-                    {#if platform === 'mac'}
-                      brew install ffmpeg
-                    {:else if platform === 'windows'}
-                      winget install Gyan.FFmpeg
-                    {:else}
-                      sudo apt install ffmpeg
-                    {/if}
-                  </code>
-                  <button
-                    onclick={refreshHealth}
-                    disabled={healthChecking || ffmpegInstalling}
-                    class="text-xs px-2.5 py-1 rounded border border-lapis/40 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
-                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
-                           disabled:opacity-50"
-                  >
-                    {healthChecking ? 'Checking…' : 'Re-check'}
-                  </button>
-                </div>
-
-                <!-- Windows-specific direct-download fallback for environments without
-                     winget (Windows Server SKUs, locked-down enterprise builds).
-                     Surfaces gyan.dev's pre-built static binaries — the same source
-                     winget would install from — with a brief PATH instruction. -->
-                {#if platform === 'windows'}
-                  <details class="mt-3">
-                    <summary class="text-xs text-lapis dark:text-lapis-light cursor-pointer hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-                      No winget? Direct download for FFmpeg (Windows)
-                    </summary>
-                    <div class="mt-2 pl-3 border-l-2 border-lapis/30 space-y-2">
-                      <p class="text-xs text-flint-light leading-relaxed">
-                        Windows Server and some enterprise SKUs ship without
-                        <code class="font-mono">winget</code>.  Download the pre-built FFmpeg essentials build
-                        directly from gyan.dev and add it to your PATH:
-                      </p>
-                      <ol class="text-xs text-flint-light space-y-1 list-decimal pl-4 leading-relaxed">
-                        <li>
-                          Download
-                          <a
-                            href="https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-                            target="_blank" rel="noopener noreferrer"
-                            class="text-lapis dark:text-lapis-light underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-                          >ffmpeg-release-essentials.zip</a>
-                        </li>
-                        <li>Extract to <code class="font-mono">C:\ffmpeg\</code></li>
-                        <li>
-                          Open PowerShell as Administrator and run:
-                          <code class="block mt-1 font-mono text-[11px] px-2 py-1.5 rounded whitespace-pre-wrap" style="background: rgba(30,33,40,0.8); color: #EDEAE4; border: 1px solid rgba(122,119,112,0.2);">[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "Machine") + ";C:\ffmpeg\bin", "Machine")</code>
-                        </li>
-                        <li>Restart Jura Trace, then click <strong>Re-check</strong> above.</li>
-                      </ol>
-                    </div>
-                  </details>
-                {/if}
-
-                <p class="text-xs text-flint-light mt-2">
-                  This is optional — image verification works without FFmpeg. You can install it later from Settings.
-                </p>
-              </div>
-            </div>
-          {/if}
-        </div>
-
-      <!-- ── Step 2: Speech Transcription ──────────────────────────── -->
-      {:else if currentStep === 2}
-        <div
-          class="flex-1 flex flex-col px-8 pt-6 pb-6 motion-safe:animate-[fadeIn_200ms_ease-out]"
-          role="group"
-          aria-labelledby="step2-heading"
-        >
-          <p class="text-xs font-medium text-lapis dark:text-lapis-light uppercase tracking-widest mb-3">
-            Step 3 of 5
-          </p>
-
-          <h2 id="step2-heading" class="font-heading text-xl font-semibold text-quartz leading-tight mb-5" style="letter-spacing: -0.01em;">
-            Speech Transcription
-          </h2>
-
-          {#if !sidecarOnline}
-            <div
-              class="flex items-start gap-3 rounded-lg px-4 py-3.5"
-              style="background: rgba(30,33,40,0.6); border: 1px solid rgba(122,119,112,0.15);"
-            >
-              <svg class="flex-shrink-0 w-5 h-5 text-flint-light mt-0.5" fill="none" viewBox="0 0 20 20" aria-hidden="true">
-                <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.75" />
-                <path stroke="currentColor" stroke-linecap="round" stroke-width="1.75" d="M10 7v4" />
-                <circle cx="10" cy="14" r="0.5" fill="currentColor" stroke="none" />
-              </svg>
-              <p class="text-sm text-flint-light">
-                Transcription status requires the analysis engine to be running.
-              </p>
-            </div>
-
-          {:else if transcriptionAvailable}
-            <!-- Transcription ready -->
-            <div
-              class="flex items-center gap-3 rounded-lg px-4 py-3.5"
-              style="background: rgba(91,138,95,0.1); border: 1px solid rgba(91,138,95,0.25);"
-              role="status"
-              aria-live="polite"
-            >
-              <svg class="flex-shrink-0 w-5 h-5 text-malachite-light" fill="none" viewBox="0 0 20 20" aria-hidden="true">
-                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 10l4 4 8-8" />
-              </svg>
-              <div>
-                <p class="text-sm font-medium text-malachite-light">Speech transcription ready</p>
-                <p class="text-xs text-flint-light mt-0.5">faster-whisper is installed and the model is available.</p>
-              </div>
-            </div>
-
-          {:else}
-            <!-- faster-whisper present but model needs download — or not installed -->
-            <div
-              class="flex items-start gap-3 rounded-lg px-4 py-3.5"
-              style="background: rgba(30,33,40,0.6); border: 1px solid rgba(122,119,112,0.15);"
-              role="status"
-              aria-live="polite"
-            >
-              <!-- Clock icon — communicates "this happens later", not "something is wrong" -->
-              <svg class="flex-shrink-0 w-5 h-5 text-flint-light mt-0.5" fill="none" viewBox="0 0 20 20" aria-hidden="true">
-                <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.75" />
-                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M10 7v3.5l2 2" />
-              </svg>
-              <div>
-                <p class="text-sm font-medium text-quartz">Speech transcription — ready to use</p>
-                <p class="text-xs text-flint-light mt-1 leading-relaxed">
-                  The transcription model (approximately 150 MB) will download automatically the first time
-                  you analyse a video or audio file. This is a one-time download and takes about a minute.
-                  No action is needed now — continue to the next step.
-                </p>
-              </div>
-            </div>
-          {/if}
-        </div>
-
-      <!-- ── Step 3: Local AI (Ollama + models) ────────────────────── -->
-      {:else if currentStep === 3}
-        <div
-          class="flex-1 flex flex-col px-8 pt-6 pb-6 motion-safe:animate-[fadeIn_200ms_ease-out]"
-          role="group"
-          aria-labelledby="step3-heading"
-        >
-          <p class="text-xs font-medium text-lapis dark:text-lapis-light uppercase tracking-widest mb-3">
-            Step 4 of 5
-          </p>
-
-          <h2 id="step3-heading" class="font-heading text-xl font-semibold text-quartz leading-tight mb-2" style="letter-spacing: -0.01em;">
-            Local AI <span class="text-sm font-normal text-flint-light">(optional)</span>
-          </h2>
-          <p class="text-xs text-flint-light mb-5 leading-relaxed">
-            Ollama adds two optional features: <strong class="text-quartz">image descriptions</strong> (auto-generated captions via LLaVA)
-            and <strong class="text-quartz">claim verification</strong> (fact-checking text against a knowledge base via Qwen).
-            These are convenience features — all core verification, forensic analysis, and AI detection work without Ollama.
-            You can install it later from Settings at any time.
-          </p>
-
-          {#if !ollamaAvailable}
-            <!-- ── Ollama not running ─────────────────────────────── -->
-            <div
-              class="flex items-start gap-3 rounded-lg px-4 py-3.5 mb-4"
-              style="background: rgba(30,33,40,0.6); border: 1px solid rgba(122,119,112,0.15);"
-              role="status"
-              aria-live="polite"
-            >
-              <svg class="flex-shrink-0 w-5 h-5 text-flint-light mt-0.5" fill="none" viewBox="0 0 20 20" aria-hidden="true">
-                <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.75" />
-                <path stroke="currentColor" stroke-linecap="round" stroke-width="1.75" d="M10 7v4" />
-                <circle cx="10" cy="14" r="0.5" fill="currentColor" stroke="none" />
-              </svg>
-              <div>
-                <p class="text-sm font-medium text-quartz">Ollama is not installed</p>
-                <p class="text-xs text-flint-light mt-1 leading-relaxed">
-                  You can skip this step and install Ollama later from Settings.
-                </p>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-3 flex-wrap">
-              <button
-                onclick={openOllamaDownload}
-                class="min-h-[44px] flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
-                       bg-lapis hover:bg-lapis-dark text-white transition-colors duration-150
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
-                       focus-visible:ring-offset-2 focus-visible:ring-offset-graphite"
-                aria-label="Download Ollama — opens ollama.com in your browser"
-              >
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 16 16" aria-hidden="true">
-                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 3H3a1 1 0 00-1 1v9a1 1 0 001 1h9a1 1 0 001-1v-3" />
-                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3h4v4" />
-                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 9L13 3" />
-                </svg>
-                Download Ollama
-              </button>
-
-              <button
-                onclick={refreshHealth}
-                disabled={healthChecking}
-                class="min-h-[44px] px-4 py-2.5 rounded-lg text-sm font-medium
-                       border border-lapis/40 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors duration-150
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
-                       focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
-                       disabled:opacity-50"
-              >
-                {healthChecking ? 'Checking…' : "I've installed it — re-check"}
-              </button>
-
-              <button
-                bind:this={primaryActionEl}
-                onclick={goNext}
-                class="min-h-[44px] px-4 py-2.5 rounded-lg text-sm text-flint-light hover:text-quartz
-                       transition-colors duration-150
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
-                       focus-visible:ring-offset-2 focus-visible:ring-offset-graphite"
-              >
-                Skip — I don't need this
-              </button>
-            </div>
-
-          {:else}
-            <!-- ── Ollama running — show model checklist ───────────── -->
-
-            <!-- Privacy notice -->
-            <div
-              class="flex items-start gap-2 rounded-md px-3 py-2.5 mb-4"
-              style="background: rgba(55,99,153,0.1); border: 1px solid rgba(55,99,153,0.25);"
-            >
-              <svg class="flex-shrink-0 w-4 h-4 text-lapis dark:text-lapis-light mt-0.5" fill="none" viewBox="0 0 16 16" aria-hidden="true">
-                <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" />
-                <path stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M8 6v4" />
-                <circle cx="8" cy="5" r="0.5" fill="currentColor" stroke="none" />
-              </svg>
-              <p class="text-xs text-lapis dark:text-lapis-light leading-relaxed">
-                These models run entirely on your machine. No data is sent to external servers.
-              </p>
-            </div>
-
-            <!-- Model checklist -->
-            <ul class="space-y-3 mb-4" aria-label="Required AI models">
-
-              <!-- llava:7b -->
-              <li
-                class="flex items-center gap-3 rounded-lg px-4 py-3"
-                style="{llavaInstalled
-                  ? 'background: rgba(91,138,95,0.08); border: 1px solid rgba(91,138,95,0.2);'
-                  : 'background: rgba(30,33,40,0.6); border: 1px solid rgba(122,119,112,0.18);'}"
-              >
-                <!-- Status icon -->
-                {#if llavaInstalled}
-                  <svg class="flex-shrink-0 w-5 h-5 text-malachite-light" fill="none" viewBox="0 0 20 20" aria-hidden="true">
-                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 10l4 4 8-8" />
-                  </svg>
-                {:else if pullingModel === 'llava:7b'}
-                  <!-- Spinner while downloading -->
-                  <svg
-                    class="flex-shrink-0 w-5 h-5 text-lapis dark:text-lapis-light motion-safe:animate-spin"
-                    fill="none" viewBox="0 0 20 20" aria-hidden="true"
-                  >
-                    <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="2" stroke-dasharray="22 22" />
-                  </svg>
-                {:else}
-                  <svg class="flex-shrink-0 w-5 h-5 text-amber-light" fill="none" viewBox="0 0 20 20" aria-hidden="true">
-                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M10 3L2 16h16L10 3z" />
-                    <path stroke="currentColor" stroke-linecap="round" stroke-width="1.75" d="M10 9v4" />
-                    <circle cx="10" cy="15" r="0.5" fill="currentColor" stroke="none" />
-                  </svg>
-                {/if}
-
-                <!-- Model info -->
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium {llavaInstalled ? 'text-malachite-light' : 'text-quartz'}">
-                    <code class="font-mono">llava:7b</code>
-                    <span class="ml-1.5 text-xs font-normal text-flint-light">~4.7 GB</span>
-                  </p>
-                  {#if llavaInstalled}
-                    <p class="text-xs text-flint-light mt-0.5">Installed — image descriptions enabled</p>
-                  {:else if pullingModel === 'llava:7b'}
-                    <p class="text-xs text-lapis dark:text-lapis-light mt-0.5" aria-live="polite">
-                      {pullProgress ?? 'Downloading…'}{pullPercent !== null ? ` (${pullPercent}%)` : ''}
-                    </p>
-                    {#if pullPercent !== null}
-                      <div
-                        class="mt-1.5 h-1 rounded-full overflow-hidden"
-                        style="background: rgba(55,99,153,0.2);"
-                        role="progressbar"
-                        aria-label="Download progress"
-                        aria-valuenow={pullPercent}
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                      >
-                        <div
-                          class="h-full bg-lapis-light transition-all duration-300"
-                          style="width: {pullPercent}%;"
-                        ></div>
-                      </div>
-                    {/if}
-                  {:else}
-                    <p class="text-xs text-flint-light mt-0.5">Not installed — required for image descriptions</p>
-                  {/if}
-                </div>
-
-                <!-- Download button (only when not installed and not already pulling this model) -->
-                {#if !llavaInstalled && pullingModel !== 'llava:7b'}
-                  <button
-                    onclick={() => pullOllamaModel('llava:7b')}
-                    disabled={pullingModel !== null}
-                    class="flex-shrink-0 min-h-[44px] px-3 py-2 rounded-md text-xs font-medium
-                           bg-lapis hover:bg-lapis-dark text-white transition-colors duration-150
-                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
-                           focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
-                           disabled:opacity-40 disabled:cursor-not-allowed"
-                    aria-label="Download llava:7b (approximately 4.7 gigabytes)"
-                  >
-                    Download
-                  </button>
-                {/if}
-              </li>
-
-              <!-- qwen2.5:7b-instruct -->
-              <li
-                class="flex items-center gap-3 rounded-lg px-4 py-3"
-                style="{qwenInstalled
-                  ? 'background: rgba(91,138,95,0.08); border: 1px solid rgba(91,138,95,0.2);'
-                  : 'background: rgba(30,33,40,0.6); border: 1px solid rgba(122,119,112,0.18);'}"
-              >
-                <!-- Status icon -->
-                {#if qwenInstalled}
-                  <svg class="flex-shrink-0 w-5 h-5 text-malachite-light" fill="none" viewBox="0 0 20 20" aria-hidden="true">
-                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 10l4 4 8-8" />
-                  </svg>
-                {:else if pullingModel === 'qwen2.5:7b-instruct'}
-                  <svg
-                    class="flex-shrink-0 w-5 h-5 text-lapis dark:text-lapis-light motion-safe:animate-spin"
-                    fill="none" viewBox="0 0 20 20" aria-hidden="true"
-                  >
-                    <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="2" stroke-dasharray="22 22" />
-                  </svg>
-                {:else}
-                  <svg class="flex-shrink-0 w-5 h-5 text-amber-light" fill="none" viewBox="0 0 20 20" aria-hidden="true">
-                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M10 3L2 16h16L10 3z" />
-                    <path stroke="currentColor" stroke-linecap="round" stroke-width="1.75" d="M10 9v4" />
-                    <circle cx="10" cy="15" r="0.5" fill="currentColor" stroke="none" />
-                  </svg>
-                {/if}
-
-                <!-- Model info -->
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium {qwenInstalled ? 'text-malachite-light' : 'text-quartz'}">
-                    <code class="font-mono">qwen2.5:7b-instruct</code>
-                    <span class="ml-1.5 text-xs font-normal text-flint-light">~4.7 GB</span>
-                  </p>
-                  {#if qwenInstalled}
-                    <p class="text-xs text-flint-light mt-0.5">Installed — claim verification enabled</p>
-                  {:else if pullingModel === 'qwen2.5:7b-instruct'}
-                    <p class="text-xs text-lapis dark:text-lapis-light mt-0.5" aria-live="polite">
-                      {pullProgress ?? 'Downloading…'}{pullPercent !== null ? ` (${pullPercent}%)` : ''}
-                    </p>
-                    {#if pullPercent !== null}
-                      <div
-                        class="mt-1.5 h-1 rounded-full overflow-hidden"
-                        style="background: rgba(55,99,153,0.2);"
-                        role="progressbar"
-                        aria-label="Download progress"
-                        aria-valuenow={pullPercent}
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                      >
-                        <div
-                          class="h-full bg-lapis-light transition-all duration-300"
-                          style="width: {pullPercent}%;"
-                        ></div>
-                      </div>
-                    {/if}
-                  {:else}
-                    <p class="text-xs text-flint-light mt-0.5">Not installed — required for claim verification</p>
-                  {/if}
-                </div>
-
-                {#if !qwenInstalled && pullingModel !== 'qwen2.5:7b-instruct'}
-                  <button
-                    onclick={() => pullOllamaModel('qwen2.5:7b-instruct')}
-                    disabled={pullingModel !== null}
-                    class="flex-shrink-0 min-h-[44px] px-3 py-2 rounded-md text-xs font-medium
-                           bg-lapis hover:bg-lapis-dark text-white transition-colors duration-150
-                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
-                           focus-visible:ring-offset-2 focus-visible:ring-offset-graphite
-                           disabled:opacity-40 disabled:cursor-not-allowed"
-                    aria-label="Download qwen2.5:7b-instruct (approximately 4.7 gigabytes)"
-                  >
-                    Download
-                  </button>
-                {/if}
-              </li>
-            </ul>
-
-            <!-- Pull error (shown below the list, outside the list items) -->
-            {#if pullError}
-              <div
-                class="flex items-start gap-2 rounded-md px-3 py-2.5 mb-3"
-                style="background: rgba(180,60,60,0.08); border: 1px solid rgba(180,60,60,0.25);"
-                role="alert"
-                aria-live="assertive"
-              >
-                <svg class="flex-shrink-0 w-4 h-4 text-cinnabar-light mt-0.5" fill="none" viewBox="0 0 16 16" aria-hidden="true">
-                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 2L1 13h14L8 2z" />
-                  <path stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M8 7v3" />
-                  <circle cx="8" cy="12" r="0.5" fill="currentColor" stroke="none" />
-                </svg>
-                <p class="text-xs text-cinnabar-light leading-relaxed">{pullError}</p>
-              </div>
-            {/if}
-
-            <!-- All models ready banner -->
-            {#if allModelsReady}
-              <div
-                class="flex items-center gap-2 rounded-md px-3 py-2.5"
-                style="background: rgba(91,138,95,0.1); border: 1px solid rgba(91,138,95,0.25);"
-                role="status"
-                aria-live="polite"
-              >
-                <svg class="flex-shrink-0 w-4 h-4 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
-                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l3 3 7-7" />
-                </svg>
-                <p class="text-xs text-malachite-light font-medium">All models ready — AI features are fully enabled</p>
-              </div>
-            {/if}
-
-            <!-- Continue button (when Ollama is available, footer's Continue won't show; provide one here) -->
-            {#if allModelsReady}
-              <button
-                bind:this={primaryActionEl}
-                onclick={goNext}
-                class="w-full min-h-[44px] py-2.5 px-4 bg-lapis hover:bg-lapis-dark text-white text-sm font-medium
-                       rounded-lg transition-colors duration-150 mt-4
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
-                       focus-visible:ring-offset-2 focus-visible:ring-offset-graphite"
-              >
-                Continue
-              </button>
-            {/if}
-          {/if}
-        </div>
-
-      <!-- ── Step 4: Ready ──────────────────────────────────────────── -->
-      {:else if currentStep === 4}
-        <div
-          class="flex-1 flex flex-col px-8 pt-6 pb-6 motion-safe:animate-[fadeIn_200ms_ease-out]"
-          role="group"
-          aria-labelledby="step4-heading"
-        >
           <p class="text-xs font-medium text-malachite-dark dark:text-malachite-light uppercase tracking-widest mb-3">
             All done
           </p>
 
-          <h2 id="step4-heading" class="font-heading text-xl font-semibold text-quartz leading-tight mb-5" style="letter-spacing: -0.01em;">
+          <h2 id="step1-heading" class="font-heading text-xl font-semibold text-quartz leading-tight mb-5" style="letter-spacing: -0.01em;">
             Ready to use Jura Trace
           </h2>
 
@@ -1170,7 +337,7 @@
               <svg class="flex-shrink-0 w-4 h-4 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l3 3 7-7" />
               </svg>
-              <span class="text-sm text-quartz">Core verification — always available</span>
+              <span class="text-sm text-quartz">Core verification — C2PA, EXIF, perceptual hash, watermark</span>
             </li>
 
             <!-- Forensic analysis -->
@@ -1189,61 +356,16 @@
               </span>
             </li>
 
-            <!-- Video and audio -->
-            <li class="flex items-center gap-3">
-              {#if ffmpegAvailable}
-                <svg class="flex-shrink-0 w-4 h-4 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
-                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l3 3 7-7" />
-                </svg>
-              {:else}
-                <svg class="flex-shrink-0 w-4 h-4 text-flint-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
-                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4l8 8M12 4l-8 8" />
-                </svg>
-              {/if}
-              <span class="text-sm {ffmpegAvailable ? 'text-quartz' : 'text-flint-light'}">
-                Video and audio {ffmpegAvailable ? '— available' : '— not available (install FFmpeg)'}
-              </span>
-            </li>
-
-            <!-- Transcription -->
-            <li class="flex items-center gap-3">
-              {#if transcriptionAvailable}
-                <svg class="flex-shrink-0 w-4 h-4 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
-                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l3 3 7-7" />
-                </svg>
-              {:else}
-                <svg class="flex-shrink-0 w-4 h-4 text-flint-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
-                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4l8 8M12 4l-8 8" />
-                </svg>
-              {/if}
-              <span class="text-sm {transcriptionAvailable ? 'text-quartz' : 'text-flint-light'}">
-                Speech transcription {transcriptionAvailable ? '— available' : '— downloads on first use'}
-              </span>
-            </li>
-
-            <!-- AI descriptions and claim verification -->
-            <li class="flex items-center gap-3">
-              {#if allModelsReady}
-                <svg class="flex-shrink-0 w-4 h-4 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
-                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l3 3 7-7" />
-                </svg>
-              {:else}
-                <svg class="flex-shrink-0 w-4 h-4 text-flint-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
-                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4l8 8M12 4l-8 8" />
-                </svg>
-              {/if}
-              <span class="text-sm {allModelsReady ? 'text-quartz' : 'text-flint-light'}">
-                {#if allModelsReady}
-                  AI descriptions and claim verification — available
-                {:else if ollamaAvailable}
-                  AI descriptions and claim verification — models not yet downloaded (optional)
-                {:else}
-                  AI descriptions and claim verification — not available (optional)
-                {/if}
-              </span>
-            </li>
-
           </ul>
+
+          <!-- Optional Ollama hint — points to Settings rather than prompting an
+               install during first launch. JTV-132 will land the in-app
+               install flow. -->
+          <p class="text-xs text-flint-light leading-relaxed mb-6">
+            Optional: install Ollama from <strong class="text-quartz">Settings</strong>
+            to enable AI image descriptions and claim verification. Core verification
+            and forensic analysis run without it.
+          </p>
 
           <!-- Primary CTA -->
           <button
@@ -1294,37 +416,18 @@
           <!-- Last step: primary CTA is inside the content area — no footer button needed -->
           <div></div>
 
-        {:else if currentStep === 3 && (!ollamaAvailable || allModelsReady)}
-          <!-- Step 3: CTAs are in the content area (Ollama install CTA or all-models-ready Continue) -->
-          <div></div>
-
         {:else}
-          <!-- Skip / Continue button in footer -->
-          {#if !isLastStep}
-            <!-- Skip (ghost) -->
-            {#if currentStep < TOTAL_STEPS - 2}
-              <button
-                onclick={onComplete}
-                class="text-xs text-flint-light hover:text-flint-dark dark:text-flint-light transition-colors duration-150
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
-                       focus-visible:ring-offset-2 focus-visible:ring-offset-graphite rounded px-1"
-              >
-                Skip setup
-              </button>
-            {/if}
-
-            <!-- Continue -->
-            <button
-              bind:this={primaryActionEl}
-              onclick={goNext}
-              class="min-h-[44px] py-1.5 px-4 bg-lapis hover:bg-lapis-dark text-white text-xs font-medium
-                     rounded-md transition-colors duration-150
-                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
-                     focus-visible:ring-offset-2 focus-visible:ring-offset-graphite"
-            >
-              Continue
-            </button>
-          {/if}
+          <!-- Continue button in footer -->
+          <button
+            bind:this={primaryActionEl}
+            onclick={goNext}
+            class="min-h-[44px] py-1.5 px-4 bg-lapis hover:bg-lapis-dark text-white text-xs font-medium
+                   rounded-md transition-colors duration-150
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                   focus-visible:ring-offset-2 focus-visible:ring-offset-graphite"
+          >
+            Continue
+          </button>
         {/if}
 
       </div>
