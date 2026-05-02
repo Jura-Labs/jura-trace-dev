@@ -113,28 +113,49 @@
         // /opt/homebrew/bin/brew on Apple Silicon and /usr/local/bin/brew
         // on Intel; neither is in launchd's default PATH.  We must invoke
         // brew via its absolute path through scoped capability entries.
-        async function tryBrew(scope: 'brew-arm' | 'brew-intel'): Promise<{ ok: boolean; stderr?: string }> {
+        //
+        // Diagnostic logging via console.error: Tauri 2's `devtools` Cargo
+        // feature exposes a right-click → Inspect Element devtools panel
+        // in release builds.  Each failure path emits a structured log so
+        // a pilot user can capture the exact stage that failed without
+        // needing to run a dev build.
+        async function tryBrew(
+          scope: 'brew-arm' | 'brew-intel',
+        ): Promise<{ ok: boolean; stderr?: string; stage?: string; err?: unknown }> {
           try {
             // Probe with --version first so we surface a clean error if the
             // binary isn't at the expected location.
             const probe = await Command.create(scope, ['--version']).execute();
-            if (probe.code !== 0) return { ok: false };
+            if (probe.code !== 0) {
+              console.error(`[ffmpeg-install] ${scope} probe non-zero exit`, probe);
+              return { ok: false, stage: 'probe', stderr: probe.stderr?.trim() };
+            }
             const r = await Command.create(scope, ['install', 'ffmpeg']).execute();
             if (r.code !== 0) {
-              return { ok: false, stderr: r.stderr?.trim() || `Exit code ${r.code}` };
+              console.error(`[ffmpeg-install] ${scope} install non-zero exit`, r);
+              return { ok: false, stage: 'install', stderr: r.stderr?.trim() || `Exit code ${r.code}` };
             }
+            console.log(`[ffmpeg-install] ${scope} install completed`, r);
             return { ok: true };
-          } catch {
-            return { ok: false };
+          } catch (err) {
+            console.error(`[ffmpeg-install] ${scope} threw`, err);
+            return { ok: false, stage: 'spawn', err };
           }
         }
         let outcome = await tryBrew('brew-arm');
-        if (!outcome.ok) outcome = await tryBrew('brew-intel');
         if (!outcome.ok) {
+          console.warn('[ffmpeg-install] brew-arm failed, trying brew-intel', outcome);
+          outcome = await tryBrew('brew-intel');
+        }
+        if (!outcome.ok) {
+          const errStr = outcome.err instanceof Error ? outcome.err.message : String(outcome.err ?? '');
+          const detail = outcome.stderr || errStr || 'no detail';
           throw new Error(
-            outcome.stderr
-              ? `Homebrew install failed: ${outcome.stderr}`
-              : 'Homebrew is not installed. Visit brew.sh to install it, or install FFmpeg manually using the command shown below.',
+            outcome.stage === 'spawn'
+              ? `Homebrew not reachable at /opt/homebrew/bin/brew or /usr/local/bin/brew. Spawn error: ${detail}. Run "which brew" in Terminal to find your install path.`
+              : outcome.stage === 'probe'
+              ? `Homebrew probe failed (${detail}). Visit brew.sh to install Homebrew, or run "brew install ffmpeg" manually.`
+              : `Homebrew install failed: ${detail}`,
           );
         }
       } else {
