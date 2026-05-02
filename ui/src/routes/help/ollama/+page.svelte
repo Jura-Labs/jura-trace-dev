@@ -214,26 +214,4 @@
     </dl>
   </section>
 
-  <div class="earth-line mb-8" role="separator" aria-hidden="true"></div>
-
-  <!-- Why optional -->
-  <section class="mb-8" aria-labelledby="why-heading">
-    <h2 id="why-heading" class="font-heading text-xl text-text-light dark:text-text-dark mb-3 tracking-heading">
-      Why isn't Ollama bundled?
-    </h2>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
-      Bundling Ollama and the two models inside the Jura Trace installer would push the
-      download from around 700 MB to over 10 GB. That excludes users on low-bandwidth
-      connections (a hard blocker for field deployment) and triggers procurement review
-      at most institutional sites. Apple notarisation does not officially support
-      re-signing a third-party signed binary inside another bundle, which would slow
-      the release pipeline. And Jura Labs' sister product ROOTED already uses Ollama on
-      port 11434 — bundling our own would create a port conflict.
-    </p>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-      Optional install with frictionless UX is therefore the right path. The buttons in
-      Settings give a one-click install on macOS and Windows; the model download has a
-      progress bar and never asks you to use a terminal.
-    </p>
-  </section>
 </article>
