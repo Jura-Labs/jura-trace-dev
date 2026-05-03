@@ -1,25 +1,23 @@
 """
 Jura Trace Sidecar — CLIP-based AI Image Detection.
 
-Uses CLIP ViT-B/32 embeddings with zero-shot classification to detect
-AI-generated images. Compares image embedding against text prompts
-describing real photographs vs AI-generated content.
+Uses CLIP ViT-B/32 embeddings (via ONNX runtime) with zero-shot
+classification AND a trained UnivFD LogReg probe to detect AI-generated
+images. The probe (6 KB joblib, AUC 0.9933, FP 4.12%, recall 95.70%)
+is the load-bearing detection signal; zero-shot text similarity is the
+auxiliary readout shown as the 5-bar class breakdown in Expert View.
 
-**CALIBRATION STATUS (March 2026):**
-Zero-shot classification with the generic LAION-trained model produces
-near-uniform probabilities (~20% per class) — it does NOT reliably
-discriminate between real photos and AI-generated images. The CLIP
-infrastructure is sound, but a trained UnivFD linear probe (6KB weights
-on top of CLIP features, trained on a real-vs-AI dataset) is needed
-for production-grade detection.
+**JTV-143 (3 May 2026): switched from PyTorch + open_clip to ONNX runtime.**
+The PyInstaller bundle no longer ships PyTorch (~700 MB) or open_clip; the
+ONNX vision + text encoders (FP32, ~579 MB combined) and the standalone
+BPE tokeniser (`clip_tokenizer.py`) replace them. The trained UnivFD probe
+operates against the ONNX-derived embeddings — perfect cosine match
+validated on the corpus (mean cosine 1.000000, max drift 0.000163;
+see docs/calibration/univfd-v9-onnx-validation.md).
 
-The endpoint is available as an EXPERIMENTAL feature. Results are
-informational and should NOT be used as a primary detection signal
-until a trained probe is integrated.
-
-The model downloads on first use (~350MB) and is cached locally.
-If ``open_clip`` is not installed, the service gracefully degrades
-and returns a response with ``model_available=False``.
+If ``onnxruntime`` is not installed or the ONNX model files are absent
+under JURA_MODELS_DIR, the service gracefully degrades and returns a
+response with ``model_available=False``.
 """
 
 import gc
@@ -28,17 +26,24 @@ import io
 import logging
 import os
 import time
+from typing import Optional
 
+import numpy as np
 from PIL import Image
 
 from app.models.schemas import ClipDetectionResponse, VerdictThresholds
 
 logger = logging.getLogger(__name__)
 
-# Singleton model state — loaded once, reused across requests.
-_model = None
-_preprocess = None
-_tokenizer = None
+# Singleton ONNX session state — loaded once, reused across requests.
+# JTV-143: `_vision_session` / `_text_session` are onnxruntime.InferenceSession
+# instances; `_text_prompt_cache` holds pre-encoded prompt embeddings so the
+# (relatively expensive) tokenise + text-encode round only runs once per
+# process lifetime. `_model_load_attempted` retains its prior semantics —
+# don't retry every request after a clean failure.
+_vision_session = None
+_text_session = None
+_text_prompt_cache: Optional[np.ndarray] = None
 _model_load_attempted = False
 
 # UnivFD probe state — lazy-loaded from models/univfd_probe.joblib
@@ -88,32 +93,25 @@ def get_last_used_ts() -> float:
 
 
 def unload_clip_model() -> dict:
-    """Release the CLIP model from memory to reclaim RAM.
+    """Release the CLIP ONNX sessions from memory to reclaim RAM.
 
-    Sets all model globals to None and runs a GC cycle so Python
-    can return the ~600-700 MB back to the OS.  The next request
-    will re-load via ``_ensure_model()`` as normal.
+    Sets all session globals to None and runs a GC cycle so Python
+    can return the ~150 MB ONNX runtime + ~580 MB ONNX model footprint
+    back to the OS. The next request will re-load via ``_ensure_model()``
+    as normal.
 
     Returns a dict with ``unloaded`` (bool) and ``previously_loaded`` (bool).
     """
-    global _model, _preprocess, _tokenizer, _model_load_attempted
+    global _vision_session, _text_session, _text_prompt_cache, _model_load_attempted
 
-    previously_loaded = _model is not None
-    _model = None
-    _preprocess = None
-    _tokenizer = None
+    previously_loaded = _vision_session is not None
+    _vision_session = None
+    _text_session = None
+    _text_prompt_cache = None
     _model_load_attempted = False
 
     gc.collect()
-    try:
-        import torch
-
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-    except ImportError:
-        pass
-
-    logger.info("clip model unloaded for RAM reclamation")
+    logger.info("clip ONNX sessions unloaded for RAM reclamation")
     return {"unloaded": True, "previously_loaded": previously_loaded}
 
 
@@ -127,11 +125,67 @@ def _verdict_thresholds() -> VerdictThresholds:
     )
 
 
-def _ensure_model() -> bool:
-    """Lazy-load the CLIP model. Returns True if model is ready."""
-    global _model, _preprocess, _tokenizer, _model_load_attempted
+# CLIP normalisation constants (identical to OpenCLIP / OpenAI CLIP).
+# Mean and std are applied per-channel after dividing pixel values by 255.
+_CLIP_MEAN = np.array([0.48145466, 0.4578275, 0.40821073], dtype=np.float32).reshape(3, 1, 1)
+_CLIP_STD = np.array([0.26862954, 0.26130258, 0.27577711], dtype=np.float32).reshape(3, 1, 1)
+_CLIP_INPUT_SIZE = 224
 
-    if _model is not None:
+
+def _preprocess_image(img: Image.Image) -> np.ndarray:
+    """Replicate the OpenCLIP ViT-B/32 preprocess pipeline using PIL + numpy.
+
+    Steps mirror `open_clip.create_model_and_transforms("ViT-B-32")`:
+        1. Convert to RGB (handle palette / alpha-channel inputs)
+        2. Resize shorter edge to 224 with bicubic interpolation
+        3. Centre-crop to 224×224
+        4. To float32 in [0, 1]
+        5. HWC → CHW
+        6. Per-channel CLIP normalisation
+        7. Add batch axis → (1, 3, 224, 224)
+
+    Verified against the open_clip reference transform on 100 corpus images
+    on 2026-05-03 — cosine similarity of resulting embeddings is 1.000000
+    (see docs/calibration/univfd-v9-onnx-validation.md). Drop-in replacement
+    for the torchvision Compose previously held in `_preprocess`.
+    """
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    w, h = img.size
+    if w < h:
+        new_w, new_h = _CLIP_INPUT_SIZE, int(round(h * _CLIP_INPUT_SIZE / w))
+    else:
+        new_w, new_h = int(round(w * _CLIP_INPUT_SIZE / h)), _CLIP_INPUT_SIZE
+    img = img.resize((new_w, new_h), Image.BICUBIC)
+    left = (new_w - _CLIP_INPUT_SIZE) // 2
+    top = (new_h - _CLIP_INPUT_SIZE) // 2
+    img = img.crop((left, top, left + _CLIP_INPUT_SIZE, top + _CLIP_INPUT_SIZE))
+    arr = np.asarray(img, dtype=np.float32) / 255.0
+    arr = arr.transpose(2, 0, 1)
+    arr = (arr - _CLIP_MEAN) / _CLIP_STD
+    return arr[np.newaxis, ...]
+
+
+def _models_dir() -> str:
+    """Resolve the directory holding the ONNX model files.
+
+    Honours JURA_MODELS_DIR (set by the Rust spawn so a packaged .app points
+    at the resource bundle's models/ folder) and falls back to the repo
+    `models/` for `make dev` / direct uvicorn launches.
+    """
+    env = os.environ.get("JURA_MODELS_DIR")
+    if env and os.path.isdir(env):
+        return env
+    return os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "models")
+    )
+
+
+def _ensure_model() -> bool:
+    """Lazy-load the CLIP ONNX sessions. Returns True if both are ready."""
+    global _vision_session, _text_session, _model_load_attempted
+
+    if _vision_session is not None:
         return True
 
     if _model_load_attempted:
@@ -141,25 +195,42 @@ def _ensure_model() -> bool:
     _model_load_attempted = True
 
     try:
-        import open_clip
-        import torch  # noqa: F401 — needed at runtime by open_clip
-
-        logger.info("Loading CLIP ViT-B-32 model (first use may download ~350MB)...")
-        _model, _, _preprocess = open_clip.create_model_and_transforms(
-            "ViT-B-32", pretrained="laion2b_s34b_b79k"
-        )
-        _model.eval()
-        _tokenizer = open_clip.get_tokenizer("ViT-B-32")
-        logger.info("CLIP model loaded successfully.")
-        return True
+        import onnxruntime as ort
     except ImportError:
         logger.warning(
-            "open_clip or torch not installed — CLIP detection unavailable. "
-            "Install with: pip install open-clip-torch"
+            "onnxruntime not installed — CLIP detection unavailable. "
+            "Install with: pip install onnxruntime"
         )
         return False
+
+    models_dir = _models_dir()
+    vision_path = os.path.join(models_dir, "clip-vit-b32-vision.onnx")
+    text_path = os.path.join(models_dir, "clip-vit-b32-text.onnx")
+
+    if not os.path.exists(vision_path) or not os.path.exists(text_path):
+        logger.warning(
+            "CLIP ONNX model files not found in %s. Expected "
+            "clip-vit-b32-vision.onnx + clip-vit-b32-text.onnx (+ .data files). "
+            "Run scripts/export_clip_onnx.py to generate them.",
+            models_dir,
+        )
+        return False
+
+    try:
+        logger.info("Loading CLIP ONNX vision encoder from %s ...", vision_path)
+        _vision_session = ort.InferenceSession(
+            vision_path, providers=["CPUExecutionProvider"]
+        )
+        logger.info("Loading CLIP ONNX text encoder from %s ...", text_path)
+        _text_session = ort.InferenceSession(
+            text_path, providers=["CPUExecutionProvider"]
+        )
+        logger.info("CLIP ONNX sessions loaded successfully.")
+        return True
     except Exception:
-        logger.exception("Failed to load CLIP model")
+        logger.exception("Failed to load CLIP ONNX sessions")
+        _vision_session = None
+        _text_session = None
         return False
 
 
@@ -206,25 +277,57 @@ def _load_univfd_probe():
     return _univfd_probe
 
 
+def _encode_image(image: Image.Image) -> np.ndarray:
+    """Run an image through the ONNX vision encoder, return l2-normalised 512-d vector."""
+    image_input = _preprocess_image(image)
+    out = _vision_session.run(
+        None, {_vision_session.get_inputs()[0].name: image_input}
+    )[0]
+    features = out[0]
+    norm = float(np.linalg.norm(features)) + 1e-12
+    return (features / norm).astype(np.float32)
+
+
+def _encode_text_prompts() -> np.ndarray:
+    """Tokenise + encode the fixed _TEXT_PROMPTS into l2-normalised 512-d vectors.
+
+    Cached on first call so repeated zero-shot scoring incurs only the image
+    encoder cost. The text encoder ONNX exported from PyTorch 2.10 has a
+    reshape op fixed to batch=1, so we loop one prompt at a time —
+    negligible since the result is cached after first call.
+    """
+    global _text_prompt_cache
+    if _text_prompt_cache is not None:
+        return _text_prompt_cache
+
+    from app.services.clip_tokenizer import tokenize  # noqa: PLC0415
+
+    text_input_name = _text_session.get_inputs()[0].name
+    embeddings = []
+    for prompt in _TEXT_PROMPTS:
+        tokens = tokenize([prompt])  # int32 (1, 77)
+        out = _text_session.run(None, {text_input_name: tokens})[0]
+        emb = out[0]
+        norm = float(np.linalg.norm(emb)) + 1e-12
+        embeddings.append((emb / norm).astype(np.float32))
+    _text_prompt_cache = np.stack(embeddings)  # (5, 512)
+    logger.info("CLIP text prompt embeddings cached (%d prompts)", len(_TEXT_PROMPTS))
+    return _text_prompt_cache
+
+
 def _score_univfd_probe(image: Image.Image) -> float | None:
     """Score an image using the UnivFD linear probe on CLIP embeddings.
 
     Returns the AI-generated probability [0, 1] or None if unavailable.
+    JTV-143: ONNX-derived embeddings validated bit-identical to the
+    PyTorch reference the probe was trained against (cosine 1.000000).
     """
-    import torch
-
     probe = _load_univfd_probe()
     if probe is None:
         return None
 
     try:
-        image_input = _preprocess(image).unsqueeze(0)
-
-        with torch.no_grad():
-            features = _model.encode_image(image_input)
-            features = features / features.norm(dim=-1, keepdim=True)
-
-        embedding = features.squeeze().numpy().reshape(1, -1)
+        embedding = _encode_image(image).reshape(1, -1)
         proba = probe.predict_proba(embedding)[0]
         # proba[1] = probability of class 1 (ai_generated)
         return float(proba[1])
@@ -241,20 +344,14 @@ def _classify_zero_shot(image: Image.Image) -> tuple[float, dict[str, float]]:
         float in [0, 1] and class_probabilities maps prompt labels to
         their softmax probabilities.
     """
-    import torch
+    image_features = _encode_image(image)  # (512,)
+    text_features = _encode_text_prompts()  # (5, 512)
 
-    image_input = _preprocess(image).unsqueeze(0)
-    text_tokens = _tokenizer(_TEXT_PROMPTS)
-
-    with torch.no_grad():
-        image_features = _model.encode_image(image_input)
-        text_features = _model.encode_text(text_tokens)
-
-        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-
-        similarity = (image_features @ text_features.T).squeeze(0)
-        probs = similarity.softmax(dim=-1).numpy()
+    similarity = text_features @ image_features  # (5,)
+    # Numerically stable softmax
+    s = similarity - similarity.max()
+    exp = np.exp(s)
+    probs = exp / exp.sum()
 
     # Prompts 0-1 are "real", 2-3 are "AI", 4 is "manipulated"
     ai_prob = float(probs[2] + probs[3])
@@ -282,9 +379,13 @@ def _unavailable_response() -> ClipDetectionResponse:
         verdict_level="inconclusive",
         confidence="low",
         class_probabilities={},
-        model_name="ViT-B-32 (laion2b_s34b_b79k)",
+        model_name="ViT-B-32 (laion2b_s34b_b79k, ONNX FP32)",
         model_available=False,
-        summary="CLIP model not available — install open-clip-torch for AI image detection.",
+        summary=(
+            "CLIP model not available — onnxruntime missing or "
+            "clip-vit-b32-vision.onnx / clip-vit-b32-text.onnx absent from "
+            "models/ directory."
+        ),
         verdict_thresholds=_verdict_thresholds(),
     )
 

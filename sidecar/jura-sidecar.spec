@@ -118,6 +118,40 @@ for _optional_pkg in ["chromadb", "sentence_transformers"]:
     except Exception:
         pass
 
+# ── JTV-143 (3 May 2026): CLIP via ONNX runtime ──────────────────────────────
+# The CLIP detector now loads ViT-B/32 vision + text encoders through
+# onnxruntime instead of PyTorch + open_clip. onnxruntime ships native
+# .dylib / .so / .dll files that need collect_all to be staged correctly.
+# torch + open_clip stay in `excludes` below — the size delta would be
+# ~1.5 GB (torch) + ~70 MB (open_clip wheel) on top of the ONNX bundle.
+d, b, h = collect_all("onnxruntime")
+datas += d; binaries += b; hiddenimports += h
+
+# CLIP ONNX models (~579 MB combined: 1.2 MB vision graph + 335 MB vision
+# weights + 1.0 MB text graph + 242 MB text weights). The .onnx file is
+# the protobuf graph; the .onnx.data sidecar holds tensor weights via the
+# ONNX external-data convention. Both files must sit in the same directory
+# at runtime — onnxruntime auto-resolves the .data file by relative name.
+# Bundled into models/ alongside the existing GBM and UnivFD probe files.
+_models_dir_src = _spec_dir.parent / "models"
+for _onnx_name in (
+    "clip-vit-b32-vision.onnx",
+    "clip-vit-b32-vision.onnx.data",
+    "clip-vit-b32-text.onnx",
+    "clip-vit-b32-text.onnx.data",
+):
+    _onnx_path = _models_dir_src / _onnx_name
+    if _onnx_path.exists():
+        datas += [(str(_onnx_path), "models")]
+
+# Standalone CLIP BPE tokeniser ships its vocab gz file alongside the
+# Python module (sidecar/app/services/bpe_simple_vocab_16e6.txt.gz, ~1.3 MB).
+# clip_tokenizer.py resolves it via __file__-relative path which translates
+# to _MEIPASS/app/services/ inside the frozen binary.
+_bpe_path = _spec_dir / "app" / "services" / "bpe_simple_vocab_16e6.txt.gz"
+if _bpe_path.exists():
+    datas += [(str(_bpe_path), "app/services")]
+
 # certifi — SSL CA bundle needed for outbound HTTPS requests
 try:
     datas += collect_data_files("certifi")
@@ -197,6 +231,12 @@ hiddenimports += [
     "app.services.colour_temperature",
     "app.services.splice_boundary",
     "app.services.clip_detector",
+    # JTV-143: standalone CLIP BPE tokeniser (replaces open_clip dependency)
+    "app.services.clip_tokenizer",
+    # `regex` is the third-party PCRE-compatible engine the BPE tokeniser uses
+    # (bundled with `regex` PyPI pkg, not stdlib `re`). Hidden because it's
+    # imported via `import regex as re` which static analysers sometimes miss.
+    "regex",
     "app.services.watermark",
     "app.services.claim_checker",
     "app.services.knowledge_retriever",
@@ -232,17 +272,18 @@ hiddenimports += [
 
 # ── Excludes ──────────────────────────────────────────────────────────────────
 # Packages that must not be bundled in the core binary:
-#   - torch / torchvision / open_clip: ~200 MB compressed; CLIP is optional
-#     and degrades gracefully (ClipDetectionResponse.model_available=False).
-#   - faster_whisper / ctranslate2: optional transcription; requires native
-#     ctranslate2 libs that are non-trivial to freeze cross-platform.
+#   - torch / torchvision / open_clip: JTV-143 (3 May 2026) — CLIP runs via
+#     onnxruntime instead; the ONNX bundle is ~580 MB combined for vision +
+#     text encoders, vs ~1.5 GB for the equivalent torch path. The standalone
+#     CLIP BPE tokeniser at sidecar/app/services/clip_tokenizer.py replaces
+#     open_clip's tokeniser. timm / transformers were never used at runtime
+#     (transformers was an audio-deepfake Stage-2 candidate now deferred).
+#   - faster_whisper / ctranslate2: JTV-138 (2 May 2026) — transcription
+#     dropped from v1.0; restored under JTV-139 v1.0.x.
 #   - tkinter / _tkinter: no GUI needed in a headless daemon sidecar.
 #   - trio: anyio alternative backend; uvicorn uses asyncio.
 #   - mypy: pydantic ships a mypy plugin that is never imported at runtime.
 #   - pytest / gradio / IPython: dev/test tooling.
-#
-# NOTE: To build a "full" binary with CLIP support (~315 MB), remove torch,
-# torchvision, and open_clip from this list and run a separate CI matrix job.
 excludes = [
     "torch",
     "torchvision",

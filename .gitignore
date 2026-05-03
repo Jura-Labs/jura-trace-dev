@@ -121,3 +121,14 @@ training_platform_forwarded/
 # Manifest JSON is large (~270k lines), contains absolute filesystem paths
 # that vary per-machine, and is regenerated on each augmentation run.
 models/platform_augmentation_manifest.json
+
+# JTV-143 (3 May 2026): CLIP ViT-B/32 ONNX exports — too large for git
+# (~580 MB combined for vision + text encoders). Regenerated on each build
+# via `python scripts/export_clip_onnx.py --output-dir models`. The CI
+# release workflow runs this as a build step before PyInstaller bundles.
+models/clip-vit-b32-vision.onnx
+models/clip-vit-b32-vision.onnx.data
+models/clip-vit-b32-text.onnx
+models/clip-vit-b32-text.onnx.data
+# Drift validation report from the JTV-143 hard gate — local artefact.
+models/jtv143-drift-validation.json

@@ -882,7 +882,10 @@ async def clip_status():
     """
     import app.services.clip_detector as _mod
 
-    loaded = _mod._model is not None
+    # JTV-143 (3 May 2026): renamed from `_model` to `_vision_session` after
+    # the ONNX backend swap. The vision session is the one the Rust idle
+    # watcher cares about (memory-resident inference state).
+    loaded = _mod._vision_session is not None
     last_used = get_last_used_ts()
     idle_seconds = (time.time() - last_used) if last_used > 0.0 else -1.0
     return {"loaded": loaded, "last_used_ts": last_used, "idle_seconds": idle_seconds}

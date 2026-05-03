@@ -1439,7 +1439,7 @@
                          ? 'bg-malachite/10 text-malachite-light border border-malachite/20'
                          : 'bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light border border-border-light dark:border-graphite-light'}"
                 title={cap === 'clipDetect' && !enabled
-                  ? 'Optional enrichment — adds a CLIP zero-shot signal to the AI ensemble. Core AI detection (GBM v4 + UnivFD v9) runs without it.'
+                  ? 'CLIP ONNX models missing or onnxruntime unavailable — UnivFD v9 probe and zero-shot AI cross-check are both offline. GBM v4 base classifier still runs but recall on diffusion models is degraded.'
                   : ''}
               >
                 {cap === 'clipDetect' ? 'AI cross-check (CLIP)'

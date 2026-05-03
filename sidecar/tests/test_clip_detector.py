@@ -53,19 +53,21 @@ class TestClipDetectorGracefulDegradation:
     """Tests that run regardless of whether open_clip is installed."""
 
     def test_unavailable_response_when_import_fails(self):
-        """When open_clip is not importable, should return model_available=False."""
-        # Reset module-level state so _ensure_model retries
+        """When onnxruntime is not importable, should return model_available=False.
+
+        JTV-143 (3 May 2026): switched the import name from open_clip to
+        onnxruntime since CLIP is now loaded via ONNX runtime.
+        """
         import app.services.clip_detector as mod
 
-        original_model = mod._model
+        original_session = mod._vision_session
         original_attempted = mod._model_load_attempted
 
         try:
-            mod._model = None
+            mod._vision_session = None
             mod._model_load_attempted = False
 
-            with patch.dict(sys.modules, {"open_clip": None}):
-                # Force re-evaluation of import
+            with patch.dict(sys.modules, {"onnxruntime": None}):
                 mod._model_load_attempted = False
                 result = mod.perform_clip_detection(_make_noisy_photo())
 
@@ -75,7 +77,7 @@ class TestClipDetectorGracefulDegradation:
             assert result.verdict_level == "inconclusive"
             assert "not available" in result.summary.lower()
         finally:
-            mod._model = original_model
+            mod._vision_session = original_session
             mod._model_load_attempted = original_attempted
 
     def test_unavailable_response_schema_valid(self):
@@ -294,42 +296,45 @@ class TestClipModelEviction:
         assert result["unloaded"] is True
 
     def test_unload_when_not_loaded_reports_not_previously_loaded(self):
-        """Unloading a never-loaded model should report previously_loaded=False."""
+        """Unloading a never-loaded session should report previously_loaded=False.
+
+        JTV-143: globals renamed `_model` → `_vision_session` after the ONNX
+        backend swap.
+        """
         import app.services.clip_detector as mod
         from app.services.clip_detector import unload_clip_model
 
-        # Force state to unloaded
-        original_model = mod._model
+        original_session = mod._vision_session
         original_attempted = mod._model_load_attempted
-        mod._model = None
+        mod._vision_session = None
         mod._model_load_attempted = False
         try:
             result = unload_clip_model()
             assert result["previously_loaded"] is False
             assert result["unloaded"] is True
         finally:
-            mod._model = original_model
+            mod._vision_session = original_session
             mod._model_load_attempted = original_attempted
 
     def test_unload_clears_globals(self):
-        """After unload_clip_model(), model globals should all be None."""
+        """After unload_clip_model(), session globals should all be None."""
         import app.services.clip_detector as mod
         from app.services.clip_detector import unload_clip_model
 
-        original_model = mod._model
-        original_preprocess = mod._preprocess
-        original_tokenizer = mod._tokenizer
+        original_vision = mod._vision_session
+        original_text = mod._text_session
+        original_cache = mod._text_prompt_cache
         original_attempted = mod._model_load_attempted
         try:
             unload_clip_model()
-            assert mod._model is None
-            assert mod._preprocess is None
-            assert mod._tokenizer is None
+            assert mod._vision_session is None
+            assert mod._text_session is None
+            assert mod._text_prompt_cache is None
             assert mod._model_load_attempted is False
         finally:
-            mod._model = original_model
-            mod._preprocess = original_preprocess
-            mod._tokenizer = original_tokenizer
+            mod._vision_session = original_vision
+            mod._text_session = original_text
+            mod._text_prompt_cache = original_cache
             mod._model_load_attempted = original_attempted
 
     def test_get_last_used_ts_initially_zero(self):

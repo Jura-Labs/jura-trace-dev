@@ -6,6 +6,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 3 May 2026 — JTV-143: Bundle CLIP via ONNX in v1.0 (decision)
+
+Four-agent review (rust-backend-engineer + ml-data-scientist + content-authenticity-expert + persona-testing) concluded that v1.0 ships CLIP via ONNX rather than excluding it. The previous PyInstaller exclusion of `torch` + `open_clip` was driven by binary size (~2 GB delta) but cost the published AI-detection metrics: UnivFD v9 (LogReg on CLIP embeddings) is the load-bearing diffusion-detection signal — DiffusionDB recall 67.6% → 97.3%, Civitai SFW 75.8% → 98.7% — and shipping without it leaves an undisclosed gap between the documented FP/recall numbers (4.12% / 95.70%) and the deployed runtime (GBM v4 alone — 4.54% / 92.52%, with unknown DiffusionDB recall).
+
+ONNX runtime + FP32 ViT-B/32 vision + text encoders reduces the size delta from ~2 GB to ~740 MB. INT8 was rejected by ml-data-scientist: 0.01-0.04 cosine drift moves UnivFD's LogReg decision boundary, estimated 1.5-3.5 pp recall loss on flux_dev (88.9% → low 80s) and sdxl_turbo (91.1%). FP32 preserves the embedding distribution the v9 probe was trained on.
+
+Implementation slot: Sprint 31 (11–24 May 2026), ~10 dev-days. JTV-135 Fourier rescheduled to v1.0.1 because Fourier ships Experimental / informational-only and CLIP restoration affects the load-bearing recall metric.
+
+Hard validation gate Friday 15 May 2026: UnivFD AUC / FP / recall on ONNX-derived embeddings must match published v9 within ±0.005 cosine drift. If drift > 0.002 mean, fallback paths are (a) retrain probe on ONNX embeddings (+2-3 days), or (b) fall back to B-fast (vision encoder only, defer text encoder + zero-shot to v1.0.1).
+
+Persona impact (four-agent review):
+- Tom (council IT, 8 GB RAM machines, SCCM): ~1.05 GB installer fits within the standard software update range; ONNX runtime memory profile is predictable for the risk assessment.
+- James (BBC Verify desk): managed desktop deployment, code-signed installer at the BBC procurement gate. Consistent capability set across analysts addresses the editorial-governance concern.
+- Sarah (museum curator): 1.05 GB sits below the procurement-flag threshold for collection-management tools.
+- Aisha (DRRF field, 1 Mbps): 1.05 GB at 1 Mbps is ~2.5 hours — marginal. Field-deployment strategy (resumable downloads, USB sneakernet) required regardless of which option ships.
+
+Re-enables in v1.0:
+- `clip_detect: true` in /health
+- "AI cross-check (CLIP)" pill green in Settings (removed from V1_DEFERRED_CAPABILITIES)
+- UnivFD v9 + GBM v4 ensemble; DiffusionDB / Civitai / flux / sdxl recall preserved
+- Zero-shot 5-bar class breakdown in verify (Expert View per JTV-86 conventions)
+
+Code paths: ONNX export script `scripts/export_clip_onnx.py`; `clip_detector.py` rewrite (`_ensure_model` / `_score_univfd_probe` / `_classify_zero_shot`); PyInstaller spec updates; validation report at `docs/calibration/univfd-v9-onnx-validation.md`.
+
+---
+
 ## 2 May 2026 — JTV-138: Drop video deepfake + audio analysis from v1.0
 
 Unanimous three-agent review (project-manager + persona-testing + content-authenticity-expert) concluded that the video deepfake and audio analysis pipelines do not meet TRIED Pillar 3 (Inclusive — Global Majority device coverage) or Pillar 5 (Durability — published calibration matrix) and should not ship in v1.0. The decision was made on 2 May 2026 during pilot installer testing, after a five-day FFmpeg installer debugging chain (commits `178f25d`, `d8ffbc7`, `2a88200`, `4a01aeb`, `f0f85f5`) surfaced a sidecar startup hang on macOS `.app` launch (now JTV-142, an independent v1.0 blocker).
