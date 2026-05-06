@@ -1,0 +1,91 @@
+# Jura Trace — AI training crawler restrictions
+# See TRAINING.md for the full position and the process for requesting permission.
+# Standard search engines (Googlebot, Bingbot, DuckDuckBot, Mojeek) are permitted.
+# Failure of a crawler to honour this file does not constitute permission under the licence.
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: OAI-SearchBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Perplexity-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Diffbot
+Disallow: /
+
+User-agent: FacebookBot
+Disallow: /
+
+User-agent: Meta-ExternalAgent
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: Cohere-AI
+Disallow: /
+
+User-agent: AI2Bot
+Disallow: /
+
+User-agent: ImagesiftBot
+Disallow: /
+
+User-agent: img2dataset
+Disallow: /
+
+User-agent: omgili
+Disallow: /
+
+User-agent: PanguBot
+Disallow: /
+
+User-agent: Timpibot
+Disallow: /
+
+User-agent: VelenPublicWebCrawler
+Disallow: /
+
+User-agent: webzio-extended
+Disallow: /
+
+User-agent: YouBot
+Disallow: /
+
+User-agent: ICC-Crawler
+Disallow: /
+
+User-agent: ISSCyberRiskCrawler
+Disallow: /
+
+User-agent: Kangaroo Bot
+Disallow: /

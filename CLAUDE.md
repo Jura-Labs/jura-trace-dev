@@ -16,7 +16,7 @@ Jura Trace is one of two products built by **Jura Labs** (UK Community Interest 
 **Jura Trace** is a local-first desktop application for content verification and protection. In a world of synthetic media, verification matters. It helps cultural institutions protect their digital assets from unauthorised AI extraction, and helps communities verify content authenticity.
 
 **Developed by**: Juralabs Community Interest Company (UK) — https://juralabs.org
-**Licence**: PolyForm Noncommercial 1.0.0
+**Licence**: AGPL-3.0-or-later (with commercial-licence path on request — see `COMMERCIAL.md`). Switched 2026-05-06 from PolyForm Noncommercial 1.0.0; risk accepted on solicitor scoping per memory `project_ip_architecture_dual_entity.md`.
 **Current Version**: 0.9.0-rc.9 (Phase A — v1.0 blocked on pilot testing feedback only)
 **Source repo**: `juralabs/jura-archive` (private)
 **Release repo**: `juralabs/jura-trace` (public — installers only, no source)

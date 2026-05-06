@@ -2,9 +2,12 @@
 name = "jura-trace"
 version = "0.9.0"
 description = "Local-first content verification and protection. In a world of synthetic media, verification matters."
-authors = ["Jura Labs CIC"]
+authors = ["Paul Griffiths"]
 edition = "2021"
 rust-version = "1.88"
+license = "AGPL-3.0-or-later"
+repository = "https://codeberg.org/jura-labs/jura-trace"
+homepage = "https://juralabs.org"
 # With the introduction of the `gen-detectors` codegen binary (commit
 # 485856a), `cargo run` without a `--bin` flag can no longer pick a
 # default. Pin it to the main Tauri binary so `cargo tauri dev`,

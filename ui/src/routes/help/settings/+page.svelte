@@ -682,11 +682,15 @@
     <div>
       <dt class="text-sm font-semibold text-text-light dark:text-text-dark">Licence</dt>
       <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        PolyForm Noncommercial 1.0.0. You may use, study, and adapt this software for
-        non-commercial purposes. Commercial use requires a separate licence agreement.
-        See the
+        AGPL-3.0-or-later. You may use, study, modify, and redistribute this software
+        for any purpose — including commercial use — provided you comply with the AGPL's
+        terms (notably its source-disclosure requirement for hosted/network deployments).
+        A separate commercial licence is available for use cases that cannot operate
+        under the AGPL. See the
         <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">LICENSE</span>
-        file included with the application for the full licence terms.
+        and
+        <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">COMMERCIAL.md</span>
+        files for full terms.
       </dd>
     </div>
     <div>

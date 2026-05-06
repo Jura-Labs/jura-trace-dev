@@ -446,23 +446,15 @@
       tier: 'professional',
       name: 'Professional',
       codename: 'Stratum',
-      description: 'Individual commercial licence. Adds report customisation (your name, organisation, case reference), full methodology versioning, comparative analysis, MONITOR Layer 2 (reverse image search), extended audit log retention (24 months), and priority email support.',
+      description: 'Individual commercial licence. Adds report customisation (your name, organisation, case reference), full methodology versioning, comparative analysis, MONITOR Layer 2 (reverse image search), Conformant C2PA signing, REST API access (port 8300), extended audit log retention (24 months), and best-effort email support.',
       badgeClass: 'bg-lapis/15 border border-lapis/30',
       badgeTextClass: 'text-lapis dark:text-lapis-light',
-    },
-    team: {
-      tier: 'team',
-      name: 'Team',
-      codename: 'Geode',
-      description: 'Team commercial licence, 3–20 seats. Adds API access (port 8300), sector-specific report templates, shared asset database, managed reverse image search, and dedicated 24-hour support.',
-      badgeClass: 'bg-malachite/15 border border-malachite/30',
-      badgeTextClass: 'text-malachite-dark dark:text-malachite-light',
     },
     enterprise: {
       tier: 'enterprise',
       name: 'Enterprise',
       codename: 'Bedrock',
-      description: 'Unlimited commercial licence. Adds silent installer with MDM templates, central TOML configuration, custom RAG knowledge base, bulk watched-folder signing, white-label rights, and SLA-backed support.',
+      description: 'Unlimited-seat commercial licence. Adds silent installer with MDM/ADMX templates, central TOML configuration, bulk C2PA watched-folder signing, custom RAG knowledge base, auto-update policy control, compliance documentation pack, priority access to generator detection updates, and a quarterly check-in call.',
       badgeClass: 'bg-amber/15 border border-amber/30',
       badgeTextClass: 'text-amber-dark dark:text-amber-light',
     },
@@ -776,8 +768,8 @@
   }
 
   // ── API Key Management ──────────────────────────────────────────────────
-  // Available on Team and Enterprise tiers. Keys authenticate against the
-  // local REST API on port 8300.
+  // Available on Professional and Enterprise tiers (Team retired 2026-05-04).
+  // Keys authenticate against the local REST API on port 8300.
 
   let apiKeys = $state<ApiKeyInfo[]>([]);
   let apiKeysLoading = $state(false);
@@ -789,7 +781,7 @@
   let apiKeyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingRevokeId = $state<string | null>(null);
 
-  const apiKeysAvailable = $derived(currentTier === 'team' || currentTier === 'enterprise');
+  const apiKeysAvailable = $derived(currentTier === 'professional' || currentTier === 'enterprise');
   const activeKeyCount = $derived(apiKeys.filter(k => !k.revoked).length);
 
   async function loadApiKeys() {
@@ -1944,7 +1936,7 @@
       <dt class="text-flint-dark dark:text-flint-light">Version</dt>
       <dd class="text-text-light dark:text-quartz">{appVersion}</dd>
       <dt class="text-flint-dark dark:text-flint-light">Licence</dt>
-      <dd class="text-text-light dark:text-quartz">PolyForm Noncommercial 1.0.0</dd>
+      <dd class="text-text-light dark:text-quartz">AGPL-3.0-or-later</dd>
       <dt class="text-flint-dark dark:text-flint-light">Developer</dt>
       <dd class="text-text-light dark:text-quartz">
         <a
@@ -2101,7 +2093,6 @@
       >
         <option value="community">Community (non-commercial)</option>
         <option value="professional">Professional (individual commercial)</option>
-        <option value="team">Team (3–20 seats)</option>
         <option value="enterprise">Enterprise (unlimited seats)</option>
       </select>
       <p id="tier-select-hint" class="text-xs text-flint-dark dark:text-flint-light">
@@ -2790,7 +2781,7 @@
     {#if !apiKeysAvailable}
       <div class="p-4 rounded-lg border border-lapis/20 bg-lapis/5">
         <p class="text-sm text-flint-dark dark:text-flint-light">
-          API access is available on <strong class="text-text-light dark:text-quartz">Team</strong> and <strong class="text-text-light dark:text-quartz">Enterprise</strong> plans. Upgrade your plan above to manage API keys.
+          API access is available on <strong class="text-text-light dark:text-quartz">Professional</strong> and <strong class="text-text-light dark:text-quartz">Enterprise</strong> plans. Upgrade your plan above to manage API keys.
         </p>
       </div>
     {:else}

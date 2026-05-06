@@ -379,23 +379,27 @@
       have been taken to assess the provenance of content before publication.
     </p>
 
-    <!-- PolyForm Licence -->
+    <!-- AGPL Licence -->
     <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2 mt-6">
-      Licence terms: PolyForm Noncommercial 1.0.0
+      Licence terms: AGPL-3.0-or-later
     </h3>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
-      The Community tier of Jura Trace is licenced under PolyForm Noncommercial 1.0.0. This
-      grants full use for non-commercial purposes at no cost — including journalism, education,
-      research, NGO work, and cultural heritage. <strong class="font-semibold text-text-light dark:text-text-dark">Commercial use requires a paid licence.</strong>
+      Jura Trace is licenced under the GNU Affero General Public License, version 3 or later.
+      You may use, study, modify, and redistribute the software for any purpose — including
+      commercial use — provided you comply with the AGPL's terms. The two requirements that
+      typically matter are: source disclosure if you operate a modified version as a hosted
+      network service, and copyleft on any larger product that incorporates Jura Trace.
     </p>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-      Organisations using Jura Trace in a commercial context — including insurance claims
-      processing, legal proceedings, commercial journalism, and corporate communications —
-      must hold a Professional, Team, or Enterprise commercial licence. Contact
+      A separate <strong class="font-semibold text-text-light dark:text-text-dark">commercial licence</strong>
+      is available for organisations whose use case cannot operate under the AGPL — for
+      example, integration into closed-source products, internal modified deployments without
+      source release, or cases requiring contractual indemnification beyond what the AGPL
+      provides. Contact
       <a
-        href="mailto:security@juralabs.org"
+        href="mailto:licensing@juralabs.org"
         class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-      >security@juralabs.org</a> for procurement.
+      >licensing@juralabs.org</a> for the commercial-licence process.
     </p>
   </section>
 

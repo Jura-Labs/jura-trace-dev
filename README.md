@@ -50,7 +50,13 @@ cd src-tauri && cargo tauri dev  # Terminal 2
 
 ## Licence
 
-PolyForm Noncommercial 1.0.0 — Free for museums, archives, journalists, educators, charities, and community organisations. Commercial use requires licence from licensing@juralabs.org.
+**AGPL-3.0-or-later** — free and open-source for anyone, including commercial use that complies with the AGPL's network-use clause and copyleft terms. See [`LICENSE`](LICENSE) for the full text.
+
+A commercial licence is available for use cases that cannot operate under the AGPL — for example, integration into closed-source products, internal modified deployments, or cases requiring contractual indemnification. See [`COMMERCIAL.md`](COMMERCIAL.md) for the process, or email `licensing@juralabs.org`.
+
+**AI training restriction:** use of this source code as training data for ML/AI systems requires separate written permission. See [`TRAINING.md`](TRAINING.md).
+
+Copyright © 2025-2026 Paul Griffiths, published by Jura Labs CIC under perpetual royalty-free licence.
 
 ## Credits
 
