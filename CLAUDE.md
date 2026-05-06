@@ -17,7 +17,7 @@ Jura Trace is one of two products built by **Jura Labs** (UK Community Interest 
 
 **Developed by**: Juralabs Community Interest Company (UK) — https://juralabs.org
 **Licence**: AGPL-3.0-or-later (with commercial-licence path on request — see `COMMERCIAL.md`). Switched 2026-05-06 from PolyForm Noncommercial 1.0.0; risk accepted on solicitor scoping per memory `project_ip_architecture_dual_entity.md`.
-**Current Version**: 0.9.0-rc.9 (Phase A — v1.0 blocked on pilot testing feedback only)
+**Current Version**: 0.9.0-rc.9 (Phase A — v1.0 in launch prep, target **live public release 29 May 2026**)
 **Source repo**: `juralabs/jura-archive` (private)
 **Release repo**: `juralabs/jura-trace` (public — installers only, no source)
 **Windows signing**: Azure Trusted Signing (certificate ID a7e35def-628b-4980-8785-2e535f709418)
@@ -175,7 +175,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 
 ## Current Status
 
-**Version**: 0.9.0-rc14 (Phase A — v1.0 blocked on pilot testing feedback only). Phases 1–3 complete. Sprint 28 tech-debt sweep closed 8 April 2026; Sprint 29 shipped 7 April 2026; Sprint 30 backlog sweep 9 April 2026 (SIFT copy-move, EXIF injection detection, FP telemetry Phase B review bundle, URL watchlist scheduler, Tauri race-condition fix, Experimental UI tag rollout, XMP AI-provenance detection). For full sprint-by-sprint history see `CHANGELOG.md` and git log.
+**Version**: 0.9.0-rc14 (Phase A — v1.0 in launch prep, target **live public release 29 May 2026**; pivot from pilot-cohort framing confirmed 2026-05-06, see memory `project_v1_live_release`). Phases 1–3 complete. Sprint 28 tech-debt sweep closed 8 April 2026; Sprint 29 shipped 7 April 2026; Sprint 30 backlog sweep 9 April 2026 (SIFT copy-move, EXIF injection detection, FP telemetry Phase B review bundle, URL watchlist scheduler, Tauri race-condition fix, Experimental UI tag rollout, XMP AI-provenance detection). For full sprint-by-sprint history see `CHANGELOG.md` and git log.
 
 **Models in production** (as of 7 April 2026):
 - **GBM Deepfake Classifier v4** — 10,709 images (5,724 authentic + 4,985 AI), 84-feature vector, AUC-ROC 0.9868, authentic FP 4.54%, AI recall 92.52%, threshold 0.49. SHA-256 `2931f197cba6f376e85b1cbcfd584e6802f36e4fbf68ff00c83d61d4d655db18`.
