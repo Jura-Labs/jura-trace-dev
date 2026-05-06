@@ -3,6 +3,7 @@
   import { getVersion, checkSidecarHealth, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, getPowerSaverMode, setPowerSaverMode, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert, getNetworkMode, setNetworkMode } from '$lib/api';
   import type { ApiKeyInfo, CreateKeyResult } from '$lib/api';
   import type { ConformantCertificateInfo, LicenceTier, NetworkMode, SidecarHealth, SigningMode, TierInfo } from '$lib/types';
+  import { V1_SHOW_CONFORMANT_SIGNING } from '$lib/featureFlags';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import {
     type DeploymentProfile,
@@ -462,7 +463,7 @@
       tier: 'professional',
       name: 'Professional',
       codename: 'Stratum',
-      description: 'Individual commercial licence. Adds report customisation (your name, organisation, case reference), full methodology versioning, comparative analysis, MONITOR Layer 2 (reverse image search), Conformant C2PA signing, REST API access (port 8300), extended audit log retention (24 months), and best-effort email support.',
+      description: 'Individual commercial licence. Adds report customisation (your name, organisation, case reference), full methodology versioning, comparative analysis, MONITOR Layer 2 (reverse image search), REST API access (port 8300), extended audit log retention (24 months), and best-effort email support. Conformant C2PA signing is planned for v1.1.',
       badgeClass: 'bg-lapis/15 border border-lapis/30',
       badgeTextClass: 'text-lapis dark:text-lapis-light',
     },
@@ -2254,7 +2255,14 @@
     {/if}
   </section>
 
-  <!-- Signing Mode (BYOC) -->
+  <!-- Signing Mode (BYOC) — gated for v1.0 live release.
+       V1_SHOW_CONFORMANT_SIGNING=false hides the dual-card mode selector.
+       Bedrock signing remains the implicit default; the backend signing
+       dispatcher still routes via the persisted signing_mode state (which
+       stays 'bedrock' for new installs). Re-enable for v1.1 by flipping
+       the flag in $lib/featureFlags.ts. See that file's comment for the
+       paired re-enable plan. -->
+  {#if V1_SHOW_CONFORMANT_SIGNING}
   <section
     class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="signing-mode-heading"
@@ -2780,6 +2788,7 @@
       </details>
     {/if}
   </section>
+  {/if}
 
   <!-- API Key Management -->
   <section

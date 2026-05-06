@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode } from '$lib/api';
+  import { V1_SHOW_CONFORMANT_SIGNING } from '$lib/featureFlags';
   import { setVerifyHandoff } from '$lib/stores/verifyHandoff';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import { createBlobTracker, triggerDownload, escapeCsvField } from '$lib/blob';
@@ -786,8 +787,12 @@
       You are signing in <strong>Local Signing</strong> mode (default).
       Manifests will validate cryptographically but display as
       <code class="font-mono text-[11px]">signingCredential.untrusted</code>
-      in third-party validators until you import a trust-list
-      certificate from <a href="/settings#signing-mode-heading" class="underline underline-offset-2 hover:no-underline">Settings → Signing Mode</a>.
+      in third-party validators.{#if V1_SHOW_CONFORMANT_SIGNING}
+      Import a trust-list certificate from
+      <a href="/settings#signing-mode-heading" class="underline underline-offset-2 hover:no-underline">Settings → Signing Mode</a>
+      to validate against the C2PA trust list.{:else}
+      Conformant signing — verifiable against the C2PA trust list —
+      is planned for v1.1.{/if}
     {/if}
     Treat signed output as preview only.
   </div>
@@ -1227,11 +1232,12 @@
               {:else}
                 Local Signing (default) — credentials will display as
                 <code class="font-mono text-[10px]">signingCredential.untrusted</code>
-                in external verifiers.
+                in external verifiers.{#if V1_SHOW_CONFORMANT_SIGNING}
                 <a
                   href="/settings#signing-mode-heading"
                   class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-                >Switch to Conformant Signing →</a>
+                >Switch to Conformant Signing →</a>{:else}
+                Conformant signing planned for v1.1.{/if}
               {/if}
             </div>
 
@@ -2405,11 +2411,12 @@
                       {:else}
                         Local Signing (default) — credentials will display as
                         <code class="font-mono text-[10px]">signingCredential.untrusted</code>
-                        in external verifiers.
+                        in external verifiers.{#if V1_SHOW_CONFORMANT_SIGNING}
                         <a
                           href="/settings#signing-mode-heading"
                           class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-                        >Switch to Conformant Signing →</a>
+                        >Switch to Conformant Signing →</a>{:else}
+                        Conformant signing planned for v1.1.{/if}
                       {/if}
                     </div>
 
