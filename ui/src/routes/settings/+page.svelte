@@ -399,6 +399,22 @@
 
       updateStatus = { state: 'available', version: update.version };
 
+      // Pre-update DB backup hook (security-auditor + devops blocker).
+      // Run a `VACUUM INTO` snapshot of the local database to an auto-backup
+      // directory under the app data dir BEFORE the new version starts.  If
+      // a v1.0 schema migration fails on this user's accumulated rc.x state,
+      // the snapshot is the rollback target.  Failure to back up is logged
+      // and surfaced — install continues either way (the user explicitly
+      // requested the update; refusing to proceed because backup failed
+      // would be more user-hostile than the residual risk).
+      try {
+        const { autoBackupBeforeUpdate } = await import('$lib/api');
+        const backup = await autoBackupBeforeUpdate();
+        console.info(`[updater] pre-install backup at ${backup.snapshotPath} (${backup.sha256.slice(0, 12)}…)`);
+      } catch (backupErr) {
+        console.warn('[updater] pre-install backup failed; continuing with update:', backupErr);
+      }
+
       // Download and install immediately — the plugin shows a restart prompt.
       updateStatus = { state: 'downloading' };
       await update.downloadAndInstall((event) => {

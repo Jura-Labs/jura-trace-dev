@@ -78,7 +78,8 @@
     "windows": {
       "nsis": {
         "displayLanguageSelector": false,
-        "installerHooks": "installer-hooks.nsi"
+        "installerHooks": "installer-hooks.nsi",
+        "installMode": "currentUser"
       }
     },
     "category": "Utility"

@@ -5045,6 +5045,42 @@ async fn backup_database(
     })
 }
 
+/// Auto-backup the database before applying an updater-driven install.
+///
+/// Resolves a stable per-user auto-backup directory (`{app_data_dir}/auto-backups/`),
+/// creates it if missing, and delegates to `backup_database`. Called by the
+/// frontend updater hook between `update.available` confirmation and
+/// `update.downloadAndInstall()` so that any rc.x → v1.0 schema migration
+/// has a known-good rollback target if the new version fails to start.
+///
+/// Returns the same `BackupResult` shape as the manual backup path, so the
+/// frontend can surface the snapshot location to the user (useful both for
+/// reassurance pre-install and recovery post-install if needed).
+///
+/// Failure modes:
+/// - Auto-backup directory not creatable (e.g. disk full): error is
+///   surfaced to caller. The frontend should surface this and offer the
+///   user a choice to abort the update or proceed at risk.
+#[tauri::command]
+async fn auto_backup_before_update(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<BackupResult, AppError> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::FileSystem(format!("Failed to resolve app data dir: {e}")))?;
+    let backups_dir = app_data_dir.join("auto-backups");
+    std::fs::create_dir_all(&backups_dir).map_err(|e| {
+        AppError::FileSystem(format!(
+            "Failed to create auto-backup directory '{}': {e}",
+            backups_dir.display()
+        ))
+    })?;
+    let dest_dir_str = backups_dir.to_string_lossy().into_owned();
+    backup_database(state, dest_dir_str).await
+}
+
 /// Result of a `restore_database` validation pre-flight or full restore.
 ///
 /// In the two-phase pattern, the frontend calls `restore_database(path,
@@ -6474,6 +6510,7 @@ pub fn run() {
             get_db_path,
             set_db_path,
             backup_database,
+            auto_backup_before_update,
             restore_database,
             import_assets_csv,
             get_licence_tier,

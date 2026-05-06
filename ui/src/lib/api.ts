@@ -781,6 +781,24 @@ export async function backupDatabase(destDir: string): Promise<BackupResult> {
 }
 
 /**
+ * Auto-backup the database before the Tauri updater applies a new install.
+ *
+ * Resolves a stable per-user auto-backup directory under the OS-standard
+ * application-data location (e.g. `~/Library/Application Support/Jura Trace/auto-backups/`
+ * on macOS), creates it if missing, and writes the snapshot there.  Returns
+ * the same `BackupResult` shape as the manual backup path so the snapshot
+ * path can be surfaced to the user before the install proceeds.
+ *
+ * Call this between confirming an update is available and invoking
+ * `update.downloadAndInstall()`.  If it throws, the caller should offer the
+ * user a clear "abort update" choice — proceeding without a backup risks
+ * data loss if the new version's schema migration fails.
+ */
+export async function autoBackupBeforeUpdate(): Promise<BackupResult> {
+  return invoke<BackupResult>('auto_backup_before_update');
+}
+
+/**
  * Validate or restore a database snapshot.
  *
  * Two-phase pattern: call with `confirmed=false` first to populate the

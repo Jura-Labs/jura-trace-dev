@@ -538,10 +538,19 @@ jobs:
         run: cd ui && npm ci
 
       # ── Install Tauri CLI ─────────────────────────────────────────────────
-      # Use cargo-binstall for fast pre-built binary download (~10s vs ~5min compile)
+      # Two-step install:
+      #   1. Install cargo-binstall via `cargo install` against crates.io.
+      #      This pulls the version-pinned, crate-author-signed source from
+      #      crates.io and compiles locally. Slower than the upstream
+      #      curl-pipe-bash install script (~30s extra), but eliminates the
+      #      "unsigned shell script from raw GitHub URL pulled into the
+      #      runner that holds Apple + Azure signing credentials" supply-
+      #      chain vector flagged in docs/strategy/auto-updater-security-review.md.
+      #   2. Use cargo-binstall to pull the prebuilt tauri-cli binary
+      #      (~10s) — faster than compiling tauri-cli from source.
       - name: Install Tauri CLI
         run: |
-          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+          cargo install cargo-binstall --locked --version "~1.10"
           cargo binstall tauri-cli --version "^2" --no-confirm
 
       # ── Tauri: build and upload release artefacts ────────────────────────
@@ -577,11 +586,55 @@ jobs:
           APPLE_PASSWORD:             ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID:              ${{ secrets.APPLE_TEAM_ID }}
 
+          # ── Tauri updater bundle signing (minisign) ──────────────────────
+          # Separate from Apple notarisation: this signs the updater payload
+          # (.app.tar.gz / .AppImage.tar.gz) with a minisign keypair. The
+          # public half lives in tauri.conf.json's plugins.updater.pubkey.
+          # Without these env vars, tauri-action emits empty .sig files and
+          # the Tauri updater silently refuses to apply any update — a
+          # critical security gap. The "Verify updater signatures" step
+          # below catches missing/empty signatures before upload.
+          TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
         with:
           # releaseId intentionally omitted — tauri-action must not upload to
           # jura-archive. Manual upload to jura-trace follows in the next step.
           tauriScript: cargo tauri
           args: --target ${{ matrix.target }}
+
+      # ── Empty-signature gate (macOS / Linux) ────────────────────────────
+      # Fails the build if any updater payload (.app.tar.gz on macOS;
+      # .AppImage.tar.gz on Linux) is missing its corresponding .sig file
+      # OR has a zero-byte .sig. This catches the failure mode where
+      # TAURI_SIGNING_PRIVATE_KEY is not configured in repo Secrets:
+      # tauri-action emits empty .sig files and the Tauri updater silently
+      # refuses to apply any update — an unsigned update would be a
+      # critical security gap on a public release.
+      - name: Verify updater signatures (macOS and Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          bundle_dir="src-tauri/target/${{ matrix.target }}/release/bundle"
+          sig_problems=0
+          while IFS= read -r tarball; do
+            sig="${tarball}.sig"
+            if [ ! -f "$sig" ]; then
+              echo "ERROR: missing .sig for ${tarball}"
+              sig_problems=$((sig_problems + 1))
+            elif [ ! -s "$sig" ]; then
+              echo "ERROR: empty .sig for ${tarball} (zero bytes)"
+              sig_problems=$((sig_problems + 1))
+            else
+              echo "OK: $(basename "${sig}") ($(wc -c < "${sig}") bytes)"
+            fi
+          done < <(find "$bundle_dir" \( -name "*.app.tar.gz" -o -name "*.AppImage.tar.gz" \) -maxdepth 4 2>/dev/null)
+          if [ "$sig_problems" -gt 0 ]; then
+            echo "FAIL: ${sig_problems} updater signature problem(s)."
+            echo "Verify TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+            echo "are set in repo Secrets (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
 
       # Upload macOS and Linux artefacts to juralabs/jura-trace via RELEASE_PAT.
       #
@@ -652,17 +705,50 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # ── Windows Authenticode signing ──────────────────────────────────
-          # Signing is performed by Azure Trusted Signing (step below).
-          # TAURI_SIGNING_PRIVATE_KEY is for the Tauri update-bundle minisign
-          # signature and is separate from the Authenticode code-signing cert.
-          # Wire it here once the updater private key is stored in Secrets.
-          # TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Authenticode signing is performed by Azure Trusted Signing (step
+          # below). TAURI_SIGNING_PRIVATE_KEY is separate — it signs the
+          # Tauri updater payload (.msi.zip) with the minisign key whose
+          # public half lives in tauri.conf.json's plugins.updater.pubkey.
+          # Without these env vars, the updater .sig is empty and the Tauri
+          # updater silently refuses to apply any update — a critical
+          # security gap. The "Verify updater signatures" step below
+          # catches missing/empty signatures before upload.
+          TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           # releaseId intentionally omitted — unsigned binaries must not be
           # published to the GitHub Release; only the signed copies go up.
           tauriScript: cargo tauri
           args: --target ${{ matrix.target }}
+
+      # ── Empty-signature gate (Windows) ──────────────────────────────────
+      # Same purpose as the macOS / Linux gate above — fails if the Tauri
+      # updater archive (.nsis.zip) lacks a non-empty minisign .sig file.
+      # Authenticode signing (Azure step below) is a separate concern and
+      # does not affect the .sig file.
+      - name: Verify updater signatures (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bundle = "src-tauri\target\${{ matrix.target }}\release\bundle"
+          $problems = 0
+          $tarballs = Get-ChildItem -Path $bundle -Recurse -Filter "*.nsis.zip" -ErrorAction SilentlyContinue
+          foreach ($t in $tarballs) {
+            $sig = "$($t.FullName).sig"
+            if (-not (Test-Path $sig)) {
+              Write-Error "ERROR: missing .sig for $($t.Name)"
+              $problems++
+            } elseif ((Get-Item $sig).Length -eq 0) {
+              Write-Error "ERROR: empty .sig for $($t.Name) (zero bytes)"
+              $problems++
+            } else {
+              Write-Host "OK: $((Get-Item $sig).Name) ($((Get-Item $sig).Length) bytes)"
+            }
+          }
+          if ($problems -gt 0) {
+            Write-Error "FAIL: $problems updater signature problem(s). Verify TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD are set in repo Secrets."
+            exit 1
+          }
 
       # ── Windows: Azure Trusted Signing ───────────────────────────────────
       # Signs all .exe and .msi files produced by tauri-action in the Tauri
