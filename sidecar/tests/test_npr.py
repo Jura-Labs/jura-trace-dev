@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Tests for the Neighbouring Pixel Relationship (NPR) detection service."""
 
 import io

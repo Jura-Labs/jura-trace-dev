@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! API error type that maps internal [`AppError`] variants to HTTP status codes.
 
 use axum::{

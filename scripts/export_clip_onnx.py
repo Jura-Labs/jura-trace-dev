@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """
 Export OpenCLIP ViT-B/32 (laion2b_s34b_b79k) vision + text encoders to ONNX.
 

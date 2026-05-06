@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Frequency domain visualisation for forensic analysis.
 
 Displays 2D FFT magnitude spectrum, annotated with known artefact

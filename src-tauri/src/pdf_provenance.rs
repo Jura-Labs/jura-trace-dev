@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! PDF internal provenance analysis.
 //!
 //! Parses a PDF file's Info dictionary, cross-reference table structure,

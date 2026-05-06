@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * Case export ZIP assembly using JSZip.
  * Client-side only — no server calls.

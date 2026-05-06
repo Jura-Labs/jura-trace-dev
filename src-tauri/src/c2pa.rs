@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! C2PA provenance — signing, reading, and verification.
 //!
 //! All operations are local. No network calls to external services.

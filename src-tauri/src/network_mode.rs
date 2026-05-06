@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Product-wide network access control.
 //!
 //! `NetworkMode::Enhanced` (default) enables online verification features —

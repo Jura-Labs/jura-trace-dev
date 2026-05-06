@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """
 Jura Trace Sidecar — Video metadata extraction via FFmpeg/ffprobe.
 

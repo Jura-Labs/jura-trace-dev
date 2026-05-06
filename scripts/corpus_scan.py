@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """
 Quick corpus detection scan — calls the sidecar deepfake endpoint directly.
 Produces a summary table of AI/Authentic classification across the corpus.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! FP Telemetry — Phase A client-side scaffold.
 //!
 //! This module is the client-side half of the false-positive telemetry

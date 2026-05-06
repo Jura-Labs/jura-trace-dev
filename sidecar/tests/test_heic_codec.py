@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """HEIC/HEIF codec availability tests.
 
 The sidecar's lifespan handler imports `pillow_heif` and registers it

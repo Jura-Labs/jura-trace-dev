@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Invisible frequency-domain watermarking.
 //!
 //! Uses the DWT-DCT-SVD algorithm via the `blind_watermark` crate to embed a

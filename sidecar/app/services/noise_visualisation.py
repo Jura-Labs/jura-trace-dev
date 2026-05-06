@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Noise pattern visualisation for forensic analysis.
 
 Exposes the noise residual that the deepfake detector already computes

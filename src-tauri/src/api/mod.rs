@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Local REST API wrapper for Jura Trace (Phase A, PV-A2).
 //!
 //! Exposes the core Rust verification engine as an HTTP API on port 8300.

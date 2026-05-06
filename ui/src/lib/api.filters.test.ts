@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * Pins the file-picker contract for the Protect and Verify workflows.
  *

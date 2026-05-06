@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """
 Jura Trace Sidecar — 2D Fourier periodic pattern detection.
 

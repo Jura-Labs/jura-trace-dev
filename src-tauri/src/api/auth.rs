@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! API key authentication middleware for the local REST API.
 //!
 //! Extracts the `Authorization: Bearer jt_<key>` header, SHA-256 hashes the

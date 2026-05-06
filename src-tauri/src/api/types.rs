@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! API-specific request and response types.
 //!
 //! All types that appear in the OpenAPI spec derive [`utoipa::ToSchema`].

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * C2PA UX Recommendations v1.4 — shared label strings.
  *

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * Shared scoring helpers used across verify-page detector rows.
  */

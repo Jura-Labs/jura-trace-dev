@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for Sprint 29 Track 3 — camera ISP vs VAE discriminator features.
 
 Tests use synthetic NumPy images (256×256) to avoid requiring real test

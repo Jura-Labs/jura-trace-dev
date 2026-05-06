@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Axum route handlers for the local REST API (port 8300).
 //!
 //! All handlers are async and run on the tokio executor shared with Tauri.

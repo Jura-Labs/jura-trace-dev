@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Heatmap file management for the verify pipeline.
 //!
 //! The Python ML sidecar returns forensic heatmaps as base64-encoded PNG strings

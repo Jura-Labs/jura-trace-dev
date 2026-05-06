@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! HTTP client for the Python ML sidecar.
 //!
 //! Communicates with the FastAPI sidecar running on port 8200.

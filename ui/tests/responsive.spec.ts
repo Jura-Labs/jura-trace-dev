@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { test, expect } from '@playwright/test';
 
 // All responsive tests use explicit viewports regardless of the project default,

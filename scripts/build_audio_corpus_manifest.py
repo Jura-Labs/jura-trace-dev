@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """
 build_audio_corpus_manifest.py — Sprint 35 audio corpus manifest builder (authentic side).
 

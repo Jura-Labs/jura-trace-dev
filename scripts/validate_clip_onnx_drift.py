@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """
 JTV-143 validation gate: torch vs ONNX cosine drift on real corpus images.
 

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Jura Trace Sidecar — GAN Spectral Fingerprint Visualisation.
 
 GAN-generated images exhibit characteristic spectral fingerprints caused by

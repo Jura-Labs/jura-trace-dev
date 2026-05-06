@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Region-of-interest (ROI) forensic analysis.
 
 Re-runs noise, ELA, and frequency analysis on a user-selected

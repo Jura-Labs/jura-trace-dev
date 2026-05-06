@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """
 generate_synthetic_speech.py — Sprint 35 audio deepfake corpus builder (synthetic side).
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 use exif::{In, Reader as ExifReader, Tag, Value};
 use serde::{Deserialize, Serialize};
 use std::fs::File;

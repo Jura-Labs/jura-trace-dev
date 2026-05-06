@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Fill gaps in the test set where COCO IDs returned 404."""
 
 import json

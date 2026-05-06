@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Perceptual fingerprinting — compute and compare image hashes.
 //!
 //! Supports three hash algorithms: aHash (average), dHash (difference),

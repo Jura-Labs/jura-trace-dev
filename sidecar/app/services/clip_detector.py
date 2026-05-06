@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """
 Jura Trace Sidecar — CLIP-based AI Image Detection.
 

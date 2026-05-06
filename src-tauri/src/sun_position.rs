@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! NOAA solar position calculator.
 //!
 //! Pure-trigonometry implementation of the NOAA solar position algorithm

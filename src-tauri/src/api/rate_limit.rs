@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Token-bucket rate limiter for the local REST API.
 //!
 //! Each API key has a bucket initialised from the `rate_limit` column in the

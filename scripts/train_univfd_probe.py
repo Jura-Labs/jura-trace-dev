@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """
 Jura Trace -- Train a UnivFD-style linear probe on CLIP ViT-B/32 embeddings.
 

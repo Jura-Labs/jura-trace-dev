@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Filename pattern heuristics for provenance signalling.
 //!
 //! Camera manufacturers follow predictable naming conventions (DSC, IMG,

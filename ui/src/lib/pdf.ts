@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * Trust Report PDF generation using jsPDF.
  * Client-side only — no server calls, no canvas dependency.

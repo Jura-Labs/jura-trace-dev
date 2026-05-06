@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * Verify handoff store — one-shot navigation bridge from Protect to Verify.
  *

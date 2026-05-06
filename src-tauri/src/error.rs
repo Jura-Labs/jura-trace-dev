@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // `C2pa` and `Internal` are defined for completeness and future use; they are
 // not yet wired into all commands. The `log` helper is part of the intended
 // public API for call sites that want to log-and-return in one step.

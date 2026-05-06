@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """
 Jura Trace — JPEG Ghost Weight Sweep v2 (direct-call variant for v2 corpus)
 

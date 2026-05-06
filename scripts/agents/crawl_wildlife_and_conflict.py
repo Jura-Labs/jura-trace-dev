@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """
 Jura Trace — Sprint 29 Track 2 Wildlife + War/Conflict Corpus Crawler
 

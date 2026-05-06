@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """CLAHE (Contrast-Limited Adaptive Histogram Equalisation) for forensic analysis.
 
 Applies per-channel CLAHE to reveal hidden detail in shadows, highlights,

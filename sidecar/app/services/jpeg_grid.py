@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """JPEG quantisation grid visualisation.
 
 Visualises the 8x8 block grid alignment and boundary artefacts.

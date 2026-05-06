@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """
 Jura Trace -- Build Augmented Training Set + Train UnivFD v9 Probe
 

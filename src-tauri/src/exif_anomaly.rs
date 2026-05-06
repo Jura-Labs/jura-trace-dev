@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! EXIF anomaly detection — analyse image metadata for manipulation indicators.
 //!
 //! Performs eight categories of checks: software detection, missing EXIF,

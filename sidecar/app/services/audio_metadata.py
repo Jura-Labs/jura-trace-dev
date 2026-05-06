@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """
 Jura Trace Sidecar — Audio metadata extraction via FFmpeg/ffprobe.
 
