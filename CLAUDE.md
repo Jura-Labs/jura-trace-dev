@@ -17,7 +17,7 @@ Jura Trace is one of two products built by **Jura Labs** (UK Community Interest 
 
 **Developed by**: Juralabs Community Interest Company (UK) — https://juralabs.org
 **Licence**: AGPL-3.0-or-later (with commercial-licence path on request — see `COMMERCIAL.md`). Switched 2026-05-06 from PolyForm Noncommercial 1.0.0; risk accepted on solicitor scoping per memory `project_ip_architecture_dual_entity.md`.
-**Current Version**: 0.9.0-rc.9 (Phase A — v1.0 in launch prep, target **live public release 29 May 2026**)
+**Current Version**: 0.9.0-rc.9 (Phase A — v1.0 in launch prep, target **live public release Mon 22 June 2026** (revised 2026-05-09 from 31 May; CPL embargo lifts 31 May silently — Jura Trace makes no public comment between 31 May and 22 June launch; see memories `project_v1_live_release.md` + `project_v1_marketing_plan_may2026.md`))
 **Source repo**: `juralabs/jura-archive` (private)
 **Release repo**: `juralabs/jura-trace` (public — installers only, no source)
 **Windows signing**: Azure Trusted Signing (certificate ID a7e35def-628b-4980-8785-2e535f709418)
@@ -114,9 +114,10 @@ Top-level layout (browse directories directly for file listings):
 - `sidecar/` — Python 3.13 FastAPI ML sidecar on port 8200. Routers in `app/api/`, detection/forensics logic in `app/services/`, Pydantic schemas in `app/models/`, pytest suite in `tests/`. `main.py` entry, `requirements.txt` / `requirements-ci.txt` / `requirements.lock`, `jura-sidecar.spec` for PyInstaller.
 - `scripts/` — training, corpus, and calibration scripts; `scripts/agents/` for corpus crawl/protect/verify pipeline.
 - `models/` — trained model artefacts (on external USB during development).
-- `docs/` — all documentation (sprint plans, install guides, pilot testing, user guides, decisions, methodology, tier/strategy).
+- `docs/` — public-facing documentation only (install guides, user guides, methodology, calibration, decisions, C2PA conformance, branding, compliance, ARCHITECTURE.md, BRAND_GUIDELINES.md, backlog.md). **Internal-consultation docs (strategy, funding drafts, sprint plans, internal architecture / corpus / deployment notes, project spec) live in `../jura-labs-docs/` per the doc-hygiene pattern (memory `project_repo_doc_hygiene`).**
 - `.github/workflows/` — CI, Release (4-platform matrix), Dependabot.
-- Root: `PROJECT_SPEC.md`, `CHANGELOG.md`, `CLAUDE.md`, `Makefile`.
+- `.github/PULL_REQUEST_TEMPLATE.md` + `.github/ISSUE_TEMPLATE/` (and `.forgejo/` mirrors) — contributor-facing forms with mandatory `AI-Disclosure` field per `CONTRIBUTING.md` "AI-tool use" section.
+- Root: `CHANGELOG.md`, `CLAUDE.md`, `LICENSE`, `COMMERCIAL.md`, `TRAINING.md`, `CONTRIBUTING.md`, `README.md`, `Makefile`.
 
 ## Two-Repo Release Architecture
 
@@ -144,7 +145,8 @@ Jura Trace uses a split-repo model to keep source code private while distributin
 
 Top-level entry points and non-obvious files. Sidecar services live under `sidecar/app/services/`, UI components under `ui/src/lib/components/`, help pages under `ui/src/routes/help/` — browse those directories directly rather than tracking individual files here.
 
-- **Reference docs**: `PROJECT_SPEC.md`, `CHANGELOG.md`, `docs/ARCHITECTURE.md`, `docs/BRAND_GUIDELINES.md`
+- **Reference docs**: `CHANGELOG.md`, `docs/ARCHITECTURE.md`, `docs/BRAND_GUIDELINES.md`, `CONTRIBUTING.md` (includes the AI-tool-use policy + high-risk-file list)
+- **Internal-only docs (NOT in repo)**: `../jura-labs-docs/jura-trace-strategy/`, `../jura-labs-docs/jura-trace-funding/`, `../jura-labs-docs/jura-trace-internal/` — see memory `project_repo_doc_hygiene` for the discipline + what belongs where
 - **Rust entry**: `src-tauri/src/lib.rs` — Tauri commands, verify pipeline, `VerificationResult`
 - **Sidecar client**: `src-tauri/src/sidecar.rs` — HTTP client for Python sidecar
 - **REST API module**: `src-tauri/src/api/` — Axum REST API on port 8300 (routes, types, auth, rate_limit, error)
@@ -161,7 +163,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 - **Training scripts**: `scripts/train_classifier.py`, `scripts/train_univfd_probe.py` (`--C` for regularisation), `scripts/agents/` (corpus crawl/protect/verify/validate pipeline)
 - **CI/CD**: `.github/workflows/` — CI (Rust + Python + Frontend with pip-audit), Release (4-platform matrix, workflow_dispatch enabled, Linux paused), Dependabot
 - **macOS entitlements**: `src-tauri/Entitlements.plist`
-- **Sprint plans / strategy**: `docs/sprint-plans/phase-a-plan.md`, `docs/tried-compliance-roadmap.md`, `docs/strategic-pivot-assessment.md`, `docs/tier-structure-decision.md`
+- **Sprint plans / strategy / funding drafts / internal architecture**: NOT in this repo. Live in `../jura-labs-docs/jura-trace-strategy/`, `../jura-labs-docs/jura-trace-funding/`, `../jura-labs-docs/jura-trace-internal/`. See memory `project_repo_doc_hygiene` for the rule.
 - **User/install docs**: `docs/user-guide/`, `docs/install-guides/`, `docs/pilot-testing/`
 
 ## Design Principles
@@ -175,7 +177,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 
 ## Current Status
 
-**Version**: 0.9.0-rc14 (Phase A — v1.0 in launch prep, target **live public release 29 May 2026**; pivot from pilot-cohort framing confirmed 2026-05-06, see memory `project_v1_live_release`). Phases 1–3 complete. Sprint 28 tech-debt sweep closed 8 April 2026; Sprint 29 shipped 7 April 2026; Sprint 30 backlog sweep 9 April 2026 (SIFT copy-move, EXIF injection detection, FP telemetry Phase B review bundle, URL watchlist scheduler, Tauri race-condition fix, Experimental UI tag rollout, XMP AI-provenance detection). For full sprint-by-sprint history see `CHANGELOG.md` and git log.
+**Version**: 0.9.0-rc14 (Phase A — v1.0 in launch prep, target **live public release Mon 22 June 2026** (revised 2026-05-09 from 31 May; CPL embargo lifts 31 May silently — no public comment between 31 May and 22 June; see memories `project_v1_live_release.md` revised 2026-05-09 + `project_v1_marketing_plan_may2026.md`); pivot from pilot-cohort framing confirmed 2026-05-06, see memory `project_v1_live_release`). Phases 1–3 complete. Sprint 28 tech-debt sweep closed 8 April 2026; Sprint 29 shipped 7 April 2026; Sprint 30 backlog sweep 9 April 2026 (SIFT copy-move, EXIF injection detection, FP telemetry Phase B review bundle, URL watchlist scheduler, Tauri race-condition fix, Experimental UI tag rollout, XMP AI-provenance detection). For full sprint-by-sprint history see `CHANGELOG.md` and git log.
 
 **Models in production** (as of 7 April 2026):
 - **GBM Deepfake Classifier v4** — 10,709 images (5,724 authentic + 4,985 AI), 84-feature vector, AUC-ROC 0.9868, authentic FP 4.54%, AI recall 92.52%, threshold 0.49. SHA-256 `2931f197cba6f376e85b1cbcfd584e6802f36e4fbf68ff00c83d61d4d655db18`.

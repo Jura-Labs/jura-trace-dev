@@ -44,7 +44,7 @@ cd src-tauri && cargo tauri dev  # Terminal 2
 
 ## Documentation
 
-- [Project Specification](PROJECT_SPEC.md) — objectives, KPIs, delivery plan
+- [Architecture](docs/ARCHITECTURE.md) — system design, data flow, four-layer stack
 - [Technical Architecture](docs/ARCHITECTURE.md) — system design
 - [Brand Guidelines](docs/BRAND_GUIDELINES.md) — visual identity
 
