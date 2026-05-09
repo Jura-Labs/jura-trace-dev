@@ -7,7 +7,7 @@ Jura Trace is published under AGPL-3.0-or-later with a parallel commercial-licen
 ## How to contribute
 
 - **Bug reports:** open an issue on the canonical repository.
-- **Feature ideas:** open a discussion or issue first, before writing code, so we can align on whether the feature fits the roadmap and the local-first principle. See `docs/backlog.md` and `PROJECT_SPEC.md` for current direction.
+- **Feature ideas:** open a discussion or issue first, before writing code, so we can align on whether the feature fits the roadmap and the local-first principle. See `docs/backlog.md` for the current public roadmap.
 - **Pull requests:** small, focused, with tests where appropriate. Match existing code style. Keep architectural changes in a separate PR from feature changes.
 - **Documentation:** PRs welcome on user guides, methodology documents, and translation contributions.
 
@@ -45,6 +45,68 @@ In practice, contributing means agreeing to the CLA. There is no separate docume
 Be respectful. Be honest about what your contribution does and doesn't do. Be patient — review may take time as this is a small project with one principal maintainer.
 
 If you encounter behaviour from another contributor that violates ordinary professional norms, contact licensing@juralabs.org.
+
+## AI-tool use
+
+Jura Trace is a forensic verification tool. The detection logic, signing flows, and verification pipeline ARE the credibility surface — a subtle bug in these areas damages the product's purpose in a way that ordinary OSS bugs do not. AI coding assistants (Claude, Copilot, Cursor, Gemini, and similar) are useful for boilerplate, refactors, and documentation, but produce confident-looking code that can be wrong in subtle ways. The policy here is specific rather than blanket.
+
+### Acceptable AI-tool use
+
+- AI as an inference-time assistant to a human author who reads, understands, and substantively edits the output before committing
+- Boilerplate generation, refactors with clearly-bounded scope, documentation drafting, test scaffolds
+- Mechanical translations (YAML ↔ JSON, schema ↔ types, diff inspection, search across the codebase)
+- Drafting plain-English versions of technical content for help / methodology pages, with the human author verifying every factual claim against the source
+
+### Not acceptable
+
+- AI-only authorship without human substantive editing (creates ungrantable rights under the CLA above; potentially licence-pollutes the codebase)
+- AI-generated changes to high-risk files (see list below) without explicit human review of every line
+- AI-suggested dependency upgrades accepted without checking the upstream changelog and the relevant advisory database
+- AI-generated security-research reports without a working reproducer
+- Concealment of AI-tool use in a PR description (grounds for closure)
+
+### High-risk files — manual review of every line, no exceptions
+
+These files affect signing, parsing, IPC, key handling, the auto-updater, or the sidecar process. Changes here require human-only verification of the security-critical paths even when AI assistance was used to draft the change:
+
+- `src-tauri/src/c2pa.rs`
+- `src-tauri/src/sidecar.rs`
+- `src-tauri/src/ris.rs` (BYOK keystore)
+- `src-tauri/src/db.rs` (migrations + backup paths)
+- `src-tauri/src/metadata.rs` (parser surface)
+- `src-tauri/src/api/` (REST surface)
+- `src-tauri/Cargo.toml` (dependency upgrades)
+- `.github/workflows/release.yml` and `.forgejo/workflows/release.yml` (release pipeline + signing)
+- `src-tauri/tauri.conf.json` (updater + bundle config)
+- `sidecar/app/services/clip_detector.py` and `sidecar/app/services/deepfake.py` (model loading + scoring)
+- `sidecar/jura-sidecar.spec` (PyInstaller bundling)
+
+If your change touches any file in this list and used AI assistance, the PR description must include a brief note describing what you manually verified.
+
+### Disclosure in pull requests
+
+The pull-request template includes an `AI-Disclosure` section. Fill it in honestly:
+
+- Which AI tool(s) were used (or none)
+- For which parts of the change
+- What you manually verified
+
+Honest disclosure earns reviewer time; concealment is grounds for closure as a CLA violation.
+
+### Why this is asymmetric
+
+The maintainer uses AI tooling for a substantial portion of day-to-day work and discloses it via `Co-Authored-By:` trailers in commits. The policy above is symmetric: it applies equally to outside contributors and the maintainer. Different surfaces (high-risk vs peripheral) have different review bars regardless of who authored the change.
+
+### Triage policy
+
+Limited maintainer hours mean triage is necessarily strict:
+
+- Bug reports without a working reproducer will be closed with a request to add one
+- PRs that look LLM-generated and touch high-risk files without disclosure will be closed with an explanation
+- PRs that disclose AI use and target peripheral surfaces (documentation, tests, non-security code) get fair-priority review
+- First-time contributors are encouraged to start with peripheral changes; signing / detection / parser changes from new contributors require demonstrated context and a clear test plan
+
+This is not gatekeeping for its own sake. The maintainer is solo and pre-revenue; review time is the binding constraint, and the trade-offs above optimise that constraint while preserving the forensic-credibility surface.
 
 ## Security
 
