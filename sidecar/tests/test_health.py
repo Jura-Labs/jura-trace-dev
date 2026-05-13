@@ -25,7 +25,10 @@ async def test_health_response_structure():
         response = await client.get("/health")
     data = response.json()
     assert data["status"] == "ok"
-    assert data["version"] == "0.2.0"
+    # Version is sourced from main.py's FastAPI(version=...) — keep this
+    # assertion structural so it doesn't break on every release bump.
+    assert isinstance(data["version"], str) and data["version"]
+    assert data["version"] == app.version
     assert data["service"] == "jura-trace-sidecar"
     assert "capabilities" in data
     assert data["capabilities"]["ela"] is True
