@@ -980,9 +980,68 @@ Enterprise deployments in air-gapped environments (no internet access) should co
 - [`docs/FINANCIAL_ROADMAP.md`](./FINANCIAL_ROADMAP.md) — commercial expansion strategy, persona analysis, and tier structure
 - [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs) — `VerificationResult` struct and Tauri command implementations the API wrapper calls
 - [`ui/src/lib/types.ts`](../ui/src/lib/types.ts) — TypeScript interfaces mirroring the Rust structs (useful for JavaScript client development)
-- [`sidecar/main.py`](../sidecar/main.py) — Python ML sidecar entry point (port 8200)
+- [`sidecar/main.py`](../sidecar/main.py) — Python ML sidecar entry point (sidecar binds to `127.0.0.1` on an OS-assigned ephemeral port allocated by the Tauri shell at launch)
 
 ---
 
-*Last updated: 21 March 2026*
-*Phase 3 planned feature — not available in current release (0.2.0-dev)*
+## JTV-181 — `provenance` block on verify responses
+
+From v1.0 every verify endpoint response carries a top-level `provenance` block alongside the legacy `methodology` block. The `provenance` block is a **public API contract**: field names and types do not change between v1.x minor releases. The v1.0.1 `jura` CLI (JTV-182) reads this block to write per-verification reproducibility records into case files.
+
+### Field surface
+
+```json
+{
+  "data": {
+    "provenance": {
+      "engineVersion": "0.9.0",
+      "sidecarVersion": "0.9.0",
+      "modelHashes": {
+        "deepfakeClassifier": "512def7ec62cbeb023c5343859a15606a02742d48b1fca31df11667c0b9ba14a",
+        "univfdProbe": "0534a9e80e352a5bd8af5fc447d03e37be2e1aa68a05d81f05736d6ef8956a86"
+      },
+      "verificationMode": "standard",
+      "timestampUtc": "2026-05-13T17:30:00Z"
+    },
+    "..."
+  },
+  "apiVersion": "1.0",
+  "degraded": false
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `engineVersion` | string | Jura Trace desktop engine version (e.g. `"0.9.0"`) |
+| `sidecarVersion` | string \| null | Python ML sidecar version. `null` when the sidecar was unavailable. |
+| `modelHashes.deepfakeClassifier` | string \| null | SHA-256 of `deepfake_classifier.joblib`. `null` when not loaded. |
+| `modelHashes.univfdProbe` | string \| null | SHA-256 of `univfd_probe.joblib`. `null` when the CLIP detector is not installed. |
+| `verificationMode` | string | `"quick"` \| `"standard"` \| `"deep"`. Legacy `"archival"` is normalised to `"deep"` upstream. |
+| `timestampUtc` | string | RFC 3339 / ISO 8601 UTC timestamp when verification completed |
+
+### Why a new block instead of just renaming `methodology`?
+
+The legacy `methodology` block has slightly different field names (`pipelineVersion` / `analysisMode` / `analysedAt` / flat `classifierModelHash` + `univfdProbeModelHash`) and is consumed by the existing PDF / ZIP exporters. Renaming would break those consumers. The `provenance` block is the clean spec-aligned contract for new consumers (CLI, downstream automation); the legacy `methodology` block stays in the response for backward compatibility.
+
+---
+
+## CLI exit-code contract (v1.0.1, JTV-182)
+
+The v1.0.1 `jura` CLI is a thin Rust client that calls this REST API. It honours the following exit codes — published now so downstream automation (CI pipelines, n8n workflows, case-management scripts) can rely on stable semantics from v1.0.1 onwards. The contract is **stable from v1.0.1**: new codes may be added at the end (≥ 7) but the existing assignments do not change.
+
+| Code | Meaning | Typical cause |
+|---|---|---|
+| `0` | Success | The verify / sign / version command completed and produced output on stdout |
+| `1` | Argument error | Missing required flag, invalid value, unknown subcommand |
+| `2` | Server unreachable | The local REST API on port 8300 is not running or the configured host:port is wrong |
+| `3` | Authentication failure | `JURA_API_KEY` is unset, malformed, or rejected by the server |
+| `4` | File error | Input path does not exist, is not readable, or exceeds the 100 MB upload limit |
+| `5` | Format error | Server returned 400 Bad Request — typically an unsupported MIME type or content type the engine cannot handle |
+| `6` | Server error | Server returned 5xx — sidecar crash, internal panic, database error |
+
+Codes are documented here ahead of the v1.0.1 CLI ship so any v1.0 consumer building automation against the REST API directly can mirror the same exit semantics. The contract lives in `project_cli_v101_locked.md` (agent memory) and will be cross-linked from the v1.0.1 CLI README on first ship.
+
+---
+
+*Last updated: 13 May 2026 — JTV-181 provenance + exit-code contract added*
+*Phase 3 feature — REST API wrapper documented; v1.0.1 `jura` CLI deferred per JTV-182*

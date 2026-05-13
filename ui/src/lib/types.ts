@@ -532,8 +532,14 @@ export interface VerificationResult {
    * Only present for image content.
    */
   fourierAnalysisResult?: FourierAnalysisResult | null;
-  /** Methodology metadata for reproducibility (pipeline version, sidecar version, classifier hash). */
+  /** Methodology metadata for reproducibility (pipeline version, sidecar version, classifier hash).
+   *  New consumers should prefer {@link provenance} below — same data, spec-aligned field names. */
   methodology?: MethodologyRecord | null;
+  /** JTV-181 spec-aligned provenance block — public API contract from v1.0.
+   *  Same source data as {@link methodology} above, with field names that match
+   *  the v1.0.1 `jura` CLI contract (engineVersion / sidecarVersion / modelHashes
+   *  / verificationMode / timestampUtc). See `project_cli_v101_locked.md`. */
+  provenance?: Provenance | null;
   /** Input quality assessment — conditions that degrade detector reliability. */
   inputQuality?: InputQualityAssessment | null;
   /**
@@ -590,11 +596,17 @@ export interface VerificationResult {
   // preserved for the May Week 1 wire-up — see Plane JTV-85.
 }
 
-/** Methodology metadata captured at verification time for reproducibility. */
+/** Methodology metadata captured at verification time for reproducibility.
+ *
+ * **NOTE:** New consumers should prefer {@link Provenance} (the `provenance`
+ * field on {@link VerificationResult}). This `MethodologyRecord` is retained
+ * for backward compatibility with the existing PDF / ZIP exporters. Both
+ * blocks are populated from the same source data; field naming differs.
+ */
 export interface MethodologyRecord {
   /** Jura Trace application version (e.g. "0.9.0"). */
   pipelineVersion: string;
-  /** Python ML sidecar version (e.g. "0.2.0"), if available. */
+  /** Python ML sidecar version (e.g. "0.9.0"), if available. */
   sidecarVersion?: string | null;
   /** SHA-256 hex digest of the GBM classifier model file, if present. */
   classifierModelHash?: string | null;
@@ -610,6 +622,48 @@ export interface MethodologyRecord {
   analysisMode: string;
   /** ISO 8601 timestamp when the analysis was performed. */
   analysedAt: string;
+}
+
+/**
+ * JTV-181 — public provenance contract for the v1.0 `/api/v1/verify` response.
+ *
+ * Mirrors the Rust `Provenance` struct in `src-tauri/src/lib.rs`. From v1.0
+ * onwards the `provenance` block on {@link VerificationResult} is a public API
+ * contract: no breaking changes between minor versions. The v1.0.1 `jura` CLI
+ * (JTV-182) reads this block to write per-verification reproducibility records
+ * into case files.
+ *
+ * Field names match the spec in `project_cli_v101_locked.md`. The legacy
+ * {@link MethodologyRecord} is retained for backward compatibility with the
+ * existing PDF / ZIP exporters that read `methodology.pipelineVersion` etc.
+ */
+export interface Provenance {
+  /** Jura Trace desktop application version (e.g. "0.9.0"). */
+  engineVersion: string;
+  /** Python ML sidecar version (e.g. "0.9.0"), or null when the sidecar was
+   *  unavailable at verify time. */
+  sidecarVersion?: string | null;
+  /** SHA-256 hashes of the loaded ML model files. A null hash means the
+   *  corresponding model was not present at verify time. */
+  modelHashes: ProvenanceModelHashes;
+  /** Investigation mode used for this run (`"quick"`, `"standard"`, `"deep"`).
+   *  The legacy `"archival"` is normalised to `"deep"` upstream. */
+  verificationMode: string;
+  /** RFC 3339 / ISO 8601 UTC timestamp when verification completed. */
+  timestampUtc: string;
+}
+
+/** SHA-256 hashes of the ML model files loaded at verify time. Exposed as a
+ *  nested block so future model additions extend the surface without breaking
+ *  the top-level {@link Provenance} shape. */
+export interface ProvenanceModelHashes {
+  /** SHA-256 hex digest of the GBM deepfake-classifier joblib, or null when
+   *  the model is not loaded. */
+  deepfakeClassifier?: string | null;
+  /** SHA-256 hex digest of the UnivFD CLIP-LogReg probe joblib
+   *  (`models/univfd_probe.joblib`), or null when the optional CLIP detector
+   *  is not installed. */
+  univfdProbe?: string | null;
 }
 
 /**

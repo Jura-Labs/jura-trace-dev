@@ -82,12 +82,74 @@ pub struct Asset {
     pub sha256_hash: Option<String>,
 }
 
+/// JTV-181 — public provenance contract for the v1.0 `/api/v1/verify` response.
+///
+/// Spec-aligned wrapper for the methodology data. From v1.0 onwards the
+/// `provenance` block on `VerificationResult` is a public API contract:
+/// no breaking changes between minor versions. The v1.0.1 `jura` CLI
+/// (JTV-182) reads this block to write per-verification reproducibility
+/// records into case files; consumers must be able to rely on the field
+/// names and types staying stable across the v1.x series.
+///
+/// Field names match the spec in `project_cli_v101_locked.md` exactly:
+///   engine_version / sidecar_version / model_hashes / verification_mode /
+///   timestamp_utc.
+///
+/// JSON output is camelCase per the existing API convention (see
+/// `ApiResponse` in `src-tauri/src/api/types.rs`). The legacy
+/// [`MethodologyRecord`] is retained on `VerificationResult` for backward
+/// compatibility with the existing PDF / ZIP exporters that read
+/// `methodology.pipelineVersion` etc. — both blocks are populated from
+/// the same source data; consumers should prefer `provenance` going
+/// forward.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Provenance {
+    /// Jura Trace desktop application version (e.g. `"0.9.0"`).
+    pub engine_version: String,
+    /// Python ML sidecar version (e.g. `"0.9.0"`), or `None` when the
+    /// sidecar was unavailable at verify time.
+    pub sidecar_version: Option<String>,
+    /// SHA-256 hashes of the loaded ML model files. `None` for a hash means
+    /// the corresponding model was not present at verify time (graceful
+    /// degradation).
+    pub model_hashes: ModelHashes,
+    /// Investigation mode used for this run (`"quick"`, `"standard"`,
+    /// `"deep"`). The legacy `"archival"` is normalised to `"deep"` upstream
+    /// so this field never carries it.
+    pub verification_mode: String,
+    /// RFC 3339 / ISO 8601 UTC timestamp when verification completed.
+    pub timestamp_utc: String,
+}
+
+/// SHA-256 hashes of the ML model files loaded at verify time. Per JTV-181
+/// spec (`project_cli_v101_locked.md`), exposed as a nested block under
+/// [`Provenance::model_hashes`] so future model additions extend the surface
+/// without breaking the top-level shape.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelHashes {
+    /// SHA-256 hex digest of the GBM deepfake-classifier joblib, or `None`
+    /// when the model is not loaded.
+    pub deepfake_classifier: Option<String>,
+    /// SHA-256 hex digest of the UnivFD CLIP-LogReg probe joblib
+    /// (`models/univfd_probe.joblib`), or `None` when the optional CLIP
+    /// detector is not installed.
+    pub univfd_probe: Option<String>,
+}
+
 /// Methodology metadata captured at verification time for reproducibility.
 ///
 /// Records exactly which versions of the pipeline, sidecar, and classifier
 /// model were used to produce a verification result. This enables courts,
 /// insurers, and analysts to confirm that results are comparable or to
 /// re-run analysis when a newer methodology version is available.
+///
+/// **NOTE:** From v1.0, the spec-aligned [`Provenance`] block is the public
+/// API contract for new consumers (CLI, downstream automation). This
+/// `MethodologyRecord` is retained for backward compatibility with existing
+/// PDF / ZIP exporters that read `methodology.pipelineVersion` etc. Both
+/// blocks are populated from the same source data.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct MethodologyRecord {
@@ -219,7 +281,16 @@ pub struct VerificationResult {
     pub input_sha256: Option<String>,
     /// Methodology metadata (pipeline version, sidecar version, classifier hash).
     /// Enables reproducibility and legal defensibility of results.
+    ///
+    /// **NOTE:** New consumers should prefer [`Provenance`] (the
+    /// `provenance` field below). This `methodology` field is retained for
+    /// backward compatibility with existing PDF / ZIP exporters.
     pub methodology: Option<MethodologyRecord>,
+    /// JTV-181 spec-aligned provenance block — public API contract from v1.0.
+    /// Same source data as [`MethodologyRecord`] above, with field names that
+    /// match the v1.0.1 `jura` CLI contract (engine_version / sidecar_version
+    /// / model_hashes / verification_mode / timestamp_utc).
+    pub provenance: Option<Provenance>,
     /// Input quality assessment — identifies conditions that degrade detector reliability.
     pub input_quality: Option<InputQualityAssessment>,
     /// Semantic content-type classification from the sidecar.
@@ -2646,13 +2717,33 @@ fn verify_content_inner(
         None
     };
 
+    // Single source of truth for the provenance values — both the legacy
+    // `methodology` block and the JTV-181 spec-aligned `provenance` block
+    // are populated from these locals so they cannot drift apart.
+    let engine_ver = env!("CARGO_PKG_VERSION").to_string();
+    let analysed_at_utc = chrono::Utc::now().to_rfc3339();
+    let mode_str = effective_mode.to_string();
+    let classifier_hash = app.classifier_model_hash.clone();
+    let univfd_hash = app.univfd_probe_model_hash.clone();
+
     let methodology = Some(MethodologyRecord {
-        pipeline_version: env!("CARGO_PKG_VERSION").to_string(),
+        pipeline_version: engine_ver.clone(),
         sidecar_version: sidecar_ver.clone(),
-        classifier_model_hash: app.classifier_model_hash.clone(),
-        univfd_probe_model_hash: app.univfd_probe_model_hash.clone(),
-        analysis_mode: effective_mode.to_string(),
-        analysed_at: chrono::Utc::now().to_rfc3339(),
+        classifier_model_hash: classifier_hash.clone(),
+        univfd_probe_model_hash: univfd_hash.clone(),
+        analysis_mode: mode_str.clone(),
+        analysed_at: analysed_at_utc.clone(),
+    });
+
+    let provenance = Some(Provenance {
+        engine_version: engine_ver,
+        sidecar_version: sidecar_ver.clone(),
+        model_hashes: ModelHashes {
+            deepfake_classifier: classifier_hash,
+            univfd_probe: univfd_hash,
+        },
+        verification_mode: mode_str,
+        timestamp_utc: analysed_at_utc,
     });
 
     // ── Database operations ───────────────────────────────────────────────
@@ -2832,6 +2923,7 @@ fn verify_content_inner(
         fourier_analysis_result,
         input_sha256,
         methodology,
+        provenance,
         input_quality,
         content_type_result,
         platform_fingerprint_result,
@@ -7895,6 +7987,7 @@ mod tests {
             fourier_analysis_result: None,
             input_sha256: None,
             methodology: None,
+            provenance: None,
             input_quality: None,
             content_type_result: None,
             platform_fingerprint_result: None,
@@ -8981,6 +9074,59 @@ mod tests {
             "The file is too small to be a valid media file.",
             "Tiny-file error message must match exactly"
         );
+    }
+
+    /// JTV-181 — the `provenance` block on `VerificationResult` is a public
+    /// API contract from v1.0. This test asserts the exact JSON field names
+    /// and shape that downstream consumers (the v1.0.1 `jura` CLI and any
+    /// external automation) rely on. **Do not change these field names
+    /// between v1.x minor versions** — see `project_cli_v101_locked.md`.
+    #[test]
+    fn provenance_serialises_with_spec_field_names() {
+        let prov = Provenance {
+            engine_version: "0.9.0".to_string(),
+            sidecar_version: Some("0.9.0".to_string()),
+            model_hashes: ModelHashes {
+                deepfake_classifier: Some("aabbccdd".to_string()),
+                univfd_probe: Some("11223344".to_string()),
+            },
+            verification_mode: "standard".to_string(),
+            timestamp_utc: "2026-05-13T17:30:00Z".to_string(),
+        };
+        let json = serde_json::to_value(&prov).expect("Provenance must serialise");
+        // Camel-case per the existing API convention. Anyone changing these
+        // field names is breaking the v1.0.1 jura CLI + downstream automation.
+        assert_eq!(json["engineVersion"], "0.9.0");
+        assert_eq!(json["sidecarVersion"], "0.9.0");
+        assert_eq!(json["modelHashes"]["deepfakeClassifier"], "aabbccdd");
+        assert_eq!(json["modelHashes"]["univfdProbe"], "11223344");
+        assert_eq!(json["verificationMode"], "standard");
+        assert_eq!(json["timestampUtc"], "2026-05-13T17:30:00Z");
+    }
+
+    /// JTV-181 — `null` values for absent ML models must serialise as
+    /// JSON `null`, not omitted. CLI consumers iterate over the
+    /// `modelHashes` keys and rely on consistent presence.
+    #[test]
+    fn provenance_null_hashes_serialise_as_null_not_omitted() {
+        let prov = Provenance {
+            engine_version: "0.9.0".to_string(),
+            sidecar_version: None,
+            model_hashes: ModelHashes {
+                deepfake_classifier: None,
+                univfd_probe: None,
+            },
+            verification_mode: "quick".to_string(),
+            timestamp_utc: "2026-05-13T17:30:00Z".to_string(),
+        };
+        let json = serde_json::to_value(&prov).expect("Provenance must serialise");
+        // Without explicit None-handling, serde_json renders Option::None as
+        // `null` — this test will fail if anyone adds
+        // `#[serde(skip_serializing_if = "Option::is_none")]` which would
+        // silently break the contract.
+        assert!(json["sidecarVersion"].is_null());
+        assert!(json["modelHashes"]["deepfakeClassifier"].is_null());
+        assert!(json["modelHashes"]["univfdProbe"].is_null());
     }
 
     /// `import_files` must return `Err(String)` when the only supplied file is
