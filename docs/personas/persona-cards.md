@@ -1,10 +1,21 @@
 ---
-title: "Jura Trace — Persona Cards"
-description: "Full persona set for Jura Trace and Jura Check. 10 B2B personas (Jura Trace desktop) plus 5 consumer personas (Jura Check concept). 15 total."
+title: "Jura Trace — Persona Cards (PARTIALLY SUPERSEDED)"
+description: "Persona set for Jura Trace and Jura Check. 10 B2B + 5 consumer personas. PARTIALLY SUPERSEDED 2026-05-09: tier mappings (Community/Pro/Enterprise) reflect the old 4-tier model; persona descriptions, workflows, pain points, and key features remain valid."
 date: 29 March 2026
-status: Living document — update after each major product milestone
+status: PARTIALLY HISTORICAL — tier mappings superseded 2026-05-09; persona content (workflows, pains, features) remains in active use
 version: 3.0
 supersedes: Persona references in FINANCIAL_ROADMAP.md and commercial-expansion-findings.md
+---
+
+> ## ⚠️ Tier mappings in this document are HISTORICAL (superseded 2026-05-09)
+>
+> The persona descriptions, workflows, pain points, and key-feature lists in this document **remain in active use** for product, UX, and grant work. The **tier-mapping fields** (Community / Professional / Team / Enterprise) reflect the now-superseded 4-tier model and should be reinterpreted against the current tier model:
+>
+> - **At v1.0 launch (31 May 2026)**: every persona uses the Community tier. v1.0 is free for everyone, AGPL-3.0+. There is no Pro tier published until v1.1 (target Q1 2027).
+> - **At v1.1+ (Q1 2027 onward)**: 2-tier + Custom Engineering model. Most personas previously mapped to Professional / Team continue under Pro. Personas previously mapped to Enterprise are served by the Custom Engineering service line (quoted per engagement, from £5,000 / 5 days).
+>
+> See memories `project_v1_community_only_launch.md` (2026-05-09) and `project_tier_simplification_locked.md` (2026-05-09) for the current tier model. The persona-by-persona tier remapping has not been reflected in this document; do not cite per-persona tier assignments below as authoritative until a v3.1 revision lands. **Persona content itself (workflow, pain, feature priority) remains current.**
+
 ---
 
 # Jura Trace — Persona Cards
