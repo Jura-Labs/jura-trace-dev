@@ -65,7 +65,36 @@ CATEGORIES = [
     # Category:Image_editing is mostly meta; skipped as instructed.
 ]
 
-# Image filters
+# JTV-127 — Global Majority handset corpus for UnivFD v11 retrain.
+# Wikimedia Commons indexes user-uploaded camera photos by handset model;
+# per-file licence is in `extmetadata` (CC-BY / CC-BY-SA / CC0 are accepted,
+# any NC/ND variant is rejected by the existing licence filter).
+# See open-corpus-sweep-may-2026.md (rank-1 recommendation) for category scope
+# and yield estimates (300-600 licence-clean images expected).
+#
+# Category-name conventions on Commons vary by vendor:
+# - "Photos taken with X" (Xiaomi)
+# - "Taken with X" (Infinix)
+# - direct vendor name with model subcategories (Realme, Tecno)
+# Verify each category exists at https://commons.wikimedia.org/wiki/<Category>
+# before a non-dry-run sweep — the API silently returns 0 results for
+# misspelled category names. Override via --categories for ad-hoc lists.
+HANDSET_CATEGORIES = [
+    "Category:Photos_taken_with_Xiaomi_mobile_phones",
+    "Category:Taken_with_Infinix_mobile_phones",
+    "Category:Photographs_taken_with_Tecno_mobile_phones",
+    "Category:Photographs_taken_with_Realme_mobile_phones",
+    "Category:Photographs_taken_with_Samsung_Galaxy_A_series",
+    "Category:Photographs_taken_with_Vivo_mobile_phones",
+    "Category:Photographs_taken_with_Oppo_mobile_phones",
+    "Category:Photographs_taken_with_Huawei_P_series",
+    # Realme sub-models: Commons indexes individual phones too. Direct categories
+    # by model give a cleaner per-device sweep when needed; these can be added
+    # via --categories on a per-run basis.
+    # Examples: "Category:Realme_7", "Category:Realme_GT_Master_Edition"
+]
+
+# Image filters (default values — overridden per --preset; see PRESETS below)
 MIN_SHORT_EDGE = 512
 MAX_FILE_BYTES = 15 * 1024 * 1024  # 15 MB
 ACCEPTED_MIME = {"image/jpeg"}
@@ -102,6 +131,53 @@ REJECT_LICENCE_PATTERNS = [
 OUTPUT_DIR = Path("models/splice_wikimedia_v1")
 IMAGES_DIR = OUTPUT_DIR / "images"
 MANIFEST_PATH = OUTPUT_DIR / "manifest.json"
+
+# Per-preset settings. `apply_preset(name)` mutates the module-level constants
+# above based on the chosen preset so the rest of the script doesn't need to
+# carry config through every function signature. Default values above match
+# the photomontage preset.
+PRESETS: dict[str, dict] = {
+    "photomontage": {
+        "categories": CATEGORIES,
+        "output_dir": Path("models/splice_wikimedia_v1"),
+        "manifest_label": "spliced",
+        "accepted_mime": {"image/jpeg"},
+        "min_short_edge": 512,
+        "description": "Photomontage / composite training data (existing default)",
+    },
+    "handset": {
+        "categories": HANDSET_CATEGORIES,
+        "output_dir": Path("models/handset_wikimedia_v1"),
+        "manifest_label": "authentic",
+        # Handset photos sometimes upload as PNG (Pixel/Samsung native PNG mode,
+        # or HEIC→PNG transcoding by uploaders). JPEG dominates but allow PNG.
+        "accepted_mime": {"image/jpeg", "image/png"},
+        # 480px lower bound captures more legitimate handset uploads
+        # (Wikimedia thumbnail policies sometimes downsize uploads below 512).
+        "min_short_edge": 480,
+        "description": "Global Majority handset corpus for JTV-127 / UnivFD v11 retrain",
+    },
+}
+
+
+def apply_preset(preset_name: str) -> dict:
+    """Mutate module-level constants to match the named preset.
+
+    Returns the resolved preset config dict so the caller can also read
+    derived values (categories list, manifest label) without re-resolving.
+    """
+    if preset_name not in PRESETS:
+        raise ValueError(
+            f"Unknown preset {preset_name!r}; valid: {sorted(PRESETS)}"
+        )
+    cfg = PRESETS[preset_name]
+    g = globals()
+    g["OUTPUT_DIR"] = cfg["output_dir"]
+    g["IMAGES_DIR"] = cfg["output_dir"] / "images"
+    g["MANIFEST_PATH"] = cfg["output_dir"] / "manifest.json"
+    g["MIN_SHORT_EDGE"] = cfg["min_short_edge"]
+    g["ACCEPTED_MIME"] = cfg["accepted_mime"]
+    return cfg
 
 
 # ---------------------------------------------------------------------------
@@ -318,14 +394,25 @@ def main():
                         help="Maximum accepted files to download (default 100)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Query API and report; do not download")
-    parser.add_argument("--categories", nargs="+", default=CATEGORIES,
-                        help="Commons categories to query")
+    parser.add_argument("--preset", default="photomontage",
+                        choices=sorted(PRESETS),
+                        help="Category preset (default: photomontage)")
+    parser.add_argument("--categories", nargs="+", default=None,
+                        help="Override preset categories with explicit list")
     args = parser.parse_args()
 
-    print(f"Wikimedia Commons composite miner")
+    cfg = apply_preset(args.preset)
+    categories_to_query = args.categories if args.categories else cfg["categories"]
+    manifest_label = cfg["manifest_label"]
+
+    print(f"Wikimedia Commons miner — preset={args.preset!r} ({cfg['description']})")
     print(f"  dry-run: {args.dry_run}")
     print(f"  max accepted: {args.max}")
-    print(f"  categories: {args.categories}")
+    print(f"  categories: {categories_to_query}")
+    print(f"  output_dir: {OUTPUT_DIR}")
+    print(f"  manifest_label: {manifest_label}")
+    print(f"  min_short_edge: {MIN_SHORT_EDGE}")
+    print(f"  accepted_mime: {sorted(ACCEPTED_MIME)}")
     print()
 
     client = PoliteClient()
@@ -341,7 +428,7 @@ def main():
     licence_breakdown: dict[str, int] = dict(manifest.get("licence_breakdown", {}))
     new_images: list[dict] = []
 
-    for category in args.categories:
+    for category in categories_to_query:
         if total_accepted >= args.max:
             break
         print(f"[*] Listing {category}")
@@ -384,6 +471,11 @@ def main():
                 extmeta.get("Attribution", {}).get("value")
                 or extmeta.get("Credit", {}).get("value")
             )
+            # JTV-127 — capture EXIF Make/Model from Commons extmetadata when
+            # the uploader preserved them. Used by the handset preset to build
+            # per-vendor / per-model coverage tables for the UnivFD v11 retrain.
+            exif_make = strip_html(extmeta.get("Make", {}).get("value")) or None
+            exif_model = strip_html(extmeta.get("Model", {}).get("value")) or None
             file_url = info.get("url")
             width = info.get("width", 0)
             height = info.get("height", 0)
@@ -413,9 +505,11 @@ def main():
                     "sha256": None,
                     "category_source": category,
                     "fetched_at": None,
-                    "label": "spliced",
+                    "label": manifest_label,
                     "bbox": None,
                     "mask_available": False,
+                    "exif_make": exif_make,
+                    "exif_model": exif_model,
                 })
                 continue
 
@@ -428,7 +522,12 @@ def main():
             stem = sanitise_filename(title)
             title_hash = hashlib.sha1(title.encode("utf-8")).hexdigest()[:8]
             out_name = f"{title_hash}_{stem}"
-            if not out_name.lower().endswith((".jpg", ".jpeg")):
+            # Extension is MIME-driven so PNG-accepting presets keep .png
+            # rather than getting forced to .jpg (which would corrupt the file).
+            if mime == "image/png":
+                if not out_name.lower().endswith(".png"):
+                    out_name += ".png"
+            elif not out_name.lower().endswith((".jpg", ".jpeg")):
                 out_name += ".jpg"
             out_path = IMAGES_DIR / out_name
 
@@ -451,9 +550,11 @@ def main():
                     "sha256": existing_sha,
                     "category_source": category,
                     "fetched_at": datetime.now(timezone.utc).isoformat(),
-                    "label": "spliced",
+                    "label": manifest_label,
                     "bbox": None,
                     "mask_available": False,
+                    "exif_make": exif_make,
+                    "exif_model": exif_model,
                 })
                 total_accepted += 1
                 continue
@@ -481,7 +582,7 @@ def main():
                 "sha256": sha,
                 "category_source": category,
                 "fetched_at": datetime.now(timezone.utc).isoformat(),
-                "label": "spliced",
+                "label": manifest_label,
                 "bbox": None,
                 "mask_available": False,
             })
@@ -499,7 +600,7 @@ def main():
     manifest["rejection_reasons"] = rejection_reasons
     manifest["licence_breakdown"] = licence_breakdown
     cats = set(manifest.get("categories_queried", []))
-    cats.update(args.categories)
+    cats.update(categories_to_query)
     manifest["categories_queried"] = sorted(cats)
     if not args.dry_run:
         manifest["images"].extend(new_images)

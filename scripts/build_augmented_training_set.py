@@ -50,12 +50,27 @@ except ImportError:
     print("ERROR: numpy and Pillow are required.")
     sys.exit(1)
 
+# Register HEIC opener so PIL.Image.open() can read .heic files produced by
+# the multi-format augmentation (sips on macOS).  pillow-heif is required for
+# the v10 retrain; older v9 corpora are JPEG-only so this is a v10-only need.
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+    _HEIC_SUPPORTED = True
+except ImportError:
+    _HEIC_SUPPORTED = False
+    print("WARN: pillow-heif not installed — .heic files will be skipped.")
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "sidecar"))
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tiff", ".tif", ".webp"}
+if _HEIC_SUPPORTED:
+    IMAGE_EXTENSIONS = IMAGE_EXTENSIONS | {".heic", ".heif"}
 
 # Variant tags for platform-forwarded images (used to label per-subset metrics)
 PLT_TAGS = {"_plt75", "_plt85", "_plt2x"}
+# Variant tags for v10 multi-format augmentation
+FMT_TAGS = {"_fmt_png", "_fmt_tiff", "_fmt_webp", "_fmt_heic"}
 
 RANDOM_SEED = 42
 TEST_FRACTION = 0.10
@@ -88,9 +103,13 @@ def collect_images(directory: str | Path) -> list[Path]:
 
 
 def variant_tag(path: Path) -> str | None:
-    """Return the platform variant tag if this is an augmented file, else None."""
+    """Return the variant tag if this is an augmented file, else None.
+
+    Recognises both platform-forwarded (_plt75 / _plt85 / _plt2x) and v10
+    multi-format (_fmt_png / _fmt_tiff / _fmt_webp / _fmt_heic) variants.
+    """
     stem = path.stem
-    for tag in PLT_TAGS:
+    for tag in PLT_TAGS | FMT_TAGS:
         if stem.endswith(tag):
             return tag.lstrip("_")
     return None
@@ -119,7 +138,7 @@ def load_clip(device="cpu"):
               "Install: pip install open-clip-torch torch")
         sys.exit(1)
 
-    print("  Loading CLIP ViT-B-32 (laion2b_s34b_b79k)...")
+    print("  Loading CLIP ViT-B-32 (laion2b_s34b_b79k) via open_clip + PyTorch...")
     model, _, preprocess = open_clip.create_model_and_transforms(
         "ViT-B-32", pretrained="laion2b_s34b_b79k"
     )
@@ -141,19 +160,110 @@ def extract_embedding(img_path: Path, model, preprocess) -> np.ndarray | None:
         return None
 
 
+# ---------------------------------------------------------------------------
+# Sidecar-aligned ONNX feature extractor (v10onnx, post-mortem 2026-05-11)
+#
+# WHY: open_clip+PyTorch's preprocess uses torchvision Resize(BICUBIC,
+# antialias=True), which is bit-different from PIL.Image.resize(BICUBIC).
+# The shipped sidecar uses the PIL path (JTV-143), so a probe trained on
+# PyTorch embeddings is calibrated on a different embedding distribution
+# than the one it serves at inference time (mean cos sim ~0.996, NOT 1.0).
+# Diagnostic: scripts/diagnose_clip_onnx_divergence.py, 2026-05-11.
+#
+# This path mirrors the sidecar's `_preprocess_image` + ONNX inference path
+# bit-exactly so training embeddings ARE the inference embeddings.
+# ---------------------------------------------------------------------------
+
+# CLIP normalisation constants — identical to sidecar/app/services/clip_detector.py
+_ONNX_CLIP_MEAN = None
+_ONNX_CLIP_STD = None
+
+
+def load_clip_onnx(onnx_path: Path):
+    """Load the CLIP ViT-B/32 ONNX vision encoder via onnxruntime.
+
+    Returns (session, input_name) — caller uses extract_embedding_onnx() to
+    process individual images through the same preprocess + inference path
+    used by the shipped sidecar.
+    """
+    global _ONNX_CLIP_MEAN, _ONNX_CLIP_STD
+    try:
+        import onnxruntime as ort
+    except ImportError:
+        print("ERROR: onnxruntime is required for --feature-extractor sidecar_onnx.\n"
+              "Install: pip install onnxruntime")
+        sys.exit(1)
+
+    if not onnx_path.exists():
+        print(f"ERROR: ONNX model not found: {onnx_path}")
+        sys.exit(1)
+
+    print(f"  Loading CLIP ViT-B/32 via ONNX runtime: {onnx_path}")
+    session = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
+    input_name = session.get_inputs()[0].name
+
+    _ONNX_CLIP_MEAN = np.array(
+        [0.48145466, 0.4578275, 0.40821073], dtype=np.float32
+    ).reshape(3, 1, 1)
+    _ONNX_CLIP_STD = np.array(
+        [0.26862954, 0.26130258, 0.27577711], dtype=np.float32
+    ).reshape(3, 1, 1)
+    return session, input_name
+
+
+def _onnx_preprocess(img: Image.Image) -> np.ndarray:
+    """Bit-identical mirror of sidecar/app/services/clip_detector.py:_preprocess_image."""
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    w, h = img.size
+    if w < h:
+        new_w, new_h = 224, int(round(h * 224 / w))
+    else:
+        new_w, new_h = int(round(w * 224 / h)), 224
+    img = img.resize((new_w, new_h), Image.BICUBIC)
+    left = (new_w - 224) // 2
+    top = (new_h - 224) // 2
+    img = img.crop((left, top, left + 224, top + 224))
+    arr = np.asarray(img, dtype=np.float32) / 255.0
+    arr = arr.transpose(2, 0, 1)
+    arr = (arr - _ONNX_CLIP_MEAN) / _ONNX_CLIP_STD
+    return arr[np.newaxis, ...]
+
+
+def extract_embedding_onnx(img_path: Path, session, input_name: str) -> np.ndarray | None:
+    """ONNX feature extraction — production-aligned path."""
+    try:
+        img = Image.open(img_path).convert("RGB")
+        tensor = _onnx_preprocess(img)
+        out = session.run(None, {input_name: tensor})[0]
+        feat = out[0]
+        norm = float(np.linalg.norm(feat)) + 1e-12
+        return (feat / norm).astype(np.float32)
+    except Exception as e:
+        print(f"FAILED ({e})")
+        return None
+
+
 def batch_extract(
     images: list[Path],
     label: int,
     model,
     preprocess,
     desc: str,
+    *,
+    backend: str = "open_clip",
+    onnx_session=None,
+    onnx_input_name: str | None = None,
 ) -> tuple[list[np.ndarray], list[int], list[Path]]:
     embeddings, labels, paths = [], [], []
     n = len(images)
     for i, p in enumerate(images):
         if i % 200 == 0 or i == n - 1:
             print(f"    {desc}: [{i+1}/{n}]...", flush=True)
-        emb = extract_embedding(p, model, preprocess)
+        if backend == "sidecar_onnx":
+            emb = extract_embedding_onnx(p, onnx_session, onnx_input_name)
+        else:
+            emb = extract_embedding(p, model, preprocess)
         if emb is not None:
             embeddings.append(emb)
             labels.append(label)
@@ -317,15 +427,49 @@ def main():
     parser.add_argument("--original-ai",        default=f"{usb}/training/ai_generated")
     parser.add_argument("--aug-authentic",       default=f"{usb}/training_platform_forwarded/authentic")
     parser.add_argument("--aug-ai",              default=f"{usb}/training_platform_forwarded/ai_generated")
+    # v10 multi-format augmentation paths (PNG + TIFF + WebP + HEIC re-encodes
+    # of the AI corpus).  Optional — when present, samples are added to the
+    # training pool alongside platform-forwarded augmentation.
+    parser.add_argument("--multi-format-aug-authentic",
+                        default=f"{usb}/training_multi_format/authentic",
+                        help="v10 multi-format augmentation (authentic, optional)")
+    parser.add_argument("--multi-format-aug-ai",
+                        default=f"{usb}/training_multi_format/ai_generated",
+                        help="v10 multi-format augmentation (AI, optional)")
     parser.add_argument("--output-dir",          default="models",
                         help="Directory for model and metadata output")
-    parser.add_argument("--split-json",          default="models/univfd_v9_split.json",
-                        help="Path to persist train/test split for reproducibility")
+    parser.add_argument("--model-version",       default="v10",
+                        help="Model version tag for output files (default v10)")
+    parser.add_argument("--split-json",          default=None,
+                        help="Path to persist train/test split (default models/univfd_{version}_split.json)")
     parser.add_argument("--C",  type=float, default=0.5,
-                        help="LogisticRegression regularisation (default 0.5, matches v8)")
+                        help="LogisticRegression regularisation (default 0.5, matches v9)")
     parser.add_argument("--original-only", action="store_true",
                         help="Train on original corpus only (baseline comparison mode)")
+    parser.add_argument("--skip-multi-format", action="store_true",
+                        help="Skip multi-format augmentation (v9-style training)")
+    parser.add_argument(
+        "--feature-extractor",
+        choices=["open_clip", "sidecar_onnx"],
+        default="open_clip",
+        help=(
+            "CLIP feature extraction backend. "
+            "'open_clip' = PyTorch + open_clip (default, v9/v10 historic path). "
+            "'sidecar_onnx' = bit-identical to shipped sidecar (PIL+ONNX) — "
+            "use when training a probe that will be served via the production "
+            "ONNX runtime. Required after 2026-05-11 PyTorch↔ONNX divergence "
+            "diagnosis (cos sim 0.996, not 1.0). See diagnose_clip_onnx_divergence.py."
+        ),
+    )
+    parser.add_argument(
+        "--onnx-model",
+        default=str(Path(__file__).parent.parent / "models" / "clip-vit-b32-vision.onnx"),
+        help="CLIP ViT-B/32 ONNX vision encoder path (used when --feature-extractor=sidecar_onnx)",
+    )
     args = parser.parse_args()
+
+    if args.split_json is None:
+        args.split_json = f"models/univfd_{args.model_version}_split.json"
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -334,19 +478,34 @@ def main():
     orig_ai_root   = Path(args.original_ai)
     aug_auth_root  = Path(args.aug_authentic)
     aug_ai_root    = Path(args.aug_ai)
+    mf_auth_root   = Path(args.multi_format_aug_authentic)
+    mf_ai_root     = Path(args.multi_format_aug_ai)
+    use_multi_format = not args.skip_multi_format and not args.original_only
 
-    print("Jura Trace -- UnivFD v9 Augmented Training (backlog #16)")
+    print(f"Jura Trace -- UnivFD {args.model_version} Augmented Training")
     print("=" * 70)
     print(f"  Original authentic: {orig_auth_root}")
     print(f"  Original AI:        {orig_ai_root}")
     if not args.original_only:
         print(f"  Aug authentic:      {aug_auth_root}")
         print(f"  Aug AI:             {aug_ai_root}")
+    if use_multi_format:
+        print(f"  MF aug authentic:   {mf_auth_root}")
+        print(f"  MF aug AI:          {mf_ai_root}")
     print(f"  C:                  {args.C}")
     print(f"  Seed:               {RANDOM_SEED}")
+    print(f"  HEIC support:       {_HEIC_SUPPORTED}")
+    print(f"  Feature extractor:  {args.feature_extractor}")
 
-    # --- Load CLIP ---
-    model, preprocess = load_clip()
+    # --- Load CLIP (backend selected by --feature-extractor) ---
+    onnx_session = None
+    onnx_input_name = None
+    model = None
+    preprocess = None
+    if args.feature_extractor == "sidecar_onnx":
+        onnx_session, onnx_input_name = load_clip_onnx(Path(args.onnx_model))
+    else:
+        model, preprocess = load_clip()
 
     # --- Collect all images ---
     print("\nCollecting images...")
@@ -362,8 +521,15 @@ def main():
         print(f"  Aug authentic:      {len(aug_auth_imgs)}")
         print(f"  Aug AI:             {len(aug_ai_imgs)}")
 
-    all_auth_imgs = orig_auth_imgs + aug_auth_imgs
-    all_ai_imgs   = orig_ai_imgs   + aug_ai_imgs
+    mf_auth_imgs, mf_ai_imgs = [], []
+    if use_multi_format:
+        mf_auth_imgs = collect_images(mf_auth_root)
+        mf_ai_imgs   = collect_images(mf_ai_root)
+        print(f"  MF aug authentic:   {len(mf_auth_imgs)}")
+        print(f"  MF aug AI:          {len(mf_ai_imgs)}")
+
+    all_auth_imgs = orig_auth_imgs + aug_auth_imgs + mf_auth_imgs
+    all_ai_imgs   = orig_ai_imgs   + aug_ai_imgs   + mf_ai_imgs
     print(f"\n  Total authentic:    {len(all_auth_imgs)}")
     print(f"  Total AI:           {len(all_ai_imgs)}")
     print(f"  Grand total:        {len(all_auth_imgs) + len(all_ai_imgs)}")
@@ -372,8 +538,16 @@ def main():
     print("\nExtracting CLIP embeddings...")
     t0 = time.time()
 
-    emb_a, lbl_a, pth_a = batch_extract(all_auth_imgs, 0, model, preprocess, "authentic")
-    emb_ai, lbl_ai, pth_ai = batch_extract(all_ai_imgs,   1, model, preprocess, "ai_generated")
+    emb_a, lbl_a, pth_a = batch_extract(
+        all_auth_imgs, 0, model, preprocess, "authentic",
+        backend=args.feature_extractor,
+        onnx_session=onnx_session, onnx_input_name=onnx_input_name,
+    )
+    emb_ai, lbl_ai, pth_ai = batch_extract(
+        all_ai_imgs, 1, model, preprocess, "ai_generated",
+        backend=args.feature_extractor,
+        onnx_session=onnx_session, onnx_input_name=onnx_input_name,
+    )
 
     all_emb = emb_a + emb_ai
     all_lbl = lbl_a + lbl_ai
@@ -460,53 +634,59 @@ def main():
 
     # --- Save model ---
     import joblib
-    model_path = output_dir / "univfd_probe_v9.joblib"
+    model_path = output_dir / f"univfd_probe_{args.model_version}.joblib"
     joblib.dump(probe, model_path)
     model_sha = sha256_file(model_path)
     print(f"\nModel saved: {model_path}")
     print(f"  Size: {model_path.stat().st_size / 1024:.1f} KB")
     print(f"  SHA-256: {model_sha}")
 
-    # --- v8 baseline for comparison ---
-    V8_BASELINE = {
-        "auc_roc": 0.9911,
-        "fp_rate": 0.0501,
-        "ai_recall": 0.9601,
-        "n_samples": 10712,
-        "trained_at": "2026-04-07T14:29:54",
+    # --- v9 baseline for comparison (current production) ---
+    V9_BASELINE = {
+        "auc_roc": 0.9933,
+        "fp_rate": 0.0412,
+        "ai_recall": 0.9570,
+        "n_samples": 39016,
+        "trained_at": "2026-04-12T00:00:00",
     }
 
     print("\n" + "=" * 70)
-    print("v8 vs v9 COMPARISON")
+    print(f"v9 vs {args.model_version} COMPARISON")
     print("=" * 70)
-    print(f"  {'Metric':25s}  {'v8 (baseline)':>14s}  {'v9 (candidate)':>14s}  {'Delta':>10s}")
-    print(f"  {'-'*25}  {'-'*14}  {'-'*14}  {'-'*10}")
+    print(f"  {'Metric':25s}  {'v9 (baseline)':>14s}  {args.model_version + ' (candidate)':>15s}  {'Delta':>10s}")
+    print(f"  {'-'*25}  {'-'*14}  {'-'*15}  {'-'*10}")
     for k, label in [
         ("auc_roc", "AUC-ROC"),
         ("fp_rate", "FP rate"),
         ("ai_recall", "AI recall"),
     ]:
-        v8_val = V8_BASELINE[k]
-        v9_val = metrics[k]
-        delta = v9_val - v8_val
+        baseline_val = V9_BASELINE[k]
+        candidate_val = metrics[k]
+        delta = candidate_val - baseline_val
         sign = "+" if delta >= 0 else ""
-        print(f"  {label:25s}  {v8_val:>14.4f}  {v9_val:>14.4f}  {sign}{delta:>+9.4f}")
-    print(f"  {'Training samples':25s}  {V8_BASELINE['n_samples']:>14d}  {len(y_train):>14d}")
+        print(f"  {label:25s}  {baseline_val:>14.4f}  {candidate_val:>15.4f}  {sign}{delta:>+9.4f}")
+    print(f"  {'Training samples':25s}  {V9_BASELINE['n_samples']:>14d}  {len(y_train):>15d}")
 
-    # --- Regression flag ---
-    if metrics["auc_roc"] < V8_BASELINE["auc_roc"]:
-        print(f"\n  FLAG: AUC regression vs v8 ({metrics['auc_roc']:.4f} < {V8_BASELINE['auc_roc']:.4f})")
-    if metrics["fp_rate"] > V8_BASELINE["fp_rate"] * 1.1:
-        print(f"\n  FLAG: FP rate >10% worse than v8 ({metrics['fp_rate']:.4f} vs {V8_BASELINE['fp_rate']:.4f})")
-    if metrics["ai_recall"] < V8_BASELINE["ai_recall"] - 0.01:
-        print(f"\n  FLAG: AI recall regression vs v8 ({metrics['ai_recall']:.4f} < {V8_BASELINE['ai_recall']:.4f})")
+    # --- Hard regression gates (per univfd-v10-multi-format-augmentation-plan.md) ---
+    # FP rate ≤ 5.12% (= 4.12% + 1.0pp), recall ≥ 94.7% (= 95.70% − 1.0pp)
+    FP_CEILING = 0.0512
+    RECALL_FLOOR = 0.9470
+    print("\n  Hard regression gates (v10 promotion criteria):")
+    fp_pass = metrics["fp_rate"] <= FP_CEILING
+    recall_pass = metrics["ai_recall"] >= RECALL_FLOOR
+    auc_pass = metrics["auc_roc"] >= V9_BASELINE["auc_roc"] - 0.005
+    print(f"    FP rate ≤ {FP_CEILING:.4f}:  {'PASS' if fp_pass else 'FAIL'}  ({metrics['fp_rate']:.4f})")
+    print(f"    Recall ≥ {RECALL_FLOOR:.4f}:  {'PASS' if recall_pass else 'FAIL'}  ({metrics['ai_recall']:.4f})")
+    print(f"    AUC ≥ {V9_BASELINE['auc_roc']-0.005:.4f}:  {'PASS' if auc_pass else 'FAIL'}  ({metrics['auc_roc']:.4f})")
+    if not (fp_pass and recall_pass and auc_pass):
+        print(f"\n  ⚠ ONE OR MORE GATES FAILED — DO NOT PROMOTE {args.model_version}. Ship v1.0 with safety cap only.")
 
     # --- Save metadata ---
     meta = {
-        "model_version": "v9",
+        "model_version": args.model_version,
         "trained_at": datetime.now(timezone.utc).isoformat(),
-        "approach": "UnivFD-style linear probe on CLIP ViT-B/32 embeddings (platform-forwarded augmentation)",
-        "training_task": "backlog_item_16_platform_forwarded_augmentation",
+        "approach": "UnivFD-style linear probe on CLIP ViT-B/32 embeddings (platform-forwarded + multi-format augmentation)" if use_multi_format else "UnivFD-style linear probe on CLIP ViT-B/32 embeddings (platform-forwarded augmentation)",
+        "training_task": "JTV-180_multi_format_augmentation_v10" if use_multi_format else "backlog_item_16_platform_forwarded_augmentation",
         "clip_model": "ViT-B-32",
         "clip_pretrained": "laion2b_s34b_b79k",
         "embedding_dim": int(X_train.shape[1]),
@@ -517,6 +697,8 @@ def main():
             "original_ai": str(orig_ai_root),
             "aug_authentic": str(aug_auth_root) if not args.original_only else None,
             "aug_ai": str(aug_ai_root) if not args.original_only else None,
+            "mf_aug_authentic": str(mf_auth_root) if use_multi_format else None,
+            "mf_aug_ai": str(mf_ai_root) if use_multi_format else None,
             "n_train": int(len(y_train)),
             "n_test": int(len(y_test)),
             "n_train_authentic": int(sum(y_train == 0)),
@@ -530,12 +712,21 @@ def main():
         },
         "per_variant_auc": pv,
         "per_generator_recall": pg,
-        "v8_baseline": V8_BASELINE,
+        "v9_baseline": V9_BASELINE,
+        "regression_gates": {
+            "fp_ceiling": 0.0512,
+            "recall_floor": 0.9470,
+            "auc_floor": V9_BASELINE["auc_roc"] - 0.005,
+            "fp_pass": bool(metrics["fp_rate"] <= 0.0512),
+            "recall_pass": bool(metrics["ai_recall"] >= 0.9470),
+            "auc_pass": bool(metrics["auc_roc"] >= V9_BASELINE["auc_roc"] - 0.005),
+        },
+        "heic_support_at_training": _HEIC_SUPPORTED,
         "sha256": model_sha,
         "model_path": str(model_path),
     }
 
-    meta_path = output_dir / "univfd_probe_v9_meta.json"
+    meta_path = output_dir / f"univfd_probe_{args.model_version}_meta.json"
     meta_path.write_text(json.dumps(meta, indent=2))
     print(f"\nMetadata saved: {meta_path}")
 
