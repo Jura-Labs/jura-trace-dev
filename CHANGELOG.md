@@ -6,6 +6,130 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 13 May 2026 — RC25 readiness sweep: v10onnx multi-format retrain, FP-report Option B, dual-endpoint auto-updater, Plane audit
+
+Seventeen commits across three concurrent workstreams: a clean-install sidecar smoke that surfaced two silent regressions; the locked Option B FP-report rebuild; and a Plane-vs-file-mirror audit that caught two phantom-shipped v1.0 detection items. Five JTV tickets were moved Done in Plane (JTV-147, JTV-180, JTV-151, plus comments on JTV-146 / JTV-142 / JTV-128) and JTV-99 was Cancelled-as-superseded.
+
+### Sidecar runtime — clean-install smoke fixes (commits `ed16a79`, `e24a9c8`, `bbb7bc7`)
+
+A clean-install smoke from this session surfaced three independent defects that had been masked by the warm-cache developer environment:
+
+- **UnivFD probe was silently absent in every PyInstaller build.** `_load_univfd_probe()` in `sidecar/app/services/clip_detector.py` resolved its path via `os.path.dirname(__file__)/../../../models/univfd_probe.joblib` — under PyInstaller `__file__` lives inside `_MEIPASS`, so the relative path landed in the extracted bundle dir where the joblib was never shipped (the spec ships the joblibs *alongside* the executable). Result: `univfd_available: False` in every build, dev or shipped. Fix: honour `JURA_MODELS_DIR` first (set by `lib.rs:6009` at sidecar spawn and by `pyi_rthook_jura.py` when a `models/` dir ships next to the executable), with the relative-path resolution kept as a dev fallback. Mirrors `deepfake.py:_resolve_models_dir()`. The v10onnx probe now actually loads.
+- **GBM v4 was JPEG-only-calibrated and could over-predict authentic on lossless inputs.** A format-aware confidence floor lands as the v1.0 backstop ahead of GBM v5 in v1.0.1: on any non-JPEG codec (`codec_class != "jpeg"`, i.e. `lossless` PNG/GIF, `raw` TIFF/DNG/BMP, `modern_lossy` WebP/HEIC/AVIF) the GBM AI-probability is floored at 0.30 so a mis-calibrated tree cannot drive the blended score below the safety cap. Originally landed as `codec_class == "lossless"` only; widened in `e24a9c8` after the audit caught that v10onnx already trains on TIFF / WebP / HEIC and symmetric coverage is the safer interim.
+- **`SidecarClient::is_available()` cold-start race.** The 2 s probe was returning false during the 5–15 s window where the binary was alive but GBM / CLIP / UnivFD models were still loading, gating all sidecar groups off and producing "1/15 detectors ran" verdicts while Settings later reported the sidecar as connected (models warm, `/health` fast). Probe raised 2 s → 10 s with one retry. Genuinely-down sidecar still returns connection-refused immediately. Same commit pins `OLLAMA_BASE_URL` to `http://127.0.0.1:11434` — macOS resolves `localhost` to `::1` and Ollama binds IPv4 only, which surfaced as "Ollama unavailable" even when the service was running.
+- **GBM joblib re-pickled under sklearn 1.8.0.** The shipped joblib was pickled with 1.7.2 and emitted three `InconsistentVersionWarning` lines on every load. Re-pickled with numerical-equivalence verification (max `|Δ predict_proba|` = 0 across a deterministic 5-row probe). New SHA `512def7ec62cbeb023c5343859a15606a02742d48b1fca31df11667c0b9ba14a` baked into `_DEEPFAKE_CLASSIFIER_SHA256`. UnivFD v10onnx was already 1.8.0-pickled (same SHA), no swap needed there.
+- **`test_health_response_structure` hard-coded version "0.2.0"** broke after today's bump to 0.9.0. Asserted version now reads from `app.version` (single source of truth in `main.py`).
+
+Test posture post-fix: 541 Rust lib + 16 API integration + 49 deepfake pytests + 129 vitest + 142+ Playwright e2e all green. svelte-check 0 errors across 559 files.
+
+### UnivFD v10onnx multi-format retrain shipped (JTV-180, commit `ed16a79` + model files)
+
+**JTV-180 closed.** v10onnx is now the production UnivFD probe. Per the calibration doc at `docs/calibration/univfd-v10onnx-divergence-fix.md`:
+
+- SHA-256 `0534a9e80e352a5bd8af5fc447d03e37be2e1aa68a05d81f05736d6ef8956a86`
+- `_MODEL_VERSION = "univfd-probe-v10onnx"` in `sidecar/app/services/clip_detector.py`
+- Held-out AUC 0.9929, FP 3.87 % (improved 0.25 pp vs v9), recall 95.77 %
+- Per-format AUC: PNG 0.998 / TIFF 0.995 / WebP 0.993 / HEIC 0.990
+- Trained on 56,344 samples including platform-forwarded + multi-format augmentation
+
+The key fix preserved as the divergence-fix doc: PyTorch+open_clip and PIL+ONNX preprocessors produce embeddings that differ by mean cos 0.996, not 1.0. v9 and the morning v10 PyTorch candidate were trained on PyTorch embeddings but served on ONNX — so the LogReg boundary was applied to slightly off-manifold inputs. v10onnx is trained on the exact production PIL+ONNX path so calibration matches inference.
+
+**Important distinction left explicit in the JTV-128 ticket and the backlog mirror:** the v10onnx work covers the *multi-format* angle (PNG/TIFF/WebP/HEIC). It does NOT cover the *Track 3 Global Majority handset corpus expansion* (JTV-128 + JTV-127), which is still blocked on ~1,000 GM handset photos. The consumer-camera FP gap (Pixel/iPhone 8.81 %, DJI/DSC 10.32 %) is unaddressed by today's release and ships in v1.0 as a documented model-card limitation. Reframed for the v1.1 NLnet deepfake-retraining pitch.
+
+Pipeline tooling that produced v10onnx committed in `529e53b`: `augment_corpus_multi_format.py` (HEIC via macOS sips + PIL for PNG/TIFF/WebP), `check_clip_pytorch_vs_onnx.py` (equivalence harness), `diagnose_clip_onnx_divergence.py` (preprocess vs model-graph isolation), `find_clip_preprocess_fix.py` (PIL resize variant A/B). `mine_wikimedia_composites.py` extended with JTV-127 Global Majority handset categories (Xiaomi / Infinix / Tecno / Realme / Samsung Galaxy A / Vivo).
+
+### FP-report Option B — clipboard-then-email, Tier 1 payload (commit `8e634e0`)
+
+Implementation of the locked 4-agent design from `project_fp_report_v1_locked.md` (2026-05-10 lockdown).
+
+- `ui/src/lib/fp-report.ts` (new) — Tier 1 payload helpers. Five fields total (`reasonCode` / `mimeType` / `appVersion` / `platform` / `timestamp`). Never includes `deepfake_score`, `signalScoresJson`, `file_hash`, or the free-text `reason_note`. Coarse-grained `platform` resolution prefers `navigator.userAgentData.platform` ("macOS" / "Windows") with `navigator.platform` ("MacIntel" / "Win32") fallback. `buildFpMailtoUri()` kept under 500 bytes per locked design (older Outlook builds silently truncate longer URIs).
+- `ui/src/lib/fp-report.test.ts` (new) — 15 vitest cases covering the Tier 1 invariant (no Tier 2 leakage), platform fallback chain, URI length cap, clipboard success/denial, mailto launch.
+- `ui/src/routes/verify/+page.svelte` — modal rewritten end to end. `markFalsePositive` IPC now passes only the three fields written to local SQLite (`reasonCode` / `reasonNote` / `mimeType`). Submit handler does the SQLite write, builds the Tier 1 payload, fires `openFpMailto()`, then leaves the modal open in the success state so the clipboard fallback remains visible — there is no reliable way to detect whether the OS actually handled the mailto URI. Pre-submit copy is locked-spec verbatim ("nothing is sent automatically. You choose whether to send it.") Button label "Save & prepare email". Success state offers `[Copy report to clipboard]` + a visible `feedback@juralabs.org` link.
+- `ui/src/lib/api.ts` — docstring on `markFalsePositive` documents the v1.0 caller contract: only the first three args are passed; Tier 2 fields stay in the signature for forward-compat with v1.0.1+.
+
+Reconciles the legal-compliance-advisor's Option A vote (remove the button) within Option B: the "recorded locally" misleading copy is gone, the 500-char Rust cap on `reason_note` + total clipboard/mailto stripping handle the PII concern, and voluntary user-initiated email keeps the user as data controller of their own outgoing mail. Independent legal pre-launch actions not gated by this commit: £40 ICO data-controller registration (done by user this session), `/privacy` page on juralabs.org (out of scope for this repo).
+
+### JTV-147 auto-updater dual-endpoint config (commit `f024772`)
+
+`src-tauri/tauri.conf.json` `updater.endpoints` was previously GitHub-only — the JTV-146 SCP step (committed earlier today in `d323632`) wrote the manifest to `juralabs.org/api/updates/` but no client looked there. Closed by adding the dual pair, primary first:
+
+```
+"endpoints": [
+  "https://juralabs.org/api/updates/latest.json",
+  "https://github.com/juralabs/jura-trace/releases/latest/download/latest.json"
+]
+```
+
+Tauri's auto-updater tries endpoints in order until one returns valid JSON, so primary-first ordering routes every check to `juralabs.org`; GitHub Releases remains the safety-net fallback. The pair also lets v1.0 installs survive a post-launch source-host migration (Codeberg, etc.) without re-tagging — the static `juralabs.org` URL is stable across hosting changes. The corresponding Caddy serving config on the Hetzner VPS is still tracked under JTV-146 (In Progress).
+
+### Codeberg / Forgejo migration block (JTV-151 closed; JTV-146 CI half, commit `d323632`)
+
+- **JTV-151 closed Done.** `.forgejo/workflows/release.yml` ported from the GitHub Actions release workflow — 1061 lines, structurally 1:1 with the 1243-line GitHub version (same 4 jobs: `create-release` / `prepare-matrix` / `build` / `publish-release`). All the complex pieces survived the port: `azure/trusted-signing-action@v0.5.0` for Windows code-signing, Apple Developer ID notarisation, the empty-sig CI gate from commit `7498802`, and the macOS runner labels for the Mac Mini M4 (02:00–08:00 Copenhagen window). `actions/github-script` replaced with curl + python3 against the Forgejo REST API (`Authorization: token <TOKEN>` Gitea canonical form, not Bearer); `scp` upload replaces `gh release upload`; SHA256 verification on the VPS side. Validation gates remain JTV-152 (Mac Mini M4 runner setup) + JTV-155 (full release-pipeline smoke).
+- **JTV-146 CI half landed.** `.github/workflows/release.yml` now writes `latest.json` / `latest-beta.json` manifests to `juralabs.org:/var/www/juralabs.org/public/api/updates/` via SCP after the GitHub Releases upload completes. Atomic `.tmp → mv` so partial writes never appear on the live URL. `continue-on-error` so the GitHub Releases endpoint remains the safety-net fallback if the SCP fails. Skipped for RC / alpha tags and when `JURALABS_DEPLOY_KEY` is unset. The Caddy / nginx serving config on the VPS, deploy-user provisioning, and Cloudflare cache-purge token are still outstanding — JTV-146 stays In Progress until both halves are online.
+- `src-tauri/tauri.conf.json` CSP `connect-src` drops the fixed `http://127.0.0.1:8200` entry per the Option C ephemeral-port fix (May 2026). The sidecar port is picked at runtime and routed through Rust IPC; the webview no longer speaks directly to the sidecar.
+- `src-tauri/capabilities/default.json` adds `updater:default` so the Tauri auto-updater plugin can run client-side (prerequisite for the dual-endpoint manifest).
+
+### JTV-98 reverse image search — deferred to v1.1 (commits `6a8de2c`, `e1a322c`, `ac7e1c5`)
+
+**`docs/backlog.md` overclaimed JTV-98 as "DONE for v1.0"** (Stages 0-3 validated etc.). A static audit of the codebase contradicted that claim:
+
+- `src-tauri/src/ris.rs` (1165 lines, security-auditor design from `project_jtv98_ris_design.md`, e2e-validated against live Google Vision per `project_jtv98_e2e_validated.md`) is **not declared in `lib.rs`** — no `mod ris;` line.
+- No `#[tauri::command]` wrappers exist for any function in `ris.rs`.
+- No UI code invokes anything RIS-related.
+- `cargo check --lib` passes without compiling `ris.rs`. The 33 in-file unit tests do not run.
+
+v1.0 ships with no working RIS surface — neither TinEye nor Google Vision is reachable from the UI. The Monitor and Compliance copy in the UI also disagreed about this: Monitor said "future release", Compliance said "Google Vision in v1.0; TinEye, Yandex, Bing planned for v1.1". `e1a322c` aligned both to "v1.1, not active in v1.0" and added a top-of-file orphan-status comment to `ris.rs` so the next person opening the file understands the intent. The security-auditor design + e2e Google Vision validation are preserved on `main` as the v1.1 starting point — work is not lost, just not wired.
+
+Today's `ac7e1c5` followup cleaned up the `api_integration.rs` test fixture that referenced an `AppState.ris_cooldowns` field which never landed in `lib.rs` (the cooldown design moved to the database). 16 / 16 api_integration tests now pass.
+
+### Plane vs file-mirror audit — caught two phantom-shipped v1.0 detection items
+
+Cross-checked 12 JTV-* tickets cited in `docs/backlog.md` against the live Plane workspace via MCP. Reconciliation summary:
+
+| Severity | Ticket | Issue |
+|---|---|---|
+| Phantom-shipped | JTV-98 | File mirror said "DONE for v1.0"; reality: orphaned code, deferred to v1.1 |
+| Phantom-shipped | JTV-128 | File mirror said "DONE 2026-05-03"; reality: not done, blocked on JTV-127 |
+| Plane-stale | JTV-147 | Closed today |
+| Plane-stale | JTV-180 | Closed today |
+| Plane-stale | JTV-151 | Closed today |
+| Plane-stale | JTV-99 | Decision reversed → cancelled today |
+| Both agree | JTV-127 / JTV-142 / JTV-145 / JTV-146 / JTV-149 / JTV-155 / JTV-181 | — |
+
+JTV-99 (Apache-2.0 dual-licence) was Cancelled-as-superseded — the dual-licence direction was reversed on 2026-05-06 in commit `3aa89d8` (Jura Trace switched to AGPL-3.0-or-later) per memory `project_ip_architecture_dual_entity.md`. The £100–200K-of-grant-draw framing in the original ticket title is also obsolete: the Apache-2.0 hard gate no longer applies, and the targeted funder mix has been re-estimated downward to a central ~£58K (range £35–80K) per `project_competitor_landscape_may2026.md`.
+
+**File-mirror remediation** in commit `36e3a0b`: `docs/backlog.md` un-strikethroughs JTV-98 and JTV-128, replaces both with explicit "DEFERRED TO v1.1" / "NOT DONE" entries with chain-of-supersession explanations, and adds a JTV-180 close entry. The pattern observation is real: the file mirror systematically overclaims completion on detection workstreams while lagging on infrastructure landings just made. Plane is authoritative; the file is a soft index per CLAUDE.md.
+
+### Working-tree hygiene + binary-blocker protection (commits `b922406`, `fe69e39`)
+
+- **`.gitignore` patch.** Adds explicit rules for `src-tauri/models/clip-vit-b32-*.onnx*` (~580 MB combined; mirrors the canonical `models/clip-vit-b32-*` rule), `*.bak-*` (catches `.bak-<version>` rollback files like the `.bak-1.7.2` left by today's sklearn re-pickle), `.claude/scheduled_tasks.lock` / `.claude/worktrees/`, and `sidecar/build/` / `sidecar/dist/`. Documentation in the Tauri section explains that the binary stubs in `src-tauri/binaries/` are tracked-as-stubs by convention, so `.gitignore` alone cannot protect against a locally-rebuilt 700+ MB PyInstaller artefact being staged — the robust protection is `git update-index --skip-worktree src-tauri/binaries/jura-sidecar-<triple>` applied once per dev machine. The `skip-worktree` flag was applied to the 731 MB local darwin binary this session.
+- **v9 model deletions.** `models/deepfake_classifier_v4.joblib` (duplicate of `models/deepfake_classifier.joblib` carried from the Sprint 27 promotion) and `models/univfd_v9_split.json` (superseded by today's `univfd_v10onnx_split.json`) removed. `models/univfd_probe_v9.joblib` retained for v9-metric reproducibility.
+
+### UI launch-prep sweep (commit `a347b37`)
+
+- **Verify honesty gate** — `MIN_DETECTORS_FOR_VERDICT = 5` (union of EXIF + C2PA + ELA + noise + one AI head). Below this, the verdict downgrades to Insufficient regardless of the numeric score, closing the 1-of-15-detectors-ran case that previously rendered "High Trust / Authentic / 70%" because score arithmetic neutralised unrun detectors (per `project_verify_modes_broken.md`).
+- **Tier model retirement.** `'team'` removed from the `LicenceTier` TypeScript type and `monitor_scheduler.rs` match arms. The Rust enum carries `#[serde(alias = "team")]` on `Professional` so legacy configs roll up cleanly.
+- **Option C ephemeral-port IPC proxy.** Ollama pull in `settings/+page.svelte` switched from a direct `fetch('http://127.0.0.1:8200/ollama/pull')` to a Rust IPC proxy. The CSP can no longer whitelist a fixed sidecar port after the Option C dynamic-port allocation; routing through IPC eliminates the dependency.
+- **PDF + ZIP citation accuracy.** Trust Report cites Friedman 2001 ("Greedy Function Approximation") instead of XGBoost (Chen & Guestrin 2016) for the GBM v4 deepfake classifier; new UnivFD citation row. C2PA spec reference updated from 2.3 → 2.2 (current shipping version). Case Export ZIP default `appVersion` 0.2.0 → 0.9.0; AI Generation Detection methodology rewritten to describe the actual two-head GBM v4 + UnivFD v9 ensemble.
+- Help-page terminology sweep across 10 pages aligned with the C2PA Validator Conformant award (2026-05-06) + tier retirement + Option C port references.
+
+### Other landings
+
+- **Strategy doc supersession** (commit `d93b03b`). Four 2026-03 / 2026-04 strategy docs (FINANCIAL_ROADMAP, strategic-pivot-assessment, tier-structure-decision, persona-cards) gained a HISTORICAL header pointing at the four 2026-05-06 / 2026-05-09 supersession memories. No content deleted — superseded sections remain readable below the headers for sprint-history reference.
+- **Architecture-surface doc sweep** (commit `2b3b23d`). Seven public-facing docs (ARCHITECTURE, DEPLOYMENT, FINANCIAL_ROADMAP, API_WRAPPER, compliance/dpia-template, development-workflow, information-security-summary, install-guides/windows-it-deployment) refreshed to describe the Option C ephemeral-port fix consistently — Windows IT deployment guidance shifted from port-based firewall rules to executable-based rules since there is no fixed port to pre-authorise.
+- **Agent-memory refresh** (commit `f354159`). Eight MEMORY.md indexes updated; six new memory files (`devops/forgejo_conversion.md`, `grant-writer/competitor_grantee_map.md`, `legal-compliance-advisor/project_export_legal_audit.md`, `legal-compliance-advisor/project_fp_reporting_v1.md`, `ml-data-scientist/project_corpus_licence_hygiene.md`, `persona-testing/project_tier_model_reaction.md`). Resolved an accidental `ui/.claude/` nested-tree duplication from 2026-05-06 — moved `qa-tester/playwright-setup.md` to canonical, deleted stub duplicates.
+
+### Code paths touched
+
+- Sidecar: `sidecar/app/services/clip_detector.py`, `sidecar/app/services/deepfake.py`, `sidecar/app/config.py`, `sidecar/app/api/health.py`, `sidecar/main.py`, `sidecar/pyi_rthook_jura.py`, `sidecar/tests/test_health.py`
+- Rust: `src-tauri/src/sidecar.rs` (cold-start probe), `src-tauri/src/lib.rs` (Option C ephemeral port + RIS module wiring at the AppState level), `src-tauri/src/monitor_scheduler.rs` (tier retirement), `src-tauri/src/ris.rs` (orphaned, marked), `src-tauri/tests/api_integration.rs`, `src-tauri/tauri.conf.json`, `src-tauri/capabilities/default.json`
+- Models: `models/univfd_probe.joblib` + `src-tauri/models/univfd_probe.joblib` (v10onnx), `src-tauri/models/deepfake_classifier.joblib` (sklearn 1.8.0 re-pickle), plus v10 meta JSONs and the 6.4 MB `univfd_v10onnx_split.json`
+- Frontend: `ui/src/lib/fp-report.ts` (new), `ui/src/lib/fp-report.test.ts` (new), `ui/src/lib/api.ts`, `ui/src/lib/pdf.ts`, `ui/src/lib/zip.ts`, `ui/src/lib/types.ts`, plus 14 routes
+- CI: `.github/workflows/release.yml` (JTV-146 SCP step), `.forgejo/workflows/release.yml` (JTV-151 port — new file)
+- Calibration docs: `docs/calibration/univfd-v10onnx-divergence-fix.md`, `docs/calibration/univfd-v10-multi-format-augmentation-plan.md`
+
+---
+
 ## 3 May 2026 — JTV-143: Bundle CLIP via ONNX in v1.0 (decision)
 
 Four-agent review (rust-backend-engineer + ml-data-scientist + content-authenticity-expert + persona-testing) concluded that v1.0 ships CLIP via ONNX rather than excluding it. The previous PyInstaller exclusion of `torch` + `open_clip` was driven by binary size (~2 GB delta) but cost the published AI-detection metrics: UnivFD v9 (LogReg on CLIP embeddings) is the load-bearing diffusion-detection signal — DiffusionDB recall 67.6% → 97.3%, Civitai SFW 75.8% → 98.7% — and shipping without it leaves an undisclosed gap between the documented FP/recall numbers (4.12% / 95.70%) and the deployed runtime (GBM v4 alone — 4.54% / 92.52%, with unknown DiffusionDB recall).
