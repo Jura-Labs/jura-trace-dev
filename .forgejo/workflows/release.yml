@@ -1,0 +1,1061 @@
+name: Release
+
+# ── Forgejo Actions compatibility notes ────────────────────────────────────
+# This workflow is a Forgejo Actions port of .github/workflows/release.yml.
+# Forgejo Actions is largely GitHub Actions-compatible but has key differences:
+#
+#   1. `actions/github-script` is NOT available on Forgejo.  All steps that
+#      used github-script (create-release, checksums, update-manifest, publish)
+#      are replaced with `forgejo-actions/forgejo-script` or plain bash +
+#      `forgejo-api` REST calls.  Since forgejo-actions/forgejo-script is
+#      experimental, all API calls here use plain curl against the Codeberg
+#      Forgejo REST API (https://codeberg.org/api/v1/) for stability.
+#
+#   2. `${{ secrets.GITHUB_TOKEN }}` is called `${{ secrets.FORGEJO_TOKEN }}`
+#      (or `${{ gitea.token }}` in some versions — we use secrets.FORGEJO_TOKEN
+#      set explicitly to avoid ambiguity across Forgejo versions).
+#      Forgejo provides `${{ gitea.token }}` as the built-in token; we alias
+#      it via the FORGEJO_TOKEN secret so the variable name is unambiguous.
+#      The built-in token is referenced inline where it is only used for
+#      checkout (`${{ gitea.token }}`).
+#
+#   3. Cross-host release target is changed. The GitHub workflow published to
+#      juralabs/jura-trace (GitHub). This Forgejo workflow:
+#        - publishes releases on codeberg.org/jura-labs/jura-trace (this repo)
+#        - uploads signed installers to juralabs.org/downloads/ via scp
+#        - writes latest.json to juralabs.org/api/updates/ via scp
+#      The two-repo split (archive + public releases repo) collapses here.
+#
+#   4. `azure/trusted-signing-action` is a GitHub-Marketplace action.  It
+#      works on Forgejo because Forgejo Downloads actions from GitHub by
+#      default (configurable via the actions.default_actions_url setting on
+#      the Codeberg instance).  Codeberg's public instance fetches from GitHub.
+#      If it is ever unavailable, pin to a direct clone at codeberg.org.
+#
+#   5. `tauri-apps/tauri-action@v0` similarly resolves from GitHub. Same note.
+#
+#   6. Forgejo does NOT support `environment:` protection gates with required
+#      reviewer approvals (GitHub Pro/Teams feature). The publish-release job's
+#      `environment: production` key is kept for documentation — it will be
+#      silently ignored on the Codeberg-hosted runner. A future self-hosted
+#      Forgejo instance (git.juralabs.org) can configure environment protection.
+#
+#   7. Matrix syntax, `needs:`, `if:`, `outputs:`, `env:` — all compatible.
+#
+#   8. `$GITHUB_OUTPUT`, `$GITHUB_ENV`, `$GITHUB_PATH`, `$RUNNER_TEMP`,
+#      `$GITHUB_WORKSPACE` — all supported in Forgejo Actions with identical
+#      names. The runner agent uses the same environment variable protocol.
+#
+#   9. `runner.environment == 'github-hosted'` evaluates FALSE on Codeberg
+#      hosted runners and on the Mac Mini M4 self-hosted runner.
+#      All runner-type guards use `runner.environment != 'github-hosted'`
+#      to mean "self-hosted", which is correct on Forgejo too.
+#      Codeberg hosted runners do NOT set runner.environment to
+#      'github-hosted'; the conditional works as intended.
+#
+#  10. macOS matrix leg runs on the Mac Mini M4 self-hosted Forgejo runner.
+#      Codeberg does not provide macOS hosted runners.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.9.0-rc.25)"
+        required: true
+      platforms:
+        description: "Which platforms to build"
+        type: choice
+        required: false
+        default: all
+        options:
+          - all
+          - macos-only
+          - windows-only
+
+# Forgejo: `contents: write` is respected by the built-in token for the
+# canonical repo. Cross-host scp upload to juralabs.org uses SSH keys from
+# secrets, not this token.
+permissions:
+  contents: write
+
+jobs:
+  # ── Phase 1: Create a draft release on Codeberg ──────────────────────────
+  # Uses plain curl against the Forgejo REST API (v1) rather than
+  # actions/github-script (not available on Forgejo).
+  # API endpoint: POST /api/v1/repos/{owner}/{repo}/releases
+  # Auth: Bearer token using the built-in gitea.token (has write:release scope
+  # on the repo where the workflow runs — codeberg.org/jura-labs/jura-trace).
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create.outputs.release_id }}
+      tag: ${{ steps.resolve-tag.outputs.tag }}
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Build the release body to a file (same unicode-safe approach as the
+      # GitHub workflow — file-based avoids expression interpolation mangling).
+      # Download URLs now point to juralabs.org/downloads/ rather than
+      # github.com/Jura-Labs/jura-trace/releases/ per JTV-146/JTV-148.
+      - name: Build release body
+        id: changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          body_file="${RUNNER_TEMP}/release-body.md"
+
+          changelog_section=$(awk '
+            /^## / { if (in_section) exit; in_section=1 }
+            in_section { print }
+          ' CHANGELOG.md || echo "See CHANGELOG.md for details.")
+
+          ver="${tag#v}"
+          base="https://juralabs.org/downloads"
+          dmg_name="JuraTrace-${ver}-macOS-AppleSilicon.dmg"
+          msi_name="JuraTrace-${ver}-Windows-x64.msi"
+          exe_name="JuraTrace-${ver}-Windows-x64-setup.exe"
+          tar_name="JuraTrace-${ver}-macOS-AutoUpdater.app.tar.gz"
+          # Installer landing page (JTV-148 — live from v1.0 onwards)
+          dl_page="https://juralabs.org/downloads/"
+          getting_started="https://codeberg.org/jura-labs/jura-trace/src/branch/main/GETTING_STARTED.md"
+
+          cat > "$body_file" <<HEADER
+          ## Jura Trace ${tag}
+
+          > **First-time pilot tester?** Read the **[Getting Started guide](${getting_started})** — install + your first Content Credentials verification in 10 minutes.
+
+          **Jura Trace** examines images, videos and documents and tells you what it finds — honestly, and without certainty where none exists. Twelve forensic detectors plus full C2PA Content Credentials verification, running entirely on your device. No cloud, no accounts, no telemetry.
+
+          ## Download
+
+          | If you have… | Download | Signed by |
+          |---|---|---|
+          | **Mac** (Apple Silicon — M1/M2/M3/M4) | **[${dmg_name}](${base}/aarch64-apple-darwin/${dmg_name})** | Apple Developer ID (notarised) |
+          | **Windows** (64-bit) — *recommended* | **[${msi_name}](${base}/x86_64-pc-windows-msvc/${msi_name})** | Azure Trusted Signing |
+          | **Windows** (64-bit) — *NSIS installer* | **[${exe_name}](${base}/x86_64-pc-windows-msvc/${exe_name})** | Azure Trusted Signing |
+          | Auto-updater archive (advanced) | **[${tar_name}](${base}/aarch64-apple-darwin/${tar_name})** | Apple Developer ID |
+
+          **Verify your download:** grab **[SHA256SUMS.txt](${base}/SHA256SUMS.txt)** and run \`shasum -a 256 -c SHA256SUMS.txt\` (macOS / Linux) or \`certutil -hashfile <filename> SHA256\` (Windows).
+
+          All installers: **[${dl_page}](${dl_page})**.
+
+          ---
+
+          <details>
+          <summary><b>Technical changelog</b></summary>
+
+          HEADER
+
+          printf '%s\n' "$changelog_section" >> "$body_file"
+
+          cat >> "$body_file" <<'FOOTER'
+
+          </details>
+
+          ---
+
+          - **Privacy:** everything runs on your device. No telemetry, no accounts.
+          - **Licence:** [PolyForm Noncommercial 1.0.0](https://codeberg.org/jura-labs/jura-trace/src/branch/main/LICENSE) — free for non-commercial use.
+          - **Security:** [SECURITY.md](https://codeberg.org/jura-labs/jura-trace/src/branch/main/SECURITY.md)
+          - **Bugs:** [open an issue](https://codeberg.org/jura-labs/jura-trace/issues/new)
+          - **General:** [hello@juralabs.org](mailto:hello@juralabs.org) • [juralabs.org](https://juralabs.org)
+          FOOTER
+
+          # Truncate to 125 KB (Forgejo has a similar release-body length limit).
+          if [ "$(wc -c < "$body_file")" -gt 125000 ]; then
+            head -c 124500 "$body_file" > "$body_file.tmp"
+            printf '\n\n...(truncated — see [CHANGELOG.md](https://codeberg.org/jura-labs/jura-trace/src/branch/main/CHANGELOG.md) for full details)\n' >> "$body_file.tmp"
+            mv "$body_file.tmp" "$body_file"
+          fi
+
+          echo "body_file=$body_file" >> "$GITHUB_OUTPUT"
+          echo "Built release body: $(wc -c < "$body_file") bytes"
+
+      # Create (or reuse) a draft release via the Forgejo REST API.
+      # Forgejo API v1 is Gitea-compatible. Relevant endpoints:
+      #   GET  /api/v1/repos/{owner}/{repo}/releases/tags/{tag}
+      #   POST /api/v1/repos/{owner}/{repo}/releases
+      #   PATCH /api/v1/repos/{owner}/{repo}/releases/{id}
+      # Auth: `Authorization: token <TOKEN>` (Bearer also accepted but token
+      # is the canonical Gitea/Forgejo form and more widely tested).
+      # gitea.token is the per-job built-in token provided by Forgejo Actions.
+      # It has write access to this repo only (codeberg.org/jura-labs/jura-trace).
+      - name: Create draft release
+        id: create
+        shell: bash
+        env:
+          FORGEJO_TOKEN: ${{ gitea.token }}
+          BODY_FILE: ${{ steps.changelog.outputs.body_file }}
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          api_base="https://codeberg.org/api/v1/repos/jura-labs/jura-trace"
+
+          # Determine prerelease flag from tag suffix.
+          prerelease="false"
+          if echo "$tag" | grep -qE '-(rc|beta|alpha)'; then
+            prerelease="true"
+          fi
+
+          body_escaped=$(python3 -c "
+          import sys, json
+          body = open(sys.argv[1]).read()
+          print(json.dumps(body))
+          " "$BODY_FILE")
+
+          # Idempotent: if the release already exists on the tag (e.g. a
+          # workflow_dispatch re-run), reuse it and refresh the body only.
+          existing_id=$(curl -fsSL \
+            -H "Authorization: token ${FORGEJO_TOKEN}" \
+            "${api_base}/releases/tags/${tag}" 2>/dev/null \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null || echo "")
+
+          if [ -n "$existing_id" ] && [ "$existing_id" != "null" ] && [ "$existing_id" != "" ]; then
+            echo "Reusing existing release id=${existing_id} for tag ${tag}"
+            curl -fsSX PATCH \
+              -H "Authorization: token ${FORGEJO_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "${api_base}/releases/${existing_id}" \
+              -d "{\"body\": ${body_escaped}}" > /dev/null
+            echo "release_id=${existing_id}" >> "$GITHUB_OUTPUT"
+          else
+            release_id=$(curl -fsSX POST \
+              -H "Authorization: token ${FORGEJO_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "${api_base}/releases" \
+              -d "{
+                \"tag_name\": \"${tag}\",
+                \"name\": \"Jura Trace ${tag}\",
+                \"body\": ${body_escaped},
+                \"draft\": true,
+                \"prerelease\": ${prerelease}
+              }" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+            echo "Created draft release id=${release_id} for tag ${tag}"
+            echo "release_id=${release_id}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Expose the resolved tag so downstream jobs can read it without having
+      # to repeat the inputs/ref_name fallback logic.
+      - name: Resolve tag
+        id: resolve-tag
+        shell: bash
+        run: |
+          echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+  # ── Phase 2a: Compute the platform matrix for this run ──────────────────
+  # Same dynamic matrix logic as the GitHub workflow.
+  # macOS now targets self-hosted Mac Mini M4 runner (label: self-hosted, macOS, ARM64, m4).
+  # Codeberg hosted runners cover Windows (windows-latest equivalent).
+  # Linux paused (same as GitHub workflow — re-enable post-v1.0).
+  prepare-matrix:
+    name: Prepare build matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        shell: bash
+        run: |
+          PLATFORMS="${{ github.event.inputs.platforms }}"
+          [ -z "$PLATFORMS" ] && PLATFORMS="all"
+
+          # macOS: self-hosted Mac Mini M4 runner registered with Forgejo.
+          # Runner label must match the labels configured during runner
+          # registration (see JTV-151 setup notes in jtv-151-forgejo-conversion-notes.md).
+          # Runner is scheduled to accept jobs 02:00-08:00 Copenhagen time.
+          # The runner's --labels flag at registration should be:
+          #   self-hosted,macOS,ARM64,m4
+          # so that 'runs-on: [self-hosted, macOS, ARM64, m4]' picks it up.
+          MAC='{"label":"macOS (Apple Silicon)","runner":"[\"self-hosted\",\"macOS\",\"ARM64\",\"m4\"]","target":"aarch64-apple-darwin","sidecar_name":"jura-sidecar-aarch64-apple-darwin","platform":"macos-only"}'
+
+          # Windows: Codeberg provides a Windows hosted runner.
+          # Runner name on Codeberg is "windows-latest" — same label as GitHub
+          # so no change needed for the runner key.
+          WIN='{"label":"Windows (x64)","runner":"windows-latest","target":"x86_64-pc-windows-msvc","sidecar_name":"jura-sidecar-x86_64-pc-windows-msvc.exe","platform":"windows-only"}'
+
+          # Linux x64 paused — same as GitHub workflow.
+          # LIN='{"label":"Linux (x64)","runner":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","sidecar_name":"jura-sidecar-x86_64-unknown-linux-gnu","platform":"linux-only"}'
+
+          case "$PLATFORMS" in
+            macos-only)   INCLUDE="[$MAC]" ;;
+            windows-only) INCLUDE="[$WIN]" ;;
+            all|*)        INCLUDE="[$MAC,$WIN]" ;;
+          esac
+          echo "Selected platforms: $PLATFORMS"
+          echo "matrix={\"include\":$INCLUDE}" >> "$GITHUB_OUTPUT"
+
+  # ── Phase 2b: Build platform artefacts in parallel ──────────────────────
+  build:
+    name: Build (${{ matrix.label }})
+    needs: [create-release, prepare-matrix]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+
+    runs-on: ${{ fromJson(matrix.runner) }}
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Self-hosted macOS runner: writable tool cache ───────────────────
+      # Same TCC / sccache / CARGO_HOME isolation as the GitHub workflow.
+      # On the Mac Mini M4 the Forgejo runner agent is installed under
+      # ~/forgejo-runner/ (not ~/actions-runner/).  Adjust CARGO_HOME
+      # accordingly.  Everything else (RUNNER_TOOL_CACHE, CARGO_TARGET_DIR,
+      # sccache strip) is identical.
+      - name: Configure self-hosted runner paths (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          # ── 1. Tool cache override ─────────────────────────────────────
+          TOOL_CACHE="$HOME/.runner-tool-cache"
+          mkdir -p "$TOOL_CACHE"
+          echo "RUNNER_TOOL_CACHE=$TOOL_CACHE" >> "$GITHUB_ENV"
+          echo "AGENT_TOOLSDIRECTORY=$TOOL_CACHE" >> "$GITHUB_ENV"
+
+          # ── 2. CARGO_HOME isolation (TCC workaround) ──────────────────
+          # Same Sequoia TCC EPERM issue as documented in GitHub workflow.
+          # Forgejo runner installs under ~/forgejo-runner/ — isolate cargo
+          # there instead of ~/actions-runner/.
+          RUNNER_CARGO="$HOME/forgejo-runner/.cargo-home"
+          mkdir -p "$RUNNER_CARGO"
+          echo "CARGO_HOME=$RUNNER_CARGO" >> "$GITHUB_ENV"
+
+          # ── 3. CARGO_TARGET_DIR pin ───────────────────────────────────
+          echo "CARGO_TARGET_DIR=$GITHUB_WORKSPACE/src-tauri/target" >> "$GITHUB_ENV"
+
+          # ── 4. Strip user shell's sccache + cargo overrides ──────────
+          echo "RUSTC_WRAPPER=" >> "$GITHUB_ENV"
+          echo "SCCACHE_DIR=" >> "$GITHUB_ENV"
+          echo "SCCACHE_CACHE_SIZE=" >> "$GITHUB_ENV"
+
+          # ── 5. Defensive cleanup ──────────────────────────────────────
+          rm -rf "$GITHUB_WORKSPACE/src-tauri/target/release/bundle" 2>/dev/null || true
+
+          echo "Self-hosted env pinned:"
+          echo "  RUNNER_TOOL_CACHE=$TOOL_CACHE"
+          echo "  CARGO_HOME=$RUNNER_CARGO"
+          echo "  CARGO_TARGET_DIR=$GITHUB_WORKSPACE/src-tauri/target"
+          echo "  RUSTC_WRAPPER=(unset, was sccache)"
+          echo "  SCCACHE_DIR=(unset)"
+
+      # ── Linux: free disk space before anything else ──────────────────────
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+          sudo docker image prune --all --force || true
+          df -h /
+
+      # ── Linux: Tauri v2 system dependencies ─────────────────────────────
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libsoup-3.0-dev \
+            patchelf
+
+      # ── Rust toolchain ───────────────────────────────────────────────────
+      - name: Install Rust 1.88
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.88"
+          targets: ${{ matrix.target }}
+
+      # Cache: self-hosted macOS uses isolated CARGO_HOME path set above.
+      # Cloud (Codeberg Windows runner) uses standard ~/.cargo paths.
+      # Forgejo Actions supports actions/cache@v4 for both.
+      - name: Cache Cargo (Codeberg hosted runners)
+        if: runner.os != 'macOS'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: cargo-release-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-release-${{ matrix.target }}-
+
+      - name: Cache Cargo (self-hosted macOS)
+        if: runner.os == 'macOS'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/forgejo-runner/.cargo-home/bin/
+            ~/forgejo-runner/.cargo-home/registry/index/
+            ~/forgejo-runner/.cargo-home/registry/cache/
+            ~/forgejo-runner/.cargo-home/git/db/
+            src-tauri/target/
+          key: cargo-release-selfhosted-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-release-selfhosted-${{ matrix.target }}-
+
+      # ── Python: sidecar dependencies ─────────────────────────────────────
+      # macOS self-hosted: uses host miniconda Python 3.13 (same as GH workflow).
+      # Windows Codeberg hosted runner: install Python 3.12 via setup-python.
+      - name: Setup Python 3.12 (Codeberg hosted runners — Windows / Linux)
+        if: runner.os != 'macOS'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Configure host Python (self-hosted macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          PY="$(command -v python3 || true)"
+          if [ -z "$PY" ]; then
+            echo "::error::No python3 on PATH on the self-hosted runner"
+            exit 1
+          fi
+          echo "Using $($PY --version) at $PY"
+          echo "$(dirname "$PY")" >> "$GITHUB_PATH"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-pyinstaller-${{ matrix.target }}-${{ hashFiles('sidecar/requirements.lock') }}
+          restore-keys: pip-pyinstaller-${{ matrix.target }}-
+
+      - name: Install sidecar dependencies
+        shell: bash
+        run: |
+          if [ -f sidecar/requirements-ci.txt ]; then
+            pip install -r sidecar/requirements-ci.txt
+          elif [ -f sidecar/requirements.lock ]; then
+            pip install -r sidecar/requirements.lock
+          else
+            pip install -r sidecar/requirements.txt
+          fi
+          pip install "pyinstaller>=6,<7"
+
+      - name: Build frozen sidecar
+        run: python -m PyInstaller jura-sidecar.spec --noconfirm
+        working-directory: sidecar
+
+      - name: Copy sidecar binary to Tauri binaries (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p src-tauri/binaries
+          cp sidecar/dist/jura-sidecar src-tauri/binaries/${{ matrix.sidecar_name }}
+
+      - name: Copy sidecar binary to Tauri binaries (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri\binaries | Out-Null
+          Copy-Item sidecar\dist\jura-sidecar.exe src-tauri\binaries\${{ matrix.sidecar_name }}
+
+      # ── Copy ML model files into bundle ────────────────────────────────
+      - name: Copy model files to Tauri resources
+        shell: bash
+        run: |
+          mkdir -p src-tauri/models
+          cp models/deepfake_classifier.joblib src-tauri/models/ 2>/dev/null || true
+          cp models/univfd_probe.joblib src-tauri/models/ 2>/dev/null || true
+          ls -la src-tauri/models/
+
+      # ── Windows: sign sidecar BEFORE Tauri bundles it ──────────────────
+      # azure/trusted-signing-action is fetched from GitHub Marketplace.
+      # Codeberg fetches actions from GitHub by default — this works unless
+      # the Codeberg instance admin has changed actions.default_actions_url.
+      - name: Sign sidecar binary with Azure Trusted Signing
+        if: runner.os == 'Windows'
+        uses: azure/trusted-signing-action@v0.5.0
+        with:
+          azure-tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret:   ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint:              ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name:     ${{ secrets.AZURE_CERT_PROFILE }}
+          files-folder:          src-tauri/binaries
+          files-folder-filter:   exe
+          files-folder-depth:    1
+          file-digest:           SHA256
+          timestamp-rfc3161:     http://timestamp.acs.microsoft.com
+          timestamp-digest:      SHA256
+
+      # ── Node.js: build the SvelteKit frontend ───────────────────────────
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install frontend dependencies
+        run: cd ui && npm ci
+
+      # ── Install Tauri CLI ─────────────────────────────────────────────────
+      # Same supply-chain-safe two-step install as the GitHub workflow.
+      - name: Install Tauri CLI
+        run: |
+          cargo install cargo-binstall --locked --version "~1.10"
+          cargo binstall tauri-cli --version "^2" --no-confirm
+
+      # ── Tauri: build release artefacts (macOS and Linux) ─────────────────
+      # tauri-apps/tauri-action@v0 is fetched from GitHub (see compatibility
+      # note 4 at the top of this file).
+      # releaseId is intentionally omitted — we do not want tauri-action to
+      # attempt uploading to a GitHub Release. Upload to juralabs.org follows
+      # in the scp step below.
+      # GITHUB_TOKEN is set to the Forgejo built-in token here purely to
+      # satisfy tauri-action's internal GitHub API calls for build context.
+      # It will have no effect on juralabs.org upload, which is handled
+      # separately. If tauri-action fails because gitea.token is not
+      # a valid GitHub token, set GITHUB_TOKEN to a stub value ("x") —
+      # tauri-action only requires it to be non-empty to avoid a hard crash.
+      - name: Build release artefacts (macOS and Linux)
+        if: runner.os != 'Windows'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          # Forgejo built-in token — not a GitHub token. tauri-action reads
+          # GITHUB_TOKEN internally for release creation; since we pass no
+          # releaseId it falls through without making any GitHub API call.
+          # The env var must still be set to avoid a hard crash in tauri-action.
+          GITHUB_TOKEN: ${{ gitea.token }}
+
+          # ── macOS code signing ────────────────────────────────────────────
+          APPLE_CERTIFICATE:          ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY:     ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID:                   ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD:             ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID:              ${{ secrets.APPLE_TEAM_ID }}
+
+          # ── Tauri updater bundle signing (minisign) ──────────────────────
+          TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+        with:
+          tauriScript: cargo tauri
+          args: --target ${{ matrix.target }}
+
+      # ── Empty-signature gate (macOS / Linux) ────────────────────────────
+      # Identical logic to the GitHub workflow — catches missing/empty .sig
+      # files before any artefacts are uploaded to juralabs.org.
+      # Critical: do NOT remove this gate. A missing TAURI_SIGNING_PRIVATE_KEY
+      # secret produces silent empty .sig files; the gate surfaces that before
+      # it reaches end users.
+      - name: Verify updater signatures (macOS and Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          bundle_dir="src-tauri/target/${{ matrix.target }}/release/bundle"
+          sig_problems=0
+          while IFS= read -r tarball; do
+            sig="${tarball}.sig"
+            if [ ! -f "$sig" ]; then
+              echo "ERROR: missing .sig for ${tarball}"
+              sig_problems=$((sig_problems + 1))
+            elif [ ! -s "$sig" ]; then
+              echo "ERROR: empty .sig for ${tarball} (zero bytes)"
+              sig_problems=$((sig_problems + 1))
+            else
+              echo "OK: $(basename "${sig}") ($(wc -c < "${sig}") bytes)"
+            fi
+          done < <(find "$bundle_dir" \( -name "*.app.tar.gz" -o -name "*.AppImage.tar.gz" \) -maxdepth 4 2>/dev/null)
+          if [ "$sig_problems" -gt 0 ]; then
+            echo "FAIL: ${sig_problems} updater signature problem(s)."
+            echo "Verify TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+            echo "are set in Codeberg repository Secrets (Settings → Secrets)."
+            exit 1
+          fi
+
+      # ── Upload macOS / Linux artefacts to juralabs.org ──────────────────
+      # Replaces the `gh release upload --repo juralabs/jura-trace` step from
+      # the GitHub workflow. Files are copied via scp to the Hetzner VPS at
+      # JURALABS_HOST, served by Caddy at juralabs.org/downloads/{target}/.
+      # Atomic pattern: upload to .tmp suffix, then rename on the remote so
+      # no partially-transferred file is ever served.
+      # The deploy user on the VPS must have write access to the target dir
+      # and must accept the SSH key in JURALABS_DEPLOY_KEY (see JTV-151 notes).
+      - name: Upload macOS / Linux artefacts to juralabs.org
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          JURALABS_DEPLOY_KEY: ${{ secrets.JURALABS_DEPLOY_KEY }}
+          JURALABS_HOST: ${{ secrets.JURALABS_HOST }}
+        run: |
+          set -euo pipefail
+          bundle_dir="src-tauri/target/${{ matrix.target }}/release/bundle"
+          target="${{ matrix.target }}"
+
+          echo "Scanning bundle directory: $bundle_dir"
+          ls -lR "$bundle_dir" || echo "(bundle directory not found — build may have failed)"
+
+          # Set up ephemeral SSH key for the deploy user on the VPS.
+          mkdir -p ~/.ssh
+          echo "${JURALABS_DEPLOY_KEY}" > ~/.ssh/juralabs_deploy
+          chmod 600 ~/.ssh/juralabs_deploy
+
+          remote_dir="/var/www/juralabs.org/public/downloads/${target}"
+
+          # Create remote directory if it doesn't exist.
+          ssh -i ~/.ssh/juralabs_deploy \
+            -o StrictHostKeyChecking=accept-new \
+            "deploy@${JURALABS_HOST}" \
+            "mkdir -p ${remote_dir}"
+
+          count=0
+          find "$bundle_dir" \
+            \( \
+              -name "*.dmg" \
+              -o -name "*.app.tar.gz" \
+              -o -name "*.app.tar.gz.sig" \
+              -o -name "*.AppImage" \
+              -o -name "*.AppImage.tar.gz" \
+              -o -name "*.AppImage.tar.gz.sig" \
+              -o -name "*.deb" \
+              -o -name "*.rpm" \
+            \) \
+            -maxdepth 4 2>/dev/null | sort | while IFS= read -r f; do
+            fname="$(basename "$f")"
+            echo "Uploading ${fname} ..."
+            # Upload to .tmp, then atomic rename on the remote.
+            scp -i ~/.ssh/juralabs_deploy \
+              -o StrictHostKeyChecking=accept-new \
+              "$f" \
+              "deploy@${JURALABS_HOST}:${remote_dir}/${fname}.tmp"
+            ssh -i ~/.ssh/juralabs_deploy \
+              -o StrictHostKeyChecking=accept-new \
+              "deploy@${JURALABS_HOST}" \
+              "mv '${remote_dir}/${fname}.tmp' '${remote_dir}/${fname}'"
+            count=$((count + 1))
+          done
+
+          # Verify at least one primary installer was found.
+          found=$(find "$bundle_dir" \( -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" \) -maxdepth 4 2>/dev/null | head -1)
+          if [ -z "$found" ]; then
+            echo "ERROR: No release artefacts found under $bundle_dir"
+            exit 1
+          fi
+          echo "Upload complete."
+
+          # Clean up ephemeral key.
+          rm -f ~/.ssh/juralabs_deploy
+
+      # ── Upload .sig files as Forgejo release assets for manifest step ────
+      # The publish-release job needs the minisign .sig file contents to
+      # build latest.json. Upload them as workflow artefacts so the
+      # separate publish-release job can read them via actions/download-artifact.
+      - name: Save .sig files as workflow artefacts (macOS / Linux)
+        if: runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sigs-${{ matrix.target }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app.tar.gz.sig
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage.tar.gz.sig
+          if-no-files-found: warn
+          retention-days: 1
+
+      # ── Windows: build only (unsigned — Azure signing follows) ──────────
+      - name: Build release artefacts (Windows, unsigned)
+        if: runner.os == 'Windows'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ gitea.token }}
+          TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tauriScript: cargo tauri
+          args: --target ${{ matrix.target }}
+
+      # ── Empty-signature gate (Windows) ──────────────────────────────────
+      - name: Verify updater signatures (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bundle = "src-tauri\target\${{ matrix.target }}\release\bundle"
+          $problems = 0
+          $tarballs = Get-ChildItem -Path $bundle -Recurse -Filter "*.nsis.zip" -ErrorAction SilentlyContinue
+          foreach ($t in $tarballs) {
+            $sig = "$($t.FullName).sig"
+            if (-not (Test-Path $sig)) {
+              Write-Error "ERROR: missing .sig for $($t.Name)"
+              $problems++
+            } elseif ((Get-Item $sig).Length -eq 0) {
+              Write-Error "ERROR: empty .sig for $($t.Name) (zero bytes)"
+              $problems++
+            } else {
+              Write-Host "OK: $((Get-Item $sig).Name) ($((Get-Item $sig).Length) bytes)"
+            }
+          }
+          if ($problems -gt 0) {
+            Write-Error "FAIL: $problems updater signature problem(s). Verify TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD are set in Codeberg repository Secrets."
+            exit 1
+          }
+
+      # ── Windows: Azure Trusted Signing ───────────────────────────────────
+      # Certificate ID: a7e35def-628b-4980-8785-2e535f709418
+      # Same action, same secrets as the GitHub workflow.
+      - name: Sign Windows binaries with Azure Trusted Signing
+        if: runner.os == 'Windows'
+        uses: azure/trusted-signing-action@v0.5.0
+        with:
+          azure-tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret:   ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint:              ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name:     ${{ secrets.AZURE_CERT_PROFILE }}
+          files-folder:          src-tauri/target/${{ matrix.target }}/release/bundle
+          files-folder-filter:   exe,msi
+          files-folder-depth:    4
+          file-digest:           SHA256
+          timestamp-rfc3161:     http://timestamp.acs.microsoft.com
+          timestamp-digest:      SHA256
+
+      # ── Upload signed Windows artefacts to juralabs.org ──────────────────
+      # PowerShell scp approach mirrors the Unix step above.
+      # Atomic rename uses ssh + mv on the remote.
+      - name: Upload signed Windows artefacts to juralabs.org
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          JURALABS_DEPLOY_KEY: ${{ secrets.JURALABS_DEPLOY_KEY }}
+          JURALABS_HOST: ${{ secrets.JURALABS_HOST }}
+        run: |
+          $target = "${{ matrix.target }}"
+          $bundle = "src-tauri\target\$target\release\bundle"
+          $remoteDir = "/var/www/juralabs.org/public/downloads/$target"
+
+          # Write ephemeral SSH key to a temp file.
+          $keyFile = "$env:TEMP\juralabs_deploy"
+          $env:JURALABS_DEPLOY_KEY | Set-Content -Path $keyFile -Encoding ASCII -NoNewline
+
+          # Forgejo Windows runner ships with Git for Windows which includes
+          # ssh.exe and scp.exe on PATH.  If not available, install OpenSSH
+          # optional feature or use the bundled ssh client via $env:ProgramFiles.
+          $ssh = "ssh"
+          $scp = "scp"
+          $sshOpts = @("-i", $keyFile, "-o", "StrictHostKeyChecking=accept-new")
+
+          # Create remote directory.
+          & $ssh @sshOpts "deploy@$env:JURALABS_HOST" "mkdir -p $remoteDir"
+
+          $msi       = Get-ChildItem "$bundle\msi\*.msi"          -ErrorAction SilentlyContinue
+          $setupExe  = Get-ChildItem "$bundle\nsis\*-setup.exe"   -ErrorAction SilentlyContinue
+          $nsisZip   = Get-ChildItem "$bundle\nsis\*.nsis.zip"    -ErrorAction SilentlyContinue
+          $nsisZipSig = Get-ChildItem "$bundle\nsis\*.nsis.zip.sig" -ErrorAction SilentlyContinue
+
+          $files = @($msi) + @($setupExe) + @($nsisZip) + @($nsisZipSig) |
+                   Where-Object { $_ -ne $null }
+
+          if ($files.Count -eq 0) {
+            Write-Error "No Windows release artefacts found under $bundle"
+            exit 1
+          }
+
+          foreach ($f in $files) {
+            $fname = $f.Name
+            Write-Host "Uploading $fname ..."
+            # scp to .tmp on the remote, then atomic rename.
+            & $scp @sshOpts "$($f.FullName)" "deploy@${env:JURALABS_HOST}:${remoteDir}/${fname}.tmp"
+            & $ssh @sshOpts "deploy@$env:JURALABS_HOST" "mv '${remoteDir}/${fname}.tmp' '${remoteDir}/${fname}'"
+          }
+
+          # Clean up ephemeral key.
+          Remove-Item -Path $keyFile -Force -ErrorAction SilentlyContinue
+
+      # ── Save Windows .sig file as workflow artefact ──────────────────────
+      - name: Save .sig files as workflow artefacts (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sigs-${{ matrix.target }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/**/*.nsis.zip.sig
+          if-no-files-found: warn
+          retention-days: 1
+
+  # ── Phase 3: Publish release + write auto-updater manifest ───────────────
+  # Runs once after all platform builds succeed.
+  # This job:
+  #   1. Downloads .sig artefacts from all platform legs.
+  #   2. Generates SHA256SUMS.txt from artefacts on juralabs.org.
+  #   3. Uploads SHA256SUMS.txt to juralabs.org/downloads/.
+  #   4. Builds latest.json and writes it to juralabs.org/api/updates/.
+  #   5. Also uploads latest.json as a Forgejo release asset (optional fallback).
+  #   6. Publishes (un-drafts) the Forgejo release.
+  # The GitHub fallback (github.com/juralabs/jura-trace) is NOT written here.
+  # The dual-endpoint in tauri.conf.json means the GitHub endpoint gracefully
+  # 404s and Tauri falls back to the juralabs.org primary (JTV-147).
+  publish-release:
+    name: Publish Release
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    # environment: production
+    # Note: Forgejo does not enforce environment protection gates on
+    # Codeberg's hosted runner. Kept for documentation only. Enable
+    # when self-hosted git.juralabs.org supports environment rules.
+    steps:
+
+      # ── Download all per-platform .sig artefacts ─────────────────────────
+      - name: Download macOS .sig artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sigs-aarch64-apple-darwin
+          path: sigs/aarch64-apple-darwin
+        continue-on-error: true  # Absent if macos-only was not built.
+
+      - name: Download Windows .sig artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sigs-x86_64-pc-windows-msvc
+          path: sigs/x86_64-pc-windows-msvc
+        continue-on-error: true
+
+      # ── Generate SHA256SUMS.txt from files on juralabs.org ────────────────
+      # Files are already on the VPS from the build job's scp step.
+      # SSH in, hash all installers on the server, write a combined checksum
+      # file, and upload it to the downloads root.
+      - name: Generate and upload SHA-256 checksums to juralabs.org
+        shell: bash
+        env:
+          JURALABS_DEPLOY_KEY: ${{ secrets.JURALABS_DEPLOY_KEY }}
+          JURALABS_HOST: ${{ secrets.JURALABS_HOST }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "${JURALABS_DEPLOY_KEY}" > ~/.ssh/juralabs_deploy
+          chmod 600 ~/.ssh/juralabs_deploy
+
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          downloads_root="/var/www/juralabs.org/public/downloads"
+
+          # Generate SHA256SUMS.txt on the server, covering all installers
+          # across all platform subdirectories.
+          ssh -i ~/.ssh/juralabs_deploy \
+            -o StrictHostKeyChecking=accept-new \
+            "deploy@${JURALABS_HOST}" \
+            "cd ${downloads_root} && \
+             find . -type f \( \
+               -name '*.dmg' \
+               -o -name '*.msi' \
+               -o -name '*.exe' \
+               -o -name '*.AppImage' \
+               -o -name '*.deb' \
+               -o -name '*.tar.gz' \
+             \) | sort | xargs sha256sum > SHA256SUMS.txt.tmp && \
+             mv SHA256SUMS.txt.tmp SHA256SUMS.txt && \
+             echo 'SHA256SUMS.txt written:' && cat SHA256SUMS.txt"
+
+          rm -f ~/.ssh/juralabs_deploy
+
+      # ── Build and deploy latest.json auto-updater manifest ────────────────
+      # RC / alpha tags: no manifest written (manual download only).
+      # Beta tags:       latest-beta.json
+      # Stable tags:     latest.json
+      #
+      # .sig files downloaded from workflow artefacts above.
+      # find_sig helper: locate the first .sig file under the given path prefix.
+      - name: Write auto-updater manifest to juralabs.org
+        shell: bash
+        env:
+          JURALABS_DEPLOY_KEY: ${{ secrets.JURALABS_DEPLOY_KEY }}
+          JURALABS_HOST: ${{ secrets.JURALABS_HOST }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          version="${tag#v}"
+
+          # Determine manifest file name — skip RC and alpha entirely.
+          if echo "$tag" | grep -qE '-(rc|alpha)'; then
+            echo "Tag ${tag} is RC/alpha — no update manifest written."
+            exit 0
+          elif echo "$tag" | grep -qE '-(beta)'; then
+            manifest_name="latest-beta.json"
+          else
+            manifest_name="latest.json"
+          fi
+          echo "Writing ${manifest_name} for tag ${tag}"
+
+          base_url="https://juralabs.org/downloads"
+
+          # Read .sig file contents; fallback to empty string if platform not built.
+          read_sig() {
+            local sig_path="$1"
+            local found
+            found=$(find "${sig_path}" -name "*.sig" 2>/dev/null | head -1)
+            if [ -n "$found" ] && [ -s "$found" ]; then
+              cat "$found"
+            else
+              echo ""
+            fi
+          }
+
+          macos_sig=$(read_sig "sigs/aarch64-apple-darwin")
+          windows_sig=$(read_sig "sigs/x86_64-pc-windows-msvc")
+
+          pub_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # Build the manifest JSON using python3 for safe string escaping.
+          # jq would be cleaner but may not be available on all Codeberg runners.
+          python3 - <<PYEOF
+          import json, os, sys
+
+          tag = "${tag}"
+          version = "${version}"
+          pub_date = "${pub_date}"
+          base_url = "${base_url}"
+          manifest_name = "${manifest_name}"
+
+          macos_sig = """${macos_sig}""".strip()
+          windows_sig = """${windows_sig}""".strip()
+
+          manifest = {
+              "version": tag,
+              "notes": f"See https://juralabs.org/updates/{tag} for full release notes.",
+              "pub_date": pub_date,
+              "platforms": {}
+          }
+
+          # Only include platforms that have a non-empty signature.
+          if macos_sig:
+              manifest["platforms"]["darwin-aarch64"] = {
+                  "signature": macos_sig,
+                  "url": f"{base_url}/aarch64-apple-darwin/Jura.Trace_{version}_aarch64.app.tar.gz"
+              }
+
+          if windows_sig:
+              manifest["platforms"]["windows-x86_64"] = {
+                  "signature": windows_sig,
+                  "url": f"{base_url}/x86_64-pc-windows-msvc/Jura.Trace_{version}_x64-setup.nsis.zip"
+              }
+
+          print(json.dumps(manifest, indent=2))
+          with open("latest.json.tmp", "w") as f:
+              json.dump(manifest, f, indent=2)
+              f.write("\n")
+          print(f"Wrote {manifest_name}: {len(manifest['platforms'])} platform(s)")
+          PYEOF
+
+          # Set up SSH key.
+          mkdir -p ~/.ssh
+          echo "${JURALABS_DEPLOY_KEY}" > ~/.ssh/juralabs_deploy
+          chmod 600 ~/.ssh/juralabs_deploy
+
+          updates_dir="/var/www/juralabs.org/public/api/updates"
+          ssh -i ~/.ssh/juralabs_deploy \
+            -o StrictHostKeyChecking=accept-new \
+            "deploy@${JURALABS_HOST}" \
+            "mkdir -p ${updates_dir}"
+
+          # Atomic deploy: scp to .tmp, then rename on remote.
+          scp -i ~/.ssh/juralabs_deploy \
+            -o StrictHostKeyChecking=accept-new \
+            latest.json.tmp \
+            "deploy@${JURALABS_HOST}:${updates_dir}/${manifest_name}.tmp"
+
+          ssh -i ~/.ssh/juralabs_deploy \
+            -o StrictHostKeyChecking=accept-new \
+            "deploy@${JURALABS_HOST}" \
+            "mv '${updates_dir}/${manifest_name}.tmp' '${updates_dir}/${manifest_name}'"
+
+          echo "Deployed ${manifest_name} to ${JURALABS_HOST}:${updates_dir}/"
+
+          # Optional: Cloudflare cache purge so the new manifest is visible
+          # immediately rather than waiting for the 5-minute Cache-Control max-age.
+          if [ -n "${CLOUDFLARE_API_TOKEN}" ] && [ -n "${CLOUDFLARE_ZONE_ID}" ]; then
+            curl -X POST \
+              "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data "{\"files\":[\"https://juralabs.org/api/updates/${manifest_name}\"]}"
+            echo "Cloudflare cache purged for ${manifest_name}"
+          fi
+
+          rm -f ~/.ssh/juralabs_deploy
+
+      # ── Also upload latest.json as a Forgejo release asset ───────────────
+      # This makes the Forgejo release itself serve the manifest, which is
+      # useful during smoke-testing before the Caddy endpoint is wired up.
+      - name: Upload manifest as Forgejo release asset
+        shell: bash
+        env:
+          FORGEJO_TOKEN: ${{ gitea.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+
+          # Skip for RC/alpha (no manifest was written).
+          if echo "$tag" | grep -qE '-(rc|alpha)'; then
+            echo "RC/alpha — skipping manifest upload."
+            exit 0
+          fi
+
+          release_id="${{ needs.create-release.outputs.release_id }}"
+          api_base="https://codeberg.org/api/v1/repos/jura-labs/jura-trace"
+
+          if echo "$tag" | grep -qE '-(beta)'; then
+            manifest_name="latest-beta.json"
+          else
+            manifest_name="latest.json"
+          fi
+
+          # Remove any pre-existing manifest asset (idempotent re-runs).
+          existing_id=$(curl -fsSL \
+            -H "Authorization: token ${FORGEJO_TOKEN}" \
+            "${api_base}/releases/${release_id}/assets" \
+            | python3 -c "
+          import sys, json
+          assets = json.load(sys.stdin)
+          name = '${manifest_name}'
+          match = next((a for a in assets if a.get('name') == name), None)
+          print(match['id'] if match else '')
+          " 2>/dev/null || echo "")
+
+          if [ -n "$existing_id" ]; then
+            curl -fsSX DELETE \
+              -H "Authorization: token ${FORGEJO_TOKEN}" \
+              "${api_base}/releases/${release_id}/assets/${existing_id}"
+          fi
+
+          # Upload the manifest.
+          if [ -f "latest.json.tmp" ]; then
+            curl -fsSX POST \
+              -H "Authorization: token ${FORGEJO_TOKEN}" \
+              "${api_base}/releases/${release_id}/assets?name=${manifest_name}" \
+              -F "attachment=@latest.json.tmp;type=application/json"
+          fi
+
+      # ── Publish the draft release ─────────────────────────────────────────
+      # Forgejo API: PATCH /api/v1/repos/{owner}/{repo}/releases/{id}
+      # with {"draft": false}
+      - name: Publish release on Codeberg
+        shell: bash
+        env:
+          FORGEJO_TOKEN: ${{ gitea.token }}
+        run: |
+          set -euo pipefail
+          release_id="${{ needs.create-release.outputs.release_id }}"
+          api_base="https://codeberg.org/api/v1/repos/jura-labs/jura-trace"
+
+          curl -fsSX PATCH \
+            -H "Authorization: token ${FORGEJO_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "${api_base}/releases/${release_id}" \
+            -d '{"draft": false}'
+
+          echo "Published release ${release_id} on codeberg.org/jura-labs/jura-trace"

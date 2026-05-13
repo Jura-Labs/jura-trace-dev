@@ -979,7 +979,15 @@ jobs:
       # signing is introduced (Sprint 19), each .tar.gz/.zip will have a
       # companion .sig file uploaded by tauri-action; read those here.
       - name: Generate and upload update manifest
+        id: manifest
         # Uses RELEASE_PAT to read and write assets on juralabs/jura-trace.
+        # Sets the following outputs (consumed by the JTV-146
+        # juralabs.org SCP step that follows):
+        #   wrote_manifest  — "true" when this step produced a manifest;
+        #                     "false" for RC / alpha tags that skip
+        #                     manifest generation entirely
+        #   manifest_name   — "latest.json" or "latest-beta.json"
+        #   manifest_path   — runner-local path of the manifest file
         uses: actions/github-script@v7
         env:
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
@@ -1011,6 +1019,7 @@ jobs:
             if (isRcOrAlpha) {
               console.log(`Tag ${tag} is an RC or alpha pre-release — no update manifest will be written.`);
               console.log('RC/alpha builds are available only via manual GitHub release download.');
+              core.setOutput('wrote_manifest', 'false');
               return;
             }
 
@@ -1109,6 +1118,112 @@ jobs:
               data: fs.readFileSync(tmpPath),
             });
             console.log(`Uploaded ${manifestName}`);
+
+            // Expose for the JTV-146 SCP-to-juralabs.org step that follows.
+            core.setOutput('wrote_manifest', 'true');
+            core.setOutput('manifest_name', manifestName);
+            core.setOutput('manifest_path', tmpPath);
+
+      # ── JTV-146: push the manifest to juralabs.org ───────────────────────
+      # Tauri's dual-endpoint config (JTV-147) lists juralabs.org first and
+      # GitHub Releases second.  This step makes juralabs.org the primary
+      # auto-updater endpoint by pushing the same manifest there atomically:
+      # write to .tmp on the VPS, then mv to the final path so a partial
+      # write never lands on the live URL.  GitHub Releases (already
+      # populated by the previous step) remains the safety-net fallback.
+      #
+      # Skipped when:
+      #   - The previous step produced no manifest (RC / alpha tags), OR
+      #   - JURALABS_DEPLOY_KEY is not set in repo Secrets
+      #     (typical during the JTV-146 / JTV-147 migration window before
+      #     the deploy user is provisioned on the Hetzner VPS).
+      #
+      # Failure in this step does NOT fail the workflow (continue-on-error)
+      # because the GitHub Releases manifest is already up — Tauri clients
+      # will succeed via the fallback endpoint.  A failed SCP shows up as a
+      # warning in the workflow run; re-run the workflow to retry.
+      #
+      # Required Secrets when active:
+      #   JURALABS_DEPLOY_KEY      — SSH private key for the deploy user on
+      #                              the Hetzner VPS, with write access only
+      #                              to /var/www/juralabs.org/public/api/updates/
+      #                              and /var/www/juralabs.org/public/downloads/.
+      #                              Do NOT reuse the root or git keypair.
+      #   JURALABS_HOST            — host name or IP of the Hetzner VPS
+      #
+      # Optional Secrets (Cloudflare cache purge):
+      #   CLOUDFLARE_API_TOKEN     — token scoped to cache-purge on the
+      #                              juralabs.org zone only
+      #   CLOUDFLARE_ZONE_ID       — Cloudflare zone identifier for juralabs.org
+      #
+      # See docs/strategy/auto-updater-juralabs-config.md for full details
+      # including the Caddyfile snippet (VPS-side, not in this repo).
+      - name: Push update manifest to juralabs.org
+        if: steps.manifest.outputs.wrote_manifest == 'true' && env.HAS_DEPLOY_KEY == 'true'
+        continue-on-error: true
+        env:
+          HAS_DEPLOY_KEY: ${{ secrets.JURALABS_DEPLOY_KEY != '' && 'true' || 'false' }}
+          JURALABS_DEPLOY_KEY: ${{ secrets.JURALABS_DEPLOY_KEY }}
+          JURALABS_HOST: ${{ secrets.JURALABS_HOST }}
+          MANIFEST_NAME: ${{ steps.manifest.outputs.manifest_name }}
+          MANIFEST_PATH: ${{ steps.manifest.outputs.manifest_path }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          REMOTE_DIR="/var/www/juralabs.org/public/api/updates"
+          REMOTE_FINAL="${REMOTE_DIR}/${MANIFEST_NAME}"
+          REMOTE_TMP="${REMOTE_DIR}/${MANIFEST_NAME}.tmp"
+
+          # Validate JSON before doing anything remote — defence in depth
+          # against a malformed manifest reaching the live endpoint.
+          jq . "${MANIFEST_PATH}" > /dev/null
+
+          # Materialise the deploy private key with restrictive perms.
+          # GHA-managed temp file, cleaned up at job end.
+          mkdir -p ~/.ssh
+          KEY_FILE=~/.ssh/juralabs_deploy
+          printf '%s\n' "${JURALABS_DEPLOY_KEY}" > "${KEY_FILE}"
+          chmod 600 "${KEY_FILE}"
+
+          # Use accept-new so a brand-new VPS does not require a manual
+          # known_hosts seed in the repo, while still rejecting a host-key
+          # CHANGE (which would indicate MitM).
+          SSH_OPTS="-i ${KEY_FILE} -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
+
+          echo "Uploading ${MANIFEST_NAME} to ${JURALABS_HOST}:${REMOTE_TMP} ..."
+          scp ${SSH_OPTS} "${MANIFEST_PATH}" "deploy@${JURALABS_HOST}:${REMOTE_TMP}"
+
+          echo "Atomic rename → ${REMOTE_FINAL}"
+          ssh ${SSH_OPTS} "deploy@${JURALABS_HOST}" "mv '${REMOTE_TMP}' '${REMOTE_FINAL}'"
+
+          # Optional: purge Cloudflare cache for the manifest URL so the
+          # new release becomes visible immediately rather than waiting
+          # for the 5-minute Caddy max-age to expire.  Skipped silently
+          # when CLOUDFLARE_API_TOKEN / CLOUDFLARE_ZONE_ID are not set.
+          if [ -n "${CLOUDFLARE_API_TOKEN}" ] && [ -n "${CLOUDFLARE_ZONE_ID}" ]; then
+            echo "Purging Cloudflare cache for /api/updates/${MANIFEST_NAME}"
+            curl -fsS -X POST \
+              "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data "{\"files\":[\"https://juralabs.org/api/updates/${MANIFEST_NAME}\"]}" \
+              | jq -r '.success'
+          else
+            echo "CLOUDFLARE_API_TOKEN / CLOUDFLARE_ZONE_ID not set — skipping cache purge"
+            echo "(Manifest will become visible after the 5-minute Caddy max-age TTL expires.)"
+          fi
+
+          echo "Smoke test: GET https://juralabs.org/api/updates/${MANIFEST_NAME}"
+          # Best-effort smoke test — uses Cloudflare's edge.  -f exits 22 on
+          # 4xx/5xx so a missing-Caddy-config scenario surfaces clearly.
+          curl -fsSL "https://juralabs.org/api/updates/${MANIFEST_NAME}" \
+            | jq -r '.version + " — " + (.platforms | keys | join(", "))' || {
+              echo "Smoke test failed — manifest may need a Cloudflare TTL pass before becoming visible."
+              echo "(Direct origin fetch via Hetzner IP would confirm the file landed correctly.)"
+            }
 
       - name: Publish release
         # Uses RELEASE_PAT to flip the draft release to published on
