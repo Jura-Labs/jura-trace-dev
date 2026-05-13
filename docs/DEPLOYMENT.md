@@ -268,7 +268,7 @@ Open **Settings** and click **Change Location...** under the Database section. A
 
 The Python ML sidecar provides forensic analysis — error level analysis (ELA), noise analysis, copy-move detection, deepfake scoring, NPR, chromatic aberration, JPEG ghost, segmented ELA, shadow consistency, colour temperature, splice boundary detection, CLIP zero-shot classification, watermark embed/extract, video frame extraction, and video deepfake analysis.
 
-It runs on `localhost:8200`. It is local-only — the port is not exposed to the network.
+It runs on the `127.0.0.1` loopback interface, on an **OS-assigned ephemeral port** picked by the Tauri shell at each launch (Option C port-collision fix, May 2026). It is local-only — the bind address is `127.0.0.1`, so the port is not exposed to the network. The dynamic port is stored in `AppState.sidecar_port` and used by every Rust HTTP client; the frontend never speaks HTTP to the sidecar directly (all interaction goes through Rust IPC).
 
 **Graceful degradation**: If the sidecar is unavailable, C2PA signing and verification, EXIF anomaly detection, perceptual fingerprinting, and metadata extraction all continue to work. Forensic detectors are skipped and the verify result notes the reduced analysis scope.
 
@@ -278,10 +278,11 @@ In production installers, the sidecar is bundled as a self-contained binary (`ju
 
 The auto-launch process:
 
-1. Tauri spawns `jura-sidecar` via `tauri-plugin-shell`.
-2. The app polls `http://127.0.0.1:8200/health` with exponential backoff.
-3. Once healthy, the sidecar is ready and forensic analysis becomes available.
-4. On application exit, the sidecar process is cleanly terminated.
+1. The Rust shell calls `TcpListener::bind("127.0.0.1:0")` so the OS allocates a free port, then drops the listener.
+2. Tauri spawns `jura-sidecar` via `tauri-plugin-shell` with `--port $PORT`.
+3. The app polls `http://127.0.0.1:$PORT/health/ready` with exponential backoff.
+4. Once healthy, the sidecar is ready and forensic analysis becomes available.
+5. On application exit, the sidecar process is cleanly terminated.
 
 ### Development builds
 
@@ -606,20 +607,32 @@ The SQLite database is not encrypted at rest in v0.9.x. Recommended mitigations 
 
 **Symptom**: Analysis services shows "Offline" in Settings after launch.
 
-1. Check whether port 8200 is already in use:
+Since the Option C port-collision fix (May 2026) the sidecar binds an OS-assigned ephemeral port, so a fixed-port collision is no longer a likely cause. Diagnostic steps:
+
+1. Find the port the running sidecar is actually using:
    ```bash
    # macOS / Linux
-   lsof -i :8200
+   ps aux | grep jura-sidecar      # the `--port NNNNN` arg is visible here
+   lsof -p $(pgrep -f jura-sidecar | head -1) -i TCP
 
    # Windows (PowerShell)
-   netstat -ano | findstr :8200
+   Get-Process jura-sidecar | ForEach-Object {
+       Get-NetTCPConnection -OwningProcess $_.Id -State Listen
+   }
    ```
-2. If another process is using port 8200, stop it or configure a different port.
+2. If no `jura-sidecar` process is running at all, the spawn failed — check the application log (path printed at startup; typical locations are `~/Library/Logs/com.juralabs.jura-trace/` on macOS and `%APPDATA%\com.juralabs.jura-trace\logs\` on Windows) for `Failed to (re)spawn sidecar` or `[Errno NN]` messages.
 3. On macOS, check whether the sidecar binary inside the app bundle is quarantined:
    ```bash
    xattr -cr /Applications/Jura\ Trace.app
    ```
-4. Check the application logs for startup errors. On macOS, use Console.app and filter for "jura-sidecar".
+4. **Orphaned sidecar from a previous launch** (Windows is most affected because it lacks SIGTERM): a previous crash may have left a `jura-sidecar` process running but no longer associated with any Jura Trace window. With Option C this no longer blocks new launches (each launch picks its own port), but the orphan still consumes ~300-500 MB RAM. Kill the orphan and relaunch:
+   ```bash
+   # macOS / Linux
+   pkill -f jura-sidecar
+
+   # Windows (PowerShell)
+   Stop-Process -Name jura-sidecar -Force
+   ```
 
 ---
 

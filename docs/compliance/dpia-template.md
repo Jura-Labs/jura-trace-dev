@@ -62,7 +62,7 @@ A DPIA is required under Article 35(1) UK GDPR where processing is "likely to re
 Jura Trace performs local forensic analysis of digital media files. "Local" means all computation occurs on the device where the application is installed. The application consists of three components, all running on the same machine:
 
 1. **Tauri desktop application** (Rust core + SvelteKit user interface) — reads files selected by the user, performs C2PA verification, perceptual hashing, EXIF metadata extraction, watermark embedding/extraction, and stores analysis results in a local SQLite database.
-2. **Python ML sidecar** (FastAPI, localhost port 8200) — performs AI-based forensic analysis including error level analysis (ELA), noise pattern analysis, copy-move detection, deepfake detection, and additional specialist detectors. Communicates only via the device's loopback interface (127.0.0.1). No network traffic leaves the device.
+2. **Python ML sidecar** (FastAPI, bound to the `127.0.0.1` loopback interface on an OS-assigned ephemeral port picked at each launch — Option C port-collision fix, May 2026) — performs AI-based forensic analysis including error level analysis (ELA), noise pattern analysis, copy-move detection, deepfake detection, and additional specialist detectors. Communicates only via the device's loopback interface (127.0.0.1). No network traffic leaves the device.
 3. **Ollama LLM runtime** (optional, localhost port 11434) — provides local large language model inference for image description and claim verification. Entirely optional. When absent, the application operates without these features.
 
 **Critical architectural point**: Original file content (image pixels, video frames, audio waveforms) is **not** stored in the database. Files are read into memory for analysis, results are computed, and only metadata, hashes, and analysis scores are persisted. The original file remains at its original location on the user's filesystem, unmodified (unless the user explicitly chooses to embed a watermark or C2PA signature, which modifies the file in place or creates a new output file).
@@ -115,7 +115,7 @@ Potential categories include:
   │  - EXIF extraction             - Copy-move detection                    │
   │  - Perceptual hashing          - Video frame analysis                   │
   │  - Watermark extraction        - Audio transcription                    │
-  │         │                      (localhost:8200 only)                     │
+  │         │                      (127.0.0.1 loopback only)                 │
   │         │                              │                                │
   │         ▼                              │                                │
   │  [Local SQLite database] ◄─────────────┘                                │
@@ -179,7 +179,7 @@ No systemic data protection concerns have been identified by the vendor. The loc
 
 - All sidecar communication is restricted to the loopback interface (127.0.0.1); no network egress
 - Sidecar API key authentication is enforced in production (auto-generated per installation)
-- Content Security Policy (CSP) is pinned to `127.0.0.1:8200` (sidecar) and `127.0.0.1:11434` (Ollama) only
+- Content Security Policy (CSP) is pinned to `127.0.0.1:11434` (Ollama) only; the sidecar is **not** in the CSP whitelist — all frontend↔sidecar interaction is mediated by Rust IPC (Option C, May 2026)
 - All Tauri IPC commands that accept file paths perform null-byte checking and path canonicalisation
 - Shell execution capabilities are scoped to the bundled sidecar binary only; no arbitrary command execution
 - Audit trail uses SHA-256 hash chain for tamper evidence
@@ -329,7 +329,7 @@ The following risks have been identified and assessed by Jura Labs CIC based on 
 | Local-first architecture | All processing on-device. No cloud calls for core functionality. No telemetry. | R1, R6, R8 |
 | Original content not stored | Image/video/audio pixel data is processed in memory only. Not written to the database. | R1, R4 |
 | Sidecar API key authentication | Auto-generated API key required for all sidecar requests in production mode | R6 |
-| Content Security Policy | CSP pinned to localhost only (127.0.0.1:8200 and 127.0.0.1:11434) | R6 |
+| Content Security Policy | CSP pinned to loopback only (`127.0.0.1:11434` for Ollama); sidecar removed from CSP — all frontend↔sidecar interaction is via Rust IPC (Option C, May 2026) | R6 |
 | Path canonicalisation | All Tauri IPC commands validate and canonicalise file paths. Null-byte injection and directory traversal attacks are blocked. | R1 |
 | Shell capability scoping | Frontend can only execute the bundled sidecar binary, not arbitrary system commands | R1 |
 | SHA-256 hash chain audit trail | Every verification action is recorded with a cryptographic hash linking it to the previous entry, providing tamper evidence | R1, R7 |

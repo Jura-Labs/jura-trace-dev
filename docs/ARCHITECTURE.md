@@ -36,9 +36,10 @@
 │  │   IPTC, ICC)    │  │   visible)       │  │  verifications     │ │
 │  └─────────────────┘  └──────────────────┘  └────────────────────┘ │
 └────────────────────────────┬────────────────────────────────────────┘
-                             │ HTTP (localhost:8200)
+                             │ HTTP (127.0.0.1, ephemeral port)
 ┌────────────────────────────▼────────────────────────────────────────┐
-│              Python ML Sidecar — Phase 2+ (Port 8200)               │
+│         Python ML Sidecar — bound to 127.0.0.1 loopback only        │
+│         Port assigned by the OS at each launch (Option C, May 2026) │
 │                                                                      │
 │  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────┐ │
 │  │  Image          │  │  Deepfake        │  │  RAG Pipeline      │ │

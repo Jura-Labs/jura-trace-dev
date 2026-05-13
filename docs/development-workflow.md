@@ -623,7 +623,7 @@ The application has four independently testable layers:
 
 The layers communicate as follows:
 - UI → Rust: Tauri IPC (`invoke('command_name', { args })`)
-- Rust → Sidecar: HTTP POST to `http://127.0.0.1:8200` with `X-Jura-API-Key` header
+- Rust → Sidecar: HTTP POST to `http://127.0.0.1:$PORT` with `X-Jura-API-Key` header, where `$PORT` is the ephemeral port `AppState.sidecar_port` picked at startup (Option C, May 2026). In `make dev` (manual `uvicorn`) the port is whatever you start uvicorn on — defaults to 8200 for convenience.
 - Rust → DB: direct `Db` struct method calls (no network)
 - Sidecar → Ollama: HTTP POST to `http://127.0.0.1:11434` (optional)
 

@@ -54,7 +54,7 @@ Jura Trace is a native desktop application built on the Tauri v2 framework (Rust
     │       │
     │       ├── Local SQLite Database
     │       │
-    │       └── Python ML Sidecar (localhost:8200)
+    │       └── Python ML Sidecar (127.0.0.1, OS-assigned ephemeral port)
     │               │
     │               └── Ollama LLM Runtime (localhost:11434) — optional
     │
@@ -74,7 +74,7 @@ Jura Trace is a native desktop application built on the Tauri v2 framework (Rust
 
 ### Network exposure
 
-The Python ML sidecar binds to `127.0.0.1:8200` — the loopback interface only. It is not accessible from other machines on the network. The Ollama runtime, if installed, binds to `127.0.0.1:11434` on the same basis. Neither service is exposed as a network service reachable from outside the device.
+The Python ML sidecar binds to a **dynamically-assigned ephemeral port** on the `127.0.0.1` loopback interface only — the Tauri Rust shell allocates a free port via `bind("127.0.0.1:0")` at each launch and passes it to the sidecar binary (Option C port-collision fix, May 2026). It is not accessible from other machines on the network. The Ollama runtime, if installed, binds to `127.0.0.1:11434` on the same loopback basis. Neither service is exposed as a network service reachable from outside the device.
 
 ---
 
@@ -170,7 +170,7 @@ On shared workstations, each user should operate under a separate OS account. Th
 
 ### Loopback-only communication
 
-All communication between the Tauri application and the Python sidecar occurs over `127.0.0.1:8200` (loopback interface). This traffic never leaves the device. The same applies to Ollama communication on `127.0.0.1:11434`.
+All communication between the Tauri application and the Python sidecar occurs over the `127.0.0.1` loopback interface on the ephemeral port assigned at launch. This traffic never leaves the device. The same applies to Ollama communication on `127.0.0.1:11434`.
 
 ### No external calls for core functionality
 
@@ -209,12 +209,14 @@ The Python ML sidecar requires an API key on every request (`X-Jura-API-Key` hea
 
 In standard single-user installations, the key is generated automatically at startup (256-bit UUID) and passed to the sidecar subprocess via environment variable. No configuration is required.
 
-For institutional deployments where the sidecar is started independently of the desktop application, the key can be set explicitly:
+For institutional deployments where the sidecar is started independently of the desktop application, the key can be set explicitly and any free port chosen:
 
 ```bash
 export JURA_SIDECAR_KEY="your-institution-key-here"
-uvicorn main:app --host 127.0.0.1 --port 8200
+uvicorn main:app --host 127.0.0.1 --port 8200   # 8200 shown for illustration; pick any free port
 ```
+
+In bundled-installation mode the port is selected automatically by the Rust shell at each launch; no port flag is required.
 
 Requests without a valid key are rejected with HTTP 401.
 
@@ -247,7 +249,7 @@ default-src 'self';
 script-src 'self';
 style-src 'self' 'unsafe-inline';
 img-src 'self' blob:;
-connect-src ipc: http://ipc.localhost http://127.0.0.1:8200 http://127.0.0.1:11434;
+connect-src ipc: http://ipc.localhost http://127.0.0.1:11434;
 object-src 'none';
 base-uri 'self';
 frame-ancestors 'none';
@@ -256,6 +258,7 @@ frame-ancestors 'none';
 Key points:
 - `script-src 'self'` — inline scripts and external script sources are blocked
 - `connect-src` — network access is pinned to localhost addresses only; no external HTTP connections are possible from the frontend
+- Notably, the sidecar URL is **not** whitelisted in `connect-src` — the webview never speaks HTTP to the sidecar directly. All sidecar interaction goes through Rust IPC (Option C port-collision fix, May 2026), which tightens the attack surface against a malicious local process attempting to impersonate the sidecar on a known port
 - `object-src 'none'` — browser plugins (Flash, Java applets) are blocked
 - `frame-ancestors 'none'` — the webview cannot be embedded in an external frame
 

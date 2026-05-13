@@ -164,17 +164,20 @@ Create a new Application in the SCCM console with the following deployment type 
 
 ## Group Policy — Windows Firewall
 
-Jura Trace's ML sidecar listens on `127.0.0.1:8200` (loopback only). Windows Firewall may prompt users on first launch. To pre-configure the rule via Group Policy or a PowerShell script deployed through your management tooling:
+Jura Trace's ML sidecar listens on a **dynamically-assigned ephemeral port** on the `127.0.0.1` loopback interface (Option C port-collision fix, May 2026). Each launch the Tauri shell asks the OS for a free port via `bind("127.0.0.1:0")` and passes that port to the sidecar binary — there is no fixed port to pre-authorise.
+
+Because the bind address is always `127.0.0.1`, inbound traffic from other machines cannot reach the sidecar regardless of firewall configuration. **No inbound firewall rule is required.** Windows Firewall may still prompt users on first launch the first time a particular Jura Trace build binds; if you want to silence that prompt across an estate without enumerating ports, pre-authorise the executable itself rather than a port:
 
 ```powershell
-# Allow Jura Trace sidecar on port 8200 (private networks only)
+# Allow the Jura Trace sidecar executable on private networks
+# (binds to 127.0.0.1 only — this rule prevents the first-run prompt;
+#  it does not change actual network exposure.)
 New-NetFirewallRule -DisplayName "Jura Trace Sidecar" `
-  -Direction Inbound -Protocol TCP -LocalPort 8200 `
+  -Direction Inbound -Protocol TCP `
+  -Program "C:\Program Files\Jura Trace\jura-sidecar.exe" `
   -Action Allow -Profile Private `
-  -Description "Jura Trace ML analysis sidecar (localhost only)"
+  -Description "Jura Trace ML analysis sidecar (loopback only)"
 ```
-
-Because the sidecar only ever binds to `127.0.0.1`, inbound traffic from other machines cannot reach it regardless of this rule. The firewall rule prevents Windows from prompting end users on first launch — it does not affect actual network exposure.
 
 The optional Ollama integration uses port `11434` on the same loopback interface. If you are deploying Ollama alongside Jura Trace:
 

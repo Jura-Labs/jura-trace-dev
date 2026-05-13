@@ -76,9 +76,14 @@ All processing remains on the user's device. The API wrapper is local-only: it b
 │  Format router (MIME detection)             │
 │  SQLite database (rusqlite)                 │
 └──────────────────┬──────────────────────────┘
-                   │ HTTP (127.0.0.1:8200)
+                   │ HTTP (127.0.0.1, port from `[sidecar].url` below)
 ┌──────────────────▼──────────────────────────┐
 │      Python ML Sidecar (existing)           │
+│      Note: when the wrapper is co-deployed   │
+│      with Jura Trace Desktop, the desktop's  │
+│      sidecar uses an ephemeral port (Option C, │
+│      May 2026) — point the wrapper at a       │
+│      separately-managed sidecar instead.      │
 │                                             │
 │  21-signal deepfake ensemble                │
 │  ELA, noise analysis, copy-move detection   │
@@ -644,6 +649,79 @@ Optional fields are omitted when not applicable (for example, `ela_result` is `n
 | `synthetic`     | Likely AI-generated | 0.65–1.00     |
 
 Score thresholds are calibrated in `sidecar/app/services/deepfake.py`. The `synthetic` verdict is also triggered when one or more invisible AI watermarks are detected (Stable Diffusion, SDXL, or Flux watermark patterns), regardless of the numeric score.
+
+### `methodology` — reproducibility provenance block
+
+Every `VerificationResult` carries a `methodology` block that pins the exact engine, sidecar, and model artefacts used to produce the result. Downstream tooling — including the v1.0.1 `jura` CLI, audit-report generators, and external reproducibility harnesses — should cite these values verbatim when archiving evidence.
+
+```json
+{
+  "methodology": {
+    "pipeline_version": "1.0.0",
+    "sidecar_version": "0.9.0",
+    "classifier_model_hash": "2931f197cba6f376e85b1cbcfd584e6802f36e4fbf68ff00c83d61d4d655db18",
+    "univfd_probe_model_hash": "ed691b45cbe2903a7e0530fd0ec78ab91eef9f15133af4c1a5c8cf172086dacd",
+    "analysis_mode": "standard",
+    "analysed_at": "2026-06-22T10:00:00Z"
+  }
+}
+```
+
+| Field | Type | Meaning |
+|------|------|---------|
+| `pipeline_version` | string | Jura Trace application version (`CARGO_PKG_VERSION` at build time) |
+| `sidecar_version` | string \| null | Python ML sidecar version, `null` if the sidecar was offline |
+| `classifier_model_hash` | string \| null | SHA-256 of `models/deepfake_classifier.joblib`, `null` if not installed |
+| `univfd_probe_model_hash` | string \| null | SHA-256 of `models/univfd_probe.joblib`, `null` if the optional CLIP probe is not installed (added in JTV-181, v1.0) |
+| `analysis_mode` | string | `quick`, `standard`, or `deep` |
+| `analysed_at` | string | ISO 8601 timestamp (UTC, RFC 3339) |
+
+When the same input is verified twice with matching `methodology`, the result MUST be bit-identical except for `analysed_at`. Any deviation indicates a non-determinism bug — report via the issue tracker.
+
+---
+
+## CLI Exit-Code Contract
+
+The forthcoming `jura` CLI (v1.0.1, JTV-182) is a thin Rust client over this REST API. Its exit-code contract is pre-locked in v1.0 so newsroom and forensic-audit automation written against the v1.0.1 release can be authored against this REST API today.
+
+| Exit code | Name | Meaning |
+|-----------|------|---------|
+| `0` | success | Operation completed; result emitted to stdout |
+| `1` | usage | Invalid command-line arguments (missing required flag, unknown subcommand) |
+| `2` | unreachable | Cannot reach the local API at `http://127.0.0.1:8300` (server not running) |
+| `3` | auth | Authentication failure — missing or rejected API key |
+| `4` | file | Local file error — input file not found, unreadable, or empty |
+| `5` | format | Server rejected the input as an unsupported format (HTTP 422) |
+| `6` | server | Server-side error (HTTP 5xx) or partial-availability degraded response |
+
+The numeric codes are stable across all v1.x releases. Wrapper scripts and CI pipelines may rely on them indefinitely. New conditions get new codes; existing codes are never re-purposed.
+
+Server-side handlers that want to influence the CLI exit code should map to the corresponding HTTP status code listed below — the CLI's translation table follows the HTTP status, not the response body.
+
+---
+
+## Schema as Public API Contract
+
+Starting with v1.0 (22 June 2026), the JSON shape of every response in this document is a **public API contract**.
+
+**What this means in practice:**
+
+- New fields MAY be added at any time. Clients MUST ignore unknown fields and not error on them.
+- Existing field names MUST NOT be renamed within a v1.x major version. A rename is a v2.0 break.
+- Existing field types MUST NOT change. Widening a `string` to `string | null` is a break and requires a v2.0.
+- Field-removal requires a deprecation cycle of at least one minor release (`v1.x` → `v1.x+1`) during which the field is still emitted (possibly `null`), accompanied by a `CHANGELOG.md` note. Hard removal lands no earlier than v2.0.
+- `methodology.pipeline_version` is the authoritative engine-version string. The legacy top-level `api_version` field is retained for back-compat and reflects the *envelope* version, not the engine.
+
+**Why this matters:**
+
+Pilot newsroom partners are already integrating against this API. The C2PA Validator Conformant award (recordId `019d8d83-…`, spec 2.2, awarded 2026-05-06) makes the verification result an evidence-bearing record. Schema drift breaks both groups silently.
+
+**Versioning model:**
+
+- `v1.x.y` — non-breaking additions and bug fixes. Schema stays compatible.
+- `v2.0` — breaking changes. Will be cut only when the cost of carrying compatibility shims exceeds the value. Old endpoints under `/api/v1/` will be retained for one full release cycle.
+
+All schema changes MUST be entered in `CHANGELOG.md` under the relevant release heading with the prefix `[schema]`.
 
 ---
 
