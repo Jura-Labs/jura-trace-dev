@@ -110,9 +110,9 @@
         <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Technically sound C2PA manifests</h3>
         <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
           Locally signed files carry a fully valid C2PA manifest that matches the
-          structural requirements of the C2PA specification version 2.x. The
-          manifest can be read and parsed by any C2PA-compatible tool worldwide,
-          including Adobe Inspect, the public
+          structural requirements of the C2PA Technical Specification version 2.2.
+          The manifest can be read and parsed by any C2PA-compatible tool worldwide,
+          including Adobe Content Authenticity, the public
           <span class="font-mono">contentcredentials.org/verify</span> inspector,
           and any downstream validator implementing the specification.
         </p>
@@ -254,14 +254,16 @@
         before accepting it.</li>
     </ol>
 
-    <div class="bg-amber/5 dark:bg-amber/10 border border-amber/30 dark:border-amber/40 rounded-lg p-5 mb-4">
+    <div class="bg-malachite/5 dark:bg-malachite/10 border border-malachite/30 dark:border-malachite/40 rounded-lg p-5 mb-4">
       <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-        <strong>Jura Labs is pursuing C2PA Validator conformance certification</strong>
-        through the official programme. Generator conformance, which would cover
-        the signing side of the dual-mode architecture under Conformant, is a
-        subsequent step in the same programme. Neither badge is required for
-        Local Signing, which operates entirely outside the conformance
-        programme's trust model by design.
+        <strong>Jura Trace holds C2PA Validator-Conformant status</strong>
+        (recordId <span class="font-mono text-xs">019d8d83-ed1c-787c-920c-8fad67b55cbe</span>,
+        spec 2.2), awarded 6 May 2026 and listed on the C2PA Conforming Products
+        List from 31 May 2026. Generator-track conformance, which would cover the
+        signing side of the dual-mode architecture under Conformant, is a separate
+        award targeted for v1.1. Neither award is required for Local Signing,
+        which operates entirely outside the conformance programme's trust model
+        by design.
       </p>
     </div>
   </section>

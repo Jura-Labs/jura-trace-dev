@@ -773,28 +773,25 @@
     role="note"
     class="rounded-lg border border-amber/40 bg-amber/10 dark:bg-amber/5 px-4 py-3 text-sm text-amber-dark dark:text-amber-light leading-relaxed"
   >
-    <strong class="font-semibold">Beta — pre-conformance.</strong>
-    Jura Trace writes structurally valid C2PA provenance manifests.
-    Validator-track conformance was submitted on 14 April 2026 and is
-    awaiting evaluation; Generator-track conformance for the signing
-    path is planned for v1.1 once dual-mode signing has completed
-    pilot testing.
     {#if signingMode === 'conformant'}
-      You are signing in <strong>Conformant</strong> mode — manifests
-      will validate against the C2PA trust list when your imported
-      certificate is recognised.
+      <strong class="font-semibold">Conformant Signing.</strong>
+      Your imported trust-list certificate signs the manifest — third-party
+      validators (Adobe Inspector, ProofCheck, c2patool) will recognise
+      the signer against the C2PA trust list.
     {:else}
-      You are signing in <strong>Local Signing</strong> mode (default).
-      Manifests will validate cryptographically but display as
+      <strong class="font-semibold">Local Signing.</strong>
+      Signed files carry a valid C2PA v2.x manifest. Our per-install
+      certificate isn't on the C2PA trust list, so third-party validators
+      will display the signer as
       <code class="font-mono text-[11px]">signingCredential.untrusted</code>
-      in third-party validators.{#if V1_SHOW_CONFORMANT_SIGNING}
+      — the manifest is real, the trust scope is local to your installation.{#if V1_SHOW_CONFORMANT_SIGNING}
       Import a trust-list certificate from
       <a href="/settings#signing-mode-heading" class="underline underline-offset-2 hover:no-underline">Settings → Signing Mode</a>
-      to validate against the C2PA trust list.{:else}
+      to switch to Conformant Signing.{:else}
       Conformant signing — verifiable against the C2PA trust list —
-      is planned for v1.1.{/if}
+      ships in v1.1.{/if}
+      Verification is already C2PA Validator-Conformant.
     {/if}
-    Treat signed output as preview only.
   </div>
 
   <!-- Page header -->
@@ -1230,14 +1227,14 @@
               {#if signingMode === 'conformant'}
                 Conformant — credentials validate against the C2PA trust list.
               {:else}
-                Local Signing (default) — credentials will display as
+                Local Signing — signer shows as
                 <code class="font-mono text-[10px]">signingCredential.untrusted</code>
-                in external verifiers.{#if V1_SHOW_CONFORMANT_SIGNING}
+                in external validators (manifest is valid; trust scope is local to this install).{#if V1_SHOW_CONFORMANT_SIGNING}
                 <a
                   href="/settings#signing-mode-heading"
                   class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                 >Switch to Conformant Signing →</a>{:else}
-                Conformant signing planned for v1.1.{/if}
+                Conformant signing ships in v1.1.{/if}
               {/if}
             </div>
 
@@ -2409,14 +2406,14 @@
                       {#if signingMode === 'conformant'}
                         Conformant — credentials validate against the C2PA trust list.
                       {:else}
-                        Local Signing (default) — credentials will display as
+                        Local Signing — signer shows as
                         <code class="font-mono text-[10px]">signingCredential.untrusted</code>
-                        in external verifiers.{#if V1_SHOW_CONFORMANT_SIGNING}
+                        in external validators (manifest is valid; trust scope is local to this install).{#if V1_SHOW_CONFORMANT_SIGNING}
                         <a
                           href="/settings#signing-mode-heading"
                           class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
                         >Switch to Conformant Signing →</a>{:else}
-                        Conformant signing planned for v1.1.{/if}
+                        Conformant signing ships in v1.1.{/if}
                       {/if}
                     </div>
 

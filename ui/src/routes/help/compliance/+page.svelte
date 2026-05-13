@@ -93,19 +93,21 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
       Jura Trace is a native desktop application built on the Tauri v2 framework (Rust backend,
       SvelteKit frontend). It runs on macOS 13+, Windows 10+, and Ubuntu 22.04+. All processing
-      occurs on-device. The Analysis Engine binds to <code class="font-mono text-xs bg-gray-100 dark:bg-graphite-light px-1 py-0.5 rounded">127.0.0.1:8200</code> — the loopback
-      interface only — and is not accessible from other machines on the network.
+      occurs on-device. The Analysis Engine binds to an OS-assigned ephemeral port on the
+      <code class="font-mono text-xs bg-gray-100 dark:bg-graphite-light px-1 py-0.5 rounded">127.0.0.1</code>
+      loopback interface only — it is not reachable from other machines on the network and the
+      port is not fixed across launches.
     </p>
     <div
       class="rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 p-4 mb-4 font-mono text-xs text-flint-dark dark:text-flint-light leading-relaxed"
       role="img"
-      aria-label="Architecture diagram: User Device contains the Tauri application, local SQLite database, Analysis Engine on localhost port 8200, and optional Ollama on localhost port 11434. No external network traffic for core functionality."
+      aria-label="Architecture diagram: User Device contains the Tauri application, local SQLite database, Analysis Engine on a loopback ephemeral port assigned at launch, and optional Ollama on localhost port 11434. No external network traffic for core functionality."
     >
       <p>[User Device]</p>
       <p class="ml-4">├── Tauri App (Rust + SvelteKit)</p>
       <p class="ml-8">├── Local SQLite Database</p>
-      <p class="ml-8">└── Analysis Engine (localhost:8200)</p>
-      <p class="ml-12">└── Ollama LLM Runtime (localhost:11434) — optional</p>
+      <p class="ml-8">└── Analysis Engine (127.0.0.1 — OS-assigned ephemeral port)</p>
+      <p class="ml-12">└── Ollama LLM Runtime (127.0.0.1:11434) — optional</p>
       <p class="ml-4">└── [No external network traffic for core functionality]</p>
     </div>
 
@@ -184,9 +186,9 @@
       </li>
       <li>
         <strong class="font-semibold text-text-light dark:text-text-dark">Reverse image search</strong>
-        (Professional tier and above, future): Sends a thumbnail-sized crop to a
-        user-supplied API endpoint (TinEye or Google Vision). Per-analysis consent required.
-        Not available on Community tier.
+        (optional, opt-in): Sends a thumbnail-sized crop to a user-supplied API endpoint
+        (Google Vision in v1.0; TinEye, Yandex, Bing planned for v1.1). Per-analysis consent
+        required; nothing leaves your machine without explicit per-call confirmation.
       </li>
     </ul>
 
@@ -363,7 +365,7 @@
       Organisations using verification reports in automated decision-making should assess their
       obligations under Article 14 (human oversight). Jura Trace supports human oversight
       through the visual inspection checklist and signal agreement dashboard on the Verify page.
-      An EU AI Act compliance report template is available from Professional tier upward.
+      An EU AI Act Article 50 audit-log export is planned for the v1.0.1 release (~early August 2026, as Article 50 binds 2 August 2026).
     </p>
 
     <!-- Online Safety Act 2023 -->
@@ -397,9 +399,9 @@
       source release, or cases requiring contractual indemnification beyond what the AGPL
       provides. Contact
       <a
-        href="mailto:licensing@juralabs.org"
+        href="mailto:commercial@juralabs.org"
         class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-      >licensing@juralabs.org</a> for the commercial-licence process.
+      >commercial@juralabs.org</a> for the commercial-licence process.
     </p>
   </section>
 
@@ -479,8 +481,11 @@
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
       The Sprint 19 audit confirmed that all findings from the Sprint 14 audit (3 critical, 6 high)
-      remain remediated with no regression. The full Sprint 19 audit report is available to
-      Enterprise licence holders on request.
+      remain remediated with no regression. The full Sprint 19 audit report is available on request
+      via <a
+        href="mailto:commercial@juralabs.org"
+        class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+      >commercial@juralabs.org</a>.
     </p>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       For detector methodology documentation, including how each forensic signal is computed and

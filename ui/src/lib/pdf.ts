@@ -81,15 +81,16 @@ const DETECTOR_CITATIONS: Record<string, Citation> = {
   ela:               { paper: 'A Picture\'s Worth: Digital Image Analysis and Forensics', authors: 'Krawetz, N.', year: 2007 },
   noise:             { paper: 'Noise Inconsistencies in Digital Photographs', authors: 'Mahdian, B. & Saic, S.', year: 2009 },
   copyMove:          { paper: 'Distinctive Image Features from Scale-Invariant Keypoints', authors: 'Lowe, D.G.', year: 2004 },
-  deepfake:          { paper: 'XGBoost: A Scalable Tree Boosting System', authors: 'Chen, T. & Guestrin, C.', year: 2016 },
+  deepfake:          { paper: 'Greedy Function Approximation: A Gradient Boosting Machine', authors: 'Friedman, J.H.', year: 2001 },
   clipDetect:        { paper: 'Towards Universal Fake Image Detectors that Generalise Across Generative Models', authors: 'Ojha, U. et al.', year: 2023 },
+  univfd:            { paper: 'Towards Universal Fake Image Detectors that Generalise Across Generative Models', authors: 'Ojha, U. et al.', year: 2023 },
   jpegGhost:         { paper: 'Exposing Digital Forgeries from JPEG Ghosts', authors: 'Farid, H.', year: 2009 },
   segmentedEla:      { paper: 'A Picture\'s Worth: Digital Image Analysis and Forensics (region-extended)', authors: 'Krawetz, N.', year: 2007 },
   shadowConsistency: { paper: 'Exposing Photo Manipulation with Inconsistent Shadows', authors: "Kee, E., O'Brien, J.F. & Farid, H.", year: 2013 },
   colourTemperature: { paper: 'Exposing Colour Splicing in Digital Images Using Illuminant Colour Estimation', authors: 'de Carvalho, T.J. et al.', year: 2013 },
   spliceBoundary:    { paper: 'Multi-signal Splice Boundary Detection (heuristic ensemble)', authors: 'Jura Trace', year: 2026 },
   npr:               { paper: 'Detecting Photographic Image Manipulation with Upsampling Artefacts', authors: 'Tan, C. et al.', year: 2024 },
-  c2pa:              { paper: 'C2PA Content Credentials Technical Specification v2.3', authors: 'Coalition for Content Provenance and Authenticity', year: 2024 },
+  c2pa:              { paper: 'C2PA Technical Specification, version 2.2', authors: 'Coalition for Content Provenance and Authenticity', year: 2026 },
   watermark:         { paper: 'Robust Image Watermarking Using DWT-DCT-SVD', authors: 'Navas, K.A. et al.', year: 2008 },
   exifAnomaly:       { paper: 'Digital Forensics of EXIF Metadata Inconsistencies in Digital Photographs', authors: 'Kee, E. & Farid, H.', year: 2011 },
 };
@@ -545,6 +546,55 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
   }
 
   y += SECTION_GAP;
+
+  // ── Partial Analysis Notice (Niamh fix, 2026-05-12) ─────────
+  // When fewer detectors ran than expected for this mode + content-type,
+  // the report is provisional. The notice appears at the front of the
+  // report — right after the Summary, before the analyst note — so a
+  // solicitor / audit reviewer cannot accept the analysis without first
+  // confirming the scope. Hidden when analysis ran to full expected scope.
+  //
+  // Backed by `result.detectorsRun` (S28-FU1, JTV-181) against
+  // `expectedDetectors(mode, contentType)` from the codegen-stable
+  // EXPECTED_DETECTORS_BY_MODE matrix.
+  const expectedIdsForNotice = expectedDetectors(result.mode, result.contentType);
+  const expectedCount = expectedIdsForNotice.length;
+  const actualCount = result.detectorsRun?.length ?? 0;
+  const isPartialAnalysis = expectedCount > 0 && actualCount < expectedCount;
+  const noticeModeLabel =
+    (result.mode ?? 'standard') === 'archival' || (result.mode ?? 'standard') === 'deep'
+      ? 'Deep' : 'Standard';
+
+  if (isPartialAnalysis) {
+    checkPage(30);
+    const bannerY = y;
+    const bannerH = 26;
+    doc.setFillColor(252, 232, 232);    // light cinnabar tint
+    doc.setDrawColor(160, 60, 50);      // cinnabar border
+    doc.setLineWidth(0.6);
+    doc.rect(MARGIN, bannerY, CONTENT_WIDTH, bannerH, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(140, 35, 30);
+    doc.text('PARTIAL ANALYSIS NOTICE', MARGIN + 3, bannerY + 6);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(70, 25, 25);
+    const partialMsg =
+      `This analysis ran ${actualCount} of ${expectedCount} expected detectors for ` +
+      `${result.contentType} content in ${noticeModeLabel} mode. ` +
+      'The report is provisional — detectors marked "Not run in this analysis" did ' +
+      'not contribute. Re-run with full Analysis Engine availability before ' +
+      'treating any verdict as definitive evidence.';
+    const msgLines = doc.splitTextToSize(partialMsg, CONTENT_WIDTH - 6);
+    doc.text(msgLines, MARGIN + 3, bannerY + 11);
+
+    doc.setTextColor(0);
+    doc.setFont('helvetica', 'normal');
+    y = bannerY + bannerH + SECTION_GAP;
+  }
 
   // ── Analyst Notes (dedicated section — only when note is non-empty) ──
   if (meta.analystNote?.trim()) {
@@ -1117,8 +1167,8 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
       doc.setFont('helvetica', 'italic');
       doc.setTextColor(120);
       doc.text(
-        'Experimental weight (0.5\u00D7, uncalibrated) \u2014 pending CASIA v2 research benchmark. ' +
-        'See docs/calibration/s28-jpeg-ghost-weight.md.',
+        'Experimental weight (0.5\u00D7) \u2014 calibration tracked against a commercial-cleared ' +
+        'splice benchmark. See methodology disclosure for current calibration state.',
         COL_DETECTOR + 2, y
       );
       doc.setFont('helvetica', 'normal');
@@ -1252,7 +1302,7 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
 
   // Model version labels
   const classifierModel = result.deepfakeResult?.classifierAvailable
-    ? 'GBM v2 (AUC 1.0000)'
+    ? 'GBM v4 (AUC 0.9868) + UnivFD v9 (AUC 0.9933) ensemble'
     : 'Heuristic only';
   const clipModel = result.clipResult
     ? 'ViT-B/32 (open_clip)'
@@ -1270,12 +1320,20 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
     ? new Date(meth.analysedAt).toISOString()
     : new Date(meta.analysedAt).toISOString();
 
+  // Analysis-completeness label — explicit X-of-Y disclosure for solicitor /
+  // audit-reviewer use. The Partial Analysis Notice banner above carries the
+  // prominent warning; this row carries the structured value for traceability.
+  const completenessLabel = expectedCount > 0
+    ? `${actualCount} of ${expectedCount} expected${isPartialAnalysis ? ' — PARTIAL' : ''}`
+    : `${actualCount} (expected count not derivable for this content type)`;
+
   const metaRows: [string, string][] = [
     ['Jura Trace version', `v${pipelineVer}`],
     ...(sidecarVer ? [['Analysis Engine version', sidecarVer] as [string, string]] : []),
     ['Analysis mode', modeLabel],
+    ['Analysis completeness', completenessLabel],
     ['Trust formula', '40% EXIF metadata + 60% forensic analysis'],
-    ['C2PA adjustment', '+0.10 (valid, no AI declared) / -0.25 (AI declared)'],
+    ['C2PA Content Credentials', 'Valid manifest: +0.10 trust signal. AI disclosure (DigitalSourceType) surfaced separately at L2/L3 — honest disclosure is not penalised.'],
     ['Classifier model', classifierModel + (classifierHash ? ` (${classifierHash})` : '')],
     ['CLIP model', clipModel],
     ['Detectors run', detectorsRunText],
@@ -1345,7 +1403,7 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
       citationKey: 'copyMove',
     },
     {
-      text: 'AI Generation Detection: An ensemble of 13 statistical signals analyses frequency spectra, gradient patterns, noise consistency, colour distribution, and other features to estimate the likelihood of AI generation.',
+      text: 'AI Generation Detection: A two-head ensemble — GBM v4 (84-feature gradient-boosted classifier on hand-engineered forensic features, AUC 0.9868) and UnivFD v9 (logistic regression on CLIP ViT-B/32 embeddings, AUC 0.9933). Each head runs independently and the verdict reflects their combined output.',
       citationKey: 'deepfake',
     },
     {
@@ -1447,7 +1505,7 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
   checkPage(15);
   doc.setFontSize(7);
   doc.setTextColor(120);
-  const disclaimer = 'This report is generated by automated analysis tools and should be interpreted by qualified professionals. Results are indicative, not conclusive. Jura Trace and Jura Labs CIC accept no liability for decisions made based on this report.';
+  const disclaimer = 'This report is generated by automated analysis tools and should be interpreted by qualified professionals. Results are indicative, not conclusive. To the maximum extent permitted by law, and consistent with the AGPL-3.0-or-later "no warranty" provisions, Jura Labs CIC excludes liability for indirect, consequential, or special losses arising from decisions made based on this report. Liability for death, personal injury, fraud or other matters that cannot lawfully be excluded is not affected.';
   const disclaimerLines = doc.splitTextToSize(disclaimer, CONTENT_WIDTH);
   doc.text(disclaimerLines, MARGIN, y);
   y += disclaimerLines.length * 3 + 2;

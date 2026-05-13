@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
+  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { getVersion, checkSidecarHealth, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, getPowerSaverMode, setPowerSaverMode, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert, getNetworkMode, setNetworkMode } from '$lib/api';
   import type { ApiKeyInfo, CreateKeyResult } from '$lib/api';
   import type { ConformantCertificateInfo, LicenceTier, NetworkMode, SidecarHealth, SigningMode, TierInfo } from '$lib/types';
@@ -660,67 +662,59 @@
   }
 
   /**
-   * Stream a model pull through the sidecar's `/ollama/pull` proxy.
-   * The CSP restricts connect-src to 127.0.0.1:8200, so the Tauri webview
-   * cannot speak to Ollama directly — the sidecar forwards each request to
-   * whatever JURA_OLLAMA_BASE_URL is configured there. SSE chunks emit
-   * `{status, completed, total}` progress that we render as a percentage.
+   * Stream a model pull through Rust's IPC proxy (Option C port-collision fix,
+   * 2026-05-12).  Previously this used `fetch('http://127.0.0.1:8200/ollama/pull')`
+   * directly, which required CSP `connect-src` to whitelist the fixed sidecar
+   * port.  After switching to dynamic ephemeral port allocation we no longer
+   * have a fixed port to whitelist, so the frontend never speaks HTTP to the
+   * sidecar — instead Rust opens the SSE stream and re-emits Tauri events
+   * (`ollama-pull-progress` / `ollama-pull-complete` / `ollama-pull-error`).
    */
   async function pullOllamaModel(modelName: string) {
     pullingModel = modelName;
     pullError = null;
     pullProgress = 'Connecting…';
     pullPercent = null;
+
+    const unlisteners: UnlistenFn[] = [];
     try {
-      const resp = await fetch('http://127.0.0.1:8200/ollama/pull', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: modelName, stream: true }),
-      });
-      if (!resp.ok) {
-        let detail = `HTTP ${resp.status}`;
-        try {
-          const body = await resp.json();
-          if (body?.message) detail = body.message;
-        } catch { /* ignore */ }
-        throw new Error(detail);
-      }
-      const reader = resp.body?.getReader();
-      const decoder = new TextDecoder();
-      if (reader) {
-        let buffer = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.error) throw new Error(data.message || data.error);
-              if (data.status === 'success') {
-                pullProgress = 'Complete';
-                pullPercent = 100;
-              } else if (data.completed && data.total) {
-                pullPercent = Math.round((data.completed / data.total) * 100);
-                const mb = (data.completed / 1_000_000).toFixed(0);
-                const totalMb = (data.total / 1_000_000).toFixed(0);
-                pullProgress = `${data.status || 'Downloading'} — ${mb} / ${totalMb} MB`;
-              } else if (data.status) {
-                pullProgress = data.status;
-              }
-            } catch (parseErr) {
-              if (parseErr instanceof Error && parseErr.message !== line.slice(6)) throw parseErr;
+      unlisteners.push(
+        await listen<{ status?: string; completed?: number; total?: number; percent?: number }>(
+          'ollama-pull-progress',
+          (event) => {
+            const data = event.payload;
+            if (data.status === 'success') {
+              pullProgress = 'Complete';
+              pullPercent = 100;
+              return;
             }
-          }
-        }
-      }
+            if (typeof data.percent === 'number') {
+              pullPercent = data.percent;
+            }
+            if (typeof data.completed === 'number' && typeof data.total === 'number' && data.total > 0) {
+              const mb = (data.completed / 1_000_000).toFixed(0);
+              const totalMb = (data.total / 1_000_000).toFixed(0);
+              pullProgress = `${data.status || 'Downloading'} — ${mb} / ${totalMb} MB`;
+            } else if (data.status) {
+              pullProgress = data.status;
+            }
+          },
+        ),
+      );
+      unlisteners.push(
+        await listen<{ message: string }>('ollama-pull-error', (event) => {
+          pullError = `Failed to download ${modelName}: ${event.payload.message}`;
+        }),
+      );
+
+      await invoke('pull_ollama_model', { modelName });
       await refreshHealth();
     } catch (e) {
       pullError = `Failed to download ${modelName}: ${e instanceof Error ? e.message : String(e)}`;
     } finally {
+      for (const off of unlisteners) {
+        try { off(); } catch { /* ignore */ }
+      }
       pullingModel = null;
       pullProgress = null;
       pullPercent = null;
@@ -2093,33 +2087,29 @@
       </div>
     </div>
 
-    <!-- Change plan dropdown -->
-    <div class="flex flex-col gap-2 max-w-xs">
-      <label for="tier-select" class="block text-sm font-medium text-text-light dark:text-quartz">
-        Change plan
-      </label>
-      <select
-        id="tier-select"
-        value={currentTier}
-        onchange={handleTierChange}
-        disabled={tierChanging}
-        class="px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm transition-colors
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent
-               disabled:opacity-50 disabled:cursor-not-allowed"
-        aria-describedby="tier-select-hint"
-      >
-        <option value="community">Community (non-commercial)</option>
-        <option value="professional">Professional (individual commercial)</option>
-        <option value="enterprise">Enterprise (unlimited seats)</option>
-      </select>
-      <p id="tier-select-hint" class="text-xs text-flint-dark dark:text-flint-light">
-        Pilot mode: tier changes are saved to your local config and persist across restarts.
-        Visit <a
-          href="https://juralabs.org"
-          target="_blank"
-          rel="noopener noreferrer"
+    <!-- v1.0 Community-only — tier selector hidden until v1.1 introduces Pro tier.
+         The LicenceTier enum + handleTierChange + tierChanging state are retained
+         in source for the v1.1 unhide; we just don't surface them in the UI. -->
+    <div class="flex flex-col gap-3 max-w-xl rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 p-4">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-malachite/10 text-malachite-dark dark:bg-malachite/20 dark:text-malachite-light">
+          Community
+        </span>
+        <span class="text-sm text-text-light dark:text-quartz">
+          Jura Trace v1.0 is free for everyone under AGPL-3.0-or-later.
+        </span>
+      </div>
+      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+        Need to embed Jura Trace in your own product without AGPL contagion? Email
+        <a
+          href="mailto:commercial@juralabs.org"
           class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-        >juralabs.org<span class="sr-only"> (opens in new tab)</span></a> to purchase a licence.
+        >commercial@juralabs.org</a>
+        for a commercial licence.
+        Need bespoke engineering, training, or compliance documentation? Custom Engineering
+        engagements are quoted from £5,000 / 5 days.
+        A paid Pro tier — adding Conformant C2PA signing, REST API access, bulk verify, and
+        Article 50 audit-log export — is planned for the v1.1 release in early 2027.
       </p>
     </div>
 
@@ -2308,8 +2298,10 @@
 
         <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed pt-3 border-t border-border-light dark:border-border-dark">
           Third-party tools will confirm this file's integrity. Your identity as signer will show
-          as unverified in external validators — this is expected in Local Signing mode and does
-          not affect the validity of the manifest.
+          as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in external
+          validators — expected in Local Signing mode (the manifest is valid; trust scope is local
+          to this install). Conformant Signing — verifiable against the C2PA trust list — ships
+          in v1.1.
         </p>
 
         <!-- Certificate Details expandable -->

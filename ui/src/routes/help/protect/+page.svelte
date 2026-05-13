@@ -3,19 +3,23 @@
   // Section IDs are used for deep linking from contextual help buttons.
 </script>
 
-<!-- Beta notice — Protect is a separate Generator-track workstream,
-     not part of the Validator conformance submission currently under
-     evaluation. This page is reachable by direct URL only; it is
-     intentionally omitted from the Help index and sidebar during
-     the Validator evaluation build. -->
+<!-- Signing-mode notice — Jura Trace is C2PA Validator-Conformant on the
+     receive side (recordId 019d8d83-..., awarded 2026-05-06, spec 2.2).
+     Generator-track conformance for the signing path is a separate
+     workstream targeted for v1.1. v1.0 signs in Local Signing mode
+     (per-install Bedrock CA) only. -->
 <div
   role="note"
-  class="rounded-lg border border-amber/40 bg-amber/10 dark:bg-amber/5 px-4 py-3 text-sm text-amber-dark dark:text-amber-light leading-relaxed mb-6"
+  class="rounded-lg border border-flint/30 bg-flint/10 dark:bg-flint/5 px-4 py-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6"
 >
-  <strong class="font-semibold">Beta — internal alpha</strong>
-  — Content Credentials signing is in active development and is
-  <em>not</em> part of the C2PA Validator conformance submission currently
-  under evaluation. A separate Generator-track submission will follow.
+  <strong class="font-semibold">Local Signing.</strong>
+  v1.0 signs in Local Signing mode (per-install certificate authority).
+  Signed files carry a valid C2PA v2.2 manifest; the signer shows as
+  <code class="font-mono text-[11px]">signingCredential.untrusted</code>
+  in third-party validators because our certificate isn't on the C2PA trust
+  list. The manifest itself is valid; the trust scope is local to your
+  installation. Conformant signing — verifiable against the C2PA trust
+  list — ships in v1.1. Verification is already C2PA Validator-Conformant.
 </div>
 
 <!-- ── Page header ────────────────────────────────────────────────── -->
@@ -256,16 +260,6 @@
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4">QuickTime video</td>
           <td class="py-2 pr-4 font-mono text-xs">video/quicktime</td>
-          <td class="py-2 text-malachite-dark dark:text-malachite-light">✓</td>
-        </tr>
-        <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-          <td class="py-2 pr-4">WAV audio</td>
-          <td class="py-2 pr-4 font-mono text-xs">audio/wav</td>
-          <td class="py-2 text-malachite-dark dark:text-malachite-light">✓</td>
-        </tr>
-        <tr>
-          <td class="py-2 pr-4">MP3 audio</td>
-          <td class="py-2 pr-4 font-mono text-xs">audio/mpeg</td>
           <td class="py-2 text-malachite-dark dark:text-malachite-light">✓</td>
         </tr>
       </tbody>

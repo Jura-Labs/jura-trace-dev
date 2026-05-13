@@ -100,12 +100,12 @@
     <!-- Purpose -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Purpose</h3>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
-      The GBM classifier analyses an 80-dimensional feature vector extracted from
+      The GBM classifier analyses an 84-dimensional feature vector extracted from
       images by the forensic pipeline (ELA statistics, noise patterns, frequency
       domain features, copy-move indicators, and more). It produces a probability
-      score indicating how likely an image is to be AI-generated. This score is
-      blended with the heuristic detector scores (35% classifier / 65% heuristic)
-      to produce the final trust assessment.
+      score indicating how likely an image is to be AI-generated. This score runs
+      as one head of a two-head AI-detection ensemble alongside the UnivFD probe;
+      the combined output feeds the final trust assessment.
     </p>
 
     <!-- Training data -->
@@ -296,7 +296,7 @@
       <dl class="space-y-3 text-sm">
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Total images</dt>
-          <dd class="text-flint-dark dark:text-flint-light">39,016 (10,712 original + 28,304 platform-forwarded augmentation)</dd>
+          <dd class="text-flint-dark dark:text-flint-light">39,016 (10,712 original + 32,142 platform-forwarded augmentation via Q=75/85/2× re-saves)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Authentic sources</dt>

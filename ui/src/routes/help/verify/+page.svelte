@@ -123,9 +123,10 @@
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold mt-0.5">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Image forensic analysis</strong> —
-        a suite of detectors (ELA, noise analysis, copy-move detection, NPR, chromatic
-        aberration, JPEG ghost, and regional analysis) that look for traces of compositing,
-        re-touching, or format manipulation at the pixel level.
+        a suite of detectors (ELA, segmented ELA, noise analysis, copy-move detection,
+        JPEG Ghost, colour temperature, watermark extraction) that look for traces of
+        compositing, re-touching, or format manipulation at the pixel level. Three further
+        detectors (NPR, shadow consistency, splice boundary) are available on demand.
       </span>
     </li>
     <li class="flex gap-3">
@@ -908,19 +909,6 @@
           working backwards through the sun position model. This provides an independent
           time estimate that can be compared against the EXIF timestamp — a significant
           discrepancy between the two is a meaningful signal worth investigating.
-        </p>
-      </div>
-
-      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-          Diffusion Model Artefacts
-        </p>
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-          Analyses the image for characteristics specific to AI diffusion models, including
-          unusual texture smoothness, VAE decoder banding, and resolution fingerprints.
-          These artefacts differ from GAN signatures and are characteristic of Stable Diffusion,
-          DALL-E, and Midjourney outputs — the detector provides a targeted check when
-          diffusion-model generation is suspected.
         </p>
       </div>
 

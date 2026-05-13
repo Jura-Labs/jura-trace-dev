@@ -47,10 +47,12 @@
       <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6">
         <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">1. Source Code Release</h3>
         <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-          If Jura Labs CIC ceases operations, the full Jura Trace source code will
-          be released under the Apache 2.0 open-source licence. This ensures that
-          the codebase can be maintained, forked, and improved by the community
-          without restriction.
+          Jura Trace's source code is published under AGPL-3.0-or-later today —
+          the codebase is already public and forkable. The CIC's continuity
+          commitment is that if Jura Labs CIC ceases operations, the source will
+          remain available under AGPL-3.0-or-later in perpetuity (this is a
+          consequence of the AGPL licence terms and the CIC's asset-locked
+          status — it cannot be retracted by any future change of ownership).
         </p>
       </div>
 
@@ -61,8 +63,8 @@
           All trained model weights (the GBM deepfake classifier, UnivFD linear
           probe, and any future classifiers) will be deposited in a public archive
           such as HuggingFace Hub or Zenodo. These weights are essential for
-          continued operation of the detection pipeline and will be freely available
-          for research and non-commercial use.
+          continued operation of the detection pipeline and will be freely
+          available under terms compatible with the AGPL-3.0-or-later licence.
         </p>
       </div>
 

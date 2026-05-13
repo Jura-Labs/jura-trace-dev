@@ -447,8 +447,9 @@
           immediate neighbours as a binary string. Natural photographs have characteristic
           LBP distributions; AI-generated images often produce measurably different ones.
           LBP block variance is one of the three highest-weighted features in Jura Trace's
-          GBM classifier. LBP drift is also used as a temporal consistency signal in video
-          deepfake analysis.
+          GBM classifier. LBP drift will also be used as a temporal consistency signal in
+          video deepfake analysis — that detector ships in v1.0.x (deferred from v1.0 per
+          JTV-138).
         </dd>
       </div>
 
@@ -663,12 +664,13 @@
         <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
           The forensic analysis service that runs alongside the Jura Trace desktop
           application on port 8200. Handles computationally intensive forensic analysis —
-          ELA, noise, copy-move, deepfake detection (GBM + UnivFD ensemble), CLIP
-          classification, JPEG ghost, segmented ELA, colour temperature, watermarking,
-          and video/audio analysis — plus the on-demand investigation tools
-          (NPR, shadow consistency, splice boundary) available in Expert View.
-          Jura Trace operates normally when the Analysis Engine is not running;
-          forensic analysis results are simply omitted from the report.
+          ELA, noise, copy-move, deepfake detection (GBM v4 + UnivFD v9 ensemble), CLIP
+          classification, JPEG Ghost, segmented ELA, colour temperature, watermarking
+          — plus the on-demand investigation tools (NPR, shadow consistency, splice
+          boundary) available in Expert View. Video deepfake and audio analysis are
+          deferred from v1.0 and ship in v1.0.x (JTV-138). Jura Trace operates normally
+          when the Analysis Engine is not running; forensic analysis results are simply
+          omitted from the report.
         </dd>
       </div>
 

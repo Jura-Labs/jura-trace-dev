@@ -23,7 +23,7 @@ export async function exportCaseZip(
   meta: CaseExportMeta
 ): Promise<Blob> {
   const zip = new JSZip();
-  const version = meta.appVersion ?? '0.2.0';
+  const version = meta.appVersion ?? '0.9.0';
   const trustPercent = Math.round(result.overallTrust * 100);
   const trustLevel = getTrustLevel(result.overallTrust);
 
@@ -77,17 +77,30 @@ export async function exportCaseZip(
     'matches suggest content has been cloned from one area to another.',
     '',
     'AI Generation Detection',
-    'An ensemble of 13 statistical signals analyses frequency spectra, gradient patterns,',
-    'noise consistency, colour distribution, and other features to estimate the likelihood',
-    'of AI generation.',
+    'A two-head ensemble — GBM v4 (84-feature gradient-boosted classifier, AUC 0.9868)',
+    'and UnivFD v9 (logistic regression on CLIP ViT-B/32 embeddings, AUC 0.9933) — that',
+    'analyses frequency, gradient, noise, and embedding-space signals to estimate the',
+    'likelihood of AI generation. Both heads run independently and the verdict reflects',
+    'their combined output.',
     '',
     'EXIF Anomaly Analysis',
-    'Checks embedded metadata for consistency, completeness, and known manipulation',
-    'patterns. Missing or contradictory metadata reduces trust.',
+    'Checks embedded metadata for consistency, completeness, and manipulation patterns.',
+    'Includes a five-check injection-detection suite (templated timestamps, integer-degree',
+    'GPS, programmatic pipeline software, missing MakerNote on mandatory-vendor cameras,',
+    'iPhone sRGB mismatch) and a two-check XMP AI-provenance suite (Iptc4xmpExt',
+    'DigitalSourceType and xmp:CreatorTool AI tooling). Vendor authenticity scored',
+    'against a 36-vendor MakerNote register.',
     '',
-    'C2PA Provenance',
-    'Verifies cryptographically signed provenance manifests embedded in the file,',
-    'following the Coalition for Content Provenance and Authenticity specification.',
+    'C2PA Content Credentials',
+    'Verifies cryptographically signed Content Credentials embedded in the file, per the',
+    'C2PA Technical Specification version 2.2 and the C2PA UX Recommendations. Jura',
+    'Trace is listed on the C2PA Conforming Products List as a Validator-Conformant',
+    'Product (recordId 019d8d83-ed1c-787c-920c-8fad67b55cbe).',
+    '',
+    'On-demand investigation tools',
+    'NPR (neural perceptual residual), shadow consistency, and splice boundary detectors',
+    'are not part of the automatic trust score; they run on user request from the verify',
+    'result panel for additional context. They are documented separately in the report.',
     '',
     'All analysis is performed locally on the user\'s device. No data is transmitted',
     'to external servers at any point during the verification process.',

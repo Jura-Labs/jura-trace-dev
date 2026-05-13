@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * Jura Trace TypeScript type definitions.
  * These mirror the Rust structs in src-tauri/src/lib.rs.
@@ -40,12 +42,16 @@ export type VerifyMode = 'standard' | 'deep' | 'archival';
  *
  * Values mirror the `LicenceTier` Rust enum with `serde(rename_all = "camelCase")`.
  * Internal geological codenames: Community=Flint, Professional=Stratum,
- * Team=Geode, Enterprise=Bedrock.
+ * Enterprise=Bedrock.
+ *
+ * The `team` tier was retired on 2026-05-04; the Rust enum carries
+ * `#[serde(alias = "team")]` on Professional so legacy configs roll up
+ * cleanly. Frontend code should never produce or branch on `'team'`.
  *
  * During the pilot phase this can be set manually from Settings.
  * Post-v1.0, tier enforcement will use a signed JWT.
  */
-export type LicenceTier = 'community' | 'professional' | 'team' | 'enterprise';
+export type LicenceTier = 'community' | 'professional' | 'enterprise';
 
 /** Display metadata for a licence tier. */
 export interface TierInfo {
@@ -592,6 +598,14 @@ export interface MethodologyRecord {
   sidecarVersion?: string | null;
   /** SHA-256 hex digest of the GBM classifier model file, if present. */
   classifierModelHash?: string | null;
+  /**
+   * SHA-256 hex digest of the UnivFD CLIP probe (`models/univfd_probe.joblib`),
+   * if present. Added in JTV-181 (v1.0 CLI groundwork) so the v1.0.1 `jura` CLI
+   * and external reproducibility tooling can pin the exact CLIP ensemble used
+   * to produce a verification result. `null` when the optional CLIP detector
+   * is not installed.
+   */
+  univfdProbeModelHash?: string | null;
   /** Investigation mode used (quick, standard, deep, archival). */
   analysisMode: string;
   /** ISO 8601 timestamp when the analysis was performed. */

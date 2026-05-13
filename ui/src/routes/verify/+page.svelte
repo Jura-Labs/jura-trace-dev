@@ -237,6 +237,14 @@
   });
 
   // ── Derived ────────────────────────────────────────────────────────
+  // Minimum automatic detectors that must run before any verdict claim is
+  // honest.  Locked 2026-05-11 after a 1-of-15 verify result rendered as
+  // "High Trust / Authentic / 70%" because the score arithmetic neutralised
+  // unrun detectors.  Threshold is the union: EXIF + C2PA + ELA + noise +
+  // (one AI head) = 5.  Below this, verdict downgrades to Insufficient
+  // regardless of the numeric score.
+  const MIN_DETECTORS_FOR_VERDICT = 5;
+
   const rawTrustLevel = $derived(result ? getTrustLevel(result.overallTrust) : null);
 
   const hasUncertainDeepfake = $derived(
@@ -244,8 +252,41 @@
     result?.deepfakeResult?.verdictLevel === 'synthetic'
   );
 
+  // A verdict is "insufficient signal" when too few detectors actually ran.
+  // This catches the case where the analysis engine was unreachable mid-run
+  // OR a file's codec/dimension gated most detectors off — both produce a
+  // numeric score that is arithmetically valid but operationally meaningless.
+  const insufficientSignal = $derived(() => {
+    if (!result) return false;
+    return detectorsRun() < MIN_DETECTORS_FOR_VERDICT;
+  });
+
+  // Positive authenticity evidence — at least ONE of:
+  //   (a) Real camera detected via MakerNote (vendor-recognised binary blob,
+  //       AI generators virtually never synthesise these); OR
+  //   (b) Valid C2PA Content Credentials with NO AI declaration (manifest
+  //       cryptographically valid AND no DigitalSourceType=trainedAlgorithmicMedia
+  //       or compositeSynthetic action assertion).
+  //
+  // Without ONE of these signals, a "High Trust / Authentic" claim is unsafe:
+  // it rests purely on the absence of negative findings, which a re-encoded
+  // AI image (e.g. PNG export of a JPEG-generated synthetic) routinely
+  // produces because JPEG-specific detectors codec-gate off and the AI
+  // ensemble can drift on format conversion.  Cap at Moderate / Review.
+  const hasPositiveAuthenticitySignal = $derived(() => {
+    if (!result) return false;
+    const cameraBonus = result.exifAnalysis?.cameraAuthenticityBonus ?? 0;
+    if (cameraBonus > 0.5) return true;
+    if (result.c2paValid === true && !c2paDigitalSourceType()) return true;
+    return false;
+  });
+
   const trustLevel = $derived(() => {
     if (!rawTrustLevel) return null;
+    if (insufficientSignal()) return 'inconclusive' as const;
+    // Safety cap (added 2026-05-11 after a re-encoded AI PNG passed as High
+    // Trust): cannot claim "Authentic" without positive provenance evidence.
+    if (rawTrustLevel === 'high' && !hasPositiveAuthenticitySignal()) return 'medium';
     if (hasUncertainDeepfake && rawTrustLevel === 'high') return 'medium';
     return rawTrustLevel;
   });
@@ -257,6 +298,7 @@
     if (lv === 'high') return 'text-malachite-dark dark:text-malachite-light';
     if (lv === 'medium') return 'text-amber-dark dark:text-amber-light';
     if (lv === 'low') return 'text-cinnabar-dark dark:text-cinnabar-light';
+    if (lv === 'inconclusive') return 'text-flint-dark dark:text-flint-light';
     return 'text-flint-dark dark:text-flint-light';
   });
 
@@ -265,10 +307,12 @@
     if (lv === 'high') return '#5B8A5F';
     if (lv === 'medium') return '#D4943A';
     if (lv === 'low') return '#C45B52';
+    if (lv === 'inconclusive') return '#78756D';
     return '#78756D';
   });
 
   const trustLabelText = $derived(() => {
+    if (insufficientSignal()) return 'Inconclusive';
     if (hasUncertainDeepfake) {
       if (result?.deepfakeResult?.verdictLevel === 'synthetic') return 'Low Trust';
       return 'Uncertain';
@@ -284,6 +328,7 @@
     const lv = trustLevel();
     if (lv === 'high') return 'bg-malachite/15 text-malachite-dark dark:text-malachite-light border-malachite/30';
     if (lv === 'medium') return 'bg-amber/15 text-amber-dark dark:text-amber-light border-amber/30';
+    if (lv === 'inconclusive') return 'bg-flint/15 text-flint-dark dark:text-flint-light border-flint/30';
     return 'bg-cinnabar/15 text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/30';
   });
 
@@ -471,12 +516,50 @@
   );
 
   // ── Signal map dots ────────────────────────────────────────────────
-  type DotState = 'pass' | 'concern' | 'suspicious' | 'suppressed' | 'not-run';
+  // Colour semantics (locked 2026-05-10):
+  //   green  (pass)         — detector ran, returned positive evidence (e.g. authentic EXIF)
+  //   amber  (concern)      — uncertain or honestly-disclosed AI in a valid manifest
+  //   red    (suspicious)   — explicit evidence of AI / manipulation
+  //   grey   (not-run/empty/suppressed) — no positive OR negative signal to surface
+  // The map mirrors the overall-trust pill vocabulary so the per-detector dots
+  // do not contradict the headline verdict.
+  type DotState = 'pass' | 'concern' | 'suspicious' | 'suppressed' | 'not-run' | 'empty-data';
 
   function dotState(suspicious: boolean | undefined | null, ran: boolean, suppressed = false): DotState {
     if (suppressed) return 'suppressed';
     if (!ran) return 'not-run';
     if (suspicious === true) return 'suspicious';
+    return 'pass';
+  }
+
+  // EXIF-specific dot state: distinguish "no EXIF data at all" (typical of
+  // AI-stripped images) from "EXIF present and clean".  An empty-data EXIF
+  // is informationally neutral — green is misleading.
+  function exifDotState(): DotState {
+    if (!result?.exifAnalysis) return 'not-run';
+    const findings = result.exifAnalysis.findings ?? [];
+    const highSeverity = findings.filter(
+      (f: AnomalyFinding) => f.severity === 'high' || f.severity === 'critical'
+    );
+    if (highSeverity.length > 0) return 'suspicious';
+    // hasExif=false (EXIF block absent or fully stripped) plus no findings
+    // means we have nothing to assess — informationally neutral, not pass.
+    // Firefly / Midjourney / DALL-E outputs typically strip EXIF on export;
+    // a green dot in that case is misleading.
+    if (result.exifAnalysis.hasExif === false && findings.length === 0) return 'empty-data';
+    return 'pass';
+  }
+
+  // C2PA-specific dot state: a valid manifest that contains an AI-disclosure
+  // action assertion (DigitalSourceType=trainedAlgorithmicMedia,
+  // compositeSynthetic, etc.) is not the same as a valid manifest with no AI
+  // declaration.  Honest AI disclosure is a CONCERN (amber) signal, not a
+  // PASS (green) signal — the manifest is valid but it confesses AI involvement.
+  function c2paDotState(): DotState {
+    if (result?.c2paValid === false) return 'suspicious';
+    if (result?.c2paValid !== true) return 'not-run';
+    // Valid manifest.  Check whether it discloses AI.
+    if (c2paDigitalSourceType()) return 'concern';
     return 'pass';
   }
 
@@ -488,25 +571,35 @@
     );
     const exifSuspicious = exifHighFindings.length > 0;
 
+    const c2paAiType = c2paDigitalSourceType();
+    const c2paState = c2paDotState();
+    const exifState = exifDotState();
+
     return {
       provenance: [
         {
           id: 'card-provenance', label: 'EXIF',
-          state: dotState(exifSuspicious, result.exifAnalysis != null),
-          ariaDetail: exifSuspicious ? `${exifHighFindings.length} high-severity anomal${exifHighFindings.length === 1 ? 'y' : 'ies'}` : 'No critical anomalies',
+          state: exifState,
+          ariaDetail: exifState === 'suspicious'
+            ? `${exifHighFindings.length} high-severity anomal${exifHighFindings.length === 1 ? 'y' : 'ies'}`
+            : exifState === 'empty-data' ? 'No metadata — frequently seen on AI-generated images'
+            : exifState === 'pass' ? 'No critical anomalies'
+            : 'Not run',
         },
         {
           id: 'card-provenance', label: 'Content Credentials',
-          state: result.c2paValid === false ? 'suspicious' as DotState
-               : result.c2paValid === true  ? 'pass' as DotState
-               : 'not-run' as DotState,
-          // Invalid label is the C2PA UX Rec v1.4 Table 4 verbatim string.
-          // "Valid at signing" is the Jura Trace extension for the Pixel-Camera-style
+          state: c2paState,
+          // Invalid label is the C2PA UX Rec Table 4 verbatim string.  "Valid at
+          // signing" is the Jura Trace extension for the Pixel-Camera-style
           // short-lived-credential case (cert has since expired, but the timestamp
           // confirms signing-time validity) — flagged in the submission letter.
-          ariaDetail: result.c2paValid === true
-            ? (result.c2paManifest?.certificateExpired === true ? C2PA_STATUS_VALID_AT_SIGNING : 'Valid')
-            : result.c2paValid === false ? C2PA_STATUS_INVALID : 'Not attached',
+          // 'concern' state means the manifest is valid AND discloses AI generation —
+          // honest disclosure is not penalised but is also not a green-light signal.
+          ariaDetail: c2paState === 'concern' && c2paAiType
+            ? `Valid manifest — discloses AI generation (${c2paAiType})`
+            : result.c2paValid === true
+              ? (result.c2paManifest?.certificateExpired === true ? C2PA_STATUS_VALID_AT_SIGNING : 'Valid')
+              : result.c2paValid === false ? C2PA_STATUS_INVALID : 'Not attached',
         },
       ],
       integrity: [
@@ -562,11 +655,16 @@
           state: aiDetectionSuppressed ? 'suppressed' as DotState : dotState(result.deepfakeResult?.suspicious, result.deepfakeResult != null),
           ariaDetail: aiDetectionSuppressed ? 'Suppressed — content type' : result.deepfakeResult ? `Score ${Math.round((result.deepfakeResult.score) * 100)}%` : 'Not run',
         },
-        {
+        // CLIP cross-check is conditional on the sidecar shipping with open-clip-torch.
+        // The CI-built sidecar (requirements-ci.txt) excludes it (~2 GB install size);
+        // dev builds with the full requirements.txt include it.  When the Analysis
+        // Engine reports clipDetect=false we omit the chip entirely rather than
+        // show a permanently-grey dot the user has no way to act on.
+        ...(sidecarHealth?.capabilities?.clipDetect ? [{
           id: 'card-ai', label: 'CLIP',
           state: aiDetectionSuppressed ? 'suppressed' as DotState : dotState(result.clipResult?.verdictLevel === 'synthetic', result.clipResult != null),
           ariaDetail: aiDetectionSuppressed ? 'Suppressed — content type' : result.clipResult ? `Score ${Math.round((result.clipResult.score) * 100)}%` : 'Not run',
-        },
+        }] : []),
         {
           id: 'card-ai', label: 'Watermark',
           state: dotState(result.watermarkExtractResult?.hasWatermark === false ? false : undefined, result.watermarkExtractResult != null),
@@ -588,6 +686,20 @@
 
   const integrityPass = $derived(() => {
     if (!result) return null;
+    // If no integrity detector ran at all (e.g. analysis engine unavailable),
+    // return null so the card shows "—" rather than "Pass" — saying "Pass"
+    // when nothing actually ran is misleading-by-design.
+    const ranAny = [
+      result.elaResult,
+      result.noiseResult,
+      result.copyMoveResult,
+      result.jpegGhostResult,
+      result.segmentedElaResult,
+      result.colourTemperatureResult,
+      result.shadowConsistencyResult,
+      result.spliceBoundaryResult,
+    ].some(r => r != null);
+    if (!ranAny) return null;
     return ![
       result.elaResult?.suspicious,
       result.noiseResult?.suspicious,
@@ -602,6 +714,12 @@
 
   const aiPass = $derived(() => {
     if (!result || aiDetectionSuppressed) return null;
+    // If no AI-detection head ran at all, return null — the question is
+    // unanswered.  Saying "Pass" when neither GBM nor UnivFD ran is
+    // misleading-by-design (the user assumes the question was assessed).
+    const gbmRan = result.deepfakeResult != null;
+    const clipRan = result.clipResult != null;
+    if (!gbmRan && !clipRan) return null;
     return !result.deepfakeResult?.suspicious && result.clipResult?.verdictLevel !== 'synthetic';
   });
 
@@ -704,16 +822,30 @@
     ].filter(Boolean).length
   );
 
-  // Total detectors that ran
+  // Total detectors that ran.  CLIP is excluded from the count when the
+  // sidecar build does not ship open-clip-torch (CI builds excludes it for
+  // size reasons — ~2 GB).  Counting "CLIP" as a missing detector when the
+  // user has no way to install it produces a misleading "N/15" denominator.
   const detectorsRun = $derived(() => {
     if (!result) return 0;
-    return [
+    const slots: Array<unknown> = [
       result.exifAnalysis, result.c2paValid !== undefined && result.c2paValid !== null,
       result.elaResult, result.noiseResult, result.copyMoveResult,
       result.deepfakeResult, result.jpegGhostResult, result.segmentedElaResult,
-      result.colourTemperatureResult, result.clipResult, result.watermarkExtractResult,
+      result.colourTemperatureResult, result.watermarkExtractResult,
       result.shadowConsistencyResult, result.spliceBoundaryResult, result.nprResult,
-    ].filter(Boolean).length;
+    ];
+    if (sidecarHealth?.capabilities?.clipDetect) {
+      slots.push(result.clipResult);
+    }
+    return slots.filter(Boolean).length;
+  });
+
+  // Total detectors the build is capable of running (denominator for "N/M").
+  // Adapts to the sidecar's actual capability list — when CLIP is not bundled,
+  // the total is 14 not 15.
+  const detectorsAvailable = $derived(() => {
+    return sidecarHealth?.capabilities?.clipDetect ? 15 : 14;
   });
 
   const totalFindings = $derived(provenanceFindings + integrityFindings + aiFindings);
@@ -858,7 +990,7 @@
     };
     (window as any).__juraSetVerifyError = (msg: string) => {
       const lower = msg.toLowerCase();
-      if (lower.includes('sidecar') || lower.includes('connection refused') || lower.includes('127.0.0.1:8200')) {
+      if (lower.includes('sidecar') || lower.includes('connection refused') || lower.includes('127.0.0.1')) {
         errorType = 'sidecar';
       } else if (lower.includes('unsupported') || lower.includes('format') || lower.includes('mime')) {
         errorType = 'format';
@@ -1014,7 +1146,10 @@
         multiple: false,
         title: 'Select File to Verify',
         filters: [
-          { name: 'Supported Files', extensions: ['jpg','jpeg','png','tiff','tif','webp','avif','heic','heif','pdf','mp4','mov'] },
+          // v1.0 = images only. MP4/MOV dropped per JTV-138 (video deepfake
+          // returns in v1.0.x). PDF dropped 2026-05-11 — document-format
+          // forensics are deferred to v1.1+; v1.0 focuses on image verification.
+          { name: 'Supported Files', extensions: ['jpg','jpeg','png','tiff','tif','webp','avif','heic','heif'] },
         ],
       });
       if (selected && typeof selected === 'string') {
@@ -1187,11 +1322,15 @@
   }
 
   // ── Dot colour helpers ─────────────────────────────────────────────
+  // Locked 2026-05-10: green=positive, amber=concern/uncertain, red=explicit
+  // suspicious/manipulation evidence, grey=no signal to surface.  Mirrors the
+  // overall-trust pill colour vocabulary for consistency.
   function dotBgClass(state: DotState): string {
     if (state === 'pass') return 'bg-malachite dark:bg-malachite-light';
     if (state === 'concern') return 'bg-amber dark:bg-amber-light';
-    if (state === 'suspicious') return 'bg-amber dark:bg-amber-light';
+    if (state === 'suspicious') return 'bg-cinnabar dark:bg-cinnabar-light';
     if (state === 'suppressed') return 'bg-flint/40';
+    if (state === 'empty-data') return 'bg-flint/30';
     return 'bg-flint/30';
   }
 
@@ -1415,7 +1554,20 @@
     <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl p-6 w-full max-w-md space-y-4">
       <h2 class="font-serif text-lg text-obsidian dark:text-quartz">Report False Positive</h2>
       {#if fpSubmitted}
-        <p class="text-malachite-dark dark:text-malachite-light text-sm" role="status" aria-live="polite">Thank you — your feedback has been recorded locally.</p>
+        <div role="status" aria-live="polite" class="space-y-3">
+          <p class="text-malachite-dark dark:text-malachite-light text-sm">
+            ✓ Saved on this device.
+          </p>
+          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+            Your report is stored locally in the Jura Trace database. To contribute it to
+            model improvement, copy the summary and email it to
+            <a
+              href="mailto:feedback@juralabs.org"
+              class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
+            >feedback@juralabs.org</a>
+            — nothing leaves your machine automatically.
+          </p>
+        </div>
       {:else}
         <div class="space-y-3">
           <div>
@@ -1430,10 +1582,18 @@
             </select>
           </div>
           <div>
-            <label for="v2-fp-note" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Additional notes (optional)</label>
-            <textarea id="v2-fp-note" bind:value={fpReasonNote} rows="3"
+            <label for="v2-fp-note" class="block text-xs text-flint-dark dark:text-flint-light mb-1">
+              Additional notes (optional, max 500 characters)
+            </label>
+            <textarea id="v2-fp-note" bind:value={fpReasonNote} rows="3" maxlength="500"
+              placeholder="Do not include personal data — notes are stored locally only."
               class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"></textarea>
           </div>
+          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+            Your report is saved on this device only. Clicking <strong>Save locally</strong>
+            stores it in the Jura Trace database; nothing is transmitted to Jura Labs.
+            A planned v1.0.1 feature will let you opt-in to share reports via email.
+          </p>
         </div>
         <div class="flex gap-3 justify-end pt-2">
           <button
@@ -1444,7 +1604,7 @@
             class="px-4 py-2 min-h-[44px] text-sm bg-lapis text-white rounded-lg font-medium hover:bg-lapis-dark transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
             disabled={fpSubmitting}
             onclick={handleFalsePositiveSubmit}
-          >{fpSubmitting ? 'Submitting…' : 'Submit'}</button>
+          >{fpSubmitting ? 'Saving…' : 'Save locally'}</button>
         </div>
       {/if}
     </div>
@@ -1959,7 +2119,10 @@
             <h2 class="font-serif text-xl text-obsidian dark:text-quartz">{trustLabelText()}</h2>
             {#if trustLevel()}
               <span class="px-2 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-full border {verdictBadgeClass()}" role="status" aria-live="polite">
-                {trustLevel() === 'high' ? 'Authentic' : trustLevel() === 'medium' ? 'Review' : 'Suspicious'}
+                {trustLevel() === 'high' ? 'Authentic'
+                  : trustLevel() === 'medium' ? 'Review'
+                  : trustLevel() === 'inconclusive' ? 'Insufficient signal'
+                  : 'Suspicious'}
               </span>
             {/if}
           </div>
@@ -1968,11 +2131,36 @@
             {fileName}{#if imageDimensions()} · {imageDimensions()}{/if}
           </p>
 
+          {#if insufficientSignal()}
+            <div role="status" aria-live="polite" class="mb-3 px-3 py-2 rounded-lg border border-flint/30 bg-flint/5 text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+              <strong class="text-text-light dark:text-quartz">Insufficient signal.</strong>
+              Only {detectorsRun()} of the expected automatic detectors ran on this file.
+              The numeric score above is not a meaningful authenticity verdict — too few
+              forensic signals contributed to make any judgement. Common causes:
+              the Analysis Engine was unreachable during the verify run, the sidecar
+              terminated mid-pipeline, or this file's format gated most detectors off.
+              Re-run with a stable Analysis Engine before treating the result as authoritative.
+            </div>
+          {:else if rawTrustLevel === 'high' && !hasPositiveAuthenticitySignal()}
+            <div role="status" aria-live="polite" class="mb-3 px-3 py-2 rounded-lg border border-amber/30 bg-amber/5 text-xs text-amber-dark dark:text-amber-light leading-relaxed">
+              <strong>No positive authenticity signal.</strong>
+              The numeric score is high, but no positive provenance evidence supports an
+              "Authentic" claim — no recognised camera MakerNote, no valid Content Credentials
+              without AI declaration. Absence of negative findings is not the same as
+              evidence of authenticity, particularly on re-encoded or format-converted files
+              where JPEG-specific forensics cannot run. Verdict capped at Moderate / Review.
+            </div>
+          {/if}
+
           <!-- Breakdown row -->
           <div class="flex items-center gap-4 flex-wrap border-t border-border-light dark:border-border-dark/60 pt-3" role="list" aria-label="Verification summary">
             <div role="listitem" class="flex flex-col gap-0.5">
-              <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Detectors run</span>
-              <span class="text-sm text-obsidian dark:text-quartz font-medium">{detectorsRun()} / 15</span>
+              <span class="text-[10px] {insufficientSignal() ? 'text-cinnabar-dark dark:text-cinnabar-light font-semibold' : 'text-flint-dark dark:text-flint-light'} uppercase tracking-wider">
+                Detectors run{insufficientSignal() ? ' — partial' : ''}
+              </span>
+              <span class="text-sm {insufficientSignal() ? 'text-cinnabar-dark dark:text-cinnabar-light font-bold' : 'text-obsidian dark:text-quartz font-medium'}">
+                {detectorsRun()} / {detectorsAvailable()}
+              </span>
             </div>
             <div role="separator" aria-hidden="true" class="w-px h-6 bg-border-light dark:bg-border-dark"></div>
             <div role="listitem" class="flex flex-col gap-0.5">

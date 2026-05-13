@@ -32,7 +32,7 @@
 
   <!-- Hero -->
   <section class="text-center py-16 pb-12">
-    <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] uppercase tracking-widest mb-5">12 forensic detectors. Everything stays on your device.</p>
+    <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] uppercase tracking-widest mb-5">Eleven forensic detectors plus three on-demand investigation tools. Everything stays on your device.</p>
     <h1
       class="text-4xl font-heading text-text-light dark:text-quartz mb-5 font-normal"
       style="letter-spacing: -0.01em; line-height: 1.3;"
@@ -40,7 +40,7 @@
       Know What's Real
     </h1>
     <p class="text-base text-flint-dark dark:text-flint-light dark:text-[#9B9890] max-w-md mx-auto mb-3 leading-relaxed">
-      AI-generated content has made verification essential. Jura Trace gives you 12 forensic detectors, C2PA provenance verification, and invisible watermarking — all running locally, with no cloud and no accounts.
+      AI-generated content has made verification essential. Jura Trace gives you a forensic-detector ensemble, C2PA Validator-Conformant provenance verification, and invisible watermarking — all running locally, with no cloud and no accounts.
     </p>
   </section>
 
@@ -182,15 +182,15 @@
             href="/protect"
             class="hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
-            Sign your work with Content Credentials
+            Sign your work with a C2PA provenance manifest
           </a>
         </h2>
       </div>
       <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
-        Embed cryptographic Content Credentials (C2PA) and an invisible
-        watermark in your image, then sign with either a per-install local
-        certificate (Sovereign mode) or a trust-list certificate (Conformant
-        mode). The provenance follows the file wherever it goes.
+        Embed a cryptographically signed C2PA provenance manifest and an invisible
+        watermark in your image, signed with a per-install local certificate
+        (Local Signing). The provenance follows the file wherever it goes.
+        Conformant signing — verifiable against the C2PA trust list — ships in v1.1.
       </p>
     </div>
 

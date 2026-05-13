@@ -144,8 +144,12 @@
         <span class="flex-shrink-0 text-lapis dark:text-lapis-light mt-0.5" aria-hidden="true">&#8594;</span>
         <span>
           <span class="font-medium text-text-light dark:text-quartz">40% — EXIF metadata trust.</span>
-          Derived from the 12-rule EXIF anomaly check. Missing camera data, GPS/timestamp
-          mismatches, and software editor signatures each reduce this component.
+          Derived from the EXIF anomaly check (twelve base rules plus a five-check
+          injection-detection suite — templated timestamps, integer-degree GPS, programmatic
+          pipeline software, missing MakerNote on mandatory-vendor cameras, iPhone sRGB
+          mismatch — and a two-check XMP AI-provenance suite for DigitalSourceType and
+          AI-tooling CreatorTool values). Missing camera data, GPS/timestamp mismatches,
+          software-editor signatures, and AI-provenance signals each reduce this component.
         </span>
       </li>
       <li class="flex gap-2">
@@ -536,7 +540,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Unreliable on multiply-compressed JPEG images. Social media platforms compress images multiple times, creating ELA artefacts indistinguishable from manipulation. Weight reduced to 1.0 (from 2.0) in trust scoring to reflect this limitation.
+                Unreliable on multiply-compressed JPEG images. Social media platforms compress images multiple times, creating ELA artefacts indistinguishable from manipulation. ELA's effective contribution is tempered in trust scoring to reflect this limitation; see the Signal Weighting table below for the current weight in `compute_trust`.
               </dd>
             </div>
           </dl>

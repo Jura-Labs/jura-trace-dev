@@ -86,7 +86,8 @@
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
     Ollama is a free tool that runs AI models locally on your computer. In Jura Trace,
     it powers two optional features that sit on top of the core forensic pipeline —
-    neither replaces any of the 21 standard detectors.
+    neither replaces any of the eleven automatic detectors or three on-demand
+    investigation tools.
   </p>
 
   <!-- ── What Ollama does ─────────────────────────────────────────── -->
@@ -886,68 +887,57 @@
   </h2>
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
-    Jura Trace uses a tiered licence model. Your current tier determines which features
-    are active and whether tier-specific panels appear in the results view. During the pilot
-    phase, the tier can be selected manually in Settings under <strong class="text-text-light dark:text-text-dark">Your Plan</strong>.
+    Jura Trace v1.0 is released under the Community tier — free for everyone, under the
+    AGPL-3.0-or-later licence. A paid Pro tier is planned for the v1.1 release in early 2027.
   </p>
 
   <div class="space-y-4">
 
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
       <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Community
+        Community (v1.0 — current)
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        Includes all core verification and protection features: C2PA signing and verification,
-        perceptual fingerprinting, EXIF anomaly detection, the full set of 12 forensic
-        detectors, PDF trust reports, and ZIP case exports. Community is the default tier for
-        all pilot users.
+        The full Jura Trace application: C2PA Validator-Conformant verification, Local
+        Signing, eleven automatic forensic detectors, three on-demand investigation tools,
+        perceptual fingerprinting, EXIF anomaly detection with injection-detection and
+        XMP AI-provenance sub-checks, BYOK reverse image search (Google Vision in v1.0),
+        invisible watermark embed and extract, Watched Locations folder monitoring, PDF
+        trust reports, ZIP case exports. Free for everyone under AGPL-3.0-or-later.
+        Permanent — the CIC's asset-locked status guarantees a free Community tier in
+        perpetuity.
       </p>
     </div>
 
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
       <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Professional
+        Pro (planned — v1.1, early 2027)
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        Adds the analyst declaration header in PDF reports, raw signal scores for all
-        detectors (the "Technical View" toggle in results), and batch verification of
-        multiple files in a single queue. Intended for individual analysts, journalists,
-        and researchers who work with sensitive or legally significant material.
+        Will add Conformant C2PA signing (verifies in Adobe Content Authenticity, ProofCheck,
+        and every standards-aware verifier), REST API access for programmatic integration,
+        bulk verify, unlimited Watched Locations, signed PDF and JSON-LD audit-log export
+        (for AI Act Article 50 compliance officers), and a commercial licence that escapes
+        the AGPL copyleft requirement for buyers embedding Jura Trace in their own products.
+        Priced at £100/year per licence.
       </p>
     </div>
 
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
       <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Team
+        Custom Engineering (available now)
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        Includes all Professional features. Intended for newsrooms, cultural institutions, and
-        organisations deploying Jura Trace across multiple workstations, where a shared
-        database location and consistent deployment configuration are needed.
+        Bespoke engagements for institutions needing integration, training, custom-RAG
+        knowledge bases, MDM packaging, or compliance documentation packs. Quoted per
+        engagement, typically from £5,000 / 5 days. Email
+        <a
+          href="mailto:commercial@juralabs.org"
+          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+        >commercial@juralabs.org</a>
+        for a quote.
       </p>
     </div>
 
-    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Enterprise
-      </p>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        Includes all Team features and adds API access, advanced deployment options, and
-        dedicated support. Enterprise licences are arranged directly with Juralabs and are
-        scoped to the organisation's specific requirements.
-      </p>
-    </div>
-
-  </div>
-
-  <!-- Callout: tier hints are informational only -->
-  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4 mt-6">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-      <strong class="text-text-light dark:text-text-dark">Tier hints are informational.</strong>
-      During the pilot phase, tier hints may appear on the Verify page when a feature is
-      associated with a higher tier. These hints do not block any functionality — all features
-      remain accessible regardless of the selected tier while the pilot is in progress.
-    </p>
   </div>
 </section>
