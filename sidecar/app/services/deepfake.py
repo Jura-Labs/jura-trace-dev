@@ -924,17 +924,21 @@ def _perform_deepfake_detection_impl(
             classifier_score = float(proba[1])
             classifier_available = True
             # v1.0 format-aware confidence floor — GBM v4 was trained on
-            # JPEG-only features. On lossless inputs (PNG / TIFF / WebP-
-            # lossless) its calibration is unreliable and can produce
-            # worst-case "confidently authentic" misfires. Until the GBM
-            # v5 multi-format retrain lands in v1.0.1, floor the GBM AI-
-            # probability at 0.3 on lossless inputs so a mis-calibrated
-            # tree cannot drive the blended score below the safety cap.
-            # See memory: project_v10_retrain_committed.md.
-            if codec_class == "lossless" and classifier_score < 0.3:
+            # JPEG-only features. On any non-JPEG codec (lossless PNG/GIF,
+            # raw TIFF/DNG/BMP, modern_lossy WebP/HEIC/AVIF) its
+            # calibration is unreliable and can produce worst-case
+            # "confidently authentic" misfires. Until the GBM v5 multi-
+            # format retrain lands in v1.0.1, floor the GBM AI-probability
+            # at 0.3 on every non-JPEG codec so a mis-calibrated tree
+            # cannot drive the blended score below the safety cap.
+            # Widened from lossless-only on 2026-05-13 — the v10onnx
+            # UnivFD retrain already covers PNG/TIFF/WebP/HEIC, but the
+            # GBM remains JPEG-trained until v5; symmetric coverage is
+            # the safer interim. See project_v10_retrain_committed.md.
+            if codec_class != "jpeg" and classifier_score < 0.3:
                 logger.info(
-                    "GBM v4 score %.4f floored to 0.30 (codec_class=lossless)",
-                    classifier_score,
+                    "GBM v4 score %.4f floored to 0.30 (codec_class=%s)",
+                    classifier_score, codec_class,
                 )
                 classifier_score = 0.3
         except Exception:
