@@ -937,13 +937,39 @@ impl SidecarClient {
     }
 
     /// Quick check: is the sidecar responding?
+    ///
+    /// 2026-05-11: timeout raised 2s → 10s with one retry to eliminate a
+    /// cold-launch race where `verify_content_inner` could fire before the
+    /// sidecar finished loading the GBM / CLIP / UnivFD models (~5–15 s on
+    /// first run). The old 2 s probe was returning false during that
+    /// window, gating ALL sidecar groups off and producing a "1/15
+    /// detectors ran" result while Settings later reported the sidecar as
+    /// connected (because by then models were warm and /health was fast).
+    ///
+    /// 10 s × 2 attempts gives up to 20 s of slack before declaring the
+    /// sidecar unavailable. When the sidecar is genuinely down (process
+    /// not running, port unbound, crashed) the connection refused returns
+    /// immediately and we incur no penalty. When the sidecar is alive and
+    /// responsive, /health returns in <100 ms and we likewise incur no
+    /// penalty. Only the cold-warmup case sees the extra slack — which is
+    /// exactly the bug this fixes.
     pub fn is_available(&self) -> bool {
-        self.client
-            .get(format!("{}/health", self.base_url))
-            .timeout(Duration::from_secs(2))
-            .send()
-            .map(|r| r.status().is_success())
-            .unwrap_or(false)
+        for attempt in 0..2 {
+            let probe = self
+                .client
+                .get(format!("{}/health", self.base_url))
+                .timeout(Duration::from_secs(10))
+                .send()
+                .map(|r| r.status().is_success())
+                .unwrap_or(false);
+            if probe {
+                return true;
+            }
+            if attempt == 0 {
+                log::info!("Sidecar health probe attempt {} failed; retrying", attempt + 1);
+            }
+        }
+        false
     }
 
     /// Get full health status from the sidecar.

@@ -12,7 +12,12 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     sidecar_port: int = 8200
     sidecar_log_level: str = "INFO"
-    ollama_base_url: str = "http://localhost:11434"
+    # Use 127.0.0.1 explicitly: macOS resolves `localhost` to `::1` (IPv6) by
+    # default and Ollama only binds IPv4 (127.0.0.1) unless OLLAMA_HOST=0.0.0.0
+    # is set.  An IPv6-first lookup against IPv4-only Ollama produces a
+    # connection-refused that the /health endpoint surfaces as
+    # "Ollama unavailable" even when Ollama is running.  Force IPv4 by literal.
+    ollama_base_url: str = "http://127.0.0.1:11434"
     ela_quality: int = 90
     max_image_size: int = 20_000_000  # 20 MB
     # LLM settings — shared Ollama instance with ROOTED sibling app.

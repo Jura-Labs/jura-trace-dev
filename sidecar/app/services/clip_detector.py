@@ -58,7 +58,7 @@ _univfd_probe_loaded = False
 _last_used_ts: float = 0.0
 
 _UNIVFD_PROBE_SHA256 = (
-    "ed691b45cbe2903a7e0530fd0ec78ab91eef9f15133af4c1a5c8cf172086dacd"
+    "0534a9e80e352a5bd8af5fc447d03e37be2e1aa68a05d81f05736d6ef8956a86"
 )
 
 # Text prompts for zero-shot classification.
@@ -80,12 +80,18 @@ _TEXT_PROMPTS = [
 # _MODEL_VERSION and adjust constants together.
 _SYNTHETIC_THRESHOLD = 0.60
 _AUTHENTIC_THRESHOLD = 0.35
-_MODEL_VERSION = "univfd-probe-v9"
+_MODEL_VERSION = "univfd-probe-v10onnx"
 _THRESHOLD_BASIS = (
-    "UnivFD probe v9: LogisticRegression on CLIP ViT-B/32 embeddings, "
-    "AUC 0.9933, FP 4.12% on photographic content, recall 95.7%, "
-    "validated on 39,016 samples including platform-forwarded re-encodes "
-    "(see docs/calibration/univfd-v9-platform-augmentation.md)."
+    "UnivFD probe v10onnx: LogisticRegression on CLIP ViT-B/32 embeddings "
+    "extracted via the production ONNX runtime (NOT PyTorch+open_clip — "
+    "see docs/calibration/univfd-v10onnx-divergence-fix.md). "
+    "AUC 0.9929, FP 3.87% on photographic content, recall 95.77%, "
+    "validated on 56,344 samples including platform-forwarded and "
+    "multi-format augmentation (PNG/TIFF/WebP/HEIC re-encodes). "
+    "Per-format AUC: PNG 0.998, TIFF 0.995, WebP 0.993, HEIC 0.990. "
+    "Trained 2026-05-11 after diagnosis of PyTorch↔ONNX preprocess "
+    "divergence (mean cos sim ~0.996, fixed by aligning training "
+    "embeddings to the production PIL+ONNX path)."
 )
 
 
@@ -251,10 +257,23 @@ def _load_univfd_probe():
     try:
         import joblib
 
-        probe_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "..", "models", "univfd_probe.joblib",
-        )
-        probe_path = os.path.normpath(probe_path)
+        # Honour JURA_MODELS_DIR (set by the Tauri Rust backend at spawn time
+        # — lib.rs:6009 — and by the PyInstaller rthook when a models/ dir
+        # ships next to the executable). Same dev/frozen pattern as
+        # deepfake.py:_resolve_models_dir(). Without this, a frozen binary
+        # resolves __file__ inside _MEIPASS and the relative ../../../models
+        # path points into the extracted bundle dir where the joblib was
+        # never shipped (per jura-sidecar.spec) — UnivFD then silently
+        # reports unavailable in every build, gating off the v10onnx probe.
+        env_dir = os.environ.get("JURA_MODELS_DIR")
+        if env_dir and os.path.isdir(env_dir):
+            probe_path = os.path.join(env_dir, "univfd_probe.joblib")
+        else:
+            probe_path = os.path.normpath(
+                os.path.join(
+                    os.path.dirname(__file__), "..", "..", "..", "models", "univfd_probe.joblib",
+                )
+            )
 
         if os.path.exists(probe_path):
             h = hashlib.sha256()

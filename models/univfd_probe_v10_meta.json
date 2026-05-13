@@ -1,0 +1,185 @@
+{
+  "model_version": "v10",
+  "trained_at": "2026-05-11T08:28:16.689056+00:00",
+  "approach": "UnivFD-style linear probe on CLIP ViT-B/32 embeddings (platform-forwarded + multi-format augmentation)",
+  "training_task": "JTV-180_multi_format_augmentation_v10",
+  "clip_model": "ViT-B-32",
+  "clip_pretrained": "laion2b_s34b_b79k",
+  "embedding_dim": 512,
+  "random_seed": 42,
+  "probe_params": {
+    "C": 0.5,
+    "max_iter": 1000,
+    "solver": "lbfgs",
+    "class_weight": "balanced"
+  },
+  "training_corpus": {
+    "original_authentic": "/Volumes/MAC SSD/Training Data/corpus/training/authentic",
+    "original_ai": "/Volumes/MAC SSD/Training Data/corpus/training/ai_generated",
+    "aug_authentic": "/Volumes/MAC SSD/Training Data/corpus/training_platform_forwarded/authentic",
+    "aug_ai": "/Volumes/MAC SSD/Training Data/corpus/training_platform_forwarded/ai_generated",
+    "mf_aug_authentic": "/Volumes/MAC SSD/Training Data/corpus/training_multi_format/authentic",
+    "mf_aug_ai": "/Volumes/MAC SSD/Training Data/corpus/training_multi_format/ai_generated",
+    "n_train": 50710,
+    "n_test": 5633,
+    "n_train_authentic": 27775,
+    "n_train_ai": 22935
+  },
+  "evaluation": {
+    "held_out_set": "10% stratified by subdir+variant",
+    "split_json": "models/univfd_v10_split.json",
+    "threshold": 0.5,
+    "auc_roc": 0.993,
+    "fp_rate": 0.0367,
+    "ai_recall": 0.9581,
+    "tn": 2965,
+    "fp": 113,
+    "fn": 107,
+    "tp": 2448,
+    "classification_report": {
+      "authentic": {
+        "precision": 0.9651692708333334,
+        "recall": 0.9632878492527616,
+        "f1-score": 0.9642276422764228,
+        "support": 3078.0
+      },
+      "ai_generated": {
+        "precision": 0.9558766106989457,
+        "recall": 0.9581213307240705,
+        "f1-score": 0.9569976544175137,
+        "support": 2555.0
+      },
+      "accuracy": 0.9609444345819279,
+      "macro avg": {
+        "precision": 0.9605229407661395,
+        "recall": 0.960704589988416,
+        "f1-score": 0.9606126483469682,
+        "support": 5633.0
+      },
+      "weighted avg": {
+        "precision": 0.9609543326754493,
+        "recall": 0.9609444345819279,
+        "f1-score": 0.9609482850991615,
+        "support": 5633.0
+      }
+    }
+  },
+  "per_variant_auc": {
+    "fmt_heic": {
+      "auc_roc": 0.9901,
+      "n": 300
+    },
+    "fmt_png": {
+      "auc_roc": 0.9979,
+      "n": 300
+    },
+    "fmt_tiff": {
+      "auc_roc": 0.9948,
+      "n": 300
+    },
+    "fmt_webp": {
+      "auc_roc": 0.9924,
+      "n": 300
+    },
+    "original": {
+      "auc_roc": 0.9912,
+      "n": 1211
+    },
+    "plt2x": {
+      "auc_roc": 0.9953,
+      "n": 1074
+    },
+    "plt75": {
+      "auc_roc": 0.9912,
+      "n": 1074
+    },
+    "plt85": {
+      "auc_roc": 0.9951,
+      "n": 1074
+    }
+  },
+  "per_generator_recall": {
+    "__root__": {
+      "recall": 0.8194,
+      "n": 72
+    },
+    "__unknown__": {
+      "recall": 0.9673,
+      "n": 1100
+    },
+    "artbench": {
+      "recall": 0.95,
+      "n": 60
+    },
+    "civitai_sfw": {
+      "recall": 0.98,
+      "n": 150
+    },
+    "dalle3": {
+      "recall": 0.9933,
+      "n": 150
+    },
+    "diffusiondb": {
+      "recall": 0.98,
+      "n": 150
+    },
+    "elsa": {
+      "recall": 0.9256,
+      "n": 390
+    },
+    "flux_dev": {
+      "recall": 0.9012,
+      "n": 81
+    },
+    "gemini": {
+      "recall": 0.8667,
+      "n": 15
+    },
+    "grok_aurora": {
+      "recall": 1.0,
+      "n": 150
+    },
+    "midjourney_v6": {
+      "recall": 1.0,
+      "n": 45
+    },
+    "sd15": {
+      "recall": 1.0,
+      "n": 3
+    },
+    "sdxl_turbo": {
+      "recall": 0.9111,
+      "n": 90
+    },
+    "synthetic_faces": {
+      "recall": 0.9889,
+      "n": 90
+    },
+    "user_ai": {
+      "recall": 1.0,
+      "n": 6
+    },
+    "wikimedia_ai": {
+      "recall": 1.0,
+      "n": 3
+    }
+  },
+  "v9_baseline": {
+    "auc_roc": 0.9933,
+    "fp_rate": 0.0412,
+    "ai_recall": 0.957,
+    "n_samples": 39016,
+    "trained_at": "2026-04-12T00:00:00"
+  },
+  "regression_gates": {
+    "fp_ceiling": 0.0512,
+    "recall_floor": 0.947,
+    "auc_floor": 0.9883,
+    "fp_pass": true,
+    "recall_pass": true,
+    "auc_pass": true
+  },
+  "heic_support_at_training": true,
+  "sha256": "a390a987ac8819efcd01fbdd2c5e57ce6d8b445e4833bbf77a528f811e442160",
+  "model_path": "models/univfd_probe_v10.joblib"
+}

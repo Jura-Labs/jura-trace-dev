@@ -240,7 +240,7 @@ _classifier_loaded = False
 
 
 _DEEPFAKE_CLASSIFIER_SHA256 = (
-    "2931f197cba6f376e85b1cbcfd584e6802f36e4fbf68ff00c83d61d4d655db18"
+    "512def7ec62cbeb023c5343859a15606a02742d48b1fca31df11667c0b9ba14a"
 )
 
 
@@ -923,6 +923,20 @@ def _perform_deepfake_detection_impl(
             # proba[1] = probability of class 1 (ai_generated)
             classifier_score = float(proba[1])
             classifier_available = True
+            # v1.0 format-aware confidence floor — GBM v4 was trained on
+            # JPEG-only features. On lossless inputs (PNG / TIFF / WebP-
+            # lossless) its calibration is unreliable and can produce
+            # worst-case "confidently authentic" misfires. Until the GBM
+            # v5 multi-format retrain lands in v1.0.1, floor the GBM AI-
+            # probability at 0.3 on lossless inputs so a mis-calibrated
+            # tree cannot drive the blended score below the safety cap.
+            # See memory: project_v10_retrain_committed.md.
+            if codec_class == "lossless" and classifier_score < 0.3:
+                logger.info(
+                    "GBM v4 score %.4f floored to 0.30 (codec_class=lossless)",
+                    classifier_score,
+                )
+                classifier_score = 0.3
         except Exception:
             classifier_score = None
             classifier_available = False

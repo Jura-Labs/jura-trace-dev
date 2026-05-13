@@ -88,7 +88,7 @@ async def health(request: Request) -> HealthResponse:
 
     return HealthResponse(
         status="ok",
-        version="0.2.0",
+        version="0.9.0",
         service="jura-trace-sidecar",
         capabilities=CapabilitiesResponse(
             ela=True, noise=True, copy_move=True, deepfake=True,
