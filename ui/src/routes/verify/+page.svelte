@@ -16,6 +16,13 @@
   } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
   import {
+    buildFpPayload,
+    openFpMailto,
+    copyFpReport,
+    FP_FEEDBACK_EMAIL,
+    type FpReportPayload,
+  } from '$lib/fp-report';
+  import {
     C2PA_ACTION_LABELS,
     C2PA_STATUS_INVALID,
     C2PA_STATUS_INVALID_SHORT,
@@ -74,6 +81,11 @@
   let fpReasonNote = $state('');
   let fpSubmitting = $state(false);
   let fpSubmitted = $state(false);
+  // Tier 1 payload retained after submit so the success state can offer
+  // a clipboard-copy fallback if the mailto launch didn't open the user's
+  // mail client (no reliable way to detect that — always show the option).
+  let fpPayload = $state<FpReportPayload | null>(null);
+  let fpClipboardCopied = $state(false);
 
   // Forensic question card expand state
   let openCard = $state<'provenance' | 'integrity' | 'ai' | 'claims' | null>(null);
@@ -1094,7 +1106,7 @@
     function handleEsc(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         if (showImageOverlay) showImageOverlay = false;
-        else if (showFalsePositiveModal) showFalsePositiveModal = false;
+        else if (showFalsePositiveModal) handleFpModalClose();
         else if (showReportModal) showReportModal = false;
       }
     }
@@ -1293,23 +1305,51 @@
     if (!result || fpSubmitting) return;
     fpSubmitting = true;
     try {
+      // 1. Local SQLite write — only the API fields that are written to disk.
+      //    Tier 2 fields (deepfake_score, deepfake_verdict, signalScoresJson)
+      //    are intentionally NOT passed: per project_fp_report_v1_locked.md
+      //    they stay absent from the v1.0 payload. The Rust API still accepts
+      //    them so the contract is forward-compatible; we just stop sending.
       await markFalsePositive(
         fpReasonCode,
         fpReasonNote.trim() || undefined,
         result.contentType,
-        result.deepfakeResult?.score,
-        result.deepfakeResult?.verdictLevel,
       );
+
+      // 2. Build the Tier 1 payload for the clipboard / mailto export.
+      //    reason_note is deliberately excluded — free text inherently carries
+      //    PII risk and the saved-locally write above is the user's audit
+      //    trail of that text. Nothing else leaves the device automatically.
+      fpPayload = buildFpPayload(fpReasonCode, result.contentType, appVersion);
+
+      // 3. Best-effort attempt to launch the user's mail client. There is no
+      //    reliable way to detect whether the OS actually handled the URI, so
+      //    the success state always renders the clipboard fallback as well.
+      openFpMailto(fpPayload);
+
       fpSubmitted = true;
-      setTimeout(() => {
-        showFalsePositiveModal = false;
-        fpSubmitted = false;
-        fpReasonCode = 'modern_codec';
-        fpReasonNote = '';
-      }, 2000);
+      // Do NOT auto-close the modal — the user needs the clipboard / email
+      // fallback to remain visible.
     } finally {
       fpSubmitting = false;
     }
+  }
+
+  async function handleFpCopyToClipboard() {
+    if (!fpPayload) return;
+    fpClipboardCopied = await copyFpReport(fpPayload);
+    if (fpClipboardCopied) {
+      setTimeout(() => { fpClipboardCopied = false; }, 2000);
+    }
+  }
+
+  function handleFpModalClose() {
+    showFalsePositiveModal = false;
+    fpSubmitted = false;
+    fpPayload = null;
+    fpClipboardCopied = false;
+    fpReasonCode = 'modern_codec';
+    fpReasonNote = '';
   }
 
   // ── Signal dot scroll ─────────────────────────────────────────────
@@ -1549,24 +1589,48 @@
     role="dialog"
     aria-label="Report false positive"
     aria-modal="true"
-    onclick={(e) => { if (e.target === e.currentTarget) showFalsePositiveModal = false; }}
+    onclick={(e) => { if (e.target === e.currentTarget) handleFpModalClose(); }}
   >
     <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl p-6 w-full max-w-md space-y-4">
       <h2 class="font-serif text-lg text-obsidian dark:text-quartz">Report False Positive</h2>
       {#if fpSubmitted}
+        <!-- Success state — user has saved locally + a mailto launch was attempted.
+             We cannot reliably detect whether the OS handled the mailto:, so the
+             clipboard fallback is always offered alongside the verbal hint. -->
         <div role="status" aria-live="polite" class="space-y-3">
           <p class="text-malachite-dark dark:text-malachite-light text-sm">
-            ✓ Saved on this device.
+            ✓ Saved locally.
           </p>
           <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
-            Your report is stored locally in the Jura Trace database. To contribute it to
-            model improvement, copy the summary and email it to
-            <a
-              href="mailto:feedback@juralabs.org"
-              class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
-            >feedback@juralabs.org</a>
-            — nothing leaves your machine automatically.
+            Your email client should have opened with a pre-filled report. Review and send
+            it to contribute this case to model improvement.
           </p>
+          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+            If nothing opened, you can copy the report and email it manually:
+          </p>
+          <div class="flex flex-wrap gap-2 items-center pt-1">
+            <button
+              type="button"
+              class="px-3 py-2 min-h-[44px] text-xs bg-gray-100 dark:bg-obsidian border border-border-light dark:border-border-dark rounded-lg text-obsidian dark:text-quartz hover:bg-gray-200 dark:hover:bg-graphite-dark transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+              onclick={handleFpCopyToClipboard}
+              aria-live="polite"
+            >{fpClipboardCopied ? '✓ Copied' : 'Copy report to clipboard'}</button>
+            <span class="text-xs text-flint-dark dark:text-flint-light">Send to</span>
+            <a
+              href="mailto:{FP_FEEDBACK_EMAIL}"
+              class="text-xs text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
+            >{FP_FEEDBACK_EMAIL}</a>
+          </div>
+          <p class="text-[11px] text-flint-dark dark:text-flint-light leading-relaxed pt-2 border-t border-border-light dark:border-border-dark">
+            The exported report contains only the reason code, MIME type, app version,
+            platform, and timestamp. Your free-text notes stay on this device.
+          </p>
+          <div class="flex justify-end pt-2">
+            <button
+              class="px-4 py-2 min-h-[44px] text-sm text-flint-dark dark:text-flint-light border border-border-light dark:border-border-dark rounded-lg hover:text-obsidian dark:hover:text-quartz transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+              onclick={handleFpModalClose}
+            >Close</button>
+          </div>
         </div>
       {:else}
         <div class="space-y-3">
@@ -1586,25 +1650,25 @@
               Additional notes (optional, max 500 characters)
             </label>
             <textarea id="v2-fp-note" bind:value={fpReasonNote} rows="3" maxlength="500"
-              placeholder="Do not include personal data — notes are stored locally only."
+              placeholder="Do not include personal data — notes are stored locally only and are NOT included in any emailed or copied report."
               class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"></textarea>
           </div>
           <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
-            Your report is saved on this device only. Clicking <strong>Save locally</strong>
-            stores it in the Jura Trace database; nothing is transmitted to Jura Labs.
-            A planned v1.0.1 feature will let you opt-in to share reports via email.
+            Your report is saved on this device. Clicking <strong>Save &amp; prepare email</strong>
+            will also open your email client with a pre-filled draft — nothing is sent
+            automatically. You choose whether to send it.
           </p>
         </div>
         <div class="flex gap-3 justify-end pt-2">
           <button
             class="px-4 py-2 min-h-[44px] text-sm text-flint-dark dark:text-flint-light border border-border-light dark:border-border-dark rounded-lg hover:text-obsidian dark:hover:text-quartz transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
-            onclick={() => showFalsePositiveModal = false}
+            onclick={handleFpModalClose}
           >Cancel</button>
           <button
             class="px-4 py-2 min-h-[44px] text-sm bg-lapis text-white rounded-lg font-medium hover:bg-lapis-dark transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
             disabled={fpSubmitting}
             onclick={handleFalsePositiveSubmit}
-          >{fpSubmitting ? 'Saving…' : 'Save locally'}</button>
+          >{fpSubmitting ? 'Saving…' : 'Save & prepare email'}</button>
         </div>
       {/if}
     </div>

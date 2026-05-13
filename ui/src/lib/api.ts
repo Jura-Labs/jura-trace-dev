@@ -398,6 +398,16 @@ export async function getVersion(): Promise<string> {
 /**
  * Submit a false positive report for a verification result.
  * Returns the generated report ID.
+ *
+ * # v1.0 caller contract (project_fp_report_v1_locked.md)
+ *
+ * The verify-page caller passes only the first three arguments
+ * (`reasonCode`, `reasonNote`, `mimeType`). The Tier 2 fields below
+ * (`deepfakeScore`, `deepfakeVerdict`, `signalScoresJson`) are
+ * intentionally absent in v1.0 — they make the locally-stored report
+ * a narrower fingerprint when combined with the timestamp and would
+ * also need redaction at every export site. The signatures stay so
+ * the Rust API is forward-compatible with the v1.0.1+ growth path.
  */
 export async function markFalsePositive(
   reasonCode: string,
