@@ -97,6 +97,10 @@ htmlcov/
 test-results/
 playwright-report/
 ui/test-results/
+# Playwright visual-regression baselines are regenerated locally per
+# platform and not committed (the suite passes only the structural
+# assertions in CI; snapshot comparison runs on developer machines).
+ui/tests/*-snapshots/
 
 # ===== Build artifacts =====
 *.dmg

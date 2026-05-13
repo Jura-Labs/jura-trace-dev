@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Integration tests for the Jura Trace local REST API (port 8300).
 //!
 //! Each test spawns the Axum server on a randomly-assigned port, exercises it
@@ -37,12 +39,14 @@ fn build_test_state() -> (Arc<Mutex<AppState>>, tempfile::TempDir) {
         licence_tier: LicenceTier::Community,
         sidecar_process: None,
         classifier_model_hash: None,
+        univfd_probe_model_hash: None,
         ai_description_enabled: None,
         scheduler_handle: None,
         last_heatmap_session: None,
         last_sidecar_request_ts: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
         power_saver_mode: false,
         respawn_in_progress: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        sidecar_port: 8200,
     };
 
     (Arc::new(Mutex::new(state)), dir)
