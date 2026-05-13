@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Automated URL watchlist scheduler for the Monitor tab.
 //!
 //! This module polls the `monitor_urls` table on a fixed cadence and runs the
@@ -122,7 +124,7 @@ async fn run_scheduler(state: Arc<Mutex<AppState>>, handle: SchedulerHandle, dat
         LicenceTier::Community => {
             log::info!(
                 "Monitor scheduler: not active on the Community tier. \
-                 Upgrade to Professional, Team, or Enterprise to enable \
+                 Upgrade to Professional or Enterprise to enable \
                  automated URL watchlist checking."
             );
             // Idle until cancelled — keep the task alive so the handle remains valid.
@@ -133,7 +135,7 @@ async fn run_scheduler(state: Arc<Mutex<AppState>>, handle: SchedulerHandle, dat
                 tokio::time::sleep(Duration::from_secs(POLL_CADENCE_SECS)).await;
             }
         }
-        LicenceTier::Professional | LicenceTier::Team | LicenceTier::Enterprise => {
+        LicenceTier::Professional | LicenceTier::Enterprise => {
             log::info!("Monitor scheduler: started (cadence {POLL_CADENCE_SECS}s, tier {tier:?}).");
         }
     }

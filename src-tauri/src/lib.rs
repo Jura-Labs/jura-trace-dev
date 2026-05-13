@@ -1,10 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 use tauri_plugin_shell::ShellExt;
 
 mod c2pa;
@@ -95,6 +97,12 @@ pub struct MethodologyRecord {
     pub sidecar_version: Option<String>,
     /// SHA-256 hex digest of the GBM classifier model file, if present.
     pub classifier_model_hash: Option<String>,
+    /// SHA-256 hex digest of the UnivFD CLIP probe (`models/univfd_probe.joblib`),
+    /// if present. Added in JTV-181 (v1.0 CLI groundwork) so downstream
+    /// reproducibility tooling — including the v1.0.1 `jura` CLI — can pin
+    /// the exact CLIP ensemble used to produce a verification result.
+    /// `None` when the optional CLIP detector is not installed.
+    pub univfd_probe_model_hash: Option<String>,
     /// Investigation mode used (`quick`, `standard`, `deep`).
     /// The legacy `archival` value is accepted by callers and normalised to
     /// `deep` for back-compat (see `verify_content_inner` mode normalisation).
@@ -399,6 +407,12 @@ pub struct AppState {
     /// SHA-256 hex digest of the GBM classifier model file, computed once at
     /// startup. `None` if the model file is not present.
     pub classifier_model_hash: Option<String>,
+    /// SHA-256 hex digest of the UnivFD CLIP probe (`models/univfd_probe.joblib`),
+    /// computed once at startup. `None` if the optional CLIP probe file is
+    /// not present. Surfaced on every VerificationResult via MethodologyRecord
+    /// (JTV-181) so the v1.0.1 `jura` CLI and external reproducibility tooling
+    /// can pin the exact CLIP ensemble used to produce a given result.
+    pub univfd_probe_model_hash: Option<String>,
     /// User preference for AI image descriptions via Ollama LLaVA.
     ///
     /// - `Some(true)`  — explicitly enabled by the user
@@ -439,6 +453,15 @@ pub struct AppState {
     /// `compare_exchange(false, true)` before spawning; cleared once the
     /// new child handle is stored.
     pub respawn_in_progress: Arc<AtomicBool>,
+    /// Loopback TCP port on which the Python sidecar is listening for this
+    /// session (Option C port-collision fix, 2026-05-12). Picked once at
+    /// startup via `pick_ephemeral_port()` so a stale sidecar from a previous
+    /// launch / CI runner / unrelated process holding port 8200 cannot
+    /// prevent the new app from starting. All HTTP clients (the readiness
+    /// poller, `SidecarClient`, the Ollama-pull IPC proxy) construct their
+    /// URLs from this port. Stable across the lifetime of the process —
+    /// power-saver respawns reuse the same port.
+    pub sidecar_port: u16,
 }
 
 /// Compute the SHA-256 hash of a file, returning a lowercase hex string.
@@ -2627,6 +2650,7 @@ fn verify_content_inner(
         pipeline_version: env!("CARGO_PKG_VERSION").to_string(),
         sidecar_version: sidecar_ver.clone(),
         classifier_model_hash: app.classifier_model_hash.clone(),
+        univfd_probe_model_hash: app.univfd_probe_model_hash.clone(),
         analysis_mode: effective_mode.to_string(),
         analysed_at: chrono::Utc::now().to_rfc3339(),
     });
@@ -2944,13 +2968,14 @@ fn verify_content(
     // check+spawn sequence with an `AtomicBool` set by `compare_exchange`
     // so only one caller proceeds; concurrent callers wait briefly and
     // then re-check (the winner will have stored a new handle by then).
-    let (needs_respawn, respawn_flag) = {
+    let (needs_respawn, respawn_flag, sidecar_port) = {
         match state.lock() {
             Ok(guard) => (
                 guard.power_saver_mode && guard.sidecar_process.is_none(),
                 Arc::clone(&guard.respawn_in_progress),
+                guard.sidecar_port,
             ),
-            Err(_) => (false, Arc::new(AtomicBool::new(false))),
+            Err(_) => (false, Arc::new(AtomicBool::new(false)), 0u16),
         }
     };
 
@@ -2963,13 +2988,13 @@ fn verify_content(
 
         if won_race {
             log::info!("Power-saver respawn: restarting sidecar for new verification request");
-            let new_child = spawn_sidecar(&app);
+            let new_child = spawn_sidecar(&app, sidecar_port);
             if new_child.is_some() {
                 // Blocking readiness poll — up to 120 s (60 attempts × backoff).
                 // Returns false only if the sidecar never becomes healthy; in
                 // that case we proceed anyway and let the pipeline degrade.
                 const RESPAWN_MAX_ATTEMPTS: u32 = 60;
-                if !wait_for_sidecar_ready(RESPAWN_MAX_ATTEMPTS) {
+                if !wait_for_sidecar_ready(RESPAWN_MAX_ATTEMPTS, sidecar_port) {
                     log::warn!(
                         "Respawned sidecar did not become ready within timeout — \
                          forensic analysis may be unavailable"
@@ -4068,6 +4093,17 @@ fn mark_false_positive(
     signal_scores_json: Option<String>,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<String, AppError> {
+    // 500-char cap on reason_note: prevents unbounded local PII storage and
+    // matches the client-side maxlength=500.  Defence-in-depth against a
+    // bypassed UI cap (per security-auditor FP-report audit, 2026-05-10).
+    if let Some(ref note) = reason_note {
+        if note.chars().count() > 500 {
+            return Err(AppError::Validation(
+                "Reason note exceeds 500 characters".into(),
+            ));
+        }
+    }
+
     let report_id = uuid::Uuid::new_v4().to_string();
     let created_at = chrono::Utc::now().to_rfc3339();
 
@@ -4302,9 +4338,13 @@ fn get_verification_history(
 
 /// The licence tier active for this installation.
 ///
-/// Internal codenames (Flint / Stratum / Geode / Bedrock) are used in code;
+/// Internal codenames (Flint / Stratum / Bedrock) are used in code;
 /// user-facing display maps these to plain English names
-/// (Community / Professional / Team / Enterprise).
+/// (Community / Professional / Enterprise).
+///
+/// The `Team` variant was retired on 2026-05-04 (3-tier simplification).
+/// `#[serde(alias = "team")]` on `Professional` rolls any pilot config that
+/// still carries `"team"` up to Professional with no manual migration needed.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum LicenceTier {
@@ -4312,9 +4352,8 @@ pub enum LicenceTier {
     #[default]
     Community,
     /// Individual commercial licence — £199/year.
+    #[serde(alias = "team", alias = "pro")]
     Professional,
-    /// Team commercial licence — £79/seat/month, 3–20 seats.
-    Team,
     /// Enterprise licence — from £6,000/year, unlimited seats.
     Enterprise,
 }
@@ -5947,7 +5986,16 @@ fn init_logging(app_data_dir: Option<&std::path::Path>) -> Option<PathBuf> {
 ///
 /// The caller is responsible for polling `/health` after a successful spawn to
 /// wait for the sidecar to become ready before dispatching requests.
-fn spawn_sidecar(app: &tauri::AppHandle) -> Option<tauri_plugin_shell::process::CommandChild> {
+///
+/// `port` is the loopback TCP port the sidecar should bind. From v1.0 (Option C
+/// port-collision fix, 2026-05-12) this is picked dynamically by the Rust
+/// startup via `pick_ephemeral_port()` rather than being hard-coded to 8200,
+/// so a stale sidecar from a previous launch / a CI runner / an unrelated
+/// process holding 8200 cannot prevent the new app from starting.
+fn spawn_sidecar(
+    app: &tauri::AppHandle,
+    port: u16,
+) -> Option<tauri_plugin_shell::process::CommandChild> {
     if cfg!(debug_assertions) {
         return None;
     }
@@ -5996,7 +6044,11 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Option<tauri_plugin_shell::process::
             // symptom hard to diagnose. Forcing line-buffered flush makes
             // startup progress visible in the Rust log reader in real time.
             let cmd = cmd.env("PYTHONUNBUFFERED", "1");
-            match cmd.args(["--host", "127.0.0.1", "--port", "8200"]).spawn() {
+            let port_str = port.to_string();
+            match cmd
+                .args(["--host", "127.0.0.1", "--port", &port_str])
+                .spawn()
+            {
                 Err(e) => {
                     log::warn!(
                         "Failed to (re)spawn sidecar: {e}. \
@@ -6049,16 +6101,17 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Option<tauri_plugin_shell::process::
 /// every retry burns its full back-off interval rather than serialising on
 /// the lazy CLIP probe. The full capability JSON at `/health` is fetched
 /// separately by `SidecarClient::health()` once readiness is confirmed.
-fn wait_for_sidecar_ready(max_attempts: u32) -> bool {
+fn wait_for_sidecar_ready(max_attempts: u32, port: u16) -> bool {
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(2))
         .build()
         .unwrap_or_default();
+    let url = format!("http://127.0.0.1:{port}/health/ready");
     for attempt in 0..max_attempts {
         let delay_ms = 200u64 * (1u64 << attempt.min(3));
         std::thread::sleep(std::time::Duration::from_millis(delay_ms));
         if client
-            .get("http://127.0.0.1:8200/health/ready")
+            .get(&url)
             .send()
             .map(|r| r.status().is_success())
             .unwrap_or(false)
@@ -6068,6 +6121,130 @@ fn wait_for_sidecar_ready(max_attempts: u32) -> bool {
         }
     }
     false
+}
+
+/// Pick a free loopback TCP port for the sidecar. Binds to `127.0.0.1:0` so
+/// the OS allocates an ephemeral port, records it, then drops the listener so
+/// the sidecar can bind. There is a sub-millisecond race window between the
+/// drop and the sidecar's bind, but on a random ephemeral port the collision
+/// probability is astronomically lower than the hard-coded 8200 case that
+/// triggered Option C in the first place.
+///
+/// Returns `None` if no port can be bound (extremely unlikely — would indicate
+/// process-level resource exhaustion). Callers should fall back to a fixed
+/// default in that case so the app can still attempt to spawn.
+fn pick_ephemeral_port() -> Option<u16> {
+    use std::net::TcpListener;
+    let listener = TcpListener::bind("127.0.0.1:0").ok()?;
+    let port = listener.local_addr().ok()?.port();
+    drop(listener);
+    Some(port)
+}
+
+/// Stream a model pull through the sidecar's `/ollama/pull` proxy.
+///
+/// **Option C port-collision fix (2026-05-12)**: previously the settings page
+/// hit `http://127.0.0.1:8200/ollama/pull` directly via `fetch()`.  After
+/// switching to dynamic ephemeral port allocation we cannot whitelist a fixed
+/// port in CSP, and we cannot have the frontend discover the port and contact
+/// the sidecar directly without weakening CSP unacceptably.  Instead, this
+/// Rust IPC command proxies the SSE stream and re-emits progress as Tauri
+/// events so the frontend never speaks HTTP to the sidecar.
+///
+/// Events emitted on the AppHandle:
+///   - `ollama-pull-progress`  payload `{ status, completed?, total?, percent? }`
+///   - `ollama-pull-complete`  payload `{ ok: true }` on success
+///   - `ollama-pull-error`     payload `{ message }` on failure (also returned via `Err`)
+///
+/// The function returns when the stream ends or errors.  Long-running pulls
+/// (several minutes for large models) are supported — the timeout is 1 hour
+/// to match the sidecar's `_PULL_TIMEOUT_SECONDS` default.
+#[tauri::command]
+async fn pull_ollama_model(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<Mutex<AppState>>>,
+    model_name: String,
+) -> Result<(), AppError> {
+    let port = {
+        let guard = state
+            .lock()
+            .map_err(|_| AppError::Internal("State lock failed".into()))?;
+        guard.sidecar_port
+    };
+
+    // Read the per-session sidecar API key directly from the env var the
+    // setup callback set when it constructed `SidecarClient`. Matches the
+    // existing frontend's no-auth behaviour when the key is empty.
+    let api_key = std::env::var("JURA_SIDECAR_KEY").unwrap_or_default();
+
+    let url = format!("http://127.0.0.1:{port}/ollama/pull");
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3600))
+        .build()
+        .map_err(|e| AppError::Sidecar(format!("reqwest client build failed: {e}")))?;
+
+    let mut req = client
+        .post(&url)
+        .json(&serde_json::json!({ "name": model_name, "stream": true }));
+    if !api_key.is_empty() {
+        req = req.header("X-Jura-API-Key", &api_key);
+    }
+
+    let resp = req.send().await.map_err(|e| {
+        let msg = format!("Failed to reach sidecar Ollama proxy: {e}");
+        let _ = app.emit("ollama-pull-error", serde_json::json!({ "message": msg }));
+        AppError::Sidecar(msg)
+    })?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        let msg = format!("Sidecar Ollama proxy returned {status}: {body}");
+        let _ = app.emit("ollama-pull-error", serde_json::json!({ "message": msg }));
+        return Err(AppError::Sidecar(msg));
+    }
+
+    let mut response = resp;
+    let mut buffer = String::new();
+    loop {
+        let chunk = response.chunk().await.map_err(|e| {
+            let msg = format!("Stream read failed: {e}");
+            let _ = app.emit("ollama-pull-error", serde_json::json!({ "message": msg }));
+            AppError::Sidecar(msg)
+        })?;
+        let Some(bytes) = chunk else { break };
+        buffer.push_str(&String::from_utf8_lossy(&bytes));
+
+        // Process complete SSE lines.  Sidecar emits `data: {json}\n\n` framing.
+        while let Some(newline_idx) = buffer.find('\n') {
+            let line = buffer[..newline_idx].trim().to_string();
+            buffer = buffer[newline_idx + 1..].to_string();
+            if let Some(json_text) = line.strip_prefix("data: ") {
+                match serde_json::from_str::<serde_json::Value>(json_text) {
+                    Ok(payload) => {
+                        // Compute percent if completed + total are present
+                        let mut enriched = payload.clone();
+                        if let (Some(c), Some(t)) = (
+                            payload.get("completed").and_then(|v| v.as_u64()),
+                            payload.get("total").and_then(|v| v.as_u64()),
+                        ) {
+                            if t > 0 {
+                                let pct = ((c as f64 / t as f64) * 100.0).round() as u64;
+                                enriched["percent"] = serde_json::json!(pct);
+                            }
+                        }
+                        let _ = app.emit("ollama-pull-progress", enriched);
+                    }
+                    Err(_) => {
+                        // Non-JSON SSE comment / heartbeat — ignore
+                    }
+                }
+            }
+        }
+    }
+
+    let _ = app.emit("ollama-pull-complete", serde_json::json!({ "ok": true }));
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -6158,7 +6335,20 @@ pub fn run() {
                     }
                 }
             };
-            let sidecar_client = sidecar::SidecarClient::new("http://127.0.0.1:8200", &sidecar_key);
+            // Pick a free ephemeral loopback port for the sidecar.  Option C
+            // port-collision fix (2026-05-12): the previous hard-coded 8200
+            // collided with stale sidecars from prior launches, CI runners,
+            // and any unrelated process binding 8200.  Now the OS allocates
+            // a free port at startup; the sidecar binds it and the Rust
+            // shell drives all clients from `AppState.sidecar_port`.
+            //
+            // Fallback to 8200 if `bind("127.0.0.1:0")` fails — extremely
+            // unlikely (would mean process-level FD exhaustion), but keeps
+            // the app launchable even in that degenerate case.
+            let sidecar_port = pick_ephemeral_port().unwrap_or(8200);
+            log::info!("Sidecar will bind 127.0.0.1:{sidecar_port}");
+            let sidecar_base_url = format!("http://127.0.0.1:{sidecar_port}");
+            let sidecar_client = sidecar::SidecarClient::new(&sidecar_base_url, &sidecar_key);
 
             // ── Sidecar auto-launch ──────────────────────────────────────────
             // In production builds the frozen PyInstaller binary is bundled
@@ -6173,7 +6363,8 @@ pub fn run() {
             if cfg!(debug_assertions) {
                 log::info!(
                     "Dev mode: sidecar assumed to be running manually on \
-                     http://127.0.0.1:8200"
+                     http://127.0.0.1:8200 (dev override — production builds \
+                     use the dynamic port picked above)"
                 );
             } else if let Ok(resource_dir) = app.path().resource_dir() {
                 // Emit a startup-only log for JURA_MODELS_DIR — spawn_sidecar
@@ -6189,7 +6380,7 @@ pub fn run() {
                     );
                 }
             }
-            let sidecar_child = spawn_sidecar(app.app_handle());
+            let sidecar_child = spawn_sidecar(app.app_handle(), sidecar_port);
 
             // ── Sidecar readiness check (non-blocking) ───────────────────────
             // Previously this was a blocking `wait_for_sidecar_ready(N)` call
@@ -6207,12 +6398,17 @@ pub fn run() {
             // polling `/health` from the frontend. The probe below is purely
             // diagnostic — it logs when the sidecar comes up so launch-time
             // performance is observable without holding the main thread.
-            const STARTUP_READINESS_ATTEMPTS: u32 = 60;
+            // 90 attempts × exponential backoff (200/400/800/1600ms capped) =
+            // ~143 s max — gives the PyInstaller cold-start enough headroom on
+            // slower machines. Previous 60-attempt cap (~93 s) timed out by ~4 s
+            // on the developer Mac mini's cold launch (12 May 2026, post-rebuild).
+            const STARTUP_READINESS_ATTEMPTS: u32 = 90;
             let sidecar_present = sidecar_child.is_some();
             if sidecar_present {
+                let probe_port = sidecar_port;
                 tauri::async_runtime::spawn(async move {
                     let ready = tauri::async_runtime::spawn_blocking(move || {
-                        wait_for_sidecar_ready(STARTUP_READINESS_ATTEMPTS)
+                        wait_for_sidecar_ready(STARTUP_READINESS_ATTEMPTS, probe_port)
                     })
                     .await
                     .unwrap_or(false);
@@ -6251,6 +6447,26 @@ pub fn run() {
                 log::info!("Classifier model hash: {}", &h[..16]);
             }
 
+            // Compute UnivFD probe hash once at startup (JTV-181). Same path
+            // resolution pattern as the GBM classifier so packaged .app builds
+            // (resource_dir) and `make dev` runs (./models/) both work.
+            // `None` when the optional CLIP probe is not installed.
+            let univfd_probe_hash = {
+                let model_name = "univfd_probe.joblib";
+                let app_dir = app.path().resource_dir().ok();
+                let candidates: Vec<PathBuf> = [
+                    app_dir.as_ref().map(|d| d.join("models").join(model_name)),
+                    Some(PathBuf::from("models").join(model_name)),
+                ]
+                .into_iter()
+                .flatten()
+                .collect();
+                candidates.iter().find_map(|p| compute_file_sha256(p))
+            };
+            if let Some(ref h) = univfd_probe_hash {
+                log::info!("UnivFD probe hash: {}", &h[..16]);
+            }
+
             let power_saver_mode = startup_config.power_saver_mode;
             // Initialise last_sidecar_request_ts to "now" so the idle-killer
             // does not immediately fire on a freshly started sidecar.
@@ -6267,12 +6483,14 @@ pub fn run() {
                 licence_tier,
                 sidecar_process: sidecar_child,
                 classifier_model_hash: classifier_hash,
+                univfd_probe_model_hash: univfd_probe_hash,
                 ai_description_enabled,
                 scheduler_handle: None,
                 last_heatmap_session: None,
                 last_sidecar_request_ts: Arc::clone(&last_sidecar_request_ts),
                 power_saver_mode,
                 respawn_in_progress: Arc::new(AtomicBool::new(false)),
+                sidecar_port,
             }));
 
             // ── Register managed state FIRST ─────────────────────────────────
@@ -6536,6 +6754,7 @@ pub fn run() {
             set_network_mode,
             get_power_saver_mode,
             set_power_saver_mode,
+            pull_ollama_model,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Jura Trace")
@@ -8648,7 +8867,7 @@ mod tests {
         // Write an initial config with a non-default tier.
         let initial = AppConfig {
             db_path: Some("/old/path.db".to_string()),
-            licence_tier: LicenceTier::Team,
+            licence_tier: LicenceTier::Enterprise,
             ..Default::default()
         };
         write_app_config(dir.path(), &initial).expect("write initial config");
@@ -8661,7 +8880,7 @@ mod tests {
         let read_back = read_app_config(dir.path());
         assert_eq!(
             read_back.licence_tier,
-            LicenceTier::Team,
+            LicenceTier::Enterprise,
             "Updating db_path must not overwrite licence_tier"
         );
         assert_eq!(
@@ -8680,17 +8899,23 @@ mod tests {
             "LicenceTier::Professional must serialize as camelCase"
         );
 
-        let json_team = serde_json::to_string(&LicenceTier::Team).expect("serialize");
-        assert_eq!(
-            json_team, r#""team""#,
-            "LicenceTier::Team must serialize as 'team'"
-        );
-
         let json_enterprise = serde_json::to_string(&LicenceTier::Enterprise).expect("serialize");
         assert_eq!(json_enterprise, r#""enterprise""#);
 
         let json_community = serde_json::to_string(&LicenceTier::Community).expect("serialize");
         assert_eq!(json_community, r#""community""#);
+    }
+
+    #[test]
+    fn licence_tier_legacy_team_deserializes_as_professional() {
+        // Pilot configs may carry the retired "team" value. Confirm the alias
+        // rolls those up to Professional with no manual migration.
+        let team: LicenceTier =
+            serde_json::from_str(r#""team""#).expect("legacy team value must deserialize");
+        assert_eq!(team, LicenceTier::Professional);
+
+        let pro: LicenceTier = serde_json::from_str(r#""pro""#).expect("pro alias");
+        assert_eq!(pro, LicenceTier::Professional);
     }
 
     // ── Corrupt / truncated file rejection tests ──────────────────────────────
