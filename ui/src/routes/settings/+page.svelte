@@ -448,16 +448,19 @@
   }
 
   // ── Licence Tier ──────────────────────────────────────────────────────────
-  // Pilot-phase tier indicator. Allows demonstration of tier value propositions
-  // without a licence server. The tier is stored in config.json and persists
-  // across restarts. In production this will be replaced by signed JWT enforcement.
+  // v1.0 Community-only — see project_v1_community_only_launch.md (2026-05-09).
+  // The TIER_INFO record + handleTierChange / setLicenceTier IPC + tierChanging /
+  // tierFeedback state are retained in source for the v1.1 Pro-tier unhide; the
+  // UI only surfaces the Community description in the rendered "Your Plan"
+  // section below. Do NOT delete the Professional / Enterprise entries — they
+  // are the v1.1 starting point. v1.0.2 Pro tier work tracked under JTV-170-176.
 
   const TIER_INFO: Record<LicenceTier, TierInfo> = {
     community: {
       tier: 'community',
       name: 'Community',
       codename: 'Flint',
-      description: 'Free, non-commercial use. Full verification pipeline, all 17+ detectors, batch processing, PDF reports, and MONITOR Layer 1. Community support via GitHub Issues.',
+      description: 'Free for everyone under AGPL-3.0-or-later. Full verification pipeline (12 automatic detectors plus 3 on-demand investigation tools), batch processing, PDF trust reports, Case Export ZIP, and Watched Locations monitoring. Community support via GitHub Issues.',
       badgeClass: 'bg-flint/15 border border-flint/30',
       badgeTextClass: 'text-flint-dark dark:text-flint-light',
     },
@@ -2069,27 +2072,14 @@
       <ContextualHelpLink href="/help/settings#your-plan" label="Learn about licence plans and features" />
     </div>
     <p class="text-xs text-flint-dark dark:text-flint-light mb-4">
-      During the pilot, you can explore different plans by selecting them here. In the full release, your plan will reflect your licence agreement.
+      Jura Trace v1.0 ships as a single Community release. A paid Pro tier is planned for the v1.1 release in early 2027.
     </p>
 
-    <!-- Current tier badge + description -->
-    <div class="flex items-start gap-3 mb-5 p-4 rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40">
-      <span
-        class="shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {currentTierInfo.badgeClass} {currentTierInfo.badgeTextClass}"
-        aria-label="Current plan: {currentTierInfo.name}"
-      >
-        {currentTierInfo.name}
-      </span>
-      <div class="min-w-0">
-        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
-          {currentTierInfo.description}
-        </p>
-      </div>
-    </div>
-
-    <!-- v1.0 Community-only — tier selector hidden until v1.1 introduces Pro tier.
-         The LicenceTier enum + handleTierChange + tierChanging state are retained
-         in source for the v1.1 unhide; we just don't surface them in the UI. -->
+    <!-- v1.0 Community-only — tier selector + the duplicate Current-tier badge are
+         hidden until v1.1 introduces Pro tier. The LicenceTier enum, TIER_INFO record,
+         handleTierChange + tierChanging state, and currentTierInfo derived state are
+         retained in source for the v1.1 unhide; we just do not surface them in the UI.
+         The Community block below is the only tier surface visible in v1.0. -->
     <div class="flex flex-col gap-3 max-w-xl rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 p-4">
       <div class="flex items-center gap-2">
         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-malachite/10 text-malachite-dark dark:bg-malachite/20 dark:text-malachite-light">
@@ -2798,7 +2788,11 @@
     {#if !apiKeysAvailable}
       <div class="p-4 rounded-lg border border-lapis/20 bg-lapis/5">
         <p class="text-sm text-flint-dark dark:text-flint-light">
-          API access is available on <strong class="text-text-light dark:text-quartz">Professional</strong> and <strong class="text-text-light dark:text-quartz">Enterprise</strong> plans. Upgrade your plan above to manage API keys.
+          REST API access and key management are planned for the Pro tier in the v1.1 release. v1.0 ships Community-only — the verification engine is fully usable through the desktop app and the Tauri IPC surface, but there is no programmatic key-authenticated REST endpoint yet. For early API access enquiries, email
+          <a
+            href="mailto:commercial@juralabs.org"
+            class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          >commercial@juralabs.org</a>.
         </p>
       </div>
     {:else}
