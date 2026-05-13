@@ -2,6 +2,24 @@
 
 //! JTV-98 BYOK Reverse Image Search — key store + provider whitelist.
 //!
+//! # Status (2026-05-13)
+//!
+//! **ORPHANED in v1.0 — deferred to v1.1.** This module is not declared
+//! in `lib.rs` (no `mod ris;` line), is not wired to any Tauri command,
+//! and is not invoked from any frontend code. It does NOT compile into
+//! the shipping v1.0 binary. The 33 unit tests below are dead code in
+//! the v1.0 build path.
+//!
+//! It is retained on `main` because (a) the security-auditor threat
+//! model and design (project_jtv98_ris_design.md) are sound and worth
+//! preserving as the v1.1 starting point, and (b) end-to-end validation
+//! against live Google Vision was completed 2026-05-04
+//! (project_jtv98_e2e_validated.md) and that work should not be lost.
+//!
+//! When v1.1 picks this up: add `mod ris;` to lib.rs, add `#[tauri::
+//! command]` wrappers, build the Settings key-entry UI and the
+//! verify-page RIS button, and align Monitor + Compliance copy.
+//!
 //! Stage 0 surface: provider validation + key length validation +
 //! `keyring`-crate wrappers for the OS-native key store. NO HTTP / no
 //! provider integration here — that lives in Stages 1 + 2.

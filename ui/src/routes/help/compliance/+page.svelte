@@ -186,9 +186,10 @@
       </li>
       <li>
         <strong class="font-semibold text-text-light dark:text-text-dark">Reverse image search</strong>
-        (optional, opt-in): Sends a thumbnail-sized crop to a user-supplied API endpoint
-        (Google Vision in v1.0; TinEye, Yandex, Bing planned for v1.1). Per-analysis consent
-        required; nothing leaves your machine without explicit per-call confirmation.
+        (planned for v1.1, not active in v1.0): will send a thumbnail-sized crop to a
+        user-supplied API endpoint (BYOK — Google Vision first, then TinEye / Yandex / Bing).
+        Per-analysis consent will be required; nothing will leave your machine without explicit
+        per-call confirmation. <strong>No reverse image search is performed in v1.0.</strong>
       </li>
     </ul>
 
