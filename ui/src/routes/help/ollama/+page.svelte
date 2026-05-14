@@ -21,7 +21,7 @@
       Ollama runs two optional features locally on your machine: AI-generated image
       descriptions (LLaVA) and claim verification against a knowledge base (Qwen2.5).
       <strong class="text-text-light dark:text-text-dark">Jura Trace works fully without Ollama.</strong>
-      All forensic detectors, AI deepfake detection (GBM v4 + UnivFD v9), C2PA
+      All forensic detectors, AI deepfake detection (GBM v4 + UnivFD v10onnx), C2PA
       provenance, and watermarking run independently.
     </p>
   </header>

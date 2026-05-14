@@ -1302,7 +1302,7 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
 
   // Model version labels
   const classifierModel = result.deepfakeResult?.classifierAvailable
-    ? 'GBM v4 (AUC 0.9868) + UnivFD v9 (AUC 0.9933) ensemble'
+    ? 'GBM v4 (AUC 0.9868) + UnivFD v10onnx (AUC 0.9929) ensemble'
     : 'Heuristic only';
   const clipModel = result.clipResult
     ? 'ViT-B/32 (open_clip)'
@@ -1403,7 +1403,7 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
       citationKey: 'copyMove',
     },
     {
-      text: 'AI Generation Detection: A two-head ensemble — GBM v4 (84-feature gradient-boosted classifier on hand-engineered forensic features, AUC 0.9868) and UnivFD v9 (logistic regression on CLIP ViT-B/32 embeddings, AUC 0.9933). Each head runs independently and the verdict reflects their combined output.',
+      text: 'AI Generation Detection: A two-head ensemble — GBM v4 (84-feature gradient-boosted classifier on hand-engineered forensic features, AUC 0.9868) and UnivFD v10onnx (logistic regression on CLIP ViT-B/32 embeddings, AUC 0.9929, multi-format augmentation across PNG/TIFF/WebP/HEIC). Each head runs independently and the verdict reflects their combined output.',
       citationKey: 'deepfake',
     },
     {

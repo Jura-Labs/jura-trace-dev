@@ -364,7 +364,7 @@
           <span class="brand-name text-xs text-text-light dark:text-text-dark">Jura Trace</span>
           <span class="text-xs">v0.9.0</span>
         </div>
-        <p class="text-xs text-center text-flint-dark dark:text-flint-light">Reclaiming Technology for Society</p>
+        <p class="text-xs text-center text-flint-dark dark:text-flint-light">Know What's Real</p>
         <div class="flex items-center gap-4 text-xs">
           <button
             onclick={() => showFeedback = true}

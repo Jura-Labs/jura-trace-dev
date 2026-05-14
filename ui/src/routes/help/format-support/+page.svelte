@@ -25,7 +25,7 @@
       protect:
         'Content Credentials, invisible watermark, perceptual fingerprint, full metadata',
       verify:
-        'Full forensic stack — ELA, JPEG Ghost, copy-move, deepfake (GBM v4 + UnivFD v9), CLIP, EXIF anomaly',
+        'Full forensic stack — ELA, JPEG Ghost, copy-move, deepfake (GBM v4 + UnivFD v10onnx), CLIP, EXIF anomaly',
       coverage: 'full',
     },
     {
@@ -206,9 +206,8 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl mb-4">
       These formats are excluded from the file picker because they have no
       working detector path today. We would rather refuse the file than
-      return a 0.50 trust score with no underlying signal — the pilot
-      tester audit on 28 April 2026 confirmed this is the more honest
-      design.
+      return a 0.50 trust score with no underlying signal — user-testing on
+      28 April 2026 confirmed this is the more honest design.
     </p>
     <div class="overflow-x-auto -mx-4 sm:mx-0">
       <table class="w-full text-sm border-collapse">
@@ -257,7 +256,7 @@
       A trust score that does not reflect a working detector is a worse
       outcome than no score at all. For example, a DOCX file dropped onto
       the pipeline previously returned 0.50 trust with zero underlying
-      analysis &mdash; pilots interpreted that as &ldquo;clean&rdquo; when
+      analysis &mdash; users interpreted that as &ldquo;clean&rdquo; when
       the system had not actually checked anything. The same principle
       applies to audio and video deepfake: the existing models trained on
       narrow corpora cannot defensibly assess voice notes or video clips

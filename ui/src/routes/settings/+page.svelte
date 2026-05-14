@@ -460,7 +460,7 @@
       tier: 'community',
       name: 'Community',
       codename: 'Flint',
-      description: 'Free for everyone under AGPL-3.0-or-later. Full verification pipeline (12 automatic detectors plus 3 on-demand investigation tools), batch processing, PDF trust reports, Case Export ZIP, and Watched Locations monitoring. Community support via GitHub Issues.',
+      description: 'Free for everyone under AGPL-3.0-or-later. Full verification pipeline (11 automatic detectors plus 3 on-demand investigation tools), batch processing, PDF trust reports, Case Export ZIP, and Watched Locations monitoring. Community support via GitHub Issues.',
       badgeClass: 'bg-flint/15 border border-flint/30',
       badgeTextClass: 'text-flint-dark dark:text-flint-light',
     },
@@ -1445,7 +1445,7 @@
                          ? 'bg-malachite/10 text-malachite-light border border-malachite/20'
                          : 'bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light border border-border-light dark:border-graphite-light'}"
                 title={cap === 'clipDetect' && !enabled
-                  ? 'CLIP ONNX models missing or onnxruntime unavailable — UnivFD v9 probe and zero-shot AI cross-check are both offline. GBM v4 base classifier still runs but recall on diffusion models is degraded.'
+                  ? 'CLIP ONNX models missing or onnxruntime unavailable — UnivFD v10onnx probe and zero-shot AI cross-check are both offline. GBM v4 base classifier still runs but recall on diffusion models is degraded.'
                   : ''}
               >
                 {cap === 'clipDetect' ? 'AI cross-check (CLIP)'

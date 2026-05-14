@@ -8,7 +8,7 @@
     {
       href: '/help/protect',
       title: 'Protect',
-      description: 'Sign your work with Content Credentials and an invisible watermark. Choose between Sovereign and Conformant signing modes.',
+      description: 'Sign your work with Content Credentials and an invisible watermark using Local Signing (per-install certificate). Conformant signing — verifiable against the C2PA trust list — is planned for v1.1.',
     },
     {
       href: '/help/verify',
@@ -79,7 +79,7 @@
     Documentation and Guidance
   </h1>
   <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
-    Jura Trace runs 12 forensic detectors to verify content authenticity and embeds
+    Jura Trace runs 11 forensic detectors to verify content authenticity and embeds
     tamper-evident credentials to protect your digital assets. These guides explain how
     each feature works, the methodology behind our analysis, and practical workflows for
     different use cases.

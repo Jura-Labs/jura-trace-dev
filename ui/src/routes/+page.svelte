@@ -211,9 +211,9 @@
         </h2>
       </div>
       <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
-        Drop an image, paste a URL, or describe a claim. Jura Trace examines the evidence
-        layer by layer — forensic analysis, metadata inspection, region-based composite
-        detection — and tells you what it finds. Honestly. No certainty where none exists.
+        Drop an image or paste a URL. Jura Trace examines the evidence layer by layer
+        — forensic analysis, metadata inspection, region-based composite detection — and
+        tells you what it finds. Honestly. No certainty where none exists.
       </p>
     </div>
 

@@ -200,7 +200,7 @@
       return (
         `Analysis of "${name}" produced inconclusive results${confText}. ` +
         `Some signals suggest possible AI generation or editing, but the evidence is not strong enough for a definitive judgement. ` +
-        `Review the individual analysis sections below and consider using reverse image search for additional context. ` +
+        `Review the individual analysis sections below and consider using an external reverse image search service (such as TinEye or Google Images) for additional context — Jura Trace does not perform reverse image search itself in v1.0. ` +
         `The overall trust score is ${scorePercent}%.`
       );
     }

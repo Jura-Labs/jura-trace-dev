@@ -366,7 +366,7 @@
           corpus of 10,709 images (5,724 authentic, 4,985 AI-generated from 14
           generator families). Achieves a cross-validation AUC-ROC of 0.9868 with
           an authentic false-positive rate of 4.54% at the calibrated threshold.
-          Combined with the UnivFD v9 CLIP probe (AUC-ROC 0.9933) into an ensemble
+          Combined with the UnivFD v10onnx CLIP probe (AUC-ROC 0.9929) into an ensemble
           score. Degrades gracefully — analysis continues with heuristic scoring
           alone if the model file is not present.
         </dd>
@@ -663,14 +663,14 @@
         >Analysis Engine</dt>
         <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
           The forensic analysis service that runs alongside the Jura Trace desktop
-          application on port 8200. Handles computationally intensive forensic analysis —
-          ELA, noise, copy-move, deepfake detection (GBM v4 + UnivFD v9 ensemble), CLIP
-          classification, JPEG Ghost, segmented ELA, colour temperature, watermarking
-          — plus the on-demand investigation tools (NPR, shadow consistency, splice
-          boundary) available in Expert View. Video deepfake and audio analysis are
-          deferred from v1.0 and ship in v1.0.x (JTV-138). Jura Trace operates normally
-          when the Analysis Engine is not running; forensic analysis results are simply
-          omitted from the report.
+          application on a local loopback port chosen at startup. Handles computationally
+          intensive forensic analysis — ELA, noise, copy-move, deepfake detection
+          (GBM v4 + UnivFD v10onnx ensemble), CLIP classification, JPEG Ghost, segmented
+          ELA, colour temperature, watermarking — plus the on-demand investigation tools
+          (NPR, shadow consistency, splice boundary) available in Expert View. Video
+          deepfake and audio analysis are deferred from v1.0 and ship in v1.0.1
+          (JTV-138). Jura Trace operates normally when the Analysis Engine is not
+          running; forensic analysis results are simply omitted from the report.
         </dd>
       </div>
 

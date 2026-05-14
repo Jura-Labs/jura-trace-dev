@@ -143,7 +143,7 @@
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4 mb-8">
     <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">Everything else works without Ollama</p>
     <ul class="space-y-1 text-sm text-flint-dark dark:text-flint-light">
-      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> All 12 automatic forensic detectors (ELA, noise, copy-move, deepfake, and more) plus 3 on-demand investigation tools</li>
+      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> All 11 automatic forensic detectors (ELA, noise, copy-move, deepfake, and more) plus 3 on-demand investigation tools</li>
       <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> C2PA provenance verification</li>
       <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> Invisible watermark embedding and detection</li>
       <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> EXIF anomaly analysis</li>
@@ -402,7 +402,7 @@
       </h3>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
         This indicator shows the status of the Analysis Engine, which runs locally on
-        port 8200. The Analysis Engine provides forensic image analysis (ELA, noise, copy-move,
+        the 127.0.0.1 loopback interface. The Analysis Engine provides forensic image analysis (ELA, noise, copy-move,
         deepfake detection, JPEG ghost, regional analysis), watermark embed and extract,
         video and audio processing, transcription, and the on-demand investigation tools
         (NPR, shadow consistency, splice boundary) available in Expert View.
@@ -422,7 +422,7 @@
             </tr>
             <tr>
               <td class="py-2 pr-4 font-semibold text-cinnabar-dark dark:text-cinnabar-light">Offline</td>
-              <td class="py-2">The Analysis Engine is not running or is not reachable on port 8200. Forensic analysis will be skipped during verification. C2PA checking and EXIF analysis still work.</td>
+              <td class="py-2">The Analysis Engine is not running or is not reachable. Forensic analysis will be skipped during verification. C2PA checking and EXIF analysis still work.</td>
             </tr>
           </tbody>
         </table>
@@ -474,8 +474,8 @@
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         The Analysis Engine starts automatically when you launch Jura Trace. If it shows as
         <strong class="text-text-light dark:text-text-dark">Offline</strong>, try restarting
-        the application. If the problem persists, check that no other process is using
-        port 8200 on your device, then restart again. Once the service is running, click
+        the application — the Engine binds to a free local port chosen at startup, so port
+        conflicts are unlikely. Once the service is running, click
         <strong class="text-text-light dark:text-text-dark">Refresh</strong> in the Service
         Status panel to confirm the connection.
       </p>
@@ -741,8 +741,8 @@
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         Confirms the bundled Analysis Engine (Python sidecar) is running and responding on
-        port 8200. The Analysis Engine is started automatically at launch; this step
-        verifies the startup completed successfully.
+        the 127.0.0.1 loopback interface. The Analysis Engine is started automatically at
+        launch; this step verifies the startup completed successfully.
       </p>
     </div>
 
@@ -774,7 +774,7 @@
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         Checks whether Ollama is running and whether the vision model (LLaVA) and text
-        model (Qwen2.5) are installed. These models are optional — all 12 automatic
+        model (Qwen2.5) are installed. These models are optional — all 11 automatic
         forensic detectors work without them. If Ollama is unavailable, the wizard
         confirms which features will be skipped.
       </p>
@@ -901,11 +901,10 @@
         The full Jura Trace application: C2PA Validator-Conformant verification, Local
         Signing, eleven automatic forensic detectors, three on-demand investigation tools,
         perceptual fingerprinting, EXIF anomaly detection with injection-detection and
-        XMP AI-provenance sub-checks, BYOK reverse image search (Google Vision in v1.0),
-        invisible watermark embed and extract, Watched Locations folder monitoring, PDF
-        trust reports, ZIP case exports. Free for everyone under AGPL-3.0-or-later.
-        Permanent — the CIC's asset-locked status guarantees a free Community tier in
-        perpetuity.
+        XMP AI-provenance sub-checks, invisible watermark embed and extract, Watched
+        Locations folder monitoring, PDF trust reports, ZIP case exports. Reverse image
+        search is planned for v1.1. Free for everyone under AGPL-3.0-or-later. Permanent
+        — the CIC's asset-locked status guarantees a free Community tier in perpetuity.
       </p>
     </div>
 

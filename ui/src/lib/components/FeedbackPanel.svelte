@@ -135,7 +135,8 @@
 </script>
 
 <!--
-  FeedbackPanel — clipboard-based feedback form for pilot testers.
+  FeedbackPanel — clipboard-based feedback form. Copy to clipboard, then email
+  the result to feedback@juralabs.org. Nothing is sent automatically.
 
   WCAG 2.2 AA:
   - role="dialog" aria-modal="true" with descriptive aria-labelledby

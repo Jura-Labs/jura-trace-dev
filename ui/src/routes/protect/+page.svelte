@@ -2074,12 +2074,15 @@
 
             {#if asset.c2paSigned}
               <span class="text-[10px] px-1.5 py-0.5 rounded bg-malachite/15 text-malachite-dark dark:text-malachite-light leading-tight">Signed</span>
-              <!-- Signing-mode badge: "Sovereign" or "Conformant" -->
+              <!-- Signing-mode badge: "Local" or "Conformant".  Mirrors the
+                   prose terminology used across the help corpus + dashboard
+                   (was "Sovereign" — renamed for v1.0 to match the user-
+                   facing name everywhere else). -->
               <span
                 class="text-[10px] px-1.5 py-0.5 rounded bg-lapis/10 text-lapis-dark dark:text-lapis-light leading-tight"
                 title="Signing mode used when this credential was created"
               >
-                {signingMode === 'conformant' ? 'Conformant' : 'Sovereign'}
+                {signingMode === 'conformant' ? 'Conformant' : 'Local'}
               </span>
             {/if}
             {#if asset.watermarked}

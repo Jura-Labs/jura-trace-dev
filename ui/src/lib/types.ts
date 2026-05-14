@@ -48,8 +48,11 @@ export type VerifyMode = 'standard' | 'deep' | 'archival';
  * `#[serde(alias = "team")]` on Professional so legacy configs roll up
  * cleanly. Frontend code should never produce or branch on `'team'`.
  *
- * During the pilot phase this can be set manually from Settings.
- * Post-v1.0, tier enforcement will use a signed JWT.
+ * v1.0 launches Community-only — the tier picker in Settings is hidden.
+ * The value is locked to 'community' for v1.0 installs. The TIER_INFO
+ * record + tier-change IPC are retained for the v1.1 Pro-tier unhide
+ * (JTV-170 — re-add tier UI in Settings). v1.1+ tier enforcement will
+ * use a signed JWT issued by the licence-key backend (JTV-172/173).
  */
 export type LicenceTier = 'community' | 'professional' | 'enterprise';
 

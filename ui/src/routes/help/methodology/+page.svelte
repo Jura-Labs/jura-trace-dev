@@ -343,7 +343,7 @@
         3. ELA
         4. Noise Analysis
         5. Copy-Move
-        6. AI Generation (GBM v4 + UnivFD v9 ensemble)
+        6. AI Generation (GBM v4 + UnivFD v10onnx ensemble)
         7. JPEG Ghost (0.5× weight — S28-4)
         8. Segmented ELA
         9. Colour Temperature
@@ -683,7 +683,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Extracts an 84-feature vector covering noise statistics (LSB randomness, LSB entropy, LF/HF ratio, anisotropy), spectral decay patterns, Local Binary Pattern (LBP) texture descriptors, Grey-Level Co-occurrence Matrix (GLCM) contrast measures, and demosaic inter-channel coherence. A GradientBoosting classifier (GBM v4 — trained on 10,709 images from 14 generator families, cross-validation AUC&#8209;ROC 0.9868, authentic false-positive rate 4.54%, calibrated threshold 0.49) assigns a probability score. This is combined with the UnivFD v9 probe (a LogisticRegression classifier on CLIP ViT-B/32 embeddings, trained on 39,016 samples including platform-forwarded augmentation, AUC&#8209;ROC 0.9933, authentic FP rate 4.12%, recall 95.70%) into an ensemble score. The pipeline also checks for invisible watermarks from known AI generators.
+                Extracts an 84-feature vector covering noise statistics (LSB randomness, LSB entropy, LF/HF ratio, anisotropy), spectral decay patterns, Local Binary Pattern (LBP) texture descriptors, Grey-Level Co-occurrence Matrix (GLCM) contrast measures, and demosaic inter-channel coherence. A GradientBoosting classifier (GBM v4 — trained on 10,709 images from 14 generator families, cross-validation AUC&#8209;ROC 0.9868, authentic false-positive rate 4.54%, calibrated threshold 0.49) assigns a probability score. This is combined with the UnivFD v10onnx probe (a LogisticRegression classifier on CLIP ViT-B/32 embeddings, trained on 56,344 samples including platform-forwarded and multi-format augmentation across PNG, TIFF, WebP and HEIC, AUC&#8209;ROC 0.9929, authentic FP rate 3.87%, recall 95.77%) into an ensemble score. The pipeline also checks for invisible watermarks from known AI generators.
               </dd>
             </div>
             <div>
@@ -695,7 +695,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Heavily processed photographs, CGI renders, composite illustrations, and images that have undergone multiple rounds of compression may exhibit AI-like statistical properties. The ensemble authentic false positive rate is 4.54% (GBM v4) and 4.12% (UnivFD v9) on the held-out test set — human review is always warranted.
+                Heavily processed photographs, CGI renders, composite illustrations, and images that have undergone multiple rounds of compression may exhibit AI-like statistical properties. The ensemble authentic false positive rate is 4.54% (GBM v4) and 3.87% (UnivFD v10onnx) on the held-out test set — human review is always warranted.
               </dd>
             </div>
             <div>
@@ -705,7 +705,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                GBM v4 trained on 10,709 images across 14 generator families; UnivFD v9 trained on 39,016 samples (including platform-forwarded augmentation). May underperform on outputs from generators not represented in the training corpus. Both models are retrained on a quarterly cadence as new generator families are identified. Minimum image size: 128&#215;128 pixels. Per-generator recall varies with model version. As of v9 (April 2026): Flux Dev recall 88.9% and SDXL Turbo recall 91.1% &mdash; both reduced from the previous version due to the platform-forwarded augmentation retraining trade-off. DiffusionDB recall improved from 67.6% to 97.3%. Full per-generator breakdown in the <a href="/help/model-cards#univfd-probe" class="text-lapis dark:text-lapis-light underline hover:no-underline">model card</a>. See also the <a href="/help/model-cards#gbm-classifier" class="text-lapis dark:text-lapis-light underline hover:no-underline">GBM model card</a> for full training data documentation.
+                GBM v4 trained on 10,709 images across 14 generator families; UnivFD v10onnx trained on 56,344 samples (including platform-forwarded plus multi-format PNG/TIFF/WebP/HEIC augmentation). May underperform on outputs from generators not represented in the training corpus. Both models are retrained on a quarterly cadence as new generator families are identified. Minimum image size: 128&#215;128 pixels. Per-format AUC for v10onnx: PNG 0.998 / TIFF 0.995 / WebP 0.993 / HEIC 0.990. Per-generator recall varies with model version; full per-generator breakdown in the <a href="/help/model-cards#univfd-probe" class="text-lapis dark:text-lapis-light underline hover:no-underline">model card</a>. See also the <a href="/help/model-cards#gbm-classifier" class="text-lapis dark:text-lapis-light underline hover:no-underline">GBM model card</a> for full training data documentation.
               </dd>
             </div>
           </dl>
@@ -935,13 +935,13 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                UnivFD v9 authentic false positive rate: 4.12% (down from 5.01% in v8 and 28.7% in v7). Platform-forwarded augmentation training improved robustness on Twitter/WhatsApp-compressed images. Non-photographic content (paintings, digital illustrations) may still trigger false positives. Requires the optional CLIP ViT&#8209;B/32 model (~350 MB). See the <a href="/help/model-cards#univfd-probe" class="text-lapis dark:text-lapis-light underline hover:no-underline">UnivFD model card</a> for full documentation.
+                UnivFD v10onnx authentic false positive rate: 3.87% (improved 0.25 pp from v9, down from 5.01% in v8 and 28.7% in v7). Multi-format augmentation training (PNG/TIFF/WebP/HEIC) added to the existing platform-forwarded augmentation; per-format AUC stays above 0.99 across all four lossless / modern-lossy codecs. Non-photographic content (paintings, digital illustrations) may still trigger false positives. Requires the optional CLIP ViT&#8209;B/32 model (bundled — ~580&nbsp;MB combined). See the <a href="/help/model-cards#univfd-probe" class="text-lapis dark:text-lapis-light underline hover:no-underline">UnivFD model card</a> for full documentation.
               </dd>
             </div>
             <div id="clip-detection">
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Note: class probabilities are currently experimental</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                The class probability bars shown in the verify results are produced by feeding raw cosine similarity scores directly into a softmax function without applying the CLIP logit scale multiplier. This causes near-uniform distributions (~20% per class) regardless of the image content — the values do not reliably discriminate between authentic and AI-generated images. The UnivFD v9 probe — a trained logistic regression classifier on the same CLIP ViT&#8209;B/32 embeddings, AUC-ROC 0.9933, authentic FP 4.12%, AI recall 95.70% — is the production-grade path and contributes to the trust score separately. The class probability display is retained as an exploratory signal pending a fix to the softmax temperature and is marked <em>Experimental — informational only</em> in the verify interface.
+                The class probability bars shown in the verify results are produced by feeding raw cosine similarity scores directly into a softmax function without applying the CLIP logit scale multiplier. This causes near-uniform distributions (~20% per class) regardless of the image content — the values do not reliably discriminate between authentic and AI-generated images. The UnivFD v10onnx probe — a trained logistic regression classifier on the same CLIP ViT&#8209;B/32 embeddings, AUC-ROC 0.9929, authentic FP 3.87%, AI recall 95.77% — is the production-grade path and contributes to the trust score separately. The class probability display is retained as an exploratory signal pending a fix to the softmax temperature and is marked <em>Experimental — informational only</em> in the verify interface.
               </dd>
             </div>
           </dl>
@@ -1229,7 +1229,7 @@
               <div>
                 <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
                 <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                  Demoted to on-demand in Sprint 28 (April 2026). Content-authenticity-expert cross-review noted that the Tan et al. AAAI 2024 paper uses NPR features as input to a learned classifier, not as a standalone threshold, and that a hand-tuned NPR statistic is partially redundant with the UnivFD v9 probe which encodes upsampling artefacts at a higher level of abstraction via CLIP features. The sidecar endpoint remains available for manual investigation. Also computationally intensive and less effective on highly compressed content where pixel neighbour relationships are already disrupted by quantisation.
+                  Demoted to on-demand in Sprint 28 (April 2026). Content-authenticity-expert cross-review noted that the Tan et al. AAAI 2024 paper uses NPR features as input to a learned classifier, not as a standalone threshold, and that a hand-tuned NPR statistic is partially redundant with the UnivFD v10onnx probe which encodes upsampling artefacts at a higher level of abstraction via CLIP features. The sidecar endpoint remains available for manual investigation. Also computationally intensive and less effective on highly compressed content where pixel neighbour relationships are already disrupted by quantisation.
                 </dd>
               </div>
             </dl>
