@@ -50,7 +50,8 @@
       "binaries/jura-sidecar"
     ],
     "resources": [
-      "models/*"
+      "models/*",
+      "sidecar-bundle/**/*"
     ],
     "icon": [
       "icons/32x32.png",

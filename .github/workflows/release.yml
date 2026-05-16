@@ -458,26 +458,64 @@ jobs:
           pip install "pyinstaller>=6,<7"
         shell: bash
 
-      # PyInstaller builds a single self-contained executable (--onefile mode
-      # is configured in jura-sidecar.spec via the EXE object — no COLLECT).
-      # Output: sidecar/dist/jura-sidecar  (sidecar/dist/jura-sidecar.exe on Windows)
+      # PyInstaller build. Two output modes depending on platform:
+      #
+      #   macOS (aarch64-apple-darwin) — JTV-184 Phase 5 onedir mode:
+      #     JURA_SIDECAR_ONEDIR=1 toggles jura-sidecar.spec to use the
+      #     COLLECT block (--onedir output: a directory containing the
+      #     bootloader + an _internal/ tree of dylibs). Cold start ~39s vs
+      #     ~90-200s for --onefile. The committed launcher stub at
+      #     src-tauri/binaries/jura-sidecar-aarch64-apple-darwin (a 38-line
+      #     shell script) execs the bundled bootloader at runtime.
+      #
+      #   Windows / Linux — onefile mode (unchanged):
+      #     spec defaults to EXE-only (no COLLECT) producing a single
+      #     self-contained executable. Migrate later if cold-start regressions
+      #     surface; for now the Tauri sidecar probe budget tolerates --onefile
+      #     on Windows + Linux.
       #
       # JURA_MODELS_DIR is NOT set here because the models/ directory is not
       # bundled inside the frozen binary — see docs/pyinstaller-spike-findings.md.
       # The Rust sidecar.rs sets JURA_MODELS_DIR at spawn time, pointing to the
       # models/ directory that ships alongside the app bundle.
       - name: Build frozen sidecar
+        env:
+          JURA_SIDECAR_ONEDIR: ${{ matrix.target == 'aarch64-apple-darwin' && '1' || '0' }}
         run: python -m PyInstaller jura-sidecar.spec --noconfirm
         working-directory: sidecar
 
-      # Copy the PyInstaller output to src-tauri/binaries/ with the Tauri-
-      # expected platform triple suffix. Tauri's externalBin resolution strips
-      # the suffix at build time and re-adds it for each target platform.
+      # ── macOS Phase 5: copy onedir tree to Tauri resources ───────────────
+      # The PyInstaller --onedir output is sidecar/dist/jura-sidecar/ containing:
+      #   jura-sidecar          (~41 MB bootloader Mach-O)
+      #   _internal/            (~480 MB of native libs + Python runtime)
       #
-      # The binaries/ directory is gitignored (it holds large native binaries).
-      # Create it if it does not already exist from a previous CI step.
-      - name: Copy sidecar binary to Tauri binaries (Unix)
-        if: runner.os != 'Windows'
+      # Tauri's bundle.resources glob ("sidecar-bundle/**/*") picks this up
+      # and places it at Jura Trace.app/Contents/Resources/sidecar-bundle/
+      # so the committed launcher stub can locate the sibling _internal/.
+      #
+      # DO NOT overwrite the launcher stub at src-tauri/binaries/jura-sidecar-
+      # aarch64-apple-darwin — it's the shell wrapper Tauri places at
+      # Contents/MacOS/jura-sidecar.
+      - name: Copy sidecar onedir bundle to Tauri resources (macOS)
+        if: matrix.target == 'aarch64-apple-darwin'
+        run: |
+          mkdir -p src-tauri/sidecar-bundle
+          cp -R sidecar/dist/jura-sidecar/. src-tauri/sidecar-bundle/
+          test -x src-tauri/sidecar-bundle/jura-sidecar || (echo "ERROR: bootloader missing from onedir tree" && exit 1)
+          test -d src-tauri/sidecar-bundle/_internal || (echo "ERROR: _internal/ missing from onedir tree" && exit 1)
+          # The launcher stub MUST remain executable for Tauri's externalBin
+          # resolution. Cargo + git generally preserve the +x bit but assert it.
+          test -x src-tauri/binaries/${{ matrix.sidecar_name }} || chmod +x src-tauri/binaries/${{ matrix.sidecar_name }}
+          echo "--- sidecar-bundle layout ---"
+          du -sh src-tauri/sidecar-bundle/
+          ls -la src-tauri/sidecar-bundle/ | head -10
+
+      # ── Windows / Linux onefile copy (unchanged from pre-Phase-5) ────────
+      # Tauri's externalBin strips the platform triple suffix at build time
+      # and re-adds it for each target. The binaries/ directory is gitignored
+      # for large native binaries — create if absent.
+      - name: Copy sidecar binary to Tauri binaries (Unix, onefile)
+        if: runner.os != 'Windows' && matrix.target != 'aarch64-apple-darwin'
         run: |
           mkdir -p src-tauri/binaries
           cp sidecar/dist/jura-sidecar src-tauri/binaries/${{ matrix.sidecar_name }}
@@ -602,6 +640,67 @@ jobs:
           # jura-archive. Manual upload to jura-trace follows in the next step.
           tauriScript: cargo tauri
           args: --target ${{ matrix.target }}
+
+      # ── macOS Phase 5: spot-check sidecar-bundle nested signing ──────────
+      # Tauri-action signs the .app with codesign --force --deep, which should
+      # recursively re-sign nested Mach-O code under Resources/sidecar-bundle/
+      # with Developer ID Application: Jura Labs CIC (Y82C4P9L7F). On the
+      # Sprint-31 local-build dry-run, that recursive pass left libpython +
+      # ~600 nested .dylib/.so as ad-hoc signed (TeamIdentifier=not set),
+      # causing hardened-runtime library validation to refuse dlopen at
+      # runtime — "code signature invalid for use in process".
+      #
+      # This step spot-checks 5 nested files. If any are NOT signed by
+      # Y82C4P9L7F we emit a warning AND fail the build, so the first CI
+      # cut surfaces the gap rather than shipping a broken .app. Remediation
+      # if this fires: add an explicit per-file codesign loop here (set up
+      # the keychain ourselves before tauri-action, sign deepest-first, then
+      # re-seal the .app top level — see JTV-184 Phase 5 spike notes).
+      - name: Phase 5 — verify sidecar-bundle nested code signing (macOS)
+        if: matrix.target == 'aarch64-apple-darwin'
+        run: |
+          set -euo pipefail
+          bundle_dir="src-tauri/target/aarch64-apple-darwin/release/bundle"
+          app_path=$(find "$bundle_dir/macos" -maxdepth 1 -name "*.app" -type d | head -1)
+          if [ -z "$app_path" ]; then
+            echo "ERROR: no .app found under $bundle_dir/macos"
+            exit 1
+          fi
+          sidecar_root="$app_path/Contents/Resources/sidecar-bundle"
+          if [ ! -d "$sidecar_root" ]; then
+            echo "ERROR: sidecar-bundle not bundled into .app — Tauri resources glob may be wrong"
+            ls -la "$app_path/Contents/Resources/" || true
+            exit 1
+          fi
+          echo "--- sidecar-bundle in .app ---"
+          du -sh "$sidecar_root"
+          echo
+          # Spot-check 5 random nested binaries
+          failed=0
+          checked=0
+          while IFS= read -r f; do
+            checked=$((checked + 1))
+            ident=$(codesign --display --verbose=2 "$f" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2}' | head -1)
+            if [ "$ident" != "Y82C4P9L7F" ]; then
+              echo "MIS-SIGNED: $f  Team='$ident'  (expected Y82C4P9L7F)"
+              failed=$((failed + 1))
+            else
+              echo "OK: $(basename "$f")  Team=$ident"
+            fi
+          done < <(find "$sidecar_root" -type f \( -name "*.dylib" -o -name "*.so" \) | head -5)
+          echo
+          # Bootloader check
+          boot_ident=$(codesign --display --verbose=2 "$sidecar_root/jura-sidecar" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2}' | head -1)
+          echo "Bootloader: Team=$boot_ident"
+          [ "$boot_ident" != "Y82C4P9L7F" ] && failed=$((failed + 1))
+          echo
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::Phase 5 nested signing check failed — $failed of $((checked + 1)) sampled files not signed by Y82C4P9L7F."
+            echo "::error::Tauri's --deep recursive sign did not reach Resources/sidecar-bundle/."
+            echo "::error::Add an explicit per-file codesign loop. See JTV-184 Phase 5 notes."
+            exit 1
+          fi
+          echo "Phase 5 nested signing verification PASSED."
 
       # ── Empty-signature gate (macOS / Linux) ────────────────────────────
       # Fails the build if any updater payload (.app.tar.gz on macOS;

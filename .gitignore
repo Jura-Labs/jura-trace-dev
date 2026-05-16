@@ -161,3 +161,8 @@ models/clip-vit-b32-text.onnx
 models/clip-vit-b32-text.onnx.data
 # Drift validation report from the JTV-143 hard gate — local artefact.
 models/jtv143-drift-validation.json
+
+# JTV-184 Phase 5 — onedir bundle for the PyInstaller sidecar.
+# Populated at build time (manually for local cargo tauri build, by CI for
+# release) from sidecar/dist/jura-sidecar/. ~520 MB; CI rebuilds per platform.
+src-tauri/sidecar-bundle/

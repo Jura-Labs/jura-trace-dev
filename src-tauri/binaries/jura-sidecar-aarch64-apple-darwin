@@ -1,6 +1,34 @@
 #!/bin/sh
-# Development placeholder — not a real sidecar binary.
-# In production this file is replaced by the PyInstaller build artefact.
-# See src-tauri/binaries/README.md for instructions.
-echo "jura-sidecar placeholder — replace with PyInstaller binary for production"
-exit 1
+# JTV-184 Phase 5 — launcher for the bundled PyInstaller --onedir bootloader.
+#
+# Tauri externalBin places this script at Contents/MacOS/jura-sidecar in the
+# bundled .app. The real PyInstaller --onedir bootloader (the 41 MB Mach-O
+# bootstrap) and its _internal/ tree of native libraries ship as Tauri
+# resources at:
+#
+#   Contents/Resources/sidecar-bundle/jura-sidecar
+#   Contents/Resources/sidecar-bundle/_internal/
+#
+# This script exec's the bundled bootloader so PyInstaller can find its
+# sibling _internal/ at runtime. PyInstaller --onedir bootloader looks for
+# _internal/ relative to the executable's own path, so the bootloader +
+# _internal/ MUST be siblings — that is why we cannot just put the
+# bootloader directly in Contents/MacOS/ (Tauri does not have a config
+# option to put _internal/ alongside it).
+#
+# In dev mode (cargo tauri dev) spawn_sidecar early-returns under
+# cfg!(debug_assertions) so this script is never invoked.
+#
+# All args + env are passed through unchanged via `exec`.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BOOTLOADER="$SCRIPT_DIR/../Resources/sidecar-bundle/jura-sidecar"
+
+if [ ! -x "$BOOTLOADER" ]; then
+    echo "JTV-184: sidecar bootloader not found at $BOOTLOADER" >&2
+    echo "JTV-184: the .app was built without the sidecar-bundle resource — " >&2
+    echo "JTV-184: rebuild with the JTV-184 Phase 5 CI workflow." >&2
+    exit 127
+fi
+
+exec "$BOOTLOADER" "$@"

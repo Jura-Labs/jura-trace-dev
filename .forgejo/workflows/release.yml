@@ -446,12 +446,29 @@ jobs:
           fi
           pip install "pyinstaller>=6,<7"
 
+      # JTV-184 Phase 5 — macOS uses --onedir to avoid PyInstaller --onefile
+      # cold-extract that overruns the Tauri sidecar startup probe budget.
+      # See .github/workflows/release.yml for the full rationale.
       - name: Build frozen sidecar
+        env:
+          JURA_SIDECAR_ONEDIR: ${{ matrix.target == 'aarch64-apple-darwin' && '1' || '0' }}
         run: python -m PyInstaller jura-sidecar.spec --noconfirm
         working-directory: sidecar
 
-      - name: Copy sidecar binary to Tauri binaries (Unix)
-        if: runner.os != 'Windows'
+      # macOS Phase 5: copy onedir tree into Tauri resources (sidecar-bundle/**)
+      - name: Copy sidecar onedir bundle to Tauri resources (macOS)
+        if: matrix.target == 'aarch64-apple-darwin'
+        run: |
+          mkdir -p src-tauri/sidecar-bundle
+          cp -R sidecar/dist/jura-sidecar/. src-tauri/sidecar-bundle/
+          test -x src-tauri/sidecar-bundle/jura-sidecar || (echo "ERROR: bootloader missing from onedir tree" && exit 1)
+          test -d src-tauri/sidecar-bundle/_internal || (echo "ERROR: _internal/ missing from onedir tree" && exit 1)
+          test -x src-tauri/binaries/${{ matrix.sidecar_name }} || chmod +x src-tauri/binaries/${{ matrix.sidecar_name }}
+          du -sh src-tauri/sidecar-bundle/
+
+      # Windows / Linux: onefile flow unchanged
+      - name: Copy sidecar binary to Tauri binaries (Unix, onefile)
+        if: runner.os != 'Windows' && matrix.target != 'aarch64-apple-darwin'
         run: |
           mkdir -p src-tauri/binaries
           cp sidecar/dist/jura-sidecar src-tauri/binaries/${{ matrix.sidecar_name }}
@@ -548,6 +565,39 @@ jobs:
         with:
           tauriScript: cargo tauri
           args: --target ${{ matrix.target }}
+
+      # ── macOS Phase 5: spot-check sidecar-bundle nested signing ──────────
+      # See .github/workflows/release.yml for full rationale (JTV-184).
+      - name: Phase 5 — verify sidecar-bundle nested code signing (macOS)
+        if: matrix.target == 'aarch64-apple-darwin'
+        run: |
+          set -euo pipefail
+          bundle_dir="src-tauri/target/aarch64-apple-darwin/release/bundle"
+          app_path=$(find "$bundle_dir/macos" -maxdepth 1 -name "*.app" -type d | head -1)
+          [ -z "$app_path" ] && { echo "ERROR: no .app found under $bundle_dir/macos"; exit 1; }
+          sidecar_root="$app_path/Contents/Resources/sidecar-bundle"
+          [ ! -d "$sidecar_root" ] && { echo "ERROR: sidecar-bundle not bundled into .app"; exit 1; }
+          du -sh "$sidecar_root"
+          failed=0
+          checked=0
+          while IFS= read -r f; do
+            checked=$((checked + 1))
+            ident=$(codesign --display --verbose=2 "$f" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2}' | head -1)
+            if [ "$ident" != "Y82C4P9L7F" ]; then
+              echo "MIS-SIGNED: $f  Team='$ident'  (expected Y82C4P9L7F)"
+              failed=$((failed + 1))
+            else
+              echo "OK: $(basename "$f")  Team=$ident"
+            fi
+          done < <(find "$sidecar_root" -type f \( -name "*.dylib" -o -name "*.so" \) | head -5)
+          boot_ident=$(codesign --display --verbose=2 "$sidecar_root/jura-sidecar" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2}' | head -1)
+          echo "Bootloader: Team=$boot_ident"
+          [ "$boot_ident" != "Y82C4P9L7F" ] && failed=$((failed + 1))
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::Phase 5 nested signing check failed — Tauri --deep did not reach Resources/sidecar-bundle/."
+            exit 1
+          fi
+          echo "Phase 5 nested signing verification PASSED."
 
       # ── Empty-signature gate (macOS / Linux) ────────────────────────────
       # Identical logic to the GitHub workflow — catches missing/empty .sig
