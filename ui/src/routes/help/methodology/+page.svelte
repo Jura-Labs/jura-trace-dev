@@ -313,8 +313,8 @@
       The reference is divided into three groups. The eleven <strong class="text-text-light dark:text-quartz font-medium">automatic detectors</strong>
       run on every verification at the mode indicated in each entry's
       <em>Active in modes</em> line — their findings feed into the numeric trust
-      score. A twelfth detector — Video Deepfake — is <strong class="text-text-light dark:text-quartz font-medium">planned for v1.0.x</strong>
-      and currently shows as a "Planned" banner on video files; v1.0 verifies
+      score. A twelfth detector — Video Deepfake — is <strong class="text-text-light dark:text-quartz font-medium">not in v1.0 scope</strong>
+      and currently shows as an "Under evaluation" banner on video files; v1.0 verifies
       provenance and metadata only on video. Below the automatic detectors, a
       lapis-tinted block lists the
       <strong class="text-text-light dark:text-quartz font-medium">knowledge base retrieval aid</strong>:
@@ -350,13 +350,13 @@
         10. CLIP Detection (blends into the AI ensemble)
         11. Watermark Extraction (AI-generator + Jura Trace protective)
 
-      Planned (NOT in v1.0 trust scoring):
-        Video Deepfake — dropped from v1.0 on 2 May 2026 (JTV-138)
-        pending Global Majority device calibration. Re-enabled in
-        v1.0.x (JTV-139) once Sora / Runway Gen-3 / HeyGen / Synthesia
-        recall and platform-forwarded robustness are published. The
-        detector entry remains in the reference below for transparency
-        with a "Planned" tag.
+      Under evaluation (NOT in v1.0 trust scoring):
+        Video Deepfake — dropped from v1.0 on 2 May 2026 pending Global
+        Majority device calibration. Under evaluation for a future
+        release once Sora / Runway Gen-3 / HeyGen / Synthesia recall
+        and platform-forwarded robustness are published. The detector
+        entry remains in the reference below for transparency with an
+        "Under evaluation" tag.
 
       Knowledge base retrieval aid (advisory, NOT in trust scoring):
         Claim checker — formerly RAG Claim Checker, reframed in
@@ -1015,7 +1015,7 @@
             <span
               class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-lapis/10 text-lapis dark:text-lapis-light border border-lapis/20"
             >
-              Planned — v1.0.x
+              Under evaluation
             </span>
           </span>
           <span class="flex-shrink-0 text-xs text-flint-dark dark:text-flint-light select-none">
@@ -1025,10 +1025,10 @@
         </summary>
         <div class="px-4 pb-4 pt-3 border-t border-border-light dark:border-border-dark">
           <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-3 italic">
-            Dropped from v1.0 on 2 May 2026 (JTV-138). Re-enabled in v1.0.x
-            (JTV-139) once Global Majority device coverage and per-generator
+            Dropped from v1.0 on 2 May 2026 and currently under evaluation for
+            a future release once Global Majority device coverage and per-generator
             calibration data are published. The methodology below describes
-            the implementation that will ship in v1.0.x.
+            the intended implementation.
           </p>
           <dl class="space-y-3 text-sm">
             <div>

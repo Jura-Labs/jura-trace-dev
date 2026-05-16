@@ -1,12 +1,12 @@
 <script lang="ts">
   // Static reference page — no reactive state.
   // Created 2026-05-02 under JTV-132 after the four-agent Ollama bundling
-  // evaluation. The decision was: do not bundle Ollama in v1.0 (ROOTED port
-  // conflict, 8GB RAM exclusion of pilot personas, 1Mbps-bandwidth exclusion
-  // of field deployment, Apple notarisation incompatibility); instead invest
-  // in a frictionless optional install path. This page is the user-facing
-  // documentation for that path. See `project_v1_video_audio_drop.md` agent
-  // memory for the full decision record.
+  // evaluation. The decision was: do not bundle Ollama in v1.0 (8GB RAM
+  // exclusion of pilot personas, 1Mbps-bandwidth exclusion of field
+  // deployment, Apple notarisation incompatibility); instead invest in a
+  // frictionless optional install path. This page is the user-facing
+  // documentation for that path. See `project_v1_video_audio_drop.md`
+  // agent memory for the full decision record.
 </script>
 
 <article class="mx-auto max-w-3xl">
@@ -36,7 +36,6 @@
     <ul class="space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
       <li><strong class="text-text-light dark:text-text-dark">Yes, if</strong> you have at least 16 GB of RAM, around 10 GB of free disk, a reliable internet connection for the one-time download (~9 GB total), and you want auto-generated image captions or claim cross-checking against a knowledge base.</li>
       <li><strong class="text-text-light dark:text-text-dark">Skip, if</strong> you are on an 8 GB machine, on a slow or metered connection, or your IT policy disallows installing software outside a managed catalogue. Core verification works fully without it.</li>
-      <li><strong class="text-text-light dark:text-text-dark">Already running ROOTED?</strong> The two apps share the same Ollama instance on port 11434. You only need to download the models once.</li>
     </ul>
   </section>
 
@@ -96,27 +95,6 @@
          style="background: rgba(30,33,40,0.85); color: #EDEAE4; border: 1px solid rgba(122,119,112,0.2);"><code class="font-mono">ollama serve &amp;</code></pre>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       Click <em>Re-check</em> in Settings, then download the models from the Ollama card.
-    </p>
-  </section>
-
-  <div class="earth-line mb-8" role="separator" aria-hidden="true"></div>
-
-  <!-- ROOTED note -->
-  <section class="mb-10" aria-labelledby="rooted-heading">
-    <h2 id="rooted-heading" class="font-heading text-xl text-text-light dark:text-text-dark mb-3 tracking-heading">
-      If you also use ROOTED
-    </h2>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
-      Jura Trace and ROOTED (Jura Labs' carbon-emissions guidance product) share the same
-      Ollama instance on <code class="font-mono text-xs px-1.5 py-0.5 rounded bg-graphite/20 dark:bg-graphite-light/20">http://localhost:11434</code>.
-      Models pulled by either app are available to both. You only need to install Ollama
-      once and download each model once — no duplicate disk usage.
-    </p>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-      ROOTED uses <code class="font-mono text-xs px-1.5 py-0.5 rounded bg-graphite/20 dark:bg-graphite-light/20">qwen2.5:7b-instruct</code>
-      as its primary model, which is also one of Jura Trace's two models — so if you have
-      ROOTED set up already, you only need to add <code class="font-mono text-xs px-1.5 py-0.5 rounded bg-graphite/20 dark:bg-graphite-light/20">llava:7b</code>
-      from Jura Trace's Settings.
     </p>
   </section>
 

@@ -888,7 +888,7 @@
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
     Jura Trace v1.0 is released under the Community tier — free for everyone, under the
-    AGPL-3.0-or-later licence. A paid Pro tier is planned for the v1.1 release in early 2027.
+    AGPL-3.0-or-later licence. A paid Pro tier and bespoke Custom Engineering are also available.
   </p>
 
   <div class="space-y-4">
@@ -902,15 +902,15 @@
         Signing, eleven automatic forensic detectors, three on-demand investigation tools,
         perceptual fingerprinting, EXIF anomaly detection with injection-detection and
         XMP AI-provenance sub-checks, invisible watermark embed and extract, Watched
-        Locations folder monitoring, PDF trust reports, ZIP case exports. Reverse image
-        search is planned for v1.1. Free for everyone under AGPL-3.0-or-later. Permanent
-        — the CIC's asset-locked status guarantees a free Community tier in perpetuity.
+        Locations folder monitoring, PDF trust reports, ZIP case exports. Free for everyone
+        under AGPL-3.0-or-later. Permanent — the CIC's asset-locked status guarantees a
+        free Community tier in perpetuity.
       </p>
     </div>
 
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
       <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Pro (planned — v1.1, early 2027)
+        Pro (paid tier, under development)
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         Will add Conformant C2PA signing (verifies in Adobe Content Authenticity, ProofCheck,
@@ -918,7 +918,7 @@
         bulk verify, unlimited Watched Locations, signed PDF and JSON-LD audit-log export
         (for AI Act Article 50 compliance officers), and a commercial licence that escapes
         the AGPL copyleft requirement for buyers embedding Jura Trace in their own products.
-        Priced at £100/year per licence.
+        Pricing and availability will be announced when the tier ships.
       </p>
     </div>
 

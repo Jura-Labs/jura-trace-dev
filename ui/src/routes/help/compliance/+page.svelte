@@ -187,10 +187,10 @@
       </li>
       <li>
         <strong class="font-semibold text-text-light dark:text-text-dark">Reverse image search</strong>
-        (planned for v1.1, not active in v1.0): will send a thumbnail-sized crop to a
-        user-supplied API endpoint (BYOK — Google Vision first, then TinEye / Yandex / Bing).
-        Per-analysis consent will be required; nothing will leave your machine without explicit
-        per-call confirmation. <strong>No reverse image search is performed in v1.0.</strong>
+        (BYOK, off by default): if you provide your own Google Vision API key, you can
+        send a perceptual hash — and, on per-call confirmation, a thumbnail-sized crop —
+        to your Google Vision endpoint. Off by default. Requires explicit per-analysis
+        confirmation. Additional provider integrations are under evaluation for future releases.
       </li>
     </ul>
 

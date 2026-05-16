@@ -6,8 +6,8 @@
 <!-- Signing-mode notice — Jura Trace is C2PA Validator-Conformant on the
      receive side (recordId 019d8d83-..., awarded 2026-05-06, spec 2.2).
      Generator-track conformance for the signing path is a separate
-     workstream targeted for v1.1. v1.0 signs in Local Signing mode
-     (per-install Bedrock CA) only. -->
+     workstream under evaluation for a future release. v1.0 signs in
+     Local Signing mode (per-install Bedrock CA) only. -->
 <div
   role="note"
   class="rounded-lg border border-flint/30 bg-flint/10 dark:bg-flint/5 px-4 py-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6"
@@ -19,7 +19,8 @@
   in third-party validators because our certificate isn't on the C2PA trust
   list. The manifest itself is valid; the trust scope is local to your
   installation. Conformant signing — verifiable against the C2PA trust
-  list — ships in v1.1. Verification is already C2PA Validator-Conformant.
+  list — is under evaluation for a future release. Verification is already
+  C2PA Validator-Conformant.
 </div>
 
 <!-- ── Page header ────────────────────────────────────────────────── -->

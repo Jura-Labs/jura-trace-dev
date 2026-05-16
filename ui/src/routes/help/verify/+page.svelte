@@ -571,10 +571,10 @@
     For MP4 and MOV files, v1.0 verifies what Jura Trace can stand behind without
     overclaiming: container-level provenance, container-level metadata, and a native
     in-app preview. Video deepfake analysis, audio-visual sync, transcription, and
-    claim verification are <strong class="text-text-light dark:text-text-dark">planned for v1.0.x</strong>
-    once Global Majority device coverage and current-generation generator calibration
-    (Sora, Runway Gen-3, HeyGen, Synthesia) have been published — see
-    <span class="font-mono text-xs">JTV-139</span>.
+    claim verification are <strong class="text-text-light dark:text-text-dark">not in v1.0 scope</strong>.
+    We are evaluating these capabilities for a future release once Global Majority
+    device coverage and current-generation generator calibration (Sora, Runway Gen-3,
+    HeyGen, Synthesia) have been published.
   </p>
 
   <div class="rounded-md border border-lapis/20 bg-lapis/5 px-4 py-3 mb-6">
@@ -586,25 +586,14 @@
       <li>EXIF metadata (read at the container level — no FFmpeg required)</li>
       <li>Native HTML5 video preview in the verify page</li>
     </ul>
-    <p class="text-sm text-text-light dark:text-text-dark mt-3 mb-2">
-      <strong>Coming in v1.0.x (JTV-139):</strong>
-    </p>
-    <ul class="list-disc pl-5 text-sm text-flint-dark dark:text-flint-light space-y-1">
-      <li>Per-frame deepfake detection</li>
-      <li>Temporal consistency signals (noise / spectral / LBP drift)</li>
-      <li>Audio-visual sync analysis</li>
-      <li>Audio + video transcription via faster-whisper</li>
-      <li>RAG claim verification on transcripts</li>
-    </ul>
   </div>
 
   <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
-    Audio (v1.0 scope)
+    Audio
   </h3>
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
     Standalone audio files (WAV, MP3, FLAC, OGG, AAC, M4A) are not in v1.0 scope.
-    Voice-note evidence (AASIST + ENF + ASVspoof) is on the v1.1 roadmap — see
-    <span class="font-mono text-xs">JTV-110</span>.
+    Voice-note evidence (AASIST + ENF + ASVspoof) is under evaluation for a future release.
   </p>
 </section>
 

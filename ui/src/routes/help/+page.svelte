@@ -8,7 +8,7 @@
     {
       href: '/help/protect',
       title: 'Protect',
-      description: 'Sign your work with Content Credentials and an invisible watermark using Local Signing (per-install certificate). Conformant signing — verifiable against the C2PA trust list — is planned for v1.1.',
+      description: 'Sign your work with Content Credentials and an invisible watermark using Local Signing (per-install certificate). Conformant signing — verifiable against the C2PA trust list — is under evaluation for a future release.',
     },
     {
       href: '/help/verify',

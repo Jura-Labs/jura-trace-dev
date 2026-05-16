@@ -44,7 +44,7 @@
       protect:
         'Content Credentials (experimental). No watermark, no fingerprint.',
       verify:
-        'C2PA content credentials, EXIF metadata, native preview. Deepfake analysis and transcription are planned for v1.0.x — see JTV-139.',
+        'C2PA content credentials, EXIF metadata, native preview. Deepfake analysis and transcription are under evaluation for a future release.',
       coverage: 'provenance-only',
       note:
         'v1.0 ships container-level provenance only. Per-frame deepfake, audio-visual sync, and transcription require Global Majority device calibration before re-enabling.',
@@ -66,7 +66,7 @@
       protect: '—',
       verify: 'No detector path — excluded from the file picker.',
       coverage: 'none',
-      note: 'No detector path. Per-frame deepfake is deferred to v1.0.x (JTV-139) for all video formats.',
+      note: 'No detector path. Per-frame deepfake is under evaluation for a future release across all video formats.',
     },
     {
       family: 'Audio',
@@ -76,7 +76,7 @@
         'Audio deepfake model is excluded from v1.0. The current corpus has 2 speakers and 1 TTS engine; an honest detector requires retraining on ASVspoof + WaveFake with held-out speakers.',
       coverage: 'none',
       note:
-        'Voice-note evidence is on the v1.1 roadmap (AASIST + ENF + ASVspoof) — see JTV-110.',
+        'Voice-note evidence (AASIST + ENF + ASVspoof) is under evaluation for a future release.',
     },
     {
       family: 'Office documents',
@@ -261,14 +261,9 @@
       applies to audio and video deepfake: the existing models trained on
       narrow corpora cannot defensibly assess voice notes or video clips
       submitted as evidence, so it is better to defer the feature than to
-      ship false confidence. Video deepfake re-enters scope in v1.0.x once
-      Global Majority device calibration and per-generator recall data are
-      published &mdash; see <span class="font-mono text-xs">JTV-139</span>.
-    </p>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
-      The full audit transcript and remediation tickets are tracked under
-      <span class="font-mono text-xs">JTV-105</span> and
-      <span class="font-mono text-xs">JTV-138</span> in the project tracker.
+      ship false confidence. Video deepfake re-enters scope in a future
+      release once Global Majority device calibration and per-generator recall
+      data are published.
     </p>
   </section>
 </article>
