@@ -157,9 +157,10 @@
       </table>
     </div>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
-      The database is not encrypted at the application level. It relies on OS-level disk
-      encryption (FileVault on macOS, BitLocker on Windows, LUKS on Linux). Optional
-      AES-256 database encryption via SQLCipher is planned for v1.1.
+      The database is not encrypted at the application level. The data-at-rest control
+      is OS-level full-disk encryption — FileVault on macOS (default on macOS Catalina
+      and later), BitLocker on Windows (default on Windows 11 24H2 and later), and LUKS
+      or equivalent on Linux. We recommend deployments verify FDE is enabled.
     </p>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       The database location can be overridden via the <code class="font-mono text-xs bg-gray-100 dark:bg-graphite-light px-1 py-0.5 rounded">JURA_DB_PATH</code> environment variable
@@ -285,9 +286,9 @@
         ></span>
         <span>
           <strong class="font-semibold text-text-light dark:text-text-dark">Residual risk: unencrypted SQLite database.</strong>
-          The database is not encrypted at the application level. Recommended mitigation is
-          OS-level full-disk encryption (FileVault, BitLocker, or LUKS). Optional application-level
-          encryption via SQLCipher is planned for v1.1.
+          The database is not encrypted at the application level. The mitigation is
+          OS-level full-disk encryption (FileVault, BitLocker, or LUKS), which is the
+          default on modern macOS and Windows. Deployments should verify FDE is enabled.
         </span>
       </li>
       <li class="flex gap-3">

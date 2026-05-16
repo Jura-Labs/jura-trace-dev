@@ -593,11 +593,12 @@ The database does **not** store:
 
 ### Data-at-rest security
 
-The SQLite database is not encrypted at rest in v0.9.x. Recommended mitigations in order of preference:
+The SQLite database is not encrypted at the application level. The data-at-rest control is OS-level full-disk encryption, which is GDPR Art 32 compliant and is the default on modern macOS and Windows. Required mitigations:
 
-1. **OS-level disk encryption** — FileVault (macOS), BitLocker (Windows), or LUKS (Linux). Protects all local data transparently and is the recommended approach.
+1. **OS-level full-disk encryption** — FileVault (macOS, default since Catalina), BitLocker (Windows, default since 11 24H2), or LUKS or equivalent on Linux. Protects all local data transparently. Institutional deployments must verify FDE is enabled.
 2. **User account separation** — Ensure each user has a separate OS account. The database resides in the user's application data directory and is not accessible to other standard users.
-3. **SQLCipher** (planned for v1.1) — A future release will offer optional AES-256 database encryption via SQLCipher. See the post-v1.0 backlog in [`docs/sprint-plans/sprint-15-to-v1.0-plan.md`](./sprint-plans/sprint-15-to-v1.0-plan.md) for status.
+
+Application-level encryption (SQLCipher and similar) was evaluated and not adopted. Rationale: on a local-first application running on a modern OS where FDE is default-on, application-level encryption adds passphrase-management UX cost without meaningfully reducing the realistic threat surface — malware running as the user can read either the database or the keychain that would hold the passphrase. If a deployment has a specific requirement that OS-level FDE cannot satisfy, contact us to discuss as a Custom Engineering deliverable.
 
 ---
 

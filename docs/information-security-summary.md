@@ -154,11 +154,11 @@ This allows the database to be placed on a network share, managed drive, or encr
 
 ### Database encryption
 
-The SQLite database is not encrypted at the application level. It relies on OS-level disk encryption for protection at rest.
+The SQLite database is not encrypted at the application level. The data-at-rest control is OS-level full-disk encryption, which is GDPR Art 32 compliant and is the default on modern macOS and Windows.
 
-**Recommended approach**: Enable full-disk encryption on all devices running Jura Trace — FileVault (macOS), BitLocker (Windows), or LUKS (Linux). This protects the database and all other local data transparently.
+**Required for institutional deployment**: enable full-disk encryption on all devices running Jura Trace — FileVault (macOS, default since Catalina), BitLocker (Windows, default since 11 24H2), or LUKS or equivalent on Linux. This protects the database and all other local data transparently.
 
-**Planned enhancement**: Optional AES-256 database encryption via SQLCipher is planned for v1.1. This will add a passphrase requirement on first run and applies to deployments where OS-level encryption is not available. See the [v1.1 backlog](/docs/sprint-plans/sprint-15-to-v1.0-plan.md) for status.
+**On application-level encryption** (SQLCipher and similar): we evaluated this and decided not to ship it. For a local-first application on a modern OS where FDE is default-on, application-level encryption adds passphrase-management UX cost without meaningfully reducing the realistic threat surface (malware running as the user can read either the database or the keychain that would hold the passphrase). If your deployment has a specific requirement that OS-level FDE cannot satisfy, contact us to discuss as a Custom Engineering deliverable.
 
 ### User account separation
 

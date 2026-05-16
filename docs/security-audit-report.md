@@ -690,6 +690,8 @@ Consider SQLCipher (available as `rusqlite` feature `"bundled-sqlcipher"`) with 
 
 **Verification**: This is a medium-term architectural decision; document the data-at-rest risk in the deployment guide.
 
+**Status update (2026-05-16, post-launch-prep review)**: SQLCipher integration was evaluated and **rejected** for the v1.0 / v1.0.x / v1.1 roadmap. Rationale: on a local-first application running on modern macOS (FileVault default since Catalina) and Windows (BitLocker default since 11 24H2), OS-level FDE is the realistic data-at-rest control. A key derived from the OS keychain provides no defence against the only realistic threat where the keychain itself is not also accessible — namely, malware running as the user, where the keychain is equally compromised. The accepted mitigation is OS-level FDE; deployments must verify it is enabled. If an institutional customer presents a specific requirement that OS-level FDE cannot satisfy, SQLCipher will be considered as a Custom Engineering deliverable.
+
 ---
 
 ## STRIDE Summary Table
@@ -723,7 +725,7 @@ Consider SQLCipher (available as `rusqlite` feature `"bundled-sqlcipher"`) with 
 | 12 | MEDIUM-7: Unpinned Python dependencies | Low — pin with pip-compile | Prevents silent dependency upgrade |
 | 13 | LOW-1: withGlobalTauri not set | Trivial — add config key | Hardens against future default change |
 | 14 | LOW-3: FastAPI docs exposed | Trivial — set docs_url=None | Reduces attack surface documentation |
-| 15 | LOW-5: Unencrypted SQLite | High — SQLCipher integration | Protects data at rest (v1.0 goal) |
+| 15 | LOW-5: Unencrypted SQLite | Accepted residual risk — OS-level FDE | Mitigation: OS-level FDE (FileVault / BitLocker / LUKS). SQLCipher rejected post-review 2026-05-16; revisit only as Custom Engineering deliverable. |
 
 ---
 
