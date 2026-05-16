@@ -132,17 +132,33 @@ datas += d; binaries += b; hiddenimports += h
 # the protobuf graph; the .onnx.data sidecar holds tensor weights via the
 # ONNX external-data convention. Both files must sit in the same directory
 # at runtime — onnxruntime auto-resolves the .data file by relative name.
-# Bundled into models/ alongside the existing GBM and UnivFD probe files.
-_models_dir_src = _spec_dir.parent / "models"
-for _onnx_name in (
-    "clip-vit-b32-vision.onnx",
-    "clip-vit-b32-vision.onnx.data",
-    "clip-vit-b32-text.onnx",
-    "clip-vit-b32-text.onnx.data",
-):
-    _onnx_path = _models_dir_src / _onnx_name
-    if _onnx_path.exists():
-        datas += [(str(_onnx_path), "models")]
+#
+# JTV-184 (2026-05-16): CLIP ONNX files are NO LONGER bundled inside the
+# PyInstaller sidecar binary. They were previously added to `datas` here,
+# AND ship as Tauri resources at Contents/Resources/models/ via the
+# `resources: ["models/*"]` declaration in src-tauri/tauri.conf.json —
+# meaning the same ~580 MB was carried in the .app twice. The runtime
+# loader at clip_detector.py:_models_dir() honours JURA_MODELS_DIR (set by
+# the Tauri Rust shell at spawn time to point at the bundled Resources
+# directory), so the PyInstaller copy was never reached at runtime in the
+# Tauri-spawned production path — it was pure dead weight that doubled the
+# sidecar binary size from ~150 MB to ~731 MB and pushed PyInstaller
+# --onefile cold-extract from ~30 s to 4+ min on a clean .app install.
+# That cold-extract budget overran Tauri's wait_for_sidecar_ready window
+# (~140 s) and produced the "Analysis Engine offline" symptom on every
+# fresh install. Removing this datas block restores the sidecar to its
+# pre-JTV-143 size envelope and brings cold-extract back below Tauri's
+# probe budget.
+#
+# For dev mode (uvicorn launched directly), clip_detector.py falls back to
+# `<repo>/models/clip-vit-b32-*` via __file__-relative resolution — that
+# path is untouched by this change.
+#
+# Re-add this block ONLY if a deployment context emerges where CLIP must
+# live inside the PyInstaller bundle (e.g. a standalone CLI distribution
+# of the sidecar with no Tauri Resources beside it). In that case, also
+# remove the `models/*` glob from src-tauri/tauri.conf.json to avoid the
+# duplicate-shipping regression.
 
 # Standalone CLIP BPE tokeniser ships its vocab gz file alongside the
 # Python module (sidecar/app/services/bpe_simple_vocab_16e6.txt.gz, ~1.3 MB).
