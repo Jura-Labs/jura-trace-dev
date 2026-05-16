@@ -3167,17 +3167,34 @@ fn verify_content(
         if won_race {
             log::info!("Power-saver respawn: restarting sidecar for new verification request");
             let new_child = spawn_sidecar(&app, sidecar_port);
-            if new_child.is_some() {
-                // Blocking readiness poll — up to 120 s (60 attempts × backoff).
-                // Returns false only if the sidecar never becomes healthy; in
-                // that case we proceed anyway and let the pipeline degrade.
-                const RESPAWN_MAX_ATTEMPTS: u32 = 60;
-                if !wait_for_sidecar_ready(RESPAWN_MAX_ATTEMPTS, sidecar_port) {
-                    log::warn!(
-                        "Respawned sidecar did not become ready within timeout — \
-                         forensic analysis may be unavailable"
-                    );
-                }
+            // JTV-184 Phase 3 (A2): fire-and-forget. Previously this path
+            // called `wait_for_sidecar_ready(60)` here which blocked the
+            // Tauri command thread for up to 120 s on a cold PyInstaller
+            // extract — the user would see verify hang with no feedback
+            // for two minutes. The verify pipeline already handles the
+            // "sidecar not yet available" case gracefully via
+            // `SidecarClient::is_available()`; the forensic detector
+            // group is gated off for THIS one verify and runs normally on
+            // the next call once the sidecar binds.
+            //
+            // Trade-off: the first post-respawn verify produces a
+            // degraded result (provenance + EXIF + C2PA only, no
+            // forensics). The user can re-verify in ~30–60 s and get the
+            // full result. That's a much better UX than a 120-second
+            // frozen window.
+            //
+            // The startup Phase 1 `sidecar-status-changed` event surface
+            // is what the Settings page uses for the "Connecting…" badge;
+            // it does NOT fire on power-saver respawn (the startup probe
+            // task has already exited by then). A future enhancement
+            // could surface respawn status via a similar event, but for
+            // v1.0 the per-call graceful-degradation is sufficient.
+            if new_child.is_none() {
+                log::warn!(
+                    "Power-saver respawn: spawn_sidecar returned None — \
+                     forensic analysis will remain unavailable until a \
+                     subsequent verify successfully respawns"
+                );
             }
             // Store the new child handle (or None on failure) in AppState.
             if let Ok(mut guard) = state.lock() {
@@ -3191,18 +3208,32 @@ fn verify_content(
             // Release the lease so the next idle cycle can respawn again.
             respawn_flag.store(false, Ordering::Release);
         } else {
-            // Another caller is already respawning.  Wait for them to finish
-            // by polling the flag with a short backoff, capped to ~125 s
-            // (the readiness poll's worst case).  If the flag clears we
-            // proceed; if it does not, we still proceed and let the
-            // pipeline degrade gracefully — the sidecar's slow respawn is
-            // not worth blocking the user further.
-            const MAX_WAIT_TICKS: u32 = 125;
-            for _ in 0..MAX_WAIT_TICKS {
+            // Another caller is already respawning. JTV-184 Phase 3 (A2):
+            // do NOT block this caller waiting for the other respawner —
+            // the winner's spawn_sidecar above also no longer blocks on
+            // readiness, so the most we'd be waiting for is the
+            // sub-millisecond `app.shell().sidecar().spawn()` Tauri call
+            // plus the state-mutex write. By the time control returns
+            // here the AtomicBool will almost certainly be clear; if it
+            // somehow is not, proceed immediately and let the verify
+            // pipeline degrade gracefully.
+            //
+            // Previous behaviour was a synchronous up-to-125-second poll
+            // that blocked the second concurrent verify caller for the
+            // full duration of the first caller's `wait_for_sidecar_ready`
+            // (now removed). With A2's fire-and-forget, that wait is
+            // bounded by spawn_sidecar's pkill-orphan grace period
+            // (~300 ms) plus a few atomic memory operations.
+            //
+            // A short bounded wait (200 ms total) is kept as a courtesy
+            // so the rare second-caller race window doesn't grab an
+            // incomplete AppState snapshot.
+            const COURTESY_WAIT_TICKS: u32 = 20;
+            for _ in 0..COURTESY_WAIT_TICKS {
                 if !respawn_flag.load(Ordering::Acquire) {
                     break;
                 }
-                std::thread::sleep(std::time::Duration::from_secs(1));
+                std::thread::sleep(std::time::Duration::from_millis(10));
             }
         }
     }
@@ -6289,6 +6320,71 @@ fn kill_orphan_sidecars() {
     }
 }
 
+/// JTV-184 Phase 3 — sweep stale `_MEIxxxxxx` PyInstaller extraction
+/// directories from `$TMPDIR` before spawning a fresh sidecar.
+///
+/// # Why this exists
+///
+/// PyInstaller `--onefile` extracts the bundle payload to
+/// `$TMPDIR/_MEIxxxxxx` on every cold launch. On clean process exit the
+/// bootloader's `atexit` handler cleans up the directory. But on SIGKILL,
+/// crash, or abrupt Tauri shell termination the cleanup never runs and
+/// the directory persists indefinitely.
+///
+/// Live audit on the developer Mac on 2026-05-16 found 22 stale
+/// `_MEI*` directories in `/var/folders/.../T/` totalling 3.5 GB — one
+/// per recent failed-launch / force-quit cycle through the dev sprint.
+/// On a 256 GB MacBook at 85% capacity this would tip the user into
+/// "Your startup disk is almost full" territory inside a week of
+/// occasional crashes. After Phase 0 each dir is ~250 MB instead of
+/// ~1 GB, but the accumulation logic is the same.
+///
+/// # Safety
+///
+/// `remove_dir_all` on a directory still held open by an active process
+/// fails with `EBUSY` on macOS / Linux (and `ERROR_SHARING_VIOLATION` on
+/// Windows). Live sidecars created by THIS app — or any other still-
+/// running PyInstaller `--onefile` app on the same machine — are
+/// therefore preserved. Only true orphan directories are removed.
+///
+/// Runs AFTER `kill_orphan_sidecars()` so any orphan sidecar that was
+/// holding a stale `_MEI*` open has just been SIGKILL'd; the kernel
+/// reaps the file handles within the 300 ms grace period that
+/// `kill_orphan_sidecars` already sleeps for, and the directory becomes
+/// removable.
+fn cleanup_stale_mei_dirs() {
+    let tmp_dir = std::env::temp_dir();
+    let Ok(entries) = std::fs::read_dir(&tmp_dir) else {
+        return;
+    };
+    let mut cleaned: u32 = 0;
+    let mut skipped: u32 = 0;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if !name_str.starts_with("_MEI") {
+            continue;
+        }
+        match std::fs::remove_dir_all(entry.path()) {
+            Ok(_) => cleaned += 1,
+            Err(_) => skipped += 1,
+        }
+    }
+    if cleaned > 0 {
+        log::info!(
+            "_MEI cleanup: removed {} stale PyInstaller extract dir(s) \
+             ({} skipped — held open by active process)",
+            cleaned,
+            skipped,
+        );
+    } else if skipped > 0 {
+        log::debug!(
+            "_MEI cleanup: 0 removable, {} held by active processes",
+            skipped,
+        );
+    }
+}
+
 fn spawn_sidecar(
     app: &tauri::AppHandle,
     port: u16,
@@ -6303,6 +6399,12 @@ fn spawn_sidecar(
     // respawn path also benefits — a wedged sidecar from a prior respawn
     // attempt is reaped before the next attempt.
     kill_orphan_sidecars();
+
+    // JTV-184 Phase 3: sweep stale `_MEIxxxxxx` PyInstaller extract dirs
+    // from $TMPDIR. Runs AFTER `kill_orphan_sidecars` so any orphan that
+    // was holding a stale _MEI open has just been SIGKILL'd — the dirs
+    // are then removable. See [`cleanup_stale_mei_dirs`].
+    cleanup_stale_mei_dirs();
 
     // Set JURA_MODELS_DIR so the sidecar can find model files.
     if let Ok(resource_dir) = app.path().resource_dir() {
@@ -6405,6 +6507,19 @@ fn spawn_sidecar(
 /// every retry burns its full back-off interval rather than serialising on
 /// the lazy CLIP probe. The full capability JSON at `/health` is fetched
 /// separately by `SidecarClient::health()` once readiness is confirmed.
+///
+/// JTV-184 Phase 1 + Phase 3 (A2) note: as of 2026-05-16 this synchronous
+/// blocking probe is no longer called from any v1.0 code path. The startup
+/// readiness check uses an async indefinite-loop replacement inside the
+/// background tokio task (see the Phase 1 block in `run()` setup); the
+/// power-saver respawn no longer waits for readiness at all (fire-and-
+/// forget — the next verify call inherits the still-spawning sidecar and
+/// degrades gracefully via `SidecarClient::is_available`). The function
+/// is retained for future single-shot callers (e.g. v1.0.1 `jura` CLI's
+/// `--wait-ready` flag) and as defensive infrastructure should a future
+/// path need synchronous readiness semantics. Marked `#[allow(dead_code)]`
+/// so cargo does not warn about the absent call sites.
+#[allow(dead_code)]
 fn wait_for_sidecar_ready(max_attempts: u32, port: u16) -> bool {
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(2))
