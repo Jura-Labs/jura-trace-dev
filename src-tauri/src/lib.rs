@@ -6202,6 +6202,93 @@ fn init_logging(app_data_dir: Option<&std::path::Path>) -> Option<PathBuf> {
 /// startup via `pick_ephemeral_port()` rather than being hard-coded to 8200,
 /// so a stale sidecar from a previous launch / a CI runner / an unrelated
 /// process holding 8200 cannot prevent the new app from starting.
+/// JTV-184 Phase 2 — kill stale `jura-sidecar` processes from previous app
+/// instances before spawning a fresh sidecar.
+///
+/// # Why this exists
+///
+/// A repeated pattern observed through the dev cycle (and confirmed on
+/// 2026-05-16 during the v1.0 launch-prep smoke):
+///
+/// 1. User has Jura Trace running, sidecar bound on ephemeral port.
+/// 2. User installs a new build (overwrites `/Applications/Jura Trace.app`)
+///    without quitting the existing app first, OR Jura Trace force-quits /
+///    crashes / is killed by `kill -9` from a debugging session.
+/// 3. The old Tauri shell is gone but the PyInstaller-bootstrapped
+///    `jura-sidecar` process tree (bootstrap parent + uvicorn child)
+///    remains alive in the user's process table because `RunEvent::Exit`
+///    never fired.
+/// 4. The user launches the new app. Its sidecar spawns successfully on a
+///    fresh ephemeral port (Option C protects against the port collision)
+///    but the orphan from step 2 is still alive, eating ~300–500 MB RAM
+///    and showing up in Activity Monitor as a confusing duplicate.
+///
+/// This function runs at startup BEFORE the spawn_sidecar call, sends
+/// SIGKILL to any process whose name matches `jura-sidecar`, and waits
+/// briefly for the kernel to reap them. The fresh spawn then has a clean
+/// process tree.
+///
+/// # Cross-platform notes
+///
+/// - macOS / Linux: `pkill -KILL -f jura-sidecar` matches the full command
+///   line, so both the bootstrap parent (`.../Contents/MacOS/jura-sidecar
+///   --host 127.0.0.1 --port NNNNN`) and the uvicorn child (which inherits
+///   the same arg vector via `execve`) are killed together. Our own
+///   `jura-trace` parent is NOT matched, so this is safe to call from
+///   `setup()`.
+/// - Windows: `taskkill /F /IM jura-sidecar.exe` by image name. Same idea
+///   — kills any leftover sidecar EXE regardless of which prior Jura Trace
+///   spawned it.
+///
+/// Best-effort: if `pkill` / `taskkill` is absent (extremely unusual) or
+/// returns non-zero, we log at DEBUG and proceed — orphans staying alive
+/// is a memory / disk concern, not a correctness one. The fresh sidecar
+/// will pick a different ephemeral port via Option C either way.
+fn kill_orphan_sidecars() {
+    #[cfg(unix)]
+    {
+        let output = std::process::Command::new("pkill")
+            .args(["-KILL", "-f", "jura-sidecar"])
+            .output();
+        match output {
+            Ok(o) if o.status.code() == Some(0) => {
+                log::info!(
+                    "Orphan-kill: SIGKILL sent to stale jura-sidecar process(es) \
+                     from a previous Jura Trace instance"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(300));
+            }
+            Ok(_) => {
+                log::debug!("Orphan-kill: no stale jura-sidecar processes to terminate");
+            }
+            Err(e) => {
+                log::debug!("Orphan-kill: pkill unavailable ({e}); skipping");
+            }
+        }
+    }
+    #[cfg(windows)]
+    {
+        let output = std::process::Command::new("taskkill")
+            .args(["/F", "/IM", "jura-sidecar.exe"])
+            .output();
+        match output {
+            Ok(o) if o.status.success() => {
+                log::info!(
+                    "Orphan-kill: taskkill terminated stale jura-sidecar.exe \
+                     process(es) from a previous Jura Trace instance"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(300));
+            }
+            Ok(_) => {
+                log::debug!("Orphan-kill: no stale jura-sidecar.exe processes to terminate");
+            }
+            Err(e) => {
+                log::debug!("Orphan-kill: taskkill unavailable ({e}); skipping");
+            }
+        }
+    }
+}
+
 fn spawn_sidecar(
     app: &tauri::AppHandle,
     port: u16,
@@ -6209,6 +6296,13 @@ fn spawn_sidecar(
     if cfg!(debug_assertions) {
         return None;
     }
+
+    // JTV-184 Phase 2: clean up orphans before spawning fresh. See
+    // [`kill_orphan_sidecars`] for the full rationale and cross-platform
+    // notes. Runs every spawn (not just startup) so the power-saver
+    // respawn path also benefits — a wedged sidecar from a prior respawn
+    // attempt is reaped before the next attempt.
+    kill_orphan_sidecars();
 
     // Set JURA_MODELS_DIR so the sidecar can find model files.
     if let Ok(resource_dir) = app.path().resource_dir() {
