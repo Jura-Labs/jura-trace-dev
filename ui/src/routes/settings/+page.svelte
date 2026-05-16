@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-  import { getVersion, checkSidecarHealth, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, getPowerSaverMode, setPowerSaverMode, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert, getNetworkMode, setNetworkMode } from '$lib/api';
+  import { getVersion, checkSidecarHealth, getSidecarStartupStatus, onSidecarStatusChanged, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, getPowerSaverMode, setPowerSaverMode, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert, getNetworkMode, setNetworkMode } from '$lib/api';
   import type { ApiKeyInfo, CreateKeyResult } from '$lib/api';
-  import type { ConformantCertificateInfo, LicenceTier, NetworkMode, SidecarHealth, SigningMode, TierInfo } from '$lib/types';
+  import type { ConformantCertificateInfo, LicenceTier, NetworkMode, SidecarHealth, SidecarStartupSnapshot, SidecarStartupStatus, SigningMode, TierInfo } from '$lib/types';
   import { V1_SHOW_CONFORMANT_SIGNING } from '$lib/featureFlags';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import {
@@ -41,6 +41,26 @@
   // ── Service health ────────────────────────────────────────────
   let sidecarHealth = $state<SidecarHealth | null>(null);
   let healthLoading = $state(false);
+
+  // JTV-184 Phase 1 — sidecar startup status.  On a clean install of the
+  // .app, the PyInstaller cold-extract takes ~90 s (post-Phase-0
+  // CLIP-strip; previously 4+ min). Without this state the Settings page
+  // showed "Offline" for the entire cold-extract window because the
+  // previous wait_for_sidecar_ready gave up at ~140 s and the Settings
+  // page only re-polled on manual Refresh.  Now the Rust shell emits a
+  // `sidecar-status-changed` event on every transition and Settings
+  // renders three states: NotPresent / Connecting (with elapsed counter)
+  // / Ready.  See lib.rs JTV-184 Phase 1 block.
+  let sidecarStartup = $state<SidecarStartupSnapshot>({
+    status: 'notPresent',
+    elapsedSecs: 0,
+  });
+  // Local tick to advance the elapsed-seconds counter while in Connecting
+  // state without round-tripping to the Rust shell every second. Reset to
+  // server-authoritative on every event.
+  let sidecarConnectingTick = $state(0);
+  let sidecarTickHandle: ReturnType<typeof setInterval> | null = null;
+  let sidecarUnlisten: (() => void) | null = null;
 
   // JTV-138 (2026-05-02): capabilities deferred to v1.0.x. The /health
   // response still reports them as `false` for v1.0.x re-add detection
@@ -329,6 +349,32 @@
     textModel   = localStorage.getItem(KEY_TEXT_MODEL)   ?? DEFAULT_TEXT_MODEL;
     appVersion  = await getVersion();
     sidecarHealth = await checkSidecarHealth();
+
+    // JTV-184 Phase 1 — initial snapshot + subscribe to transitions.
+    // The initial snapshot covers the case where the sidecar reached
+    // Ready before this page mounted (the event fired earlier and was
+    // missed). The listener covers all subsequent transitions.
+    sidecarStartup = await getSidecarStartupStatus();
+    sidecarConnectingTick = 0;
+    sidecarUnlisten = await onSidecarStatusChanged(async (status) => {
+      // Re-fetch the full snapshot rather than constructing from just the
+      // status enum — gives us the authoritative elapsedSecs from the
+      // Rust shell rather than guessing from the local tick.
+      sidecarStartup = await getSidecarStartupStatus();
+      sidecarConnectingTick = 0;
+      // If the sidecar reached Ready, also refresh the full /health
+      // capability list so the Analysis Engine card flips immediately.
+      if (status === 'ready') {
+        sidecarHealth = await checkSidecarHealth();
+      }
+    });
+    // While the sidecar is Connecting, advance a local seconds counter
+    // every second so the elapsed display updates smoothly.
+    sidecarTickHandle = setInterval(() => {
+      if (sidecarStartup.status === 'connecting') {
+        sidecarConnectingTick += 1;
+      }
+    }, 1000);
     reloadProfiles();
     currentDbPath = await getDbPath();
     currentTier = await getLicenceTier();
@@ -348,6 +394,18 @@
     }
     // Load network access mode
     networkMode = await getNetworkMode();
+  });
+
+  onDestroy(() => {
+    // JTV-184 Phase 1 — clean up sidecar startup listener + tick timer.
+    if (sidecarUnlisten) {
+      sidecarUnlisten();
+      sidecarUnlisten = null;
+    }
+    if (sidecarTickHandle !== null) {
+      clearInterval(sidecarTickHandle);
+      sidecarTickHandle = null;
+    }
   });
 
   function handleRerunWizard() {
@@ -1421,21 +1479,48 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <!-- Analysis Engine card -->
+      <!-- JTV-184 Phase 1 — three-state badge (NotPresent / Connecting / Ready)
+           driven by the sidecar startup snapshot. The legacy binary
+           Online/Offline indicator was misleading during the PyInstaller
+           cold-extract window — it showed "Offline" for the entire ~90s
+           wait on a clean install even though the sidecar was actively
+           starting. The Connecting state with elapsed counter makes that
+           wait honest. -->
       <div class="rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 p-4">
         <div class="flex items-center justify-between mb-3">
           <span class="text-sm font-medium text-text-light dark:text-quartz">Analysis Engine</span>
-          <span
-            class="text-xs px-2 py-0.5 rounded-full
-                   {sidecarOnline
-                     ? 'bg-malachite/15 text-malachite-light border border-malachite/20'
-                     : 'bg-cinnabar/10 text-cinnabar-dark dark:text-cinnabar-light border border-cinnabar/20'}"
-          >
-            {sidecarOnline ? 'Online' : 'Offline'}
-          </span>
+          {#if sidecarStartup.status === 'ready' && sidecarOnline}
+            <span class="text-xs px-2 py-0.5 rounded-full bg-malachite/15 text-malachite-light border border-malachite/20">
+              Ready
+            </span>
+          {:else if sidecarStartup.status === 'connecting'}
+            <span
+              class="text-xs px-2 py-0.5 rounded-full bg-amber/15 text-amber-dark dark:text-amber-light border border-amber/30 inline-flex items-center gap-1.5"
+              aria-live="polite"
+            >
+              <span
+                class="w-2.5 h-2.5 border-2 border-amber-dark dark:border-amber-light border-t-transparent rounded-full motion-safe:animate-spin"
+                aria-hidden="true"
+              ></span>
+              Connecting ({sidecarStartup.elapsedSecs + sidecarConnectingTick}s)
+            </span>
+          {:else if sidecarStartup.status === 'notPresent'}
+            <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light border border-border-light dark:border-graphite-light">
+              Not running
+            </span>
+          {:else}
+            <!-- Status says ready but /health hasn't reported back yet
+                 (race between the event-driven status update and the
+                 separate checkSidecarHealth call). Render as Connecting
+                 to keep the UI honest rather than flicker to Ready
+                 before the capability list populates. -->
+            <span class="text-xs px-2 py-0.5 rounded-full bg-amber/15 text-amber-dark dark:text-amber-light border border-amber/30">
+              Initialising
+            </span>
+          {/if}
         </div>
-        <!-- P0-7: raw URL removed — meaningless to non-technical pilots -->
 
-        {#if sidecarOnline && sidecarHealth}
+        {#if sidecarStartup.status === 'ready' && sidecarOnline && sidecarHealth}
           <p class="text-xs text-flint-dark dark:text-flint-light mb-2">Version: <span class="text-text-light dark:text-quartz">{sidecarHealth.version}</span></p>
           <div class="flex flex-wrap gap-1.5">
             {#each Object.entries(sidecarHealth.capabilities).filter(([cap]) => !V1_DEFERRED_CAPABILITIES.has(cap)) as [cap, enabled]}
@@ -1454,15 +1539,32 @@
               </span>
             {/each}
           </div>
+        {:else if sidecarStartup.status === 'connecting'}
+          <div class="mt-2 space-y-2">
+            <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+              The first launch after install can take 1–2 minutes while the
+              analysis engine extracts. The verify and protect features remain
+              fully usable once this indicator turns green; meanwhile, core
+              checks (provenance, metadata, EXIF, C2PA) continue to work.
+            </p>
+          </div>
+        {:else if sidecarStartup.status === 'notPresent'}
+          <div class="mt-2 space-y-2">
+            <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+              The analysis engine is not running (development build). To enable
+              full forensic analysis in dev mode, start the sidecar manually:
+              <code class="text-[10px] font-mono px-1 py-0.5 rounded bg-gray-100 dark:bg-graphite-light">cd sidecar &amp;&amp; uvicorn main:app --host 127.0.0.1 --port 8200</code>
+            </p>
+          </div>
         {:else}
           <div class="mt-2 space-y-2">
             <p class="text-xs font-medium text-cinnabar-dark dark:text-cinnabar-light leading-relaxed">
-              Analysis Engine — Offline
+              Analysis Engine — not responding
             </p>
             <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
               Core checks (provenance and metadata) work without it. For full
               forensic analysis including AI detection, restart Jura Trace. If
-              the engine remains offline after restarting, visit the Help
+              the engine remains unavailable after restarting, visit the Help
               section or contact support.
             </p>
           </div>

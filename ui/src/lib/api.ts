@@ -8,7 +8,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, ConformantCertificateInfo, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, NetworkMode, NprResult, RoiAnalysisResult, ShadowConsistencyResult, SidecarHealth, SigningMode, SimilarAsset, SolarPosition, SpliceBoundaryResult, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
+import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, ConformantCertificateInfo, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, NetworkMode, NprResult, RoiAnalysisResult, ShadowConsistencyResult, SidecarHealth, SidecarStartupSnapshot, SidecarStartupStatus, SigningMode, SimilarAsset, SolarPosition, SpliceBoundaryResult, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -294,6 +294,53 @@ export async function checkSidecarHealth(): Promise<SidecarHealth | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * JTV-184 Phase 1 — fetch the current sidecar startup snapshot.
+ *
+ * Surfaces what the Rust shell knows about the sidecar lifecycle so the
+ * Settings page can render a three-state badge instead of the old
+ * binary online/offline indicator. The snapshot is cheap to fetch — it
+ * reads a single AtomicU8 inside AppState; no HTTP probe to the sidecar
+ * itself happens at this call site (the background probe in
+ * `lib.rs:run()` owns that probing).
+ *
+ * Call this once on Settings-page mount to get the initial state
+ * (events emitted before the listener attaches would otherwise be
+ * missed) and then subscribe to {@link onSidecarStatusChanged} for
+ * subsequent transitions.
+ */
+export async function getSidecarStartupStatus(): Promise<SidecarStartupSnapshot> {
+  try {
+    if (isTauri) {
+      return await invoke<SidecarStartupSnapshot>('get_sidecar_startup_status');
+    }
+  } catch {
+    // fall through to mock
+  }
+  return { status: 'notPresent', elapsedSecs: 0 };
+}
+
+/**
+ * Subscribe to `sidecar-status-changed` Tauri events emitted by the
+ * background readiness probe in the Rust shell. The callback fires on
+ * each transition (NotPresent → Connecting → Ready). Returns an
+ * unlisten function that must be called on component unmount.
+ */
+export async function onSidecarStatusChanged(
+  callback: (status: SidecarStartupStatus) => void,
+): Promise<() => void> {
+  if (!isTauri) {
+    return () => {};
+  }
+  // Lazy-import the event API so the browser-mock surface doesn't drag it.
+  const { listen } = await import('@tauri-apps/api/event');
+  const unlisten = await listen<SidecarStartupStatus>(
+    'sidecar-status-changed',
+    (event) => callback(event.payload),
+  );
+  return unlisten;
 }
 
 // ── Batch Verify ──────────────────────────────────────────────────

@@ -47,6 +47,8 @@ fn build_test_state() -> (Arc<Mutex<AppState>>, tempfile::TempDir) {
         power_saver_mode: false,
         respawn_in_progress: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         sidecar_port: 8200,
+        sidecar_startup_status: std::sync::Arc::new(std::sync::atomic::AtomicU8::new(0)),
+        sidecar_startup_started_at: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
     };
 
     (Arc::new(Mutex::new(state)), dir)

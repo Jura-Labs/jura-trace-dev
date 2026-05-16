@@ -344,6 +344,36 @@ export interface SidecarHealth {
   ollamaModels?: string[] | null;
 }
 
+/**
+ * JTV-184 Phase 1 — sidecar startup lifecycle state surfaced to the
+ * Settings page so users on a clean install see "Connecting…" instead of
+ * "Offline" during the PyInstaller cold-extract window.
+ *
+ * - `notPresent` — dev build (debug_assertions) or spawn_sidecar returned
+ *   None. The Settings page should render this with copy that explains
+ *   the dev-mode manual-uvicorn path rather than implying a hung startup.
+ * - `connecting` — background readiness probe is in flight. Settings
+ *   should render an elapsed-time counter with explanatory copy
+ *   ("Connecting (this can take ~1–2 minutes on the first launch after
+ *   install while the analysis engine extracts).").
+ * - `ready` — `/health/ready` returned 200. Sidecar is reachable.
+ */
+export type SidecarStartupStatus = 'notPresent' | 'connecting' | 'ready';
+
+/**
+ * JTV-184 Phase 1 — snapshot returned by the `get_sidecar_startup_status`
+ * Tauri command. The elapsed-seconds counter lets the Settings page render
+ * "Connecting (32s elapsed)" without the frontend having to track the
+ * start time itself.
+ */
+export interface SidecarStartupSnapshot {
+  status: SidecarStartupStatus;
+  /** Seconds since the background probe started. 0 until the probe begins
+      (approximately app startup) and remains monotonically increasing
+      thereafter — does not reset on power-saver respawns. */
+  elapsedSecs: number;
+}
+
 /** CLIP-based AI classification result from the ML sidecar */
 export interface ClipDetectionResult {
   score: number;

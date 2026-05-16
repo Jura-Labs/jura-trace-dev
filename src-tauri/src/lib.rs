@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_shell::ShellExt;
@@ -463,6 +463,75 @@ pub struct MonitorOverview {
 }
 
 /// Managed application state shared across Tauri commands.
+/// JTV-184 Phase 1 — sidecar startup status surfaced to the frontend.
+///
+/// On a clean install of the v0.9.0 .app, the PyInstaller cold-extract of the
+/// sidecar binary takes ~90 s (post-Phase-0 CLIP-strip; previously 4+ min on
+/// the 731 MB bundle). Tauri's earlier give-up budget was ~140 s and the
+/// Settings page only re-probed `/health` on manual Refresh — so a user who
+/// opened Settings before ~90 s saw "Analysis Engine offline" and assumed the
+/// app was broken.
+///
+/// This enum carries the probe lifecycle: it starts `Connecting` the moment
+/// `spawn_sidecar` returns a child handle, transitions to `Ready` when
+/// `/health/ready` first returns 200, and stays there for the rest of the
+/// session. `NotPresent` covers dev builds (where `spawn_sidecar` returns
+/// `None`) and the case where spawn itself failed. There is no `Failed` state
+/// in v1.0 — the probe loop runs indefinitely so a late-arriving sidecar still
+/// flips to `Ready`; if the process truly died, the existing per-request
+/// `SidecarClient::is_available()` check (sidecar.rs) reports the gap.
+///
+/// Encoded as a `u8` so it can live in an `Arc<AtomicU8>` on AppState for
+/// lock-free reads from the Tauri command and lock-free writes from the
+/// background probe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SidecarStartupStatus {
+    /// Dev build (debug_assertions) or `spawn_sidecar` returned `None`. The
+    /// frontend should render this as "Not running (development mode — start
+    /// uvicorn manually)" rather than as a startup-in-progress state.
+    NotPresent,
+    /// Probe is in flight. The frontend should render an elapsed-time counter
+    /// with explanatory copy ("Connecting (this can take ~1–2 minutes on the
+    /// first launch after install while the analysis engine extracts").
+    Connecting,
+    /// `/health/ready` returned 200. The sidecar is reachable. Frontend
+    /// renders the green Connected badge.
+    Ready,
+}
+
+impl SidecarStartupStatus {
+    pub fn to_u8(self) -> u8 {
+        match self {
+            Self::NotPresent => 0,
+            Self::Connecting => 1,
+            Self::Ready => 2,
+        }
+    }
+
+    pub fn from_u8(v: u8) -> Self {
+        match v {
+            1 => Self::Connecting,
+            2 => Self::Ready,
+            _ => Self::NotPresent,
+        }
+    }
+}
+
+/// Snapshot returned by the `get_sidecar_startup_status` Tauri command. The
+/// elapsed counter lets the Settings page render "Connecting (32s elapsed)"
+/// without the frontend having to track the start time itself (avoids a clock-
+/// skew bug if the user's machine is in low-power-throttle).
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SidecarStartupSnapshot {
+    pub status: SidecarStartupStatus,
+    /// Seconds since the probe started. `0` until the probe begins (which
+    /// is approximately `setup()` completion + the first `spawn_sidecar`
+    /// call) and remains monotonically increasing thereafter.
+    pub elapsed_secs: u64,
+}
+
 pub struct AppState {
     pub db: db::Database,
     pub sidecar: sidecar::SidecarClient,
@@ -533,6 +602,23 @@ pub struct AppState {
     /// URLs from this port. Stable across the lifetime of the process —
     /// power-saver respawns reuse the same port.
     pub sidecar_port: u16,
+    /// JTV-184 Phase 1 — sidecar startup status surfaced to the Settings UI so
+    /// users on a clean install see "Connecting…" instead of "Offline" during
+    /// the PyInstaller cold-extract window.
+    ///
+    /// Encoded as a `u8` for lock-free atomic access via
+    /// [`SidecarStartupStatus::from_u8`] / [`SidecarStartupStatus::to_u8`].
+    /// Updated by the background readiness probe spawned in `run()`; read by
+    /// the `get_sidecar_startup_status` Tauri command and surfaced via the
+    /// `sidecar-status-changed` Tauri event on every transition.
+    pub sidecar_startup_status: Arc<AtomicU8>,
+    /// Unix epoch (seconds) when the sidecar startup probe began. Used by the
+    /// frontend to render an elapsed-seconds counter while the probe is in
+    /// the `Connecting` state ("Connecting (32s elapsed)"). `0` until the
+    /// probe starts; never reset (subsequent power-saver respawns reuse the
+    /// same start-time so the elapsed counter measures total session uptime,
+    /// not respawn freshness).
+    pub sidecar_startup_started_at: Arc<AtomicU64>,
 }
 
 /// Compute the SHA-256 hash of a file, returning a lowercase hex string.
@@ -3737,6 +3823,38 @@ fn check_sidecar_health(
     app.sidecar.check_health().map_err(AppError::Sidecar)
 }
 
+/// JTV-184 Phase 1 — return the current sidecar startup snapshot.
+///
+/// The Settings page calls this on mount to get the initial state (events
+/// emitted before the listener attaches would otherwise be missed), then
+/// subscribes to the `sidecar-status-changed` Tauri event for subsequent
+/// transitions. The elapsed-seconds counter lets the frontend render
+/// "Connecting (32s elapsed)" without having to track the start time
+/// itself.
+#[tauri::command]
+fn get_sidecar_startup_status(
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<SidecarStartupSnapshot, AppError> {
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let status_u8 = app.sidecar_startup_status.load(Ordering::Relaxed);
+    let started_at = app.sidecar_startup_started_at.load(Ordering::Relaxed);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let elapsed_secs = if started_at > 0 && now >= started_at {
+        now - started_at
+    } else {
+        0
+    };
+    Ok(SidecarStartupSnapshot {
+        status: SidecarStartupStatus::from_u8(status_u8),
+        elapsed_secs,
+    })
+}
+
 /// Analyse a video file for AI-generated or manipulated frames.
 ///
 /// Sends the file to the Python sidecar for per-frame deepfake detection.
@@ -6491,26 +6609,125 @@ pub fn run() {
             // diagnostic — it logs when the sidecar comes up so launch-time
             // performance is observable without holding the main thread.
             // 90 attempts × exponential backoff (200/400/800/1600ms capped) =
-            // ~143 s max — gives the PyInstaller cold-start enough headroom on
-            // slower machines. Previous 60-attempt cap (~93 s) timed out by ~4 s
-            // on the developer Mac mini's cold launch (12 May 2026, post-rebuild).
-            const STARTUP_READINESS_ATTEMPTS: u32 = 90;
+            // JTV-184 Phase 1: the readiness probe runs INDEFINITELY (no
+            // give-up budget) and updates `AppState.sidecar_startup_status`
+            // on each transition. The previous 90-attempt / ~143 s give-up
+            // produced the "Settings shows Offline forever" symptom on slow
+            // first launches when the PyInstaller cold-extract overran the
+            // budget — the probe gave up and never resumed, leaving the UI
+            // believing the sidecar was dead even after it bound the port.
+            //
+            // The Connecting → Ready transition is also emitted as a Tauri
+            // `sidecar-status-changed` event so the Settings page can update
+            // push-style rather than poll the command. Frontend mounting
+            // mid-startup uses the `get_sidecar_startup_status` command for
+            // the initial snapshot (events fired before the listener attaches
+            // would otherwise be missed).
+            //
+            // Built BEFORE AppState so we can clone the Arc into both the
+            // probe task and the AppState constructor below.
+            let sidecar_startup_status =
+                Arc::new(AtomicU8::new(SidecarStartupStatus::NotPresent.to_u8()));
+            let sidecar_startup_started_at = Arc::new(AtomicU64::new(0));
             let sidecar_present = sidecar_child.is_some();
             if sidecar_present {
+                let now_secs = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                sidecar_startup_started_at.store(now_secs, Ordering::Relaxed);
+                sidecar_startup_status.store(
+                    SidecarStartupStatus::Connecting.to_u8(),
+                    Ordering::Relaxed,
+                );
+                let _ = app.app_handle().emit(
+                    "sidecar-status-changed",
+                    SidecarStartupStatus::Connecting,
+                );
+
                 let probe_port = sidecar_port;
+                let status_arc = Arc::clone(&sidecar_startup_status);
+                let started_at_arc = Arc::clone(&sidecar_startup_started_at);
+                let app_handle_for_probe = app.app_handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    let ready = tauri::async_runtime::spawn_blocking(move || {
-                        wait_for_sidecar_ready(STARTUP_READINESS_ATTEMPTS, probe_port)
-                    })
-                    .await
-                    .unwrap_or(false);
-                    if !ready {
-                        log::warn!(
-                            "Sidecar did not respond within startup timeout. \
-                             Verify-time availability check will be tried per request."
-                        );
+                    // Async probe (replaces the prior `spawn_blocking`
+                    // `wait_for_sidecar_ready` call). Uses `reqwest`'s async
+                    // client to avoid burning a blocking-pool thread for
+                    // hours on a slow first launch. The url targets
+                    // `/health/ready` (constant-time bool read) rather than
+                    // `/health` to avoid the lazy-CLIP-load serialisation
+                    // cost noted in JTV-142 fix 3.
+                    let client = reqwest::Client::builder()
+                        .timeout(std::time::Duration::from_secs(2))
+                        .build()
+                        .unwrap_or_default();
+                    let url = format!("http://127.0.0.1:{probe_port}/health/ready");
+                    let mut attempt: u32 = 0;
+                    loop {
+                        // 200 / 400 / 800 / 1600 ms then capped at 1600 ms.
+                        // No max_attempts — we genuinely wait for the
+                        // sidecar to come up rather than give up.
+                        let delay_ms = 200u64 * (1u64 << attempt.min(3));
+                        tokio::time::sleep(std::time::Duration::from_millis(delay_ms))
+                            .await;
+                        attempt += 1;
+                        match client.get(&url).send().await {
+                            Ok(r) if r.status().is_success() => {
+                                let elapsed = std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .map(|d| d.as_secs())
+                                    .unwrap_or(0)
+                                    .saturating_sub(
+                                        started_at_arc.load(Ordering::Relaxed),
+                                    );
+                                log::info!(
+                                    "Sidecar ready after {} poll attempt(s) (\
+                                    elapsed {}s)",
+                                    attempt,
+                                    elapsed,
+                                );
+                                status_arc.store(
+                                    SidecarStartupStatus::Ready.to_u8(),
+                                    Ordering::Relaxed,
+                                );
+                                let _ = app_handle_for_probe.emit(
+                                    "sidecar-status-changed",
+                                    SidecarStartupStatus::Ready,
+                                );
+                                break;
+                            }
+                            _ => {
+                                // Continue polling — connection refused or
+                                // timeout are both expected during the
+                                // PyInstaller cold-extract window. Log a
+                                // diagnostic line every ~30s so the
+                                // back-end log is not silent during a long
+                                // first launch.
+                                if attempt > 0 && attempt.is_multiple_of(20) {
+                                    log::info!(
+                                        "Sidecar startup probe attempt {} \
+                                        — still extracting / starting",
+                                        attempt,
+                                    );
+                                }
+                                continue;
+                            }
+                        }
                     }
                 });
+            } else {
+                // Dev mode or sidecar spawn failed. The Settings page renders
+                // a different copy for NotPresent ("Not running — start the
+                // sidecar manually in dev mode") so it does not look like
+                // a hung startup.
+                sidecar_startup_status.store(
+                    SidecarStartupStatus::NotPresent.to_u8(),
+                    Ordering::Relaxed,
+                );
+                let _ = app.app_handle().emit(
+                    "sidecar-status-changed",
+                    SidecarStartupStatus::NotPresent,
+                );
             }
 
             log::info!(
@@ -6583,6 +6800,8 @@ pub fn run() {
                 power_saver_mode,
                 respawn_in_progress: Arc::new(AtomicBool::new(false)),
                 sidecar_port,
+                sidecar_startup_status: Arc::clone(&sidecar_startup_status),
+                sidecar_startup_started_at: Arc::clone(&sidecar_startup_started_at),
             }));
 
             // ── Register managed state FIRST ─────────────────────────────────
@@ -6797,6 +7016,7 @@ pub fn run() {
             find_similar,
             verify_url,
             check_sidecar_health,
+            get_sidecar_startup_status,
             check_metadata_before_sign,
             get_version,
             mark_false_positive,
