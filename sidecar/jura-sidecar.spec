@@ -383,31 +383,93 @@ a = Analysis(
 
 pyz = PYZ(a.pure)
 
-exe = EXE(
-    pyz,
-    a.scripts,
-    a.binaries,
-    a.datas,
-    [],
-    name=_name,
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    # UPX compresses the binary (saves ~30%) but adds ~2-3 s cold-start cost
-    # while decompressing. Set upx=False for faster development iteration.
-    upx=True,
-    upx_exclude=_upx_exclude,
-    runtime_tmpdir=None,
-    console=True,
-    disable_windowed_traceback=False,
-    argv_emulation=False,  # not needed for a CLI/daemon sidecar
-    target_arch=_target_arch,
-    # Code signing:
-    #   macOS: set to "Developer ID Application: Jura Labs CIC (<TEAMID>)"
-    #          for notarised builds (required for Gatekeeper acceptance).
-    #          The Tauri release workflow should inject this via the
-    #          APPLE_SIGNING_IDENTITY secret.
-    #   Windows: Authenticode signing is handled post-build via signtool in CI.
-    codesign_identity=None,
-    entitlements_file=None,
-)
+# JTV-184 Phase 4 — `--onedir` build mode toggle.
+#
+# Set `JURA_SIDECAR_ONEDIR=1` in the environment when invoking PyInstaller
+# to produce a directory-tree bundle (`dist/jura-sidecar/`) instead of the
+# default self-extracting single-file binary (`dist/jura-sidecar`). The
+# directory mode eliminates the runtime extraction step entirely — the
+# Python interpreter, native `.so` / `.dylib` extensions, and bundled
+# data files sit on disk in `_internal/` ready to use, so cold launch
+# drops from ~90 s (single-file extract) to ~5 s (bootloader + Python
+# import).
+#
+# Trade-off: the `.app` grows by ~200 MB because there is no compression
+# step for the bundle payload. The signing surface also grows from one
+# Mach-O to ~150-300 nested `.dylib` / `.so` files — each must be
+# Developer-ID-signed before notarisation (see the JTV-184 Phase 5 CI
+# step for the recursive codesign pass).
+#
+# Spike-mode usage:
+#     JURA_SIDECAR_ONEDIR=1 python -m PyInstaller jura-sidecar.spec --noconfirm
+#
+# CI-mode usage:
+#     The .github/workflows/release.yml and .forgejo/workflows/release.yml
+#     pipelines will gain the env var alongside the recursive signing step
+#     in JTV-184 Phase 5. For now the default (env-var unset) preserves
+#     the existing --onefile build so accidental local rebuilds do not
+#     surprise the CI pipeline.
+_onedir_mode = _os.environ.get("JURA_SIDECAR_ONEDIR", "0") == "1"
+
+if _onedir_mode:
+    # --onedir: EXE block carries only the script bootstrap (no binaries
+    # or datas — those move to COLLECT). `exclude_binaries=True` is the
+    # signal that tells the PyInstaller bootloader to look for its
+    # payload in a sibling `_internal/` directory at runtime rather than
+    # self-extracting from the EXE itself.
+    exe = EXE(
+        pyz,
+        a.scripts,
+        [],
+        exclude_binaries=True,
+        name=_name,
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=True,
+        upx_exclude=_upx_exclude,
+        console=True,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch=_target_arch,
+        codesign_identity=None,
+        entitlements_file=None,
+    )
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.datas,
+        strip=False,
+        upx=True,
+        upx_exclude=_upx_exclude,
+        name=_name,
+    )
+else:
+    exe = EXE(
+        pyz,
+        a.scripts,
+        a.binaries,
+        a.datas,
+        [],
+        name=_name,
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        # UPX compresses the binary (saves ~30%) but adds ~2-3 s cold-start cost
+        # while decompressing. Set upx=False for faster development iteration.
+        upx=True,
+        upx_exclude=_upx_exclude,
+        runtime_tmpdir=None,
+        console=True,
+        disable_windowed_traceback=False,
+        argv_emulation=False,  # not needed for a CLI/daemon sidecar
+        target_arch=_target_arch,
+        # Code signing:
+        #   macOS: set to "Developer ID Application: Jura Labs CIC (<TEAMID>)"
+        #          for notarised builds (required for Gatekeeper acceptance).
+        #          The Tauri release workflow should inject this via the
+        #          APPLE_SIGNING_IDENTITY secret.
+        #   Windows: Authenticode signing is handled post-build via signtool in CI.
+        codesign_identity=None,
+        entitlements_file=None,
+    )
