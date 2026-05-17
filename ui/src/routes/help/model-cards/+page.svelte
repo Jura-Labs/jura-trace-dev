@@ -87,14 +87,19 @@
           <dd class="text-flint-dark dark:text-flint-light">~1.2 MB</dd>
         </div>
         <div>
-          <dt class="font-medium text-text-light dark:text-quartz">Last trained</dt>
-          <dd class="text-flint-dark dark:text-flint-light">7 April 2026</dd>
+          <dt class="font-medium text-text-light dark:text-quartz">Shipped in</dt>
+          <dd class="text-flint-dark dark:text-flint-light">v1.0 (22 June 2026)</dd>
         </div>
         <div>
-          <dt class="font-medium text-text-light dark:text-quartz">Version</dt>
-          <dd class="text-flint-dark dark:text-flint-light">4.0</dd>
+          <dt class="font-medium text-text-light dark:text-quartz">Model build</dt>
+          <dd class="text-flint-dark dark:text-flint-light">v1.0 launch build</dd>
         </div>
       </dl>
+      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-4 italic">
+        Performance metrics and training-corpus figures below describe the v1.0 launch
+        build retrained in the run-up to release. Earlier development-time builds
+        are not documented here; the figures on this page are the build that ships.
+      </p>
     </div>
 
     <!-- Purpose -->
@@ -190,40 +195,29 @@
       <li><strong>Compression sensitivity:</strong> Heavy JPEG compression or multiple re-compression cycles degrade the feature vector quality, reducing reliability.</li>
     </ul>
 
-    <!-- Version history -->
-    <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Version History</h3>
+    <!-- Release history -->
+    <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Release History</h3>
     <div class="overflow-x-auto">
       <table class="w-full text-sm border-collapse">
         <thead>
           <tr class="border-b border-border-light dark:border-border-dark">
-            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Version</th>
+            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Release</th>
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Date</th>
-            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Change</th>
+            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Notes</th>
           </tr>
         </thead>
         <tbody class="text-flint-dark dark:text-flint-light">
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4 font-mono">1.0</td>
-            <td class="py-2 pr-4">18 March 2026</td>
-            <td class="py-2 pr-4">Initial training. 545 images, AUC 0.945, 14% FP rate.</td>
-          </tr>
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4 font-mono">2.0</td>
-            <td class="py-2 pr-4">3 April 2026</td>
-            <td class="py-2 pr-4">Format confound eliminated (authentic PNGs added). Corpus expanded to 709. AUC 1.000, FP rate 0%.</td>
-          </tr>
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4 font-mono">3.0</td>
-            <td class="py-2 pr-4">7 April 2026</td>
-            <td class="py-2 pr-4">Corpus expanded to 10,721 (added COCO train set + audited Wikimedia restored). AUC 0.9863, FP 4.67%, recall 92.50%.</td>
-          </tr>
           <tr>
-            <td class="py-2 pr-4 font-mono">4.0</td>
-            <td class="py-2 pr-4">7 April 2026</td>
-            <td class="py-2 pr-4">Corpus expanded to 10,709 images (14 generator families). Wikimedia re-audit removed 12 outliers (cartoons, microscope, album, studio, underwater). AUC 0.9868, FP 4.54%, recall 92.52%.</td>
+            <td class="py-2 pr-4 font-mono">v1.0 launch build</td>
+            <td class="py-2 pr-4">22 June 2026</td>
+            <td class="py-2 pr-4">First public release. Corpus of 10,709 images across 14 AI-generator families with the metrics shown above.</td>
           </tr>
         </tbody>
       </table>
+      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-3 italic">
+        Development-time iterations between March and June 2026 are not documented here.
+        The next scheduled retrain is described in the Update Schedule section below.
+      </p>
     </div>
   </section>
 
@@ -268,14 +262,19 @@
           <dd class="text-flint-dark dark:text-flint-light">4.8 KB</dd>
         </div>
         <div>
-          <dt class="font-medium text-text-light dark:text-quartz">Last trained</dt>
-          <dd class="text-flint-dark dark:text-flint-light">12 April 2026</dd>
+          <dt class="font-medium text-text-light dark:text-quartz">Shipped in</dt>
+          <dd class="text-flint-dark dark:text-flint-light">v1.0 (22 June 2026)</dd>
         </div>
         <div>
-          <dt class="font-medium text-text-light dark:text-quartz">Version</dt>
-          <dd class="text-flint-dark dark:text-flint-light">9.0</dd>
+          <dt class="font-medium text-text-light dark:text-quartz">Model build</dt>
+          <dd class="text-flint-dark dark:text-flint-light">v1.0 launch build (multi-format: JPEG / PNG / TIFF / WebP / HEIC)</dd>
         </div>
       </dl>
+      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-4 italic">
+        Performance metrics and training-corpus figures below describe the v1.0 launch
+        build retrained in the run-up to release. Earlier development-time builds
+        are not documented here; the figures on this page are the build that ships.
+      </p>
     </div>
 
     <!-- Purpose -->
@@ -349,119 +348,35 @@
     <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       <li><strong>CLIP dependency:</strong> Requires the open_clip ViT-B/32 model (~350 MB). When CLIP is not installed, the probe is unavailable and gracefully skipped.</li>
       <li><strong>Non-photographic content:</strong> Paintings, digital illustrations, and stylised artwork can produce false positives. Wikimedia art/illustrations were removed from the training corpus after analysis showed a high false positive rate on that source.</li>
-      <li><strong>Wildlife and macro photography:</strong> The <code>wikimedia_photos</code> subset (wildlife, insect macro) is the top FP source. Sprint 29 Track 2 is expanding the authentic corpus with iNaturalist photographs to address this.</li>
+      <li><strong>Wildlife and macro photography:</strong> The <code>wikimedia_photos</code> subset (wildlife, insect macro) is the top FP source. iNaturalist photographs are being added to the authentic corpus to address this.</li>
       <li><strong>High-end camera photos:</strong> Images from DJI drones and Sony DSC cameras with very clean noise profiles are occasionally flagged. MakerNote EXIF data provides a partial mitigation at inference time.</li>
       <li><strong>Generator coverage:</strong> Trained on 14 generator families up to April 2026. New generators may produce outputs that fall outside the learned decision boundary. Quarterly retraining planned.</li>
       <li><strong>Demographic bias:</strong> CLIP-proxy demographic audit completed April 2026. Dark-skin proxy group FP rate 7.8% vs 4.1% overall (1.9&times; ratio &mdash; below the 2&times; failure threshold but notable). Light-skin FP 5.0%. No-people FP 3.1%. Full results in the fairness documentation. Audit uses CLIP text-image similarity as a computational proxy, not human-annotated ground truth.</li>
     </ul>
 
-    <!-- Improvement history -->
-    <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Improvement History</h3>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-      The probe's false positive rate was reduced from 28.7% to 4.12% through iterative corpus
-      expansion and curation across 3&ndash;12 April 2026:
-    </p>
-    <div class="overflow-x-auto mb-6">
-      <table class="w-full text-sm border-collapse">
-        <thead>
-          <tr class="border-b border-border-light dark:border-border-dark">
-            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Step</th>
-            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">AUC-ROC</th>
-            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">FP Rate</th>
-            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Corpus</th>
-          </tr>
-        </thead>
-        <tbody class="text-flint-dark dark:text-flint-light">
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4">Baseline (C=0.5)</td>
-            <td class="py-2 pr-4 font-mono">0.9650</td>
-            <td class="py-2 pr-4 font-mono">9.7%</td>
-            <td class="py-2 pr-4 font-mono">3,125</td>
-          </tr>
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4">Regularisation tuned (C=1.0)</td>
-            <td class="py-2 pr-4 font-mono">0.9710</td>
-            <td class="py-2 pr-4 font-mono">9.2%</td>
-            <td class="py-2 pr-4 font-mono">3,125</td>
-          </tr>
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4">Wikimedia art removed</td>
-            <td class="py-2 pr-4 font-mono">0.9907</td>
-            <td class="py-2 pr-4 font-mono">3.7%</td>
-            <td class="py-2 pr-4 font-mono">2,826</td>
-          </tr>
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4">Expansion to 10+ generators (v6)</td>
-            <td class="py-2 pr-4 font-mono">0.9929</td>
-            <td class="py-2 pr-4 font-mono">2.7%</td>
-            <td class="py-2 pr-4 font-mono">6,009</td>
-          </tr>
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4">Full 10K corpus expansion (v7)</td>
-            <td class="py-2 pr-4 font-mono">0.9909</td>
-            <td class="py-2 pr-4 font-mono">4.91%</td>
-            <td class="py-2 pr-4 font-mono">10,724</td>
-          </tr>
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4">Wikimedia re-audit, v8 production</td>
-            <td class="py-2 pr-4 font-mono">0.9911</td>
-            <td class="py-2 pr-4 font-mono">5.01%</td>
-            <td class="py-2 pr-4 font-mono">10,712</td>
-          </tr>
-          <tr>
-            <td class="py-2 pr-4">Platform-forwarded augmentation, v9 production</td>
-            <td class="py-2 pr-4 font-mono">0.9933</td>
-            <td class="py-2 pr-4 font-mono">4.12%</td>
-            <td class="py-2 pr-4 font-mono">39,016</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Version history -->
-    <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Version History</h3>
+    <!-- Release history -->
+    <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Release History</h3>
     <div class="overflow-x-auto">
       <table class="w-full text-sm border-collapse">
         <thead>
           <tr class="border-b border-border-light dark:border-border-dark">
-            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Version</th>
+            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Release</th>
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Date</th>
-            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Change</th>
+            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Notes</th>
           </tr>
         </thead>
         <tbody class="text-flint-dark dark:text-flint-light">
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4 font-mono">1.0</td>
-            <td class="py-2 pr-4">3 April 2026</td>
-            <td class="py-2 pr-4">Initial training. 834 images, AUC 0.9774, FP rate 28.7%.</td>
-          </tr>
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4 font-mono">2.0&ndash;5.0</td>
-            <td class="py-2 pr-4">4 April 2026</td>
-            <td class="py-2 pr-4">Iterative corpus expansion and threshold tuning. Added Gemini, DCIM photos. FP rate reduced to 0% on limited test set.</td>
-          </tr>
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4 font-mono">6.0</td>
-            <td class="py-2 pr-4">7 April 2026</td>
-            <td class="py-2 pr-4">Major corpus expansion to 6,009 images. 10+ generator families. Wikimedia art removed. C=1.0. AUC 0.9929, FP 2.7%.</td>
-          </tr>
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4 font-mono">7.0</td>
-            <td class="py-2 pr-4">7 April 2026</td>
-            <td class="py-2 pr-4">Corpus expanded to 10,724 images (full 10K target). AUC 0.9909, FP 4.91%, recall 96.03%.</td>
-          </tr>
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4 font-mono">8.0</td>
-            <td class="py-2 pr-4">7 April 2026</td>
-            <td class="py-2 pr-4">Corpus to 10,712 after Wikimedia re-audit. AUC 0.9911, FP 5.01%, recall 96.01%.</td>
-          </tr>
           <tr>
-            <td class="py-2 pr-4 font-mono">9.0</td>
-            <td class="py-2 pr-4">12 April 2026</td>
-            <td class="py-2 pr-4">Platform-forwarded augmentation expanded corpus to 39,016 samples. Regularisation tuned to C=0.5. AUC 0.9933, FP 4.12%, recall 95.70%. DiffusionDB recall improved from 67.6% to 97.3%; Flux Dev recall 88.9%, SDXL Turbo recall 91.1% (both reduced from previous version due to augmentation retraining trade-off). Demographic proxy audit completed.</td>
+            <td class="py-2 pr-4 font-mono">v1.0 launch build</td>
+            <td class="py-2 pr-4">22 June 2026</td>
+            <td class="py-2 pr-4">First public release. Multi-format training across JPEG / PNG / TIFF / WebP / HEIC with the metrics shown above.</td>
           </tr>
         </tbody>
       </table>
+      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-3 italic">
+        Development-time iterations between March and June 2026 are not documented here.
+        The next scheduled retrain is described in the Update Schedule section below.
+      </p>
     </div>
   </section>
 
@@ -502,9 +417,9 @@
       </ul>
       <p class="text-sm text-text-light/90 dark:text-quartz/90 leading-relaxed mt-2">
         A full curated corpus of 5,000+ passages with multilingual coverage is
-        scheduled for Sprint 29 onwards (the S29-06 multilingual testing deliverable).
-        The current preliminary corpus is documented below so that users understand
-        exactly what the tool can and cannot see.
+        under evaluation for a future release. The current preliminary corpus is
+        documented below so that users understand exactly what the tool can and
+        cannot see.
       </p>
     </div>
 
@@ -601,7 +516,7 @@
       <li><strong>No accuracy metrics:</strong> the tool has not been formally evaluated against a held-out test set. No precision, recall, or F1 numbers are published because none have been measured. This is a limitation, not a secret.</li>
       <li><strong>Subjective and future claims:</strong> the tool cannot assess claims that are subjective ("this is the best photograph of X"), predictive ("this event will happen"), or otherwise outside its reference material.</li>
       <li><strong>Adversarial paraphrase:</strong> the TF-IDF retrieval layer is vulnerable to paraphrase attacks. A claim phrased differently from the corpus wording may fail to retrieve relevant passages even when coverage exists.</li>
-      <li><strong>Monolingual corpus:</strong> all current reference passages are in English. Non-English claims will be transcribed and processed, but the retrieval will only match against English references. Multilingual corpus coverage is the S29-06 deliverable.</li>
+      <li><strong>Monolingual corpus:</strong> all current reference passages are in English. Non-English claims will be transcribed and processed, but the retrieval will only match against English references. Multilingual corpus coverage is under evaluation for a future release.</li>
       <li><strong>No public figure heuristics:</strong> the current corpus does not include information about public figures, and the curation process for future expansion will exclude such references entirely to avoid defamation exposure.</li>
     </ul>
 
@@ -621,15 +536,15 @@
     <!-- Planned expansion -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Planned Expansion</h3>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
-      A curated corpus expansion is scheduled as part of Sprint 29 (S29-06 multilingual
-      testing deliverable). The planned scope includes:
+      A curated corpus expansion is under evaluation for a future release.
+      The intended scope includes:
     </p>
     <ul class="list-disc pl-5 space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       <li>Expansion to approximately 5,000&ndash;10,000 passages across C2PA specification, Berkeley Protocol, ICC Office of the Prosecutor guidelines, ENFSI image forensic guidelines, cultural heritage provenance standards, synthetic media taxonomy references, deepfake detection methodology literature, and misinformation research standards.</li>
       <li>Multilingual coverage in at least five languages (Arabic, Spanish, French, Swahili, Burmese) matching the TRIED case study languages.</li>
       <li>A held-out test set of 150&ndash;300 hand-curated (claim, expected outcome, expected passage) triples for formal accuracy evaluation.</li>
       <li>Per-passage provenance metadata, licence-compatibility audit, and published evaluation metrics.</li>
-      <li>A quarterly corpus review cycle aligned with the classifier retraining cadence.</li>
+      <li>A corpus review cycle aligned with the classifier retraining cadence.</li>
       <li>Corpus publication as a separate data artefact on Zenodo with a DOI, aligned with the Continuity Promise.</li>
     </ul>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
@@ -638,32 +553,22 @@
       investigative aid as documented above.
     </p>
 
-    <!-- Version history -->
-    <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Version History</h3>
+    <!-- Release history -->
+    <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Release History</h3>
     <div class="overflow-x-auto">
       <table class="w-full text-sm border-collapse">
         <thead>
           <tr class="border-b border-border-light dark:border-border-dark">
-            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Version</th>
+            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Release</th>
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Date</th>
-            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Change</th>
+            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Notes</th>
           </tr>
         </thead>
         <tbody class="text-flint-dark dark:text-flint-light">
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4 font-mono">0.1</td>
-            <td class="py-2 pr-4">Sprint 19</td>
-            <td class="py-2 pr-4">Initial 4-document corpus, ~158 lines, ~80 passages.</td>
-          </tr>
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4 font-mono">0.2</td>
-            <td class="py-2 pr-4">Sprint 19</td>
-            <td class="py-2 pr-4">Expanded to 6 documents, 314 lines, ~150 passages. Added video forensics, digital rights / cultural heritage.</td>
-          </tr>
           <tr>
-            <td class="py-2 pr-4 font-mono">0.3</td>
-            <td class="py-2 pr-4">7 April 2026</td>
-            <td class="py-2 pr-4">Vocabulary rename: "supported/disputed/unverified" &rarr; "consistent_with_kb / inconsistent_with_kb / insufficient_context_in_kb". Parametric fallback path removed. Non-warranty notice added. Reclassified as preliminary investigative aid (not a forensic detector).</td>
+            <td class="py-2 pr-4 font-mono">v1.0 launch corpus</td>
+            <td class="py-2 pr-4">22 June 2026</td>
+            <td class="py-2 pr-4">Six-document preliminary corpus shipped as an investigative aid. ~150 passages across the domains documented above. Output vocabulary: <code class="font-mono text-xs">consistent_with_kb / inconsistent_with_kb / insufficient_context_in_kb</code>. Not a fact-checker.</td>
           </tr>
         </tbody>
       </table>
@@ -685,19 +590,20 @@
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
       AI image generators evolve rapidly. Models trained today may not detect
-      outputs from generators released six months from now. Jura Trace commits to
-      the following update cadence:
+      outputs from generators released six months from now. Jura Trace's
+      approach to keeping the classifiers current:
     </p>
 
     <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
-      <li><strong>Quarterly retraining:</strong> Both classifiers will be retrained at least every three months with newly sourced AI-generated and authentic images.</li>
-      <li><strong>New generator coverage:</strong> When major new generators are released (or existing generators receive significant updates), training data from those generators will be incorporated in the next quarterly cycle.</li>
-      <li><strong>Model distribution:</strong> Updated model weights will be distributed via the application's auto-update mechanism. Users will be notified when newer models are available.</li>
-      <li><strong>Transparency:</strong> This page will be updated with each retraining cycle to reflect the current training data composition, performance metrics, and known limitations.</li>
+      <li><strong>Targeted retraining:</strong> Both classifiers are retrained when meaningful new training data has accumulated — typically a combination of newly released AI generators, expanded Global Majority device coverage, and corrected false-positive cases reported by users. We do not retrain on a fixed quarterly clock; the decision is driven by data availability and signal drift.</li>
+      <li><strong>New generator coverage:</strong> When major new generators are released or existing generators receive significant updates, training samples from those generators are incorporated in the next retraining cycle.</li>
+      <li><strong>Model distribution:</strong> Updated model weights are distributed via the application's auto-update mechanism. Users are notified when newer models are available.</li>
+      <li><strong>Transparency:</strong> This page is updated with each retraining cycle to reflect the current training data composition, performance metrics, and known limitations.</li>
     </ul>
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-      Next scheduled retraining: <strong>July 2026</strong> (Q3).
+      Next scheduled retraining: <strong>September&ndash;October 2026</strong>
+      (approximately four months after the 22 June 2026 launch).
     </p>
   </section>
 
