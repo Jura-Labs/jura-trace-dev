@@ -2539,79 +2539,80 @@ fn verify_content_inner(
     // calibration gate. See `ENABLE_VIDEO_DEEPFAKE_GROUP` above for the
     // matching video gate.
     const ENABLE_AUDIO_GROUP: bool = false;
-    let (audio_metadata, transcription_result) = if is_audio && sidecar_available && ENABLE_AUDIO_GROUP {
-        let t_audio = std::time::Instant::now();
+    let (audio_metadata, transcription_result) =
+        if is_audio && sidecar_available && ENABLE_AUDIO_GROUP {
+            let t_audio = std::time::Instant::now();
 
-        let am_path = path.to_path_buf();
-        let am_client = app.sidecar.clone();
-        let run_transcription = !is_quick && transcription_result.is_none();
-        let tr_path = path.to_path_buf();
-        let tr_client = app.sidecar.clone();
+            let am_path = path.to_path_buf();
+            let am_client = app.sidecar.clone();
+            let run_transcription = !is_quick && transcription_result.is_none();
+            let tr_path = path.to_path_buf();
+            let tr_client = app.sidecar.clone();
 
-        let (am_out, tr_out) = std::thread::scope(|s| {
-            let am_h = s.spawn(move || {
-                let t = std::time::Instant::now();
-                let r = am_client.check_audio_metadata(&am_path);
-                log::info!("PERF: audio metadata took {:?}", t.elapsed());
-                r
+            let (am_out, tr_out) = std::thread::scope(|s| {
+                let am_h = s.spawn(move || {
+                    let t = std::time::Instant::now();
+                    let r = am_client.check_audio_metadata(&am_path);
+                    log::info!("PERF: audio metadata took {:?}", t.elapsed());
+                    r
+                });
+                let tr_h = s.spawn(move || {
+                    if !run_transcription {
+                        return None;
+                    }
+                    let t = std::time::Instant::now();
+                    let r = tr_client.transcribe(&tr_path);
+                    log::info!("PERF: transcription took {:?}", t.elapsed());
+                    Some(r)
+                });
+                (am_h.join(), tr_h.join())
             });
-            let tr_h = s.spawn(move || {
-                if !run_transcription {
-                    return None;
+
+            log::info!(
+                "PERF: audio group (metadata + transcription, parallel) took {:?}",
+                t_audio.elapsed()
+            );
+
+            let audio_metadata = match am_out {
+                Ok(Ok(r)) => Some(r),
+                Ok(Err(e)) => {
+                    log::warn!("Sidecar audio metadata extraction failed: {e}");
+                    None
                 }
-                let t = std::time::Instant::now();
-                let r = tr_client.transcribe(&tr_path);
-                log::info!("PERF: transcription took {:?}", t.elapsed());
-                Some(r)
-            });
-            (am_h.join(), tr_h.join())
-        });
+                Err(_) => {
+                    log::warn!("Sidecar audio metadata thread panicked");
+                    None
+                }
+            };
+            let transcription_result = match tr_out {
+                Ok(Some(Ok(t))) if t.success => {
+                    log::info!(
+                        "Transcription: lang={:?}, duration={:?}, segments={}",
+                        t.language,
+                        t.duration,
+                        t.segments.len()
+                    );
+                    Some(t)
+                }
+                Ok(Some(Ok(t))) => {
+                    log::info!("Transcription unavailable: {}", t.message);
+                    None
+                }
+                Ok(Some(Err(e))) => {
+                    log::warn!("Sidecar transcription failed: {e}");
+                    None
+                }
+                Ok(None) => transcription_result, // keep any existing result
+                Err(_) => {
+                    log::warn!("Sidecar audio transcription thread panicked");
+                    None
+                }
+            };
 
-        log::info!(
-            "PERF: audio group (metadata + transcription, parallel) took {:?}",
-            t_audio.elapsed()
-        );
-
-        let audio_metadata = match am_out {
-            Ok(Ok(r)) => Some(r),
-            Ok(Err(e)) => {
-                log::warn!("Sidecar audio metadata extraction failed: {e}");
-                None
-            }
-            Err(_) => {
-                log::warn!("Sidecar audio metadata thread panicked");
-                None
-            }
+            (audio_metadata, transcription_result)
+        } else {
+            (None, transcription_result)
         };
-        let transcription_result = match tr_out {
-            Ok(Some(Ok(t))) if t.success => {
-                log::info!(
-                    "Transcription: lang={:?}, duration={:?}, segments={}",
-                    t.language,
-                    t.duration,
-                    t.segments.len()
-                );
-                Some(t)
-            }
-            Ok(Some(Ok(t))) => {
-                log::info!("Transcription unavailable: {}", t.message);
-                None
-            }
-            Ok(Some(Err(e))) => {
-                log::warn!("Sidecar transcription failed: {e}");
-                None
-            }
-            Ok(None) => transcription_result, // keep any existing result
-            Err(_) => {
-                log::warn!("Sidecar audio transcription thread panicked");
-                None
-            }
-        };
-
-        (audio_metadata, transcription_result)
-    } else {
-        (None, transcription_result)
-    };
 
     // ── RAG claim check ───────────────────────────────────────────────────
     // If we have a transcription, use it for RAG claim checking via the sidecar.
@@ -6372,16 +6373,11 @@ fn cleanup_stale_mei_dirs() {
     }
     if cleaned > 0 {
         log::info!(
-            "_MEI cleanup: removed {} stale PyInstaller extract dir(s) \
-             ({} skipped — held open by active process)",
-            cleaned,
-            skipped,
+            "_MEI cleanup: removed {cleaned} stale PyInstaller extract dir(s) \
+             ({skipped} skipped — held open by active process)",
         );
     } else if skipped > 0 {
-        log::debug!(
-            "_MEI cleanup: 0 removable, {} held by active processes",
-            skipped,
-        );
+        log::debug!("_MEI cleanup: 0 removable, {skipped} held by active processes",);
     }
 }
 
@@ -6584,6 +6580,27 @@ async fn pull_ollama_model(
     state: State<'_, Arc<Mutex<AppState>>>,
     model_name: String,
 ) -> Result<(), AppError> {
+    // Defence-in-depth on frontend-supplied model name (security audit
+    // 2026-05-16 NEW-HIGH-3). The string is proxied verbatim to the sidecar's
+    // Ollama pull endpoint; cap length and restrict to characters used by
+    // Ollama registry paths (alphanumerics + `:`, `/`, `.`, `-`, `_`).
+    const MAX_MODEL_NAME_LEN: usize = 256;
+    let trimmed = model_name.trim();
+    if trimmed.is_empty() || trimmed.len() > MAX_MODEL_NAME_LEN {
+        return Err(AppError::Validation(
+            "Model name must be 1-256 characters".into(),
+        ));
+    }
+    if !trimmed
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, ':' | '/' | '.' | '-' | '_'))
+    {
+        return Err(AppError::Validation(
+            "Model name may contain only letters, digits, and : / . - _".into(),
+        ));
+    }
+    let model_name = trimmed.to_string();
+
     let port = {
         let guard = state
             .lock()
@@ -6845,14 +6862,11 @@ pub fn run() {
                     .map(|d| d.as_secs())
                     .unwrap_or(0);
                 sidecar_startup_started_at.store(now_secs, Ordering::Relaxed);
-                sidecar_startup_status.store(
-                    SidecarStartupStatus::Connecting.to_u8(),
-                    Ordering::Relaxed,
-                );
-                let _ = app.app_handle().emit(
-                    "sidecar-status-changed",
-                    SidecarStartupStatus::Connecting,
-                );
+                sidecar_startup_status
+                    .store(SidecarStartupStatus::Connecting.to_u8(), Ordering::Relaxed);
+                let _ = app
+                    .app_handle()
+                    .emit("sidecar-status-changed", SidecarStartupStatus::Connecting);
 
                 let probe_port = sidecar_port;
                 let status_arc = Arc::clone(&sidecar_startup_status);
@@ -6877,8 +6891,7 @@ pub fn run() {
                         // No max_attempts — we genuinely wait for the
                         // sidecar to come up rather than give up.
                         let delay_ms = 200u64 * (1u64 << attempt.min(3));
-                        tokio::time::sleep(std::time::Duration::from_millis(delay_ms))
-                            .await;
+                        tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
                         attempt += 1;
                         match client.get(&url).send().await {
                             Ok(r) if r.status().is_success() => {
@@ -6886,23 +6899,15 @@ pub fn run() {
                                     .duration_since(std::time::UNIX_EPOCH)
                                     .map(|d| d.as_secs())
                                     .unwrap_or(0)
-                                    .saturating_sub(
-                                        started_at_arc.load(Ordering::Relaxed),
-                                    );
+                                    .saturating_sub(started_at_arc.load(Ordering::Relaxed));
                                 log::info!(
-                                    "Sidecar ready after {} poll attempt(s) (\
-                                    elapsed {}s)",
-                                    attempt,
-                                    elapsed,
+                                    "Sidecar ready after {attempt} poll attempt(s) (\
+                                    elapsed {elapsed}s)",
                                 );
-                                status_arc.store(
-                                    SidecarStartupStatus::Ready.to_u8(),
-                                    Ordering::Relaxed,
-                                );
-                                let _ = app_handle_for_probe.emit(
-                                    "sidecar-status-changed",
-                                    SidecarStartupStatus::Ready,
-                                );
+                                status_arc
+                                    .store(SidecarStartupStatus::Ready.to_u8(), Ordering::Relaxed);
+                                let _ = app_handle_for_probe
+                                    .emit("sidecar-status-changed", SidecarStartupStatus::Ready);
                                 break;
                             }
                             _ => {
@@ -6914,9 +6919,8 @@ pub fn run() {
                                 // first launch.
                                 if attempt > 0 && attempt.is_multiple_of(20) {
                                     log::info!(
-                                        "Sidecar startup probe attempt {} \
+                                        "Sidecar startup probe attempt {attempt} \
                                         — still extracting / starting",
-                                        attempt,
                                     );
                                 }
                                 continue;
@@ -6929,14 +6933,11 @@ pub fn run() {
                 // a different copy for NotPresent ("Not running — start the
                 // sidecar manually in dev mode") so it does not look like
                 // a hung startup.
-                sidecar_startup_status.store(
-                    SidecarStartupStatus::NotPresent.to_u8(),
-                    Ordering::Relaxed,
-                );
-                let _ = app.app_handle().emit(
-                    "sidecar-status-changed",
-                    SidecarStartupStatus::NotPresent,
-                );
+                sidecar_startup_status
+                    .store(SidecarStartupStatus::NotPresent.to_u8(), Ordering::Relaxed);
+                let _ = app
+                    .app_handle()
+                    .emit("sidecar-status-changed", SidecarStartupStatus::NotPresent);
             }
 
             log::info!(

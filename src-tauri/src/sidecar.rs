@@ -966,7 +966,10 @@ impl SidecarClient {
                 return true;
             }
             if attempt == 0 {
-                log::info!("Sidecar health probe attempt {} failed; retrying", attempt + 1);
+                log::info!(
+                    "Sidecar health probe attempt {} failed; retrying",
+                    attempt + 1
+                );
             }
         }
         false

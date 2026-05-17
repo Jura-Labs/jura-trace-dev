@@ -10,12 +10,15 @@
     {
       "identifier": "shell:allow-execute",
       "allow": [
-        { "name": "brew-arm", "cmd": "/opt/homebrew/bin/brew", "args": true, "sidecar": false },
-        { "name": "brew-intel", "cmd": "/usr/local/bin/brew", "args": true, "sidecar": false },
-        { "name": "winget", "cmd": "winget", "args": true, "sidecar": false },
-        { "name": "open", "cmd": "open", "args": true, "sidecar": false },
-        { "name": "xdg-open", "cmd": "xdg-open", "args": true, "sidecar": false },
-        { "name": "explorer", "cmd": "explorer", "args": true, "sidecar": false }
+        { "name": "brew-arm-version",      "cmd": "/opt/homebrew/bin/brew", "args": ["--version"], "sidecar": false },
+        { "name": "brew-arm-install",      "cmd": "/opt/homebrew/bin/brew", "args": ["install", { "validator": "^[a-z][a-z0-9._-]{0,63}$" }], "sidecar": false },
+        { "name": "brew-intel-version",    "cmd": "/usr/local/bin/brew",    "args": ["--version"], "sidecar": false },
+        { "name": "brew-intel-install",    "cmd": "/usr/local/bin/brew",    "args": ["install", { "validator": "^[a-z][a-z0-9._-]{0,63}$" }], "sidecar": false },
+        { "name": "winget-version",        "cmd": "winget", "args": ["--version"], "sidecar": false },
+        { "name": "winget-install-ollama", "cmd": "winget", "args": ["install", "Ollama.Ollama", "--accept-package-agreements", "--accept-source-agreements", "--silent"], "sidecar": false },
+        { "name": "open",                  "cmd": "open",     "args": ["-R", { "validator": "^[/A-Za-z].+$" }], "sidecar": false },
+        { "name": "xdg-open",              "cmd": "xdg-open", "args": [{ "validator": "^[/A-Za-z].+$" }], "sidecar": false },
+        { "name": "explorer",              "cmd": "explorer", "args": ["/select,", { "validator": "^[/A-Za-z].+$" }], "sidecar": false }
       ]
     },
     "dialog:allow-open",

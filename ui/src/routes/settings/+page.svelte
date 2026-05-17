@@ -656,37 +656,36 @@
 
       if (platform === 'windows') {
         try {
-          const probe = await Command.create('winget', ['--version']).execute();
+          const probe = await Command.create('winget-version').execute();
           if (probe.code !== 0) throw new Error('winget not found');
         } catch {
           throw new Error(
             'winget is not available on this machine. Open ollama.com to download the installer manually.',
           );
         }
-        const r = await Command.create('winget', [
-          'install', 'Ollama.Ollama',
-          '--accept-package-agreements',
-          '--accept-source-agreements',
-          '--silent',
-        ]).execute();
+        // The shell capability allow-list pins this command to the exact
+        // ['install', 'Ollama.Ollama', '--accept-package-agreements',
+        // '--accept-source-agreements', '--silent'] argv. Tauri rejects
+        // any deviation at the capability layer.
+        const r = await Command.create('winget-install-ollama').execute();
         if (r.code !== 0) {
           const detail = r.stderr?.trim() || `Exit code ${r.code}`;
           throw new Error(`winget install failed: ${detail}`);
         }
       } else if (platform === 'mac') {
-        async function tryBrew(scope: 'brew-arm' | 'brew-intel') {
+        async function tryBrew(arch: 'arm' | 'intel') {
           try {
-            const probe = await Command.create(scope, ['--version']).execute();
+            const probe = await Command.create(`brew-${arch}-version`).execute();
             if (probe.code !== 0) return { ok: false as const, stderr: probe.stderr?.trim() };
-            const r = await Command.create(scope, ['install', 'ollama']).execute();
+            const r = await Command.create(`brew-${arch}-install`, ['ollama']).execute();
             if (r.code !== 0) return { ok: false as const, stderr: r.stderr?.trim() || `Exit code ${r.code}` };
             return { ok: true as const };
           } catch (e) {
             return { ok: false as const, err: e };
           }
         }
-        let outcome = await tryBrew('brew-arm');
-        if (!outcome.ok) outcome = await tryBrew('brew-intel');
+        let outcome = await tryBrew('arm');
+        if (!outcome.ok) outcome = await tryBrew('intel');
         if (!outcome.ok) {
           throw new Error(
             'Homebrew not reachable at /opt/homebrew/bin/brew or /usr/local/bin/brew. ' +
