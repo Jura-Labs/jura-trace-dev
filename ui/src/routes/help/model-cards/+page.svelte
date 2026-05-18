@@ -118,7 +118,7 @@
       <dl class="space-y-3 text-sm">
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Total images</dt>
-          <dd class="text-flint-dark dark:text-flint-light">10,709 (5,724 authentic + 4,985 AI-generated)</dd>
+          <dd class="text-flint-dark dark:text-flint-light">over 10,000 (balanced authentic and AI-generated)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Authentic sources</dt>
@@ -209,7 +209,7 @@
           <tr>
             <td class="py-2 pr-4 font-mono">v1.0 launch build</td>
             <td class="py-2 pr-4">22 June 2026</td>
-            <td class="py-2 pr-4">First public release. Corpus of 10,709 images across 14 AI-generator families with the metrics shown above.</td>
+            <td class="py-2 pr-4">First public release. Corpus of over 10,000 images across 14 AI-generator families with the metrics shown above.</td>
           </tr>
         </tbody>
       </table>
@@ -293,8 +293,8 @@
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5 mb-6">
       <dl class="space-y-3 text-sm">
         <div>
-          <dt class="font-medium text-text-light dark:text-quartz">Total images</dt>
-          <dd class="text-flint-dark dark:text-flint-light">39,016 (10,712 original + 32,142 platform-forwarded augmentation via Q=75/85/2× re-saves)</dd>
+          <dt class="font-medium text-text-light dark:text-quartz">Total samples</dt>
+          <dd class="text-flint-dark dark:text-flint-light">over 50,000 (training corpus includes platform-forwarded re-saves at Q=75/85/2× plus multi-format augmentation across PNG, TIFF, WebP and HEIC)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Authentic sources</dt>

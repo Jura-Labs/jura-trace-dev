@@ -3549,15 +3549,32 @@
                     {/if}
                   {/snippet}
                   {#if ela.elaImageUrl}
+                    <p class="mt-2 ml-6 mb-1 text-xs text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+                      Bright regions show where the image's compression error differs from the rest of the photo.
+                      Look for <strong class="font-medium text-text-light dark:text-quartz">coherent patches</strong>
+                      that follow the shape of an object — that suggests something was pasted or edited in.
+                      Bright <em>edges and textured areas</em> (hair, foliage, text) are normal and not evidence of tampering.
+                      ELA is unreliable on PNGs, screenshots, or images re-saved many times.
+                    </p>
                     <div class="mt-2 ml-6">
                       <ImageZoom
                         src={heatmapSrc(ela.elaImageUrl)}
                         alt="ELA heatmap showing compression artefact distribution"
                         caption={ela.suspicious
-                          ? 'Click to enlarge — bright regions indicate higher compression-error mismatch'
-                          : 'Click to enlarge — no significant compression anomalies detected'}
+                          ? 'Tap to enlarge — locate which regions differ from the background'
+                          : 'Tap to enlarge — compression is uniform across the image'}
                       />
                     </div>
+                    {#if ela.suspicious}
+                      <p class="mt-2 ml-6 text-xs text-amber-dark dark:text-amber-light leading-snug max-w-prose">
+                        One or more regions absorbed compression differently from the surrounding image.
+                        Common causes: edited areas, pasted objects, or format conversion before the final save.
+                      </p>
+                    {:else}
+                      <p class="mt-2 ml-6 text-xs text-flint-dark dark:text-flint-light leading-snug max-w-prose">
+                        Compression error is consistent across the image — no regions stand out.
+                      </p>
+                    {/if}
                   {/if}
                 </DetectorRow>
               {/if}
@@ -3889,7 +3906,12 @@
                 </DetectorRow>
               {/if}
 
-              <!-- Fourier Analysis — deep mode -->
+              <!-- Fourier Analysis — deep mode.
+                   Spectrum visual is hidden by default (showRawScores=false) because
+                   an FFT log-magnitude image is not interpretable to non-experts —
+                   pilots reported confusion. The score + plain-English interpretation
+                   carry the user-actionable signal. Spectrum still available behind
+                   the raw-scores toggle for analysts who want the picture. -->
               {#if result.fourierAnalysisResult}
                 {@const fou = result.fourierAnalysisResult}
                 <DetectorRow
@@ -3907,21 +3929,30 @@
                       <span class="text-[10px] text-flint-dark dark:text-flint-light tabular-nums">peaks: {fou.peakCount}</span>
                     {/if}
                   {/snippet}
-                  {#if fou.suspicious}
-                    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6">{fou.summary}</p>
-                  {/if}
-                  {#if fou.spectrumUrl}
+                  <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6 leading-relaxed max-w-prose">
+                    {#if fou.suspicious}
+                      {fou.peakCount} periodic peak{fou.peakCount === 1 ? '' : 's'} detected in the frequency spectrum —
+                      more than expected for a natural photograph. Common causes: AI generation,
+                      upscaling, or images captured through patterned materials.
+                    {:else}
+                      Frequency spectrum consistent with a natural photograph. No unusual periodic patterns found.
+                    {/if}
+                  </p>
+                  {#if fou.spectrumUrl && showRawScores}
+                    <p class="mt-2 ml-6 mb-1 text-xs text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+                      This is a frequency map of the image. A natural photograph produces a roughly circular
+                      spread of brightness from the centre outward. Look for sharp bright dots or rings
+                      <em>away</em> from the centre — those are the periodic peaks the detector counted.
+                    </p>
                     <div class="mt-2 ml-6">
                       <ImageZoom
                         src={heatmapSrc(fou.spectrumUrl)}
                         alt="Fourier spectrum showing log-magnitude FFT with detected periodic peaks"
                         caption={fou.suspicious
-                          ? 'Click to enlarge — periodic peaks reveal regular structures (e.g. demosaicing or upscaling artefacts)'
-                          : 'Click to enlarge — frequency spectrum consistent with a natural photograph'}
+                          ? 'Tap to enlarge — look for bright dots away from the centre'
+                          : 'Tap to enlarge — spread of brightness from centre is the natural pattern'}
                       />
                     </div>
-                  {/if}
-                  {#if showRawScores}
                     <p class="mt-1 ml-6 text-[10px] text-flint-dark dark:text-flint-light tabular-nums">peak count: {fou.peakCount}</p>
                   {/if}
                 </DetectorRow>
@@ -3950,11 +3981,17 @@
             -->
             {#if !result.shadowConsistencyResult || !result.spliceBoundaryResult || !result.nprResult}
               <div class="px-5 py-3 border-t border-border-light dark:border-border-dark/40 bg-white/[0.01]">
-                <div class="flex items-center gap-2 mb-2 flex-wrap">
-                  <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold">On-demand investigation tools</span>
-                  <span class="text-[11px] text-flint-dark dark:text-flint-light">
-                    Run individually — these detectors do not auto-run in any verify mode.
-                  </span>
+                <div class="mb-2">
+                  <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold mb-0.5">
+                    Further investigation
+                  </p>
+                  <p class="text-[11px] text-flint-dark dark:text-flint-light leading-snug max-w-prose">
+                    These tools run on request and are for cross-examination only —
+                    running them <strong class="text-text-light dark:text-quartz">will not change the trust score above</strong>.
+                    They are excluded from automatic scoring because they have high
+                    false-positive rates on everyday photos, but can be useful when a
+                    trained eye is investigating a specific question.
+                  </p>
                 </div>
                 <div class="flex flex-wrap gap-2">
                   {#if !result.nprResult}
@@ -4058,6 +4095,16 @@
           />
         </div>
 
+        <!-- Collapsed-state subhead — surfaces the "two independent detectors"
+             framing before the user expands the card.  Hidden when the card
+             is open so the explanation does not duplicate what the body shows. -->
+        {#if openCard !== 'ai' && !aiDetectionSuppressed}
+          <p class="px-5 pb-3 text-xs text-flint-dark dark:text-flint-light leading-snug">
+            Two independent detectors assess whether this content was produced by an AI image generator.
+            The trust score reflects their combined finding.
+          </p>
+        {/if}
+
         {#if openCard === 'ai'}
           <div id="card-ai-body" class="border-t border-border-light dark:border-border-dark/60">
             {#if aiDetectionSuppressed}
@@ -4090,7 +4137,7 @@
                   {@const gbmTriggered = gbmSignals.filter((s) => s.triggered).length}
                   {@const gbmHighScoreNoSignals = gbmTriggered === 0 && (gbm.suspicious || gbm.verdictLevel === 'synthetic' || gbm.verdictLevel === 'inconclusive')}
                   <AiDetectorRow
-                    name="AI Generation (GBM Deepfake)"
+                    name="Machine learning classifier"
                     score={gbm.score}
                     suspicious={gbm.suspicious}
                     confidence="{gbm.confidence} confidence"
@@ -4104,6 +4151,9 @@
                         threshold {Math.round((gbm.verdictThresholds?.syntheticMin ?? GBM_SYNTHETIC_THRESHOLD_FALLBACK) * 100)}%
                       </span>
                     {/snippet}
+                    <p class="text-[10px] text-lapis dark:text-lapis-light leading-snug mb-1">
+                      Trained on over 10,000 images across 14 AI-generator families.
+                    </p>
                     <p class="text-xs text-flint-dark dark:text-flint-light">{gbm.summary}</p>
                     <!-- Verdict text is gated behind raw-scores (JTV-91):
                          the row already communicates the verdict via three
@@ -4160,16 +4210,13 @@
                 {#if result.clipResult}
                   {@const clip = result.clipResult}
                   <AiDetectorRow
-                    name="CLIP / UnivFD Probe"
+                    name="Visual embedding probe"
                     score={clip.score}
                     suspicious={clip.verdictLevel === 'synthetic'}
                   >
-                    {#snippet badges()}
-                      <ExperimentalPill
-                        variant="informational"
-                        helpHref="/help/how-it-works#two-ai-checks"
-                      />
-                    {/snippet}
+                    <p class="text-[10px] text-lapis dark:text-lapis-light leading-snug mb-1">
+                      Trained on over 50,000 samples across multiple image formats (JPEG, PNG, TIFF, WebP, HEIC).
+                    </p>
                     <p class="text-xs text-flint-dark dark:text-flint-light">{clip.summary}</p>
                     <!-- Class probability distribution (JTV-86).
                          Hidden by default because the zero-shot bars are

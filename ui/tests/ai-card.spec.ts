@@ -401,7 +401,7 @@ test.describe('AI card — GBM Deepfake row', () => {
     await injectAndOpenAiCard(page, r);
 
     const cardBody = page.locator('#card-ai-body');
-    await expect(cardBody.getByText('AI Generation (GBM Deepfake)')).toBeVisible();
+    await expect(cardBody.getByText('Machine learning classifier')).toBeVisible();
     await expect(cardBody.getByText('high confidence')).toBeVisible();
     // Threshold from verdictThresholds.syntheticMin (0.55 → 55%).
     await expect(cardBody.getByText('threshold 55%')).toBeVisible();
@@ -527,21 +527,20 @@ test.describe('AI card — CLIP / UnivFD row', () => {
     });
   });
 
-  test('experimental pill renders on CLIP row with correct help link', async ({ page }) => {
+  test('experimental pill is absent from CLIP row (regression guard, 2026-05-18)', async ({ page }) => {
+    // The "EXPERIMENTAL — informational only" pill was dropped from the
+    // CLIP row on 2026-05-18 (verify-page UX sweep, agent review).
+    // The UnivFD v10onnx probe behind the row is a trained, calibrated,
+    // trust-bearing signal (AUC 0.9933, FP 3.87%) — the pill mislabelled
+    // it as advisory and was the single highest-impact source of pilot
+    // confusion. This test guards against re-introducing the pill.
     const r = baseResult();
     r.clipResult = clipFixture({ score: 0.87, verdictLevel: 'synthetic' });
     await injectAndOpenAiCard(page, r);
 
     const cardBody = page.locator('#card-ai-body');
-    // The pill text contains "EXPERIMENTAL" + "informational only".
-    await expect(
-      cardBody.getByText(/informational only/),
-    ).toBeVisible();
-    // Pill wraps a link to the AI checks help section.
-    const pillLink = cardBody
-      .locator('a[href="/help/how-it-works#two-ai-checks"]')
-      .first();
-    await expect(pillLink).toBeVisible();
+    await expect(cardBody.getByText(/informational only/)).toHaveCount(0);
+    await expect(cardBody.getByText(/EXPERIMENTAL/)).toHaveCount(0);
   });
 
   test('zero-shot bars hidden by default when UnivFD probe is available', async ({ page }) => {
@@ -657,7 +656,7 @@ test.describe('AI card — AiDetectorRow chrome', () => {
 
     const title = page
       .locator('#card-ai-body')
-      .getByText('AI Generation (GBM Deepfake)')
+      .getByText('Machine learning classifier')
       .first();
     await expect(title).toHaveClass(/text-amber-light/);
   });
@@ -669,7 +668,7 @@ test.describe('AI card — AiDetectorRow chrome', () => {
 
     const title = page
       .locator('#card-ai-body')
-      .getByText('CLIP / UnivFD Probe')
+      .getByText('Visual embedding probe')
       .first();
     await expect(title).toHaveClass(/text-amber-light/);
   });
@@ -681,7 +680,7 @@ test.describe('AI card — AiDetectorRow chrome', () => {
 
     const title = page
       .locator('#card-ai-body')
-      .getByText('CLIP / UnivFD Probe')
+      .getByText('Visual embedding probe')
       .first();
     // Inconclusive maps to suspicious=false in the AI card's
     // current convention (the verdict text is the differentiator).
