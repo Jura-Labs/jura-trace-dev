@@ -294,7 +294,7 @@
                 <span class="tabular-nums">4.5%</span> false-positive rate
                 (real photographs incorrectly flagged as AI),
                 <span class="tabular-nums">92.5%</span> recall on AI-generated
-                content. Validated on 10,709 images.
+                content. Validated on over 10,000 images.
                 <a
                   href="/help/model-cards"
                   class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
@@ -304,11 +304,11 @@
             <td class="py-3 align-top">
               <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">Accuracy on photographs</p>
               <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-                <span class="tabular-nums">4.1%</span> false-positive rate
+                <span class="tabular-nums">3.9%</span> false-positive rate
                 (real photographs incorrectly flagged as AI),
-                <span class="tabular-nums">95.7%</span> recall on AI-generated
-                content. Validated on 39,016 images including
-                platform-forwarded re-encodes.
+                <span class="tabular-nums">95.8%</span> recall on AI-generated
+                content. Validated on over 50,000 samples including
+                platform-forwarded re-encodes and multi-format augmentation.
                 <a
                   href="/help/model-cards"
                   class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"

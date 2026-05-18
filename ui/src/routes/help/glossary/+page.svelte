@@ -363,7 +363,7 @@
           The machine learning classifier at the centre of Jura Trace's AI detection
           ensemble. Current version is <strong>GBM v4</strong>, trained on an
           84-feature vector extracted from the forensic signal pipeline using a
-          corpus of 10,709 images (5,724 authentic, 4,985 AI-generated from 14
+          corpus of over 10,000 images (balanced authentic and AI-generated from 14
           generator families). Achieves a cross-validation AUC-ROC of 0.9868 with
           an authentic false-positive rate of 4.54% at the calibrated threshold.
           Combined with the UnivFD v10onnx CLIP probe (AUC-ROC 0.9929) into an ensemble
