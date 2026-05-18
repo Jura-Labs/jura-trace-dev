@@ -225,19 +225,17 @@
     weatherError = null;
     weatherData = null;
     try {
-      const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${gpsCoords.lat}&longitude=${gpsCoords.lon}&start_date=${date}&end_date=${date}&hourly=temperature_2m,cloudcover,precipitation,visibility,windspeed_10m&timezone=UTC`;
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`Weather API returned ${resp.status}`);
-      const json = await resp.json();
-      const hour = exifHour();
-      const idx = Math.min(hour, (json.hourly?.time?.length ?? 1) - 1);
-      weatherData = {
-        temperature: json.hourly?.temperature_2m?.[idx] ?? 0,
-        cloudCover: json.hourly?.cloudcover?.[idx] ?? 0,
-        precipitation: json.hourly?.precipitation?.[idx] ?? 0,
-        visibility: json.hourly?.visibility?.[idx] ?? 0,
-        windSpeed: json.hourly?.windspeed_10m?.[idx] ?? 0,
-      };
+      // Routed through Rust IPC (security audit 2026-05-16 NEW-MED-1 /
+      // JTV-183). The Enhanced-mode network gate is enforced server-side
+      // before any HTTP call is made; the CSP no longer permits a direct
+      // browser fetch to archive-api.open-meteo.com.
+      const { fetchWeatherContext } = await import('$lib/api');
+      weatherData = await fetchWeatherContext(
+        gpsCoords.lat,
+        gpsCoords.lon,
+        date,
+        exifHour(),
+      );
     } catch (e) {
       weatherError = e instanceof Error ? e.message : 'Weather lookup failed.';
     } finally {

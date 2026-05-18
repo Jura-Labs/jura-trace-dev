@@ -1454,3 +1454,43 @@ export async function runSpliceBoundaryOnDemand(
     summary: 'Browser preview — no analysis run.',
   } as SpliceBoundaryResult;
 }
+
+/**
+ * Historical weather conditions for a single (lat, lon, date, hour) tuple.
+ * Returned by `fetchWeatherContext`; mirrors the Rust `WeatherContext` struct.
+ */
+export interface WeatherContext {
+  temperature: number;
+  cloudCover: number;
+  precipitation: number;
+  visibility: number;
+  windSpeed: number;
+}
+
+/**
+ * Fetch historical weather conditions for a GPS coordinate, date, and hour
+ * from the Open-Meteo archive. Moved server-side to the Rust IPC layer so
+ * the Enhanced-mode network gate is enforced before any outbound HTTP call
+ * is made — the previous frontend `networkMode === 'enhanced'` check was
+ * bypassable from the browser console (security audit 2026-05-16 NEW-MED-1
+ * / JTV-183).
+ *
+ * Throws if network mode is Standard, if inputs are out of range, or if the
+ * upstream API is unreachable.
+ */
+export async function fetchWeatherContext(
+  latitude: number,
+  longitude: number,
+  date: string,
+  hour: number,
+): Promise<WeatherContext> {
+  if (isTauri) {
+    return await invoke<WeatherContext>('fetch_weather_context', {
+      latitude,
+      longitude,
+      date,
+      hour,
+    });
+  }
+  throw new Error('Weather context lookup is only available in the desktop application.');
+}

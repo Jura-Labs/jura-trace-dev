@@ -877,6 +877,13 @@ pub struct SidecarClient {
     /// Wrapped in `Arc` so cloned clients share the same cache.
     #[allow(clippy::type_complexity)]
     file_cache: std::sync::Arc<std::sync::Mutex<Option<(std::path::PathBuf, Vec<u8>)>>>,
+    /// The per-session sidecar API key (the value of `JURA_SIDECAR_KEY` at
+    /// the moment this client was constructed). Stored here so async Tauri
+    /// commands (e.g. `pull_ollama_model`) that build their own reqwest
+    /// client with a longer timeout can attach the auth header without
+    /// re-reading the process environment at call time (security audit
+    /// 2026-05-16 NEW-MED-3 / JTV-185).
+    api_key: String,
 }
 
 impl SidecarClient {
@@ -911,7 +918,16 @@ impl SidecarClient {
             base_url: base_url.trim_end_matches('/').to_string(),
             client,
             file_cache: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            api_key: api_key.to_string(),
         }
+    }
+
+    /// The per-session sidecar API key as passed to `new()`. Returns an
+    /// empty string when sidecar authentication is disabled. Used by async
+    /// Tauri commands that need to attach `X-Jura-API-Key` to a separate
+    /// reqwest client (e.g. `pull_ollama_model`'s long-timeout client).
+    pub fn api_key(&self) -> &str {
+        &self.api_key
     }
 
     /// Cache file bytes for the given path.  Subsequent `build_image_form`

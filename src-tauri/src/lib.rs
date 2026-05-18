@@ -3522,6 +3522,142 @@ fn read_manifest_chain(
     })
 }
 
+/// Historical weather context for a single (lat, lon, date, hour) tuple.
+///
+/// Returned by [`fetch_weather_context`] after a successful Open-Meteo
+/// archive lookup. Mirrors the `WeatherData` interface defined in
+/// `ui/src/routes/verify/+page.svelte`. All fields are best-effort —
+/// missing values from the upstream API default to 0.0 so the frontend
+/// can render the panel without conditional logic.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WeatherContext {
+    pub temperature: f64,
+    pub cloud_cover: f64,
+    pub precipitation: f64,
+    pub visibility: f64,
+    pub wind_speed: f64,
+}
+
+/// Fetch historical weather conditions for a single GPS coordinate, date,
+/// and hour-of-day from the Open-Meteo archive API.
+///
+/// Moved server-side from the verify-page frontend to enforce the
+/// Enhanced-mode network gate in Rust rather than relying on a UI-only
+/// guard. Security audit 2026-05-16 NEW-MED-1 / JTV-183 flagged that the
+/// JavaScript `networkMode === 'enhanced'` check could be bypassed via the
+/// browser console; the gate now runs server-side in this command and the
+/// CSP `connect-src` no longer permits `https://archive-api.open-meteo.com`
+/// from the frontend.
+///
+/// Returns [`AppError::Validation`] when:
+/// - Network mode is `Standard` (gate fails)
+/// - Inputs are out of range (lat ∉ [-90, 90], lon ∉ [-180, 180], hour > 23,
+///   date is not `YYYY-MM-DD`)
+///
+/// Returns [`AppError::Internal`] on upstream HTTP / JSON / network errors.
+#[tauri::command]
+async fn fetch_weather_context(
+    app_handle: tauri::AppHandle,
+    latitude: f64,
+    longitude: f64,
+    date: String,
+    hour: u8,
+) -> Result<WeatherContext, AppError> {
+    // ── Enhanced-mode gate (the whole point of this command) ────────────
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(format!("app data dir unavailable: {e}")))?;
+    if !network_mode::is_enhanced(&data_dir) {
+        return Err(AppError::Validation(
+            "Weather lookup requires Enhanced network mode. Switch in Settings.".into(),
+        ));
+    }
+
+    // ── Input validation ─────────────────────────────────────────────────
+    if !(-90.0..=90.0).contains(&latitude) {
+        return Err(AppError::Validation(
+            "Latitude must be between -90 and 90".into(),
+        ));
+    }
+    if !(-180.0..=180.0).contains(&longitude) {
+        return Err(AppError::Validation(
+            "Longitude must be between -180 and 180".into(),
+        ));
+    }
+    if hour > 23 {
+        return Err(AppError::Validation("Hour must be 0-23".into()));
+    }
+    // ISO date shape check (YYYY-MM-DD). Open-Meteo will reject anything
+    // else but we surface a clearer error than a 400 from the upstream.
+    if date.len() != 10
+        || !date.chars().enumerate().all(|(i, c)| {
+            matches!(i, 4 | 7)
+                .then(|| c == '-')
+                .unwrap_or(c.is_ascii_digit())
+        })
+    {
+        return Err(AppError::Validation(
+            "Date must be in YYYY-MM-DD format".into(),
+        ));
+    }
+
+    // ── Upstream fetch ──────────────────────────────────────────────────
+    let url = format!(
+        "https://archive-api.open-meteo.com/v1/archive?latitude={latitude}&longitude={longitude}\
+         &start_date={date}&end_date={date}\
+         &hourly=temperature_2m,cloudcover,precipitation,visibility,windspeed_10m\
+         &timezone=UTC"
+    );
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| AppError::Internal(format!("HTTP client build failed: {e}")))?;
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(format!("Weather lookup network error: {e}")))?;
+    if !resp.status().is_success() {
+        return Err(AppError::Internal(format!(
+            "Weather API returned {}",
+            resp.status()
+        )));
+    }
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| AppError::Internal(format!("Weather response not JSON: {e}")))?;
+
+    // ── Extract hourly value at the requested hour index ────────────────
+    let hourly = json
+        .get("hourly")
+        .ok_or_else(|| AppError::Internal("Weather response missing 'hourly' object".into()))?;
+    let times_len = hourly
+        .get("time")
+        .and_then(|t| t.as_array())
+        .map(|a| a.len())
+        .ok_or_else(|| AppError::Internal("Weather response missing 'hourly.time' array".into()))?;
+    let idx = std::cmp::min(hour as usize, times_len.saturating_sub(1));
+    let extract = |field: &str| -> f64 {
+        hourly
+            .get(field)
+            .and_then(|a| a.as_array())
+            .and_then(|a| a.get(idx))
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0)
+    };
+
+    Ok(WeatherContext {
+        temperature: extract("temperature_2m"),
+        cloud_cover: extract("cloudcover"),
+        precipitation: extract("precipitation"),
+        visibility: extract("visibility"),
+        wind_speed: extract("windspeed_10m"),
+    })
+}
+
 /// Return the current network mode (`standard` or `enhanced`).
 #[tauri::command]
 fn get_network_mode(app_handle: tauri::AppHandle) -> Result<network_mode::NetworkMode, AppError> {
@@ -6601,17 +6737,18 @@ async fn pull_ollama_model(
     }
     let model_name = trimmed.to_string();
 
-    let port = {
+    // Snapshot both port and api_key in a single lock acquisition. Reading
+    // the api_key off SidecarClient (which captured it at setup time) rather
+    // than std::env::var at call time avoids the env-var-as-secret-store
+    // pattern flagged by security audit 2026-05-16 NEW-MED-3 / JTV-185
+    // (env vars leak via /proc/self/environ on Linux and via inherited env
+    // to any child process spawned post-setup).
+    let (port, api_key) = {
         let guard = state
             .lock()
             .map_err(|_| AppError::Internal("State lock failed".into()))?;
-        guard.sidecar_port
+        (guard.sidecar_port, guard.sidecar.api_key().to_string())
     };
-
-    // Read the per-session sidecar API key directly from the env var the
-    // setup callback set when it constructed `SidecarClient`. Matches the
-    // existing frontend's no-auth behaviour when the key is empty.
-    let api_key = std::env::var("JURA_SIDECAR_KEY").unwrap_or_default();
 
     let url = format!("http://127.0.0.1:{port}/ollama/pull");
     let client = reqwest::Client::builder()
@@ -7274,6 +7411,7 @@ pub fn run() {
             read_manifest_chain,
             get_network_mode,
             set_network_mode,
+            fetch_weather_context,
             get_power_saver_mode,
             set_power_saver_mode,
             pull_ollama_model,
