@@ -540,31 +540,54 @@ jobs:
       # separately. If tauri-action fails because gitea.token is not
       # a valid GitHub token, set GITHUB_TOKEN to a stub value ("x") —
       # tauri-action only requires it to be non-empty to avoid a hard crash.
-      - name: Build release artefacts (macOS and Linux)
-        if: runner.os != 'Windows'
+      # JTV-184 Phase 5 split on macOS — see .github/workflows/release.yml
+      # for full rationale. tauri-action signs .app only (no DMG, no
+      # notarisation); per-file sign + DMG regenerate + notarise follow.
+      - name: Build release artefacts (macOS — sign .app only)
+        if: matrix.target == 'aarch64-apple-darwin'
         uses: tauri-apps/tauri-action@v0
         env:
-          # Forgejo built-in token — not a GitHub token. tauri-action reads
-          # GITHUB_TOKEN internally for release creation; since we pass no
-          # releaseId it falls through without making any GitHub API call.
-          # The env var must still be set to avoid a hard crash in tauri-action.
           GITHUB_TOKEN: ${{ gitea.token }}
-
-          # ── macOS code signing ────────────────────────────────────────────
           APPLE_CERTIFICATE:          ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY:     ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID:                   ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD:             ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID:              ${{ secrets.APPLE_TEAM_ID }}
-
-          # ── Tauri updater bundle signing (minisign) ──────────────────────
           TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tauriScript: cargo tauri
+          args: --target ${{ matrix.target }} --bundles app
 
+      - name: Build release artefacts (Linux)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ gitea.token }}
+          TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tauriScript: cargo tauri
           args: --target ${{ matrix.target }}
+
+      # Per-file sign nested PyInstaller --onedir code that Tauri's --deep
+      # does not reach. See .github/workflows/release.yml for rationale.
+      - name: Phase 5 — per-file sign nested sidecar-bundle code (macOS)
+        if: matrix.target == 'aarch64-apple-darwin'
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          bundle_dir="src-tauri/target/aarch64-apple-darwin/release/bundle"
+          app_path=$(find "$bundle_dir/macos" -maxdepth 1 -name "*.app" -type d | head -1)
+          sidecar_root="$app_path/Contents/Resources/sidecar-bundle"
+          count=0
+          while IFS= read -r f; do
+            codesign --force --sign "$APPLE_SIGNING_IDENTITY" --options runtime --timestamp "$f" >/dev/null 2>&1
+            count=$((count + 1))
+          done < <(find "$sidecar_root" -type f \( -name "*.so" -o -name "*.dylib" \) | sort -r)
+          echo "Per-file signed $count nested .so/.dylib files."
+          codesign --force --sign "$APPLE_SIGNING_IDENTITY" --options runtime --timestamp "$sidecar_root/jura-sidecar"
+          codesign --force --sign "$APPLE_SIGNING_IDENTITY" --options runtime --timestamp "$app_path"
+          codesign --verify --deep --strict --verbose=2 "$app_path" 2>&1 | tail -3
 
       # ── macOS Phase 5: spot-check sidecar-bundle nested signing ──────────
       # See .github/workflows/release.yml for full rationale (JTV-184).
@@ -594,10 +617,53 @@ jobs:
           echo "Bootloader: Team=$boot_ident"
           [ "$boot_ident" != "Y82C4P9L7F" ] && failed=$((failed + 1))
           if [ "$failed" -gt 0 ]; then
-            echo "::error::Phase 5 nested signing check failed — Tauri --deep did not reach Resources/sidecar-bundle/."
+            echo "::error::Phase 5 nested signing check failed — the per-file sign step above should have made this pass; check its output."
             exit 1
           fi
           echo "Phase 5 nested signing verification PASSED."
+
+      - name: Phase 5 — regenerate DMG + updater payload (macOS)
+        if: matrix.target == 'aarch64-apple-darwin'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cargo tauri bundle --bundles dmg,updater --target aarch64-apple-darwin
+          ls -la src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/ || true
+          ls -la src-tauri/target/aarch64-apple-darwin/release/bundle/macos/ || true
+
+      - name: Phase 5 — codesign DMG (macOS)
+        if: matrix.target == 'aarch64-apple-darwin'
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          bundle_dir="src-tauri/target/aarch64-apple-darwin/release/bundle"
+          dmg=$(find "$bundle_dir/dmg" -maxdepth 1 -name "*.dmg" | head -1)
+          [ -z "$dmg" ] && { echo "::error::No DMG found"; exit 1; }
+          codesign --force --sign "$APPLE_SIGNING_IDENTITY" --timestamp "$dmg"
+          codesign --verify --verbose=2 "$dmg" 2>&1 | tail -3
+
+      - name: Phase 5 — notarise + staple (macOS)
+        if: matrix.target == 'aarch64-apple-darwin'
+        env:
+          APPLE_ID:       ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID:  ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          bundle_dir="src-tauri/target/aarch64-apple-darwin/release/bundle"
+          dmg=$(find "$bundle_dir/dmg" -maxdepth 1 -name "*.dmg" | head -1)
+          app_path=$(find "$bundle_dir/macos" -maxdepth 1 -name "*.app" -type d | head -1)
+          xcrun notarytool submit "$dmg" \
+            --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$dmg"
+          xcrun stapler staple "$app_path"
+          xcrun stapler validate "$dmg"
+          xcrun stapler validate "$app_path"
+          spctl --assess --verbose=2 --type install "$dmg" 2>&1 | tail -3
 
       # ── Empty-signature gate (macOS / Linux) ────────────────────────────
       # Identical logic to the GitHub workflow — catches missing/empty .sig
