@@ -6676,10 +6676,17 @@ fn wait_for_sidecar_ready(max_attempts: u32, port: u16) -> bool {
 
 /// Pick a free loopback TCP port for the sidecar. Binds to `127.0.0.1:0` so
 /// the OS allocates an ephemeral port, records it, then drops the listener so
-/// the sidecar can bind. There is a sub-millisecond race window between the
-/// drop and the sidecar's bind, but on a random ephemeral port the collision
-/// probability is astronomically lower than the hard-coded 8200 case that
-/// triggered Option C in the first place.
+/// the sidecar can bind.
+///
+/// **Accepted residual risk (security audit 2026-05-16 NEW-MED-5 / JTV-187):**
+/// sub-millisecond race window between `drop(listener)` and the sidecar's
+/// `bind()`. A local same-user process that wins the race could occupy the
+/// freed port and receive one session's API key + image data. Accepted for
+/// v1.0 on grounds of (a) very low exploitability — random port from the
+/// ephemeral range, must win first-try, key regenerates per session — and
+/// (b) local-only threat model where an in-process attacker already has
+/// higher-leverage paths. v1.1 may revisit via fd-passing (eliminates the
+/// race but needs sidecar-side `socket.fromfd()` + uvicorn `--fd` work).
 ///
 /// Returns `None` if no port can be bound (extremely unlikely — would indicate
 /// process-level resource exhaustion). Callers should fall back to a fixed
