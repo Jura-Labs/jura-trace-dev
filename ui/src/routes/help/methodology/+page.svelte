@@ -310,22 +310,17 @@
     </p>
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
-      The reference is divided into three groups. The eleven <strong class="text-text-light dark:text-quartz font-medium">automatic detectors</strong>
+      The reference is divided into two groups. The eleven <strong class="text-text-light dark:text-quartz font-medium">automatic detectors</strong>
       run on every verification at the mode indicated in each entry's
       <em>Active in modes</em> line — their findings feed into the numeric trust
       score. A twelfth detector — Video Deepfake — is <strong class="text-text-light dark:text-quartz font-medium">not in v1.0 scope</strong>
       and currently shows as an "Under evaluation" banner on video files; v1.0 verifies
-      provenance and metadata only on video. Below the automatic detectors, a
-      lapis-tinted block lists the
-      <strong class="text-text-light dark:text-quartz font-medium">knowledge base retrieval aid</strong>:
-      an advisory tool that runs automatically on audio and video content but
-      does not contribute to the trust score. Finally, an amber-tinted panel
+      provenance and metadata only on video. Below the automatic detectors, an amber-tinted panel
       lists the three
       <strong class="text-text-light dark:text-quartz font-medium">on-demand investigation tools</strong>:
       these are available in Expert View and can be triggered manually when the
       automatic signals are ambiguous or when a specific question needs a targeted
-      probe. Neither the knowledge base aid nor the on-demand tools contribute to
-      the numeric trust score.
+      probe. The on-demand tools do not contribute to the numeric trust score.
     </p>
 
     <!--
@@ -358,11 +353,11 @@
         entry remains in the reference below for transparency with an
         "Under evaluation" tag.
 
-      Knowledge base retrieval aid (advisory, NOT in trust scoring):
-        Claim checker — formerly RAG Claim Checker, reframed in
-        commit 4e4af0d. Moved out of the automatic detectors list
-        in the S28 follow-up because it is a retrieval-match
-        assessment, not a forensic signal.
+      Knowledge base retrieval aid (Claim Checker, formerly RAG):
+        Deferred from v1.0 on 2026-05-17 pending corpus expansion and
+        formal accuracy evaluation. The Python service code remains
+        for re-enablement; the sidecar capability flag rag is false
+        in v1.0 builds.
 
       On-demand investigation tools (NOT in trust scoring):
         NPR — demoted S28-3 (April 2026)
@@ -1069,97 +1064,6 @@
         </div>
       </details>
 
-      <!--
-        Knowledge base retrieval aid — advisory block, not a forensic detector.
-
-        Reframed from the original RAG Claim Checker in commit 4e4af0d.
-        Moved out of the automatic detectors list in the Sprint 28 follow-up
-        reconciliation: this is not a forensic signal and does not contribute
-        to the numeric trust score. It runs automatically on audio/video
-        content in Deep mode when Ollama and faster-whisper are
-        present, but its output is rendered separately from the detector
-        verdicts and has an explicit non-warranty statement on the model
-        card. Visually distinct from the on-demand panel below (lapis-tinted,
-        advisory) versus the amber-tinted on-demand block which gates manual
-        investigation tools.
-      -->
-      <div
-        class="mt-8 rounded-lg border border-lapis/30 dark:border-lapis/25 bg-lapis/[0.04] dark:bg-lapis/[0.06] p-4"
-        aria-labelledby="kb-aid-heading"
-      >
-        <h3
-          id="kb-aid-heading"
-          class="font-heading text-lg text-text-light dark:text-quartz mb-1 tracking-heading"
-        >
-          Knowledge base retrieval aid
-        </h3>
-
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-          An advisory tool that runs automatically on audio and video content
-          in Deep mode when Ollama and faster-whisper are
-          installed. It is
-          <strong class="font-medium text-text-light dark:text-quartz">not a forensic detector</strong>
-          and does
-          <strong class="font-medium text-text-light dark:text-quartz">not</strong>
-          contribute to the numeric trust score. Its output is displayed
-          separately from the verdict summary under its own &ldquo;Knowledge Base
-          Match&rdquo; panel.
-        </p>
-
-        <details class="group rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite">
-          <summary
-            class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none
-                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis rounded"
-          >
-            <span class="flex items-center gap-3">
-              <span class="font-medium text-sm text-text-light dark:text-quartz">
-                Claim checker
-                <span class="ml-1.5 text-xs font-normal text-flint-dark dark:text-flint-light">(requires Ollama + faster-whisper)</span>
-              </span>
-            </span>
-            <span class="flex-shrink-0 text-xs text-flint-dark dark:text-flint-light select-none">
-              <span class="hidden group-open:inline">Close</span>
-              <span class="group-open:hidden">Details</span>
-            </span>
-          </summary>
-          <div class="px-4 pb-4 pt-3 border-t border-border-light dark:border-border-dark">
-            <dl class="space-y-3 text-sm">
-              <div>
-                <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
-                <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                  Whether factual claims made in audio or video content are consistent with a local knowledge base. It does not assess visual authenticity and it does not prove or disprove individual claims — it only reports retrieval matches against a small preliminary corpus.
-                </dd>
-              </div>
-              <div>
-                <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
-                <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                  Audio tracks are transcribed locally via faster-whisper. Discrete factual claims are extracted from the transcript. Each claim is evaluated against a local knowledge base using TF-IDF retrieval (no web access), and a Qwen2.5 language model running via Ollama produces a verdict in the vocabulary <em>consistent with KB</em> / <em>inconsistent with KB</em> / <em>insufficient context in KB</em>. All processing occurs entirely on-device.
-                </dd>
-              </div>
-              <div>
-                <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What the output means</dt>
-                <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                  A <em>consistent</em> match means the claim appears supported by passages already in the knowledge base. An <em>inconsistent</em> match means the claim directly contradicts material in the knowledge base. <em>Insufficient context</em> means the knowledge base does not cover the topic — the tool does not reason from the language model's training data. This is a retrieval assessment, not a fact-check.
-                </dd>
-              </div>
-              <div>
-                <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Non-warranty</dt>
-                <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                  The local knowledge base is a small preliminary corpus (~150 passages across 6 documents in the current build). It is
-                  <strong class="font-medium text-text-light dark:text-quartz">not</strong>
-                  a replacement for professional fact-checking. See the
-                  <a href="/help/model-cards#kb-retrieval" class="text-lapis dark:text-lapis-light underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">model card</a>
-                  for scope, limitations, and the explicit non-warranty. Transcription errors may also lead to incorrect claim extraction.
-                </dd>
-              </div>
-              <div>
-                <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-                <dd class="text-flint-dark dark:text-flint-light">Deep — only when Ollama is running and faster-whisper is installed</dd>
-              </div>
-            </dl>
-          </div>
-        </details>
-      </div>
 
       <!-- On-demand investigation tools — visually distinct block -->
       <div

@@ -18,8 +18,8 @@
       <span class="ml-2 align-middle text-sm font-normal text-flint-dark dark:text-flint-light">(optional)</span>
     </h1>
     <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed">
-      Ollama runs two optional features locally on your machine: AI-generated image
-      descriptions (LLaVA) and claim verification against a knowledge base (Qwen2.5).
+      Ollama runs an optional feature locally on your machine in v1.0: AI-generated
+      image descriptions and "Read Text" extraction from images (LLaVA).
       <strong class="text-text-light dark:text-text-dark">Jura Trace works fully without Ollama.</strong>
       All forensic detectors, AI deepfake detection (GBM v4 + UnivFD v10onnx), C2PA
       provenance, and watermarking run independently.
@@ -34,7 +34,7 @@
       Should you install it?
     </h2>
     <ul class="space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
-      <li><strong class="text-text-light dark:text-text-dark">Yes, if</strong> you have at least 16 GB of RAM, around 10 GB of free disk, a reliable internet connection for the one-time download (~9 GB total), and you want auto-generated image captions or claim cross-checking against a knowledge base.</li>
+      <li><strong class="text-text-light dark:text-text-dark">Yes, if</strong> you have at least 16 GB of RAM, around 5 GB of free disk, a reliable internet connection for the one-time download (~4.5 GB), and you want auto-generated image captions or "Read Text" extraction from screenshots.</li>
       <li><strong class="text-text-light dark:text-text-dark">Skip, if</strong> you are on an 8 GB machine, on a slow or metered connection, or your IT policy disallows installing software outside a managed catalogue. Core verification works fully without it.</li>
     </ul>
   </section>
@@ -49,7 +49,7 @@
     <ol class="space-y-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed list-decimal pl-5">
       <li>Open <strong class="text-text-light dark:text-text-dark">Settings → Service Status → Ollama</strong> and click <em>Install Ollama automatically</em>. This runs <code class="font-mono text-xs px-1.5 py-0.5 rounded bg-graphite/20 dark:bg-graphite-light/20">brew install ollama</code> for you. If you do not have Homebrew, the manual download path is below.</li>
       <li>Wait for the install to finish (typically under a minute). Click <em>Re-check</em> in the Ollama card; the status will move from <em>Not installed</em> to <em>Installed — no models</em>.</li>
-      <li>Click <em>Download</em> next to <code class="font-mono text-xs px-1.5 py-0.5 rounded bg-graphite/20 dark:bg-graphite-light/20">llava:7b</code> and <code class="font-mono text-xs px-1.5 py-0.5 rounded bg-graphite/20 dark:bg-graphite-light/20">qwen2.5:7b-instruct</code> in turn. Each is ~4.5 GB; download time depends on your connection. You can leave Jura Trace open during the download.</li>
+      <li>Click <em>Download</em> next to <code class="font-mono text-xs px-1.5 py-0.5 rounded bg-graphite/20 dark:bg-graphite-light/20">llava:7b</code>. Download size ~4.7 GB; time depends on your connection. You can leave Jura Trace open during the download.</li>
       <li>When both rows show green, the Ollama card status reads <em>Ready</em>.</li>
     </ol>
     <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-4">
@@ -72,7 +72,7 @@
       <li>If <code class="font-mono text-xs px-1.5 py-0.5 rounded bg-graphite/20 dark:bg-graphite-light/20">winget</code> is not available (some Windows Server SKUs and locked-down enterprise builds), use the manual download from
         <a href="https://ollama.com" target="_blank" rel="noopener noreferrer"
            class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">ollama.com<span class="sr-only"> (opens in a new tab)</span></a>.</li>
-      <li>After install, click <em>Re-check</em> in the Ollama card and download the two models as described above.</li>
+      <li>After install, click <em>Re-check</em> in the Ollama card and download the model as described above.</li>
     </ol>
   </section>
 
@@ -120,23 +120,17 @@
             <td class="py-2 pr-4">~90 MB</td>
             <td class="py-2">~15 s</td>
           </tr>
-          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
+          <tr>
             <td class="py-2 pr-4"><code class="font-mono text-xs">llava:7b</code> (image descriptions)</td>
             <td class="py-2 pr-4">~4.7 GB</td>
             <td class="py-2">~13 min</td>
-          </tr>
-          <tr>
-            <td class="py-2 pr-4"><code class="font-mono text-xs">qwen2.5:7b-instruct</code> (claim verification)</td>
-            <td class="py-2 pr-4">~4.4 GB</td>
-            <td class="py-2">~12 min</td>
           </tr>
         </tbody>
       </table>
     </div>
     <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-4">
-      RAM usage when running: ~5–6 GB while a model is in use. Both models cannot be
-      resident simultaneously on most machines — Ollama auto-evicts an idle model after
-      five minutes by default, then re-loads on the next request (~5–8 s).
+      RAM usage when running: ~5–6 GB while the model is in use. Ollama auto-evicts an
+      idle model after five minutes by default, then re-loads on the next request (~5–8 s).
     </p>
   </section>
 

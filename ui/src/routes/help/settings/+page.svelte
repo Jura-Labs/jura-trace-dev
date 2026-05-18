@@ -116,26 +116,10 @@
       </ul>
     </div>
 
-    <!-- Feature 2: Claim Verification -->
-    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Feature 2 — Claim Verification
-      </p>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
-        When you verify a video or audio file containing speech, Jura Trace transcribes
-        what was said. If Ollama is running, it then checks the factual claims in that
-        transcript against a knowledge base and returns a verdict for each claim:
-        <strong class="text-text-light dark:text-text-dark">supported</strong>,
-        <strong class="text-text-light dark:text-text-dark">disputed</strong>, or
-        <strong class="text-text-light dark:text-text-dark">unverifiable</strong>.
-      </p>
-      <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-2">Useful for</p>
-      <ul class="space-y-1 text-sm text-flint-dark dark:text-flint-light">
-        <li class="flex gap-2"><span class="text-lapis dark:text-lapis-light flex-none">→</span> Fact-checking video interviews or speeches</li>
-        <li class="flex gap-2"><span class="text-lapis dark:text-lapis-light flex-none">→</span> Verifying claims made in news footage</li>
-        <li class="flex gap-2"><span class="text-lapis dark:text-lapis-light flex-none">→</span> Checking statements in audio recordings</li>
-      </ul>
-    </div>
+    <!-- Feature 2 (Knowledge Base Retrieval / claim verification) was
+         deferred from v1.0 on 2026-05-17 pending corpus expansion and
+         formal accuracy evaluation. Block removed; will return with the
+         feature in a future release. -->
 
   </div>
 
@@ -194,21 +178,9 @@
       </div>
     </div>
 
-    <!-- Step 3 -->
-    <div class="flex gap-4">
-      <span class="flex-none w-7 h-7 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center mt-0.5">3</span>
-      <div>
-        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-1">Test claim checking</p>
-        <ol class="space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed list-none">
-          <li>a. Find a short video clip with someone speaking — a news clip or interview works well.</li>
-          <li>b. Go to <strong class="text-text-light dark:text-text-dark">VERIFY</strong> and drop the video onto the drop zone.</li>
-          <li>c. Select <strong class="text-text-light dark:text-text-dark">Deep</strong> mode at the top of the page (this enables transcription).</li>
-          <li>d. Wait for analysis — video analysis can take 30–60 seconds.</li>
-          <li>e. If speech was detected, the transcript appears in the results panel.</li>
-          <li>f. If Ollama is running, each factual claim in the transcript is shown with a verdict: <strong class="text-text-light dark:text-text-dark">Supported</strong>, <strong class="text-text-light dark:text-text-dark">Disputed</strong>, or <strong class="text-text-light dark:text-text-dark">Unverifiable</strong>.</li>
-        </ol>
-      </div>
-    </div>
+    <!-- Step 3 (Test claim checking) was deferred from v1.0 on 2026-05-17
+         alongside the Knowledge Base Retrieval feature itself. Returns
+         with the feature in a future release. -->
 
   </div>
 
@@ -448,7 +420,7 @@
           <tbody class="text-flint-dark dark:text-flint-light">
             <tr class="border-b border-border-light/50 dark:border-border-dark/50">
               <td class="py-2 pr-4 font-semibold text-malachite-dark dark:text-malachite-light">Online</td>
-              <td class="py-2">Ollama is running and at least one model is available. Tier 3 descriptions and RAG claim verification are enabled.</td>
+              <td class="py-2">Ollama is running and at least one model is available. Tier 3 image descriptions and Read Text are enabled.</td>
             </tr>
             <tr>
               <td class="py-2 pr-4 font-semibold text-cinnabar-dark dark:text-cinnabar-light">Unavailable</td>

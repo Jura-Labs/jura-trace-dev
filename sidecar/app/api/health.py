@@ -75,8 +75,12 @@ async def health(request: Request) -> HealthResponse:
     # from _MEIPASS that previously stalled the Rust startup poller.
     clip_available = bool(getattr(request.app.state, "clip_available", False))
 
-    # RAG claim checking is available whenever Ollama is reachable.
-    rag_available = ollama_status == "available"
+    # Knowledge Base Retrieval (RAG claim checker) deferred from v1.0
+    # on 2026-05-17 pending corpus expansion and formal accuracy evaluation.
+    # The Python service code remains for re-enablement in a future release;
+    # the capability flag is forced to false so the desktop UI hides the
+    # claims card and the REST API does not advertise the feature.
+    rag_available = False
 
     # FFmpeg availability gates the (currently disabled) video/audio paths.
     # JTV-138 (2026-05-02): the Rust pipeline gates the video/audio sidecar

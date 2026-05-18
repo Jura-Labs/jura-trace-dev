@@ -75,6 +75,9 @@
     'videoDeepfake',
     'transcription',
     'audioDeepfake',
+    // Knowledge Base Retrieval (RAG claim checker) deferred from v1.0
+    // on 2026-05-17 pending corpus expansion and formal accuracy evaluation.
+    'rag',
   ]);
 
   const sidecarOnline = $derived(sidecarHealth?.status === 'ok');
@@ -1173,10 +1176,9 @@
           spellcheck={false}
         />
         <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
-          Ollama runs AI models locally on your computer for two optional features: (1) reading text
-          visible in images such as screenshots or memes, and (2) checking factual claims in
-          transcribed speech against a knowledge base. Neither feature is required — Jura Trace works
-          fully without Ollama.
+          Ollama runs an AI model locally on your computer for one optional feature in v1.0:
+          reading text visible in images such as screenshots or memes. This is not required —
+          Jura Trace works fully without Ollama.
         </p>
       </div>
 
@@ -1199,24 +1201,11 @@
         </p>
       </div>
 
-      <div>
-        <label for="text-model" class="block text-sm font-medium text-text-light dark:text-quartz mb-1">
-          Claim checking model
-        </label>
-        <input
-          id="text-model"
-          type="text"
-          bind:value={textModel}
-          class="w-full max-w-md px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian text-text-light dark:text-quartz text-sm
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:border-transparent transition-colors"
-          placeholder={DEFAULT_TEXT_MODEL}
-          autocomplete="off"
-          spellcheck={false}
-        />
-        <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
-          Used for claim verification and metadata summarisation
-        </p>
-      </div>
+      <!-- Knowledge Base Retrieval (claim check + RAG) deferred from v1.0
+           (2026-05-17). The Ollama text-model picker for claim verification
+           is hidden until the feature returns with a maturity-evaluated
+           corpus. The textModel state + DEFAULT_TEXT_MODEL constant are
+           retained so the binding contract with saved settings is unchanged. -->
 
       <!-- Save row -->
       <div class="flex items-center gap-4 pt-2">

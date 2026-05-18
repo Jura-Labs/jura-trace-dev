@@ -540,11 +540,10 @@
         >Ollama</dt>
         <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
           A local large language model runtime used optionally by Jura Trace. When Ollama
-          is running, it enables two additional capabilities: image description via the
-          LLaVA vision model, and factual claim verification via the Qwen2.5 text model
-          (RAG claim checker). All inference runs entirely on your device — no data leaves
-          your machine. Jura Trace operates normally when Ollama is unavailable; these
-          features are simply skipped.
+          is running in v1.0, it enables AI-generated image descriptions and Read Text
+          extraction via the LLaVA vision model. All inference runs entirely on your
+          device — no data leaves your machine. Jura Trace operates normally when Ollama
+          is unavailable; the feature is simply skipped.
         </dd>
       </div>
 
@@ -609,10 +608,9 @@
         >RAG <span class="font-normal text-flint-dark dark:text-flint-light">(Retrieval-Augmented Generation)</span></dt>
         <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
           A technique that combines a large language model with a searchable knowledge base
-          to verify factual claims. Jura Trace uses RAG with the Ollama Qwen2.5 model to
-          check claims extracted from transcribed audio and video content. All retrieval
-          and inference runs locally using TF-IDF search over Jura Trace's local knowledge
-          base — no web requests are made. Requires Ollama to be running.
+          to verify factual claims. The RAG-based Knowledge Base Retrieval feature is
+          deferred from v1.0 pending corpus expansion and formal accuracy evaluation —
+          it is under evaluation for a future release.
         </dd>
       </div>
 

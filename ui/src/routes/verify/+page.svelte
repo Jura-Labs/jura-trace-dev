@@ -104,6 +104,12 @@
   let extractedText = $state<string | null>(null);
   let extractTextError = $state<string | null>(null);
 
+  // Knowledge Base Retrieval (claim check + RAG + transcription) deferred
+  // from v1.0 (2026-05-17) pending corpus expansion and formal accuracy
+  // evaluation. The "What does it claim?" card is hidden behind this flag.
+  // Re-enable when the feature returns with a maturity-evaluated corpus.
+  const SHOW_CLAIMS_CARD = false;
+
   // Video analysis — index of the frame whose detail accordion is expanded.
   let expandedFrameIndex = $state<number | null>(null);
 
@@ -4300,7 +4306,11 @@
         {/if}
       </div>
 
-      <!-- Card 4: What does it claim? -->
+      <!-- Card 4: What does it claim?
+           Hidden in v1.0 — Knowledge Base Retrieval deferred (see
+           SHOW_CLAIMS_CARD flag in <script>). Returns when the feature
+           ships with a maturity-evaluated corpus. -->
+      {#if SHOW_CLAIMS_CARD}
       <div
         id="card-claims"
         class="bg-white dark:bg-graphite border rounded-xl overflow-hidden transition-colors
@@ -4362,6 +4372,7 @@
           </div>
         {/if}
       </div>
+      {/if}
     </section>
 
     <!-- ── AI Description (Ollama LLaVA) ────────────────────────────── -->
