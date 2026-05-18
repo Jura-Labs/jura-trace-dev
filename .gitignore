@@ -166,3 +166,20 @@ models/jtv143-drift-validation.json
 # Populated at build time (manually for local cargo tauri build, by CI for
 # release) from sidecar/dist/jura-sidecar/. ~520 MB; CI rebuilds per platform.
 src-tauri/sidecar-bundle/
+
+# JTV-186 (18 May 2026): internal-consultation docs that drifted into the
+# AGPL repo and were moved out to ../jura-labs-docs/ on 2026-05-18 (see
+# memory project_repo_doc_hygiene). These entries prevent the files from
+# re-creeping back into the working tree of any clone. Public security and
+# compliance docs under docs/ are intentionally NOT covered by this list.
+docs/FINANCIAL_ROADMAP.md
+docs/JURA-LABS-INFLUENCER-VERIFICATION-EXPLORATION.md
+docs/JURA-TRACE-REFRAMING-EXPLORATION.md
+docs/strategic-pivot-assessment.md
+docs/tier-structure-decision.md
+docs/tier-comparison-wiki.md
+docs/witness-capability-brief.md
+docs/fp-reduction-plan.md
+docs/rc-readiness-report.md
+docs/research-form-submissions.md
+docs/grant-applications/

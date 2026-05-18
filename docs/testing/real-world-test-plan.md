@@ -19,7 +19,7 @@ This test plan validates Jura Trace's forensic detection pipeline against real-w
 
 ### Relationship to Existing Work
 
-This plan extends the FP reduction work documented in `docs/fp-reduction-plan.md`. Where that plan focuses on retraining the GBM classifier with an expanded corpus, this plan evaluates the **entire pipeline end-to-end** -- including the heuristic scorer, classifier blending logic, EXIF-based FP reduction, regional forensics, and trust scoring.
+This plan extends the FP-reduction workstream (corpus expansion + GBM retraining, tracked internally) by evaluating the **entire pipeline end-to-end** -- including the heuristic scorer, classifier blending logic, EXIF-based FP reduction, regional forensics, and trust scoring.
 
 ---
 
@@ -1144,4 +1144,4 @@ Plus Rust-side analysis (not via sidecar):
 
 ---
 
-*This test plan is designed to validate Jura Trace's forensic pipeline against the diversity of real-world content it will encounter in production. Results should feed directly into threshold tuning, detector weight adjustment, and the FP reduction work tracked in `docs/fp-reduction-plan.md`.*
+*This test plan is designed to validate Jura Trace's forensic pipeline against the diversity of real-world content it will encounter in production. Results should feed directly into threshold tuning, detector weight adjustment, and the ongoing FP-reduction workstream.*

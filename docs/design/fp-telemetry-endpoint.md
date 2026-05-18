@@ -597,5 +597,4 @@ The full response is captured at
 | `docs/compliance/dpia-template.md` | DPIA template; a telemetry supplement should be appended for Phase C |
 | `scripts/train_classifier.py` | Quarterly retrain pipeline; telemetry reports feed in as Phase C work |
 | `scripts/build_validation_test_set.py` | Held-out validation set; must be re-evaluated after each retrain |
-| `docs/tier-structure-decision.md` | Tier structure; relevant to Phase C tier-gating decision |
 | `sidecar/app/services/claim_checker.py` | Non-warranty notice pattern (lines 104–113) |

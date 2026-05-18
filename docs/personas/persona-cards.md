@@ -4,7 +4,7 @@ description: "Persona set for Jura Trace and Jura Check. 10 B2B + 5 consumer per
 date: 29 March 2026
 status: PARTIALLY HISTORICAL — tier mappings superseded 2026-05-09; persona content (workflows, pains, features) remains in active use
 version: 3.0
-supersedes: Persona references in FINANCIAL_ROADMAP.md and commercial-expansion-findings.md
+supersedes: persona references in earlier internal commercial/funding drafts (now archived outside the AGPL repo)
 ---
 
 > ## ⚠️ Tier mappings in this document are HISTORICAL (superseded 2026-05-09)
@@ -824,7 +824,7 @@ Four consumer personas for the Jura Check product concept (decision gate: June 2
 
 ## Appendix B: Key Feature Dependencies by Persona
 
-This table maps the post-v1.0 backlog items (from `docs/strategic-pivot-assessment.md`) to the personas that need them.
+This table maps the post-v1.0 backlog items (tracked internally as part of the strategic-pivot assessment) to the personas that need them.
 
 | Backlog Item | ID | Niamh | Elena | James | Amara | Richard |
 |---|---|---|---|---|---|---|

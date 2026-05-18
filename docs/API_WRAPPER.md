@@ -977,7 +977,6 @@ Enterprise deployments in air-gapped environments (no internet access) should co
 ## Related Documents
 
 - [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) — full system architecture, data flow, and module specifications
-- [`docs/FINANCIAL_ROADMAP.md`](./FINANCIAL_ROADMAP.md) — commercial expansion strategy, persona analysis, and tier structure
 - [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs) — `VerificationResult` struct and Tauri command implementations the API wrapper calls
 - [`ui/src/lib/types.ts`](../ui/src/lib/types.ts) — TypeScript interfaces mirroring the Rust structs (useful for JavaScript client development)
 - [`sidecar/main.py`](../sidecar/main.py) — Python ML sidecar entry point (sidecar binds to `127.0.0.1` on an OS-assigned ephemeral port allocated by the Tauri shell at launch)
