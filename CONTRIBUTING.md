@@ -16,7 +16,7 @@ Jura Trace is published under AGPL-3.0-or-later with a parallel commercial-licen
 - **Rust:** `cargo fmt` and `cargo clippy --all-targets -- -D warnings` must pass.
 - **Python:** existing patterns in `sidecar/app/` are the reference. Type hints on public functions.
 - **Frontend:** SvelteKit 5 runes (`$state`, `$derived`), TailwindCSS, British spelling for user-facing text (American spelling acceptable in code identifiers for framework consistency).
-- **Commits** must pass the pre-commit hook: `cargo fmt`, `cargo check --all-targets`, `cargo clippy --all-targets -- -D warnings`, `svelte-check`, `npm test` (vitest).
+- **Commits** must pass the pre-commit hook: `cargo fmt`, `cargo check --all-targets`, `cargo clippy --all-targets -- -D warnings`, `svelte-check`, `npm test` (vitest). The hook lives in `.githooks/pre-commit` (tracked in the repo) but git does not enable it automatically. After cloning, run **`git config core.hooksPath .githooks`** once per clone to activate it. Without this step the hook is silently inert and commits with clippy/svelte-check failures will land.
 
 ## Contributor Licence Agreement
 
