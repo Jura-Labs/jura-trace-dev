@@ -549,13 +549,18 @@ def is_likely_screenshot(image_bytes: bytes) -> tuple[bool, float, dict[str, flo
 # read live values rather than hardcoding.  When the GBM model is
 # retrained, update these constants and bump MODEL_VERSION; the
 # response field is the authoritative artefact for forensic reports.
-SYNTHETIC_THRESHOLD = 0.55
+SYNTHETIC_THRESHOLD = 0.58
 AUTHENTIC_THRESHOLD = 0.25
 MODEL_VERSION = "gbm-v4"
 THRESHOLD_BASIS = (
     "Option C calibration validated on 150-image confusion matrix "
     "(see CLAUDE.md and docs/calibration). Synthetic verdict at "
-    "scores >0.55, authentic at <0.25; the open interval is inconclusive."
+    "scores >0.58, authentic at <0.25; the open interval is inconclusive. "
+    "Raised 0.55 → 0.58 on 2026-05-19 after two-agent FP-reduction "
+    "review (ml-data-scientist + content-authenticity-expert) concluded "
+    "the UnivFD v10onnx probe's 95.77% recall absorbs the small GBM "
+    "recall cost while dropping ~0.5-1.0 pp of combined ensemble FP. "
+    "Reversible — restore to 0.55 if pilot feedback shows recall regression."
 )
 
 
@@ -984,17 +989,29 @@ def _perform_deepfake_detection_impl(
     # Images with genuine camera EXIF (make, model, exposure) are very
     # unlikely to be AI-generated. CDN-processed PNGs that lack camera
     # EXIF account for most of the false positive rate. When camera EXIF
-    # is present AND the heuristic score is below 0.6 (i.e. the
+    # is present AND the heuristic score is below 0.5 (i.e. the
     # statistical signals are not overwhelming), cap the final blended
-    # score at 0.55 — within the inconclusive band, not below the
-    # authentic threshold. This prevents real camera photos from being
-    # flagged unless the evidence is truly compelling (heuristic > 0.6).
+    # score at SYNTHETIC_THRESHOLD — within the inconclusive band, not
+    # below the authentic threshold. This prevents real camera photos
+    # from being flagged unless the evidence is truly compelling
+    # (heuristic ≥ 0.5).
+    #
+    # CALIBRATION HISTORY: cap-trigger threshold was 0.6 until 2026-05-19.
+    # Two-agent FP-reduction review (ml-data-scientist + content-
+    # authenticity-expert) recommended lowering to 0.5 to extend the
+    # cap's reach over consumer-camera and computational-photography FPs
+    # that scored heuristic 0.5-0.6. Specifically targets the 26-of-295
+    # Pixel/iPhone images that fell into that band post-MakerNote-bonus.
+    # Expected impact: 0.5-1.0 pp drop on consumer camera FP class with
+    # negligible recall cost. Reversible — restore to 0.6 if pilot
+    # feedback shows the cap is suppressing genuine manipulations.
     #
     # KNOWN LIMITATION: EXIF metadata can be injected (stripped from a
     # real photo and appended to an AI-generated image). The cap is set
-    # at 0.55 (inconclusive) rather than lower to retain a visible signal
-    # for analyst review rather than silently clearing it as authentic.
-    if has_camera_exif and heuristic_score < 0.6:
+    # at SYNTHETIC_THRESHOLD (inconclusive) rather than lower to retain
+    # a visible signal for analyst review rather than silently clearing
+    # it as authentic.
+    if has_camera_exif and heuristic_score < 0.5:
         score = min(score, SYNTHETIC_THRESHOLD)
 
     # ── MakerNote authenticity bonus (Sprint 29 Track 1) ──────────────
