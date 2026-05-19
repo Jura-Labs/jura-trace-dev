@@ -4190,7 +4190,10 @@
                         <ul class="mt-1.5 space-y-1 ml-4" aria-label="Deepfake detector signals">
                           {#each gbmSignals as sig}
                             <li class="flex items-center justify-between gap-3 text-[11px]">
-                              <span class="text-flint-dark dark:text-flint-light">{sig.name}</span>
+                              <span class="text-flint-dark dark:text-flint-light"
+                                    title={sig.name === 'prnu_asymmetry' ? 'Spatial autocorrelation symmetry of the noise residual — Lukáš/Fridrich/Goljan 2006 PRNU framework' : ''}>
+                                {sig.name === 'prnu_asymmetry' ? 'PRNU sensor pattern symmetry' : sig.name}
+                              </span>
                               <span class="{sig.triggered ? 'text-amber-dark dark:text-amber-light font-medium' : 'text-malachite-dark dark:text-malachite-light'}">
                                 {sig.triggered ? 'Triggered' : 'Clear'} · w={sig.weight.toFixed(2)}
                               </span>

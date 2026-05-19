@@ -130,7 +130,7 @@
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Feature vector</dt>
-          <dd class="text-flint-dark dark:text-flint-light">84 features extracted from:
+          <dd class="text-flint-dark dark:text-flint-light">84 features grouped into the following classes:
             <ul class="list-disc pl-4 mt-1 space-y-0.5">
               <li>ELA (mean, std, max, entropy)</li>
               <li>Noise analysis</li>
@@ -142,6 +142,7 @@
               <li>Shadow consistency</li>
               <li>Colour temperature</li>
               <li>Splice boundary</li>
+              <li><strong>PRNU sensor pattern consistency</strong> — spatial autocorrelation of the noise residual + horizontal/vertical symmetry test (Lukáš, Fridrich &amp; Goljan 2006 framework). Real camera sensors produce roughly symmetric autocorrelation; diffusion-model outputs produce strongly asymmetric patterns. The "PRNU sensor pattern symmetry" named indicator surfaces in the verify-page detector list when this triggers.</li>
               <li>Camera discrimination: demosaic peak count, inter-channel coherence, blocking strength variance, MakerNote authenticity</li>
             </ul>
           </dd>

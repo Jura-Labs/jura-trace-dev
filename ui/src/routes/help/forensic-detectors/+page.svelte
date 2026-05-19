@@ -89,6 +89,7 @@
       {#each [
         { href: '#ela',                  label: 'Error Level Analysis (ELA)' },
         { href: '#noise-pattern',        label: 'Noise Pattern Analysis' },
+        { href: '#prnu',                 label: 'PRNU Sensor Pattern Analysis' },
         { href: '#copy-move',            label: 'Copy-Move Detection' },
         { href: '#jpeg-ghost',           label: 'JPEG Ghost' },
         { href: '#segmented-ela',        label: 'Segmented ELA' },
@@ -169,6 +170,56 @@
       Heavy JPEG compression, portrait-mode software blur, or high-ISO
       correction applied in-camera can produce noise irregularities that are
       entirely authentic.
+    </p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       PRNU Sensor Pattern Analysis
+       ══════════════════════════════════════════════════════════════════════ -->
+  <section id="prnu" aria-labelledby="prnu-heading" class="mb-12 scroll-mt-24">
+    <h2 id="prnu-heading" class="font-heading text-xl text-text-light dark:text-quartz mb-3 leading-tight tracking-heading">
+      PRNU Sensor Pattern Analysis
+    </h2>
+    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
+      <strong class="text-text-light dark:text-quartz">What it does:</strong>
+      Photo Response Non-Uniformity (PRNU) is the noise fingerprint left by
+      tiny manufacturing imperfections in a camera sensor's photodiodes.
+      Real camera sensors produce a roughly <em>symmetric</em> horizontal /
+      vertical autocorrelation pattern in the noise residual; diffusion-model
+      and other AI-generated outputs typically produce strongly
+      <em>asymmetric</em> patterns because they lack the underlying physical
+      sensor. Jura Trace computes the spatial autocorrelation of the wavelet
+      noise residual and tests for that symmetry as part of its AI-detection
+      ensemble (Lukáš, Fridrich &amp; Goljan 2006 framework).
+    </p>
+    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
+      <strong class="text-text-light dark:text-quartz">Where it surfaces:</strong>
+      The "PRNU sensor pattern symmetry" named indicator inside the AI
+      Generation panel's detector list. Contributes to the GBM v4 classifier's
+      84-feature vector alongside noise, frequency, LBP/GLCM texture, and
+      demosaic features. Not displayed as a standalone score — feeds into
+      the ensemble.
+    </p>
+    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
+      <strong class="text-text-light dark:text-quartz">What a high score means:</strong>
+      Asymmetric noise correlation between horizontal and vertical axes —
+      inconsistent with how a real camera sensor would record an image.
+      This is one of multiple AI-generation signals; agreement across the
+      ensemble matters more than any single indicator.
+    </p>
+    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <strong class="text-text-light dark:text-quartz">Limitation:</strong>
+      Modern camera ISPs apply aggressive in-camera denoising on phone cameras
+      (Pixel Night Sight, iPhone Deep Fusion), drones (DJI Mavic-class), and
+      compact cameras (Sony RX-class). This attenuates the underlying PRNU
+      signal — the symmetry test is more reliable on raw-pipeline JPEGs than
+      on computational-photography output. A future release will add a PRNU
+      residual energy feature to extend the analysis (tracked as JTV-156).
+      A full reference-fingerprint approach (Lukáš/Fridrich/Goljan 2006 §3)
+      where individual camera sensors are pre-enrolled is appropriate for
+      institutional workflows (museum collections, news-agency staff
+      equipment) and is filed as a separate Custom Engineering deliverable
+      (JTV-188) rather than a default capability.
     </p>
   </section>
 
