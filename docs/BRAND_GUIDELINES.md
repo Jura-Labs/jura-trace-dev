@@ -139,17 +139,21 @@ Never: "jura trace", "Jura trace", "JURATRACE"
 - **American spelling** in code: organization, color, catalog, analyze
 - **No emojis** in the application interface
 - **No exclamation marks** unless quoting user content
-- **Human benefit first** — describe what people gain, not what the technology does
+- **Human benefit first**: describe what people gain, not what the technology does
+- **No em-dash sentence breaks** (added 2026-05-20). Avoid using em dashes (`—`) or hyphens (`-`) to break or join clauses. Use full stops for two thoughts, commas for one thought with a modifier, parentheses for true asides. Hyphens in compound modifiers stay (`post-launch`, `real-time`, `in-camera`, `multi-format`) — those are not sentence breaks. Number ranges should use the word `to` rather than en or em dashes (`0.6 to 0.8`, not `0.6–0.8` or `0.6—0.8`).
 
 ### Example Phrases
 
 | Context | Good | Avoid |
 |---------|------|-------|
 | Verification result | "This image shows signs of manipulation in the lower-right region." | "WARNING: FAKE IMAGE DETECTED!" |
-| C2PA status | "No C2PA provenance found. This doesn't mean the content is false — most content doesn't carry provenance yet." | "UNVERIFIED! No proof of origin!" |
+| C2PA status | "No C2PA provenance found. This does not mean the content is false. Most content does not carry provenance yet." | "UNVERIFIED! No proof of origin!" |
 | Welcome | "Jura Trace processes everything locally. Your files never leave this machine." | "We're SO excited to help you fight misinformation!" |
 | Error | "Could not connect to the analysis services." | "Oops! Something went wrong!" |
 | Sidecar status | "Analysis services connected" | "ML Sidecar: Online" |
+| Two thoughts | "The image is consistent with a real camera photograph. The Fourier spectrum shows no unusual periodic patterns." | "The image is consistent with a real camera photograph — the Fourier spectrum shows no unusual periodic patterns." |
+| Modifier | "Trained on over 10,000 images across 14 generator families." | "Trained on over 10,000 images — across 14 generator families." |
+| True aside | "PRNU is partially preserved on phone cameras (Pixel and iPhone class) at 0.6 to 0.8 times intensity." | "PRNU is partially preserved on phone cameras — Pixel and iPhone class — at 0.6–0.8× intensity." |
 
 ## Accessibility
 

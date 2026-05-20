@@ -197,12 +197,12 @@
       The "PRNU sensor pattern symmetry" named indicator inside the AI
       Generation panel's detector list. Contributes to the GBM v4 classifier's
       84-feature vector alongside noise, frequency, LBP/GLCM texture, and
-      demosaic features. Not displayed as a standalone score — feeds into
-      the ensemble.
+      demosaic features. Not displayed as a standalone score. The signal
+      feeds into the ensemble.
     </p>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
       <strong class="text-text-light dark:text-quartz">What a high score means:</strong>
-      Asymmetric noise correlation between horizontal and vertical axes —
+      Asymmetric noise correlation between horizontal and vertical axes,
       inconsistent with how a real camera sensor would record an image.
       This is one of multiple AI-generation signals; agreement across the
       ensemble matters more than any single indicator.
@@ -212,7 +212,7 @@
       Modern camera ISPs apply aggressive in-camera denoising on phone cameras
       (Pixel Night Sight, iPhone Deep Fusion), drones (DJI Mavic-class), and
       compact cameras (Sony RX-class). This attenuates the underlying PRNU
-      signal — the symmetry test is more reliable on raw-pipeline JPEGs than
+      signal. The symmetry test is more reliable on raw-pipeline JPEGs than
       on computational-photography output. A future release will add a PRNU
       residual energy feature to extend the analysis (tracked as JTV-156).
       A full reference-fingerprint approach (Lukáš/Fridrich/Goljan 2006 §3)

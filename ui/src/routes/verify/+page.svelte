@@ -3552,7 +3552,7 @@
                     <p class="mt-2 ml-6 mb-1 text-xs text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
                       Bright regions show where the image's compression error differs from the rest of the photo.
                       Look for <strong class="font-medium text-text-light dark:text-quartz">coherent patches</strong>
-                      that follow the shape of an object — that suggests something was pasted or edited in.
+                      that follow the shape of an object. That suggests something was pasted or edited in.
                       Bright <em>edges and textured areas</em> (hair, foliage, text) are normal and not evidence of tampering.
                       ELA is unreliable on PNGs, screenshots, or images re-saved many times.
                     </p>
@@ -3561,8 +3561,8 @@
                         src={heatmapSrc(ela.elaImageUrl)}
                         alt="ELA heatmap showing compression artefact distribution"
                         caption={ela.suspicious
-                          ? 'Tap to enlarge — locate which regions differ from the background'
-                          : 'Tap to enlarge — compression is uniform across the image'}
+                          ? 'Tap to enlarge and locate which regions differ from the background'
+                          : 'Tap to enlarge. Compression is uniform across the image.'}
                       />
                     </div>
                     {#if ela.suspicious}
@@ -3572,7 +3572,7 @@
                       </p>
                     {:else}
                       <p class="mt-2 ml-6 text-xs text-flint-dark dark:text-flint-light leading-snug max-w-prose">
-                        Compression error is consistent across the image — no regions stand out.
+                        Compression error is consistent across the image. No regions stand out.
                       </p>
                     {/if}
                   {/if}
@@ -3931,7 +3931,7 @@
                   {/snippet}
                   <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6 leading-relaxed max-w-prose">
                     {#if fou.suspicious}
-                      {fou.peakCount} periodic peak{fou.peakCount === 1 ? '' : 's'} detected in the frequency spectrum —
+                      {fou.peakCount} periodic peak{fou.peakCount === 1 ? '' : 's'} detected in the frequency spectrum,
                       more than expected for a natural photograph. Common causes: AI generation,
                       upscaling, or images captured through patterned materials.
                     {:else}
@@ -3942,7 +3942,7 @@
                     <p class="mt-2 ml-6 mb-1 text-xs text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
                       This is a frequency map of the image. A natural photograph produces a roughly circular
                       spread of brightness from the centre outward. Look for sharp bright dots or rings
-                      <em>away</em> from the centre — those are the periodic peaks the detector counted.
+                      <em>away</em> from the centre. Those are the periodic peaks the detector counted.
                     </p>
                     <div class="mt-2 ml-6">
                       <ImageZoom
@@ -3986,8 +3986,8 @@
                     Further investigation
                   </p>
                   <p class="text-[11px] text-flint-dark dark:text-flint-light leading-snug max-w-prose">
-                    These tools run on request and are for cross-examination only —
-                    running them <strong class="text-text-light dark:text-quartz">will not change the trust score above</strong>.
+                    These tools run on request and are for cross-examination only.
+                    Running them <strong class="text-text-light dark:text-quartz">will not change the trust score above</strong>.
                     They are excluded from automatic scoring because they have high
                     false-positive rates on everyday photos, but can be useful when a
                     trained eye is investigating a specific question.

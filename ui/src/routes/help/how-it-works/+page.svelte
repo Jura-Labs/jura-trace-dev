@@ -29,11 +29,11 @@
       How It Works
     </h1>
     <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
-      Jura Trace examines a file from several different angles at once — checking
-      its credentials, its pixel-level structure, and whether it bears the
-      hallmarks of AI generation. This page explains each layer of that analysis
-      in plain English, so you can read results with confidence. No technical
-      background is required.
+      Jura Trace examines a file from several different angles at once,
+      checking its credentials, its pixel-level structure, and whether it
+      bears the hallmarks of AI generation. This page explains each layer
+      of that analysis in plain English, so you can read results with
+      confidence. No technical background is required.
     </p>
     <div class="earth-line mt-6" aria-hidden="true"></div>
   </header>
@@ -79,8 +79,8 @@
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       When you drop a file into Jura Trace, it runs four broad categories of
-      analysis simultaneously. Each one looks at a different layer of the file —
-      from its signed credentials to the arrangement of individual pixels — so
+      analysis simultaneously. Each one looks at a different layer of the file,
+      from its signed credentials to the arrangement of individual pixels, so
       that no single test has to carry the full burden of proof. Think of it as
       four independent witnesses reading the same evidence.
     </p>
@@ -94,11 +94,11 @@
             Provenance credentials
           </h3>
           <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-            Some files carry a signed C2PA manifest — a tamper-evident record of
+            Some files carry a signed C2PA manifest, a tamper-evident record of
             who created the file, when, and with what tool. Jura Trace reads that
             manifest and checks the cryptographic signature. If the file has been
             altered since signing, the signature breaks. If no manifest is present,
-            that absence is noted — it does not automatically mean the file is
+            that absence is noted. It does not automatically mean the file is
             inauthentic, but it does mean one layer of the provenance chain is
             missing.
           </p>
@@ -114,7 +114,7 @@
           <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
             Genuine photographs have predictable noise patterns, consistent
             compression artefacts, and coherent lighting physics. Editing tools
-            leave traces — inconsistent JPEG compression in a spliced region,
+            leave traces: inconsistent JPEG compression in a spliced region,
             copy-moved patches with repeated texture, or shadows that do not
             match the light source. Jura Trace runs several detectors that look
             for these microscopic inconsistencies in the image data itself.
@@ -133,7 +133,7 @@
             cameras: characteristic frequency patterns in fine detail, distinctive
             colour statistics, and semantic compositions that differ from real
             photographs. Jura Trace runs two independent models that look for
-            these patterns — more on why two appear in the next section.
+            these patterns. The next section explains why two are used.
           </p>
         </div>
       </li>
@@ -147,7 +147,7 @@
           <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
             Digital files carry embedded metadata (EXIF) that records the camera
             model, lens, GPS co-ordinates, and capture time. Jura Trace checks
-            this metadata for internal contradictions — for example, a file
+            this metadata for internal contradictions. For example, a file
             claiming to be from an iPhone that lacks the colour profile all
             iPhones write, or GPS co-ordinates rounded to suspicious integer
             degrees that suggest they were typed rather than captured. These
@@ -185,9 +185,9 @@
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
       In the results panel, you will see two separate entries under the
-      AI-generation heading: <strong class="text-text-light dark:text-quartz">AI Generation (GBM Deepfake)</strong> and
-      <strong class="text-text-light dark:text-quartz">CLIP / UnivFD Probe</strong>. This is intentional. The two
-      models are not duplicates — they examine the image in fundamentally
+      AI-generation heading: <strong class="text-text-light dark:text-quartz">Machine learning classifier</strong> and
+      <strong class="text-text-light dark:text-quartz">Visual embedding probe</strong>. This is intentional. The two
+      models are not duplicates. They examine the image in fundamentally
       different ways, and running both gives stronger evidence than either
       alone could provide.
     </p>
@@ -197,7 +197,7 @@
       doctor who specialises in blood chemistry and another who specialises in
       imaging scans, and both reach the same conclusion, you can be more confident
       in that conclusion than if only one had reviewed the case. If they disagree,
-      that disagreement is itself useful information — it tells you the picture
+      that disagreement is itself useful information. It tells you the picture
       is genuinely ambiguous and deserves closer review. The same logic applies
       here.
     </p>
@@ -205,7 +205,7 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-8">
       When both models agree that an image is authentic, the combined signal is
       stronger than either reading alone. When one flags concern and the other
-      does not, the inconclusive result reflects a genuine uncertainty — not a
+      does not, the inconclusive result reflects a genuine uncertainty, not a
       mistake in the software. The trust score accounts for that disagreement
       by treating the combined evidence more cautiously.
     </p>
@@ -235,7 +235,7 @@
             <td class="py-3 pr-6 align-top">
               <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">What it looks for</p>
               <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-                Low-level image artefacts — JPEG compression patterns, noise
+                Low-level image artefacts. JPEG compression patterns, noise
                 distribution, colour channel statistics, and 84 other measurable
                 signals extracted from the pixel data.
               </p>
@@ -243,7 +243,7 @@
             <td class="py-3 align-top">
               <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">What it looks for</p>
               <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-                High-level semantic patterns — what the image depicts and whether
+                High-level semantic patterns. What the image depicts and whether
                 the overall composition, textures, and spatial relationships match
                 the signature of AI-generated imagery rather than real-world
                 photography.
@@ -255,7 +255,7 @@
               <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">When it helps most</p>
               <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
                 Detecting AI images that have been re-saved, re-compressed, or
-                shared through social media — the pixel-level traces survive
+                shared through social media. The pixel-level traces survive
                 moderate processing.
               </p>
             </td>
@@ -263,7 +263,7 @@
               <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">When it helps most</p>
               <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
                 Detecting AI images where pixel-level artefacts have been
-                smoothed away — the semantic pattern remains even when individual
+                smoothed away. The semantic pattern remains even when individual
                 pixel statistics have been normalised.
               </p>
             </td>
@@ -366,7 +366,7 @@
       <span class="inline-flex items-center gap-1 align-middle">
         <span class="text-xs px-1.5 py-0.5 rounded border border-amber/40 dark:border-amber/50 text-amber-dark dark:text-amber-light bg-amber/5 dark:bg-amber/10 font-medium">Experimental</span>
       </span>
-      label. This does not mean the detector is broken or unreliable — it means
+      label. This does not mean the detector is broken or unreliable. It means
       that we are still gathering evidence about its accuracy across a wider range
       of image types, and we have chosen to count its contribution to the trust
       score at half weight while that calibration work continues.
@@ -375,9 +375,9 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
       Think of it this way: a detective who has worked a hundred cases similar to
       yours gets a full vote in the team discussion. A detective who is new to
-      this type of case — but still sharp and genuinely helpful — gets half a
+      this type of case, but still sharp and genuinely helpful, gets half a
       vote until their track record on similar cases is established. Their
-      observation still matters; it simply carries less weight until confidence
+      observation still matters. It simply carries less weight until confidence
       in their judgement on this type of evidence is better calibrated.
     </p>
 
@@ -441,8 +441,8 @@
       A score above 71% is classified as
       <strong class="text-malachite-dark dark:text-malachite-light">Authentic</strong>.
       Between 40% and 70% it is
-      <strong class="text-amber-dark dark:text-amber-light">Inconclusive</strong> — the
-      evidence is mixed and human review is recommended. Below 40%, the balance
+      <strong class="text-amber-dark dark:text-amber-light">Inconclusive</strong>.
+      The evidence is mixed and human review is recommended. Below 40%, the balance
       of evidence raises
       <strong class="text-cinnabar-dark dark:text-cinnabar-light">Concerns</strong> and
       closer examination is warranted.
@@ -450,7 +450,7 @@
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       The trust score is a starting point for your judgement, not a verdict.
-      Automated analysis can be wrong — high-quality AI images can pass, and
+      Automated analysis can be wrong. High-quality AI images can pass, and
       unusual authentic photographs can fail. The score is designed to direct
       your attention, not to replace it. Jura Trace is built on the principle
       that humans stay in the loop.
@@ -488,8 +488,8 @@
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
       The top-level result gives you a quick orientation. In some situations,
-      clicking through to the Level 3 detail panel — or using the on-demand
-      investigation tools — is the right next step. Consider doing so when any
+      clicking through to the Level 3 detail panel (or using the on-demand
+      investigation tools) is the right next step. Consider doing so when any
       of the following apply.
     </p>
 
@@ -548,8 +548,8 @@
           <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
             EXIF anomaly findings can indicate metadata that has been manually
             written rather than captured by a device. Read the individual
-            anomaly entries — each one describes exactly which inconsistency
-            was found — and consider whether the explanation is innocent
+            anomaly entries. Each one describes exactly which inconsistency
+            was found. Consider whether the explanation is innocent
             (e.g. a file exported from editing software) or potentially
             significant.
           </p>
@@ -563,9 +563,9 @@
             The two AI checks disagree
           </p>
           <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-            When the GBM Deepfake model and the CLIP / UnivFD Probe reach
-            different conclusions, that disagreement is itself a signal. It does
-            not mean one model is wrong — it means the image sits in an
+            When the Machine learning classifier and the Visual embedding probe
+            reach different conclusions, that disagreement is itself a signal.
+            It does not mean one model is wrong. It means the image sits in an
             ambiguous region for at least one of them. The Level 3 panel and
             the on-demand investigation tools (noise analysis, shadow
             consistency, splice boundary) can help resolve the uncertainty.
@@ -577,8 +577,8 @@
 
     <div class="bg-lapis/5 dark:bg-lapis/10 border border-lapis/20 dark:border-lapis/25 rounded-lg px-5 py-4">
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        The on-demand investigation tools — Noise Pattern Analysis, Shadow
-        Consistency, and Splice Boundary — do not run automatically and do not
+        The on-demand investigation tools (Noise Pattern Analysis, Shadow
+        Consistency, and Splice Boundary) do not run automatically and do not
         affect the trust score. They are available in the Level 3 panel for
         situations where the primary results are inconclusive and you need
         additional evidence to inform your judgement.
