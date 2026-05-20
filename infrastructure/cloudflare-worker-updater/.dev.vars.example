@@ -1,0 +1,10 @@
+# Local development environment for the updater worker.
+# Copy to .dev.vars (gitignored) and fill in your local PAT.
+
+# GitHub PAT with public_repo scope on juralabs/jura-trace.
+# Generate at https://github.com/settings/tokens/new
+GITHUB_TOKEN=ghp_replace_with_your_local_dev_pat
+
+# Optional repo override (defaults to juralabs/jura-trace).
+# Useful for testing against a fork.
+# GITHUB_REPO=your-fork/jura-trace

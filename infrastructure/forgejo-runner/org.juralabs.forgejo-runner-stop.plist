@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Companion plist that fires at 08:00 Copenhagen to stop the Forgejo
+  runner, closing the daily 02:00 to 08:00 active window.
+
+  Install:
+    cp infrastructure/forgejo-runner/org.juralabs.forgejo-runner-stop.plist \
+       ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/org.juralabs.forgejo-runner-stop.plist
+
+  The stop action issues `launchctl unload` on the runner agent, which
+  terminates the daemon. A running job is given a grace period via the
+  runner's own SIGTERM handler before being force-killed. If a job
+  needs to run longer than the 6-hour window, raise the question via
+  a one-off manual `launchctl load` outside this schedule rather than
+  extending the window for everyone.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>org.juralabs.forgejo-runner-stop</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/launchctl</string>
+    <string>unload</string>
+    <string>/Users/paulgriffiths/Library/LaunchAgents/org.juralabs.forgejo-runner.plist</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>8</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/paulgriffiths/Library/Logs/forgejo-runner/stop-stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/paulgriffiths/Library/Logs/forgejo-runner/stop-stderr.log</string>
+</dict>
+</plist>

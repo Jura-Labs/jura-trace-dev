@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#1E2128" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#FAFAF7" media="(prefers-color-scheme: light)">
+  <title>Download Jura Trace</title>
+  <meta name="description" content="Download Jura Trace for macOS, Windows, or Linux. Free, local-first content verification under AGPL-3.0.">
+  <link rel="canonical" href="https://juralabs.org/downloads/">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Download Jura Trace">
+  <meta property="og:description" content="Local-first content verification for cultural institutions and investigative communities. Free under AGPL-3.0.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://juralabs.org/downloads/">
+  <meta property="og:site_name" content="Jura Labs">
+
+  <style>
+    :root {
+      color-scheme: dark light;
+      --bg: #1E2128;
+      --surface: #272B34;
+      --text: #EDEAE4;
+      --muted: #9B9890;
+      --lapis: #5A85B5;
+      --malachite: #5B8A5F;
+      --amber: #D4943A;
+      --border: rgba(155, 152, 144, 0.2);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #FAFAF7;
+        --surface: #FFFFFF;
+        --text: #3A3832;
+        --muted: #78756D;
+        --lapis: #376399;
+        --border: rgba(120, 117, 109, 0.2);
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      font-size: 16px;
+      line-height: 1.55;
+    }
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem 4rem;
+    }
+    h1 {
+      font-family: Georgia, "Times New Roman", "DejaVu Serif", serif;
+      font-size: 2.25rem;
+      letter-spacing: -0.01em;
+      margin: 0 0 0.5rem;
+    }
+    h2 {
+      font-family: Georgia, "Times New Roman", "DejaVu Serif", serif;
+      font-size: 1.25rem;
+      letter-spacing: -0.01em;
+      margin: 2.5rem 0 0.75rem;
+    }
+    .lede {
+      color: var(--muted);
+      font-size: 1rem;
+      max-width: 56ch;
+    }
+    .recommended-card {
+      margin-top: 2.5rem;
+      padding: 1.75rem 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .recommended-card[data-detected="true"] {
+      border-color: var(--lapis);
+    }
+    .recommended-label {
+      font-size: 0.7rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+    .recommended-card h3 {
+      margin: 0.25rem 0 1rem;
+      font-family: Georgia, serif;
+      font-size: 1.4rem;
+    }
+    .download-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.85rem 1.5rem;
+      min-height: 44px;
+      background: var(--lapis);
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      letter-spacing: 0.02em;
+      transition: opacity 0.15s;
+    }
+    .download-button:hover { opacity: 0.9; }
+    .download-button:focus-visible {
+      outline: 2px solid var(--lapis);
+      outline-offset: 2px;
+    }
+    .download-meta {
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 0.75rem 0.5rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      font-weight: 500;
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    td a {
+      color: var(--lapis);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    td a:hover { text-decoration: none; }
+    code {
+      font-family: "SF Mono", Menlo, Monaco, "Courier New", monospace;
+      font-size: 0.85em;
+      background: rgba(155, 152, 144, 0.12);
+      padding: 0.1em 0.35em;
+      border-radius: 3px;
+    }
+    pre {
+      background: rgba(155, 152, 144, 0.08);
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+    }
+    .verify-callout {
+      margin-top: 2rem;
+      padding: 1.25rem;
+      background: rgba(90, 133, 181, 0.07);
+      border: 1px solid rgba(90, 133, 181, 0.25);
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    .verify-callout strong {
+      color: var(--text);
+    }
+    .footer-links {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .footer-links a {
+      color: var(--lapis);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .footer-links a:hover { text-decoration: none; }
+    .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      background: rgba(91, 138, 95, 0.15);
+      color: var(--malachite);
+      border: 1px solid rgba(91, 138, 95, 0.3);
+      margin-left: 0.5rem;
+      vertical-align: middle;
+    }
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+    }
+    .skip-link:focus-visible {
+      position: fixed;
+      left: 1rem;
+      top: 1rem;
+      padding: 0.5rem 1rem;
+      background: var(--surface);
+      color: var(--text);
+      border: 2px solid var(--lapis);
+      border-radius: 6px;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <a href="#main" class="skip-link">Skip to main content</a>
+  <main id="main">
+    <h1>Download Jura Trace</h1>
+    <p class="lede">
+      Local-first content verification. Free under AGPL-3.0-or-later.
+      All analysis runs on your machine. No file ever leaves your device.
+    </p>
+
+    <!-- Auto-detected recommended download. Updated by JS on page load. -->
+    <section class="recommended-card" id="recommended" data-detected="false">
+      <p class="recommended-label" id="recommended-label">Available downloads</p>
+      <h3 id="recommended-platform">Choose your platform below</h3>
+      <a id="recommended-link" class="download-button" href="#downloads-table" hidden>
+        <span id="recommended-link-text">Download</span>
+      </a>
+      <p class="download-meta" id="recommended-meta" hidden></p>
+    </section>
+
+    <!-- All platforms table. Asset URLs auto-resolve to the latest GitHub release. -->
+    <h2 id="downloads-table">All platforms</h2>
+    <table aria-label="Jura Trace installers by platform">
+      <thead>
+        <tr>
+          <th scope="col">Platform</th>
+          <th scope="col">File</th>
+          <th scope="col">Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">macOS (Apple Silicon, M1 and later)</th>
+          <td><a href="https://github.com/juralabs/jura-trace/releases/latest/download/Jura.Trace_aarch64.dmg" data-platform="darwin-aarch64">DMG installer<span class="badge">Signed</span></a></td>
+          <td>macOS 13 Ventura or later. Apple Developer ID signed and notarised.</td>
+        </tr>
+        <tr>
+          <th scope="row">Windows (x64)</th>
+          <td><a href="https://github.com/juralabs/jura-trace/releases/latest/download/Jura.Trace_x64_en-US.msi" data-platform="windows-x86_64">MSI installer<span class="badge">Signed</span></a></td>
+          <td>Windows 10 22H2 or later. Azure Trusted Signing certificate.</td>
+        </tr>
+        <tr>
+          <th scope="row">Linux (x64, AppImage)</th>
+          <td><a href="https://github.com/juralabs/jura-trace/releases/latest/download/jura-trace_amd64.AppImage" data-platform="linux-x86_64">AppImage</a></td>
+          <td>Most modern distributions. Make executable: <code>chmod +x</code>.</td>
+        </tr>
+        <tr>
+          <th scope="row">Linux (x64, Debian / Ubuntu)</th>
+          <td><a href="https://github.com/juralabs/jura-trace/releases/latest/download/jura-trace_amd64.deb" data-platform="linux-x86_64-deb">DEB package</a></td>
+          <td>Install with <code>sudo apt install ./jura-trace_amd64.deb</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Verification callout: important for forensic-credibility brand positioning. -->
+    <section class="verify-callout">
+      <strong>Verify before installing.</strong>
+      Jura Trace publishes SHA-256 sums and minisign signatures for every release.
+      The desktop app's auto-updater verifies signatures before applying any
+      update, but for the initial download we recommend confirming the SHA-256
+      against the published <a href="https://github.com/juralabs/jura-trace/releases/latest" rel="noopener">release notes</a>.
+      Step-by-step verification commands are in the
+      <a href="https://github.com/juralabs/jura-trace/blob/main/docs/install-guides/verify-downloads.md" rel="noopener">verify-downloads guide</a>.
+    </section>
+
+    <!-- Install guides -->
+    <h2>Install guides</h2>
+    <ul>
+      <li><a href="https://github.com/juralabs/jura-trace/blob/main/docs/install-guides/quickstart-macos.md" rel="noopener">macOS quickstart</a></li>
+      <li><a href="https://github.com/juralabs/jura-trace/blob/main/docs/install-guides/quickstart-windows.md" rel="noopener">Windows quickstart</a></li>
+      <li><a href="https://github.com/juralabs/jura-trace/blob/main/docs/install-guides/quickstart-linux.md" rel="noopener">Linux quickstart</a></li>
+      <li><a href="https://github.com/juralabs/jura-trace/blob/main/docs/install-guides/windows-it-deployment.md" rel="noopener">Windows IT-managed deployment (MDM, ADMX)</a></li>
+    </ul>
+
+    <!-- Source + licence -->
+    <h2>Source code + licence</h2>
+    <p>
+      Jura Trace is built by <a href="https://juralabs.org" rel="noopener">Jura Labs CIC</a>,
+      a UK community-interest company. Source code is on
+      <a href="https://codeberg.org/juralabs/jura-trace" rel="noopener">Codeberg</a>
+      (primary) with a read-only mirror on
+      <a href="https://github.com/juralabs/jura-archive" rel="noopener">GitHub</a>.
+      Licensed under the GNU Affero General Public License v3.0 or later.
+      A commercial licence for buyers embedding Jura Trace in their own products
+      is available on request: <a href="mailto:commercial@juralabs.org">commercial@juralabs.org</a>.
+    </p>
+
+    <div class="footer-links">
+      <a href="https://juralabs.org">juralabs.org</a> ·
+      <a href="https://juralabs.org/privacy">Privacy</a> ·
+      <a href="mailto:hello@juralabs.org">hello@juralabs.org</a> ·
+      <a href="https://github.com/juralabs/jura-archive/blob/main/CHANGELOG.md" rel="noopener">Changelog</a>
+    </div>
+  </main>
+
+  <script>
+    /**
+     * Auto-detect the visitor's platform from User-Agent and surface the
+     * recommended download. Falls back gracefully when detection fails
+     * (the full table is always visible below).
+     */
+    (function detectPlatform() {
+      const ua = navigator.userAgent || '';
+      const platformHint = (navigator.platform || '').toLowerCase();
+      let platform = null;
+      let label = null;
+
+      // Detection priority: Mac architecture (Apple Silicon vs Intel) cannot
+      // be determined from UA reliably, so we assume Apple Silicon (the only
+      // build target Jura Trace currently ships for macOS). x64 macOS users
+      // will see the link but the binary will not run; the table makes the
+      // architecture explicit.
+      if (/Macintosh|Mac OS X|macOS/.test(ua)) {
+        platform = 'darwin-aarch64';
+        label = 'macOS (Apple Silicon)';
+      } else if (/Windows NT/.test(ua)) {
+        platform = 'windows-x86_64';
+        label = 'Windows (x64)';
+      } else if (/Linux|X11/.test(ua) && !/Android/.test(ua)) {
+        platform = 'linux-x86_64';
+        label = 'Linux (x64, AppImage)';
+      }
+
+      if (!platform) return;
+
+      const tableLink = document.querySelector('a[data-platform="' + platform + '"]');
+      if (!tableLink) return;
+
+      const card = document.getElementById('recommended');
+      const labelEl = document.getElementById('recommended-label');
+      const platformEl = document.getElementById('recommended-platform');
+      const link = document.getElementById('recommended-link');
+      const linkText = document.getElementById('recommended-link-text');
+      const meta = document.getElementById('recommended-meta');
+
+      card.dataset.detected = 'true';
+      labelEl.textContent = 'Recommended for your system';
+      platformEl.textContent = label;
+      link.href = tableLink.href;
+      link.hidden = false;
+      linkText.textContent = 'Download for ' + label;
+      meta.hidden = false;
+      meta.textContent = 'Always check the SHA-256 in the release notes before installing.';
+    })();
+  </script>
+</body>
+</html>

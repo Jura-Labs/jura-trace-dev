@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd plist for the Jura Trace Forgejo runner on the Mac Mini M4.
+
+  Install:
+    cp infrastructure/forgejo-runner/org.juralabs.forgejo-runner.plist \
+       ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/org.juralabs.forgejo-runner.plist
+
+  This is a USER-level LaunchAgent (loaded per the macOS account that
+  holds the Apple Developer ID signing keychain). It is NOT a system-
+  level LaunchDaemon, because codesigning needs access to the user keychain
+  which the system context cannot reach without manual keychain
+  unlocking on every boot.
+
+  The plist starts the runner at 02:00 and stops it at 08:00 daily,
+  matching the Copenhagen-overnight window agreed in the hosting plan.
+  Outside that window, no runner process is alive and the Mac Mini
+  is free for other work (or sleep). Inside the window, the runner
+  polls codeberg.org continuously and picks up any queued job.
+
+  Logs:
+    ~/Library/Logs/forgejo-runner/stdout.log
+    ~/Library/Logs/forgejo-runner/stderr.log
+
+  Status check:
+    launchctl list | grep forgejo
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>org.juralabs.forgejo-runner</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/forgejo-runner</string>
+    <string>daemon</string>
+    <string>--config</string>
+    <string>/Users/paulgriffiths/.config/forgejo-runner/config.yml</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/paulgriffiths/forgejo-jobs</string>
+
+  <!-- Start daily at 02:00 Copenhagen.
+       launchd interprets all StartCalendarInterval times in the local
+       system timezone, so the Mac Mini's TZ must be set to
+       Europe/Copenhagen for the schedule to fire at the intended hour.
+       Confirm with: systemsetup -gettimezone -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>2</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <!-- Restart on crash within the active window.
+       KeepAlive is intentionally NOT set to true unconditionally; a
+       companion plist (org.juralabs.forgejo-runner-stop.plist) fires
+       at 08:00 to issue `launchctl unload` and end the daily window. -->
+  <key>RunAtLoad</key>
+  <false/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Users/paulgriffiths/Library/Logs/forgejo-runner/stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/paulgriffiths/Library/Logs/forgejo-runner/stderr.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>/Users/paulgriffiths</string>
+  </dict>
+
+  <!-- Low priority so the runner does not impact interactive use
+       if the Mac Mini is touched during the runner window (rare). -->
+  <key>Nice</key>
+  <integer>10</integer>
+
+  <!-- Throttle: limit restart frequency to once per 10 seconds if
+       the runner keeps crashing (prevents log spam during outages). -->
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+</dict>
+</plist>

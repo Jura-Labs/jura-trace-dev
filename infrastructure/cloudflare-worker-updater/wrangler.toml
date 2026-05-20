@@ -1,0 +1,35 @@
+# Cloudflare Worker configuration for the Jura Trace auto-updater
+# endpoint. Deploy with `wrangler deploy` after authenticating against
+# the juralabs.org Cloudflare account.
+#
+# Routes are registered against the juralabs.org zone so the worker
+# answers https://juralabs.org/api/updates/*.
+
+name = "jura-trace-updater"
+main = "src/index.ts"
+compatibility_date = "2026-05-20"
+compatibility_flags = ["nodejs_compat"]
+
+# Production routes. juralabs.org zone must be on the same Cloudflare
+# account as the worker. The /api/updates/* prefix matches both the
+# /api/updates/latest.json aggregated endpoint and the per-platform
+# /api/updates/{platform}/{current-version} routes.
+[[routes]]
+pattern = "juralabs.org/api/updates/*"
+zone_name = "juralabs.org"
+
+# Observability. Cloudflare's free plan includes basic logs; enable
+# tail-log streaming for local development via `wrangler tail`.
+[observability]
+enabled = true
+
+# Secrets are set via `wrangler secret put`:
+#   wrangler secret put GITHUB_TOKEN
+#
+# GITHUB_TOKEN must be a PAT with `public_repo` scope on
+# juralabs/jura-trace. Read-only access to releases is sufficient; the
+# worker does not modify any GitHub state.
+#
+# Optional vars (non-secret) can be set via `[vars]`:
+[vars]
+GITHUB_REPO = "juralabs/jura-trace"

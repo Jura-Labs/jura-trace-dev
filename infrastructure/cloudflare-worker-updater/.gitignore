@@ -1,0 +1,9 @@
+# Wrangler local state
+.wrangler/
+node_modules/
+
+# Local secrets (real .dev.vars, never committed)
+.dev.vars
+
+# Build output
+dist/

@@ -1,0 +1,77 @@
+# Forgejo runner configuration for the Jura Trace Mac Mini M4.
+#
+# Loaded via `forgejo-runner --config config.yml`.
+# See: https://forgejo.org/docs/latest/admin/actions/
+#
+# This runner serves the codeberg.org/juralabs/jura-trace repository
+# pipeline for the macOS and Windows release builds. Per the hosting
+# plan in `project_hosting_migration_plan` memory:
+#
+#   - Mac Mini M4 is the primary runner
+#   - Active window: 02:00 to 08:00 Copenhagen time (06 hour overnight)
+#   - This window is enforced at the launchd level (the runner process
+#     is started + stopped on a schedule, not throttled here)
+#   - Self-hosted because public Forgejo runners are not yet widely
+#     available with macOS notarisation credentials
+#
+# Capacity: 1 concurrent job is sufficient for the Jura Trace pilot
+# release cadence (1 to 2 releases per week). Bump capacity later if
+# the CI queue grows.
+
+log:
+  # Standard log level. Set to debug temporarily when diagnosing job
+  # failures. Logs land at $HOME/Library/Logs/forgejo-runner/ via the
+  # launchd plist redirect.
+  level: info
+
+runner:
+  # File where the runner persists its registration token + ID. Lives
+  # in the user's data directory so a Mac Mini reboot or runner restart
+  # does not re-register and orphan the previous token.
+  file: ~/Library/Application Support/forgejo-runner/runner-state.json
+
+  # Concurrent jobs. 1 is fine for v1.0 launch cadence; raise if the
+  # release queue grows.
+  capacity: 1
+
+  # Labels advertised by this runner. Codeberg workflows reference
+  # `runs-on:` to match. Macos-arm64 is the precise capability label;
+  # `self-hosted` is a generic group label that workflows can use when
+  # the macOS-specific label is not required.
+  labels:
+    - macos-arm64
+    - self-hosted
+
+  # Where work files are checked out. Inside ~/Documents so Time Machine
+  # backs them up automatically (irrelevant for the actual build output
+  # but useful for debugging when a failure leaves intermediate state).
+  envs:
+    HOME: /Users/paulgriffiths
+    JURA_RUNNER_HOST: mac-mini-m4
+
+  # Idle timeout. The launchd plist enforces the 02:00 to 08:00 window
+  # by killing the process at 08:00; this idle timeout is a defence in
+  # depth that exits cleanly if a job finishes early and no new job
+  # arrives within the configured window.
+  fetch_timeout: 5s
+  fetch_interval: 2s
+  report_interval: 1s
+
+container:
+  # No Docker on macOS; jobs run directly on the host. Forgejo's runner
+  # supports both modes; macOS is host-mode only because Docker Desktop
+  # on macOS adds latency and licence cost.
+  enable: false
+
+cache:
+  # Local cache directory. Forgejo runner caches checkouts and tool
+  # downloads here to skip redundant fetches on subsequent jobs.
+  enabled: true
+  dir: ~/Library/Caches/forgejo-runner
+
+host:
+  # Job working directory. ~/forgejo-jobs is shorter than the macOS
+  # default (~/Library/Application Support/forgejo-runner/jobs) which
+  # avoids the 1023-character UNIX socket path limit when nested Tauri
+  # / cargo target dirs grow deep.
+  workdir_parent: ~/forgejo-jobs
