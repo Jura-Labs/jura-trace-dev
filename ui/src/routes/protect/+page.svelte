@@ -784,12 +784,10 @@
       certificate isn't on the C2PA trust list, so third-party validators
       will display the signer as
       <code class="font-mono text-[11px]">signingCredential.untrusted</code>
-      — the manifest is real, the trust scope is local to your installation.{#if V1_SHOW_CONFORMANT_SIGNING}
+      The manifest is real; the trust scope is local to your installation.{#if V1_SHOW_CONFORMANT_SIGNING}
       Import a trust-list certificate from
       <a href="/settings#signing-mode-heading" class="underline underline-offset-2 hover:no-underline">Settings → Signing Mode</a>
-      to switch to Conformant Signing.{:else}
-      Conformant signing — verifiable against the C2PA trust list —
-      ships in v1.1.{/if}
+      to switch to Conformant Signing.{/if}
       Verification is already C2PA Validator-Conformant.
     {/if}
   </div>
@@ -1233,8 +1231,7 @@
                 <a
                   href="/settings#signing-mode-heading"
                   class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-                >Switch to Conformant Signing →</a>{:else}
-                Conformant signing ships in v1.1.{/if}
+                >Switch to Conformant Signing →</a>{/if}
               {/if}
             </div>
 
@@ -2415,8 +2412,7 @@
                         <a
                           href="/settings#signing-mode-heading"
                           class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-                        >Switch to Conformant Signing →</a>{:else}
-                        Conformant signing ships in v1.1.{/if}
+                        >Switch to Conformant Signing →</a>{/if}
                       {/if}
                     </div>
 

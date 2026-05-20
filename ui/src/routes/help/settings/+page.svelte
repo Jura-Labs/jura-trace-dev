@@ -859,15 +859,16 @@
   </h2>
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
-    Jura Trace v1.0 is released under the Community tier — free for everyone, under the
-    AGPL-3.0-or-later licence. A paid Pro tier and bespoke Custom Engineering are also available.
+    Jura Trace v1.0 ships as a single Community release, free for everyone under the
+    AGPL-3.0-or-later licence. Bespoke Custom Engineering is available for institutions
+    that need integration, training, or compliance support.
   </p>
 
   <div class="space-y-4">
 
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
       <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Community (v1.0 — current)
+        Community (v1.0)
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         The full Jura Trace application: C2PA Validator-Conformant verification, Local
@@ -875,33 +876,21 @@
         perceptual fingerprinting, EXIF anomaly detection with injection-detection and
         XMP AI-provenance sub-checks, invisible watermark embed and extract, Watched
         Locations folder monitoring, PDF trust reports, ZIP case exports. Free for everyone
-        under AGPL-3.0-or-later. Permanent — the CIC's asset-locked status guarantees a
-        free Community tier in perpetuity.
+        under AGPL-3.0-or-later. Permanent: the CIC's asset-locked status guarantees a
+        free Community release in perpetuity.
       </p>
     </div>
 
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
       <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Pro (paid tier, under development)
-      </p>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        Will add Conformant C2PA signing (verifies in Adobe Content Authenticity, ProofCheck,
-        and every standards-aware verifier), REST API access for programmatic integration,
-        bulk verify, unlimited Watched Locations, signed PDF and JSON-LD audit-log export
-        (for AI Act Article 50 compliance officers), and a commercial licence that escapes
-        the AGPL copyleft requirement for buyers embedding Jura Trace in their own products.
-        Pricing and availability will be announced when the tier ships.
-      </p>
-    </div>
-
-    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Custom Engineering (available now)
+        Custom Engineering
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         Bespoke engagements for institutions needing integration, training, custom-RAG
-        knowledge bases, MDM packaging, or compliance documentation packs. Quoted per
-        engagement, typically from £5,000 / 5 days. Email
+        knowledge bases, MDM packaging, or compliance documentation packs. Also covers
+        embedding Jura Trace in your own product without AGPL contagion (a commercial
+        licence is included in the engagement). Quoted per engagement, typically from
+        £5,000 / 5 days. Email
         <a
           href="mailto:commercial@juralabs.org"
           class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"

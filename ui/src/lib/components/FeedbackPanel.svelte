@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
-  import { getVersion, getLicenceTier } from '$lib/api';
+  import { getVersion } from '$lib/api';
 
   // ── Props ─────────────────────────────────────────────────────────────
   interface Props {
@@ -21,7 +21,6 @@
   // Auto-collected context
   let appVersion = $state('');
   let platform = $state('');
-  let tier = $state('');
   let currentPage = $state('');
 
   // Focus management
@@ -40,7 +39,6 @@
 
     // Gather auto-collected context
     appVersion = await getVersion();
-    tier = await getLicenceTier();
     currentPage = typeof window !== 'undefined' ? window.location.pathname : '';
     platform =
       typeof navigator !== 'undefined'
@@ -113,7 +111,6 @@
       '**Context (auto-collected):**',
       `- App version: ${appVersion}`,
       `- Platform: ${platform}`,
-      `- Tier: ${tier}`,
       `- Page: ${currentPage}`,
       `- Date: ${date}`,
     ].join('\n');
@@ -279,7 +276,6 @@
         >
           <div>Version: {appVersion || '…'}</div>
           <div>Platform: {platform || '…'}</div>
-          <div>Tier: {tier || '…'}</div>
           <div>Page: {currentPage || '…'}</div>
         </div>
       </div>

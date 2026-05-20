@@ -5,7 +5,7 @@
   import { getVersion, checkSidecarHealth, getSidecarStartupStatus, onSidecarStatusChanged, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, getPowerSaverMode, setPowerSaverMode, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert, getNetworkMode, setNetworkMode } from '$lib/api';
   import type { ApiKeyInfo, CreateKeyResult } from '$lib/api';
   import type { ConformantCertificateInfo, LicenceTier, NetworkMode, SidecarHealth, SidecarStartupSnapshot, SidecarStartupStatus, SigningMode, TierInfo } from '$lib/types';
-  import { V1_SHOW_CONFORMANT_SIGNING } from '$lib/featureFlags';
+  import { V1_SHOW_CONFORMANT_SIGNING, V1_SHOW_API_KEYS } from '$lib/featureFlags';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import {
     type DeploymentProfile,
@@ -2162,21 +2162,24 @@
       <ContextualHelpLink href="/help/settings#your-plan" label="Learn about licence plans and features" />
     </div>
     <p class="text-xs text-flint-dark dark:text-flint-light mb-4">
-      Jura Trace v1.0 ships as a single Community release. A paid Pro tier is planned for the v1.1 release in early 2027.
+      Jura Trace v1.0 is free for everyone under AGPL-3.0-or-later. The asset-locked
+      Community Interest Company structure guarantees a free Community release in perpetuity.
     </p>
 
-    <!-- v1.0 Community-only — tier selector + the duplicate Current-tier badge are
-         hidden until v1.1 introduces Pro tier. The LicenceTier enum, TIER_INFO record,
-         handleTierChange + tierChanging state, and currentTierInfo derived state are
-         retained in source for the v1.1 unhide; we just do not surface them in the UI.
-         The Community block below is the only tier surface visible in v1.0. -->
+    <!-- v1.0 Community-only — see project_v1_community_only_launch.md (2026-05-09)
+         + project_v102_pro_launch.md (2026-05-10). The tier selector + duplicate
+         current-tier badge are hidden until the v1.0.2 Pro tier ships (October 2026,
+         JTV-170-176). LicenceTier enum, TIER_INFO record, handleTierChange +
+         tierChanging state, and currentTierInfo derived state are retained in source
+         for that unhide. The Community block below is the only tier surface visible
+         in v1.0. Pro-tier forward-promise copy intentionally removed for launch. -->
     <div class="flex flex-col gap-3 max-w-xl rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 p-4">
       <div class="flex items-center gap-2">
         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-malachite/10 text-malachite-dark dark:bg-malachite/20 dark:text-malachite-light">
           Community
         </span>
         <span class="text-sm text-text-light dark:text-quartz">
-          Jura Trace v1.0 is free for everyone under AGPL-3.0-or-later.
+          The full Jura Trace application. Free under AGPL-3.0-or-later.
         </span>
       </div>
       <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
@@ -2186,10 +2189,8 @@
           class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
         >commercial@juralabs.org</a>
         for a commercial licence.
-        Need bespoke engineering, training, or compliance documentation? Custom Engineering
-        engagements are quoted from £5,000 / 5 days.
-        A paid Pro tier — adding Conformant C2PA signing, REST API access, bulk verify, and
-        Article 50 audit-log export — is planned for the v1.1 release in early 2027.
+        Need bespoke engineering, training, custom RAG knowledge bases, MDM packaging, or
+        compliance documentation? Custom Engineering engagements are quoted from £5,000 / 5 days.
       </p>
     </div>
 
@@ -2862,7 +2863,13 @@
   </section>
   {/if}
 
-  <!-- API Key Management -->
+  <!-- API Key Management — hidden in v1.0 Community-only launch.
+       V1_SHOW_API_KEYS=false hides the entire section. Backend (`api_keys`
+       table, listApiKeys / createApiKey / revokeApiKey IPC, Axum auth
+       middleware on port 8300) stays in tree; flipping the flag in
+       $lib/featureFlags.ts re-enables this surface alongside the v1.1
+       Pro-tier UI unhide (JTV-170-176). -->
+  {#if V1_SHOW_API_KEYS}
   <section
     class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="api-keys-heading"
@@ -3074,6 +3081,7 @@
       {/if}
     {/if}
   </section>
+  {/if}
 
   <!-- Network Access -->
   <section
