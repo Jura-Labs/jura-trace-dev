@@ -527,6 +527,23 @@ jobs:
           New-Item -ItemType Directory -Force -Path src-tauri\binaries | Out-Null
           Copy-Item sidecar\dist\jura-sidecar.exe src-tauri\binaries\${{ matrix.sidecar_name }}
 
+      # ── Windows + Linux: placeholder for sidecar-bundle resources glob ─────
+      # tauri.conf.json declares `"resources": ["models/*", "sidecar-bundle/**/*"]`
+      # for the JTV-184 macOS onedir refactor. On Windows + Linux the sidecar is
+      # --onefile (no onedir tree), so the directory does not exist and Tauri's
+      # strict glob rejects an empty match with "glob pattern ... path not found".
+      # Create an empty placeholder so the glob matches one zero-byte file;
+      # tauri ships this inside the MSI / AppImage as a harmless artefact.
+      # Long-term fix: platform-conditional resources in tauri.conf.json (not
+      # yet supported by Tauri v2 schema as a per-bundle override).
+      - name: Create empty sidecar-bundle placeholder (Windows + Linux)
+        if: matrix.target != 'aarch64-apple-darwin'
+        shell: bash
+        run: |
+          mkdir -p src-tauri/sidecar-bundle
+          touch src-tauri/sidecar-bundle/.keep
+          ls -la src-tauri/sidecar-bundle/
+
       # ── Copy ML model files into bundle ────────────────────────────────
       # The GBM classifier and UnivFD probe must ship alongside the sidecar.
       # Tauri bundles them via the "resources" config in tauri.conf.json.
