@@ -6,6 +6,7 @@
   import type { ApiKeyInfo, CreateKeyResult } from '$lib/api';
   import type { ConformantCertificateInfo, LicenceTier, NetworkMode, SidecarHealth, SidecarStartupSnapshot, SidecarStartupStatus, SigningMode, TierInfo } from '$lib/types';
   import { V1_SHOW_CONFORMANT_SIGNING, V1_SHOW_API_KEYS } from '$lib/featureFlags';
+  import { checkForUpdate as runCheckForUpdate, type UpdateStatus } from '$lib/updater';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import {
     type DeploymentProfile,
@@ -429,83 +430,21 @@
   }
 
   // ── Auto-updater ──────────────────────────────────────────────────────
-  // Uses @tauri-apps/plugin-updater which is only available inside a Tauri
-  // build.  In browser preview / Playwright tests we show a graceful notice
-  // instead of throwing.
-
-  type UpdateStatus =
-    | { state: 'idle' }
-    | { state: 'checking' }
-    | { state: 'available'; version: string }
-    | { state: 'up-to-date' }
-    | { state: 'downloading' }
-    | { state: 'installing' }
-    | { state: 'error'; message: string };
+  // State machine logic lives in $lib/updater.ts for unit-testability.
+  // This block owns the reactive state variable and wires up the real deps.
 
   let updateStatus = $state<UpdateStatus>({ state: 'idle' });
 
   async function checkForUpdate() {
-    if (!isTauri()) {
-      updateStatus = { state: 'error', message: 'Update checks are only available in the desktop application.' };
-      return;
-    }
-
-    updateStatus = { state: 'checking' };
-    try {
-      // Dynamic import keeps the plugin out of the browser bundle entirely.
-      const { check } = await import('@tauri-apps/plugin-updater');
-      const update = await check();
-
-      if (!update) {
-        updateStatus = { state: 'up-to-date' };
-        return;
-      }
-
-      updateStatus = { state: 'available', version: update.version };
-
-      // Pre-update DB backup hook (security-auditor + devops blocker).
-      // Run a `VACUUM INTO` snapshot of the local database to an auto-backup
-      // directory under the app data dir BEFORE the new version starts.  If
-      // a v1.0 schema migration fails on this user's accumulated rc.x state,
-      // the snapshot is the rollback target.  Failure to back up is logged
-      // and surfaced — install continues either way (the user explicitly
-      // requested the update; refusing to proceed because backup failed
-      // would be more user-hostile than the residual risk).
-      try {
-        const { autoBackupBeforeUpdate } = await import('$lib/api');
-        const backup = await autoBackupBeforeUpdate();
-        console.info(`[updater] pre-install backup at ${backup.snapshotPath} (${backup.sha256.slice(0, 12)}…)`);
-      } catch (backupErr) {
-        console.warn('[updater] pre-install backup failed; continuing with update:', backupErr);
-      }
-
-      // Download and install immediately — the plugin shows a restart prompt.
-      updateStatus = { state: 'downloading' };
-      await update.downloadAndInstall((event) => {
-        if (event.event === 'Started') {
-          updateStatus = { state: 'downloading' };
-        } else if (event.event === 'Progress') {
-          // Progress events carry { chunkLength, contentLength } — we use
-          // them only to stay in the "downloading" state and could render a
-          // progress bar here in a future iteration.
-          updateStatus = { state: 'downloading' };
-        } else if (event.event === 'Finished') {
-          updateStatus = { state: 'installing' };
-        }
-      });
-      // After downloadAndInstall resolves the app will restart automatically.
-      updateStatus = { state: 'installing' };
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      // "No updates available" surfaces as an error from the plugin when the
-      // pubkey is empty and the endpoint returns a 404 or no newer version.
-      // Surface a user-friendly message rather than a raw error string.
-      if (message.includes('No updates available') || message.includes('404')) {
-        updateStatus = { state: 'up-to-date' };
-      } else {
-        updateStatus = { state: 'error', message };
-      }
-    }
+    const { makeTauriDeps } = await import('$lib/updater');
+    const deps = isTauri()
+      ? await makeTauriDeps()
+      : {
+          isTauri: () => false as boolean,
+          checkPlugin: async () => null as null,
+          backup: async () => ({ snapshotPath: '', sha256: '' }),
+        };
+    await runCheckForUpdate((s) => { updateStatus = s; }, deps);
   }
 
   // ── Licence Tier ──────────────────────────────────────────────────────────
