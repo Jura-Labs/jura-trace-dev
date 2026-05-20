@@ -1227,20 +1227,27 @@ jobs:
             const tag = release.tag_name; // e.g. "v0.9.0" or "v1.0.0-beta.1"
 
             // Determine which manifest filename to write (or skip entirely).
-            //   Stable:  latest.json
-            //   Beta:    latest-beta.json
-            //   RC/Alpha: skip (manual download only — do not push updates to any client)
-            const isBeta  = /-(beta)\./.test(tag);
+            //   Stable:        latest.json
+            //   Beta:          latest-beta.json
+            //   Smoke-test:    latest-smoke.json (JTV-155 end-to-end validation
+            //                  of the manifest pipeline before v1.0.0 launch.
+            //                  Tag pattern: vX.Y.Z-rc.NN-smoke-YYYYMMDD.)
+            //   RC/Alpha:      skip (manual download only, do not push updates
+            //                  to any client)
+            const isBeta      = /-(beta)\./.test(tag);
+            const isSmokeTest = /-smoke-\d{8}$/.test(tag);
             const isRcOrAlpha = /-(rc|alpha)\./.test(tag);
 
-            if (isRcOrAlpha) {
-              console.log(`Tag ${tag} is an RC or alpha pre-release — no update manifest will be written.`);
+            if (isRcOrAlpha && !isSmokeTest) {
+              console.log(`Tag ${tag} is an RC or alpha pre-release. No update manifest will be written.`);
               console.log('RC/alpha builds are available only via manual GitHub release download.');
               core.setOutput('wrote_manifest', 'false');
               return;
             }
 
-            const manifestName = isBeta ? 'latest-beta.json' : 'latest.json';
+            const manifestName = isSmokeTest
+              ? 'latest-smoke.json'
+              : (isBeta ? 'latest-beta.json' : 'latest.json');
             console.log(`Tag ${tag} → writing ${manifestName}`);
 
             // Fetch all assets attached to the draft release on jura-trace.

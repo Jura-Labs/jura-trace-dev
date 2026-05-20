@@ -37,8 +37,10 @@ This smoke test exercises every junction.
       jobs (JTV-152 SETUP.md Step 5 confirmed)
 - [ ] `org.juralabs.forgejo-runner.plist` loaded; runner active
       window 02:00 to 08:00 Copenhagen (JTV-152 SETUP.md Step 6)
-- [ ] Cloudflare Worker deployed; `curl https://juralabs.org/api/updates/latest.json`
-      returns valid JSON (JTV-146 DEPLOYMENT.md verify section)
+- [ ] Cloudflare Worker deployed; `curl -i https://juralabs.org/api/updates/latest.json`
+      returns HTTP 200 or 502 (both prove the Worker is reachable;
+      pre-launch a 502 is expected because no stable release exists yet).
+      See JTV-146 DEPLOYMENT.md verify section.
 - [ ] juralabs.org/downloads/ page resolves; install links work
       (JTV-148 deployed)
 - [ ] GitHub `juralabs/jura-trace` installer-host repo's
@@ -200,31 +202,64 @@ Get-AuthenticodeSignature .\Jura.Trace_<version>_x64_en-US.msi
 The certificate ID a7e35def is the Azure Trusted Signing certificate
 documented in CLAUDE.md.
 
-### 6. Cloudflare Worker: manifest serves the new version
+### 6. Manifest pipeline: verify `latest-smoke.json` on GitHub Releases
 
-Once both macOS + Windows uploads complete, the GitHub Releases
-state has the new tag. The Cloudflare Worker caches the latest
-manifest for 5 minutes; clear the cache to force-refresh:
+Smoke tags matching the pattern `vX.Y.Z-rc.NN-smoke-YYYYMMDD` get a
+`latest-smoke.json` manifest (NOT `latest.json`, which is reserved for
+stable releases). This is the workflow's smoke-test bypass: it exercises
+the full manifest-generation path without polluting the stable update
+channel for users on rc.x builds.
+
+Confirm the manifest landed on GitHub Releases:
 
 ```sh
-# Via wrangler (worker maintainer machine)
-cd infrastructure/cloudflare-worker-updater
-wrangler tail   # watch incoming requests
-
-# In a separate terminal, force-refresh
-curl -X PURGE https://juralabs.org/api/updates/latest.json
-# Or wait 5 minutes for the cache to expire naturally
-
-curl https://juralabs.org/api/updates/latest.json | jq '.version'
-# Expect: the new version string (e.g. "0.9.0-rc.25-smoke-20260601")
+gh release view "$TEST_TAG" --repo juralabs/jura-trace \
+  --json assets --jq '.assets[].name' | grep latest-smoke.json
+# Expect: latest-smoke.json
 ```
 
-The full manifest should include the macOS + Windows platform blocks:
+Fetch and inspect the manifest contents directly from GitHub:
 
 ```sh
-curl https://juralabs.org/api/updates/latest.json | jq '.platforms | keys'
-# Expect: ["darwin-aarch64", "windows-x86_64"]
-# (Linux is paused per docs/backlog.md; do not expect a linux-x86_64 block)
+curl -sL "https://github.com/juralabs/jura-trace/releases/download/${TEST_TAG}/latest-smoke.json" | jq .
+# Expect a JSON object with:
+#   - version: matches $TEST_TAG (e.g. "v0.9.0-rc.25-smoke-20260601")
+#   - platforms.darwin-aarch64.url + .signature (non-empty)
+#   - platforms.windows-x86_64.url + .signature (non-empty)
+# Linux is paused per docs/backlog.md, no linux-x86_64 block expected.
+```
+
+Validate the signatures are non-empty (zero-byte sigs are the classic
+TAURI_SIGNING_PRIVATE_KEY misconfiguration failure mode):
+
+```sh
+curl -sL "https://github.com/juralabs/jura-trace/releases/download/${TEST_TAG}/latest-smoke.json" \
+  | jq -r '.platforms | to_entries[] | "\(.key): \(.value.signature | length) bytes"'
+# Expect: each platform reports >300 bytes of signature
+```
+
+### 6a. Cloudflare Worker liveness (independent of smoke manifest)
+
+The Worker only serves `/api/updates/latest.json` (stable channel), not
+`/latest-smoke.json`. Pre-launch (before v1.0.0) the Worker has nothing
+to serve and will return either 502 (no stable release found) or the
+last stable manifest if one exists. The smoke test confirms the Worker
+is reachable and responding:
+
+```sh
+curl -i https://juralabs.org/api/updates/latest.json
+# Expect HTTP 200 OR 502 (both prove the Worker is alive). A connection
+# error or DNS failure means the Worker is not deployed; fix JTV-146.
+```
+
+Full Worker-to-manifest validation happens automatically at v1.0.0
+launch when the workflow writes `latest.json` for the first time. That
+is the moment to verify:
+
+```sh
+# After v1.0.0 ships
+curl https://juralabs.org/api/updates/latest.json | jq '.version'
+# Expect: "v1.0.0"
 ```
 
 ### 7. Desktop app: auto-updater detects the new version
