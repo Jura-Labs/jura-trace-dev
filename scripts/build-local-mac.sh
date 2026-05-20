@@ -31,7 +31,17 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 TARGET="aarch64-apple-darwin"
-BUNDLE_DIR="src-tauri/target/${TARGET}/release/bundle"
+
+# Honour CARGO_TARGET_DIR if set (the user may point Cargo at an external
+# disk to keep target/ off the system drive). Falls back to the in-tree
+# src-tauri/target/ if unset.
+if [[ -n "${CARGO_TARGET_DIR:-}" ]]; then
+  CARGO_TARGET_BASE="$CARGO_TARGET_DIR"
+else
+  CARGO_TARGET_BASE="$REPO_ROOT/src-tauri/target"
+fi
+BUNDLE_DIR="$CARGO_TARGET_BASE/${TARGET}/release/bundle"
+
 SIDECAR_DIST="sidecar/dist/jura-sidecar"
 SIDECAR_STAGING="src-tauri/sidecar-bundle"
 SIGNING_IDENTITY="Developer ID Application: Jura Labs CIC (Y82C4P9L7F)"
@@ -80,6 +90,7 @@ fi
 
 # ── Clean previous artefacts (idempotent re-runs) ─────────────────────
 log "Cleaning previous build artefacts"
+log "(Cargo target base: $CARGO_TARGET_BASE)"
 rm -rf "$BUNDLE_DIR"
 rm -rf "$SIDECAR_STAGING"
 rm -rf "$SIDECAR_DIST"
