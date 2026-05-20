@@ -99,10 +99,34 @@ export async function checkForUpdate(
     onStatus({ state: 'installing' });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    if (message.includes('No updates available') || message.includes('404')) {
-      onStatus({ state: 'up-to-date' });
-    } else {
-      onStatus({ state: 'error', message });
-    }
+    onStatus(classifyError(message));
   }
+}
+
+/**
+ * Map raw plugin-updater errors to user-facing UpdateStatus values.
+ *
+ * The Tauri plugin emits raw strings that are not safe to surface verbatim:
+ * "No updates available" / "404" mean the endpoint is reachable and just
+ * has no newer version; "Could not fetch a valid release JSON from the
+ * remote" means the endpoint returned 404 or invalid JSON (typically a
+ * temporary infrastructure issue). Both branches return a friendly status
+ * rather than the raw plugin string.
+ */
+export function classifyError(message: string): UpdateStatus {
+  if (message.includes('No updates available') || message.includes('404')) {
+    return { state: 'up-to-date' };
+  }
+  if (
+    message.includes('Could not fetch a valid release JSON') ||
+    message.includes('Failed to fetch') ||
+    message.includes('Network request failed')
+  ) {
+    return {
+      state: 'error',
+      message:
+        'Update channel temporarily unavailable. Please try again later. If the problem persists, download the latest installer from juralabs.org/downloads.',
+    };
+  }
+  return { state: 'error', message };
 }

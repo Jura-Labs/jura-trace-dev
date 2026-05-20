@@ -9,7 +9,7 @@
  * Run with: cd ui && npm test
  */
 import { describe, expect, it, vi } from 'vitest';
-import { checkForUpdate, type UpdateStatus, type UpdaterDeps } from './updater';
+import { checkForUpdate, classifyError, type UpdateStatus, type UpdaterDeps } from './updater';
 
 // Minimal fake update object returned by the plugin.
 function makeFakeUpdate(
@@ -199,6 +199,59 @@ describe('checkForUpdate — generic error handling', () => {
     expect(last.state).toBe('error');
     if (last.state === 'error') {
       expect(last.message).toBe('something went wrong');
+    }
+  });
+});
+
+describe('classifyError — channel-unavailable normalisation', () => {
+  it('maps "Could not fetch a valid release JSON" to friendly error', async () => {
+    const deps = makeDeps({
+      checkPlugin: vi.fn(async () => {
+        throw new Error('Could not fetch a valid release JSON from the remote');
+      }),
+    });
+    const transitions = await run(deps);
+
+    const last = transitions[transitions.length - 1];
+    expect(last.state).toBe('error');
+    if (last.state === 'error') {
+      expect(last.message).toContain('Update channel temporarily unavailable');
+      expect(last.message).toContain('juralabs.org/downloads');
+      expect(last.message).not.toContain('JSON');
+    }
+  });
+
+  it('maps "Failed to fetch" network error to friendly error', () => {
+    const result = classifyError('Failed to fetch');
+    expect(result.state).toBe('error');
+    if (result.state === 'error') {
+      expect(result.message).toContain('Update channel temporarily unavailable');
+    }
+  });
+
+  it('maps "Network request failed" to friendly error', () => {
+    const result = classifyError('Network request failed: connection reset');
+    expect(result.state).toBe('error');
+    if (result.state === 'error') {
+      expect(result.message).toContain('Update channel temporarily unavailable');
+    }
+  });
+
+  it('preserves "404" and "No updates available" up-to-date mapping', () => {
+    expect(classifyError('Request failed with status 404').state).toBe('up-to-date');
+    expect(classifyError('No updates available from endpoint').state).toBe('up-to-date');
+  });
+
+  it('falls through to raw error for unknown messages', () => {
+    const result = classifyError('Signature verification failed');
+    expect(result).toEqual({ state: 'error', message: 'Signature verification failed' });
+  });
+
+  it('friendly error message contains no em-dash and no emoji', () => {
+    const result = classifyError('Could not fetch a valid release JSON from the remote');
+    if (result.state === 'error') {
+      expect(result.message).not.toContain('—');
+      expect(result.message).not.toMatch(/[^\x00-\x7F]/);
     }
   });
 });
