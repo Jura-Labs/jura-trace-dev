@@ -783,8 +783,9 @@
       Signed files carry a valid C2PA v2.x manifest. Our per-install
       certificate isn't on the C2PA trust list, so third-party validators
       will display the signer as
-      <code class="font-mono text-[11px]">signingCredential.untrusted</code>
-      The manifest is real; the trust scope is local to your installation.{#if V1_SHOW_CONFORMANT_SIGNING}
+      <code class="font-mono text-[11px]">signingCredential.untrusted</code>.
+      The manifest is real; the trust scope is local to your installation.
+      Trust-list-certificate import is on the backlog for v1.1.{#if V1_SHOW_CONFORMANT_SIGNING}
       Import a trust-list certificate from
       <a href="/settings#signing-mode-heading" class="underline underline-offset-2 hover:no-underline">Settings → Signing Mode</a>
       to switch to Conformant Signing.{/if}
