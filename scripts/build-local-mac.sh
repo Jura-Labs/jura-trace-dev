@@ -134,6 +134,25 @@ cp models/deepfake_classifier.joblib src-tauri/models/ 2>/dev/null || warn "deep
 cp models/univfd_probe.joblib src-tauri/models/ 2>/dev/null || warn "univfd_probe.joblib not found in models/ — verify external USB mount."
 ok "Model files: $(ls src-tauri/models/ | tr '\n' ' ')"
 
+# ── Cargo macro-cache invalidation ────────────────────────────────────
+# tauri::generate_context! embeds the contents of ui/build/ at compile
+# time. Cargo's incremental cache does NOT detect when files INSIDE
+# ui/build/ change, it only watches Rust source. Result: rebuilding the
+# frontend then running `cargo tauri bundle` re-signs the app with a
+# stale embedded frontend (chunks with old content hashes). The .app
+# passes codesign and launches, but users see the previous build's UI.
+#
+# Workaround (2026-05-21 incident): nuke the cargo fingerprint dir for
+# jura-trace AND the release binary, then run `cargo build --release`
+# explicitly so cargo re-runs the macro and re-embeds the fresh dist
+# BEFORE the bundle step (which only bundles, never compiles).
+log "Invalidating cargo macro cache + rebuilding (forces fresh frontend embed)"
+rm -f "$CARGO_TARGET_BASE/${TARGET}/release/jura-trace"
+rm -rf "$CARGO_TARGET_BASE/${TARGET}/release/.fingerprint/jura-trace-"*
+(cd src-tauri && cargo build --release --target "$TARGET")
+[[ -x "$CARGO_TARGET_BASE/${TARGET}/release/jura-trace" ]] || die "cargo build --release did not produce the binary."
+ok "Macro cache invalidated and binary rebuilt."
+
 # ── Phase 1: build + sign .app only (NO DMG, NO notarisation yet) ─────
 log "Phase 1: cargo tauri bundle --bundles app (signs .app top level)"
 (cd src-tauri && cargo tauri bundle --bundles app --target "$TARGET")

@@ -1869,7 +1869,7 @@
                       Sign
                     </button>
                   {/if}
-                  {#if !asset.watermarked && canWatermark(asset)}
+                  {#if V1_SHOW_WATERMARK && !asset.watermarked && canWatermark(asset)}
                     <button
                       class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light hover:border-lapis/50 hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
@@ -2373,6 +2373,7 @@
                 >
                   {asset.c2paSigned ? 'Signed' : 'Unsigned'}
                 </span>
+                {#if V1_SHOW_WATERMARK || asset.watermarked}
                 <span
                   class="text-xs px-2 py-0.5 rounded {asset.watermarked
                     ? 'bg-malachite/15 text-malachite-dark dark:text-malachite-light'
@@ -2380,6 +2381,7 @@
                 >
                   {asset.watermarked ? 'Watermarked' : 'No Watermark'}
                 </span>
+                {/if}
               </div>
 
               <!-- C2PA signing form -->

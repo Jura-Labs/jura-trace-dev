@@ -79,6 +79,11 @@
     // Knowledge Base Retrieval (RAG claim checker) deferred from v1.0
     // on 2026-05-17 pending corpus expansion and formal accuracy evaluation.
     'rag',
+    // Watermark embed/extract deferred from v1.0 on 2026-05-21 alongside
+    // V1_SHOW_WATERMARK. Removing the capability chip avoids the "ready
+    // but unreachable" confusion users hit when they saw a green chip
+    // next to a UI surface that was no longer present.
+    'watermark',
   ]);
 
   const sidecarOnline = $derived(sidecarHealth?.status === 'ok');
@@ -1174,7 +1179,11 @@
   </section>
   {/if}
 
-  <!-- Deployment Profiles -->
+  <!-- Deployment Profiles. v1.0 gate: Profiles only capture AI settings
+       (Ollama URL + vision/text models). With AI deferred to v1.0.1, there
+       is nothing meaningful for a profile to store. Reappears naturally
+       when either AI surface flag flips true. -->
+  {#if V1_SHOW_AI_DESCRIPTION || V1_SHOW_READ_TEXT}
   <section
     class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="profiles-heading"
@@ -1376,6 +1385,7 @@
       {/if}
     </div>
   </section>
+  {/if}
 
   <!-- Service Status -->
   <section
@@ -1408,7 +1418,11 @@
       </button>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <!-- Grid collapses to single column when the Ollama card is gated out
+         (v1.0), so the Analysis Engine card spans full width instead of
+         leaving an empty second column. Reverts to two columns when either
+         AI surface flag flips true in v1.0.1. -->
+    <div class="grid grid-cols-1 {(V1_SHOW_AI_DESCRIPTION || V1_SHOW_READ_TEXT) ? 'md:grid-cols-2' : ''} gap-4">
       <!-- Analysis Engine card -->
       <!-- JTV-184 Phase 1 — three-state badge (NotPresent / Connecting / Ready)
            driven by the sidecar startup snapshot. The legacy binary
@@ -1502,7 +1516,10 @@
         {/if}
       </div>
 
-      <!-- Ollama card — JTV-132: three-state status + one-click install + model download -->
+      <!-- Ollama card — JTV-132: three-state status + one-click install + model download.
+           v1.0 gate: hidden when no AI surface is enabled. Re-exposes naturally in v1.0.1
+           when V1_SHOW_AI_DESCRIPTION (or V1_SHOW_READ_TEXT) flips true. -->
+      {#if V1_SHOW_AI_DESCRIPTION || V1_SHOW_READ_TEXT}
       <div class="rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 p-4">
         <div class="flex items-center justify-between mb-3">
           <span class="text-sm font-medium text-text-light dark:text-quartz">Ollama <span class="text-xs font-normal text-flint-dark dark:text-flint-light">(optional)</span></span>
@@ -1644,6 +1661,7 @@
           </p>
         {/if}
       </div>
+      {/if}
     </div>
   </section>
 
