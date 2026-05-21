@@ -48,7 +48,7 @@
     {
       href: '/help/glossary',
       title: 'Glossary',
-      description: 'Definitions of technical terms used throughout the application — from ELA and C2PA to perceptual hashing and DWT watermarking.',
+      description: 'Definitions of technical terms used throughout the application — from ELA and C2PA to perceptual hashing.',
     },
     {
       href: '/help/personas',
@@ -79,7 +79,7 @@
     Documentation and Guidance
   </h1>
   <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
-    Jura Trace runs 11 forensic detectors to verify content authenticity and embeds
+    Jura Trace runs 10 forensic detectors to verify content authenticity and embeds
     tamper-evident credentials to protect your digital assets. These guides explain how
     each feature works, the methodology behind our analysis, and practical workflows for
     different use cases.

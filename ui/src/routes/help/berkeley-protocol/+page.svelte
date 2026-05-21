@@ -194,7 +194,7 @@
         <tr>
           <td class="py-2.5 pr-6 text-text-light dark:text-text-dark font-medium">Methodology documentation</td>
           <td class="py-2.5 pr-6 tabular-nums text-flint-dark dark:text-flint-light">§6.2</td>
-          <td class="py-2.5 text-flint-dark dark:text-flint-light">11 automatic forensic detectors plus 3 on-demand investigation tools documented in-app; trust score formula fully disclosed</td>
+          <td class="py-2.5 text-flint-dark dark:text-flint-light">10 automatic forensic detectors plus 3 on-demand investigation tools documented in-app; trust score formula fully disclosed</td>
         </tr>
         <tr>
           <td class="py-2.5 pr-6 text-text-light dark:text-text-dark font-medium">Analyst accountability</td>
@@ -386,7 +386,7 @@
            class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:text-lapis/80 dark:hover:text-lapis dark:text-lapis-light/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian motion-safe:transition-colors">
           How Analysis Works
         </a>
-        page documents all 11 automatic forensic detectors plus the 3 on-demand
+        page documents all 10 automatic forensic detectors plus the 3 on-demand
         investigation tools: what each one measures, how it works, its known
         false-positive triggers, and the investigation modes in which it runs.
       </span>
@@ -796,7 +796,7 @@
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         How Analysis Works
       </a>
-      <span class="text-flint-dark dark:text-flint-light">: full documentation of all 11 automatic forensic detectors plus 3 on-demand investigation tools, the trust score formula, and known limitations</span>
+      <span class="text-flint-dark dark:text-flint-light">: full documentation of all 10 automatic forensic detectors plus 3 on-demand investigation tools, the trust score formula, and known limitations</span>
     </li>
     <li>
       <a href="/help/verify"
@@ -810,7 +810,7 @@
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Protecting Your Content
       </a>
-      <span class="text-flint-dark dark:text-flint-light">: C2PA signing, watermarking, and batch protection workflows</span>
+      <span class="text-flint-dark dark:text-flint-light">: C2PA signing and batch protection workflows</span>
     </li>
   </ul>
 </section>

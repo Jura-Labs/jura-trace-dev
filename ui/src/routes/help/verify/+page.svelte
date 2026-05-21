@@ -124,7 +124,7 @@
       <span>
         <strong class="text-text-light dark:text-text-dark">Image forensic analysis</strong>:
         a suite of detectors (ELA, segmented ELA, noise analysis, copy-move detection,
-        JPEG Ghost, colour temperature, watermark extraction) that look for traces of
+        JPEG Ghost, and colour temperature) that look for traces of
         compositing, re-touching, or format manipulation at the pixel level. Three further
         detectors (NPR, shadow consistency, splice boundary) are available on demand.
       </span>
@@ -260,7 +260,7 @@
           <td class="py-3 pr-4 align-top whitespace-nowrap">~15 s</td>
           <td class="py-3">
             EXIF anomaly analysis, C2PA credential check, ELA (Error Level Analysis),
-            AI-generation detection (GBM v4 + UnivFD v10onnx ensemble), watermark extraction,
+            AI-generation detection (GBM v4 + UnivFD v10onnx ensemble),
             noise analysis, copy-move detection, JPEG ghost
           </td>
         </tr>
@@ -436,7 +436,7 @@
         </span>
       </div>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        The deepfake score exceeds 0.65, or an AI-generation watermark was detected in the
+        The deepfake score exceeds 0.65 in the
         file metadata. The detectors found strong indicators consistent with AI-generated
         content. This verdict warrants careful review and corroboration before acting on it.
       </p>
@@ -1084,7 +1084,7 @@
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Protecting Your Content
       </a>
-      <span class="text-flint-dark dark:text-flint-light">: apply C2PA credentials and invisible watermarks to your own assets</span>
+      <span class="text-flint-dark dark:text-flint-light">: apply C2PA credentials to your own assets</span>
     </li>
   </ul>
 </section>

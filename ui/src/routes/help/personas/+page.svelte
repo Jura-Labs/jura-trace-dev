@@ -282,13 +282,12 @@
       verifiable timestamp into the file.
     </li>
     <li>
-      Apply an invisible watermark.
       <strong class="text-text-light dark:text-text-dark">Medium</strong> strength is
       recommended for web distribution: it balances visual quality against resilience to
       social media compression.
     </li>
     <li>
-      Publish the signed, watermarked version.
+      Publish the signed version.
     </li>
     <li>
       Keep the original file and your Jura Trace database as your provenance record.
@@ -314,7 +313,6 @@
   </h3>
   <ul class="list-disc pl-6 space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     <li>C2PA signing with creator name and timestamp</li>
-    <li>Invisible watermarking at three strength levels (Low, Medium, High)</li>
     <li>Asset catalogue with perceptual fingerprints for near-duplicate detection</li>
     <li>PDF trust reports as portable proof of provenance</li>
   </ul>
@@ -330,7 +328,7 @@
         credential captures the exact state of the file at the moment of signing.
       </li>
       <li>
-        Medium watermark strength survives social media compression on platforms such
+        Perceptual hashing survives social media compression on platforms such
         as Instagram and X while maintaining visual quality that is indistinguishable
         to the naked eye.
       </li>
@@ -812,12 +810,7 @@
       Sign with C2PA provenance to establish a provenance record from the point
       of intake. The timestamp attests to when you first received the evidence.
     </li>
-    <li>
-      Embed an invisible watermark at
-      <strong class="text-text-light dark:text-text-dark">Medium</strong> strength for
-      tracking.
-    </li>
-    <li>
+      <li>
       Run verification in
       <strong class="text-text-light dark:text-text-dark">Deep</strong> mode for full
       detector coverage including the four regional detectors needed for composite

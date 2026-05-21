@@ -460,7 +460,7 @@
       tier: 'community',
       name: 'Community',
       codename: 'Flint',
-      description: 'Free for everyone under AGPL-3.0-or-later. Full verification pipeline (11 automatic detectors plus 3 on-demand investigation tools), batch processing, PDF trust reports, Case Export ZIP, and Watched Locations monitoring. Community support via GitHub Issues.',
+      description: 'Free for everyone under AGPL-3.0-or-later. Full verification pipeline (10 automatic detectors plus 3 on-demand investigation tools), batch processing, PDF trust reports, Case Export ZIP, and Watched Locations monitoring. Community support via GitHub Issues.',
       badgeClass: 'bg-flint/15 border border-flint/30',
       badgeTextClass: 'text-flint-dark dark:text-flint-light',
     },

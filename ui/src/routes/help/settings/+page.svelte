@@ -86,7 +86,7 @@
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
     Ollama is a free tool that runs AI models locally on your computer. In Jura Trace,
     it powers two optional features that sit on top of the core forensic pipeline.
-    Neither replaces any of the eleven automatic detectors or three on-demand
+    Neither replaces any of the ten automatic detectors or three on-demand
     investigation tools.
   </p>
 
@@ -127,9 +127,8 @@
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4 mb-8">
     <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">Everything else works without Ollama</p>
     <ul class="space-y-1 text-sm text-flint-dark dark:text-flint-light">
-      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> All 11 automatic forensic detectors (ELA, noise, copy-move, deepfake, and more) plus 3 on-demand investigation tools</li>
+      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> All 10 automatic forensic detectors (ELA, noise, copy-move, deepfake, and more) plus 3 on-demand investigation tools</li>
       <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> C2PA provenance verification</li>
-      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> Invisible watermark embedding and detection</li>
       <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> EXIF anomaly analysis</li>
       <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> Video and audio metadata (requires FFmpeg)</li>
     </ul>
@@ -375,7 +374,7 @@
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
         This indicator shows the status of the Analysis Engine, which runs locally on
         the 127.0.0.1 loopback interface. The Analysis Engine provides forensic image analysis (ELA, noise, copy-move,
-        deepfake detection, JPEG ghost, regional analysis), watermark embed and extract,
+        deepfake detection, JPEG ghost, regional analysis),
         video and audio processing, transcription, and the on-demand investigation tools
         (NPR, shadow consistency, splice boundary) available in Expert View.
       </p>
@@ -390,7 +389,7 @@
           <tbody class="text-flint-dark dark:text-flint-light">
             <tr class="border-b border-border-light/50 dark:border-border-dark/50">
               <td class="py-2 pr-4 font-semibold text-malachite-dark dark:text-malachite-light">Online</td>
-              <td class="py-2">The Analysis Engine is running and responding. Forensic analysis and watermarking are available.</td>
+              <td class="py-2">The Analysis Engine is running and responding. Forensic analysis is available.</td>
             </tr>
             <tr>
               <td class="py-2 pr-4 font-semibold text-cinnabar-dark dark:text-cinnabar-light">Offline</td>
@@ -746,7 +745,7 @@
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         Checks whether Ollama is running and whether the vision model (LLaVA) and text
-        model (Qwen2.5) are installed. These models are optional; all 11 automatic
+        model (Qwen2.5) are installed. These models are optional; all 10 automatic
         forensic detectors work without them. If Ollama is unavailable, the wizard
         confirms which features will be skipped.
       </p>
