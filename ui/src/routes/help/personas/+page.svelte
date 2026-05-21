@@ -67,8 +67,7 @@
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     You manage collections of cultural heritage material (photographs, manuscripts,
     artworks) and need to protect them from unauthorised reproduction while maintaining
-    provenance records. Jura Trace gives you a bedrock of cryptographic evidence and
-    invisible watermarking that travels with each asset across its life in your collection.
+    provenance records. Jura Trace gives you a bedrock of cryptographic evidence that travels with each asset across its life in your collection.
   </p>
 
   <!-- Recommended workflow -->
@@ -86,12 +85,7 @@
       authority.
     </li>
     <li>
-      Apply invisible watermarks at <strong class="text-text-light dark:text-text-dark">Medium</strong>
-      or <strong class="text-text-light dark:text-text-dark">High</strong> strength. These survive
-      social media compression and moderate cropping.
-    </li>
-    <li>
-      Use batch watermarking for large collections: select multiple assets and apply
+      Use batch C2PA signing for large collections: select multiple assets and apply
       credentials in a single operation.
     </li>
     <li>
@@ -116,7 +110,6 @@
     Key features to explore
   </h3>
   <ul class="list-disc pl-6 space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
-    <li>Batch watermarking for large-scale collection processing</li>
     <li>C2PA signing with institution name and timestamp</li>
     <li>Configurable database location for shared-network deployments</li>
     <li>PDF trust reports suitable for accession records and audit trails</li>
@@ -129,13 +122,8 @@
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <li>
-        Sign before watermarking: C2PA credentials attest to the pre-watermark original.
-        Reversing the order means the credential captures a watermarked version rather
-        than your master.
-      </li>
-      <li>
         Export trust reports as PDFs for your accession records. Each report includes the
-        full fingerprint, watermark payload, and signing authority.
+        full fingerprint and signing authority.
       </li>
       <li>
         Back up your database regularly: it holds all perceptual fingerprints and
@@ -275,7 +263,7 @@
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     You create original photographs, illustrations, or videos and want to prove your
-    authorship before publishing. C2PA provenance and invisible watermarking
+    authorship before publishing. C2PA provenance
     deposit a durable record of your creative origin: one that survives the compression
     and cropping common across social media platforms.
   </p>

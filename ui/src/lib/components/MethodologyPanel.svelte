@@ -63,7 +63,7 @@
     {
       id: 'deepfake',
       label: 'AI Generation Detection',
-      description: 'Applies a weighted ensemble of statistical signals — frequency spectrum analysis, colour distribution, texture regularity, and invisible watermark checks — to assess whether the image is likely AI-generated.',
+      description: 'Applies a weighted ensemble of statistical signals — frequency spectrum analysis, colour distribution, texture regularity — to assess whether the image is likely AI-generated.',
       ran: result.deepfakeResult !== undefined,
       citation: { authors: 'Ojha, U. et al.', year: 2023, paper: 'Towards Universal Fake Image Detectors that Generalise Across Generative Models' } as StageCitation,
     },

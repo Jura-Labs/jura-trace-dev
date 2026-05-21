@@ -189,7 +189,7 @@
         <tr>
           <td class="py-2.5 pr-6 text-text-light dark:text-text-dark font-medium">Content integrity</td>
           <td class="py-2.5 pr-6 tabular-nums text-flint-dark dark:text-flint-light">§5.4</td>
-          <td class="py-2.5 text-flint-dark dark:text-flint-light">C2PA provenance, perceptual hashing, invisible watermarking</td>
+          <td class="py-2.5 text-flint-dark dark:text-flint-light">C2PA provenance, perceptual hashing</td>
         </tr>
         <tr>
           <td class="py-2.5 pr-6 text-text-light dark:text-text-dark font-medium">Methodology documentation</td>
@@ -237,7 +237,7 @@
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     Jura Trace addresses this requirement through a tamper-evident audit log stored in
     the local SQLite database. Every consequential action (file import, C2PA signing,
-    verification, watermark embedding, and export) writes an entry to the log. Each
+    verification, and export) writes an entry to the log. Each
     entry records:
   </p>
 
@@ -341,29 +341,15 @@
       </p>
     </div>
 
-    <div>
-      <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
-        Invisible watermarking
-      </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        Jura Trace can embed an invisible frequency-domain watermark (DWT-DCT-SVD method)
-        carrying a 128-bit UUID and your institution's identifier. The watermark survives
-        JPEG recompression at quality 70 and above, moderate resizing, and up to 30% crop.
-        If a watermarked file is later submitted for verification (even by a third party),
-        the watermark extraction reveals the originating institution and the asset identifier.
-        This provides a further layer of provenance evidence independent of file metadata.
-      </p>
-    </div>
-
   </div>
 
   <!-- Callout: combined use -->
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Best practice.</strong>
-      For the strongest integrity record, use all three mechanisms together: sign with C2PA
-      at acquisition, embed a watermark, and register the file's fingerprint in the local
-      database. Each mechanism works independently, so if one is stripped, the others remain.
+      For the strongest integrity record, use both mechanisms together: sign with C2PA at
+      acquisition and register the file's fingerprint in the local database. Each works
+      independently, so if one is stripped the other remains.
     </p>
   </div>
 </section>
@@ -634,14 +620,6 @@
         or overwritten.
       </span>
     </li>
-    <li class="flex gap-2 text-sm">
-      <span class="text-malachite-dark dark:text-malachite-light flex-none mt-0.5">✓</span>
-      <span class="text-flint-dark dark:text-flint-light leading-relaxed">
-        <strong class="text-text-light dark:text-text-dark">Watermark embedding creates a new file.</strong>
-        Invisible watermark embedding, like C2PA signing, writes to a new file. The
-        original is not altered.
-      </span>
-    </li>
   </ul>
 
   <!-- Callout: storage advice -->
@@ -699,23 +677,11 @@
       </span>
     </li>
 
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20
-                   text-lapis dark:text-lapis-light text-xs font-semibold
-                   flex items-center justify-center mt-0.5">3</span>
-      <span>
-        <strong class="text-text-light dark:text-text-dark">Embed an invisible watermark.</strong>
-        Use the watermark feature to embed your institution's identifier into each file.
-        Select a strength level appropriate to expected handling. Medium is suitable
-        for most documentation workflows. This adds a secondary provenance layer that
-        is robust to moderate file manipulation.
-      </span>
-    </li>
 
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20
                    text-lapis dark:text-lapis-light text-xs font-semibold
-                   flex items-center justify-center mt-0.5">4</span>
+                   flex items-center justify-center mt-0.5">3</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Run verification in Deep mode.</strong>
         Submit each file for verification using Deep mode: 20 frames for video, the
@@ -729,7 +695,7 @@
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20
                    text-lapis dark:text-lapis-light text-xs font-semibold
-                   flex items-center justify-center mt-0.5">5</span>
+                   flex items-center justify-center mt-0.5">4</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Export a PDF trust report with analyst declaration.</strong>
         Generate a PDF from the results panel. Optionally complete the analyst declaration
@@ -742,7 +708,7 @@
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20
                    text-lapis dark:text-lapis-light text-xs font-semibold
-                   flex items-center justify-center mt-0.5">6</span>
+                   flex items-center justify-center mt-0.5">5</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Export a ZIP case file.</strong>
         Use the ZIP export to bundle the original file, the PDF trust report, all
@@ -754,7 +720,7 @@
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20
                    text-lapis dark:text-lapis-light text-xs font-semibold
-                   flex items-center justify-center mt-0.5">7</span>
+                   flex items-center justify-center mt-0.5">6</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Verify audit chain integrity before submission.</strong>
         Navigate to Settings &#8594; Audit Log &#8594; Verify Chain Integrity immediately

@@ -872,12 +872,11 @@
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         The full Jura Trace application: C2PA Validator-Conformant verification, Local
-        Signing, eleven automatic forensic detectors, three on-demand investigation tools,
+        Signing, ten automatic forensic detectors, three on-demand investigation tools,
         perceptual fingerprinting, EXIF anomaly detection with injection-detection and
-        XMP AI-provenance sub-checks, invisible watermark embed and extract, Watched
-        Locations folder monitoring, PDF trust reports, ZIP case exports. Free for everyone
-        under AGPL-3.0-or-later. Permanent: the CIC's asset-locked status guarantees a
-        free Community release in perpetuity.
+        XMP AI-provenance sub-checks, Watched Locations folder monitoring, PDF trust
+        reports, ZIP case exports. Free for everyone under AGPL-3.0-or-later. Permanent:
+        the CIC's asset-locked status guarantees a free Community release in perpetuity.
       </p>
     </div>
 

@@ -137,14 +137,6 @@
         AI-generated images from those of camera-captured photographs.
       </span>
     </li>
-    <li class="flex gap-3">
-      <span class="text-lapis dark:text-lapis-light flex-none font-semibold mt-0.5">→</span>
-      <span>
-        <strong class="text-text-light dark:text-text-dark">Watermark extraction</strong>:
-        checks whether an invisible Jura Trace watermark is present and, if so, which asset
-        record it corresponds to.
-      </span>
-    </li>
   </ul>
 
   <!-- Callout: local-first -->
@@ -538,17 +530,6 @@
         temperature, and splice boundary. These detectors divide the image into a grid and
         look for inconsistencies between regions: a key signal for composite images where
         different sections originate from different sources.
-      </p>
-    </div>
-
-    <div>
-      <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
-        Watermark panel
-      </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        Shows whether an invisible Jura Trace watermark was detected. If a watermark is
-        found, the panel displays the institution name and confidence level. A match against
-        your local asset catalogue confirms the file's origin.
       </p>
     </div>
 
@@ -1051,10 +1032,6 @@
     <li class="flex gap-2">
       <span class="text-cinnabar-dark dark:text-cinnabar-light flex-none">✗</span>
       <span>Image forensic analysis (ELA, noise, copy-move, deepfake, regional detectors)</span>
-    </li>
-    <li class="flex gap-2">
-      <span class="text-cinnabar-dark dark:text-cinnabar-light flex-none">✗</span>
-      <span>Watermark embedding and extraction</span>
     </li>
   </ul>
 
