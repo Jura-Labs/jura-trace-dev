@@ -229,34 +229,34 @@
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     The Berkeley Protocol requires that organisations maintain a reliable record of who
-    accessed, processed, or transferred evidence — and when. Every action must be
+    accessed, processed, or transferred evidence, and when. Every action must be
     logged so that the integrity of the evidentiary chain can be demonstrated to a
     tribunal or reviewing body.
   </p>
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
     Jura Trace addresses this requirement through a tamper-evident audit log stored in
-    the local SQLite database. Every consequential action — file import, C2PA signing,
-    verification, watermark embedding, and export — writes an entry to the log. Each
+    the local SQLite database. Every consequential action (file import, C2PA signing,
+    verification, watermark embedding, and export) writes an entry to the log. Each
     entry records:
   </p>
 
   <ul class="space-y-3 mb-6">
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
-      <span><strong class="text-text-light dark:text-text-dark">Action type</strong> — what operation was performed on the file.</span>
+      <span><strong class="text-text-light dark:text-text-dark">Action type:</strong> what operation was performed on the file.</span>
     </li>
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
-      <span><strong class="text-text-light dark:text-text-dark">Timestamp</strong> — date and time of the operation, recorded in UTC.</span>
+      <span><strong class="text-text-light dark:text-text-dark">Timestamp:</strong> date and time of the operation, recorded in UTC.</span>
     </li>
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
-      <span><strong class="text-text-light dark:text-text-dark">Operator context</strong> — the analyst or institution identifier associated with the session.</span>
+      <span><strong class="text-text-light dark:text-text-dark">Operator context:</strong> the analyst or institution identifier associated with the session.</span>
     </li>
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
-      <span><strong class="text-text-light dark:text-text-dark">SHA-256 hash chain link</strong> — each entry includes a hash that incorporates the previous entry's hash, forming an unbroken chain. Altering any past entry invalidates all subsequent hashes.</span>
+      <span><strong class="text-text-light dark:text-text-dark">SHA-256 hash chain link:</strong> each entry includes a hash that incorporates the previous entry's hash, forming an unbroken chain. Altering any past entry invalidates all subsequent hashes.</span>
     </li>
   </ul>
 
@@ -319,7 +319,7 @@
         The Coalition for Content Provenance and Authenticity (C2PA) standard embeds a
         cryptographically signed manifest directly into the file. The manifest records the
         signing identity, the time of signing, and a hash of the content at the moment of
-        signing. Any subsequent modification to the file — even a single byte — invalidates
+        signing. Any subsequent modification to the file (even a single byte) invalidates
         the manifest hash, which Jura Trace detects and reports during verification. C2PA
         is an open, ISO-aligned standard used by camera manufacturers, news agencies, and
         content platforms worldwide.
@@ -334,8 +334,8 @@
         In addition to cryptographic hashing, Jura Trace generates three perceptual hash
         values for each image or video frame: aHash (average hash), dHash (difference
         hash), and pHash (discrete cosine transform hash). Perceptual hashes remain
-        stable under minor format changes — such as recompression or metadata stripping
-        — that would break a cryptographic hash. They enable near-duplicate detection: if
+        stable under minor format changes (such as recompression or metadata stripping)
+        that would break a cryptographic hash. They enable near-duplicate detection: if
         a manipulated version of a file is submitted, the perceptual distance from the
         registered original can be computed and reported.
       </p>
@@ -349,7 +349,7 @@
         Jura Trace can embed an invisible frequency-domain watermark (DWT-DCT-SVD method)
         carrying a 128-bit UUID and your institution's identifier. The watermark survives
         JPEG recompression at quality 70 and above, moderate resizing, and up to 30% crop.
-        If a watermarked file is later submitted for verification — even by a third party —
+        If a watermarked file is later submitted for verification (even by a third party),
         the watermark extraction reveals the originating institution and the asset identifier.
         This provides a further layer of provenance evidence independent of file metadata.
       </p>
@@ -363,7 +363,7 @@
       <strong class="text-text-light dark:text-text-dark">Best practice.</strong>
       For the strongest integrity record, use all three mechanisms together: sign with C2PA
       at acquisition, embed a watermark, and register the file's fingerprint in the local
-      database. Each mechanism works independently — if one is stripped, the others remain.
+      database. Each mechanism works independently, so if one is stripped, the others remain.
     </p>
   </div>
 </section>
@@ -500,7 +500,7 @@
       </h3>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         Jura Trace deliberately avoids binary authentic/fake verdicts. The three-way
-        verdict — Authentic, Inconclusive, or Synthetic — reflects the Protocol's
+        verdict (Authentic, Inconclusive, or Synthetic) reflects the Protocol's
         principle that findings should not overstate what the evidence supports.
         Inconclusive is the expected and correct verdict for the majority of real-world
         content. Analysts are encouraged to treat it as a signal for further investigation,
@@ -524,7 +524,7 @@
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     The Protocol requires that organisations consider the security of their investigation
-    infrastructure and take reasonable steps to protect evidence, sources, and analysts —
+    infrastructure and take reasonable steps to protect evidence, sources, and analysts,
     particularly when working in contexts where state surveillance or hostile actors
     present a realistic threat.
   </p>
@@ -540,7 +540,7 @@
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">No content leaves the device.</strong>
-        All forensic analysis — including the ML pipeline and AI-generation detection —
+        All forensic analysis (including the ML pipeline and AI-generation detection)
         runs entirely on the analyst's machine. No file data, no metadata, and no results
         are transmitted to any external server at any point during analysis.
       </span>
@@ -558,7 +558,7 @@
       <span>
         <strong class="text-text-light dark:text-text-dark">Air-gapped operation supported.</strong>
         Jura Trace can operate on a machine with no network connectivity. Optional features
-        that require external models (Ollama AI descriptions) degrade gracefully — the
+        that require external models (Ollama AI descriptions) degrade gracefully; the
         core analysis pipeline functions without them.
       </span>
     </li>
@@ -683,7 +683,7 @@
         <strong class="text-text-light dark:text-text-dark">Import evidence files into Jura Trace.</strong>
         Use the Protect page to import files. Importing registers each file in the local
         database, generates a perceptual fingerprint, and creates the first audit log
-        entry — establishing the start of the chain of custody.
+        entry, establishing the start of the chain of custody.
       </span>
     </li>
 
@@ -706,7 +706,7 @@
       <span>
         <strong class="text-text-light dark:text-text-dark">Embed an invisible watermark.</strong>
         Use the watermark feature to embed your institution's identifier into each file.
-        Select a strength level appropriate to expected handling — Medium is suitable
+        Select a strength level appropriate to expected handling. Medium is suitable
         for most documentation workflows. This adds a secondary provenance layer that
         is robust to moderate file manipulation.
       </span>
@@ -718,7 +718,7 @@
                    flex items-center justify-center mt-0.5">4</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Run verification in Deep mode.</strong>
-        Submit each file for verification using Deep mode — 20 frames for video, the
+        Submit each file for verification using Deep mode: 20 frames for video, the
         full detector suite for images, including the four regional detectors (segmented
         ELA, shadow consistency, colour temperature, splice boundary). Standard mode is
         suitable for initial triage but does not include the regional detectors needed
@@ -733,7 +733,7 @@
       <span>
         <strong class="text-text-light dark:text-text-dark">Export a PDF trust report with analyst declaration.</strong>
         Generate a PDF from the results panel. Optionally complete the analyst declaration
-        fields — name, organisation, case reference, and date. The PDF includes the full
+        fields (name, organisation, case reference, and date). The PDF includes the full
         analysis record: verdict, trust score, all detector findings, metadata, and
         pipeline version.
       </span>
@@ -774,7 +774,7 @@
         How Analysis Works
       </a>
       page with every legal submission. It gives the reviewing authority a complete,
-      plain-language account of the tools and methods used — directly addressing the
+      plain-language account of the tools and methods used, directly addressing the
       Berkeley Protocol's methodology documentation requirement.
     </p>
   </div>
@@ -804,7 +804,7 @@
     <p class="mb-3">
       The Berkeley Protocol is a methodological framework, not a certification scheme.
       Alignment with its principles is assessed by the organisations and legal bodies
-      that use it — not by the developers of tools referenced in that work. Juralabs
+      that use it, not by the developers of tools referenced in that work. Juralabs
       makes no legal representation that use of Jura Trace is sufficient, in itself, to
       satisfy any court, tribunal, or UN mechanism's evidentiary requirements.
     </p>
@@ -830,21 +830,21 @@
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         How Analysis Works
       </a>
-      <span class="text-flint-dark dark:text-flint-light"> — full documentation of all 11 automatic forensic detectors plus 3 on-demand investigation tools, the trust score formula, and known limitations</span>
+      <span class="text-flint-dark dark:text-flint-light">: full documentation of all 11 automatic forensic detectors plus 3 on-demand investigation tools, the trust score formula, and known limitations</span>
     </li>
     <li>
       <a href="/help/verify"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Verifying Content Authenticity
       </a>
-      <span class="text-flint-dark dark:text-flint-light"> — step-by-step guide to submitting files for verification and reading the results</span>
+      <span class="text-flint-dark dark:text-flint-light">: step-by-step guide to submitting files for verification and reading the results</span>
     </li>
     <li>
       <a href="/help/protect"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Protecting Your Content
       </a>
-      <span class="text-flint-dark dark:text-flint-light"> — C2PA signing, watermarking, and batch protection workflows</span>
+      <span class="text-flint-dark dark:text-flint-light">: C2PA signing, watermarking, and batch protection workflows</span>
     </li>
   </ul>
 </section>

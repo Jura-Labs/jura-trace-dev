@@ -27,7 +27,7 @@
     </h1>
     <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
       Jura Trace uses multiple independent forensic detectors to assess content
-      authenticity. No single detector is conclusive — the trust score reflects
+      authenticity. No single detector is conclusive: the trust score reflects
       the combined weight of all available signals. This page explains each
       detector, how scores are computed, and the known limitations of automated
       analysis.
@@ -73,7 +73,7 @@
       Every analysis produces a trust score between 0% and 100%. The score
       summarises how consistent the available evidence is with an unmanipulated,
       authentically captured piece of content. Think of it as the bedrock reading
-      from all detection layers combined — the stronger and more consistent the
+      from all detection layers combined: the stronger and more consistent the
       signals, the higher the score.
     </p>
 
@@ -143,11 +143,11 @@
       <li class="flex gap-2">
         <span class="flex-shrink-0 text-lapis dark:text-lapis-light mt-0.5" aria-hidden="true">&#8594;</span>
         <span>
-          <span class="font-medium text-text-light dark:text-quartz">40% — EXIF metadata trust.</span>
+          <span class="font-medium text-text-light dark:text-quartz">40%: EXIF metadata trust.</span>
           Derived from the EXIF anomaly check (twelve base rules plus a five-check
-          injection-detection suite — templated timestamps, integer-degree GPS, programmatic
+          injection-detection suite (templated timestamps, integer-degree GPS, programmatic
           pipeline software, missing MakerNote on mandatory-vendor cameras, iPhone sRGB
-          mismatch — and a two-check XMP AI-provenance suite for DigitalSourceType and
+          mismatch) and a two-check XMP AI-provenance suite for DigitalSourceType and
           AI-tooling CreatorTool values). Missing camera data, GPS/timestamp mismatches,
           software-editor signatures, and AI-provenance signals each reduce this component.
         </span>
@@ -155,7 +155,7 @@
       <li class="flex gap-2">
         <span class="flex-shrink-0 text-lapis dark:text-lapis-light mt-0.5" aria-hidden="true">&#8594;</span>
         <span>
-          <span class="font-medium text-text-light dark:text-quartz">60% — Forensic analysis trust.</span>
+          <span class="font-medium text-text-light dark:text-quartz">60%: Forensic analysis trust.</span>
           The worst-case result across all manipulation signals and the deepfake ensemble
           score. Taking the worst case ensures that a single strong negative signal cannot
           be averaged away by clean results elsewhere.
@@ -172,8 +172,8 @@
         <span class="flex-shrink-0 text-lapis dark:text-lapis-light mt-0.5" aria-hidden="true">&#8594;</span>
         <span>
           <span class="font-medium text-text-light dark:text-quartz">C2PA provenance bonus: +10%.</span>
-          When a cryptographically valid C2PA provenance manifest is present — providing
-          a verifiable record of the content's origin — the score receives a 10% uplift,
+          When a cryptographically valid C2PA provenance manifest is present (providing
+          a verifiable record of the content's origin), the score receives a 10% uplift,
           up to a maximum of 100%.
         </span>
       </li>
@@ -231,7 +231,7 @@
     >
       <span class="font-medium text-text-light dark:text-quartz">Important: </span>
       The trust score is a confidence indicator, not legal proof. A score of 100%
-      means no detectors found anomalies — it does not mean the content is
+      means no detectors found anomalies. It does not mean the content is
       definitively authentic. See
       <a href="#limitations" class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline">What This Does Not Prove</a>
       below.
@@ -305,15 +305,15 @@
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
       Expand each detector to learn what it measures, how it works, and when it
-      may produce false positives. All detectors run locally on your device —
-      no data is transmitted externally.
+      may produce false positives. All detectors run locally on your device.
+      No data is transmitted externally.
     </p>
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       The reference is divided into two groups. The eleven <strong class="text-text-light dark:text-quartz font-medium">automatic detectors</strong>
       run on every verification at the mode indicated in each entry's
-      <em>Active in modes</em> line — their findings feed into the numeric trust
-      score. A twelfth detector — Video Deepfake — is <strong class="text-text-light dark:text-quartz font-medium">not in v1.0 scope</strong>
+      <em>Active in modes</em> line. Their findings feed into the numeric trust
+      score. A twelfth detector (Video Deepfake) is <strong class="text-text-light dark:text-quartz font-medium">not in v1.0 scope</strong>
       and currently shows as an "Under evaluation" banner on video files; v1.0 verifies
       provenance and metadata only on video. Below the automatic detectors, an amber-tinted panel
       lists the three
@@ -397,13 +397,13 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Consistency of the metadata embedded in a file at the time of capture — including camera model, GPS coordinates, timestamps, software tags, and resolution values.
+                Consistency of the metadata embedded in a file at the time of capture, including camera model, GPS coordinates, timestamps, software tags, and resolution values.
               </dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Applies consistency rules to the file's EXIF data: checking whether timestamps are plausible, whether GPS data matches declared location, whether a software editor tag has been added after capture, and whether resolution values are internally consistent. A further set of injection-detection sub-checks looks for fabricated or reconstructed metadata blocks — programmatic imaging libraries in the Software field (Pillow, ImageMagick, OpenCV), canonical template timestamps, GPS at exact integer degrees, cameras whose firmware always writes a MakerNote but where none is present, and iPhones declaring an sRGB colour space without a MakerNote. The XMP packet is also parsed for AI-provenance fields — <code class="text-xs text-text-light dark:text-quartz">Iptc4xmpExt:DigitalSourceType</code> (the IPTC ground-truth AI declaration) and <code class="text-xs text-text-light dark:text-quartz">xmp:CreatorTool</code> (generator name and version) — so files that self-declare AI origin are flagged directly. The <code class="text-xs text-text-light dark:text-quartz">xmpMM:History</code> edit-history stack is parsed to surface timestamped edit lineage: if manipulation tool signatures (clone stamp, content-aware fill, healing brush, generative fill) appear in the history, a High-severity finding is raised; a compound signal also fires when a phone-captured image shows multiple save actions from a desktop editor.
+                Applies consistency rules to the file's EXIF data: checking whether timestamps are plausible, whether GPS data matches declared location, whether a software editor tag has been added after capture, and whether resolution values are internally consistent. A further set of injection-detection sub-checks looks for fabricated or reconstructed metadata blocks: programmatic imaging libraries in the Software field (Pillow, ImageMagick, OpenCV), canonical template timestamps, GPS at exact integer degrees, cameras whose firmware always writes a MakerNote but where none is present, and iPhones declaring an sRGB colour space without a MakerNote. The XMP packet is also parsed for AI-provenance fields (<code class="text-xs text-text-light dark:text-quartz">Iptc4xmpExt:DigitalSourceType</code>, the IPTC ground-truth AI declaration, and <code class="text-xs text-text-light dark:text-quartz">xmp:CreatorTool</code>, generator name and version), so files that self-declare AI origin are flagged directly. The <code class="text-xs text-text-light dark:text-quartz">xmpMM:History</code> edit-history stack is parsed to surface timestamped edit lineage: if manipulation tool signatures (clone stamp, content-aware fill, healing brush, generative fill) appear in the history, a High-severity finding is raised; a compound signal also fires when a phone-captured image shows multiple save actions from a desktop editor.
               </dd>
             </div>
             <div>
@@ -415,7 +415,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Intentional EXIF stripping for privacy (common before sharing images online), CMS or social media platforms that remove or rewrite metadata, and screenshots (which lack camera data by design). The injection sub-checks can also fire on legitimate scientific or archival workflows that re-encode images through Pillow or ImageMagick, on timer-triggered or time-lapse rigs that produce round-second timestamps, on third-party iPhone camera apps that write sRGB intentionally, and on images that have been through Google Photos, WhatsApp or similar platforms which strip MakerNote data. XMP provenance is a self-declaration — a file can assert <code class="text-xs text-text-light dark:text-quartz">digitalCapture</code> in its XMP even if the pixels were in fact generated, and an AI-generated file whose XMP packet has been stripped will never trigger the XMP checks. Treat the absence of an AI-provenance declaration as inconclusive, never as confirmation of authenticity. The multi-save history compound check only triggers on phone-vendor captures with three or more save actions from a desktop editor — multiple saves from Photoshop on a DSLR capture is a normal RAW workflow and does not trigger.
+                Intentional EXIF stripping for privacy (common before sharing images online), CMS or social media platforms that remove or rewrite metadata, and screenshots (which lack camera data by design). The injection sub-checks can also fire on legitimate scientific or archival workflows that re-encode images through Pillow or ImageMagick, on timer-triggered or time-lapse rigs that produce round-second timestamps, on third-party iPhone camera apps that write sRGB intentionally, and on images that have been through Google Photos, WhatsApp or similar platforms which strip MakerNote data. XMP provenance is a self-declaration: a file can assert <code class="text-xs text-text-light dark:text-quartz">digitalCapture</code> in its XMP even if the pixels were in fact generated, and an AI-generated file whose XMP packet has been stripped will never trigger the XMP checks. Treat the absence of an AI-provenance declaration as inconclusive, never as confirmation of authenticity. The multi-save history compound check only triggers on phone-vendor captures with three or more save actions from a desktop editor. Multiple saves from Photoshop on a DSLR capture is a normal RAW workflow and does not trigger.
               </dd>
             </div>
             <div>
@@ -425,7 +425,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Limited to metadata embedded at capture time. Cannot detect modifications to the image content itself — only inconsistencies in the surrounding metadata. Files stripped of all metadata produce no signal. The injection-detection sub-checks (programmatic library, template timestamp, integer GPS, MakerNote absence, iPhone sRGB) fire only on JPEG files with EXIF metadata present; stripped metadata produces no injection signal. XMP AI-provenance checks rely on self-declared metadata — a file can assert <code class="text-xs text-text-light dark:text-quartz">digitalCapture</code> in XMP even if the pixels were generated, and an AI-generated file whose XMP has been stripped will never trigger the XMP checks. The <code class="text-xs text-text-light dark:text-quartz">xmpMM:History</code> edit-history parser reads standard Photoshop history entries, which record application-level saves but do not record tool-level detail; Class H fires on non-standard history entries that do carry manipulation tool names.
+                Limited to metadata embedded at capture time. Cannot detect modifications to the image content itself, only inconsistencies in the surrounding metadata. Files stripped of all metadata produce no signal. The injection-detection sub-checks (programmatic library, template timestamp, integer GPS, MakerNote absence, iPhone sRGB) fire only on JPEG files with EXIF metadata present; stripped metadata produces no injection signal. XMP AI-provenance checks rely on self-declared metadata: a file can assert <code class="text-xs text-text-light dark:text-quartz">digitalCapture</code> in XMP even if the pixels were generated, and an AI-generated file whose XMP has been stripped will never trigger the XMP checks. The <code class="text-xs text-text-light dark:text-quartz">xmpMM:History</code> edit-history parser reads standard Photoshop history entries, which record application-level saves but do not record tool-level detail; Class H fires on non-standard history entries that do carry manipulation tool names.
               </dd>
             </div>
           </dl>
@@ -452,25 +452,25 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Whether the file carries a cryptographically signed provenance record — a digital certificate of origin created at the point of capture or production, following the Coalition for Content Provenance and Authenticity (C2PA) open standard.
+                Whether the file carries a cryptographically signed provenance record: a digital certificate of origin created at the point of capture or production, following the Coalition for Content Provenance and Authenticity (C2PA) open standard.
               </dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Reads and cryptographically verifies the embedded C2PA manifest. If valid, extracts the claim generator field to detect whether a known AI creation tool signed the credentials. An AI-generated image signed by its creator will carry valid credentials — those credentials are then treated as evidence of AI origin rather than evidence of authenticity.
+                Reads and cryptographically verifies the embedded C2PA manifest. If valid, extracts the claim generator field to detect whether a known AI creation tool signed the credentials. An AI-generated image signed by its creator will carry valid credentials. Those credentials are then treated as evidence of AI origin rather than evidence of authenticity.
               </dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What a positive finding means</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                A valid manifest means the file's provenance chain is intact and has not been broken since signing. An invalid or absent manifest means the file cannot be verified via this standard — it does not mean the content is inauthentic.
+                A valid manifest means the file's provenance chain is intact and has not been broken since signing. An invalid or absent manifest means the file cannot be verified via this standard. It does not mean the content is inauthentic.
               </dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Most existing images and documents do not carry C2PA credentials. Absence of credentials is not a negative finding — it simply means verification via this standard is not possible.
+                Most existing images and documents do not carry C2PA credentials. Absence of credentials is not a negative finding: it simply means verification via this standard is not possible.
               </dd>
             </div>
             <div>
@@ -513,7 +513,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Re-compresses the image at a known quality level and subtracts the result from the original. In an unedited image, error levels are uniform across the frame. Regions pasted in from another source — or edited after the original compression — show higher error levels than the surrounding image and appear brighter in the ELA heatmap.
+                Re-compresses the image at a known quality level and subtracts the result from the original. In an unedited image, error levels are uniform across the frame. Regions pasted in from another source, or edited after the original compression, show higher error levels than the surrounding image and appear brighter in the ELA heatmap.
               </dd>
             </div>
             <div>
@@ -617,7 +617,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Whether any region of an image has been duplicated from another part of the same image — a technique commonly used to clone out unwanted content or replicate objects.
+                Whether any region of an image has been duplicated from another part of the same image: a technique commonly used to clone out unwanted content or replicate objects.
               </dd>
             </div>
             <div>
@@ -635,7 +635,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Images with naturally repeating patterns — wallpaper, tiling, fabric, crowd scenes — may produce false matches, though Lowe's ratio test and RANSAC geometric verification significantly reduce these. Very small images or images with few distinguishable features are also more susceptible.
+                Images with naturally repeating patterns (wallpaper, tiling, fabric, crowd scenes) may produce false matches, though Lowe's ratio test and RANSAC geometric verification significantly reduce these. Very small images or images with few distinguishable features are also more susceptible.
               </dd>
             </div>
             <div>
@@ -690,7 +690,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Heavily processed photographs, CGI renders, composite illustrations, and images that have undergone multiple rounds of compression may exhibit AI-like statistical properties. The ensemble authentic false positive rate is 4.54% (GBM v4) and 3.87% (UnivFD v10onnx) on the held-out test set — human review is always warranted.
+                Heavily processed photographs, CGI renders, composite illustrations, and images that have undergone multiple rounds of compression may exhibit AI-like statistical properties. The ensemble authentic false positive rate is 4.54% (GBM v4) and 3.87% (UnivFD v10onnx) on the held-out test set; human review is always warranted.
               </dd>
             </div>
             <div>
@@ -727,13 +727,13 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Evidence of double compression — the signature left when a region of an image was previously saved as a JPEG at a different quality level before being composited into the final file.
+                Evidence of double compression: the signature left when a region of an image was previously saved as a JPEG at a different quality level before being composited into the final file.
               </dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Re-compresses the image at multiple quality levels and measures the deviation from the original in each block. Regions that show a minimum deviation at an unexpected quality level — different from the rest of the image — are flagged as potential JPEG ghosts, indicating they carry a different compression history from the surrounding content.
+                Re-compresses the image at multiple quality levels and measures the deviation from the original in each block. Regions that show a minimum deviation at an unexpected quality level (different from the rest of the image) are flagged as potential JPEG ghosts, indicating they carry a different compression history from the surrounding content.
               </dd>
             </div>
             <div>
@@ -755,13 +755,13 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Only applicable to JPEG files. Produces no signal on PNG, WebP, TIFF, or other non-JPEG formats. The detector section is greyed out for non-JPEG inputs. Quality-adaptive weight applied: the effective trust-score contribution scales with the estimated JPEG quality factor — <code class="text-xs">effective_weight = 0.5 × max(jpeg_quality / 100, 0.3)</code> — to mitigate a structural blind spot on platform-forwarded content (Twitter/WhatsApp re-encoding wipes differential ghost signatures entirely, making the signal indistinguishable from authentic content at those quality levels).
+                Only applicable to JPEG files. Produces no signal on PNG, WebP, TIFF, or other non-JPEG formats. The detector section is greyed out for non-JPEG inputs. Quality-adaptive weight applied: the effective trust-score contribution scales with the estimated JPEG quality factor (<code class="text-xs">effective_weight = 0.5 × max(jpeg_quality / 100, 0.3)</code>) to mitigate a structural blind spot on platform-forwarded content (Twitter/WhatsApp re-encoding wipes differential ghost signatures entirely, making the signal indistinguishable from authentic content at those quality levels).
               </dd>
             </div>
             <div id="jpeg-ghost-calibration">
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Weight calibration status</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                JPEG Ghost contributes to the trust score at a 0.5&#215; weight (half that of ELA, noise analysis, and copy-move detection). This weight is a cross-review consensus value, not an empirically measured one. The Sprint 28 calibration sweep (S28-FU9) could not produce meaningful true positive rate data because the synthetic training corpus uses single-resave PIL composites, which equalise DCT coefficients across the frame when the save quality approximates the background quality — exactly the condition JPEG Ghost is designed to detect. Meaningful calibration requires real-world single-JPEG-resave splice forgeries from a research benchmark such as CASIA v2. This is tracked as backlog item&#160;#10 (post-v1.0 research track). Full calibration results are in
+                JPEG Ghost contributes to the trust score at a 0.5&#215; weight (half that of ELA, noise analysis, and copy-move detection). This weight is a cross-review consensus value, not an empirically measured one. The Sprint 28 calibration sweep (S28-FU9) could not produce meaningful true positive rate data because the synthetic training corpus uses single-resave PIL composites, which equalise DCT coefficients across the frame when the save quality approximates the background quality, exactly the condition JPEG Ghost is designed to detect. Meaningful calibration requires real-world single-JPEG-resave splice forgeries from a research benchmark such as CASIA v2. This is tracked as backlog item&#160;#10 (post-v1.0 research track). Full calibration results are in
                 <code class="font-mono text-xs bg-gray-100 dark:bg-graphite-light px-1 py-0.5 rounded">docs/calibration/s28-jpeg-ghost-weight.md</code>.
               </dd>
             </div>
@@ -789,7 +789,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Regional variation in compression error levels across a grid of image segments. Where standard ELA analyses the whole image uniformly, Segmented ELA examines whether specific regions are inconsistent with their neighbours — the forensic equivalent of reading the strata in individual rock layers rather than the whole formation at once.
+                Regional variation in compression error levels across a grid of image segments. Where standard ELA analyses the whole image uniformly, Segmented ELA examines whether specific regions are inconsistent with their neighbours: the forensic equivalent of reading the strata in individual rock layers rather than the whole formation at once.
               </dd>
             </div>
             <div>
@@ -844,13 +844,13 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Whether the colour temperature — the warm or cool quality of the light — is consistent across different segments of the image. Elements photographed under different lighting conditions carry different colour casts even after global white balance adjustments.
+                Whether the colour temperature (the warm or cool quality of the light) is consistent across different segments of the image. Elements photographed under different lighting conditions carry different colour casts even after global white balance adjustments.
               </dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Converts the image to the CIELAB perceptual colour space and segments it into regions. Analyses the warm/cool balance (the a and b channels) of each segment. Significant divergence between segments — particularly between foreground and background — is treated as an inconsistency indicator.
+                Converts the image to the CIELAB perceptual colour space and segments it into regions. Analyses the warm/cool balance (the a and b channels) of each segment. Significant divergence between segments (particularly between foreground and background) is treated as an inconsistency indicator.
               </dd>
             </div>
             <div>
@@ -925,18 +925,18 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint-dark dark:text-flint-light">Deep — only when the optional model is installed</dd>
+              <dd class="text-flint-dark dark:text-flint-light">Deep (only when the optional model is installed)</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                UnivFD v10onnx authentic false positive rate: 3.87% (improved 0.25 pp from v9, down from 5.01% in v8 and 28.7% in v7). Multi-format augmentation training (PNG/TIFF/WebP/HEIC) added to the existing platform-forwarded augmentation; per-format AUC stays above 0.99 across all four lossless / modern-lossy codecs. Non-photographic content (paintings, digital illustrations) may still trigger false positives. Requires the optional CLIP ViT&#8209;B/32 model (bundled — ~580&nbsp;MB combined). See the <a href="/help/model-cards#univfd-probe" class="text-lapis dark:text-lapis-light underline hover:no-underline">UnivFD model card</a> for full documentation.
+                UnivFD v10onnx authentic false positive rate: 3.87% (improved 0.25 pp from v9, down from 5.01% in v8 and 28.7% in v7). Multi-format augmentation training (PNG/TIFF/WebP/HEIC) added to the existing platform-forwarded augmentation; per-format AUC stays above 0.99 across all four lossless / modern-lossy codecs. Non-photographic content (paintings, digital illustrations) may still trigger false positives. Requires the optional CLIP ViT&#8209;B/32 model (bundled, ~580&nbsp;MB combined). See the <a href="/help/model-cards#univfd-probe" class="text-lapis dark:text-lapis-light underline hover:no-underline">UnivFD model card</a> for full documentation.
               </dd>
             </div>
             <div id="clip-detection">
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Note: class probabilities are currently experimental</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                The class probability bars shown in the verify results are produced by feeding raw cosine similarity scores directly into a softmax function without applying the CLIP logit scale multiplier. This causes near-uniform distributions (~20% per class) regardless of the image content — the values do not reliably discriminate between authentic and AI-generated images. The UnivFD v10onnx probe — a trained logistic regression classifier on the same CLIP ViT&#8209;B/32 embeddings, AUC-ROC 0.9929, authentic FP 3.87%, AI recall 95.77% — is the production-grade path and contributes to the trust score separately. The class probability display is retained as an exploratory signal pending a fix to the softmax temperature and is marked <em>Experimental — informational only</em> in the verify interface.
+                The class probability bars shown in the verify results are produced by feeding raw cosine similarity scores directly into a softmax function without applying the CLIP logit scale multiplier. This causes near-uniform distributions (~20% per class) regardless of the image content; the values do not reliably discriminate between authentic and AI-generated images. The UnivFD v10onnx probe (a trained logistic regression classifier on the same CLIP ViT&#8209;B/32 embeddings, AUC-ROC 0.9929, authentic FP 3.87%, AI recall 95.77%) is the production-grade path and contributes to the trust score separately. The class probability display is retained as an exploratory signal pending a fix to the softmax temperature and is marked <em>Experimental, informational only</em> in the verify interface.
               </dd>
             </div>
           </dl>
@@ -963,7 +963,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                The presence of invisible frequency-domain watermarks embedded in an image — either AI-generator fingerprints (Stable Diffusion, SDXL, Google Imagen) or Jura Trace protective watermarks added by the Protect workflow to track institutional content.
+                The presence of invisible frequency-domain watermarks embedded in an image: either AI-generator fingerprints (Stable Diffusion, SDXL, Google Imagen) or Jura Trace protective watermarks added by the Protect workflow to track institutional content.
               </dd>
             </div>
             <div>
@@ -975,7 +975,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What a positive finding means</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                A known AI-generator watermark is one of the strongest possible indicators of synthetic content — these schemes are deliberately embedded by the generator and typically only removable by heavy post-processing. A Jura Trace watermark is positive confirmation that the image was processed by an institution using this tool and has not been substantially altered since protection.
+                A known AI-generator watermark is one of the strongest possible indicators of synthetic content: these schemes are deliberately embedded by the generator and typically only removable by heavy post-processing. A Jura Trace watermark is positive confirmation that the image was processed by an institution using this tool and has not been substantially altered since protection.
               </dd>
             </div>
             <div>
@@ -1052,12 +1052,12 @@
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep — video files only</dd>
+              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep (video files only)</dd>
             </div>
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Analyses a sample of frames (6 in Standard, 20 in Deep) — not every frame. Manipulation confined to un-sampled frames may be missed. Temporal consistency signals (noise drift, spectral drift, LBP drift) require sufficient frame count for meaningful measurement. Requires FFmpeg for frame extraction.
+                Analyses a sample of frames (6 in Standard, 20 in Deep), not every frame. Manipulation confined to un-sampled frames may be missed. Temporal consistency signals (noise drift, spectral drift, LBP drift) require sufficient frame count for meaningful measurement. Requires FFmpeg for frame extraction.
               </dd>
             </div>
           </dl>
@@ -1159,13 +1159,13 @@
               <div>
                 <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
                 <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                  Whether the implied direction of light is consistent across different regions of the image. In an authentic photograph, shadows and highlights all point away from the same light source. Composite images — where elements were photographed under different lighting conditions — frequently fail this check.
+                  Whether the implied direction of light is consistent across different regions of the image. In an authentic photograph, shadows and highlights all point away from the same light source. Composite images (where elements were photographed under different lighting conditions) frequently fail this check.
                 </dd>
               </div>
               <div>
                 <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
                 <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                  Divides the image into regions and computes a gradient-weighted estimate of light direction (expressed as an angle) for each region. Compares estimated light directions across regions. Significant angular disagreement — weighted by the strength of the gradient signal — is treated as evidence of inconsistent lighting.
+                  Divides the image into regions and computes a gradient-weighted estimate of light direction (expressed as an angle) for each region. Compares estimated light directions across regions. Significant angular disagreement (weighted by the strength of the gradient signal) is treated as evidence of inconsistent lighting.
                 </dd>
               </div>
               <div>
@@ -1213,13 +1213,13 @@
               <div>
                 <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
                 <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                  The physical boundary where one image region ends and another begins — the cut edge produced when elements are composited. Three independent edge signals are combined to localise these boundaries.
+                  The physical boundary where one image region ends and another begins: the cut edge produced when elements are composited. Three independent edge signals are combined to localise these boundaries.
                 </dd>
               </div>
               <div>
                 <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
                 <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                  Analyses three signals simultaneously: (1) JPEG DCT grid discontinuities — abrupt changes in the compression block pattern at potential splice points; (2) noise level changes — sudden shifts in noise grain across a boundary; (3) feathering artefacts — the soft-edge signature left by selection tools and layer masking. Agreement between multiple signals at the same location substantially increases confidence.
+                  Analyses three signals simultaneously: (1) JPEG DCT grid discontinuities, abrupt changes in the compression block pattern at potential splice points; (2) noise level changes, sudden shifts in noise grain across a boundary; (3) feathering artefacts, the soft-edge signature left by selection tools and layer masking. Agreement between multiple signals at the same location substantially increases confidence.
                 </dd>
               </div>
               <div>
@@ -1241,7 +1241,7 @@
               <div>
                 <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
                 <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                  Demoted to on-demand in April 2026. The three-signal fusion (JPEG grid alignment, noise asymmetry, feathering) is heuristic stacking without published validation, and the forensic audit found the detector never set suspicious=true in production — contributing noise without adding discriminative value. Available in Expert View for manual inspection. A future replacement using learned splice localisation (TruFor / MVSS-Net) is backlog work.
+                  Demoted to on-demand in April 2026. The three-signal fusion (JPEG grid alignment, noise asymmetry, feathering) is heuristic stacking without published validation, and the forensic audit found the detector never set suspicious=true in production, contributing noise without adding discriminative value. Available in Expert View for manual inspection. A future replacement using learned splice localisation (TruFor / MVSS-Net) is backlog work.
                 </dd>
               </div>
             </dl>
@@ -1282,7 +1282,7 @@
           <p class="font-medium text-text-light dark:text-quartz mb-1">Automated analysis cannot prove authenticity.</p>
           <p class="text-flint-dark dark:text-flint-light leading-relaxed">
             A high trust score means no detectors found anomalies. It does not mean the
-            content is definitively authentic — it means analysis found nothing to indicate
+            content is definitively authentic. It means analysis found nothing to indicate
             otherwise.
           </p>
         </div>
@@ -1315,7 +1315,7 @@
           <p class="text-flint-dark dark:text-flint-light leading-relaxed">
             No forensic detector has a zero false positive or false negative rate. Results
             must be interpreted by a human, in context, alongside other available evidence.
-            The "Know What's Real" tagline reflects an aspiration — not a guarantee that
+            The "Know What's Real" tagline reflects an aspiration, not a guarantee that
             analysis will always reach the correct conclusion.
           </p>
         </div>
@@ -1415,12 +1415,12 @@
           <tr>
             <td class="py-2.5 pr-6 text-text-light dark:text-quartz">Shadow Consistency</td>
             <td class="py-2.5 pr-6 tabular-nums text-flint-dark dark:text-flint-light italic">On-demand</td>
-            <td class="py-2.5 text-flint-dark dark:text-flint-light">Demoted Sprint 28 — on-demand investigation tool only, does not contribute to trust score</td>
+            <td class="py-2.5 text-flint-dark dark:text-flint-light">Demoted Sprint 28: on-demand investigation tool only, does not contribute to trust score</td>
           </tr>
           <tr>
             <td class="py-2.5 pr-6 text-text-light dark:text-quartz">Splice Boundary</td>
             <td class="py-2.5 pr-6 tabular-nums text-flint-dark dark:text-flint-light italic">On-demand</td>
-            <td class="py-2.5 text-flint-dark dark:text-flint-light">Demoted Sprint 28 — on-demand investigation tool only, does not contribute to trust score</td>
+            <td class="py-2.5 text-flint-dark dark:text-flint-light">Demoted Sprint 28: on-demand investigation tool only, does not contribute to trust score</td>
           </tr>
           <tr>
             <td class="py-2.5 pr-6 text-text-light dark:text-quartz">AI Generation Detection</td>
@@ -1437,8 +1437,8 @@
     </h3>
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-      When ELA and the AI Generation Detection ensemble both return clean results —
-      but other signals (noise analysis, copy-move) flag concerns — Jura Trace
+      When ELA and the AI Generation Detection ensemble both return clean results,
+      but other signals (noise analysis, copy-move) flag concerns, Jura Trace
       applies a concordance dampening factor. When the two most reliable detectors
       agree that the image is clean, the weight of disagreeing secondary signals
       is reduced.

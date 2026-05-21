@@ -142,7 +142,7 @@
     </h1>
     <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
       Jura Trace v1.0 is honest about what it can and cannot meaningfully
-      analyse. The grid below is the single source of truth — drawn from
+      analyse. The grid below is the single source of truth, drawn from
       the 28 April 2026 four-agent audit that compared marketed format
       support against what the pipeline actually does. If your file type
       isn&rsquo;t listed, it doesn&rsquo;t have a working detector path
@@ -206,7 +206,7 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl mb-4">
       These formats are excluded from the file picker because they have no
       working detector path today. We would rather refuse the file than
-      return a 0.50 trust score with no underlying signal — user-testing on
+      return a 0.50 trust score with no underlying signal. User-testing on
       28 April 2026 confirmed this is the more honest design.
     </p>
     <div class="overflow-x-auto -mx-4 sm:mx-0">

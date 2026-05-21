@@ -10,8 +10,8 @@
   </h1>
   <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
     The Verify section examines a file through multiple independent analysis signals and
-    returns a verdict alongside a detailed breakdown. Every layer of the investigation —
-    from EXIF anomalies to deep-learning AI detection — runs entirely on your device. No
+    returns a verdict alongside a detailed breakdown. Every layer of the investigation,
+    from EXIF anomalies to deep-learning AI detection, runs entirely on your device. No
     file data leaves Jura Trace.
   </p>
 </header>
@@ -106,7 +106,7 @@
     <li class="flex gap-3">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold mt-0.5">→</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">C2PA credential checking</strong> —
+        <strong class="text-text-light dark:text-text-dark">C2PA credential checking</strong>:
         reads any embedded C2PA provenance manifest and verifies the content hash against
         the current file data.
       </span>
@@ -114,7 +114,7 @@
     <li class="flex gap-3">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold mt-0.5">→</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">EXIF metadata analysis</strong> —
+        <strong class="text-text-light dark:text-text-dark">EXIF metadata analysis</strong>:
         checks the metadata embedded in the file for internal inconsistencies and anomalies
         that may indicate manipulation.
       </span>
@@ -122,7 +122,7 @@
     <li class="flex gap-3">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold mt-0.5">→</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">Image forensic analysis</strong> —
+        <strong class="text-text-light dark:text-text-dark">Image forensic analysis</strong>:
         a suite of detectors (ELA, segmented ELA, noise analysis, copy-move detection,
         JPEG Ghost, colour temperature, watermark extraction) that look for traces of
         compositing, re-touching, or format manipulation at the pixel level. Three further
@@ -132,7 +132,7 @@
     <li class="flex gap-3">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold mt-0.5">→</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">AI-generation detection</strong> —
+        <strong class="text-text-light dark:text-text-dark">AI-generation detection</strong>:
         a trained ensemble classifier that distinguishes characteristics common to
         AI-generated images from those of camera-captured photographs.
       </span>
@@ -140,7 +140,7 @@
     <li class="flex gap-3">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold mt-0.5">→</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">Watermark extraction</strong> —
+        <strong class="text-text-light dark:text-text-dark">Watermark extraction</strong>:
         checks whether an invisible Jura Trace watermark is present and, if so, which asset
         record it corresponds to.
       </span>
@@ -178,8 +178,8 @@
       </h3>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         Drag a file onto the drop area, or click <strong class="text-text-light dark:text-text-dark">Browse</strong>
-        to open the file picker. Jura Trace detects the format from the file's magic bytes —
-        not the extension — so a JPEG saved as <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">.png</span>
+        to open the file picker. Jura Trace detects the format from the file's magic bytes,
+        not the extension, so a JPEG saved as <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">.png</span>
         will still be handled correctly. Supported formats include JPEG, PNG, TIFF, WebP,
         MP4, MOV, WAV, MP3, and PDF.
       </p>
@@ -224,7 +224,7 @@
       </h3>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
         Paste a public URL and Jura Trace will fetch the resource and analyse it. The
-        request is made from your device — no proxy or cloud service is involved.
+        request is made from your device. No proxy or cloud service is involved.
       </p>
       <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
         <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
@@ -291,7 +291,7 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Not sure which to choose?</strong>
       Start with Standard. If the result is inconclusive and the content is high-stakes,
-      re-run in Deep mode — this is the mode to use for legal evidence handling,
+      re-run in Deep mode. This is the mode to use for legal evidence handling,
       institutional acquisition, or digitised archive material.
     </p>
   </div>
@@ -352,7 +352,7 @@
     <li class="flex gap-2">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold">40%</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">EXIF metadata analysis</strong> —
+        <strong class="text-text-light dark:text-text-dark">EXIF metadata analysis</strong>:
         checks camera make and model, GPS coordinates, software fields, and timestamp
         consistency.
       </span>
@@ -360,7 +360,7 @@
     <li class="flex gap-2">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold">60%</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">Forensic signal analysis</strong> —
+        <strong class="text-text-light dark:text-text-dark">Forensic signal analysis</strong>:
         combines the outputs from all active detectors (ELA, noise, copy-move, and so on),
         weighted by confidence.
       </span>
@@ -370,7 +370,7 @@
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     When two or more regional detectors fire together (for example, segmented ELA and shadow
     inconsistency in the same image), the forensic contribution is amplified to reflect the
-    compounding evidence — up to a maximum cap. This prevents a single marginal signal from
+    compounding evidence, up to a maximum cap. This prevents a single marginal signal from
     dominating the score whilst still surfacing genuine multi-signal anomalies.
   </p>
 
@@ -402,8 +402,8 @@
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     Jura Trace returns one of three verdicts, shown in the verdict badge at the top of the
-    results panel. The verdict is determined by the AI-detection ensemble — specifically by
-    the deepfake score — not by the trust score. The two figures are related but independent.
+    results panel. The verdict is determined by the AI-detection ensemble (specifically by
+    the deepfake score), not by the trust score. The two figures are related but independent.
   </p>
 
   <div class="space-y-4 mb-6">
@@ -416,7 +416,7 @@
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         The AI-detection ensemble found no significant indicators of synthetic generation.
         The deepfake score is below 0.30. This verdict means the detectors are consistent
-        with a camera-captured or otherwise non-AI-generated image — it does not rule out
+        with a camera-captured or otherwise non-AI-generated image. It does not rule out
         human editing or compositing.
       </p>
     </div>
@@ -431,8 +431,8 @@
         The deepfake score falls between 0.30 and 0.65. Evidence is present but not
         sufficient to make a confident determination. <strong class="text-text-light dark:text-text-dark">Inconclusive
         is the most common and expected outcome for real-world content.</strong> Many authentic
-        photographs — particularly those that have been edited, cropped, or heavily
-        compressed — will return an inconclusive result. Treat it as a signal to investigate
+        photographs (particularly those that have been edited, cropped, or heavily
+        compressed) will return an inconclusive result. Treat it as a signal to investigate
         further, not as evidence of manipulation.
       </p>
     </div>
@@ -485,7 +485,7 @@
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         The verdict badge (Authentic / Inconclusive / Synthetic) and the trust score bar
         appear at the very top of the results. A confidence indicator shows how many
-        detectors contributed to the verdict — a higher count means more evidence was
+        detectors contributed to the verdict. A higher count means more evidence was
         available.
       </p>
     </div>
@@ -518,7 +518,7 @@
       </h3>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
         Each forensic detector appears as an expandable row. Click any row to see the full
-        signal detail — including visualisation heatmaps for ELA and noise analysis, matched
+        signal detail, including visualisation heatmaps for ELA and noise analysis, matched
         clone regions for copy-move detection, and the feature breakdown for AI detection.
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
@@ -536,7 +536,7 @@
         When you run Deep mode, a region analysis section appears showing
         results from the four regional detectors: segmented ELA, shadow consistency, colour
         temperature, and splice boundary. These detectors divide the image into a grid and
-        look for inconsistencies between regions — a key signal for composite images where
+        look for inconsistencies between regions: a key signal for composite images where
         different sections originate from different sources.
       </p>
     </div>
@@ -582,8 +582,8 @@
       <strong>Available now for video files:</strong>
     </p>
     <ul class="list-disc pl-5 text-sm text-flint-dark dark:text-flint-light space-y-1">
-      <li>C2PA Content Credentials (read at the container level — no FFmpeg required)</li>
-      <li>EXIF metadata (read at the container level — no FFmpeg required)</li>
+      <li>C2PA Content Credentials (read at the container level, no FFmpeg required)</li>
+      <li>EXIF metadata (read at the container level, no FFmpeg required)</li>
       <li>Native HTML5 video preview in the verify page</li>
     </ul>
   </div>
@@ -626,7 +626,7 @@
           <strong class="text-text-light dark:text-text-dark">Privacy note:</strong>
           Using reverse image search requires uploading or sharing the image with an external
           service. If the content is sensitive, unpublished, or subject to confidentiality,
-          do not use these links. The links are provided for convenience — Jura Trace does
+          do not use these links. The links are provided for convenience; Jura Trace does
           not send any data to these services on your behalf.
         </p>
       </div>
@@ -634,7 +634,7 @@
 
     <div>
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
-        Manual visual inspection — eight checks
+        Manual visual inspection: eight checks
       </h3>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
         Automated detectors can miss artefacts that a careful human reviewer will spot.
@@ -646,7 +646,7 @@
         <li>
           <strong class="text-text-light dark:text-text-dark">Text rendering.</strong>
           Are text elements clear, correctly spelled, and properly aligned? AI-generated
-          images frequently produce garbled, misspelled, or nonsensical text — look for
+          images frequently produce garbled, misspelled, or nonsensical text. Look for
           floating letters, incorrect words, or blended characters.
         </li>
         <li>
@@ -676,7 +676,7 @@
         <li>
           <strong class="text-text-light dark:text-text-dark">Reflections.</strong>
           Are reflections present where expected and physically correct? Reflective
-          surfaces — water, glass, metal — should mirror their surroundings accurately.
+          surfaces (water, glass, metal) should mirror their surroundings accurately.
           Missing or distorted reflections suggest manipulation or generation.
         </li>
         <li>
@@ -715,8 +715,8 @@
         Report a false positive
       </h3>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        If you believe a result is incorrect — for example, a known authentic photograph
-        returned a Synthetic verdict — use the "Report False Positive" button. This records
+        If you believe a result is incorrect (for example, a known authentic photograph
+        returned a Synthetic verdict), use the "Report False Positive" button. This records
         the case locally (no data is shared externally) and contributes to improving the
         classifier over time.
       </p>
@@ -733,7 +733,7 @@
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
       These tools are available on-demand from the results panel. They do not run
-      automatically — select the tool you need for your investigation.
+      automatically. Select the tool you need for your investigation.
     </p>
 
     <div class="space-y-4">
@@ -744,8 +744,8 @@
         </p>
         <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
           Displays the individual red, green, blue, and difference channels of an image separately.
-          Inconsistencies that are invisible in the composite — such as mismatched noise grain
-          between regions — often become apparent when channels are examined in isolation.
+          Inconsistencies that are invisible in the composite (such as mismatched noise grain
+          between regions) often become apparent when channels are examined in isolation.
         </p>
       </div>
 
@@ -755,8 +755,8 @@
         </p>
         <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
           Extracts the noise residual from the image and renders it alongside a variance
-          heatmap. Regions with inconsistent noise signatures — a common indicator of compositing
-          or AI generation — appear as bright areas on the heatmap.
+          heatmap. Regions with inconsistent noise signatures (a common indicator of compositing
+          or AI generation) appear as bright areas on the heatmap.
         </p>
       </div>
 
@@ -779,7 +779,7 @@
         <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
           Renders an FFT magnitude spectrum, a DCT coefficient heatmap, and a JPEG block-grid
           overlay for the image. Splicing and generation artefacts often leave a distinct
-          frequency signature — periodic peaks in the FFT or misaligned DCT block boundaries
+          frequency signature: periodic peaks in the FFT or misaligned DCT block boundaries
           between image regions.
         </p>
       </div>
@@ -801,8 +801,8 @@
           Side-by-Side Comparison
         </p>
         <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-          Places the original image alongside any forensic visualisation — noise heatmap,
-          ELA result, frequency spectrum, or others — in a split view. Use this when you
+          Places the original image alongside any forensic visualisation (noise heatmap,
+          ELA result, frequency spectrum, or others) in a split view. Use this when you
           need to correlate a suspected artefact location in the visualisation with the
           corresponding area in the source image.
         </p>
@@ -815,8 +815,8 @@
         <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
           Click and drag to define a rectangular region on the image. Jura Trace re-runs the
           analysis pipeline on that region only, producing a focused result for the selected
-          area. This is useful when a specific part of the image — a face, a sky region,
-          or a suspicious edge — needs closer scrutiny.
+          area. This is useful when a specific part of the image (a face, a sky region,
+          or a suspicious edge) needs closer scrutiny.
         </p>
       </div>
 
@@ -826,7 +826,7 @@
         </p>
         <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
           Uses FFT-based spectral analysis to identify the periodic artefacts that generative
-          adversarial networks — including StyleGAN, ProGAN, and similar architectures —
+          adversarial networks (including StyleGAN, ProGAN, and similar architectures)
           leave in their output. The tool subtracts a 1/f noise model and detects residual
           peaks that match known generator signatures, returning a visualisation and an
           attribution estimate.
@@ -884,7 +884,7 @@
         <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
           Calculates the expected sun angle (azimuth and elevation) for the GPS coordinates
           and timestamp recorded in the image's EXIF data. The calculation runs entirely
-          on-device using a pure Rust solar position model — no internet connection is required.
+          on-device using a pure Rust solar position model. No internet connection is required.
           The result can be compared against visible shadows or lighting direction in the image.
         </p>
       </div>
@@ -896,7 +896,7 @@
         <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
           Estimates the time of capture by measuring shadow angles visible in the image and
           working backwards through the sun position model. This provides an independent
-          time estimate that can be compared against the EXIF timestamp — a significant
+          time estimate that can be compared against the EXIF timestamp; a significant
           discrepancy between the two is a meaningful signal worth investigating.
         </p>
       </div>
@@ -945,7 +945,7 @@
         <strong class="text-text-light dark:text-text-dark">Note:</strong>
         The analyst declaration fields are optional. If you leave them blank, the PDF report
         is generated without a declaration header. No declaration data is stored externally
-        or transmitted — it remains in application local storage on your device.
+        or transmitted; it remains in application local storage on your device.
       </p>
     </div>
   </div>
@@ -1025,7 +1025,7 @@
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     PDF documents are handled differently from image and video files. The image forensic
-    pipeline — ELA, noise analysis, deepfake detection, and the regional detectors — does
+    pipeline (ELA, noise analysis, deepfake detection, and the regional detectors) does
     not apply to PDFs, because these analyses are designed for raster image data.
   </p>
 
@@ -1037,14 +1037,14 @@
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">C2PA credential check</strong> —
+        <strong class="text-text-light dark:text-text-dark">C2PA credential check:</strong>
         reads and verifies any embedded C2PA provenance manifest.
       </span>
     </li>
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">Metadata extraction</strong> —
+        <strong class="text-text-light dark:text-text-dark">Metadata extraction:</strong>
         reads document author, creation date, modification date, and producing application.
       </span>
     </li>
@@ -1066,8 +1066,8 @@
 
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-      A high trust score on a PDF confirms provenance integrity — that the document has not
-      been modified since it was signed and that the signing identity is declared. It does not
+      A high trust score on a PDF confirms provenance integrity, meaning the document has not
+      been modified since it was signed and the signing identity is declared. It does not
       indicate anything about the truthfulness of the document's contents.
     </p>
   </div>
@@ -1086,28 +1086,28 @@
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         How Analysis Works
       </a>
-      <span class="text-flint-dark dark:text-flint-light"> — the full technical methodology behind every detector and trust score component</span>
+      <span class="text-flint-dark dark:text-flint-light">: the full technical methodology behind every detector and trust score component</span>
     </li>
     <li>
       <a href="/help/glossary"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Glossary
       </a>
-      <span class="text-flint-dark dark:text-flint-light"> — definitions of ELA, NPR, pHash, C2PA, and all other technical terms</span>
+      <span class="text-flint-dark dark:text-flint-light">: definitions of ELA, NPR, pHash, C2PA, and all other technical terms</span>
     </li>
     <li>
       <a href="/help/personas"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Usage Guides
       </a>
-      <span class="text-flint-dark dark:text-flint-light"> — practical workflows for museum curators, journalists, and fact-checkers</span>
+      <span class="text-flint-dark dark:text-flint-light">: practical workflows for museum curators, journalists, and fact-checkers</span>
     </li>
     <li>
       <a href="/help/protect"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Protecting Your Content
       </a>
-      <span class="text-flint-dark dark:text-flint-light"> — apply C2PA credentials and invisible watermarks to your own assets</span>
+      <span class="text-flint-dark dark:text-flint-light">: apply C2PA credentials and invisible watermarks to your own assets</span>
     </li>
   </ul>
 </section>

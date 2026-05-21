@@ -95,7 +95,7 @@
       SvelteKit frontend). It runs on macOS 13+, Windows 10+, and Ubuntu 22.04+. All processing
       occurs on-device. The Analysis Engine binds to an OS-assigned ephemeral port on the
       <code class="font-mono text-xs bg-gray-100 dark:bg-graphite-light px-1 py-0.5 rounded">127.0.0.1</code>
-      loopback interface only — it is not reachable from other machines on the network and the
+      loopback interface only, so it is not reachable from other machines on the network and the
       port is not fixed across launches.
     </p>
     <div
@@ -106,8 +106,8 @@
       <p>[User Device]</p>
       <p class="ml-4">├── Tauri App (Rust + SvelteKit)</p>
       <p class="ml-8">├── Local SQLite Database</p>
-      <p class="ml-8">└── Analysis Engine (127.0.0.1 — OS-assigned ephemeral port)</p>
-      <p class="ml-12">└── Ollama LLM Runtime (127.0.0.1:11434) — optional</p>
+      <p class="ml-8">└── Analysis Engine (127.0.0.1, OS-assigned ephemeral port)</p>
+      <p class="ml-12">└── Ollama LLM Runtime (127.0.0.1:11434, optional)</p>
       <p class="ml-4">└── [No external network traffic for core functionality]</p>
     </div>
 
@@ -120,7 +120,7 @@
       Forensic analysis is performed locally; the file is passed over the loopback interface
       to the Analysis Engine. A perceptual fingerprint is computed and stored in the local
       database alongside analysis results. The original file is never copied, moved, or
-      transmitted. <strong class="font-semibold text-text-light dark:text-text-dark">Original file contents are not stored in the database</strong> — only metadata,
+      transmitted. <strong class="font-semibold text-text-light dark:text-text-dark">Original file contents are not stored in the database</strong>: only metadata,
       hashes, and analysis results are persisted.
     </p>
 
@@ -158,13 +158,13 @@
     </div>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
       The database is not encrypted at the application level. The data-at-rest control
-      is OS-level full-disk encryption — FileVault on macOS (default on macOS Catalina
+      is OS-level full-disk encryption: FileVault on macOS (default on macOS Catalina
       and later), BitLocker on Windows (default on Windows 11 24H2 and later), and LUKS
       or equivalent on Linux. We recommend deployments verify FDE is enabled.
     </p>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       The database location can be overridden via the <code class="font-mono text-xs bg-gray-100 dark:bg-graphite-light px-1 py-0.5 rounded">JURA_DB_PATH</code> environment variable
-      or the Change Location button in Settings — allowing placement on a network share,
+      or the Change Location button in Settings, allowing placement on a network share,
       managed drive, or encrypted volume.
     </p>
 
@@ -176,7 +176,7 @@
       All communication between the desktop application and the Analysis Engine occurs over
       the loopback interface and never leaves the device. There is no telemetry, no usage
       analytics, and no crash reporting. Two optional features involve external network
-      communication — both require explicit user action:
+      communication, both requiring explicit user action:
     </p>
     <ul class="space-y-2 text-sm text-flint-dark dark:text-flint-light mb-3 ml-4 list-disc">
       <li>
@@ -188,7 +188,7 @@
       <li>
         <strong class="font-semibold text-text-light dark:text-text-dark">Reverse image search</strong>
         (BYOK, off by default): if you provide your own Google Vision API key, you can
-        send a perceptual hash — and, on per-call confirmation, a thumbnail-sized crop —
+        send a perceptual hash (and, on per-call confirmation, a thumbnail-sized crop)
         to your Google Vision endpoint. Off by default. Requires explicit per-analysis
         confirmation. Additional provider integrations are under evaluation for future releases.
       </li>
@@ -209,7 +209,7 @@
       Jura Trace has no user account system, no login screen, and no cloud authentication.
       Application access is controlled entirely by OS-level user account permissions. File
       system access is restricted to paths explicitly chosen by the user via the native OS
-      file picker — enforced at the Tauri capability level.
+      file picker, enforced at the Tauri capability level.
     </p>
   </section>
 
@@ -225,7 +225,7 @@
     </h2>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
       A Data Protection Impact Assessment (DPIA) is required under UK GDPR Article 35 when
-      processing is likely to result in a high risk to the rights and freedoms of individuals —
+      processing is likely to result in a high risk to the rights and freedoms of individuals,
       for example, when processing special category data at scale, using automated decision
       making with significant effects, or systematically monitoring public areas.
     </p>
@@ -309,8 +309,8 @@
       When is a DPIA required?
     </h3>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
-      Most use cases for Jura Trace — including archival cataloguing, press photo verification,
-      and content provenance tagging — do not require a formal DPIA. A DPIA is more likely
+      Most use cases for Jura Trace (including archival cataloguing, press photo verification,
+      and content provenance tagging) do not require a formal DPIA. A DPIA is more likely
       to be required when:
     </p>
     <ul class="space-y-1 text-sm text-flint-dark dark:text-flint-light ml-4 list-disc mb-3">
@@ -360,7 +360,7 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
       The optional Ollama integration (LLaVA and Qwen2.5 models) runs entirely on-device.
       Juralabs does not operate these models as a service. Article 50 transparency obligations
-      — disclosure that content is AI-generated — apply to organisations using these features
+      (disclosure that content is AI-generated) apply to organisations using these features
       to generate content descriptions, not to Jura Trace as a tool.
     </p>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
@@ -377,7 +377,7 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       The Online Safety Act 2023 places duties on regulated services to prevent harmful content.
       Jura Trace is a local desktop tool, not a regulated service. However, organisations subject
-      to the Act — including news publishers, online platforms, and content archives — may find
+      to the Act (including news publishers, online platforms, and content archives) may find
       Jura Trace's forensic verification capabilities useful as part of their content moderation
       and authenticity verification workflows, helping to demonstrate that appropriate steps
       have been taken to assess the provenance of content before publication.
@@ -389,14 +389,14 @@
     </h3>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
       Jura Trace is licenced under the GNU Affero General Public License, version 3 or later.
-      You may use, study, modify, and redistribute the software for any purpose — including
-      commercial use — provided you comply with the AGPL's terms. The two requirements that
+      You may use, study, modify, and redistribute the software for any purpose (including
+      commercial use), provided you comply with the AGPL's terms. The two requirements that
       typically matter are: source disclosure if you operate a modified version as a hosted
       network service, and copyleft on any larger product that incorporates Jura Trace.
     </p>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       A separate <strong class="font-semibold text-text-light dark:text-text-dark">commercial licence</strong>
-      is available for organisations whose use case cannot operate under the AGPL — for
+      is available for organisations whose use case cannot operate under the AGPL, for
       example, integration into closed-source products, internal modified deployments without
       source release, or cases requiring contractual indemnification beyond what the AGPL
       provides. Contact
@@ -426,7 +426,7 @@
     <!-- Summary table -->
     <div class="overflow-x-auto mb-6">
       <table class="w-full text-sm border-collapse">
-        <caption class="sr-only">Security audit findings by severity — Sprint 19</caption>
+        <caption class="sr-only">Security audit findings by severity, Sprint 19</caption>
         <thead>
           <tr class="border-b border-border-light dark:border-border-dark">
             <th class="text-left py-2 pr-4 font-semibold text-text-light dark:text-text-dark">Severity</th>

@@ -66,7 +66,7 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
       Each detector has the same three-line structure: what it does, what a
       high score means, and a known limitation. When you see this lapis-tinted
-      block under a detector, treat it as a methodology caveat — the signal is
+      block under a detector, treat it as a methodology caveat: the signal is
       useful as part of a wider picture but should not be quoted on its own in
       a formal report.
     </p>
@@ -123,7 +123,7 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
       <strong class="text-text-light dark:text-quartz">What it does:</strong>
       Saves the image at a known compression level and measures how much each
-      area changed — parts that have been edited tend to absorb compression
+      area changed. Parts that have been edited tend to absorb compression
       differently and show up brighter in the resulting map.
     </p>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
@@ -133,8 +133,8 @@
     </p>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
       <strong class="text-text-light dark:text-quartz">Limitation:</strong>
-      Any legitimate post-processing — cropping, contrast adjustment, or
-      converting between formats — can produce elevated ELA readings on an
+      Any legitimate post-processing (cropping, contrast adjustment, or
+      converting between formats) can produce elevated ELA readings on an
       untouched image.
     </p>
     <div
@@ -232,7 +232,7 @@
     </h2>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
       <strong class="text-text-light dark:text-quartz">What it does:</strong>
-      Searches the image for duplicated regions — areas that have been copied
+      Searches the image for duplicated regions: areas that have been copied
       from one part of the photo and pasted elsewhere, a common way to
       conceal or repeat content within an otherwise genuine image.
     </p>
@@ -251,7 +251,7 @@
     <p class="text-xs text-flint-dark dark:text-flint-light italic mt-2">
       Visualisation: when the detector flags duplicates, the in-app preview shows
       matched coloured pairs joining the cloned regions. A 0% score means no
-      cloned regions were found — the preview is just the original image.
+      cloned regions were found, and the preview is just the original image.
     </p>
   </section>
 
@@ -266,7 +266,7 @@
       <strong class="text-text-light dark:text-quartz">What it does:</strong>
       Re-saves the image repeatedly at different compression levels and looks
       for regions that behave as though they were originally compressed at a
-      different quality setting than the rest of the file — a tell-tale sign
+      different quality setting than the rest of the file: a tell-tale sign
       of pasted content.
     </p>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
@@ -337,8 +337,8 @@
     </p>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-quartz">Limitation:</strong>
-      Natural scenes with mixed lighting — a subject inside near a window, or
-      a landscape at sunrise — can show genuine colour temperature variation
+      Natural scenes with mixed lighting (a subject inside near a window, or
+      a landscape at sunrise) can show genuine colour temperature variation
       that is not evidence of manipulation.
     </p>
   </section>
@@ -401,8 +401,8 @@
     </p>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
       <strong class="text-text-light dark:text-quartz">Limitation:</strong>
-      Sharp natural edges between high-contrast regions — a subject against a
-      bright sky, or a sign on a plain wall — can satisfy one or two of the
+      Sharp natural edges between high-contrast regions (a subject against a
+      bright sky, or a sign on a plain wall) can satisfy one or two of the
       three signals without any manipulation having taken place.
     </p>
     <div
@@ -425,7 +425,7 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
       <strong class="text-text-light dark:text-quartz">What it does:</strong>
       Measures the statistical relationship between every pixel and its
-      immediate neighbours — real camera sensors produce a characteristic
+      immediate neighbours. Real camera sensors produce a characteristic
       pattern of pixel-to-pixel correlation that AI generators tend not to
       replicate accurately.
     </p>
@@ -458,8 +458,8 @@
     </h2>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
       <strong class="text-text-light dark:text-quartz">What it does:</strong>
-      Divides the image into 8&times;8 pixel blocks — the same unit JPEG
-      compression operates on — and measures whether the energy distribution
+      Divides the image into 8&times;8 pixel blocks (the same unit JPEG
+      compression operates on) and measures whether the energy distribution
       across those blocks is uniform, or whether some blocks carry a
       noticeably different compression fingerprint.
     </p>
@@ -494,7 +494,7 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
       <strong class="text-text-light dark:text-quartz">What it does:</strong>
       Applies a mathematical frequency transform to the whole image and looks
-      for repeating periodic patterns in the result — real photographs have
+      for repeating periodic patterns in the result. Real photographs have
       smooth, broadly spread frequency spectra, while AI-generated images and
       some compositing tools leave distinctive repeating marks.
     </p>

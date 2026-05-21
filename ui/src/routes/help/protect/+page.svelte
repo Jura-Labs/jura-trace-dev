@@ -18,8 +18,8 @@
   <code class="font-mono text-[11px]">signingCredential.untrusted</code>
   in third-party validators because our certificate isn't on the C2PA trust
   list. The manifest itself is valid; the trust scope is local to your
-  installation. Conformant signing — verifiable against the C2PA trust
-  list — is under evaluation for a future release. Verification is already
+  installation. Conformant signing (verifiable against the C2PA trust
+  list) is under evaluation for a future release. Verification is already
   C2PA Validator-Conformant.
 </div>
 
@@ -31,7 +31,7 @@
   <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
     The Protect section gives your digital assets a permanent, verifiable record of origin.
     Applying C2PA provenance and invisible watermarks lays down the first stratum of
-    provenance — a foundation that remains legible even after a file has been compressed,
+    provenance, a foundation that remains legible even after a file has been compressed,
     resized, or redistributed across the web.
   </p>
 </header>
@@ -101,7 +101,7 @@
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark font-semibold">C2PA Provenance</strong> —
+        <strong class="text-text-light dark:text-text-dark font-semibold">C2PA Provenance:</strong>
         an open standard (Coalition for Content Provenance and Authenticity) that embeds a
         cryptographically signed manifest inside the file itself. The manifest records who
         created the asset, when it was signed, and a hash of the original content.
@@ -110,7 +110,7 @@
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark font-semibold">Invisible watermarking</strong> —
+        <strong class="text-text-light dark:text-text-dark font-semibold">Invisible watermarking:</strong>
         a frequency-domain signal embedded into the pixel data. Unlike a visible logo, this
         mark is imperceptible to the eye but detectable by the Verify pipeline even after
         the file has been shared or converted.
@@ -121,7 +121,7 @@
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     Alongside protection, the Protect page catalogues every imported asset in your local
     database. This catalogue records the file path, content type, perceptual fingerprints,
-    and protection status — giving you a full registry of your collection without sending
+    and protection status, giving you a full registry of your collection without sending
     any data externally.
   </p>
 
@@ -146,7 +146,7 @@
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     C2PA provenance manifests provide a tamper-evident record of origin baked directly into
     the file. Any application that supports the C2PA standard can read and verify this
-    record — including the Jura Trace Verify page and tools at
+    record, including the Jura Trace Verify page and tools at
     <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">contentcredentials.org</span>.
   </p>
 
@@ -182,7 +182,7 @@
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">4</span>
       <span>
         The asset status updates to <strong class="text-text-light dark:text-text-dark">Signed</strong>,
-        and the manifest details — claim generator, timestamp, and file hash — are shown in
+        and the manifest details (claim generator, timestamp, and file hash) are shown in
         the protection panel.
       </span>
     </li>
@@ -203,17 +203,17 @@
   <ul class="space-y-2 mb-6 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
-      <span><strong class="text-text-light dark:text-text-dark">Claim generator</strong> —
+      <span><strong class="text-text-light dark:text-text-dark">Claim generator:</strong>
       identifies Jura Trace as the signing application, including the application version.</span>
     </li>
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
-      <span><strong class="text-text-light dark:text-text-dark">Timestamp</strong> —
+      <span><strong class="text-text-light dark:text-text-dark">Timestamp:</strong>
       the date and time at which the manifest was written (from the local system clock).</span>
     </li>
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
-      <span><strong class="text-text-light dark:text-text-dark">Content hash</strong> —
+      <span><strong class="text-text-light dark:text-text-dark">Content hash:</strong>
       a cryptographic hash of the file's pixel or media data. Any subsequent modification to
       the file will cause the hash to fail verification.</span>
     </li>
@@ -272,7 +272,7 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Tamper evidence, not tamper prevention.</strong>
       A C2PA manifest does not prevent a file from being modified. It means that any
-      modification — however small — will cause the content hash to fail when the file is
+      modification, however small, will cause the content hash to fail when the file is
       later verified. You will see a clear warning on the Verify page if the hash does not
       match.
     </p>
@@ -285,7 +285,7 @@
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     When C2PA signing completes, a confirmation panel appears on the Protect page to confirm
     that the original file's metadata was preserved in the signed copy. This matters because
-    EXIF data — camera model, capture date, GPS coordinates, colour profile — forms part of
+    EXIF data (camera model, capture date, GPS coordinates, colour profile) forms part of
     the provenance record and must not be silently discarded during signing.
   </p>
 
@@ -300,7 +300,7 @@
     </li>
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
-      <span>Both the original and the signed copy remain in your care — neither is sent to any external service.</span>
+      <span>Both the original and the signed copy remain in your care, neither is sent to any external service.</span>
     </li>
   </ul>
 
@@ -309,7 +309,7 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Archival workflows.</strong>
       For long-term collections, keep the original unsigned file alongside the signed copy.
-      The original represents the first stratum of your provenance chain — the signed copy
+      The original represents the first stratum of your provenance chain. The signed copy
       provides the verifiable record of when and by whom it was deposited.
     </p>
   </div>
@@ -324,7 +324,7 @@
   </h2>
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-    Invisible watermarking embeds a unique 128-bit identifier — specific to each asset —
+    Invisible watermarking embeds a unique 128-bit identifier (specific to each asset)
     into the image's frequency domain using a DWT-DCT-SVD (Discrete Wavelet Transform /
     Discrete Cosine Transform / Singular Value Decomposition) algorithm. The mark is
     mathematically woven into the image data rather than drawn on top of it, so it is
@@ -333,7 +333,7 @@
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
     Where a C2PA manifest can be stripped by removing metadata, the watermark signal
-    persists at the pixel level — a deeper stratum of provenance that survives format
+    persists at the pixel level, a deeper stratum of provenance that survives format
     conversion, social media re-compression, and cropping.
   </p>
 
@@ -344,7 +344,7 @@
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     Choose a watermark strength when you embed. Higher strength increases robustness but
     introduces a small reduction in image quality, measured in PSNR (Peak Signal-to-Noise
-    Ratio — a higher number means better quality, closer to the original).
+    Ratio: a higher number means better quality, closer to the original).
   </p>
 
   <div class="overflow-x-auto mb-6">
@@ -367,14 +367,14 @@
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4 font-semibold text-text-light dark:text-text-dark">Medium</td>
           <td class="py-2 pr-4">~42 dB</td>
-          <td class="py-2 pr-4">Slight — not visible</td>
+          <td class="py-2 pr-4">Slight, not visible</td>
           <td class="py-2">Web distribution, press releases, social media assets</td>
         </tr>
         <tr>
           <td class="py-2 pr-4 font-semibold text-text-light dark:text-text-dark">High</td>
           <td class="py-2 pr-4">~36 dB</td>
           <td class="py-2 pr-4">Noticeable at pixel level only</td>
-          <td class="py-2">Maximum resilience — expected severe re-compression or cropping</td>
+          <td class="py-2">Maximum resilience for expected severe re-compression or cropping</td>
         </tr>
       </tbody>
     </table>
@@ -433,7 +433,7 @@
     <li class="flex gap-3">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
       <span>In the protection panel, locate the <strong class="text-text-light dark:text-text-dark">Watermark</strong>
-      section. Enter your institution name in the label field — this associates the watermark
+      section. Enter your institution name in the label field, this associates the watermark
       with your organisation in the database record.</span>
     </li>
     <li class="flex gap-3">
@@ -456,7 +456,7 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Images only.</strong>
       Invisible watermarking applies to JPEG and PNG files. Video and audio formats use
-      C2PA signing for provenance — the watermark controls will not appear for non-image
+      C2PA signing for provenance, so the watermark controls will not appear for non-image
       assets.
     </p>
   </div>
@@ -471,7 +471,7 @@
   </h2>
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-    For large collections — exhibition catalogues, press libraries, news archives — watermarking
+    For large collections (exhibition catalogues, press libraries, news archives), watermarking
     assets one by one is impractical. The batch watermark feature lets you embed marks across
     all image assets in your current working set in a single operation.
   </p>
@@ -490,13 +490,13 @@
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
       <span>In the batch controls area at the top of the asset list, click
       <strong class="text-text-light dark:text-text-dark">Watermark All Images</strong>.
-      The button only processes image assets (JPEG and PNG) — video and audio files in the
+      The button only processes image assets (JPEG and PNG). Video and audio files in the
       list are automatically skipped.</span>
     </li>
     <li class="flex gap-3">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">3</span>
       <span>A progress bar shows how many assets have been processed. You can cancel the
-      operation at any time — assets already watermarked in the run will retain their marks.</span>
+      operation at any time, assets already watermarked in the run will retain their marks.</span>
     </li>
     <li class="flex gap-3">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">4</span>
@@ -530,7 +530,7 @@
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     Every file you import into the Protect page is catalogued in the local SQLite database.
-    This catalogue is your permanent record of protected assets — think of it as the
+    This catalogue is your permanent record of protected assets. Think of it as the
     register at the bedrock of your provenance chain.
   </p>
 
@@ -541,31 +541,31 @@
   <ul class="space-y-2 mb-6 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
     <li class="flex gap-2">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold">→</span>
-      <span><strong class="text-text-light dark:text-text-dark">File path and name</strong> —
+      <span><strong class="text-text-light dark:text-text-dark">File path and name:</strong>
       the location of the asset on your device at the time of import.</span>
     </li>
     <li class="flex gap-2">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold">→</span>
-      <span><strong class="text-text-light dark:text-text-dark">Content type</strong> —
+      <span><strong class="text-text-light dark:text-text-dark">Content type:</strong>
       detected from the file's magic bytes (not just the extension), so the format is
       always accurate.</span>
     </li>
     <li class="flex gap-2">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold">→</span>
-      <span><strong class="text-text-light dark:text-text-dark">Perceptual fingerprints</strong> —
+      <span><strong class="text-text-light dark:text-text-dark">Perceptual fingerprints:</strong>
       three hash values are computed: aHash (average hash), dHash (difference hash), and
       pHash (perceptual hash). These fingerprints let Jura Trace identify near-duplicate
       or modified copies of an asset during verification.</span>
     </li>
     <li class="flex gap-2">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold">→</span>
-      <span><strong class="text-text-light dark:text-text-dark">Protection status</strong> —
+      <span><strong class="text-text-light dark:text-text-dark">Protection status:</strong>
       whether the asset has been signed with C2PA, watermarked, or both, and the date of
       each operation.</span>
     </li>
     <li class="flex gap-2">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold">→</span>
-      <span><strong class="text-text-light dark:text-text-dark">Watermark payload</strong> —
+      <span><strong class="text-text-light dark:text-text-dark">Watermark payload:</strong>
       the 128-bit UUID embedded in the watermark, stored alongside the asset record so you
       can match a future extraction against your catalogue.</span>
     </li>
@@ -596,7 +596,7 @@
       <span>
         <strong class="text-text-light dark:text-text-dark">Sign before you publish.</strong>
         Apply C2PA credentials to the final version of a file before it is distributed.
-        If you sign a file and then edit it, the content hash will no longer match — you
+        If you sign a file and then edit it, the content hash will no longer match, so you
         will need to sign again after any edits.
       </span>
     </li>
@@ -623,7 +623,7 @@
       <span>
         <strong class="text-text-light dark:text-text-dark">Back up your database.</strong>
         The local database contains your complete asset registry, watermark payloads, and
-        signing records. If you lose the database, you will still have the protected files —
+        signing records. If you lose the database, you will still have the protected files,
         but the association between a watermark UUID and a specific asset record will be gone.
         Schedule regular backups of the database file to a separate location.
       </span>
@@ -636,7 +636,7 @@
         set a shared database path in the Settings page. This ensures all workstations
         reference the same catalogue. See
         <a href="/help/settings#database" class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline">
-          Settings — Database Location
+          Settings: Database Location
         </a> for details.
       </span>
     </li>
@@ -656,21 +656,21 @@
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Verifying Content Authenticity
       </a>
-      <span class="text-flint-dark dark:text-flint-light"> — run forensic analysis on a file and read the trust score</span>
+      <span class="text-flint-dark dark:text-flint-light">: run forensic analysis on a file and read the trust score</span>
     </li>
     <li>
       <a href="/help/methodology"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         How Analysis Works
       </a>
-      <span class="text-flint-dark dark:text-flint-light"> — understand the detection methodology behind every signal</span>
+      <span class="text-flint-dark dark:text-flint-light">: understand the detection methodology behind every signal</span>
     </li>
     <li>
       <a href="/help/settings"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Settings
       </a>
-      <span class="text-flint-dark dark:text-flint-light"> — configure database location and deployment profiles</span>
+      <span class="text-flint-dark dark:text-flint-light">: configure database location and deployment profiles</span>
     </li>
   </ul>
 </section>

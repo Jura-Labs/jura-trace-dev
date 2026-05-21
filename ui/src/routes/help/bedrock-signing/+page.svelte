@@ -25,7 +25,7 @@
     </h1>
     <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
       Jura Trace signs C2PA provenance manifests in one of two modes. The default
-      — <strong>Local Signing</strong> — works entirely offline, on your device,
+      (<strong>Local Signing</strong>) works entirely offline, on your device,
       with no account, no data sent to Juralabs, and no dependency on any external service.
       The optional <strong>Conformant Signing</strong> mode accepts a certificate
       from a C2PA-approved authority for institutions that need cross-tool
@@ -76,7 +76,7 @@
       <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
         <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Offline by default</h3>
         <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-          No network connection is required at any stage — not to generate the
+          No network connection is required at any stage: not to generate the
           signing certificate, not to sign a file, not to verify a signature. A
           laptop in an air-gapped archive room, a camera in a conflict zone, or a
           processing station on a research vessel can protect and verify content
@@ -160,7 +160,7 @@
     <div class="bg-lapis/5 dark:bg-lapis/10 border border-lapis/20 dark:border-lapis/30 rounded-lg p-5 mb-4">
       <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         <strong>Local and Conformant produce structurally identical manifests.</strong>
-        The only difference is the root of trust — whether the signing certificate
+        The only difference is the root of trust: whether the signing certificate
         chains back to a public trust list or to the per-install local authority.
         You can switch modes at any time in Settings. Existing signed files retain
         whichever signature they were signed with; new files use the active mode.
@@ -180,9 +180,9 @@
     </h2>
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-      When you open a locally signed file in an external C2PA validator — Adobe
+      When you open a locally signed file in an external C2PA validator (Adobe
       Inspect, contentcredentials.org/verify, or a desktop tool from another
-      vendor — you will see a warning that the signing credential is
+      vendor), you will see a warning that the signing credential is
       &ldquo;untrusted&rdquo;. This warning is expected, and understanding why it
       appears is important for interpreting it correctly.
     </p>
@@ -191,7 +191,7 @@
       External validators maintain a curated list of certificate authorities whose
       certificates they will accept without a warning. This list is called the
       <strong>C2PA trust list</strong>. The per-install local certificate authority is not
-      on that list — and cannot be, because the authority was generated on your
+      on that list, and cannot be, because the authority was generated on your
       device and is unique to your install. There is no mechanism by which a
       public trust list could include millions of per-install local authorities.
     </p>
@@ -201,7 +201,7 @@
       invalid.</strong> The cryptographic signature verifies correctly. The
       assertions inside the manifest are intact. The binding between the asset
       and the manifest is sound. The validator is telling you, precisely, that
-      it cannot look up the issuing authority in its configured trust list —
+      it cannot look up the issuing authority in its configured trust list,
       which is a truthful statement about an identity decision, not a verdict on
       the integrity of the file.
     </p>
@@ -229,7 +229,7 @@
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
       Conformant Signing requires a certificate issued by a certificate authority
-      on the C2PA trust list. Jura Labs does not issue these certificates — your
+      on the C2PA trust list. Jura Labs does not issue these certificates; your
       institution applies for one directly from an approved authority. Typical
       steps:
     </p>
@@ -245,7 +245,7 @@
         usually involves confirming the institution's legal registration,
         authorised signatories, and use of the certificate.</li>
       <li>The authority will issue a certificate file (commonly a PEM-formatted
-        chain) and a corresponding private key. Store both securely — the private
+        chain) and a corresponding private key. Store both securely: the private
         key should be protected with the same care as any other cryptographic
         secret.</li>
       <li>Import both files into Jura Trace via the Signing Mode section of the
@@ -282,7 +282,7 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
       The active signing mode is controlled from the <strong>Signing Mode</strong>
       section of the Settings page. Switching modes takes effect immediately on
-      the next file you protect — no restart, no re-onboarding, no migration
+      the next file you protect, with no restart, no re-onboarding, no migration
       step.
     </p>
 
@@ -292,7 +292,7 @@
         Trace offers to switch the active mode in a single click.</li>
       <li><strong>Conformant → Local:</strong> click the Switch to Local Signing
         button in the Local Signing card. Your imported Conformant certificate is
-        retained — switching back to Conformant later does not require
+        retained, so switching back to Conformant later does not require
         re-importing.</li>
       <li><strong>Removing the Conformant certificate:</strong> click Remove in
         the Conformant card. The certificate and key files are deleted from the
@@ -303,7 +303,7 @@
       Files signed in one mode retain their signature if you later switch modes.
       Changing the active mode only affects files you protect from that point
       onwards. If you want to re-sign an existing file under a different mode,
-      use the Protect workflow on the original file again — Jura Trace will
+      use the Protect workflow on the original file again. Jura Trace will
       produce a new signed copy under the currently active mode.
     </p>
   </section>
@@ -353,7 +353,7 @@
     </div>
 
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-      If you are unsure, start with Local Signing — it is the default for a reason,
+      If you are unsure, start with Local Signing. It is the default for a reason,
       and switching to Conformant later is a single-step import. You do not need
       to re-protect existing files when you switch modes; the existing signed
       files remain valid under their original signing mode.
@@ -372,10 +372,10 @@
     </h2>
 
     <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-      <li><a href="/help/protect" class="text-lapis dark:text-lapis-light underline hover:no-underline">Protect workflow</a> — the full Protect page covering C2PA signing, watermarking, and fingerprinting.</li>
-      <li><a href="/help/settings" class="text-lapis dark:text-lapis-light underline hover:no-underline">Settings</a> — where the Signing Mode toggle lives, alongside other Jura Trace configuration.</li>
-      <li><a href="/help/continuity" class="text-lapis dark:text-lapis-light underline hover:no-underline">Continuity Promise</a> — what happens to your signed content if Jura Labs CIC ever ceases operations.</li>
-      <li><a href="/help/glossary" class="text-lapis dark:text-lapis-light underline hover:no-underline">Glossary</a> — definitions of C2PA, trust list, certificate authority, and other terms used on this page.</li>
+      <li><a href="/help/protect" class="text-lapis dark:text-lapis-light underline hover:no-underline">Protect workflow</a>: the full Protect page covering C2PA signing, watermarking, and fingerprinting.</li>
+      <li><a href="/help/settings" class="text-lapis dark:text-lapis-light underline hover:no-underline">Settings</a>: where the Signing Mode toggle lives, alongside other Jura Trace configuration.</li>
+      <li><a href="/help/continuity" class="text-lapis dark:text-lapis-light underline hover:no-underline">Continuity Promise</a>: what happens to your signed content if Jura Labs CIC ever ceases operations.</li>
+      <li><a href="/help/glossary" class="text-lapis dark:text-lapis-light underline hover:no-underline">Glossary</a>: definitions of C2PA, trust list, certificate authority, and other terms used on this page.</li>
     </ul>
   </section>
 

@@ -85,8 +85,8 @@
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
     Ollama is a free tool that runs AI models locally on your computer. In Jura Trace,
-    it powers two optional features that sit on top of the core forensic pipeline —
-    neither replaces any of the eleven automatic detectors or three on-demand
+    it powers two optional features that sit on top of the core forensic pipeline.
+    Neither replaces any of the eleven automatic detectors or three on-demand
     investigation tools.
   </p>
 
@@ -100,11 +100,11 @@
     <!-- Feature 1: Read Text from Images -->
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
       <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Feature 1 — Read Text from Images
+        Feature 1: Read Text from Images
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
-        When you verify an image that contains visible text — a screenshot, a meme, a social
-        media post, a photograph of a sign or document — a <strong class="text-text-light dark:text-text-dark">Read Text (Ollama)</strong>
+        When you verify an image that contains visible text (a screenshot, a meme, a social
+        media post, a photograph of a sign or document), a <strong class="text-text-light dark:text-text-dark">Read Text (Ollama)</strong>
         button appears in the verification results. Click it and the AI reads and transcribes
         all text visible in the image.
       </p>
@@ -157,7 +157,7 @@
         <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
           Go to <strong class="text-text-light dark:text-text-dark">Settings → Service Status</strong>.
           The Ollama row should show <strong class="text-malachite-dark dark:text-malachite-light">Online</strong>.
-          If it shows Unavailable, open the Ollama application — on macOS look for its icon in the menu bar;
+          If it shows Unavailable, open the Ollama application. On macOS look for its icon in the menu bar;
           on Windows look in the system tray.
         </p>
       </div>
@@ -279,8 +279,8 @@
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     Deployment profiles let you save your current Ollama configuration under a name and
     switch between saved configurations quickly. This is useful when you use Jura Trace
-    in different contexts — for example, when working in an office with access to a
-    shared institutional Ollama server versus working offline in the field.
+    in different contexts (for example, when working in an office with access to a
+    shared institutional Ollama server versus working offline in the field).
   </p>
 
   <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
@@ -298,8 +298,8 @@
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
       <span>
         Click <strong class="text-text-light dark:text-text-dark">Save as profile</strong>
-        in the Deployment Profiles section. Enter a name — for example,
-        "Office" or "Field" — and confirm.
+        in the Deployment Profiles section. Enter a name (for example,
+        "Office" or "Field") and confirm.
       </span>
     </li>
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
@@ -336,7 +336,7 @@
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
     Click <strong class="text-text-light dark:text-text-dark">Delete</strong> next to a
     profile, then confirm the deletion. This removes the profile from the application's local settings.
-    The active settings are not affected — only the saved profile entry is removed.
+    The active settings are not affected; only the saved profile entry is removed.
   </p>
 
   <!-- Callout: use case example -->
@@ -362,7 +362,7 @@
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     The Service Status panel shows the current availability of the two optional services
-    that extend Jura Trace's analysis capabilities. Both services are optional — the core
+    that extend Jura Trace's analysis capabilities. Both services are optional; the core
     protect and verify features work without them.
   </p>
 
@@ -446,7 +446,7 @@
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         The Analysis Engine starts automatically when you launch Jura Trace. If it shows as
         <strong class="text-text-light dark:text-text-dark">Offline</strong>, try restarting
-        the application — the Engine binds to a free local port chosen at startup, so port
+        the application. The Engine binds to a free local port chosen at startup, so port
         conflicts are unlikely. Once the service is running, click
         <strong class="text-text-light dark:text-text-dark">Refresh</strong> in the Service
         Status panel to confirm the connection.
@@ -541,7 +541,7 @@
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">1</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">Environment variable</strong> —
+        <strong class="text-text-light dark:text-text-dark">Environment variable:</strong>
         if the
         <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">JURA_DB_PATH</span>
         environment variable is set to a valid file path, that path is used. Useful for
@@ -551,7 +551,7 @@
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">Config file</strong> —
+        <strong class="text-text-light dark:text-text-dark">Config file:</strong>
         if a
         <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">config.json</span>
         file in the application data directory contains a
@@ -563,7 +563,7 @@
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">3</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">Default</strong> —
+        <strong class="text-text-light dark:text-text-dark">Default:</strong>
         <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">jura_trace.db</span>
         in the platform application data directory, as shown in the table above.
       </span>
@@ -575,9 +575,9 @@
   </h3>
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-    You may want to move the database to a different location — for example, to a shared
+    You may want to move the database to a different location (for example, to a shared
     network drive accessible to colleagues, or to a directory governed by your
-    institution's backup policy.
+    institution's backup policy).
   </p>
 
   <ol class="space-y-4 mb-6">
@@ -648,7 +648,7 @@
     <div>
       <dt class="text-sm font-semibold text-text-light dark:text-text-dark">Developer</dt>
       <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-        Juralabs Community Interest Company (UK) —
+        Juralabs Community Interest Company (UK),
         <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">juralabs.org</span>
       </dd>
     </div>
@@ -656,7 +656,7 @@
       <dt class="text-sm font-semibold text-text-light dark:text-text-dark">Licence</dt>
       <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         AGPL-3.0-or-later. You may use, study, modify, and redistribute this software
-        for any purpose — including commercial use — provided you comply with the AGPL's
+        for any purpose (including commercial use), provided you comply with the AGPL's
         terms (notably its source-disclosure requirement for hosted/network deployments).
         A separate commercial licence is available for use cases that cannot operate
         under the AGPL. See the
@@ -681,7 +681,7 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Local-first by design.</strong>
       Jura Trace does not collect usage data, send telemetry, or connect to any cloud
-      service. Every operation — protect, verify, analyse, store — runs entirely on your
+      service. Every operation (protect, verify, analyse, store) runs entirely on your
       device. Your content and your audit trail remain yours.
     </p>
   </div>
@@ -709,7 +709,7 @@
 
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
       <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Step 1 — Analysis Engine
+        Step 1: Analysis Engine
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         Confirms the bundled Analysis Engine (Python sidecar) is running and responding on
@@ -720,18 +720,18 @@
 
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
       <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Step 2 — FFmpeg
+        Step 2: FFmpeg
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         Checks that FFmpeg is available on your system. FFmpeg is required for video and
-        audio analysis — metadata extraction, frame thumbnails, and transcription. If it
+        audio analysis: metadata extraction, frame thumbnails, and transcription. If it
         is not found, the wizard provides installation guidance for your platform.
       </p>
     </div>
 
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
       <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Step 3 — Speech Transcription
+        Step 3: Speech Transcription
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         Checks whether a Whisper transcription model is available. Whisper enables audio
@@ -742,11 +742,11 @@
 
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
       <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Step 4 — Local AI (Ollama)
+        Step 4: Local AI (Ollama)
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         Checks whether Ollama is running and whether the vision model (LLaVA) and text
-        model (Qwen2.5) are installed. These models are optional — all 11 automatic
+        model (Qwen2.5) are installed. These models are optional; all 11 automatic
         forensic detectors work without them. If Ollama is unavailable, the wizard
         confirms which features will be skipped.
       </p>
@@ -754,11 +754,11 @@
 
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
       <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Step 5 — Ready
+        Step 5: Ready
       </p>
       <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         Summarises the results of all checks. Green items are ready. Items with warnings
-        can be resolved before you continue, or skipped — Jura Trace will operate with the
+        can be resolved before you continue, or skipped. Jura Trace will operate with the
         services that are available.
       </p>
     </div>
@@ -771,8 +771,8 @@
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     The wizard records its completion state in the application's local storage so it does
-    not appear on every launch. To re-run it — for example, after installing FFmpeg or
-    pulling new Ollama models — clear the application's local settings and relaunch Jura
+    not appear on every launch. To re-run it (for example, after installing FFmpeg or
+    pulling new Ollama models), clear the application's local settings and relaunch Jura
     Trace. The wizard will run again on the next startup.
   </p>
 
@@ -834,7 +834,7 @@
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     Release candidate (RC) and alpha builds are not included in the automatic update
-    channel. If you are running an RC build, the updater will not offer a newer RC — it
+    channel. If you are running an RC build, the updater will not offer a newer RC; it
     will only prompt when a full stable release is published. To move between pre-release
     builds, download the installer directly from the GitHub releases page.
   </p>

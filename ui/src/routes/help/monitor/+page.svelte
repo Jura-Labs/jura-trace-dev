@@ -11,7 +11,7 @@
   <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
     The Monitor section gives you a complete record of every protection and verification
     action Jura Trace has performed. Your Protection Chronicle, Trust Landscape, and
-    Activity Record form a layered audit trail — held entirely on your device, never
+    Activity Record form a layered audit trail, held entirely on your device, never
     transmitted elsewhere.
   </p>
 </header>
@@ -86,7 +86,7 @@
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     Monitor is the observational layer of Jura Trace. While Protect and Verify are active
-    operations, Monitor gives you a view of what has already happened — across your entire
+    operations, Monitor gives you a view of what has already happened across your entire
     collection and over time. It answers three questions at a glance:
   </p>
 
@@ -103,8 +103,8 @@
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">What does my verification history show?</strong>
-        The Trust Landscape displays the distribution of verification verdicts — authentic,
-        inconclusive, and synthetic — across all checks performed.
+        The Trust Landscape displays the distribution of verification verdicts (authentic,
+        inconclusive, and synthetic) across all checks performed.
       </span>
     </li>
     <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
@@ -153,21 +153,21 @@
         <li class="flex gap-2">
           <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
           <span>
-            <strong class="text-text-light dark:text-text-dark">Assets imported</strong> —
+            <strong class="text-text-light dark:text-text-dark">Assets imported:</strong>
             the total number of files registered in your local database.
           </span>
         </li>
         <li class="flex gap-2">
           <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
           <span>
-            <strong class="text-text-light dark:text-text-dark">Signed with C2PA</strong> —
+            <strong class="text-text-light dark:text-text-dark">Signed with C2PA:</strong>
             files that carry a valid C2PA provenance manifest.
           </span>
         </li>
         <li class="flex gap-2">
           <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
           <span>
-            <strong class="text-text-light dark:text-text-dark">Watermarked</strong> —
+            <strong class="text-text-light dark:text-text-dark">Watermarked:</strong>
             files that have had an invisible frequency-domain watermark embedded.
           </span>
         </li>
@@ -243,7 +243,7 @@
   </h2>
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-    Every significant action in Jura Trace is written to the audit log — a tamper-evident
+    Every significant action in Jura Trace is written to the audit log: a tamper-evident
     record stored in your local database. The audit trail is the sedimentary record of your
     work: each layer deposited in sequence, each one referencing the layer beneath it.
   </p>
@@ -266,19 +266,19 @@
       <ul class="space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         <li class="flex gap-2">
           <span class="text-lapis dark:text-lapis-light flex-none">→</span>
-          <span><strong class="text-text-light dark:text-text-dark">Asset import</strong> — file path, detected format, perceptual fingerprints, and timestamp.</span>
+          <span><strong class="text-text-light dark:text-text-dark">Asset import:</strong> file path, detected format, perceptual fingerprints, and timestamp.</span>
         </li>
         <li class="flex gap-2">
           <span class="text-lapis dark:text-lapis-light flex-none">→</span>
-          <span><strong class="text-text-light dark:text-text-dark">C2PA signing</strong> — output file path, manifest claim generator, content hash, and timestamp.</span>
+          <span><strong class="text-text-light dark:text-text-dark">C2PA signing:</strong> output file path, manifest claim generator, content hash, and timestamp.</span>
         </li>
         <li class="flex gap-2">
           <span class="text-lapis dark:text-lapis-light flex-none">→</span>
-          <span><strong class="text-text-light dark:text-text-dark">Watermark embedding</strong> — asset ID, watermark strength level, institution name encoded, and timestamp.</span>
+          <span><strong class="text-text-light dark:text-text-dark">Watermark embedding:</strong> asset ID, watermark strength level, institution name encoded, and timestamp.</span>
         </li>
         <li class="flex gap-2">
           <span class="text-lapis dark:text-lapis-light flex-none">→</span>
-          <span><strong class="text-text-light dark:text-text-dark">Batch watermarking</strong> — count of files processed, any failures, and overall completion timestamp.</span>
+          <span><strong class="text-text-light dark:text-text-dark">Batch watermarking:</strong> count of files processed, any failures, and overall completion timestamp.</span>
         </li>
       </ul>
     </div>
@@ -290,15 +290,15 @@
       <ul class="space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         <li class="flex gap-2">
           <span class="text-lapis dark:text-lapis-light flex-none">→</span>
-          <span><strong class="text-text-light dark:text-text-dark">File verification</strong> — file path, investigation mode, trust score, verdict, and timestamp.</span>
+          <span><strong class="text-text-light dark:text-text-dark">File verification:</strong> file path, investigation mode, trust score, verdict, and timestamp.</span>
         </li>
         <li class="flex gap-2">
           <span class="text-lapis dark:text-lapis-light flex-none">→</span>
-          <span><strong class="text-text-light dark:text-text-dark">URL verification</strong> — the URL submitted (with any query strings redacted for privacy), verdict, and timestamp.</span>
+          <span><strong class="text-text-light dark:text-text-dark">URL verification:</strong> the URL submitted (with any query strings redacted for privacy), verdict, and timestamp.</span>
         </li>
         <li class="flex gap-2">
           <span class="text-lapis dark:text-lapis-light flex-none">→</span>
-          <span><strong class="text-text-light dark:text-text-dark">Batch verification</strong> — file count, individual verdicts, and completion timestamp.</span>
+          <span><strong class="text-text-light dark:text-text-dark">Batch verification:</strong> file count, individual verdicts, and completion timestamp.</span>
         </li>
       </ul>
     </div>
@@ -310,11 +310,11 @@
       <ul class="space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
         <li class="flex gap-2">
           <span class="text-lapis dark:text-lapis-light flex-none">→</span>
-          <span><strong class="text-text-light dark:text-text-dark">Asset deletion</strong> — asset ID, file name, and timestamp of removal from the catalogue.</span>
+          <span><strong class="text-text-light dark:text-text-dark">Asset deletion:</strong> asset ID, file name, and timestamp of removal from the catalogue.</span>
         </li>
         <li class="flex gap-2">
           <span class="text-lapis dark:text-lapis-light flex-none">→</span>
-          <span><strong class="text-text-light dark:text-text-dark">Database relocation</strong> — old path, new path, and timestamp.</span>
+          <span><strong class="text-text-light dark:text-text-dark">Database relocation:</strong> old path, new path, and timestamp.</span>
         </li>
       </ul>
     </div>
@@ -342,8 +342,8 @@
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     The audit log uses a SHA-256 hash chain to make tampering detectable. Each entry
-    contains a hash of the previous entry. If any entry is altered — or if entries are
-    deleted or reordered — the chain breaks, and the integrity check will report a failure.
+    contains a hash of the previous entry. If any entry is altered (or if entries are
+    deleted or reordered), the chain breaks, and the integrity check will report a failure.
   </p>
 
   <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
@@ -392,7 +392,7 @@
       <strong class="text-text-light dark:text-text-dark">Using the chain as evidence.</strong>
       The hash chain is designed to give you confidence that your audit log has not been
       modified since it was written. If you need to demonstrate the integrity of your
-      verification history — for example, in a dispute or institutional review — you can
+      verification history (for example, in a dispute or institutional review), you can
       export the log and present the chain verification status alongside it.
     </p>
   </div>
@@ -456,7 +456,7 @@
       <strong class="text-text-light dark:text-text-dark">Tip:</strong>
       Use the <strong class="text-text-light dark:text-text-dark">Clear filters</strong>
       button to return to the full Activity Record. Active filters are shown as badges
-      above the log — each badge can be removed individually by clicking the
+      above the log; each badge can be removed individually by clicking the
       <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">✗</span>
       on it.
     </p>
@@ -484,7 +484,7 @@
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     When an image is used to train a generative model, the model does not preserve or
     transmit the image itself. Instead, it adjusts billions of internal numerical weights
-    in response to the visual features it sees — shapes, textures, colours, compositional
+    in response to the visual features it sees: shapes, textures, colours, compositional
     patterns. The training process:
   </p>
 
@@ -530,7 +530,7 @@
       <tbody class="text-flint-dark dark:text-flint-light">
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4">Republication of the original file on a website</td>
-          <td class="py-2 text-malachite-dark dark:text-malachite-light">✓ Via URL Watchlist — re-verify registered URLs on demand</td>
+          <td class="py-2 text-malachite-dark dark:text-malachite-light">✓ Via URL Watchlist: re-verify registered URLs on demand</td>
         </tr>
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4">Metadata stripping before redistribution</td>
@@ -542,7 +542,7 @@
         </tr>
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4">Use of your image to train an AI model</td>
-          <td class="py-2 text-cinnabar-dark dark:text-cinnabar-light">✗ Not detectable — no traceable signal survives</td>
+          <td class="py-2 text-cinnabar-dark dark:text-cinnabar-light">✗ Not detectable: no traceable signal survives</td>
         </tr>
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4">Style transfer producing a visual derivative</td>
@@ -561,8 +561,8 @@
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">An honest limitation.</strong>
       No current technology can reliably detect whether a specific image was included in
-      a model's training data. Research in this area — including membership inference
-      attacks — remains an active and unsettled field. Jura Trace will incorporate
+      a model's training data. Research in this area (including membership inference
+      attacks) remains an active and unsettled field. Jura Trace will incorporate
       advances in this space as they mature and become reliable enough to present to
       users as meaningful evidence.
     </p>
@@ -581,7 +581,7 @@
     The URL Watchlist lets you register public URLs for on-demand re-verification. Once a
     URL is added, Jura Trace re-runs C2PA manifest verification and watermark extraction
     against it each time you trigger a check, logging the result in the Activity Record.
-    All checking runs entirely on your device — no cloud infrastructure is involved.
+    All checking runs entirely on your device, with no cloud infrastructure involved.
   </p>
 
   <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
@@ -610,7 +610,7 @@
     </li>
     <li class="flex gap-3">
       <span class="flex-none font-semibold text-amber-dark dark:text-amber-light">Changed</span>
-      <span>The C2PA status or watermark result differs from a previous check — review the event history.</span>
+      <span>The C2PA status or watermark result differs from a previous check, review the event history.</span>
     </li>
     <li class="flex gap-3">
       <span class="flex-none font-semibold text-cinnabar-dark dark:text-cinnabar-light">Error</span>
@@ -623,7 +623,7 @@
   </h3>
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-    Click any watchlist entry to expand it and view the full detection history — each event
+    Click any watchlist entry to expand it and view the full detection history. Each event
     row shows the timestamp, C2PA manifest result, and watermark extraction outcome. You can
     assign a case status to any entry (for example, marking it as
     <strong class="text-text-light dark:text-text-dark">Under Review</strong> or
@@ -634,7 +634,7 @@
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Local-first design.</strong>
-      All watchlist data — registered URLs, event history, and case notes — is stored in the
+      All watchlist data (registered URLs, event history, and case notes) is stored in the
       application database on your device. Nothing is sent to any external server.
     </p>
   </div>
@@ -653,7 +653,7 @@
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Review your audit trail regularly.</strong>
-        A monthly review of the Activity Record helps you spot gaps — assets that have
+        A monthly review of the Activity Record helps you spot gaps, such as assets that have
         been imported but not yet signed, or verification sessions that were started but
         not completed.
       </span>
@@ -664,7 +664,7 @@
         <strong class="text-text-light dark:text-text-dark">Export verification reports before sharing findings.</strong>
         When communicating verification results to a colleague, client, or institution,
         export a PDF trust report or a case ZIP from the Verify page. This captures the
-        full evidence package — including signal scores, the verdict, and a timestamp —
+        full evidence package (including signal scores, the verdict, and a timestamp)
         in a shareable format.
       </span>
     </li>
@@ -672,9 +672,9 @@
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Use the hash chain to demonstrate evidence integrity.</strong>
-        If you need to present your audit trail in a formal context — such as a content
+        If you need to present your audit trail in a formal context (such as a content
         dispute, a journalistic source verification review, or an institutional compliance
-        check — run the integrity check immediately before export. A verified chain
+        check), run the integrity check immediately before export. A verified chain
         demonstrates that the log has not been altered since the actions were recorded.
       </span>
     </li>
