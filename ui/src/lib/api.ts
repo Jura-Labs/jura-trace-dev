@@ -668,25 +668,6 @@ export async function embedWatermark(
   };
 }
 
-/**
- * Extract and check for an invisible watermark in an image asset.
- * @param assetId  The asset to inspect.
- */
-export async function extractWatermark(assetId: string): Promise<WatermarkExtractResult> {
-  if (isTauri) {
-    return invoke<WatermarkExtractResult>('extract_watermark_from_path', { assetId });
-  }
-  // Browser mock
-  return {
-    extractedPayload: null,
-    extractedHex: null,
-    hasWatermark: false,
-    confidence: 0,
-    success: true,
-    message: 'No watermark detected (mock)',
-  };
-}
-
 // ── Video / Audio Metadata ──────────────────────────────────────────
 
 /**

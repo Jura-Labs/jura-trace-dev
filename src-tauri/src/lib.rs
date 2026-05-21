@@ -4461,40 +4461,6 @@ fn embed_watermark_asset(
     })
 }
 
-/// Extract and optionally verify a watermark from an image file.
-///
-/// `path` is the absolute path to the image to inspect (need not be in the
-/// database — supports verifying third-party copies).
-///
-/// `payload_len_bytes` is the number of bytes in the expected payload (e.g. 16
-/// for a UUID). When omitted, defaults to 16.
-///
-/// `reference_hex` is the expected payload as a hex string. When provided the
-/// result includes a `matches` field indicating whether the extracted payload
-/// matches, and a byte-level `confidence` score.
-///
-/// SECURITY: Canonicalises the path before processing to prevent:
-///   - Directory traversal via `../` sequences
-///   - Null-byte injection
-///   - Path existence oracle attacks via error messages
-#[tauri::command]
-fn extract_watermark_from_path(
-    path: String,
-    payload_len_bytes: Option<usize>,
-    reference_hex: Option<String>,
-) -> Result<watermark::ExtractResult, AppError> {
-    if path.contains('\0') {
-        return Err(AppError::Validation("Invalid file path".into()));
-    }
-    let file_path = PathBuf::from(&path)
-        .canonicalize()
-        .map_err(|_| AppError::Validation("File not found or inaccessible".into()))?;
-
-    let len = payload_len_bytes.unwrap_or(16);
-    watermark::extract_watermark(&file_path, len, reference_hex.as_deref())
-        .map_err(AppError::FileSystem)
-}
-
 /// Record a false-positive report for a verification result.
 ///
 /// Stores the report in SQLite so that detection thresholds can be
@@ -7424,7 +7390,6 @@ pub fn run() {
             get_monitor_events,
             update_monitor_case_status,
             embed_watermark_asset,
-            extract_watermark_from_path,
             analyse_video_deepfake,
             run_npr_on_demand,
             run_shadow_consistency_on_demand,
