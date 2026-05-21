@@ -83,188 +83,25 @@
     1. Ollama Configuration
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
-    Ollama is a free tool that runs AI models locally on your computer. In Jura Trace,
-    it powers two optional features that sit on top of the core forensic pipeline.
-    Neither replaces any of the ten automatic detectors or three on-demand
-    investigation tools.
-  </p>
-
-  <!-- ── What Ollama does ─────────────────────────────────────────── -->
-  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-    What Ollama does
-  </h3>
-
-  <div class="space-y-5 mb-6">
-
-    <!-- Feature 1: Read Text from Images -->
-    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Feature 1: Read Text from Images
-      </p>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
-        When you verify an image that contains visible text (a screenshot, a meme, a social
-        media post, a photograph of a sign or document), a <strong class="text-text-light dark:text-text-dark">Read Text (Ollama)</strong>
-        button appears in the verification results. Click it and the AI reads and transcribes
-        all text visible in the image.
-      </p>
-      <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-2">Useful for</p>
-      <ul class="space-y-1 text-sm text-flint-dark dark:text-flint-light">
-        <li class="flex gap-2"><span class="text-lapis dark:text-lapis-light flex-none">→</span> Extracting text from screenshots of social media posts</li>
-        <li class="flex gap-2"><span class="text-lapis dark:text-lapis-light flex-none">→</span> Reading watermarks and captions embedded in images</li>
-        <li class="flex gap-2"><span class="text-lapis dark:text-lapis-light flex-none">→</span> Identifying text in photographs of signs, documents, or posters</li>
-      </ul>
-    </div>
-
-    <!-- Feature 2 (Knowledge Base Retrieval / claim verification) was
-         deferred from v1.0 on 2026-05-17 pending corpus expansion and
-         formal accuracy evaluation. Block removed; will return with the
-         feature in a future release. -->
-
-  </div>
-
-  <!-- ── What works without Ollama ───────────────────────────────── -->
-  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4 mb-8">
-    <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">Everything else works without Ollama</p>
-    <ul class="space-y-1 text-sm text-flint-dark dark:text-flint-light">
-      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> All 10 automatic forensic detectors (ELA, noise, copy-move, deepfake, and more) plus 3 on-demand investigation tools</li>
-      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> C2PA provenance verification</li>
-      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> EXIF anomaly analysis</li>
-      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> Video and audio metadata (requires FFmpeg)</li>
-    </ul>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mt-3">
-      Ollama adds intelligence on top of the forensic pipeline. It does not replace any core feature.
-    </p>
-  </div>
-
-  <!-- ── How to test Ollama ───────────────────────────────────────── -->
-  <h3 id="ollama-testing" class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-    How to test Ollama
-  </h3>
-
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-    Follow these steps to confirm Ollama is set up and working in Jura Trace.
+    Ollama is a free tool that runs AI models locally. Jura Trace v1.0 ships with
+    no Ollama-dependent features enabled. The AI Assistant section is reserved for
+    v1.0.1, where a single multimodal+text model will provide image descriptions and
+    claim verification. Until then, this section is hidden in Settings and no Ollama
+    install is required.
   </p>
 
-  <div class="space-y-4 mb-8">
-
-    <!-- Step 1 -->
-    <div class="flex gap-4">
-      <span class="flex-none w-7 h-7 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center mt-0.5">1</span>
-      <div>
-        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-1">Confirm Ollama is running</p>
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-          Go to <strong class="text-text-light dark:text-text-dark">Settings → Service Status</strong>.
-          The Ollama row should show <strong class="text-malachite-dark dark:text-malachite-light">Online</strong>.
-          If it shows Unavailable, open the Ollama application. On macOS look for its icon in the menu bar;
-          on Windows look in the system tray.
-        </p>
-      </div>
-    </div>
-
-    <!-- Step 2 -->
-    <div class="flex gap-4">
-      <span class="flex-none w-7 h-7 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center mt-0.5">2</span>
-      <div>
-        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-1">Test text reading</p>
-        <ol class="space-y-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed list-none">
-          <li>a. Take a screenshot of a social media post or a news article.</li>
-          <li>b. Go to <strong class="text-text-light dark:text-text-dark">VERIFY</strong> and drop the screenshot onto the drop zone.</li>
-          <li>c. Wait for analysis to complete.</li>
-          <li>d. Scroll down in the results and find the <strong class="text-text-light dark:text-text-dark">Read Text (Ollama)</strong> button.</li>
-          <li>e. Click it. The AI reads the image and the extracted text appears in a box below the button.</li>
-        </ol>
-      </div>
-    </div>
-
-    <!-- Step 3 (Test claim checking) was deferred from v1.0 on 2026-05-17
-         alongside the Knowledge Base Retrieval feature itself. Returns
-         with the feature in a future release. -->
-
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
+    <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">All v1.0 features run without Ollama</p>
+    <ul class="space-y-1 text-sm text-flint-dark dark:text-flint-light">
+      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> 10 automatic forensic detectors plus 3 on-demand investigation tools</li>
+      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> C2PA Validator-Conformant verification</li>
+      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> EXIF anomaly analysis with injection-detection and XMP AI-provenance sub-checks</li>
+      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> AI deepfake detection (GBM v4 + UnivFD v10onnx ensemble)</li>
+      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> Local Signing with per-install certificate</li>
+    </ul>
   </div>
 
-  <!-- ── Installing Ollama ────────────────────────────────────────── -->
-  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-    Installing Ollama
-  </h3>
-
-  <ol class="space-y-4 mb-6">
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">1</span>
-      <span>
-        Download and install Ollama from
-        <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">ollama.com</span>.
-        Ollama runs as a background service on macOS, Windows, and Linux.
-      </span>
-    </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
-      <span>
-        Pull the required models. In a terminal:
-        <br />
-        <code class="block mt-2 font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-3 py-2 rounded leading-relaxed">
-          ollama pull llava:7b<br />
-          ollama pull qwen2.5:7b-instruct
-        </code>
-        Each model is approximately 4–5 GB. They are stored locally and never transmitted externally.
-      </span>
-    </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">3</span>
-      <span>
-        Verify the models are installed. In a terminal:
-        <br />
-        <code class="block mt-2 font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-3 py-2 rounded">ollama list</code>
-        You should see both
-        <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">llava:7b</span>
-        and
-        <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">qwen2.5:7b-instruct</span>
-        listed.
-      </span>
-    </li>
-  </ol>
-
-  <!-- ── Settings fields ─────────────────────────────────────────── -->
-  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-    Settings fields
-  </h3>
-
-  <div class="overflow-x-auto mb-6">
-    <table class="w-full text-sm border-collapse">
-      <thead>
-        <tr class="border-b border-border-light dark:border-border-dark">
-          <th class="text-left py-2 pr-4 text-text-light dark:text-text-dark font-semibold">Field</th>
-          <th class="text-left py-2 pr-4 text-text-light dark:text-text-dark font-semibold">Default</th>
-          <th class="text-left py-2 text-text-light dark:text-text-dark font-semibold">Notes</th>
-        </tr>
-      </thead>
-      <tbody class="text-flint-dark dark:text-flint-light">
-        <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-          <td class="py-2 pr-4 font-semibold text-text-light dark:text-text-dark">Ollama URL</td>
-          <td class="py-2 pr-4 font-mono text-xs">http://localhost:11434</td>
-          <td class="py-2">Change this if Ollama is running on a different port, or if you are pointing to a shared institutional server on your local network.</td>
-        </tr>
-        <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-          <td class="py-2 pr-4 font-semibold text-text-light dark:text-text-dark">Vision model</td>
-          <td class="py-2 pr-4 font-mono text-xs">llava:7b</td>
-          <td class="py-2">Used for image text reading and AI descriptions. Must be a LLaVA-compatible model tag installed in your local Ollama instance.</td>
-        </tr>
-        <tr>
-          <td class="py-2 pr-4 font-semibold text-text-light dark:text-text-dark">Text model</td>
-          <td class="py-2 pr-4 font-mono text-xs">qwen2.5:7b-instruct</td>
-          <td class="py-2">Used for claim verification. Must be an instruction-tuned text model installed in your local Ollama instance.</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-    Settings are saved locally on your device when you click
-    <strong class="text-text-light dark:text-text-dark">Save settings</strong>.
-    They persist across application restarts. Use
-    <a href="#deployment-profiles" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis">Deployment Profiles</a>
-    to save and switch between multiple named configurations.
-  </p>
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
@@ -890,9 +727,9 @@
         licence is included in the engagement). Quoted per engagement, typically from
         £5,000 / 5 days. Email
         <a
-          href="mailto:commercial@juralabs.org"
+          href="mailto:consultancy@juralabs.org"
           class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-        >commercial@juralabs.org</a>
+        >consultancy@juralabs.org</a>
         for a quote.
       </p>
     </div>

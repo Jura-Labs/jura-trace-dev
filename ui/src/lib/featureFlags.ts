@@ -79,3 +79,46 @@ export const V1_SHOW_API_KEYS = false;
  *                 flag — flipping this re-exposes the existing surface.
  */
 export const V1_SHOW_WATERMARK = false;
+
+
+/**
+ * Read Text (Ollama LLaVA) button on the Verify result panel + the
+ * "Read Text" results section.
+ *
+ * v1.0:  false  — hide the button + results section. Dropped per 2026-05-21
+ *                 user UX review. LLaVA 7B's OCR is "good enough" but not
+ *                 best-in-class (macOS Preview, Tesseract, Apple Live Text,
+ *                 Google Vision all beat it). Persona evidence: only Fatima
+ *                 (fact-checker) might use it occasionally, with dedicated
+ *                 OCR tools as a better alternative. Backend Tauri command
+ *                 extract_text_from_image + sidecar /forensics/extract-text
+ *                 + extract_text_from_image service stay in tree gated by
+ *                 this flag (mirrors the V1_SHOW_WATERMARK pattern).
+ * v1.1:  true   — re-enable IF user demand emerges post-launch OR we swap
+ *                 the OCR backend for a specialised engine.
+ */
+export const V1_SHOW_READ_TEXT = false;
+
+
+/**
+ * AI image description (Ollama LLaVA "Tier 3" feature on the Verify panel).
+ *
+ * v1.0:  false  — hide the AI Image Description section + the Settings
+ *                 toggle that enables it. Per 2026-05-21 architecture
+ *                 review: shipping Ollama + LLaVA + (separately) Qwen2.5
+ *                 means recommending 8.5 GB of two competing LLMs. v1.0.1
+ *                 will reintroduce a SINGLE multimodal+text model (Qwen2-VL
+ *                 7B candidate, ~5 GB) that handles descriptions + future
+ *                 claim verification + OCR with one download. v1.0 ships
+ *                 pure-forensic + C2PA with no LLM dependency. Backend
+ *                 (verify pipeline ai_description call, sidecar /describe
+ *                 endpoint, describe_image service) stays in tree gated by
+ *                 this flag; backend is also gated by the user preference
+ *                 (which defaults to null/false) so the request is never
+ *                 issued in production.
+ * v1.0.1: true   — re-enable when the v1.0.1 multimodal-model decision
+ *                  lands. Probable replacement: Qwen2-VL 7B Instruct
+ *                  (5 GB, single download, handles descriptions + RAG +
+ *                  OCR with stronger text reasoning than LLaVA).
+ */
+export const V1_SHOW_AI_DESCRIPTION = false;

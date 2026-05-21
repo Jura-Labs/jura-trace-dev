@@ -5,7 +5,7 @@
   import { getVersion, checkSidecarHealth, getSidecarStartupStatus, onSidecarStatusChanged, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, getPowerSaverMode, setPowerSaverMode, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert, getNetworkMode, setNetworkMode } from '$lib/api';
   import type { ApiKeyInfo, CreateKeyResult } from '$lib/api';
   import type { ConformantCertificateInfo, LicenceTier, NetworkMode, SidecarHealth, SidecarStartupSnapshot, SidecarStartupStatus, SigningMode, TierInfo } from '$lib/types';
-  import { V1_SHOW_CONFORMANT_SIGNING, V1_SHOW_API_KEYS } from '$lib/featureFlags';
+  import { V1_SHOW_CONFORMANT_SIGNING, V1_SHOW_API_KEYS, V1_SHOW_AI_DESCRIPTION, V1_SHOW_READ_TEXT } from '$lib/featureFlags';
   import { checkForUpdate as runCheckForUpdate, type UpdateStatus } from '$lib/updater';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import {
@@ -1092,7 +1092,10 @@
 <div class="space-y-6">
   <h1 class="text-2xl font-heading text-text-light dark:text-quartz">Settings</h1>
 
-  <!-- Ollama Configuration -->
+  <!-- Ollama Configuration — hidden in v1.0 (no LLM-dependent feature ships).
+       Re-enable in v1.0.1 alongside the V1_SHOW_AI_DESCRIPTION flag flip,
+       when a single multimodal+text model replaces the LLaVA + Qwen2.5 pair. -->
+  {#if V1_SHOW_AI_DESCRIPTION || V1_SHOW_READ_TEXT}
   <section
     class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="ollama-heading"
@@ -1169,6 +1172,7 @@
 
     </div>
   </section>
+  {/if}
 
   <!-- Deployment Profiles -->
   <section
@@ -1522,8 +1526,9 @@
         </div>
 
         <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-3">
-          Optional enrichment: AI image descriptions (LLaVA) and claim verification (Qwen2.5).
-          Core verification, forensic analysis, and AI deepfake detection all work without Ollama.
+          Reserved for v1.0.1 AI enrichment (a single multimodal+text model for image
+          descriptions and claim verification). Not used by v1.0 features. Core verification,
+          forensic analysis, and AI deepfake detection all work without Ollama.
           {#if ollamaUrl !== DEFAULT_OLLAMA_URL}
             <span class="block mt-1">URL: <code class="font-mono text-[11px]">{ollamaUrl}</code></span>
           {/if}
@@ -2122,14 +2127,13 @@
         </span>
       </div>
       <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
-        Need to embed Jura Trace in your own product without AGPL contagion? Email
+        Need to embed Jura Trace in your own product without an AGPL licence, or bespoke
+        engineering, training, custom RAG knowledge bases, MDM packaging, or documentation?
+        Contact
         <a
-          href="mailto:commercial@juralabs.org"
+          href="mailto:consultancy@juralabs.org"
           class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-        >commercial@juralabs.org</a>
-        for a commercial licence.
-        Need bespoke engineering, training, custom RAG knowledge bases, MDM packaging, or
-        compliance documentation? Custom Engineering engagements are quoted from £5,000 / 5 days.
+        >consultancy@juralabs.org</a>.
       </p>
     </div>
 
@@ -2147,7 +2151,8 @@
     {/if}
   </section>
 
-  <!-- Analysis preferences -->
+  <!-- Analysis preferences — AI image descriptions toggle hidden in v1.0
+       (V1_SHOW_AI_DESCRIPTION=false). Power-saver toggle stays. -->
   <section
     class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
     aria-labelledby="analysis-heading"
@@ -2159,6 +2164,7 @@
       Control which optional analysis stages run during verify. Turning stages off makes verify faster.
     </p>
 
+    {#if V1_SHOW_AI_DESCRIPTION}
     <div class="flex items-start justify-between gap-4 p-4 rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40">
       <div class="min-w-0 flex-1">
         <label for="ai-desc-toggle" class="block text-sm font-medium text-text-light dark:text-quartz">
@@ -2205,8 +2211,9 @@
         ></span>
       </label>
     </div>
+    {/if}
 
-    {#if aiDescFeedback !== null}
+    {#if aiDescFeedback !== null && V1_SHOW_AI_DESCRIPTION}
       <p
         class="mt-3 text-sm px-3 py-2 rounded border
                {aiDescFeedback.ok
@@ -2826,9 +2833,9 @@
         <p class="text-sm text-flint-dark dark:text-flint-light">
           REST API access and key management are planned for the Pro tier in the v1.1 release. v1.0 ships Community-only, so the verification engine is fully usable through the desktop app and the Tauri IPC surface, but there is no programmatic key-authenticated REST endpoint yet. For early API access enquiries, email
           <a
-            href="mailto:commercial@juralabs.org"
+            href="mailto:consultancy@juralabs.org"
             class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-          >commercial@juralabs.org</a>.
+          >consultancy@juralabs.org</a>.
         </p>
       </div>
     {:else}

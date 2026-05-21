@@ -401,9 +401,9 @@
       source release, or cases requiring contractual indemnification beyond what the AGPL
       provides. Contact
       <a
-        href="mailto:commercial@juralabs.org"
+        href="mailto:consultancy@juralabs.org"
         class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-      >commercial@juralabs.org</a> for the commercial-licence process.
+      >consultancy@juralabs.org</a> for the commercial-licence process.
     </p>
   </section>
 
@@ -485,9 +485,9 @@
       The Sprint 19 audit confirmed that all findings from the Sprint 14 audit (3 critical, 6 high)
       remain remediated with no regression. The full Sprint 19 audit report is available on request
       via <a
-        href="mailto:commercial@juralabs.org"
+        href="mailto:consultancy@juralabs.org"
         class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-      >commercial@juralabs.org</a>.
+      >consultancy@juralabs.org</a>.
     </p>
     <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
       For detector methodology documentation, including how each forensic signal is computed and

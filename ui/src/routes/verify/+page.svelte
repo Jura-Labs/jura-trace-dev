@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { V1_SHOW_READ_TEXT, V1_SHOW_AI_DESCRIPTION } from '$lib/featureFlags';
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
   import {
@@ -4424,7 +4425,7 @@
     </section>
 
     <!-- ── AI Description (Ollama LLaVA) ────────────────────────────── -->
-    {#if result.aiDescription}
+    {#if V1_SHOW_AI_DESCRIPTION && result.aiDescription}
       <section
         class="mb-4 bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl p-5"
         aria-labelledby="v2-ai-desc-heading"
@@ -4436,7 +4437,7 @@
     {/if}
 
     <!-- ── Read Text (Ollama LLaVA) ──────────────────────────────────── -->
-    {#if result.contentType === 'image' && filePath && sidecarHealth?.ollama !== null}
+    {#if V1_SHOW_READ_TEXT && result.contentType === 'image' && filePath && sidecarHealth?.ollama !== null}
       <section
         class="mb-4 bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl p-5"
         aria-labelledby="v2-read-text-heading"
