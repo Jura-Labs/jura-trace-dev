@@ -109,6 +109,17 @@ log "Building Python sidecar (PyInstaller --onedir, may take 5-10 min)"
 [[ -d "$SIDECAR_DIST/_internal" ]] || die "Sidecar _internal/ missing after PyInstaller."
 ok "Sidecar built ($(du -sh "$SIDECAR_DIST" | cut -f1))"
 
+# ── Frozen-sidecar smoke test ─────────────────────────────────────────
+# Launches the bundled binary and probes each /forensics/* endpoint to
+# catch the class of bug where a feature works in dev (full Python env)
+# but fails in the frozen bundle (missing transitive deps). Added after
+# the 2026-05-21 imwatermark/torch incident.
+log "Smoke-testing the frozen sidecar (probes each /forensics endpoint)"
+if ! python3 scripts/smoke_test_frozen_sidecar.py "$SIDECAR_DIST/jura-sidecar"; then
+  die "Frozen-sidecar smoke test failed. See output above."
+fi
+ok "All bundled /forensics endpoints respond without bundle-import failures."
+
 # ── Stage sidecar-bundle into src-tauri/ ──────────────────────────────
 log "Staging sidecar-bundle for Tauri resources"
 mkdir -p "$SIDECAR_STAGING"
