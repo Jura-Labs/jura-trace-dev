@@ -775,7 +775,7 @@
   >
     {#if signingMode === 'conformant'}
       <strong class="font-semibold">Conformant Signing.</strong>
-      Your imported trust-list certificate signs the manifest — third-party
+      Your imported trust-list certificate signs the manifest, so third-party
       validators (Adobe Inspector, ProofCheck, c2patool) will recognise
       the signer against the C2PA trust list.
     {:else}
@@ -814,7 +814,7 @@
           class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center rounded border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
           onclick={exportCsv}
           title="Download a spreadsheet of all assets in your collection, including protection status, file paths, and metadata."
-          aria-label="Export Asset Database — download all visible assets as a spreadsheet"
+          aria-label="Export Asset Database: download all visible assets as a spreadsheet"
         >
           Export Asset Database
         </button>
@@ -894,7 +894,7 @@
       ondrop={handleDrop}
       onclick={handleFilePicker}
       disabled={importingCount > 0}
-      aria-label={importingCount > 0 ? 'Importing files, please wait' : 'Import more files — drop here or click to browse'}
+      aria-label={importingCount > 0 ? 'Importing files, please wait' : 'Import more files, drop here or click to browse'}
     >
       {#if importingCount > 0}
         <div
@@ -912,7 +912,7 @@
             d="M12 16V4m0 0L8 8m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4" />
         </svg>
         <span class="text-sm text-flint-dark dark:text-flint-light">Import more files</span>
-        <span class="text-xs text-flint-dark/60 dark:text-flint-light/60 hidden sm:inline">— drop here or click to browse</span>
+        <span class="text-xs text-flint-dark/60 dark:text-flint-light/60 hidden sm:inline">(drop here or click to browse)</span>
       {/if}
     </button>
   {/if}
@@ -1090,7 +1090,7 @@
           class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian flex-shrink-0"
           onclick={openBatchSign}
-          aria-label="Add credentials to all unsigned assets — {unsignedAssets.length} eligible"
+          aria-label="Add credentials to all unsigned assets ({unsignedAssets.length} eligible)"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
@@ -1109,7 +1109,7 @@
           class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian flex-shrink-0"
           onclick={openBatchWatermark}
-          aria-label="Watermark all unwatermarked images — {unwatermarkedImages.length} eligible"
+          aria-label="Watermark all unwatermarked images ({unwatermarkedImages.length} eligible)"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
@@ -1183,7 +1183,7 @@
                 aria-describedby="batch-sign-creator-hint"
               />
               <p id="batch-sign-creator-hint" class="mt-1 text-xs text-flint-dark dark:text-flint-light leading-relaxed">
-                Written into the manifest as the declared creator. This is a self-attestation — Jura Trace does not verify the name. A third-party validator will display it alongside an "Issuer not trusted" warning until you import a trust-list certificate.
+                Written into the manifest as the declared creator. This is a self-attestation: Jura Trace does not verify the name. A third-party validator will display it alongside an "Issuer not trusted" warning until you import a trust-list certificate.
               </p>
             </div>
 
@@ -1202,11 +1202,11 @@
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
               >
                 <option value="All Rights Reserved">All Rights Reserved</option>
-                <option value="CC BY 4.0">CC BY 4.0 — Attribution</option>
-                <option value="CC BY-SA 4.0">CC BY-SA 4.0 — Attribution-ShareAlike</option>
-                <option value="CC BY-NC 4.0">CC BY-NC 4.0 — Attribution-NonCommercial</option>
-                <option value="CC BY-ND 4.0">CC BY-ND 4.0 — Attribution-NoDerivatives</option>
-                <option value="CC0 1.0">CC0 1.0 — Public Domain</option>
+                <option value="CC BY 4.0">CC BY 4.0: Attribution</option>
+                <option value="CC BY-SA 4.0">CC BY-SA 4.0: Attribution-ShareAlike</option>
+                <option value="CC BY-NC 4.0">CC BY-NC 4.0: Attribution-NonCommercial</option>
+                <option value="CC BY-ND 4.0">CC BY-ND 4.0: Attribution-NoDerivatives</option>
+                <option value="CC0 1.0">CC0 1.0: Public Domain</option>
               </select>
             </div>
 
@@ -1223,9 +1223,9 @@
             >
               <span class="font-semibold">Active signing mode:</span>
               {#if signingMode === 'conformant'}
-                Conformant — credentials validate against the C2PA trust list.
+                Conformant: credentials validate against the C2PA trust list.
               {:else}
-                Local Signing — signer shows as
+                Local Signing: signer shows as
                 <code class="font-mono text-[10px]">signingCredential.untrusted</code>
                 in external validators (manifest is valid; trust scope is local to this install).{#if V1_SHOW_CONFORMANT_SIGNING}
                 <a
@@ -1435,7 +1435,7 @@
                 id="batch-watermark-payload"
                 type="text"
                 bind:value={batchPayload}
-                placeholder="e.g. National Archive UK — 2026"
+                placeholder="e.g. National Archive UK, 2026"
                 maxlength={64}
                 class="w-full mt-1.5 px-3 py-2.5 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm
                        placeholder:text-flint-dark dark:text-flint-light
@@ -1483,17 +1483,17 @@
               >
                 {#if batchStrength === 1}
                   <strong class="text-text-light dark:text-quartz">Low:</strong>
-                  PSNR ≈ 48 dB, SSIM &gt; 0.99 — imperceptible on all content.
-                  Fragile — does not survive JPEG re-saves below quality 75. Use
+                  PSNR ≈ 48 dB, SSIM &gt; 0.99, imperceptible on all content.
+                  Fragile: does not survive JPEG re-saves below quality 75. Use
                   for archival originals that stay in your own storage.
                 {:else if batchStrength === 2}
                   <strong class="text-text-light dark:text-quartz">Medium (recommended):</strong>
-                  PSNR ≈ 42 dB, SSIM &gt; 0.98 — imperceptible on ordinary
+                  PSNR ≈ 42 dB, SSIM &gt; 0.98, imperceptible on ordinary
                   content. Survives JPEG re-saves at quality 75+ and routine
                   platform re-encoding.
                 {:else}
                   <strong class="text-text-light dark:text-quartz">High:</strong>
-                  PSNR ≈ 36 dB, SSIM &gt; 0.96 — imperceptible on most content,
+                  PSNR ≈ 36 dB, SSIM &gt; 0.96, imperceptible on most content,
                   faintly visible on smooth gradients under magnification.
                   Survives JPEG re-saves at quality 50+ and multi-platform
                   forwarding.
@@ -1502,7 +1502,7 @@
 
               <!-- Limits — common to all strengths. JTV-117. -->
               <div class="mt-2 px-3 py-2 rounded border border-amber/30 bg-amber/5 text-[11px] text-amber-dark dark:text-amber-light leading-relaxed">
-                <strong class="font-semibold">Limits — common to all strengths.</strong>
+                <strong class="font-semibold">Limits, common to all strengths.</strong>
                 Frequency-domain watermarks do <em>not</em> survive: screenshots,
                 geometric cropping greater than ~10% of any edge, AI image-to-image
                 regeneration, or adversarial removal. They are an attribution
@@ -1529,13 +1529,13 @@
                     similarity (SSIM).
                   </p>
                   <ul class="list-disc pl-5 space-y-1">
-                    <li><strong class="text-text-light dark:text-quartz">Low:</strong> PSNR ≈ 48 dB, SSIM &gt; 0.99 — fragile against JPEG &lt; 75</li>
-                    <li><strong class="text-text-light dark:text-quartz">Medium:</strong> PSNR ≈ 42 dB, SSIM &gt; 0.98 — survives JPEG ≥ 75, typical platform re-encoding</li>
-                    <li><strong class="text-text-light dark:text-quartz">High:</strong> PSNR ≈ 36 dB, SSIM &gt; 0.96 — survives JPEG ≥ 50, multi-platform forwarding</li>
+                    <li><strong class="text-text-light dark:text-quartz">Low:</strong> PSNR ≈ 48 dB, SSIM &gt; 0.99, fragile against JPEG &lt; 75</li>
+                    <li><strong class="text-text-light dark:text-quartz">Medium:</strong> PSNR ≈ 42 dB, SSIM &gt; 0.98, survives JPEG ≥ 75, typical platform re-encoding</li>
+                    <li><strong class="text-text-light dark:text-quartz">High:</strong> PSNR ≈ 36 dB, SSIM &gt; 0.96, survives JPEG ≥ 50, multi-platform forwarding</li>
                   </ul>
                   <p class="text-[11px] italic">
                     Output is always written as a new PNG file alongside the
-                    original — JPEG inputs are decoded, watermarked, and saved
+                    original. JPEG inputs are decoded, watermarked, and saved
                     as PNG.
                   </p>
                 </div>
@@ -1560,7 +1560,7 @@
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                 onclick={handleBatchWatermark}
                 disabled={!batchPayload.trim() || unwatermarkedImages.length === 0}
-                aria-label="Begin watermarking {unwatermarkedImages.length} {unwatermarkedImages.length === 1 ? 'image' : 'images'} — output saved as PNG alongside original"
+                aria-label="Begin watermarking {unwatermarkedImages.length} {unwatermarkedImages.length === 1 ? 'image' : 'images'}, output saved as PNG alongside original"
               >
                 Begin Watermarking
               </button>
@@ -1770,7 +1770,7 @@
             class="inline-flex items-center gap-2 px-6 py-3 min-h-[44px] bg-lapis text-white text-sm rounded hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
             onclick={handleFilePicker}
-            aria-label="Import files — open file browser"
+            aria-label="Import files, open file browser"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
@@ -2152,7 +2152,7 @@
                       onclick={() => openInFinder(asset.filePath)}
                       class="flex-shrink-0 p-1 rounded text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:bg-gray-100 dark:hover:bg-graphite-light transition-colors
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
-                      aria-label="{revealLabel} — {asset.fileName}"
+                      aria-label="{revealLabel}, {asset.fileName}"
                       title={revealLabel}
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -2404,9 +2404,9 @@
                     >
                       <span class="font-semibold">Active signing mode:</span>
                       {#if signingMode === 'conformant'}
-                        Conformant — credentials validate against the C2PA trust list.
+                        Conformant: credentials validate against the C2PA trust list.
                       {:else}
-                        Local Signing — signer shows as
+                        Local Signing: signer shows as
                         <code class="font-mono text-[10px]">signingCredential.untrusted</code>
                         in external validators (manifest is valid; trust scope is local to this install).{#if V1_SHOW_CONFORMANT_SIGNING}
                         <a
@@ -2457,7 +2457,7 @@
                           aria-describedby="creator-name-hint"
                         />
                         <p id="creator-name-hint" class="mt-1 text-xs text-flint-dark dark:text-flint-light leading-relaxed">
-                          Written into the manifest as the declared creator. This is a self-attestation — Jura Trace does not verify the name. A third-party validator will display it alongside an "Issuer not trusted" warning until you import a trust-list certificate.
+                          Written into the manifest as the declared creator. This is a self-attestation: Jura Trace does not verify the name. A third-party validator will display it alongside an "Issuer not trusted" warning until you import a trust-list certificate.
                         </p>
                       </div>
                       <div>
@@ -2533,7 +2533,7 @@
                     </svg>
                     <div class="text-xs text-malachite-dark dark:text-malachite-light leading-relaxed">
                       <p class="font-semibold mb-1">Content credential added successfully</p>
-                      <p>Existing file metadata (EXIF, IPTC, XMP) has been preserved. The content credential was added alongside your existing metadata — no fields were removed or overwritten.</p>
+                      <p>Existing file metadata (EXIF, IPTC, XMP) has been preserved. The content credential was added alongside your existing metadata: no fields were removed or overwritten.</p>
                     </div>
                   </div>
                 </div>
@@ -2591,7 +2591,7 @@
                           id="watermark-payload-{asset.assetId}"
                           type="text"
                           bind:value={watermarkPayload}
-                          placeholder="e.g. National Archive UK — 2026"
+                          placeholder="e.g. National Archive UK, 2026"
                           class="w-full mt-1 px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm
                                  placeholder:text-flint-dark dark:text-flint-light
                                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
@@ -2642,18 +2642,18 @@
                         >
                           {#if watermarkStrength === 1}
                             <strong class="text-text-light dark:text-quartz">Low:</strong>
-                            PSNR ≈ 48 dB, SSIM &gt; 0.99 — imperceptible on all
-                            content. Fragile — does not survive JPEG re-saves
+                            PSNR ≈ 48 dB, SSIM &gt; 0.99, imperceptible on all
+                            content. Fragile: does not survive JPEG re-saves
                             below quality 75. Use for archival originals that
                             stay in your own storage.
                           {:else if watermarkStrength === 2}
                             <strong class="text-text-light dark:text-quartz">Medium (recommended):</strong>
-                            PSNR ≈ 42 dB, SSIM &gt; 0.98 — imperceptible on
+                            PSNR ≈ 42 dB, SSIM &gt; 0.98, imperceptible on
                             ordinary content. Survives JPEG re-saves at
                             quality 75+ and routine platform re-encoding.
                           {:else}
                             <strong class="text-text-light dark:text-quartz">High:</strong>
-                            PSNR ≈ 36 dB, SSIM &gt; 0.96 — imperceptible on
+                            PSNR ≈ 36 dB, SSIM &gt; 0.96, imperceptible on
                             most content, faintly visible on smooth gradients
                             under magnification. Survives JPEG re-saves at
                             quality 50+ and multi-platform forwarding.
@@ -2662,7 +2662,7 @@
 
                         <!-- Limits — common to all strengths. -->
                         <div class="mt-2 px-3 py-2 rounded border border-amber/30 bg-amber/5 text-[11px] text-amber-dark dark:text-amber-light leading-relaxed">
-                          <strong class="font-semibold">Limits — common to all strengths.</strong>
+                          <strong class="font-semibold">Limits, common to all strengths.</strong>
                           Frequency-domain watermarks do <em>not</em> survive:
                           screenshots, geometric cropping greater than ~10% of
                           any edge, AI image-to-image regeneration, or
@@ -2691,13 +2691,13 @@
                               re-compression but lowering structural similarity.
                             </p>
                             <ul class="list-disc pl-5 space-y-1">
-                              <li><strong class="text-text-light dark:text-quartz">Low:</strong> PSNR ≈ 48 dB, SSIM &gt; 0.99 — fragile against JPEG &lt; 75</li>
-                              <li><strong class="text-text-light dark:text-quartz">Medium:</strong> PSNR ≈ 42 dB, SSIM &gt; 0.98 — survives JPEG ≥ 75</li>
-                              <li><strong class="text-text-light dark:text-quartz">High:</strong> PSNR ≈ 36 dB, SSIM &gt; 0.96 — survives JPEG ≥ 50</li>
+                              <li><strong class="text-text-light dark:text-quartz">Low:</strong> PSNR ≈ 48 dB, SSIM &gt; 0.99, fragile against JPEG &lt; 75</li>
+                              <li><strong class="text-text-light dark:text-quartz">Medium:</strong> PSNR ≈ 42 dB, SSIM &gt; 0.98, survives JPEG ≥ 75</li>
+                              <li><strong class="text-text-light dark:text-quartz">High:</strong> PSNR ≈ 36 dB, SSIM &gt; 0.96, survives JPEG ≥ 50</li>
                             </ul>
                             <p class="text-[11px] italic">
                               Output is always saved as a new PNG file alongside
-                              the original — JPEG inputs are decoded, watermarked
+                              the original. JPEG inputs are decoded, watermarked
                               and re-encoded as PNG.
                             </p>
                           </div>
@@ -2720,7 +2720,7 @@
                         onclick={handleWatermark}
                         disabled={watermarking || !watermarkPayload.trim()}
                         aria-busy={watermarking}
-                        aria-label="Embed watermark — output saved as PNG alongside original"
+                        aria-label="Embed watermark, output saved as PNG alongside original"
                       >
                         {#if watermarking}
                           <span
@@ -2776,7 +2776,7 @@
                       setVerifyHandoff({ filePath: asset.filePath, fileName: asset.fileName });
                       goto('/verify');
                     }}
-                    aria-label="Verify {asset.fileName} — open in the Verify page and run authenticity analysis"
+                    aria-label="Verify {asset.fileName}, open in the Verify page and run authenticity analysis"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"

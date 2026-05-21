@@ -374,7 +374,7 @@
 -->
 <section
   class="rounded-xl border {colorScheme().border} {colorScheme().bg} overflow-hidden"
-  aria-label="Verification result — simple view"
+  aria-label="Verification result: simple view"
   aria-live="polite"
 >
 
@@ -459,7 +459,7 @@
              focus-visible:ring-offset-2 focus-visible:ring-offset-white
              dark:focus-visible:ring-offset-obsidian
              {colorScheme().cta}"
-      aria-label="See detailed forensic analysis — expert view"
+      aria-label="See detailed forensic analysis: expert view"
     >
       See Detailed Analysis
       <svg

@@ -1116,7 +1116,7 @@
         />
         <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
           Ollama runs an AI model locally on your computer for one optional feature in v1.0:
-          reading text visible in images such as screenshots or memes. This is not required —
+          reading text visible in images such as screenshots or memes. This is not required,
           Jura Trace works fully without Ollama.
         </p>
       </div>
@@ -1457,7 +1457,7 @@
                          ? 'bg-malachite/10 text-malachite-light border border-malachite/20'
                          : 'bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light border border-border-light dark:border-graphite-light'}"
                 title={cap === 'clipDetect' && !enabled
-                  ? 'CLIP ONNX models missing or onnxruntime unavailable — UnivFD v10onnx probe and zero-shot AI cross-check are both offline. GBM v4 base classifier still runs but recall on diffusion models is degraded.'
+                  ? 'CLIP ONNX models missing or onnxruntime unavailable. UnivFD v10onnx probe and zero-shot AI cross-check are both offline. GBM v4 base classifier still runs but recall on diffusion models is degraded.'
                   : ''}
               >
                 {cap === 'clipDetect' ? 'AI cross-check (CLIP)'
@@ -1486,7 +1486,7 @@
         {:else}
           <div class="mt-2 space-y-2">
             <p class="text-xs font-medium text-cinnabar-dark dark:text-cinnabar-light leading-relaxed">
-              Analysis Engine — not responding
+              Analysis Engine: not responding
             </p>
             <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
               Core checks (provenance and metadata) work without it. For full
@@ -1516,7 +1516,7 @@
               : ollamaState === 'partial'
                 ? 'Models incomplete'
                 : ollamaState === 'installed-no-models'
-                  ? 'Installed — no models'
+                  ? 'Installed: no models'
                   : 'Not installed'}
           </span>
         </div>
@@ -1597,10 +1597,10 @@
                   </p>
                   <p class="text-[11px] text-flint-dark dark:text-flint-light mt-0.5">
                     {model.installed
-                      ? `${model.label} — ready`
+                      ? `${model.label}: ready`
                       : pullingModel === model.name
                         ? (pullProgress ?? 'Downloading…') + (pullPercent !== null ? ` (${pullPercent}%)` : '')
-                        : `${model.label} — not downloaded`}
+                        : `${model.label}: not downloaded`}
                   </p>
                   {#if pullingModel === model.name && pullPercent !== null}
                     <div class="mt-1 h-1 rounded-full overflow-hidden bg-lapis/15" role="progressbar" aria-valuenow={pullPercent} aria-valuemin={0} aria-valuemax={100}>
@@ -1631,7 +1631,7 @@
           {/if}
 
           <p class="text-[11px] text-flint-dark dark:text-flint-light leading-relaxed">
-            If you also use ROOTED these models are shared — you only need to download them once.
+            If you also use ROOTED these models are shared, so you only need to download them once.
             <a
               href="/help/ollama"
               class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
@@ -1961,7 +1961,7 @@
             {#if restoreBusy}
               Restoring…
             {:else}
-              Restore — I understand this will replace all current data
+              Restore: I understand this will replace all current data
             {/if}
           </button>
         </div>
@@ -2026,7 +2026,7 @@
                 class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
                 aria-hidden="true"
               ></span>
-              Installing — restarting shortly...
+              Installing, restarting shortly...
             </span>
           {:else}
             Check for Updates
@@ -2048,7 +2048,7 @@
             role="status"
             aria-live="polite"
           >
-            Version {updateStatus.version} is available — downloading...
+            Version {updateStatus.version} is available, downloading...
           </p>
         {:else if updateStatus.state === 'error'}
           <p
@@ -2171,7 +2171,7 @@
         <p class="text-xs mt-2">
           {#if ollamaDetected}
             <span class="text-malachite-dark dark:text-malachite-light">Ollama detected</span>
-            {#if sidecarHealth?.ollama}<span class="text-flint-dark dark:text-flint-light"> — version {sidecarHealth.ollama}</span>{/if}
+            {#if sidecarHealth?.ollama}<span class="text-flint-dark dark:text-flint-light"> (version {sidecarHealth.ollama})</span>{/if}
           {:else}
             <span class="text-flint-dark dark:text-flint-light">
               Ollama not detected. Enabling this has no effect until Ollama is installed and a vision model (e.g. <code class="font-mono text-[11px]">llava</code>) is pulled.
@@ -2180,7 +2180,7 @@
         </p>
         {#if aiDescPref === null}
           <p class="text-xs text-flint-dark dark:text-flint-light mt-2 italic">
-            Not yet set — currently off. Enable to opt in.
+            Not yet set, currently off. Enable to opt in.
           </p>
         {/if}
       </div>
@@ -2311,16 +2311,16 @@
         </div>
 
         <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-3">
-          Uses a per-install certificate authority generated on first launch. Fully offline —
-          no account, no external connections, no dependency on external services. Produces
+          Uses a per-install certificate authority generated on first launch. Fully offline,
+          with no account, no external connections, and no dependency on external services. Produces
           fully valid C2PA v2.x manifests readable by any C2PA-capable tool worldwide.
         </p>
 
         <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed pt-3 border-t border-border-light dark:border-border-dark">
           Third-party tools will confirm this file's integrity. Your identity as signer will show
           as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in external
-          validators — expected in Local Signing mode (the manifest is valid; trust scope is local
-          to this install). Conformant Signing — verifiable against the C2PA trust list — ships
+          validators, expected in Local Signing mode (the manifest is valid; trust scope is local
+          to this install). Conformant Signing (verifiable against the C2PA trust list) ships
           in v1.1.
         </p>
 
@@ -2360,7 +2360,7 @@
               </div>
               <div>
                 <span class="font-medium text-text-light dark:text-quartz">If reinstalled:</span>
-                A new certificate authority is generated. Files signed previously remain fully valid C2PA manifests — the signature and assertions are intact regardless of whether the original certificate still exists.
+                A new certificate authority is generated. Files signed previously remain fully valid C2PA manifests, because the signature and assertions are intact regardless of whether the original certificate still exists.
               </div>
               <div>
                 <span class="font-medium text-text-light dark:text-quartz">Backup:</span>
@@ -2451,7 +2451,7 @@
               {conformantCert.subjectCn}
             </p>
             <p class="text-xs text-flint-dark dark:text-flint-light">
-              {formatAbsoluteDate(conformantCert.notBefore)} — {formatAbsoluteDate(conformantCert.notAfter)}
+              {formatAbsoluteDate(conformantCert.notBefore)} to {formatAbsoluteDate(conformantCert.notAfter)}
               <span
                 class="ml-1 {conformantCert.isCurrentlyValid ? 'text-malachite-dark dark:text-malachite-light' : 'text-cinnabar-dark dark:text-cinnabar-light'}"
               >
@@ -2646,7 +2646,7 @@
             The <strong class="text-text-light dark:text-quartz">certificate chain</strong> is a PEM file containing your end-entity certificate followed by any intermediate CA certificates. Your institution's IT security team or the CA that issued the certificate will have provided this file.
           </p>
           <p>
-            The <strong class="text-text-light dark:text-quartz">private key</strong> is the PEM file generated alongside the certificate signing request (CSR). It never leaves this device — Jura Trace stores it in the application data directory with restricted permissions.
+            The <strong class="text-text-light dark:text-quartz">private key</strong> is the PEM file generated alongside the certificate signing request (CSR). It never leaves this device. Jura Trace stores it in the application data directory with restricted permissions.
           </p>
           <p>
             Certificates must be issued by a C2PA-approved certificate authority and carry the correct key usage and extended key usage extensions.
@@ -2736,7 +2736,7 @@
               <code
                 class="flex-1 min-w-0 px-2 py-1.5 rounded bg-white dark:bg-obsidian border border-border-light dark:border-border-dark
                        text-[11px] font-mono text-text-light dark:text-quartz break-all select-all"
-                title="Full fingerprint — click to select all"
+                title="Full fingerprint: click to select all"
               >
                 {conformantCert.fingerprintSha256.slice(0, 48)}…
               </code>
@@ -2824,7 +2824,7 @@
     {#if !apiKeysAvailable}
       <div class="p-4 rounded-lg border border-lapis/20 bg-lapis/5">
         <p class="text-sm text-flint-dark dark:text-flint-light">
-          REST API access and key management are planned for the Pro tier in the v1.1 release. v1.0 ships Community-only — the verification engine is fully usable through the desktop app and the Tauri IPC surface, but there is no programmatic key-authenticated REST endpoint yet. For early API access enquiries, email
+          REST API access and key management are planned for the Pro tier in the v1.1 release. v1.0 ships Community-only, so the verification engine is fully usable through the desktop app and the Tauri IPC surface, but there is no programmatic key-authenticated REST endpoint yet. For early API access enquiries, email
           <a
             href="mailto:commercial@juralabs.org"
             class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
@@ -2840,7 +2840,7 @@
           aria-live="polite"
         >
           <p class="text-sm font-medium text-malachite-dark dark:text-malachite-light mb-2">
-            API key created — copy it now. It will not be shown again.
+            API key created. Copy it now, it will not be shown again.
           </p>
           <div class="flex items-center gap-2 mb-3">
             <code class="flex-1 px-3 py-2 rounded bg-white dark:bg-obsidian border border-border-light dark:border-border-dark text-xs font-mono text-text-light dark:text-quartz break-all select-all">
@@ -3055,7 +3055,7 @@
 
         <h3 class="text-sm font-semibold text-text-light dark:text-quartz mb-1 pr-14">Standard</h3>
         <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-          Fully local — no outbound network connections. Certificate revocation checks are skipped. Recommended for air-gapped environments.
+          Fully local, with no outbound network connections. Certificate revocation checks are skipped. Recommended for air-gapped environments.
         </p>
 
         {#if networkMode !== 'standard'}

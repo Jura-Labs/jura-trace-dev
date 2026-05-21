@@ -182,7 +182,7 @@
   style="background: rgba(30,33,40,0.95);"
   role="dialog"
   aria-modal="true"
-  aria-label="Jura Trace setup — confirm your services"
+  aria-label="Jura Trace setup: confirm your services"
   aria-describedby="wizard-step-description"
   tabindex="-1"
   bind:this={dialogEl}
@@ -337,7 +337,7 @@
               <svg class="flex-shrink-0 w-4 h-4 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l3 3 7-7" />
               </svg>
-              <span class="text-sm text-quartz">Core verification — C2PA, EXIF, perceptual hash, watermark</span>
+              <span class="text-sm text-quartz">Core verification: C2PA, EXIF, perceptual hash, watermark</span>
             </li>
 
             <!-- Forensic analysis -->
@@ -352,7 +352,7 @@
                 </svg>
               {/if}
               <span class="text-sm {sidecarOnline ? 'text-quartz' : 'text-flint-light'}">
-                Forensic analysis {sidecarOnline ? '— available' : '— not available (start the Analysis Engine)'}
+                Forensic analysis {sidecarOnline ? ': available' : ': not available (start the Analysis Engine)'}
               </span>
             </li>
 
@@ -376,7 +376,7 @@
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                    focus-visible:ring-offset-2 focus-visible:ring-offset-graphite"
           >
-            All set — start using Jura Trace
+            All set. Start using Jura Trace
           </button>
         </div>
       {/if}

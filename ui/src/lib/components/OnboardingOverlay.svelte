@@ -178,7 +178,7 @@
   style="background: rgba(30,33,40,0.95);"
   role="dialog"
   aria-modal="true"
-  aria-label="Welcome to Jura Trace — getting started guide"
+  aria-label="Welcome to Jura Trace: getting started guide"
   tabindex="-1"
   bind:this={dialogEl}
   onkeydown={(e) => { handleKeydown(e); handleFocusTrap(e); }}
@@ -209,7 +209,7 @@
           <!-- Body -->
           <p class="text-sm text-quartz leading-relaxed mb-5">
             Jura Trace is a local-first tool for protecting your digital assets and
-            verifying content authenticity. Everything runs on your device — no cloud,
+            verifying content authenticity. Everything runs on your device: no cloud,
             no accounts, no tracking.
           </p>
 
@@ -239,7 +239,7 @@
 
           <!-- Subtext -->
           <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-4">
-            Built by Jura Labs CIC — free for non-commercial use.
+            Built by Jura Labs CIC. Free for non-commercial use.
           </p>
         </div>
 
@@ -264,7 +264,7 @@
                 Protect
               </h2>
               <p class="text-xs text-flint-light leading-relaxed">
-                Stamp your images and documents with C2PA provenance —
+                Stamp your images and documents with C2PA provenance:
                 machine-readable proof of origin.
               </p>
             </div>
