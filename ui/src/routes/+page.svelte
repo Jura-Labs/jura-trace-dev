@@ -190,7 +190,7 @@
         Embed a cryptographically signed C2PA provenance manifest and an invisible
         watermark in your image, signed with a per-install local certificate
         (Local Signing). The provenance follows the file wherever it goes.
-        Conformant signing — verifiable against the C2PA trust list — ships in v1.1.
+        Verification is C2PA Validator-Conformant.
       </p>
     </div>
 
