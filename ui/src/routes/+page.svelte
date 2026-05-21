@@ -187,9 +187,10 @@
         </h2>
       </div>
       <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
-        Embed a cryptographically signed C2PA provenance manifest in your image,
-        signed with a per-install local certificate (Local Signing). The provenance
-        follows the file wherever it goes. Verification is C2PA Validator-Conformant.
+        Embed a cryptographically signed C2PA provenance manifest and an invisible
+        watermark in your image, signed with a per-install local certificate
+        (Local Signing). The provenance follows the file wherever it goes.
+        Verification is C2PA Validator-Conformant.
       </p>
     </div>
 
