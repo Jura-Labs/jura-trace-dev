@@ -126,8 +126,11 @@ export default {
       });
     }
 
-    if (request.method !== "GET") {
-      return jsonError(405, "Method not allowed", "Only GET is supported on the updater endpoint.");
+    // HEAD requests get the same handling as GET; Cloudflare strips the
+    // body automatically. Supports curl -I health-checks + load-balancer
+    // liveness probes without 405-ing.
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      return jsonError(405, "Method not allowed", "Only GET and HEAD are supported on the updater endpoint.");
     }
 
     const path = url.pathname;
@@ -337,7 +340,7 @@ function jsonError(status: number, title: string, detail: string): Response {
 function corsHeaders(): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
     "Access-Control-Max-Age": "86400",
   };
 }
