@@ -2212,17 +2212,27 @@ fn verify_content_inner(
     // Generators such as Google Gemini embed their AI declaration in the
     // c2pa.actions assertion body (digitalSourceType / description) rather
     // than in the claim_generator string, so both paths are required.
-    let ai_generator = c2pa_manifest.as_ref().and_then(|m| {
-        // 1. claim_generator string (covers DALL-E, Midjourney, Firefly …)
-        if let Some(gen) = m
-            .claim_generator
-            .as_deref()
-            .and_then(c2pa::detect_ai_generator)
-        {
-            return Some(gen);
-        }
-        // 2. Assertion values (covers digitalSourceType + action descriptions)
-        c2pa::detect_ai_from_assertions(&m.assertions)
+    //
+    // Walk the FULL manifest chain (active + ingredients), not just the
+    // active manifest. Google's news-overlay workflow puts the AI-generation
+    // action two levels deep in the chain (active manifest has only
+    // c2pa.opened + c2pa.edited "Added visible watermark" + c2pa.converted;
+    // the trainedAlgorithmicMedia signal lives in the deepest ingredient).
+    // First match in walk-order wins (active first, then ingredients oldest
+    // -> newest per ManifestChain ordering).
+    let ai_generator = c2pa_chain.as_ref().and_then(|chain| {
+        std::iter::once(&chain.active)
+            .chain(chain.ingredients.iter())
+            .find_map(|m| {
+                if let Some(gen) = m
+                    .claim_generator
+                    .as_deref()
+                    .and_then(c2pa::detect_ai_generator)
+                {
+                    return Some(gen);
+                }
+                c2pa::detect_ai_from_assertions(&m.assertions)
+            })
     });
     log::info!("PERF: C2PA verification took {:?}", t_c2pa.elapsed());
 
@@ -2725,10 +2735,18 @@ fn verify_content_inner(
     // AI-generated regions (Pixel Zoom Enhance, Magic Editor, Adobe
     // generative fill).  Scans assertions for
     // `compositeWithTrainedAlgorithmicMedia`.
-    let ai_declared_composite_by_c2pa = c2pa_manifest
+    //
+    // Walks the full chain (active + ingredients) so composite-AI signals
+    // embedded by an upstream generator survive a downstream re-edit. Same
+    // rationale as the pure-AI walk above.
+    let ai_declared_composite_by_c2pa = c2pa_chain
         .as_ref()
-        .and_then(|m| c2pa::detect_composite_ai_from_assertions(&m.assertions))
-        .is_some();
+        .map(|chain| {
+            std::iter::once(&chain.active)
+                .chain(chain.ingredients.iter())
+                .any(|m| c2pa::detect_composite_ai_from_assertions(&m.assertions).is_some())
+        })
+        .unwrap_or(false);
     let ai_declared_by_xmp = exif_analysis
         .as_ref()
         .map(|a| {

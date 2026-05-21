@@ -2764,6 +2764,116 @@ mod tests {
         );
     }
 
+    // ---- ManifestChain walk: the AI signal can live in an ingredient ----
+    //
+    // Regression case: Google Gemini-generated image opened in a downstream
+    // tool (news-graphic overlay generator) produces a 3-manifest chain. The
+    // active manifest declares only c2pa.opened + c2pa.edited (visible
+    // chyron added) + c2pa.converted; the trainedAlgorithmicMedia signal
+    // lives in the DEEPEST ingredient. Before the 2026-05-21 fix the verify
+    // pipeline only ran detect_ai_from_assertions on the active manifest
+    // and silently missed Gemini outputs that had been re-edited.
+    //
+    // These tests exercise the iterator pattern the pipeline now uses:
+    //   std::iter::once(&chain.active).chain(chain.ingredients.iter())
+    fn empty_manifest(label: &str) -> ManifestInfo {
+        ManifestInfo {
+            title: Some(label.to_string()),
+            format: None,
+            claim_generator: None,
+            assertions: vec![],
+            is_valid: true,
+            valid_at_signing: false,
+            certificate_expired: None,
+            cert_not_before: None,
+            cert_not_after: None,
+            signed_at: None,
+            signed_by: None,
+            signed_by_issuer: None,
+            validation_checks: vec![],
+            verification_mode: None,
+            thumbnail_base64: None,
+            thumbnail_mime: None,
+            app_or_device: None,
+            content_summary: None,
+            is_update_manifest: false,
+            redactions: vec![],
+        }
+    }
+
+    fn ai_assertion() -> AssertionInfo {
+        AssertionInfo {
+            label: "c2pa.actions.v2".to_string(),
+            value: r#"{"actions":[{"action":"c2pa.created","digitalSourceType":"http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia","description":"Created by Google Generative AI."}]}"#.to_string(),
+        }
+    }
+
+    #[test]
+    fn chain_walk_finds_ai_signal_in_deepest_ingredient() {
+        // Active manifest is clean (only edit actions); AI signal in deepest ingredient.
+        let active = empty_manifest("active (chyron overlay)");
+        let mut mid = empty_manifest("middle (Google edit)");
+        mid.assertions.push(AssertionInfo {
+            label: "c2pa.actions.v2".to_string(),
+            value:
+                r#"{"actions":[{"action":"c2pa.edited","description":"Added visible watermark"}]}"#
+                    .to_string(),
+        });
+        let mut deepest = empty_manifest("deepest (Gemini generation)");
+        deepest.assertions.push(ai_assertion());
+
+        let chain = ManifestChain {
+            active,
+            ingredients: vec![mid, deepest],
+            manifest_count: 3,
+        };
+
+        // Same iterator pattern used in lib.rs verify_content_inner.
+        let result = std::iter::once(&chain.active)
+            .chain(chain.ingredients.iter())
+            .find_map(|m| detect_ai_from_assertions(&m.assertions));
+
+        assert!(
+            result.is_some(),
+            "Chain walk should surface AI signal from ingredient even when active manifest is clean"
+        );
+    }
+
+    #[test]
+    fn chain_walk_returns_none_for_clean_chain() {
+        let chain = ManifestChain {
+            active: empty_manifest("active"),
+            ingredients: vec![empty_manifest("ingredient")],
+            manifest_count: 2,
+        };
+        let result = std::iter::once(&chain.active)
+            .chain(chain.ingredients.iter())
+            .find_map(|m| detect_ai_from_assertions(&m.assertions));
+        assert!(result.is_none(), "Clean chain should return no AI signal");
+    }
+
+    #[test]
+    fn chain_walk_active_signal_wins_over_ingredient() {
+        // Active has AI, ingredient also has AI. First match (active) wins.
+        let mut active = empty_manifest("active");
+        active.assertions.push(ai_assertion());
+        let mut ing = empty_manifest("ingredient");
+        ing.assertions.push(ai_assertion());
+
+        let chain = ManifestChain {
+            active,
+            ingredients: vec![ing],
+            manifest_count: 2,
+        };
+        let result = std::iter::once(&chain.active)
+            .chain(chain.ingredients.iter())
+            .find_map(|m| detect_ai_from_assertions(&m.assertions));
+        assert!(
+            result.is_some(),
+            "Chain walk should detect AI in either position"
+        );
+    }
+
     // ---- extract_thumbnail_from_assertions tests ----
 
     #[test]
