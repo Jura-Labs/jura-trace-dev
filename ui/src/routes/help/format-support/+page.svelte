@@ -23,7 +23,7 @@
       family: 'Photographs (JPEG family)',
       formats: 'JPEG, PNG, TIFF',
       protect:
-        'Content Credentials, invisible watermark, perceptual fingerprint, full metadata',
+        'Content Credentials, perceptual fingerprint, full metadata',
       verify:
         'Full forensic stack — ELA, JPEG Ghost, copy-move, deepfake (GBM v4 + UnivFD v10onnx), CLIP, EXIF anomaly',
       coverage: 'full',
@@ -32,7 +32,7 @@
       family: 'Modern lossy codecs',
       formats: 'WebP, AVIF, HEIC',
       protect:
-        'Content Credentials, invisible watermark (HEIC excluded), perceptual fingerprint',
+        'Content Credentials, perceptual fingerprint',
       verify:
         'Deepfake, EXIF anomaly, CLIP, segmented ELA. ELA and JPEG Ghost are codec-gated off — they only work on JPEG.',
       coverage: 'partial',

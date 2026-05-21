@@ -30,9 +30,8 @@
   </h1>
   <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
     The Protect section gives your digital assets a permanent, verifiable record of origin.
-    Applying C2PA provenance and invisible watermarks lays down the first stratum of
-    provenance, a foundation that remains legible even after a file has been compressed,
-    resized, or redistributed across the web.
+    Applying C2PA provenance lays down the first stratum of authenticity, a foundation that
+    remains legible to standards-aware verifiers wherever the file goes.
   </p>
 </header>
 
@@ -58,27 +57,15 @@
       </a>
     </li>
     <li>
-      <a href="#watermarking"
-         class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        3. Invisible Watermarking
-      </a>
-    </li>
-    <li>
-      <a href="#batch-watermarking"
-         class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        4. Batch Watermarking
-      </a>
-    </li>
-    <li>
       <a href="#asset-management"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        5. Asset Management
+        3. Asset Management
       </a>
     </li>
     <li>
       <a href="#best-practices"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        6. Best Practices
+        4. Best Practices
       </a>
     </li>
   </ol>
@@ -105,15 +92,6 @@
         an open standard (Coalition for Content Provenance and Authenticity) that embeds a
         cryptographically signed manifest inside the file itself. The manifest records who
         created the asset, when it was signed, and a hash of the original content.
-      </span>
-    </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-      <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
-      <span>
-        <strong class="text-text-light dark:text-text-dark font-semibold">Invisible watermarking:</strong>
-        a frequency-domain signal embedded into the pixel data. Unlike a visible logo, this
-        mark is imperceptible to the eye but detectable by the Verify pipeline even after
-        the file has been shared or converted.
       </span>
     </li>
   </ul>
@@ -316,216 +294,11 @@
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
-     3. Invisible Watermarking
-     ══════════════════════════════════════════════════════════════════ -->
-<section id="watermarking" class="mb-12">
-  <h2 class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    3. Invisible Watermarking
-  </h2>
-
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-    Invisible watermarking embeds a unique 128-bit identifier (specific to each asset)
-    into the image's frequency domain using a DWT-DCT-SVD (Discrete Wavelet Transform /
-    Discrete Cosine Transform / Singular Value Decomposition) algorithm. The mark is
-    mathematically woven into the image data rather than drawn on top of it, so it is
-    imperceptible to the human eye whilst remaining detectable by the Verify pipeline.
-  </p>
-
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
-    Where a C2PA manifest can be stripped by removing metadata, the watermark signal
-    persists at the pixel level, a deeper stratum of provenance that survives format
-    conversion, social media re-compression, and cropping.
-  </p>
-
-  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-    Strength levels
-  </h3>
-
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-    Choose a watermark strength when you embed. Higher strength increases robustness but
-    introduces a small reduction in image quality, measured in PSNR (Peak Signal-to-Noise
-    Ratio: a higher number means better quality, closer to the original).
-  </p>
-
-  <div class="overflow-x-auto mb-6">
-    <table class="w-full text-sm border-collapse">
-      <thead>
-        <tr class="border-b border-border-light dark:border-border-dark">
-          <th class="text-left py-2 pr-4 text-text-light dark:text-text-dark font-semibold">Strength</th>
-          <th class="text-left py-2 pr-4 text-text-light dark:text-text-dark font-semibold">PSNR</th>
-          <th class="text-left py-2 pr-4 text-text-light dark:text-text-dark font-semibold">Quality impact</th>
-          <th class="text-left py-2 text-text-light dark:text-text-dark font-semibold">Recommended for</th>
-        </tr>
-      </thead>
-      <tbody class="text-flint-dark dark:text-flint-light">
-        <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-          <td class="py-2 pr-4 font-semibold text-text-light dark:text-text-dark">Low</td>
-          <td class="py-2 pr-4">~48 dB</td>
-          <td class="py-2 pr-4">Minimal</td>
-          <td class="py-2">High-resolution archival masters where quality is paramount</td>
-        </tr>
-        <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-          <td class="py-2 pr-4 font-semibold text-text-light dark:text-text-dark">Medium</td>
-          <td class="py-2 pr-4">~42 dB</td>
-          <td class="py-2 pr-4">Slight, not visible</td>
-          <td class="py-2">Web distribution, press releases, social media assets</td>
-        </tr>
-        <tr>
-          <td class="py-2 pr-4 font-semibold text-text-light dark:text-text-dark">High</td>
-          <td class="py-2 pr-4">~36 dB</td>
-          <td class="py-2 pr-4">Noticeable at pixel level only</td>
-          <td class="py-2">Maximum resilience for expected severe re-compression or cropping</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Recommendation callout -->
-  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4 mb-6">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-      <strong class="text-text-light dark:text-text-dark">Recommendation:</strong>
-      Use <strong class="text-text-light dark:text-text-dark">Medium</strong> for most
-      purposes. It balances image fidelity with enough resilience for typical web
-      distribution workflows.
-    </p>
-  </div>
-
-  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-    What the watermark survives
-  </h3>
-
-  <ul class="space-y-2 mb-6 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-    <li class="flex gap-2">
-      <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
-      <span>JPEG re-compression at quality 70 or higher</span>
-    </li>
-    <li class="flex gap-2">
-      <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
-      <span>Proportional resizing (scaling up or down)</span>
-    </li>
-    <li class="flex gap-2">
-      <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
-      <span>Cropping up to 30% of the image area</span>
-    </li>
-    <li class="flex gap-2">
-      <span class="text-cinnabar-dark dark:text-cinnabar-light flex-none">✗</span>
-      <span>Aggressive JPEG compression below quality 60</span>
-    </li>
-    <li class="flex gap-2">
-      <span class="text-cinnabar-dark dark:text-cinnabar-light flex-none">✗</span>
-      <span>Colour space conversion (e.g. RGB to greyscale)</span>
-    </li>
-    <li class="flex gap-2">
-      <span class="text-cinnabar-dark dark:text-cinnabar-light flex-none">✗</span>
-      <span>Heavy geometric distortion or rotation</span>
-    </li>
-  </ul>
-
-  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-    How to embed a watermark
-  </h3>
-
-  <ol class="space-y-3 mb-4 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-    <li class="flex gap-3">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">1</span>
-      <span>Select an asset in the Protect page asset list.</span>
-    </li>
-    <li class="flex gap-3">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
-      <span>In the protection panel, locate the <strong class="text-text-light dark:text-text-dark">Watermark</strong>
-      section. Enter your institution name in the label field, this associates the watermark
-      with your organisation in the database record.</span>
-    </li>
-    <li class="flex gap-3">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">3</span>
-      <span>Choose a strength level from the selector (Low / Medium / High).</span>
-    </li>
-    <li class="flex gap-3">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">4</span>
-      <span>Click <strong class="text-text-light dark:text-text-dark">Embed Watermark</strong>.
-      A watermarked copy is saved. The original file is not modified.</span>
-    </li>
-  </ol>
-
-  <div class="text-xs text-flint-dark dark:text-flint-light italic my-2" role="note">
-    Visual guide: Watermark section with the institution name field, strength selector set to Medium, and the Embed Watermark button.
-  </div>
-
-  <!-- Note: images only -->
-  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-      <strong class="text-text-light dark:text-text-dark">Images only.</strong>
-      Invisible watermarking applies to JPEG and PNG files. Video and audio formats use
-      C2PA signing for provenance, so the watermark controls will not appear for non-image
-      assets.
-    </p>
-  </div>
-</section>
-
-<!-- ══════════════════════════════════════════════════════════════════
-     4. Batch Watermarking
-     ══════════════════════════════════════════════════════════════════ -->
-<section id="batch-watermarking" class="mb-12">
-  <h2 class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    4. Batch Watermarking
-  </h2>
-
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-    For large collections (exhibition catalogues, press libraries, news archives), watermarking
-    assets one by one is impractical. The batch watermark feature lets you embed marks across
-    all image assets in your current working set in a single operation.
-  </p>
-
-  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-    Using batch watermarking
-  </h3>
-
-  <ol class="space-y-3 mb-6 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-    <li class="flex gap-3">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">1</span>
-      <span>Import all the assets you wish to protect. You can import multiple files in a
-      single import operation by selecting them all in the file picker.</span>
-    </li>
-    <li class="flex gap-3">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
-      <span>In the batch controls area at the top of the asset list, click
-      <strong class="text-text-light dark:text-text-dark">Watermark All Images</strong>.
-      The button only processes image assets (JPEG and PNG). Video and audio files in the
-      list are automatically skipped.</span>
-    </li>
-    <li class="flex gap-3">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">3</span>
-      <span>A progress bar shows how many assets have been processed. You can cancel the
-      operation at any time, assets already watermarked in the run will retain their marks.</span>
-    </li>
-    <li class="flex gap-3">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">4</span>
-      <span>A completion summary shows the total number of assets processed and flags any
-      files that could not be watermarked (for example, files that are read-only or have an
-      unsupported sub-format).</span>
-    </li>
-  </ol>
-
-  <div class="text-xs text-flint-dark dark:text-flint-light italic my-2" role="note">
-    Visual guide: Batch watermark progress bar mid-operation, showing a processed count and a Cancel button.
-  </div>
-
-  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
-      <strong class="text-text-light dark:text-text-dark">Strength setting for batch operations:</strong>
-      The batch watermark uses the strength level set in the batch controls selector, not
-      individual asset settings. Set this before starting the operation if you need a
-      specific level.
-    </p>
-  </div>
-</section>
-
-<!-- ══════════════════════════════════════════════════════════════════
-     5. Asset Management
+     3. Asset Management
      ══════════════════════════════════════════════════════════════════ -->
 <section id="asset-management" class="mb-12">
   <h2 class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    5. Asset Management
+    3. Asset Management
   </h2>
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
@@ -560,14 +333,7 @@
     <li class="flex gap-2">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold">→</span>
       <span><strong class="text-text-light dark:text-text-dark">Protection status:</strong>
-      whether the asset has been signed with C2PA, watermarked, or both, and the date of
-      each operation.</span>
-    </li>
-    <li class="flex gap-2">
-      <span class="text-lapis dark:text-lapis-light flex-none font-semibold">→</span>
-      <span><strong class="text-text-light dark:text-text-dark">Watermark payload:</strong>
-      the 128-bit UUID embedded in the watermark, stored alongside the asset record so you
-      can match a future extraction against your catalogue.</span>
+      whether the asset has been signed with C2PA, and the date of the operation.</span>
     </li>
   </ul>
 
@@ -577,17 +343,16 @@
 
   <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
     Use the content type filter above the asset list to show only images, video, or audio.
-    The status column shows at a glance whether an asset is unsigned, C2PA-signed,
-    watermarked, or fully protected with both layers.
+    The status column shows at a glance whether an asset is signed or unsigned.
   </p>
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
-     6. Best Practices
+     4. Best Practices
      ══════════════════════════════════════════════════════════════════ -->
 <section id="best-practices" class="mb-12">
   <h2 class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    6. Best Practices
+    4. Best Practices
   </h2>
 
   <ul class="space-y-4 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
@@ -603,29 +368,11 @@
     <li class="flex gap-3">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold mt-0.5">→</span>
       <span>
-        <strong class="text-text-light dark:text-text-dark">Use Medium watermark strength for web distribution.</strong>
-        Social media platforms and content delivery networks typically re-compress images.
-        Medium strength gives you the best chance of a successful extraction if the image
-        is later retrieved and verified.
-      </span>
-    </li>
-    <li class="flex gap-3">
-      <span class="text-lapis dark:text-lapis-light flex-none font-semibold mt-0.5">→</span>
-      <span>
-        <strong class="text-text-light dark:text-text-dark">Apply both layers where possible.</strong>
-        C2PA credentials and watermarks provide complementary protections. C2PA is
-        standardised and interoperable; the watermark persists when metadata is stripped.
-        Using both gives you defence in depth.
-      </span>
-    </li>
-    <li class="flex gap-3">
-      <span class="text-lapis dark:text-lapis-light flex-none font-semibold mt-0.5">→</span>
-      <span>
         <strong class="text-text-light dark:text-text-dark">Back up your database.</strong>
-        The local database contains your complete asset registry, watermark payloads, and
-        signing records. If you lose the database, you will still have the protected files,
-        but the association between a watermark UUID and a specific asset record will be gone.
-        Schedule regular backups of the database file to a separate location.
+        The local database contains your complete asset registry and signing records.
+        If you lose the database, you will still have the protected files, but the
+        catalogue itself will be gone. Schedule regular backups of the database file
+        to a separate location.
       </span>
     </li>
     <li class="flex gap-3">

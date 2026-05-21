@@ -265,12 +265,11 @@
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >DWT-DCT-SVD</dt>
         <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
-          The invisible watermarking technique used by Jura Trace. Embeds a 128-bit UUID
-          payload in the frequency domain of an image using three sequential transforms:
-          Discrete Wavelet Transform, Discrete Cosine Transform, and Singular Value
-          Decomposition. The embedded signal survives JPEG compression at quality 70 or
-          above, proportional resizing, and up to 30% cropping. Three strength levels are
-          available (Low, Medium, and High), trading imperceptibility against robustness.
+          A frequency-domain invisible watermarking technique using three sequential
+          transforms: Discrete Wavelet Transform, Discrete Cosine Transform, and Singular
+          Value Decomposition. The embedded signal typically survives JPEG compression at
+          quality 70 or above, proportional resizing, and modest cropping. Jura Trace's
+          watermark feature is deferred from v1.0 (planned for v1.1 release).
         </dd>
       </div>
 
@@ -664,7 +663,7 @@
           application on a local loopback port chosen at startup. Handles computationally
           intensive forensic analysis: ELA, noise, copy-move, deepfake detection
           (GBM v4 + UnivFD v10onnx ensemble), CLIP classification, JPEG Ghost, segmented
-          ELA, colour temperature, watermarking, plus the on-demand investigation tools
+          ELA, and colour temperature, plus the on-demand investigation tools
           (NPR, shadow consistency, splice boundary) available in Expert View. Video
           deepfake and audio analysis are deferred from v1.0 and under evaluation for
           a future release. Jura Trace operates normally when the Analysis Engine is
@@ -808,12 +807,10 @@
         <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
           A signal embedded in the frequency domain of an image using the
           <a href="#term-dwt-dct-svd" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis dark:decoration-lapis-light/30 dark:hover:decoration-lapis-light">DWT-DCT-SVD</a>
-          technique. Invisible to the human eye, the watermark carries a 128-bit UUID that
-          identifies the asset and the institution that protected it. It survives JPEG
-          compression at quality 70 or above, proportional resizing, and up to 30% cropping.
-          Jura Trace can both embed invisible watermarks during the Protect workflow and
-          extract them during the Verify workflow, providing a secondary provenance layer
-          that does not depend on file metadata.
+          technique. Invisible to the human eye, the watermark carries a short payload that
+          identifies the asset and the institution that protected it, providing a secondary
+          provenance layer that does not depend on file metadata. Invisible-watermark embed
+          and extract are deferred from Jura Trace v1.0 and planned for the v1.1 release.
         </dd>
       </div>
 

@@ -327,7 +327,7 @@
       Detector lineup after Sprint 28 tech-debt audit (April 2026) and the
       S28 follow-up Option 2 reconciliation (April 2026):
 
-      Automatic (in trust scoring) — 11 detectors at v1.0, matching the
+      Automatic (in trust scoring) — 10 detectors at v1.0, matching the
       Rust detectors_run writer vocabulary in src-tauri/src/lib.rs and the
       TypeScript DETECTOR_ID_LABELS map in ui/src/lib/detectorLabels.ts
       (modulo `transcription` which is preprocessing infrastructure, not
@@ -343,7 +343,13 @@
         8. Segmented ELA
         9. Colour Temperature
         10. CLIP Detection (blends into the AI ensemble)
-        11. Watermark Extraction (AI-generator + Jura Trace protective)
+
+      Watermark Extraction was the 11th automatic detector through rc.x.
+      Deferred to v1.1 on 2026-05-21 alongside the watermark embed UI
+      (feature-flag V1_SHOW_WATERMARK=false). Backend extract code path
+      stays in tree; sidecar bundle no longer includes invisible-watermark
+      (PyInstaller torch-import regression risk). Re-enable in v1.1 when
+      a torch-free implementation is in place.
 
       Under evaluation (NOT in v1.0 trust scoring):
         Video Deepfake — dropped from v1.0 on 2 May 2026 pending Global
@@ -678,7 +684,7 @@
             <div>
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Extracts an 84-feature vector across six feature classes: <strong>noise statistics</strong> (LSB randomness, LSB entropy, LF/HF ratio, anisotropy); <strong>spectral decay patterns</strong>; <strong>Local Binary Pattern (LBP) texture descriptors</strong>; <strong>Grey-Level Co-occurrence Matrix (GLCM) contrast measures</strong>; <strong>demosaic inter-channel coherence</strong>; and <strong>PRNU sensor pattern consistency</strong>. The PRNU class measures spatial autocorrelation of the noise residual following the Lukáš/Fridrich/Goljan 2006 PRNU framework, which exposes asymmetric horizontal-vertical noise patterns that distinguish diffusion-model outputs from real camera sensor noise. The PRNU asymmetry signal surfaces in the verify-page detector list when it triggers. A GradientBoosting classifier (GBM v4, trained on over 10,000 images from 14 generator families, cross-validation AUC&#8209;ROC 0.9868, authentic false-positive rate 4.54%, calibrated threshold 0.49) assigns a probability score. This is combined with the UnivFD v10onnx probe (a LogisticRegression classifier on CLIP ViT-B/32 embeddings, trained on over 50,000 samples including platform-forwarded and multi-format augmentation across PNG, TIFF, WebP and HEIC, AUC&#8209;ROC 0.9929, authentic FP rate 3.87%, recall 95.77%) into an ensemble score. The pipeline also checks for invisible watermarks from known AI generators.
+                Extracts an 84-feature vector across six feature classes: <strong>noise statistics</strong> (LSB randomness, LSB entropy, LF/HF ratio, anisotropy); <strong>spectral decay patterns</strong>; <strong>Local Binary Pattern (LBP) texture descriptors</strong>; <strong>Grey-Level Co-occurrence Matrix (GLCM) contrast measures</strong>; <strong>demosaic inter-channel coherence</strong>; and <strong>PRNU sensor pattern consistency</strong>. The PRNU class measures spatial autocorrelation of the noise residual following the Lukáš/Fridrich/Goljan 2006 PRNU framework, which exposes asymmetric horizontal-vertical noise patterns that distinguish diffusion-model outputs from real camera sensor noise. The PRNU asymmetry signal surfaces in the verify-page detector list when it triggers. A GradientBoosting classifier (GBM v4, trained on over 10,000 images from 14 generator families, cross-validation AUC&#8209;ROC 0.9868, authentic false-positive rate 4.54%, calibrated threshold 0.49) assigns a probability score. This is combined with the UnivFD v10onnx probe (a LogisticRegression classifier on CLIP ViT-B/32 embeddings, trained on over 50,000 samples including platform-forwarded and multi-format augmentation across PNG, TIFF, WebP and HEIC, AUC&#8209;ROC 0.9929, authentic FP rate 3.87%, recall 95.77%) into an ensemble score.
               </dd>
             </div>
             <div>
@@ -937,61 +943,6 @@
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Note: class probabilities are currently experimental</dt>
               <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
                 The class probability bars shown in the verify results are produced by feeding raw cosine similarity scores directly into a softmax function without applying the CLIP logit scale multiplier. This causes near-uniform distributions (~20% per class) regardless of the image content; the values do not reliably discriminate between authentic and AI-generated images. The UnivFD v10onnx probe (a trained logistic regression classifier on the same CLIP ViT&#8209;B/32 embeddings, AUC-ROC 0.9929, authentic FP 3.87%, AI recall 95.77%) is the production-grade path and contributes to the trust score separately. The class probability display is retained as an exploratory signal pending a fix to the softmax temperature and is marked <em>Experimental, informational only</em> in the verify interface.
-              </dd>
-            </div>
-          </dl>
-        </div>
-      </details>
-
-      <!-- 11. Watermark Extraction -->
-      <details class="group rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite">
-        <summary
-          class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis rounded"
-        >
-          <span class="flex items-center gap-3">
-            <span class="text-xs font-mono tabular-nums text-flint-dark dark:text-flint-light w-5 flex-shrink-0" aria-hidden="true">11</span>
-            <span class="font-medium text-sm text-text-light dark:text-quartz">Watermark Extraction</span>
-          </span>
-          <span class="flex-shrink-0 text-xs text-flint-dark dark:text-flint-light select-none">
-            <span class="hidden group-open:inline">Close</span>
-            <span class="group-open:hidden">Details</span>
-          </span>
-        </summary>
-        <div class="px-4 pb-4 pt-3 border-t border-border-light dark:border-border-dark">
-          <dl class="space-y-3 text-sm">
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What it measures</dt>
-              <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                The presence of invisible frequency-domain watermarks embedded in an image: either AI-generator fingerprints (Stable Diffusion, SDXL, Google Imagen) or Jura Trace protective watermarks added by the Protect workflow to track institutional content.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">How it works</dt>
-              <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                For each supported watermark scheme, the detector reads the relevant frequency-domain coefficients and attempts to recover the embedded bit pattern. A successful extraction produces a payload (or opaque signature) and a confidence score. Jura Trace watermarks use a DWT-DCT-SVD scheme and survive JPEG Q70+ recompression, resize, and 30% cropping. AI-generator watermarks are matched against known signature banks for each supported model family.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">What a positive finding means</dt>
-              <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                A known AI-generator watermark is one of the strongest possible indicators of synthetic content: these schemes are deliberately embedded by the generator and typically only removable by heavy post-processing. A Jura Trace watermark is positive confirmation that the image was processed by an institution using this tool and has not been substantially altered since protection.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known false positive triggers</dt>
-              <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Frequency-domain noise in heavily-compressed or noisy images can occasionally produce byte patterns that resemble watermark payloads. The confidence check requires printable character ratios and byte diversity above empirical thresholds to reduce this. Non-supported AI generators cannot be detected; absence of a watermark is not evidence of authenticity.
-              </dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Active in modes</dt>
-              <dd class="text-flint-dark dark:text-flint-light">Standard &#183; Deep</dd>
-            </div>
-            <div>
-              <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
-              <dd class="text-flint-dark dark:text-flint-light leading-relaxed">
-                Only detects watermark schemes for which Jura Trace has an extractor. New generator families are added in quarterly updates. Aggressive cropping (&gt;30% by area), strong blurring, or re-encoding through lossy formats other than JPEG (e.g. heavy AVIF quantisation) can destroy the watermark signal.
               </dd>
             </div>
           </dl>

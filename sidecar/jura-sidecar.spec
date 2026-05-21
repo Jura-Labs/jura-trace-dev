@@ -174,9 +174,18 @@ try:
 except Exception:
     pass
 
-# invisible-watermark (package name differs from pip install name)
-d, b, h = collect_all("imwatermark")
-datas += d; binaries += b; hiddenimports += h
+# invisible-watermark removed from v1.0 bundle 2026-05-21.
+# Rationale: imwatermark's __init__.py eagerly imports rivaGan -> torch.
+# PyInstaller static analysis follows the chain at build time and bundles
+# torch despite the spec excludes, doubling the bundle to 1.5 GB. The
+# watermark UI is gated behind V1_SHOW_WATERMARK=false in the frontend
+# (feature deferred to v1.1 per persona-testing + content-authenticity-
+# expert + tech-debt-analyst agent consensus). Re-enable in v1.1 by
+# either vendoring imwatermark with rivaGan lazy-import patched OR
+# replacing with a pure-Rust DWT-DCT-SVD implementation that lets
+# embed + extract use the same library without torch dependency.
+# d, b, h = collect_all("imwatermark")
+# datas += d; binaries += b; hiddenimports += h
 
 # ── Bundle knowledge_base text files ─────────────────────────────────────────
 # knowledge_retriever.py resolves knowledge_base/ relative to __file__. In a

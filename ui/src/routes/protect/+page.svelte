@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode } from '$lib/api';
-  import { V1_SHOW_CONFORMANT_SIGNING } from '$lib/featureFlags';
+  import { V1_SHOW_CONFORMANT_SIGNING, V1_SHOW_WATERMARK } from '$lib/featureFlags';
   import { setVerifyHandoff } from '$lib/stores/verifyHandoff';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import { createBlobTracker, triggerDownload, escapeCsvField } from '$lib/blob';
@@ -954,7 +954,9 @@
       >
         <option value="">All Status</option>
         <option value="signed">Signed</option>
-        <option value="watermarked">Watermarked</option>
+        {#if V1_SHOW_WATERMARK}
+          <option value="watermarked">Watermarked</option>
+        {/if}
         <option value="unprotected">Unprotected</option>
       </select>
     </div>
@@ -1105,7 +1107,7 @@
         </button>
       {/if}
 
-      {#if unwatermarkedImages.length > 0}
+      {#if V1_SHOW_WATERMARK && unwatermarkedImages.length > 0}
         <button
           class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian flex-shrink-0"
@@ -1384,7 +1386,7 @@
   {/if}
 
   <!-- Batch watermark panel -->
-  {#if showBatchWatermark}
+  {#if V1_SHOW_WATERMARK && showBatchWatermark}
     <div
       bind:this={batchWatermarkPanelEl}
       class="bg-white dark:bg-graphite rounded-lg border border-lapis/30 dark:border-lapis/20 shadow-sm overflow-hidden"
@@ -2541,7 +2543,7 @@
               {/if}
 
               <!-- Watermark embedding -->
-              {#if canWatermark(asset)}
+              {#if V1_SHOW_WATERMARK && canWatermark(asset)}
                 {#if watermarkAssetId === asset.assetId}
                   <!-- Watermark form -->
                   <div

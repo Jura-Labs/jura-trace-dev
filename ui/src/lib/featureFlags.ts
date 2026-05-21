@@ -51,3 +51,31 @@ export const V1_SHOW_CONFORMANT_SIGNING = false;
  *                 || currentTier === 'enterprise'` derived state takes over.
  */
 export const V1_SHOW_API_KEYS = false;
+
+/**
+ * Invisible-watermark embed UI (Protect page: single-asset embed form,
+ * batch-watermark panel, header trigger button, "watermarked" filter chip).
+ *
+ * v1.0:  false  — hide the entire watermark surface. The 2026-05-21
+ *                 production diagnosis (commits c8b82bf + 9fc4a22) found two
+ *                 coupled bugs: Rust blind_watermark embed + Python
+ *                 imwatermark extract use incompatible bit placement, and
+ *                 imwatermark's package init eagerly imports rivaGan ->
+ *                 torch which PyInstaller statically analyses and pulls
+ *                 torch into the bundle even with `excludes = ["torch"]`,
+ *                 doubling the bundle to 1.5 GB. Three agents (persona-
+ *                 testing, content-authenticity-expert, tech-debt-analyst)
+ *                 agreed v1.0 should ship without the feature. 9 of 10 B2B
+ *                 personas don't need it; the risk to JTV-184 onedir size
+ *                 envelope is real; the manifest-strip-backstop value prop
+ *                 is theoretical and not demanded by any pilot user.
+ * v1.1:  true   — re-enable after vendoring imwatermark with rivaGan
+ *                 lazy-import patched (content-authenticity-expert
+ *                 recommendation) OR replacing with a pure-Rust DWT-DCT-SVD
+ *                 implementation that lets embed + extract use the same
+ *                 library without torch dependency. Backend code (Rust
+ *                 blind_watermark, sidecar embed/extract service, Tauri
+ *                 IPC commands, REST API routes) stays in tree behind the
+ *                 flag — flipping this re-exposes the existing surface.
+ */
+export const V1_SHOW_WATERMARK = false;

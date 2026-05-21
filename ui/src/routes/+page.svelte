@@ -40,7 +40,7 @@
       Know What's Real
     </h1>
     <p class="text-base text-flint-dark dark:text-flint-light dark:text-[#9B9890] max-w-md mx-auto mb-3 leading-relaxed">
-      AI-generated content has made verification essential. Jura Trace gives you a forensic-detector ensemble, C2PA Validator-Conformant provenance verification, and invisible watermarking — all running locally, with no cloud and no accounts.
+      AI-generated content has made verification essential. Jura Trace gives you a forensic-detector ensemble and C2PA Validator-Conformant provenance verification, all running locally, with no cloud and no accounts.
     </p>
   </section>
 
@@ -187,10 +187,9 @@
         </h2>
       </div>
       <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
-        Embed a cryptographically signed C2PA provenance manifest and an invisible
-        watermark in your image, signed with a per-install local certificate
-        (Local Signing). The provenance follows the file wherever it goes.
-        Verification is C2PA Validator-Conformant.
+        Embed a cryptographically signed C2PA provenance manifest in your image,
+        signed with a per-install local certificate (Local Signing). The provenance
+        follows the file wherever it goes. Verification is C2PA Validator-Conformant.
       </p>
     </div>
 
