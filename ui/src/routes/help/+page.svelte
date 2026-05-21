@@ -78,7 +78,7 @@
   <h1 class="text-3xl font-heading text-text-light dark:text-text-dark tracking-heading mb-3">
     Documentation and Guidance
   </h1>
-  <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
+  <p class="text-base text-text-light dark:text-quartz leading-relaxed max-w-2xl">
     Jura Trace runs 10 forensic detectors to verify content authenticity and embeds
     tamper-evident credentials to protect your digital assets. These guides explain how
     each feature works, the methodology behind our analysis, and practical workflows for
@@ -95,11 +95,11 @@
     Start here
   </p>
   <ol class="space-y-3">
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">1</span>
       <span>Confirm the <strong class="text-text-light dark:text-text-dark">Analysis Engine</strong> is online during the brief first-launch wizard. Optional <a href="/help/ollama" class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">Ollama setup</a> happens later in <strong class="text-text-light dark:text-text-dark">Settings</strong> when you are ready.</span>
     </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
       <span>Run your first verification on the <a href="/help/verify" class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"><strong class="text-text-light dark:text-text-dark">Verify</strong> page</a> to see the forensic pipeline in action.</span>
     </li>
@@ -128,7 +128,7 @@
         <h2 class="text-base font-heading font-semibold text-text-light dark:text-text-dark mb-2 tracking-heading group-hover:text-lapis dark:group-hover:text-lapis dark:text-lapis-light motion-safe:transition-colors motion-safe:duration-150">
           {card.title}
         </h2>
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
           {card.description}
         </p>
       </a>
@@ -144,7 +144,7 @@
   <h2 id="equity-heading" class="font-heading text-lg text-text-light dark:text-quartz mb-3 tracking-heading">
     Built for Those Who Need It Most
   </h2>
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed max-w-2xl">
     Jura Trace is designed to work where verification is most urgent and resources
     are most constrained — offline, on-device, without sending sensitive content to
     any server. It is free for journalists, fact-checkers, and human rights

@@ -22,7 +22,7 @@
     >
       Model Cards
     </h1>
-    <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
+    <p class="text-base text-text-light dark:text-quartz leading-relaxed max-w-2xl">
       Jura Trace uses two machine learning classifiers to assess whether content
       is AI-generated. This page documents their training data, performance,
       known limitations, and update history — following the
@@ -103,7 +103,7 @@
 
     <!-- Purpose -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Purpose</h3>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       The GBM classifier analyses an 84-dimensional feature vector extracted from
       images by the forensic pipeline (ELA statistics, noise patterns, frequency
       domain features, copy-move indicators, and more). It produces a probability
@@ -187,7 +187,7 @@
 
     <!-- Known limitations -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Known Limitations</h3>
-    <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       <li><strong>Minimum image size:</strong> Images below 128&times;128 pixels produce unreliable results. A guard prevents analysis of very small images.</li>
       <li><strong>Wildlife and macro photography:</strong> The <code>wikimedia_photos</code> category shows a 24.80% FP rate (n=254), driven largely by wildlife and insect macro photography. Additional iNaturalist photographs are being added to the training corpus to address this.</li>
       <li><strong>High-end camera photos:</strong> Images from DJI drones and Sony DSC cameras show a 10.32% FP rate. MakerNote EXIF data provides a partial mitigation at inference time.</li>
@@ -279,7 +279,7 @@
 
     <!-- Purpose -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Purpose</h3>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       The UnivFD probe is a lightweight classifier that leverages CLIP's visual
       understanding to detect AI-generated images. CLIP was trained on hundreds of
       millions of image-text pairs and captures high-level semantic features that
@@ -345,7 +345,7 @@
 
     <!-- Known limitations -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Known Limitations</h3>
-    <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       <li><strong>CLIP dependency:</strong> Requires the open_clip ViT-B/32 model (~350 MB). When CLIP is not installed, the probe is unavailable and gracefully skipped.</li>
       <li><strong>Non-photographic content:</strong> Paintings, digital illustrations, and stylised artwork can produce false positives. Wikimedia art/illustrations were removed from the training corpus after analysis showed a high false positive rate on that source.</li>
       <li><strong>Wildlife and macro photography:</strong> The <code>wikimedia_photos</code> subset (wildlife, insect macro) is the top FP source. iNaturalist photographs are being added to the authentic corpus to address this.</li>
@@ -393,20 +393,20 @@
       Update Schedule
     </h2>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       AI image generators evolve rapidly. Models trained today may not detect
       outputs from generators released six months from now. Jura Trace's
       approach to keeping the classifiers current:
     </p>
 
-    <ul class="list-disc pl-5 space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       <li><strong>Targeted retraining:</strong> Both classifiers are retrained when meaningful new training data has accumulated — typically a combination of newly released AI generators, expanded Global Majority device coverage, and corrected false-positive cases reported by users. We do not retrain on a fixed quarterly clock; the decision is driven by data availability and signal drift.</li>
       <li><strong>New generator coverage:</strong> When major new generators are released or existing generators receive significant updates, training samples from those generators are incorporated in the next retraining cycle.</li>
       <li><strong>Model distribution:</strong> Updated model weights are distributed via the application's auto-update mechanism. Users are notified when newer models are available.</li>
       <li><strong>Transparency:</strong> This page is updated with each retraining cycle to reflect the current training data composition, performance metrics, and known limitations.</li>
     </ul>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       Next scheduled retraining: <strong>September&ndash;October 2026</strong>
       (approximately four months after the 22 June 2026 launch).
     </p>

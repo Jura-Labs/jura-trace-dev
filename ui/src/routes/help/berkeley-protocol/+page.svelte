@@ -21,7 +21,7 @@
   <h1 class="text-3xl font-heading text-text-light dark:text-text-dark tracking-heading mb-3">
     International Evidence Standards
   </h1>
-  <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
+  <p class="text-base text-text-light dark:text-quartz leading-relaxed max-w-2xl">
     Jura Trace's forensic analysis pipeline and evidence management features align with
     established international standards for digital open source investigations, including
     the Berkeley Protocol on Digital Open Source Investigations (2022). This page maps
@@ -113,7 +113,7 @@
     1. What is the Berkeley Protocol?
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     The Berkeley Protocol on Digital Open Source Investigations was published jointly by the
     United Nations Human Rights Office and the Human Rights Center at UC Berkeley School of
     Law. First edition 2020, updated edition 2022. It provides a comprehensive methodological framework for collecting,
@@ -123,7 +123,7 @@
     diverse institutional contexts.
   </p>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     The Protocol is used by international criminal tribunals, United Nations investigative
     mechanisms, national human rights commissions, and civil society organisations
     worldwide. It addresses the full lifecycle of digital evidence: from collection and
@@ -132,7 +132,7 @@
     a social media post.
   </p>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     Four areas of the Protocol are directly relevant to how Jura Trace is designed:
     chain of custody (§5.3), content integrity (§5.4), methodology documentation (§6.2),
     and analyst accountability (§6.3). The Protocol's provisions on privacy, security
@@ -145,7 +145,7 @@
     class="rounded border border-border-light dark:border-border-dark bg-white dark:bg-graphite p-4"
     role="note"
   >
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Full text of the Protocol.</strong>
       The Berkeley Protocol is freely available at the UN Human Rights Office website and
       the Human Rights Center at UC Berkeley School of Law. Jura Trace recommends that
@@ -166,7 +166,7 @@
     2. Alignment Overview
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
     The table below gives a summary of how Jura Trace maps to the Protocol's key
     requirements. Detailed explanations for each area follow in subsequent sections.
   </p>
@@ -227,14 +227,14 @@
     3. Chain of Custody <span class="text-base font-normal text-flint-dark dark:text-flint-light ml-2">Berkeley Protocol §5.3</span>
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     The Berkeley Protocol requires that organisations maintain a reliable record of who
     accessed, processed, or transferred evidence, and when. Every action must be
     logged so that the integrity of the evidentiary chain can be demonstrated to a
     tribunal or reviewing body.
   </p>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-5">
     Jura Trace addresses this requirement through a tamper-evident audit log stored in
     the local SQLite database. Every consequential action (file import, C2PA signing,
     verification, and export) writes an entry to the log. Each
@@ -242,25 +242,25 @@
   </p>
 
   <ul class="space-y-3 mb-6">
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span><strong class="text-text-light dark:text-text-dark">Action type:</strong> what operation was performed on the file.</span>
     </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span><strong class="text-text-light dark:text-text-dark">Timestamp:</strong> date and time of the operation, recorded in UTC.</span>
     </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span><strong class="text-text-light dark:text-text-dark">Operator context:</strong> the analyst or institution identifier associated with the session.</span>
     </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span><strong class="text-text-light dark:text-text-dark">SHA-256 hash chain link:</strong> each entry includes a hash that incorporates the previous entry's hash, forming an unbroken chain. Altering any past entry invalidates all subsequent hashes.</span>
     </li>
   </ul>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-5">
     You can verify the integrity of the entire audit chain at any time using the
     <strong class="text-text-light dark:text-text-dark">Verify Audit Chain</strong> function
     in Settings. If the chain is intact, every entry is confirmed as unmodified. If any
@@ -268,7 +268,7 @@
     you a bedrock of verifiable provenance that you can present alongside your evidence.
   </p>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-5">
     PDF trust reports generated by Jura Trace include the analysis timestamp, the
     pipeline version, and an optional analyst declaration. This creates a human-readable
     chain of custody record suitable for attachment to legal submissions.
@@ -276,7 +276,7 @@
 
   <!-- Callout: audit integrity command -->
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Before any legal submission.</strong>
       Run the audit chain integrity check from Settings &#8594; Audit Log &#8594; Verify
       Chain Integrity. Keep a screenshot or printed record of the result alongside your
@@ -296,14 +296,14 @@
     4. Content Integrity <span class="text-base font-normal text-flint-dark dark:text-flint-light ml-2">Berkeley Protocol §5.4</span>
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     The Protocol requires that organisations be able to demonstrate a file has not been
     altered since it was first collected. This means creating an integrity record at the
     moment of acquisition and verifying it remains consistent through the evidence
     lifecycle.
   </p>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-5">
     Jura Trace provides three complementary mechanisms for content integrity assurance.
     Together these layers form a strata of cryptographic and perceptual evidence that
     can withstand scrutiny from legal and technical reviewers.
@@ -315,7 +315,7 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         C2PA Provenance
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         The Coalition for Content Provenance and Authenticity (C2PA) standard embeds a
         cryptographically signed manifest directly into the file. The manifest records the
         signing identity, the time of signing, and a hash of the content at the moment of
@@ -330,7 +330,7 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         Perceptual hashing
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         In addition to cryptographic hashing, Jura Trace generates three perceptual hash
         values for each image or video frame: aHash (average hash), dHash (difference
         hash), and pHash (discrete cosine transform hash). Perceptual hashes remain
@@ -345,7 +345,7 @@
 
   <!-- Callout: combined use -->
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Best practice.</strong>
       For the strongest integrity record, use both mechanisms together: sign with C2PA at
       acquisition and register the file's fingerprint in the local database. Each works
@@ -365,19 +365,19 @@
     5. Methodology Documentation <span class="text-base font-normal text-flint-dark dark:text-flint-light ml-2">Berkeley Protocol §6.2</span>
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     The Protocol requires that analysts document the tools and methods used in their
     investigation so that findings can be independently assessed, challenged, and reproduced.
     A finding that cannot be explained or replicated carries limited evidentiary weight.
   </p>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-5">
     Jura Trace is designed with methodological transparency as a first principle. The
     analysis pipeline is fully documented within the application.
   </p>
 
   <ul class="space-y-3 mb-6">
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Detector reference.</strong>
@@ -391,7 +391,7 @@
         false-positive triggers, and the investigation modes in which it runs.
       </span>
     </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Trust score formula.</strong>
@@ -401,7 +401,7 @@
         Nothing in the scoring is hidden.
       </span>
     </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Threshold transparency.</strong>
@@ -410,7 +410,7 @@
         these thresholds when explaining findings to a legal team.
       </span>
     </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Pipeline version recording.</strong>
@@ -423,7 +423,7 @@
 
   <!-- Callout: link to methodology -->
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       When submitting findings to legal proceedings, include a printed copy of the
       <a href="/help/methodology"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:text-lapis/80 dark:hover:text-lapis dark:text-lapis-light/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian motion-safe:transition-colors">
@@ -446,7 +446,7 @@
     6. Analyst Accountability <span class="text-base font-normal text-flint-dark dark:text-flint-light ml-2">Berkeley Protocol §6.3</span>
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     The Protocol requires that individuals conducting investigations be identifiable,
     and that their findings not overstate the strength of the evidence. This protects
     the integrity of proceedings and establishes a clear line of professional
@@ -459,7 +459,7 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         Analyst declaration in PDF exports
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         Every PDF trust report can include an optional analyst declaration block. This
         records the analyst's name, organisation, case reference number, and the date of
         analysis. The declaration can serve as a signed statement of the investigator's
@@ -471,7 +471,7 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         Deterministic and reproducible pipeline
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         Given the same file, the same investigation mode, and the same version of Jura
         Trace, the analysis pipeline produces the same result. There is no probabilistic
         variation between runs. This means a legal reviewer or opposing counsel can
@@ -484,7 +484,7 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         Three-way verdict design
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         Jura Trace deliberately avoids binary authentic/fake verdicts. The three-way
         verdict (Authentic, Inconclusive, or Synthetic) reflects the Protocol's
         principle that findings should not overstate what the evidence supports.
@@ -508,21 +508,21 @@
     7. Privacy and Security <span class="text-base font-normal text-flint-dark dark:text-flint-light ml-2">Berkeley Protocol §4</span>
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     The Protocol requires that organisations consider the security of their investigation
     infrastructure and take reasonable steps to protect evidence, sources, and analysts,
     particularly when working in contexts where state surveillance or hostile actors
     present a realistic threat.
   </p>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-5">
     Jura Trace's local-first architecture was designed with exactly these contexts in mind.
     It is a desktop application that requires no internet connection, no user account,
     and no cloud infrastructure to function.
   </p>
 
   <ul class="space-y-3 mb-6">
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">No content leaves the device.</strong>
@@ -531,7 +531,7 @@
         are transmitted to any external server at any point during analysis.
       </span>
     </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">No user accounts or telemetry.</strong>
@@ -539,7 +539,7 @@
         does not report any operational data to Juralabs or any third party.
       </span>
     </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Air-gapped operation supported.</strong>
@@ -548,7 +548,7 @@
         core analysis pipeline functions without them.
       </span>
     </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Analysis Engine authentication.</strong>
@@ -563,7 +563,7 @@
 
   <!-- Callout: URL verification caution -->
   <div
-    class="rounded border border-amber/25 bg-amber/5 dark:border-amber/20 dark:bg-amber/5 px-4 py-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed"
+    class="rounded border border-amber/25 bg-amber/5 dark:border-amber/20 dark:bg-amber/5 px-4 py-3 text-sm text-text-light dark:text-quartz leading-relaxed"
     role="note"
   >
     <span class="font-medium text-text-light dark:text-quartz">Note on URL verification: </span>
@@ -585,7 +585,7 @@
     8. Preservation of Original Evidence <span class="text-base font-normal text-flint-dark dark:text-flint-light ml-2">Berkeley Protocol §5.2</span>
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     The Protocol requires that original evidence be preserved unaltered. Any analysis
     or processing should operate on a copy, never on the source file. This allows the
     original to be re-examined independently and ensures the chain of custody is not
@@ -624,7 +624,7 @@
 
   <!-- Callout: storage advice -->
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Storage recommendation.</strong>
       Store original evidence files in a write-protected location (a read-only volume or
       a locked folder) before importing them into Jura Trace. This provides a physical
@@ -645,7 +645,7 @@
     9. Recommended Workflow for Human Rights Documentation
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
     The following workflow applies the Berkeley Protocol's principles to a typical Jura
     Trace investigation. Following these steps in sequence creates a complete, legally
     defensible evidence record.
@@ -653,7 +653,7 @@
 
   <ol class="space-y-4 mb-8">
 
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20
                    text-lapis dark:text-lapis-light text-xs font-semibold
                    flex items-center justify-center mt-0.5">1</span>
@@ -665,7 +665,7 @@
       </span>
     </li>
 
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20
                    text-lapis dark:text-lapis-light text-xs font-semibold
                    flex items-center justify-center mt-0.5">2</span>
@@ -678,7 +678,7 @@
     </li>
 
 
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20
                    text-lapis dark:text-lapis-light text-xs font-semibold
                    flex items-center justify-center mt-0.5">3</span>
@@ -692,7 +692,7 @@
       </span>
     </li>
 
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20
                    text-lapis dark:text-lapis-light text-xs font-semibold
                    flex items-center justify-center mt-0.5">4</span>
@@ -705,7 +705,7 @@
       </span>
     </li>
 
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20
                    text-lapis dark:text-lapis-light text-xs font-semibold
                    flex items-center justify-center mt-0.5">5</span>
@@ -717,7 +717,7 @@
       </span>
     </li>
 
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20
                    text-lapis dark:text-lapis-light text-xs font-semibold
                    flex items-center justify-center mt-0.5">6</span>
@@ -733,7 +733,7 @@
 
   <!-- Callout: methodology page -->
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       Include a printed copy of the
       <a href="/help/methodology"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:text-lapis/80 dark:hover:text-lapis dark:text-lapis-light/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian motion-safe:transition-colors">
@@ -758,7 +758,7 @@
   </h2>
 
   <div
-    class="rounded border border-amber/25 bg-amber/5 dark:border-amber/20 dark:bg-amber/5 px-4 py-4 text-sm text-flint-dark dark:text-flint-light leading-relaxed"
+    class="rounded border border-amber/25 bg-amber/5 dark:border-amber/20 dark:bg-amber/5 px-4 py-4 text-sm text-text-light dark:text-quartz leading-relaxed"
     role="note"
   >
     <p class="mb-3">

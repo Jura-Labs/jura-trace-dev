@@ -26,7 +26,7 @@
     >
       IT and Compliance
     </h1>
-    <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
+    <p class="text-base text-text-light dark:text-quartz leading-relaxed max-w-2xl">
       Resources for IT administrators, data protection officers, and procurement
       teams evaluating Jura Trace for institutional deployment.
     </p>
@@ -76,7 +76,7 @@
     >
       Information Security Summary
     </h2>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       This section summarises the key security properties of Jura Trace for institutional
       procurement review. A detailed Information Security Summary document (v1.0, 25 March 2026)
       is available for download from your Jura Trace account manager or at
@@ -90,7 +90,7 @@
     <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2 mt-6">
       Architecture overview
     </h3>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       Jura Trace is a native desktop application built on the Tauri v2 framework (Rust backend,
       SvelteKit frontend). It runs on macOS 13+, Windows 10+, and Ubuntu 22.04+. All processing
       occurs on-device. The Analysis Engine binds to an OS-assigned ephemeral port on the
@@ -115,7 +115,7 @@
     <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2 mt-6">
       Data processing summary
     </h3>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       When a file is submitted for analysis, it is read from disk by the Tauri Rust process.
       Forensic analysis is performed locally; the file is passed over the loopback interface
       to the Analysis Engine. A perceptual fingerprint is computed and stored in the local
@@ -128,7 +128,7 @@
     <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2 mt-6">
       Data at rest
     </h3>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       All asset metadata, fingerprints, verification results, and audit logs are stored in a
       single SQLite database file under the user's application data directory. Default locations:
     </p>
@@ -156,13 +156,13 @@
         </tbody>
       </table>
     </div>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       The database is not encrypted at the application level. The data-at-rest control
       is OS-level full-disk encryption: FileVault on macOS (default on macOS Catalina
       and later), BitLocker on Windows (default on Windows 11 24H2 and later), and LUKS
       or equivalent on Linux. We recommend deployments verify FDE is enabled.
     </p>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       The database location can be overridden via the <code class="font-mono text-xs bg-gray-100 dark:bg-graphite-light px-1 py-0.5 rounded">JURA_DB_PATH</code> environment variable
       or the Change Location button in Settings, allowing placement on a network share,
       managed drive, or encrypted volume.
@@ -172,7 +172,7 @@
     <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2 mt-6">
       Data in transit
     </h3>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       All communication between the desktop application and the Analysis Engine occurs over
       the loopback interface and never leaves the device. There is no telemetry, no usage
       analytics, and no crash reporting. Two optional features involve external network
@@ -198,14 +198,14 @@
     <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2 mt-6">
       Authentication and access control
     </h3>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       The Analysis Engine requires an API key on every request via the
       <code class="font-mono text-xs bg-gray-100 dark:bg-graphite-light px-1 py-0.5 rounded">X-Jura-API-Key</code> header,
       preventing other processes on the same machine from calling the Analysis Engine without
       authorisation. In standard single-user installations, the key is generated automatically
       at startup and requires no configuration.
     </p>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       Jura Trace has no user account system, no login screen, and no cloud authentication.
       Application access is controlled entirely by OS-level user account permissions. File
       system access is restricted to paths explicitly chosen by the user via the native OS
@@ -223,13 +223,13 @@
     >
       Data Protection Impact Assessment
     </h2>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       A Data Protection Impact Assessment (DPIA) is required under UK GDPR Article 35 when
       processing is likely to result in a high risk to the rights and freedoms of individuals,
       for example, when processing special category data at scale, using automated decision
       making with significant effects, or systematically monitoring public areas.
     </p>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       A pre-filled DPIA template following ICO guidance is available for download from
       <a
         href="https://juralabs.org/compliance"
@@ -308,7 +308,7 @@
     <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3 mt-6">
       When is a DPIA required?
     </h3>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       Most use cases for Jura Trace (including archival cataloguing, press photo verification,
       and content provenance tagging) do not require a formal DPIA. A DPIA is more likely
       to be required when:
@@ -318,7 +318,7 @@
       <li>Using verification outputs as part of automated decision-making with significant effects on individuals.</li>
       <li>Deploying the tool across a large organisation with centralised audit log storage.</li>
     </ul>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       The pre-filled template provides a structured starting point that your data protection
       officer can adapt to your institution's specific context.
     </p>
@@ -339,7 +339,7 @@
     <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2 mt-6">
       UK GDPR and Data Protection Act 2018
     </h3>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       Jura Trace's local-first architecture substantially reduces the data protection risk
       profile for institutional deployments. No personal data is transmitted to Juralabs or
       any third party as part of core functionality. The application does not create user
@@ -352,18 +352,18 @@
     <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2 mt-6">
       EU AI Act
     </h3>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       Jura Trace <em>detects</em> AI-generated content but does not itself generate AI content.
       The application is not subject to the provider obligations under the EU AI Act applicable
       to general-purpose AI models or high-risk AI systems.
     </p>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       The optional Ollama integration (LLaVA and Qwen2.5 models) runs entirely on-device.
       Juralabs does not operate these models as a service. Article 50 transparency obligations
       (disclosure that content is AI-generated) apply to organisations using these features
       to generate content descriptions, not to Jura Trace as a tool.
     </p>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       Organisations using verification reports in automated decision-making should assess their
       obligations under Article 14 (human oversight). Jura Trace supports human oversight
       through the visual inspection checklist and signal agreement dashboard on the Verify page.
@@ -374,7 +374,7 @@
     <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2 mt-6">
       Online Safety Act 2023
     </h3>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       The Online Safety Act 2023 places duties on regulated services to prevent harmful content.
       Jura Trace is a local desktop tool, not a regulated service. However, organisations subject
       to the Act (including news publishers, online platforms, and content archives) may find
@@ -387,14 +387,14 @@
     <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2 mt-6">
       Licence terms: AGPL-3.0-or-later
     </h3>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       Jura Trace is licenced under the GNU Affero General Public License, version 3 or later.
       You may use, study, modify, and redistribute the software for any purpose (including
       commercial use), provided you comply with the AGPL's terms. The two requirements that
       typically matter are: source disclosure if you operate a modified version as a hosted
       network service, and copyleft on any larger product that incorporates Jura Trace.
     </p>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       A separate <strong class="font-semibold text-text-light dark:text-text-dark">commercial licence</strong>
       is available for organisations whose use case cannot operate under the AGPL, for
       example, integration into closed-source products, internal modified deployments without
@@ -417,7 +417,7 @@
     >
       Security Audit Status
     </h2>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       A full OWASP-aligned security penetration test was conducted on 25 March 2026 (Sprint 19),
       covering the Tauri IPC boundary, Analysis Engine API, Content Security Policy, capability
       configuration, data at rest, and dependency surfaces.
@@ -481,7 +481,7 @@
       </p>
     </div>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       The Sprint 19 audit confirmed that all findings from the Sprint 14 audit (3 critical, 6 high)
       remain remediated with no regression. The full Sprint 19 audit report is available on request
       via <a
@@ -489,7 +489,7 @@
         class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
       >consultancy@juralabs.org</a>.
     </p>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       For detector methodology documentation, including how each forensic signal is computed and
       weighted, see the
       <a

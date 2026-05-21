@@ -104,7 +104,7 @@
         <polyline points="20 6 9 17 4 12" />
       {/if}
     </svg>
-    <span class="text-sm {suspicious ? 'text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">{name}</span>
+    <span class="text-sm {suspicious ? 'text-amber-dark dark:text-amber-light font-medium' : 'text-obsidian dark:text-quartz'}">{name}</span>
     {@render badges?.()}
     <ContextualHelpLink size="sm" href={helpHref} label={resolvedHelpLabel} />
     <span class="flex-1"></span>

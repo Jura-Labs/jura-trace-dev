@@ -45,7 +45,7 @@ describe('DetectorRow', () => {
 		expect(getByText('31%')).toBeInTheDocument();
 	});
 
-	it('applies the amber-light title class when suspicious', () => {
+	it('applies the amber-dark title class when suspicious (light-mode WCAG fix)', () => {
 		const { getByText } = render(DetectorRow, {
 			props: {
 				name: 'Copy-Move',
@@ -56,7 +56,7 @@ describe('DetectorRow', () => {
 		});
 
 		const title = getByText('Copy-Move');
-		expect(title).toHaveClass('text-amber-light');
+		expect(title).toHaveClass('text-amber-dark');
 	});
 
 	it('applies neutral title class when not suspicious', () => {
@@ -76,7 +76,7 @@ describe('DetectorRow', () => {
 		// directly to disambiguate from any aria-label text.
 		const title = container.querySelector('li span.text-sm');
 		expect(title).toHaveTextContent('CleanCopyMove');
-		expect(title).not.toHaveClass('text-amber-light');
+		expect(title).not.toHaveClass('text-amber-dark');
 	});
 
 	it('renders a help link to /help/forensic-detectors with the anchor', () => {

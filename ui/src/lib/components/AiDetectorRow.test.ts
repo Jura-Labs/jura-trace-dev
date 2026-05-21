@@ -39,7 +39,7 @@ describe('AiDetectorRow', () => {
 		expect(getByText('88%')).toBeInTheDocument();
 	});
 
-	it('applies amber-light title class when suspicious', () => {
+	it('applies amber-dark title class when suspicious (light-mode WCAG fix)', () => {
 		const { container } = render(AiDetectorRow, {
 			props: {
 				name: 'GBMSuspicious',
@@ -50,7 +50,7 @@ describe('AiDetectorRow', () => {
 
 		const title = container.querySelector('li span.text-sm');
 		expect(title).toHaveTextContent('GBMSuspicious');
-		expect(title).toHaveClass('text-amber-light');
+		expect(title).toHaveClass('text-amber-dark');
 	});
 
 	it('applies neutral title class when not suspicious', () => {
@@ -64,7 +64,7 @@ describe('AiDetectorRow', () => {
 
 		const title = container.querySelector('li span.text-sm');
 		expect(title).toHaveTextContent('GBMClean');
-		expect(title).not.toHaveClass('text-amber-light');
+		expect(title).not.toHaveClass('text-amber-dark');
 	});
 
 	it('renders confidence chip when supplied', () => {

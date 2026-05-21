@@ -140,7 +140,7 @@
     >
       Format Support
     </h1>
-    <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
+    <p class="text-base text-text-light dark:text-quartz leading-relaxed max-w-2xl">
       Jura Trace v1.0 is honest about what it can and cannot meaningfully
       analyse. The grid below is the single source of truth, drawn from
       the 28 April 2026 four-agent audit that compared marketed format
@@ -203,7 +203,7 @@
     >
       Out of scope for v1.0
     </h2>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed max-w-2xl mb-4">
       These formats are excluded from the file picker because they have no
       working detector path today. We would rather refuse the file than
       return a 0.50 trust score with no underlying signal. User-testing on
@@ -252,7 +252,7 @@
     >
       Why we exclude formats rather than report &ldquo;unknown&rdquo;
     </h2>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed max-w-2xl mb-3">
       A trust score that does not reflect a working detector is a worse
       outcome than no score at all. For example, a DOCX file dropped onto
       the pipeline previously returned 0.50 trust with zero underlying

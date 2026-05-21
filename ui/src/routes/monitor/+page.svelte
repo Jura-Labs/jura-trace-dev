@@ -742,7 +742,7 @@
             Jura Trace will track changes and verify that your content
             credentials remain intact.
           </p>
-          <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mt-4">
+          <p class="text-sm text-text-light dark:text-quartz leading-relaxed mt-4">
             Use the button above to add your first location.
           </p>
         </div>

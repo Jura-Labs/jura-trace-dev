@@ -148,8 +148,9 @@
   <div class="py-8 text-center" aria-live="polite" aria-atomic="true">
     {#if sidecarAvailable}
       <span
-        class="inline-flex items-center gap-2 text-xs px-5 py-2 rounded-full border"
-        style="color: #6B8F5F; background: rgba(107,143,95,0.06); border-color: rgba(107,143,95,0.12);"
+        class="inline-flex items-center gap-2 text-xs px-5 py-2 rounded-full border
+               text-malachite-dark dark:text-malachite-light
+               bg-malachite/5 dark:bg-malachite/10 border-malachite/20"
       >
         <span class="w-1.5 h-1.5 rounded-full bg-malachite" aria-hidden="true"></span>
         Analysis services connected

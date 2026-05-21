@@ -98,7 +98,7 @@
   /* Touch-target-safe ghost/secondary button */
   .btn-ghost {
     @apply px-3 py-2.5 min-h-[44px] inline-flex items-center justify-center
-           text-sm text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz
+           text-sm text-text-light dark:text-quartz
            border border-border-light dark:border-graphite-light rounded transition-colors
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
            focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian;

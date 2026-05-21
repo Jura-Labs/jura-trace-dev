@@ -10,7 +10,7 @@
      Local Signing mode (per-install Bedrock CA) only. -->
 <div
   role="note"
-  class="rounded-lg border border-flint/30 bg-flint/10 dark:bg-flint/5 px-4 py-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6"
+  class="rounded-lg border border-flint/30 bg-flint/10 dark:bg-flint/5 px-4 py-3 text-sm text-text-light dark:text-quartz leading-relaxed mb-6"
 >
   <strong class="font-semibold">Local Signing.</strong>
   v1.0 signs in Local Signing mode (per-install certificate authority).
@@ -28,7 +28,7 @@
   <h1 class="text-3xl font-heading text-text-light dark:text-text-dark tracking-heading mb-3">
     Protecting Your Content
   </h1>
-  <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
+  <p class="text-base text-text-light dark:text-quartz leading-relaxed max-w-2xl">
     The Protect section gives your digital assets a permanent, verifiable record of origin.
     Applying C2PA provenance lays down the first stratum of authenticity, a foundation that
     remains legible to standards-aware verifiers wherever the file goes.
@@ -79,13 +79,13 @@
     1. What Protect Does
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     The Protect page is your starting point for securing any digital asset. You import a
     file, and Jura Trace applies one or both of the following layers of protection:
   </p>
 
   <ul class="space-y-3 mb-6">
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark font-semibold">C2PA Provenance:</strong>
@@ -96,7 +96,7 @@
     </li>
   </ul>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     Alongside protection, the Protect page catalogues every imported asset in your local
     database. This catalogue records the file path, content type, perceptual fingerprints,
     and protection status, giving you a full registry of your collection without sending
@@ -105,7 +105,7 @@
 
   <!-- Callout: local-first -->
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">All processing is local.</strong>
       Your files never leave your device. Jura Trace does not connect to any cloud service
       during protect operations.
@@ -121,7 +121,7 @@
     2. C2PA Provenance
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     C2PA provenance manifests provide a tamper-evident record of origin baked directly into
     the file. Any application that supports the C2PA standard can read and verify this
     record, including the Jura Trace Verify page and tools at
@@ -133,7 +133,7 @@
   </h3>
 
   <ol class="space-y-4 mb-6">
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">1</span>
       <span>
         Open the <strong class="text-text-light dark:text-text-dark">Protect</strong> page
@@ -141,14 +141,14 @@
         Alternatively, drag and drop a file onto the import area.
       </span>
     </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
       <span>
         The asset appears in the asset list with its detected format and current protection
         status. Select it to open the protection panel on the right.
       </span>
     </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">3</span>
       <span>
         Click <strong class="text-text-light dark:text-text-dark">Sign with C2PA</strong>.
@@ -156,7 +156,7 @@
         the original (the source file is never overwritten).
       </span>
     </li>
-    <li class="flex gap-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
       <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">4</span>
       <span>
         The asset status updates to <strong class="text-text-light dark:text-text-dark">Signed</strong>,
@@ -174,11 +174,11 @@
     What gets embedded
   </h3>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     The signed manifest records three things:
   </p>
 
-  <ul class="space-y-2 mb-6 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+  <ul class="space-y-2 mb-6 text-sm text-text-light dark:text-quartz leading-relaxed">
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
       <span><strong class="text-text-light dark:text-text-dark">Claim generator:</strong>
@@ -247,7 +247,7 @@
 
   <!-- Callout: tamper evidence -->
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Tamper evidence, not tamper prevention.</strong>
       A C2PA manifest does not prevent a file from being modified. It means that any
       modification, however small, will cause the content hash to fail when the file is
@@ -260,14 +260,14 @@
     Metadata preservation
   </h3>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     When C2PA signing completes, a confirmation panel appears on the Protect page to confirm
     that the original file's metadata was preserved in the signed copy. This matters because
     EXIF data (camera model, capture date, GPS coordinates, colour profile) forms part of
     the provenance record and must not be silently discarded during signing.
   </p>
 
-  <ul class="space-y-3 mb-6 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+  <ul class="space-y-3 mb-6 text-sm text-text-light dark:text-quartz leading-relaxed">
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
       <span>The signed copy is saved alongside the original. <strong class="text-text-light dark:text-text-dark">The source file is never overwritten.</strong></span>
@@ -284,7 +284,7 @@
 
   <!-- Callout: archival note -->
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Archival workflows.</strong>
       For long-term collections, keep the original unsigned file alongside the signed copy.
       The original represents the first stratum of your provenance chain. The signed copy
@@ -301,7 +301,7 @@
     3. Asset Management
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     Every file you import into the Protect page is catalogued in the local SQLite database.
     This catalogue is your permanent record of protected assets. Think of it as the
     register at the bedrock of your provenance chain.
@@ -311,7 +311,7 @@
     What gets recorded
   </h3>
 
-  <ul class="space-y-2 mb-6 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+  <ul class="space-y-2 mb-6 text-sm text-text-light dark:text-quartz leading-relaxed">
     <li class="flex gap-2">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold">→</span>
       <span><strong class="text-text-light dark:text-text-dark">File path and name:</strong>
@@ -341,7 +341,7 @@
     Filtering and browsing
   </h3>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     Use the content type filter above the asset list to show only images, video, or audio.
     The status column shows at a glance whether an asset is signed or unsigned.
   </p>
@@ -355,7 +355,7 @@
     4. Best Practices
   </h2>
 
-  <ul class="space-y-4 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+  <ul class="space-y-4 text-sm text-text-light dark:text-quartz leading-relaxed">
     <li class="flex gap-3">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold mt-0.5">→</span>
       <span>

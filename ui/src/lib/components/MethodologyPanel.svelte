@@ -160,7 +160,7 @@
               </div>
               <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5 leading-relaxed">{stage.description}</p>
               {#if stage.citation}
-                <p class="text-[10px] text-flint-dark dark:text-flint-light mt-0.5 leading-snug italic">
+                <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5 leading-snug italic">
                   {stage.citation.authors} ({stage.citation.year}). {stage.citation.paper}.
                 </p>
               {/if}

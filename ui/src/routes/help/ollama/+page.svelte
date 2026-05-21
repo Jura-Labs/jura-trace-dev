@@ -17,7 +17,7 @@
       Ollama
       <span class="ml-2 align-middle text-sm font-normal text-flint-dark dark:text-flint-light">(optional)</span>
     </h1>
-    <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-base text-text-light dark:text-quartz leading-relaxed">
       Ollama runs an optional feature locally on your machine in v1.0: AI-generated
       image descriptions and "Read Text" extraction from images (LLaVA).
       <strong class="text-text-light dark:text-text-dark">Jura Trace works fully without Ollama.</strong>
@@ -33,7 +33,7 @@
     <h2 id="decide-heading" class="font-heading text-xl text-text-light dark:text-text-dark mb-3 tracking-heading">
       Should you install it?
     </h2>
-    <ul class="space-y-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <ul class="space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       <li><strong class="text-text-light dark:text-text-dark">Yes, if</strong> you have at least 16 GB of RAM, around 5 GB of free disk, a reliable internet connection for the one-time download (~4.5 GB), and you want auto-generated image captions or "Read Text" extraction from screenshots.</li>
       <li><strong class="text-text-light dark:text-text-dark">Skip, if</strong> you are on an 8 GB machine, on a slow or metered connection, or your IT policy disallows installing software outside a managed catalogue. Core verification works fully without it.</li>
     </ul>
@@ -46,7 +46,7 @@
     <h2 id="mac-heading" class="font-heading text-xl text-text-light dark:text-text-dark mb-3 tracking-heading">
       macOS install
     </h2>
-    <ol class="space-y-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed list-decimal pl-5">
+    <ol class="space-y-3 text-sm text-text-light dark:text-quartz leading-relaxed list-decimal pl-5">
       <li>Open <strong class="text-text-light dark:text-text-dark">Settings → Service Status → Ollama</strong> and click <em>Install Ollama automatically</em>. This runs <code class="font-mono text-xs px-1.5 py-0.5 rounded bg-graphite/20 dark:bg-graphite-light/20">brew install ollama</code> for you. If you do not have Homebrew, the manual download path is below.</li>
       <li>Wait for the install to finish (typically under a minute). Click <em>Re-check</em> in the Ollama card; the status will move from <em>Not installed</em> to <em>Installed — no models</em>.</li>
       <li>Click <em>Download</em> next to <code class="font-mono text-xs px-1.5 py-0.5 rounded bg-graphite/20 dark:bg-graphite-light/20">llava:7b</code>. Download size ~4.7 GB; time depends on your connection. You can leave Jura Trace open during the download.</li>
@@ -67,7 +67,7 @@
     <h2 id="win-heading" class="font-heading text-xl text-text-light dark:text-text-dark mb-3 tracking-heading">
       Windows install
     </h2>
-    <ol class="space-y-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed list-decimal pl-5">
+    <ol class="space-y-3 text-sm text-text-light dark:text-quartz leading-relaxed list-decimal pl-5">
       <li>Open <strong class="text-text-light dark:text-text-dark">Settings → Service Status → Ollama</strong> and click <em>Install Ollama automatically</em>. This runs <code class="font-mono text-xs px-1.5 py-0.5 rounded bg-graphite/20 dark:bg-graphite-light/20">winget install Ollama.Ollama</code> for you.</li>
       <li>If <code class="font-mono text-xs px-1.5 py-0.5 rounded bg-graphite/20 dark:bg-graphite-light/20">winget</code> is not available (some Windows Server SKUs and locked-down enterprise builds), use the manual download from
         <a href="https://ollama.com" target="_blank" rel="noopener noreferrer"
@@ -83,17 +83,17 @@
     <h2 id="linux-heading" class="font-heading text-xl text-text-light dark:text-text-dark mb-3 tracking-heading">
       Linux install
     </h2>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       Ollama provides a single-line installer. From a terminal:
     </p>
     <pre class="overflow-x-auto rounded-lg p-4 text-xs leading-relaxed mb-3"
          style="background: rgba(30,33,40,0.85); color: #EDEAE4; border: 1px solid rgba(122,119,112,0.2);"><code class="font-mono">curl -fsSL https://ollama.com/install.sh | sh</code></pre>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       Then start the daemon (most Linux installs run it as a systemd service automatically; if not):
     </p>
     <pre class="overflow-x-auto rounded-lg p-4 text-xs leading-relaxed mb-3"
          style="background: rgba(30,33,40,0.85); color: #EDEAE4; border: 1px solid rgba(122,119,112,0.2);"><code class="font-mono">ollama serve &amp;</code></pre>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       Click <em>Re-check</em> in Settings, then download the models from the Ollama card.
     </p>
   </section>
@@ -141,14 +141,14 @@
     <h2 id="privacy-heading" class="font-heading text-xl text-text-light dark:text-text-dark mb-3 tracking-heading">
       Privacy and offline behaviour
     </h2>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       Ollama runs entirely on your machine. Once the models are downloaded, no image,
       text, or claim is sent to any external server. The models are general-purpose
       open-weight checkpoints — they do not phone home, and they do not learn from your
       data after install. The download itself is the only step that requires an internet
       connection.
     </p>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       If Ollama is offline at verify time, the optional features simply do not run.
       Forensic analysis, AI deepfake detection, C2PA verification, and watermark
       extraction proceed exactly as they would without Ollama installed at all.
@@ -162,7 +162,7 @@
     <h2 id="trouble-heading" class="font-heading text-xl text-text-light dark:text-text-dark mb-3 tracking-heading">
       Troubleshooting
     </h2>
-    <dl class="space-y-4 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <dl class="space-y-4 text-sm text-text-light dark:text-quartz leading-relaxed">
       <div>
         <dt class="font-medium text-text-light dark:text-text-dark mb-1">Status reads <em>Not installed</em> after I installed Ollama</dt>
         <dd>Click <em>Re-check</em> in the Ollama card. If still not detected, ensure the

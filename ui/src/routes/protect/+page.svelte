@@ -1764,7 +1764,7 @@
             Import images, documents, or media files to begin protecting
             your content with content credentials and invisible watermarks.
           </p>
-          <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
+          <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-5">
             Drop files above or click to browse.
           </p>
           <button

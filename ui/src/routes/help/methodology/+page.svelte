@@ -25,7 +25,7 @@
     >
       How Analysis Works
     </h1>
-    <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
+    <p class="text-base text-text-light dark:text-quartz leading-relaxed max-w-2xl">
       Jura Trace uses multiple independent forensic detectors to assess content
       authenticity. No single detector is conclusive: the trust score reflects
       the combined weight of all available signals. This page explains each
@@ -69,7 +69,7 @@
       Trust Score
     </h2>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       Every analysis produces a trust score between 0% and 100%. The score
       summarises how consistent the available evidence is with an unmanipulated,
       authentically captured piece of content. Think of it as the bedrock reading
@@ -135,7 +135,7 @@
       Scoring Formula
     </h3>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       The overall trust score is built from two components:
     </p>
 
@@ -163,7 +163,7 @@
       </li>
     </ul>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       Two adjustments are then applied:
     </p>
 
@@ -194,7 +194,7 @@
       Document Scoring
     </h3>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       PDF documents cannot be subjected to pixel-level forensic analysis. For PDFs,
       the score is derived from C2PA provenance alone:
     </p>
@@ -226,7 +226,7 @@
 
     <!-- Not legal proof callout -->
     <div
-      class="rounded border border-amber/25 bg-amber/5 dark:border-amber/20 dark:bg-amber/5 px-4 py-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed"
+      class="rounded border border-amber/25 bg-amber/5 dark:border-amber/20 dark:bg-amber/5 px-4 py-3 text-sm text-text-light dark:text-quartz leading-relaxed"
       role="note"
     >
       <span class="font-medium text-text-light dark:text-quartz">Important: </span>
@@ -251,7 +251,7 @@
       Investigation Modes
     </h2>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       Choose a mode before running analysis. Faster modes are suitable for routine
       triage; deeper modes are appropriate when you need the fullest possible
       picture of a file's provenance strata.
@@ -284,7 +284,7 @@
       </table>
     </div>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       Regional detectors (Segmented ELA, Shadow Consistency, Colour Temperature,
       Splice Boundary) are only active in Deep mode. Standard mode leaves those sections blank.
     </p>
@@ -303,13 +303,13 @@
       Detector Reference
     </h2>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       Expand each detector to learn what it measures, how it works, and when it
       may produce false positives. All detectors run locally on your device.
       No data is transmitted externally.
     </p>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       The reference is divided into two groups. The eleven <strong class="text-text-light dark:text-quartz font-medium">automatic detectors</strong>
       run on every verification at the mode indicated in each entry's
       <em>Active in modes</em> line. Their findings feed into the numeric trust
@@ -1028,7 +1028,7 @@
           On-demand investigation tools
         </h3>
 
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
           These tools are available in Expert View and can be triggered manually when
           the automatic signals are ambiguous or a specific question needs a targeted
           probe. They are <strong class="font-medium text-text-light dark:text-quartz">not</strong>
@@ -1217,7 +1217,7 @@
       What This Does Not Prove
     </h2>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       Jura Trace is a forensic aid. Like all forensic tools, it has limits. The
       following limitations apply to every analysis.
     </p>
@@ -1321,7 +1321,7 @@
       Signal Weighting
     </h2>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       When multiple detectors run simultaneously, their results are combined using
       a weighted ensemble. The weights reflect each detector's empirical reliability
       as a manipulation indicator, established through calibration against known
@@ -1387,7 +1387,7 @@
       Concordance Check
     </h3>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       When ELA and the AI Generation Detection ensemble both return clean results,
       but other signals (noise analysis, copy-move) flag concerns, Jura Trace
       applies a concordance dampening factor. When the two most reliable detectors
@@ -1395,7 +1395,7 @@
       is reduced.
     </p>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       This logic is based on the observation that mixed signals alongside a clean
       ELA result are most commonly caused by codec artefacts (AVIF, WebP, HEIC)
       and heavy recompression rather than genuine manipulation. The dampening

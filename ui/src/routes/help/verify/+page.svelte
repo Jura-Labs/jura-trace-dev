@@ -8,7 +8,7 @@
   <h1 class="text-3xl font-heading text-text-light dark:text-text-dark tracking-heading mb-3">
     Verifying Content Authenticity
   </h1>
-  <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
+  <p class="text-base text-text-light dark:text-quartz leading-relaxed max-w-2xl">
     The Verify section examines a file through multiple independent analysis signals and
     returns a verdict alongside a detailed breakdown. Every layer of the investigation,
     from EXIF anomalies to deep-learning AI detection, runs entirely on your device. No
@@ -96,13 +96,13 @@
     1. What Verify Does
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     When you submit a file for verification, Jura Trace runs it through several distinct
     analysis layers, each looking for different types of evidence. The results are combined
     into a single trust score and a three-way verdict.
   </p>
 
-  <ul class="space-y-3 mb-6 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+  <ul class="space-y-3 mb-6 text-sm text-text-light dark:text-quartz leading-relaxed">
     <li class="flex gap-3">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold mt-0.5">→</span>
       <span>
@@ -141,7 +141,7 @@
 
   <!-- Callout: local-first -->
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">All analysis is local.</strong>
       No file data, no metadata, and no analysis results are sent to any external server.
       The forensic pipeline runs on your device using the Analysis Engine and the Rust
@@ -158,7 +158,7 @@
     2. Input Methods
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     The Verify page offers three ways to submit content for analysis. Select an input method
     using the tabs at the top of the page.
   </p>
@@ -168,7 +168,7 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         File
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         Drag a file onto the drop area, or click <strong class="text-text-light dark:text-text-dark">Browse</strong>
         to open the file picker. Jura Trace detects the format from the file's magic bytes,
         not the extension, so a JPEG saved as <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">.png</span>
@@ -181,30 +181,30 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         Batch
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
         Drag multiple files or a folder onto the Verify drop zone, or use the file picker to
         select several files at once. Each file is queued and analysed sequentially using
         the investigation mode you have selected.
       </p>
       <ul class="space-y-2 mb-3">
-        <li class="flex gap-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <li class="flex gap-2 text-sm text-text-light dark:text-quartz leading-relaxed">
           <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
           <span>A progress bar shows the current file being analysed and overall completion across the queue.</span>
         </li>
-        <li class="flex gap-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <li class="flex gap-2 text-sm text-text-light dark:text-quartz leading-relaxed">
           <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
           <span>Results appear in a summary table showing the verdict, trust score, and key findings for each file.</span>
         </li>
-        <li class="flex gap-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <li class="flex gap-2 text-sm text-text-light dark:text-quartz leading-relaxed">
           <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
           <span>Expand any row in the summary table for the full detail view of that file's analysis.</span>
         </li>
-        <li class="flex gap-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <li class="flex gap-2 text-sm text-text-light dark:text-quartz leading-relaxed">
           <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
           <span>Batch results can be exported as a combined PDF report covering all files, or as individual reports per file.</span>
         </li>
       </ul>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         Batch mode is useful when reviewing a set of images from a single news event,
         assessing a collection submission, or processing multiple files before an editorial deadline.
       </p>
@@ -214,12 +214,12 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         URL
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-2">
         Paste a public URL and Jura Trace will fetch the resource and analyse it. The
         request is made from your device. No proxy or cloud service is involved.
       </p>
       <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
           <strong class="text-text-light dark:text-text-dark">Security note:</strong>
           Jura Trace will not fetch URLs pointing to your local network, private IP address
           ranges, or loopback addresses (e.g.
@@ -240,7 +240,7 @@
     3. Investigation Modes
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     Choose a mode before submitting a file. Each mode runs a different set of detectors
     and trades speed for depth. The selector is shown below the input area.
   </p>
@@ -280,7 +280,7 @@
 
   <!-- Tip: which mode to use -->
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Not sure which to choose?</strong>
       Start with Standard. If the result is inconclusive and the content is high-stakes,
       re-run in Deep mode. This is the mode to use for legal evidence handling,
@@ -297,7 +297,7 @@
     4. Understanding the Trust Score
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     The trust score is a percentage (0–100%) that expresses how much provenance evidence
     Jura Trace found in favour of the content being authentic. It is displayed as a
     coloured bar and a number at the top of the results panel.
@@ -336,11 +336,11 @@
     How the score is calculated
   </h3>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
     The trust score combines two independent strands of evidence:
   </p>
 
-  <ul class="space-y-2 mb-4 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+  <ul class="space-y-2 mb-4 text-sm text-text-light dark:text-quartz leading-relaxed">
     <li class="flex gap-2">
       <span class="text-lapis dark:text-lapis-light flex-none font-semibold">40%</span>
       <span>
@@ -359,7 +359,7 @@
     </li>
   </ul>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     When two or more regional detectors fire together (for example, segmented ELA and shadow
     inconsistency in the same image), the forensic contribution is amplified to reflect the
     compounding evidence, up to a maximum cap. This prevents a single marginal signal from
@@ -368,14 +368,14 @@
 
   <!-- Important caveat -->
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">The trust score is not a guarantee.</strong>
       A score of 85% does not mean the content is definitely authentic. A score of 20% does
       not mean it is definitely synthetic. The score reflects the weight of available
       evidence, which is always incomplete. Use it alongside your own professional judgement
       and additional investigation where appropriate.
     </p>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mt-2">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mt-2">
       For a full explanation of every detector and its weighting, see
       <a href="/help/methodology" class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline">
         How Analysis Works
@@ -392,7 +392,7 @@
     5. Understanding Verdicts
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     Jura Trace returns one of three verdicts, shown in the verdict badge at the top of the
     results panel. The verdict is determined by the AI-detection ensemble (specifically by
     the deepfake score), not by the trust score. The two figures are related but independent.
@@ -405,7 +405,7 @@
           Authentic
         </span>
       </div>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         The AI-detection ensemble found no significant indicators of synthetic generation.
         The deepfake score is below 0.30. This verdict means the detectors are consistent
         with a camera-captured or otherwise non-AI-generated image. It does not rule out
@@ -419,7 +419,7 @@
           Inconclusive
         </span>
       </div>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         The deepfake score falls between 0.30 and 0.65. Evidence is present but not
         sufficient to make a confident determination. <strong class="text-text-light dark:text-text-dark">Inconclusive
         is the most common and expected outcome for real-world content.</strong> Many authentic
@@ -435,7 +435,7 @@
           Synthetic
         </span>
       </div>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         The deepfake score exceeds 0.65 in the
         file metadata. The detectors found strong indicators consistent with AI-generated
         content. This verdict warrants careful review and corroboration before acting on it.
@@ -445,7 +445,7 @@
 
   <!-- Tip: verdicts vs trust score -->
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       <strong class="text-text-light dark:text-text-dark">Verdict and trust score can diverge.</strong>
       An image may return an <em>Authentic</em> verdict (low deepfake score) but a low trust
       score (many EXIF anomalies). Conversely, a <em>Synthetic</em> verdict with a moderate
@@ -463,7 +463,7 @@
     6. Reading the Results
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
     Once analysis completes, the results panel unfolds below the input area. It is organised
     into sections you can work through from top to bottom.
   </p>
@@ -474,7 +474,7 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         Verdict badge and trust score bar
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         The verdict badge (Authentic / Inconclusive / Synthetic) and the trust score bar
         appear at the very top of the results. A confidence indicator shows how many
         detectors contributed to the verdict. A higher count means more evidence was
@@ -486,7 +486,7 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         Metadata section
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         Shows the file's EXIF data and any anomalies detected. Each anomaly is listed with a
         brief explanation of why it is considered unusual. A higher number of anomalies
         contributes to a lower EXIF trust contribution.
@@ -497,7 +497,7 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         C2PA credential panel
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         If a C2PA manifest is present, this panel shows the claim generator, signing
         timestamp, and whether the content hash is valid. A hash mismatch is shown in red
         and means the file has been modified after signing.
@@ -508,12 +508,12 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         Forensic details (expandable)
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-2">
         Each forensic detector appears as an expandable row. Click any row to see the full
         signal detail, including visualisation heatmaps for ELA and noise analysis, matched
         clone regions for copy-move detection, and the feature breakdown for AI detection.
       </p>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         The Signal Agreement panel summarises which detectors agree and which disagree.
         When multiple independent detectors flag the same concern, the agreement is stronger
         evidence than any single signal alone.
@@ -524,7 +524,7 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         Region analysis (Deep mode only)
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         When you run Deep mode, a region analysis section appears showing
         results from the four regional detectors: segmented ELA, shadow consistency, colour
         temperature, and splice boundary. These detectors divide the image into a grid and
@@ -548,7 +548,7 @@
     7. Video (v1.0 scope)
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     For MP4 and MOV files, v1.0 verifies what Jura Trace can stand behind without
     overclaiming: container-level provenance, container-level metadata, and a native
     in-app preview. Video deepfake analysis, audio-visual sync, transcription, and
@@ -572,7 +572,7 @@
   <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
     Audio
   </h3>
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
     Standalone audio files (WAV, MP3, FLAC, OGG, AAC, M4A) are not in v1.0 scope.
     Voice-note evidence (AASIST + ENF + ASVspoof) is under evaluation for a future release.
   </p>
@@ -586,7 +586,7 @@
     8. Investigate Further
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     An inconclusive result is not the end of the investigation. Jura Trace provides tools
     and guidance to help you dig deeper.
   </p>
@@ -597,13 +597,13 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         Reverse image search
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-2">
         The results panel includes links to external reverse image search services. These
         can help you find earlier versions of an image, identify its origin, or find other
         contexts in which it has been published.
       </p>
       <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
           <strong class="text-text-light dark:text-text-dark">Privacy note:</strong>
           Using reverse image search requires uploading or sharing the image with an external
           service. If the content is sensitive, unpublished, or subject to confidentiality,
@@ -617,13 +617,13 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         Manual visual inspection: eight checks
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
         Automated detectors can miss artefacts that a careful human reviewer will spot.
         Run through these eight checks for any image where the verdict is inconclusive
         or where the case is high-stakes. The checks are designed for trained reviewers
         but are accessible to any careful observer.
       </p>
-      <ol class="space-y-3 text-sm text-flint-dark dark:text-flint-light leading-relaxed list-decimal pl-5">
+      <ol class="space-y-3 text-sm text-text-light dark:text-quartz leading-relaxed list-decimal pl-5">
         <li>
           <strong class="text-text-light dark:text-text-dark">Text rendering.</strong>
           Are text elements clear, correctly spelled, and properly aligned? AI-generated
@@ -684,7 +684,7 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         Re-run in a deeper mode
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         If Standard mode returned inconclusive and you want the full set of regional
         detectors, use the mode selector to switch to Deep and run the analysis again. You
         do not need to re-import the file.
@@ -695,7 +695,7 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         Report a false positive
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         If you believe a result is incorrect (for example, a known authentic photograph
         returned a Synthetic verdict), use the "Report False Positive" button. This records
         the case locally (no data is shared externally) and contributes to improving the
@@ -712,7 +712,7 @@
       Visual Investigation Tools
     </h3>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       These tools are available on-demand from the results panel. They do not run
       automatically. Select the tool you need for your investigation.
     </p>
@@ -723,7 +723,7 @@
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
           Colour Channel Separation
         </p>
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
           Displays the individual red, green, blue, and difference channels of an image separately.
           Inconsistencies that are invisible in the composite (such as mismatched noise grain
           between regions) often become apparent when channels are examined in isolation.
@@ -734,7 +734,7 @@
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
           Noise Pattern Visualisation
         </p>
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
           Extracts the noise residual from the image and renders it alongside a variance
           heatmap. Regions with inconsistent noise signatures (a common indicator of compositing
           or AI generation) appear as bright areas on the heatmap.
@@ -745,7 +745,7 @@
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
           Per-Channel CLAHE
         </p>
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
           Applies contrast-limited adaptive histogram equalisation (CLAHE) separately to
           each colour channel. This technique recovers detail in shadows and highlights that
           standard display gamma obscures, making compression artefacts and tonal discontinuities
@@ -757,7 +757,7 @@
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
           Frequency Domain Analysis
         </p>
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
           Renders an FFT magnitude spectrum, a DCT coefficient heatmap, and a JPEG block-grid
           overlay for the image. Splicing and generation artefacts often leave a distinct
           frequency signature: periodic peaks in the FFT or misaligned DCT block boundaries
@@ -769,7 +769,7 @@
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
           JPEG Quantisation Grid
         </p>
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
           Detects misaligned JPEG block boundaries across the image and renders them as a
           boundary artefact heatmap, alongside the extracted quantisation tables. When a
           region of an image has been composited from a differently-compressed source, its
@@ -781,7 +781,7 @@
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
           Side-by-Side Comparison
         </p>
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
           Places the original image alongside any forensic visualisation (noise heatmap,
           ELA result, frequency spectrum, or others) in a split view. Use this when you
           need to correlate a suspected artefact location in the visualisation with the
@@ -793,7 +793,7 @@
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
           Region of Interest (ROI) Selection
         </p>
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
           Click and drag to define a rectangular region on the image. Jura Trace re-runs the
           analysis pipeline on that region only, producing a focused result for the selected
           area. This is useful when a specific part of the image (a face, a sky region,
@@ -805,7 +805,7 @@
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
           GAN Fingerprint
         </p>
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
           Uses FFT-based spectral analysis to identify the periodic artefacts that generative
           adversarial networks (including StyleGAN, ProGAN, and similar architectures)
           leave in their output. The tool subtracts a 1/f noise model and detects residual
@@ -818,7 +818,7 @@
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
           Annotation Layer
         </p>
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
           Draws an interactive SVG canvas over the image, letting you add arrows, circles,
           rectangles, and text labels in five colours. Annotations are saved to the local
           database alongside the analysis record and are included when you export a ZIP case
@@ -831,7 +831,7 @@
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
           Analyst Notes
         </p>
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
           A free-text field of up to 2,000 characters saved with the analysis session in
           local storage. Use analyst notes to record your reasoning, document steps you
           took during manual inspection, or flag items for follow-up. Notes persist between
@@ -849,7 +849,7 @@
       Geolocation and Temporal Tools
     </h3>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       When GPS coordinates or a capture timestamp are present in an image's metadata,
       these tools cross-reference the claimed location and time against physical evidence
       in the image itself. They are available on-demand from the Geolocation &amp; Temporal
@@ -862,7 +862,7 @@
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
           Sun Position Calculator
         </p>
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
           Calculates the expected sun angle (azimuth and elevation) for the GPS coordinates
           and timestamp recorded in the image's EXIF data. The calculation runs entirely
           on-device using a pure Rust solar position model. No internet connection is required.
@@ -874,7 +874,7 @@
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
           Shadow-Based Time Estimation
         </p>
-        <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
           Estimates the time of capture by measuring shadow angles visible in the image and
           working backwards through the sun position model. This provides an independent
           time estimate that can be compared against the EXIF timestamp; a significant
@@ -895,7 +895,7 @@
     9. Exporting Results
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
     Once analysis is complete, you can export the results in two formats. The export buttons
     appear at the bottom of the results panel.
   </p>
@@ -905,24 +905,24 @@
     <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
       Analyst Declaration
     </p>
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       Before exporting, an analyst declaration modal allows you to record your name,
       organisation, case reference, and the date of analysis. This information appears in the
       header block of the PDF trust report, establishing a clear chain of custody for the
       document.
     </p>
     <ul class="space-y-2 mb-3">
-      <li class="flex gap-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <li class="flex gap-2 text-sm text-text-light dark:text-quartz leading-relaxed">
         <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
         <span>The declaration is saved locally and pre-filled on the next export, so you do not need to re-enter your details each time.</span>
       </li>
-      <li class="flex gap-2 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <li class="flex gap-2 text-sm text-text-light dark:text-quartz leading-relaxed">
         <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
         <span>For legal evidence work, select the <strong class="text-text-light dark:text-text-dark">Berkeley Protocol</strong> report format. This produces a structured PDF with seven evidence sections aligned with the Berkeley Protocol on Digital Open Source Investigations, designed for use in legal proceedings.</span>
       </li>
     </ul>
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         <strong class="text-text-light dark:text-text-dark">Note:</strong>
         The analyst declaration fields are optional. If you leave them blank, the PDF report
         is generated without a declaration header. No declaration data is stored externally
@@ -937,13 +937,13 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         PDF trust report
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-2">
         A formatted document containing the verdict, trust score, investigation mode, a
         summary of each detector's findings, EXIF metadata, and C2PA manifest details where
         present. The PDF also records the Jura Trace version and the date and time of
         analysis.
       </p>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         Use the PDF report when you need a human-readable record to share with a colleague,
         attach to a story, or submit to an editorial standards process.
       </p>
@@ -953,12 +953,12 @@
       <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
         ZIP case export
       </h3>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-2">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-2">
         A compressed archive containing the original file, the PDF trust report, all
         forensic visualisation heatmaps, and a JSON file with the full machine-readable
         result data. This gives a complete, self-contained evidence bundle.
       </p>
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         Use the ZIP export when you are archiving a case, passing evidence to a legal team,
         or sharing a full investigation record with another analyst.
       </p>
@@ -1004,17 +1004,17 @@
     10. Document Analysis
   </h2>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     PDF documents are handled differently from image and video files. The image forensic
     pipeline (ELA, noise analysis, deepfake detection, and the regional detectors) does
     not apply to PDFs, because these analyses are designed for raster image data.
   </p>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     For a PDF, Jura Trace performs:
   </p>
 
-  <ul class="space-y-2 mb-6 text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+  <ul class="space-y-2 mb-6 text-sm text-text-light dark:text-quartz leading-relaxed">
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
       <span>
@@ -1035,14 +1035,14 @@
     </li>
   </ul>
 
-  <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     The trust score for a PDF is based entirely on provenance evidence: whether a valid C2PA
     manifest is present, whether the content hash matches, and whether the document metadata
     is internally consistent.
   </p>
 
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       A high trust score on a PDF confirms provenance integrity, meaning the document has not
       been modified since it was signed and the signing identity is declared. It does not
       indicate anything about the truthfulness of the document's contents.

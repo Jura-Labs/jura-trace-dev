@@ -28,7 +28,7 @@
     >
       How It Works
     </h1>
-    <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
+    <p class="text-base text-text-light dark:text-quartz leading-relaxed max-w-2xl">
       Jura Trace examines a file from several different angles at once,
       checking its credentials, its pixel-level structure, and whether it
       bears the hallmarks of AI generation. This page explains each layer
@@ -77,7 +77,7 @@
       1. What Jura Trace Checks
     </h2>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       When you drop a file into Jura Trace, it runs four broad categories of
       analysis simultaneously. Each one looks at a different layer of the file,
       from its signed credentials to the arrangement of individual pixels, so
@@ -93,7 +93,7 @@
           <h3 class="text-sm font-medium text-text-light dark:text-quartz mb-1">
             Provenance credentials
           </h3>
-          <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
             Some files carry a signed C2PA manifest, a tamper-evident record of
             who created the file, when, and with what tool. Jura Trace reads that
             manifest and checks the cryptographic signature. If the file has been
@@ -111,7 +111,7 @@
           <h3 class="text-sm font-medium text-text-light dark:text-quartz mb-1">
             Forensic signals
           </h3>
-          <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
             Genuine photographs have predictable noise patterns, consistent
             compression artefacts, and coherent lighting physics. Editing tools
             leave traces: inconsistent JPEG compression in a spliced region,
@@ -128,7 +128,7 @@
           <h3 class="text-sm font-medium text-text-light dark:text-quartz mb-1">
             AI-generation detection
           </h3>
-          <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
             AI image generators produce images in subtly different ways from
             cameras: characteristic frequency patterns in fine detail, distinctive
             colour statistics, and semantic compositions that differ from real
@@ -144,7 +144,7 @@
           <h3 class="text-sm font-medium text-text-light dark:text-quartz mb-1">
             Camera authenticity
           </h3>
-          <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
             Digital files carry embedded metadata (EXIF) that records the camera
             model, lens, GPS co-ordinates, and capture time. Jura Trace checks
             this metadata for internal contradictions. For example, a file
@@ -159,7 +159,7 @@
     </ul>
 
     <div class="bg-lapis/5 dark:bg-lapis/10 border border-lapis/20 dark:border-lapis/25 rounded-lg px-5 py-4">
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         All of this analysis happens entirely on your device. No file data is sent
         to any server. Jura Trace connects to the internet only if you explicitly
         request it for optional certificate verification.
@@ -183,7 +183,7 @@
       2. Why You See Two AI Checks
     </h2>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       In the results panel, you will see two separate entries under the
       AI-generation heading: <strong class="text-text-light dark:text-quartz">Machine learning classifier</strong> and
       <strong class="text-text-light dark:text-quartz">Visual embedding probe</strong>. This is intentional. The two
@@ -192,7 +192,7 @@
       alone could provide.
     </p>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       Consider the analogy of a second medical opinion. If you consult one
       doctor who specialises in blood chemistry and another who specialises in
       imaging scans, and both reach the same conclusion, you can be more confident
@@ -202,7 +202,7 @@
       here.
     </p>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-8">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-8">
       When both models agree that an image is authentic, the combined signal is
       stronger than either reading alone. When one flags concern and the other
       does not, the inconclusive result reflects a genuine uncertainty, not a
@@ -234,7 +234,7 @@
           <tr>
             <td class="py-3 pr-6 align-top">
               <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">What it looks for</p>
-              <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+              <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 Low-level image artefacts. JPEG compression patterns, noise
                 distribution, colour channel statistics, and 84 other measurable
                 signals extracted from the pixel data.
@@ -242,7 +242,7 @@
             </td>
             <td class="py-3 align-top">
               <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">What it looks for</p>
-              <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+              <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 High-level semantic patterns. What the image depicts and whether
                 the overall composition, textures, and spatial relationships match
                 the signature of AI-generated imagery rather than real-world
@@ -253,7 +253,7 @@
           <tr>
             <td class="py-3 pr-6 align-top">
               <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">When it helps most</p>
-              <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+              <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 Detecting AI images that have been re-saved, re-compressed, or
                 shared through social media. The pixel-level traces survive
                 moderate processing.
@@ -261,7 +261,7 @@
             </td>
             <td class="py-3 align-top">
               <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">When it helps most</p>
-              <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+              <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 Detecting AI images where pixel-level artefacts have been
                 smoothed away. The semantic pattern remains even when individual
                 pixel statistics have been normalised.
@@ -271,7 +271,7 @@
           <tr>
             <td class="py-3 pr-6 align-top">
               <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">Known limitations</p>
-              <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+              <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 May be less reliable on images from very recent AI generators not
                 yet represented in the training data, or on heavily cropped images
                 where the pixel-feature sample is small.
@@ -279,7 +279,7 @@
             </td>
             <td class="py-3 align-top">
               <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">Known limitations</p>
-              <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+              <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 May score some older diffusion-model images (e.g. early Stable
                 Diffusion) with lower confidence, and can be uncertain on
                 content types far from its training distribution (e.g. scanned
@@ -290,7 +290,7 @@
           <tr>
             <td class="py-3 pr-6 align-top">
               <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">Accuracy on photographs</p>
-              <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+              <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 <span class="tabular-nums">4.5%</span> false-positive rate
                 (real photographs incorrectly flagged as AI),
                 <span class="tabular-nums">92.5%</span> recall on AI-generated
@@ -303,7 +303,7 @@
             </td>
             <td class="py-3 align-top">
               <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">Accuracy on photographs</p>
-              <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+              <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 <span class="tabular-nums">3.9%</span> false-positive rate
                 (real photographs incorrectly flagged as AI),
                 <span class="tabular-nums">95.8%</span> recall on AI-generated
@@ -335,7 +335,7 @@
       </p>
     </div>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       For a full account of each model's training data, accuracy figures, and
       version history, see the
       <a
@@ -361,7 +361,7 @@
       3. What "Experimental" Means
     </h2>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       Some detectors in the results panel carry a small
       <span class="inline-flex items-center gap-1 align-middle">
         <span class="text-xs px-1.5 py-0.5 rounded border border-amber/40 dark:border-amber/50 text-amber-dark dark:text-amber-light bg-amber/5 dark:bg-amber/10 font-medium">Experimental</span>
@@ -372,7 +372,7 @@
       score at half weight while that calibration work continues.
     </p>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       Think of it this way: a detective who has worked a hundred cases similar to
       yours gets a full vote in the team discussion. A detective who is new to
       this type of case, but still sharp and genuinely helpful, gets half a
@@ -381,7 +381,7 @@
       in their judgement on this type of evidence is better calibrated.
     </p>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       In practice, this means an Experimental detector's finding can still shift
       the trust score and is always worth reading. Treat it as supporting
       evidence rather than a final determination. If an Experimental detector
@@ -428,7 +428,7 @@
       4. How the Trust Score Is Built
     </h2>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       Every detector that runs on a file casts a weighted vote. Detectors with
       a strong accuracy record on diverse content contribute more. Detectors still
       being calibrated (marked Experimental) contribute less. The votes are
@@ -437,7 +437,7 @@
       content.
     </p>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       A score above 71% is classified as
       <strong class="text-malachite-dark dark:text-malachite-light">Authentic</strong>.
       Between 40% and 70% it is
@@ -448,7 +448,7 @@
       closer examination is warranted.
     </p>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-6">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
       The trust score is a starting point for your judgement, not a verdict.
       Automated analysis can be wrong. High-quality AI images can pass, and
       unusual authentic photographs can fail. The score is designed to direct
@@ -456,7 +456,7 @@
       that humans stay in the loop.
     </p>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       For the exact weight assigned to each detector and the full scoring
       formula, see the
       <a
@@ -486,7 +486,7 @@
       5. When to Dig Deeper
     </h2>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-5">
       The top-level result gives you a quick orientation. In some situations,
       clicking through to the Level 3 detail panel (or using the on-demand
       investigation tools) is the right next step. Consider doing so when any
@@ -501,7 +501,7 @@
           <p class="text-sm font-medium text-text-light dark:text-quartz mb-0.5">
             Trust score is between 40% and 70%
           </p>
-          <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
             An inconclusive score means the detectors are not in strong agreement.
             The Level 3 panel breaks down each detector's individual finding so you
             can see which signals are pulling the score in opposite directions.
@@ -515,7 +515,7 @@
           <p class="text-sm font-medium text-text-light dark:text-quartz mb-0.5">
             Any detector shows a "Suspicious" label
           </p>
-          <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
             A Suspicious finding from a single detector is worth reading even if
             the overall score is high. One strong signal can indicate a targeted
             manipulation that other detectors are not sensitive to.
@@ -529,7 +529,7 @@
           <p class="text-sm font-medium text-text-light dark:text-quartz mb-0.5">
             Provenance chain is broken or absent
           </p>
-          <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
             If the file carries a C2PA manifest but the signature has failed
             verification, or if no manifest is present on a file that claims
             a credentialled source, the forensic results take on greater
@@ -545,7 +545,7 @@
           <p class="text-sm font-medium text-text-light dark:text-quartz mb-0.5">
             Camera authenticity fails
           </p>
-          <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
             EXIF anomaly findings can indicate metadata that has been manually
             written rather than captured by a device. Read the individual
             anomaly entries. Each one describes exactly which inconsistency
@@ -562,7 +562,7 @@
           <p class="text-sm font-medium text-text-light dark:text-quartz mb-0.5">
             The two AI checks disagree
           </p>
-          <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
             When the Machine learning classifier and the Visual embedding probe
             reach different conclusions, that disagreement is itself a signal.
             It does not mean one model is wrong. It means the image sits in an
@@ -576,7 +576,7 @@
     </ul>
 
     <div class="bg-lapis/5 dark:bg-lapis/10 border border-lapis/20 dark:border-lapis/25 rounded-lg px-5 py-4">
-      <p class="text-sm text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         The on-demand investigation tools (Noise Pattern Analysis, Shadow
         Consistency, and Splice Boundary) do not run automatically and do not
         affect the trust score. They are available in the Level 3 panel for

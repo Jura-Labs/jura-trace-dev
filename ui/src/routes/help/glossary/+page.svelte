@@ -22,7 +22,7 @@
   <h1 class="text-3xl font-heading text-text-light dark:text-text-dark tracking-heading mb-3">
     Glossary
   </h1>
-  <p class="text-base text-flint-dark dark:text-flint-light leading-relaxed max-w-2xl">
+  <p class="text-base text-text-light dark:text-quartz leading-relaxed max-w-2xl">
     Technical terms used throughout Jura Trace, explained in plain language.
   </p>
 </header>
@@ -94,7 +94,7 @@
           id="term-ahash"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >aHash <span class="font-normal text-flint-dark dark:text-flint-light">(Average Hash)</span></dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A perceptual hashing algorithm that reduces an image to an 8×8 greyscale grid and
           compares the average brightness of each cell. Fast to compute and effective for
           near-duplicate detection. Jura Trace computes aHash alongside dHash and pHash to
@@ -107,7 +107,7 @@
           id="term-authentic"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Authentic <span class="font-normal text-flint-dark dark:text-flint-light">(Verdict)</span></dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           The verdict assigned when no forensic detectors flag significant anomalies and
           the deepfake ensemble score falls below 0.30. An Authentic verdict does not
           guarantee the content is unmanipulated, it means automated analysis found no
@@ -132,7 +132,7 @@
           id="term-c2pa"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >C2PA <span class="font-normal text-flint-dark dark:text-flint-light">(Coalition for Content Provenance and Authenticity)</span></dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           An open technical standard for embedding cryptographic provenance metadata
           (provenance manifests) directly into digital files. Supported by Adobe, Microsoft,
           and major camera manufacturers. C2PA manifests record who created or edited a
@@ -146,7 +146,7 @@
           id="term-clip"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >CLIP <span class="font-normal text-flint-dark dark:text-flint-light">(Contrastive Language-Image Pre-training)</span></dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A neural network trained to understand images and text jointly. Jura Trace uses an
           open-source implementation (open_clip ViT-B/32) for zero-shot AI/authentic
           classification without requiring task-specific training data. Optional: requires
@@ -159,7 +159,7 @@
           id="term-composite"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Composite</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           An image created by combining elements from multiple source images. Composite
           detection is the purpose of Jura Trace's regional forensic detectors: segmented
           ELA, shadow consistency, colour temperature, and splice boundary analysis. When
@@ -173,7 +173,7 @@
           id="term-c2pa-provenance"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >C2PA Provenance Manifest</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           The cryptographic provenance metadata embedded in a file under the open
           <a
             href="https://c2pa.org/"
@@ -199,7 +199,7 @@
           id="term-copy-move"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Copy-Move Detection</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A forensic technique that searches for duplicated regions within a single image.
           Clone-stamp tools and copy-paste manipulation leave regions that are identical
           (or near-identical) to other parts of the same image. Jura Trace detects these
@@ -224,7 +224,7 @@
           id="term-deep-mode"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Deep Mode</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           An investigation mode that runs the full forensic pipeline including all regional
           detectors: segmented ELA, shadow consistency, colour temperature, and splice
           boundary. More thorough than Standard mode. Typical analysis time: 30–60 seconds
@@ -237,7 +237,7 @@
           id="term-deepfake"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Deepfake</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           Synthetic or manipulated media created using artificial intelligence. The term
           originally referred to face-swapped video but now broadly covers AI-generated
           images, video, and audio. Jura Trace's deepfake detection ensemble combines eight
@@ -251,7 +251,7 @@
           id="term-dhash"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >dHash <span class="font-normal text-flint-dark dark:text-flint-light">(Difference Hash)</span></dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A perceptual hashing algorithm that compares adjacent pixel brightness differences
           rather than absolute values. More sensitive to structural changes (such as
           cropping or content removal) than aHash. Used alongside aHash and pHash in
@@ -264,7 +264,7 @@
           id="term-dwt-dct-svd"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >DWT-DCT-SVD</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A frequency-domain invisible watermarking technique using three sequential
           transforms: Discrete Wavelet Transform, Discrete Cosine Transform, and Singular
           Value Decomposition. The embedded signal typically survives JPEG compression at
@@ -290,7 +290,7 @@
           id="term-ela"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >ELA <span class="font-normal text-flint-dark dark:text-flint-light">(Error Level Analysis)</span></dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A forensic technique that re-compresses an image at a known quality level and
           measures the difference between the re-compressed and original versions. Regions
           with a different compression history (such as content pasted from another source
@@ -305,7 +305,7 @@
           id="term-exif"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >EXIF <span class="font-normal text-flint-dark dark:text-flint-light">(Exchangeable Image File Format)</span></dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           Metadata embedded in image files by cameras and editing software. Includes camera
           make and model, capture date and time, GPS coordinates, resolution, exposure
           settings, and software modification history. Jura Trace evaluates 12 EXIF anomaly
@@ -331,7 +331,7 @@
           id="term-fingerprint"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Fingerprint</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A compact numerical representation of an image's visual content, computed using
           perceptual hashing. See
           <a href="#term-perceptual-hash" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis dark:decoration-lapis-light/30 dark:hover:decoration-lapis-light">Perceptual Hash</a>.
@@ -358,7 +358,7 @@
           id="term-gbm"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >GBM <span class="font-normal text-flint-dark dark:text-flint-light">(Gradient Boosted Machine)</span></dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           The machine learning classifier at the centre of Jura Trace's AI detection
           ensemble. Current version is <strong>GBM v4</strong>, trained on an
           84-feature vector extracted from the forensic signal pipeline using a
@@ -388,7 +388,7 @@
           id="term-inconclusive"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Inconclusive <span class="font-normal text-flint-dark dark:text-flint-light">(Verdict)</span></dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           The verdict assigned when forensic signals are mixed or insufficient to reach a
           confident classification. Corresponds to a deepfake ensemble score between 0.30
           and 0.65. Inconclusive is the most common outcome for legitimate photographs that
@@ -415,7 +415,7 @@
           id="term-jpeg-ghost"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >JPEG Ghost</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A forensic technique that detects double JPEG compression. When a region from one
           JPEG is pasted into another and the combined image is re-saved, the spliced region
           retains artefacts from its original compression quality level. Comparing the image
@@ -441,7 +441,7 @@
           id="term-lbp"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >LBP <span class="font-normal text-flint-dark dark:text-flint-light">(Local Binary Pattern)</span></dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A texture descriptor that encodes the relationship between each pixel and its
           immediate neighbours as a binary string. Natural photographs have characteristic
           LBP distributions; AI-generated images often produce measurably different ones.
@@ -469,7 +469,7 @@
           id="term-manifest"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Manifest</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           In C2PA terminology, the cryptographic record embedded in a file that describes
           its provenance: who created it, when, with what tools, and what edits were made.
           A manifest is cryptographically signed so that any subsequent modification to the
@@ -496,7 +496,7 @@
           id="term-noise-analysis"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Noise Analysis</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           Examination of the random grain pattern in an image, produced by a camera's image
           sensor. Natural photographs have a consistent, spatially uniform noise signature.
           AI-generated images often exhibit unnaturally smooth regions, inconsistent noise
@@ -511,7 +511,7 @@
           id="term-npr"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >NPR <span class="font-normal text-flint-dark dark:text-flint-light">(Neighbouring Pixel Relationships)</span></dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A forensic technique that analyses the statistical relationships between adjacent
           pixels. Natural photographs captured through a lens and sensor have characteristic
           NPR patterns: spatial correlations that AI generation tends to disrupt. Jura Trace
@@ -537,7 +537,7 @@
           id="term-ollama"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Ollama</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A local large language model runtime used optionally by Jura Trace. When Ollama
           is running in v1.0, it enables AI-generated image descriptions and Read Text
           extraction via the LLaVA vision model. All inference runs entirely on your
@@ -563,7 +563,7 @@
           id="term-perceptual-hash"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Perceptual Hash <span class="font-normal text-flint-dark dark:text-flint-light">(pHash)</span></dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A fingerprinting technique that creates a compact numerical representation of an
           image's visual content. Unlike cryptographic hashes (where a single changed pixel
           produces a completely different hash), perceptual hashes remain similar when an
@@ -579,7 +579,7 @@
           id="term-provenance"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Provenance</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           The documented history of a piece of content: who created it, how it has been
           modified, and where it has been. Provenance is the bedrock of trust in digital
           media. C2PA provenance manifests are the primary provenance mechanism in Jura Trace,
@@ -605,7 +605,7 @@
           id="term-rag"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >RAG <span class="font-normal text-flint-dark dark:text-flint-light">(Retrieval-Augmented Generation)</span></dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A technique that combines a large language model with a searchable knowledge base
           to verify factual claims. The RAG-based Knowledge Base Retrieval feature is
           deferred from v1.0 pending corpus expansion and formal accuracy evaluation,
@@ -630,7 +630,7 @@
           id="term-segmented-ela"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Segmented ELA</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           An enhanced version of Error Level Analysis that divides the image into an 8×8
           grid and analyses each region independently. Localised manipulation that a
           whole-image ELA might average out (for example, a small pasted element in a
@@ -644,7 +644,7 @@
           id="term-shadow-consistency"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Shadow Consistency</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A forensic technique that analyses light direction across different image regions
           using gradient-weighted calculations. In a genuine photograph, shadows and
           highlights point toward the same light source throughout the frame. Composited
@@ -658,7 +658,7 @@
           id="term-sidecar"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Analysis Engine</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           The forensic analysis service that runs alongside the Jura Trace desktop
           application on a local loopback port chosen at startup. Handles computationally
           intensive forensic analysis: ELA, noise, copy-move, deepfake detection
@@ -676,7 +676,7 @@
           id="term-splice-boundary"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Splice Boundary</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A forensic technique that examines edges within an image for three distinct
           manipulation signals: JPEG compression grid discontinuities, noise level changes
           at boundaries, and feathering artefacts consistent with soft-selection pasting.
@@ -690,7 +690,7 @@
           id="term-standard-mode"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Standard Mode</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           The default investigation mode. Runs EXIF anomaly analysis, C2PA manifest
           verification, whole-image ELA, noise analysis, copy-move detection, and the
           deepfake ensemble. Typically completes in 10–20 seconds. Regional detectors
@@ -704,7 +704,7 @@
           id="term-synthetic"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Synthetic <span class="font-normal text-flint-dark dark:text-flint-light">(Verdict)</span></dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           The verdict assigned when multiple forensic detectors flag strong AI generation
           or manipulation signals and the deepfake ensemble score exceeds 0.65. Indicates
           high confidence that the content was artificially generated or significantly
@@ -730,7 +730,7 @@
           id="term-temporal-consistency"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Temporal Consistency</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           In video deepfake analysis, a measure of how forensic signals change between
           frames over time. Genuine video has consistent noise patterns, spectral
           characteristics, and LBP texture distributions across frames. Deepfake video
@@ -745,7 +745,7 @@
           id="term-trust-score"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Trust Score</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A percentage from 0% to 100% reflecting how many forensic signals indicate
           authentic content. Computed from two weighted components: EXIF metadata analysis
           (40% weight) and the forensic signal pipeline (60% weight). A high trust score
@@ -774,7 +774,7 @@
           id="term-verdict"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Verdict</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           The three-way classification assigned to verified content:
           <a href="#term-authentic" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis dark:decoration-lapis-light/30 dark:hover:decoration-lapis-light">Authentic</a>,
           <a href="#term-inconclusive" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis dark:decoration-lapis-light/30 dark:hover:decoration-lapis-light">Inconclusive</a>,
@@ -804,7 +804,7 @@
           id="term-watermark"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Watermark (Invisible)</dt>
-        <dd class="mt-1 text-sm text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A signal embedded in the frequency domain of an image using the
           <a href="#term-dwt-dct-svd" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis dark:decoration-lapis-light/30 dark:hover:decoration-lapis-light">DWT-DCT-SVD</a>
           technique. Invisible to the human eye, the watermark carries a short payload that
