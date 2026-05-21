@@ -569,8 +569,8 @@ test.describe('DetectorRow — prop-matrix', () => {
     // We assert by selecting the <li> containing the title.
     const elaTitle = cardBody.getByText('Error Level Analysis').first();
     await expect(elaTitle).toBeVisible();
-    // Title text colour switches to amber-light when suspicious.
-    await expect(elaTitle).toHaveClass(/text-amber-light/);
+    // Title text colour switches to amber-dark when suspicious.
+    await expect(elaTitle).toHaveClass(/text-amber-dark/);
   });
 
   test('row title is neutral when not suspicious', async ({ page }) => {
@@ -586,7 +586,7 @@ test.describe('DetectorRow — prop-matrix', () => {
     const cardBody = page.locator('#card-integrity-body');
     const elaTitle = cardBody.getByText('Error Level Analysis').first();
     await expect(elaTitle).toHaveClass(/text-obsidian|text-quartz/);
-    await expect(elaTitle).not.toHaveClass(/text-amber-light/);
+    await expect(elaTitle).not.toHaveClass(/text-amber-dark/);
   });
 
   test('badges slot renders the experimental pill on JPEG Ghost', async ({ page }) => {

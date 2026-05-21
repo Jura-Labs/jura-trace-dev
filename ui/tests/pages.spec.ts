@@ -31,7 +31,7 @@ test.describe('Page smoke tests', () => {
       const chaptersSection = page.locator('section[aria-label="What you can do"]');
       await expect(chaptersSection).toBeVisible();
 
-      await expect(chaptersSection.getByRole('link', { name: /Sign your work with Content Credentials/i })).toBeVisible();
+      await expect(chaptersSection.getByRole('link', { name: /Sign your work with a C2PA provenance manifest/i })).toBeVisible();
       await expect(chaptersSection.getByRole('link', { name: /Check what you're looking at/i })).toBeVisible();
     });
   });
@@ -151,7 +151,7 @@ test.describe('Page smoke tests', () => {
     test('shows Ollama Configuration heading', async ({ page }) => {
       await page.goto('/settings');
       const ollamaHeading = page.locator('#ollama-heading');
-      await expect(ollamaHeading).toBeVisible();
+      await expect(ollamaHeading).not.toBeVisible();  // v1.0: V1_SHOW_AI_DESCRIPTION + V1_SHOW_READ_TEXT both false
       await expect(ollamaHeading).toHaveText('AI Assistant (Ollama)');
     });
   });

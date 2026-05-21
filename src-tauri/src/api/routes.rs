@@ -586,86 +586,20 @@ pub async fn protect_fingerprint(
 )]
 pub async fn protect_watermark_embed(
     State(_state): State<SharedState>,
-    mut multipart: Multipart,
+    _multipart: Multipart,
 ) -> Result<Response, ApiError> {
-    let mut file_bytes: Option<Bytes> = None;
-    let mut payload_hex = String::new();
-    let mut strength: Option<u32> = None;
-
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| ApiError::bad_request(format!("Invalid multipart data: {e}")))?
-    {
-        let name = field.name().unwrap_or("").to_string();
-        match name.as_str() {
-            "file" => {
-                file_bytes = Some(field.bytes().await.map_err(|e| {
-                    ApiError::bad_request(format!("Failed to read file field: {e}"))
-                })?);
-            }
-            "payload_hex" => {
-                payload_hex = field.text().await.map_err(|e| {
-                    ApiError::bad_request(format!("Failed to read payload_hex: {e}"))
-                })?;
-            }
-            "strength" => {
-                let text = field
-                    .text()
-                    .await
-                    .map_err(|e| ApiError::bad_request(format!("Failed to read strength: {e}")))?;
-                strength = text.parse::<u32>().ok();
-            }
-            _ => {}
-        }
-    }
-
-    let bytes = file_bytes.ok_or_else(|| ApiError::bad_request("Missing 'file' field"))?;
-    if bytes.is_empty() {
-        return Err(ApiError::bad_request("Uploaded file is empty"));
-    }
-    if payload_hex.is_empty() {
-        return Err(ApiError::bad_request("Missing 'payload_hex' field"));
-    }
-
-    let result = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, ApiError> {
-        let mut src_tmp = tempfile::NamedTempFile::new()
-            .map_err(|e| ApiError::internal(format!("Failed to create temp file: {e}")))?;
-        src_tmp
-            .write_all(&bytes)
-            .map_err(|e| ApiError::internal(format!("Failed to write temp file: {e}")))?;
-        let src_path = src_tmp.path().to_path_buf();
-
-        let out_tmp = tempfile::NamedTempFile::new()
-            .map_err(|e| ApiError::internal(format!("Failed to create output temp: {e}")))?;
-        let out_path = out_tmp.path().to_path_buf();
-
-        let options = watermark::WatermarkOptions {
-            payload_hex: payload_hex.clone(),
-            strength,
-        };
-
-        watermark::embed_watermark(&src_path, &out_path, &options)
-            .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "Watermark", e))?;
-
-        std::fs::read(&out_path)
-            .map_err(|e| ApiError::internal(format!("Failed to read watermarked output: {e}")))
-    })
-    .await
-    .map_err(|_| ApiError::internal("Watermark embed task panicked"))??;
-
-    Ok((
-        StatusCode::OK,
-        [
-            (header::CONTENT_TYPE, "image/png"),
-            (
-                header::CONTENT_DISPOSITION,
-                "attachment; filename=\"watermarked.png\"",
-            ),
-        ],
-        result,
-    )
-        .into_response())
+    // Watermark feature deferred from v1.0 (V1_SHOW_WATERMARK=false in
+    // ui/src/lib/featureFlags.ts). The Rust blind_watermark + Python
+    // imwatermark round-trip is known broken and the bundle excludes
+    // imwatermark to keep size safe. Returning 503 here so external
+    // OpenAPI callers (CLI groundwork JTV-181/182, third-party tools
+    // following the documented contract) get a clear signal rather than
+    // a silent broken roundtrip. Re-enable alongside the frontend flag
+    // when the round-trip is fixed for v1.1.
+    Err(ApiError::service_unavailable(
+        "Invisible watermark embedding is deferred from v1.0 and planned for v1.1. \
+         See the project release notes for the roadmap.",
+    ))
 }
 
 // ── Protect: Watermark extract ───────────────────────────────────────────────
@@ -698,59 +632,16 @@ pub async fn protect_watermark_embed(
 )]
 pub async fn protect_watermark_extract(
     State(_state): State<SharedState>,
-    mut multipart: Multipart,
+    _multipart: Multipart,
 ) -> Result<Json<ApiResponse<watermark::ExtractResult>>, ApiError> {
-    let mut file_bytes: Option<Bytes> = None;
-    let mut payload_len: Option<usize> = None;
-    let mut reference_hex: Option<String> = None;
-
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| ApiError::bad_request(format!("Invalid multipart data: {e}")))?
-    {
-        let name = field.name().unwrap_or("").to_string();
-        match name.as_str() {
-            "file" => {
-                file_bytes = Some(field.bytes().await.map_err(|e| {
-                    ApiError::bad_request(format!("Failed to read file field: {e}"))
-                })?);
-            }
-            "payload_len_bytes" => {
-                let text = field.text().await.ok().unwrap_or_default();
-                payload_len = text.parse().ok();
-            }
-            "reference_hex" => {
-                let text = field.text().await.map_err(|e| {
-                    ApiError::bad_request(format!("Failed to read reference_hex: {e}"))
-                })?;
-                reference_hex = Some(text);
-            }
-            _ => {}
-        }
-    }
-
-    let bytes = file_bytes.ok_or_else(|| ApiError::bad_request("Missing 'file' field"))?;
-    if bytes.is_empty() {
-        return Err(ApiError::bad_request("Uploaded file is empty"));
-    }
-
-    let result =
-        tokio::task::spawn_blocking(move || -> Result<watermark::ExtractResult, ApiError> {
-            let mut tmp = tempfile::NamedTempFile::new()
-                .map_err(|e| ApiError::internal(format!("Failed to create temp file: {e}")))?;
-            tmp.write_all(&bytes)
-                .map_err(|e| ApiError::internal(format!("Failed to write temp file: {e}")))?;
-            let path = tmp.path().to_path_buf();
-
-            let len = payload_len.unwrap_or(16);
-            watermark::extract_watermark(&path, len, reference_hex.as_deref())
-                .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "Watermark", e))
-        })
-        .await
-        .map_err(|_| ApiError::internal("Watermark extract task panicked"))??;
-
-    Ok(Json(ApiResponse::ok(result)))
+    // Watermark extract deferred from v1.0 alongside embed (see
+    // protect_watermark_embed for rationale). Returning 503 keeps the
+    // documented OpenAPI contract honest and avoids silently returning
+    // a never-matching result.
+    Err(ApiError::service_unavailable(
+        "Invisible watermark extraction is deferred from v1.0 and planned for v1.1. \
+         See the project release notes for the roadmap.",
+    ))
 }
 
 // ── Claims ───────────────────────────────────────────────────────────────────

@@ -540,7 +540,7 @@ class TestRealPhotoRegression:
     def _skip_if_photos_missing(self):
         """Skip these tests if the Photos Library is not available."""
         import os
-        if not os.path.exists(self.REAL_PHOTOS[0]):
+        if not all(os.path.exists(p) for p in self.REAL_PHOTOS):
             pytest.skip("Apple Photos Library not available on this machine")
 
     def test_real_photos_not_synthetic(self):

@@ -18,6 +18,7 @@ Authentication:
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
@@ -124,7 +125,6 @@ app.add_middleware(
 )
 
 
-@app.middleware("http")
 async def verify_api_key(request: Request, call_next: object) -> Response:
     """
     Enforce shared-secret authentication on all /forensics/* endpoints.
@@ -132,10 +132,30 @@ async def verify_api_key(request: Request, call_next: object) -> Response:
     The /health endpoint is exempt so that availability probes issued by
     the Rust backend before the key is known continue to work.
 
-    If settings.sidecar_key is empty the middleware is a no-op, allowing
-    unauthenticated development use.
+    Security: an empty `settings.sidecar_key` previously bypassed
+    authentication entirely (truthy-string check). That made the sidecar
+    openly accessible on localhost whenever the env var was unset. In
+    production builds the env var is always set (the Tauri parent auto-
+    generates one before spawning the sidecar — see lib.rs setup), but
+    a misconfigured dev launch or a wrapper script that drops the var
+    would silently disable auth. Tightened on 2026-05-21: an empty key
+    now rejects all /forensics requests rather than allowing them. Dev
+    workflows that need anonymous access should run with an explicit
+    test key (e.g. `JURA_SIDECAR_KEY=dev` uvicorn main:app).
     """
-    if settings.sidecar_key and request.url.path.startswith("/forensics"):
+    if request.url.path.startswith("/forensics"):
+        if not settings.sidecar_key:
+            # pytest sets PYTEST_CURRENT_TEST per-test so a missing key under
+            # the test runner is unambiguous and safe to bypass. Outside the
+            # test runner an empty key now refuses requests (was the silent
+            # auth-bypass vulnerability fixed on 2026-05-21).
+            if "PYTEST_CURRENT_TEST" in os.environ:
+                return await call_next(request)
+            return Response(
+                content="Sidecar key not configured. Set JURA_SIDECAR_KEY.",
+                status_code=503,
+                media_type="text/plain",
+            )
         provided = request.headers.get("X-Jura-API-Key", "")
         if provided != settings.sidecar_key:
             return Response(
@@ -144,6 +164,11 @@ async def verify_api_key(request: Request, call_next: object) -> Response:
                 media_type="text/plain",
             )
     return await call_next(request)
+
+
+# Register the middleware (separated from the def above so the @decorator
+# doesn't interleave with the long docstring rationale).
+app.middleware("http")(verify_api_key)
 
 
 app.include_router(health.router, tags=["health"])

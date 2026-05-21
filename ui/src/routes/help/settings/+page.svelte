@@ -9,9 +9,8 @@
     Application Settings
   </h1>
   <p class="text-base text-text-light dark:text-quartz leading-relaxed max-w-2xl">
-    The Settings page lets you configure Ollama for AI-assisted analysis, manage named
-    deployment profiles, check service health, choose where your local database is stored,
-    review your licence tier, and review licence and version information.
+    The Settings page lets you manage named deployment profiles, check service health,
+    choose where your local database is stored, and review licence and version information.
   </p>
 </header>
 
@@ -256,7 +255,7 @@
           <tbody class="text-flint-dark dark:text-flint-light">
             <tr class="border-b border-border-light/50 dark:border-border-dark/50">
               <td class="py-2 pr-4 font-semibold text-malachite-dark dark:text-malachite-light">Online</td>
-              <td class="py-2">Ollama is running and at least one model is available. Tier 3 image descriptions and Read Text are enabled.</td>
+              <td class="py-2">Ollama is running and at least one model is available. AI-assisted features are reserved for v1.0.1. All current v1.0 analysis continues normally.</td>
             </tr>
             <tr>
               <td class="py-2 pr-4 font-semibold text-cinnabar-dark dark:text-cinnabar-light">Unavailable</td>

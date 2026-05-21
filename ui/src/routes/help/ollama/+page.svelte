@@ -17,13 +17,13 @@
       Ollama
       <span class="ml-2 align-middle text-sm font-normal text-flint-dark dark:text-flint-light">(optional)</span>
     </h1>
-    <p class="text-base text-text-light dark:text-quartz leading-relaxed">
-      Ollama runs an optional feature locally on your machine in v1.0: AI-generated
-      image descriptions and "Read Text" extraction from images (LLaVA).
-      <strong class="text-text-light dark:text-text-dark">Jura Trace works fully without Ollama.</strong>
-      All forensic detectors, AI deepfake detection (GBM v4 + UnivFD v10onnx), C2PA
-      provenance, and watermarking run independently.
-    </p>
+    <p class="text-base text-text-light dark:text-quartz leading-relaxed mb-4">
+    Ollama is a local LLM runtime. Jura Trace v1.0 ships with no Ollama-dependent
+    features enabled. AI-assisted image descriptions and OCR are deferred to v1.0.1,
+    where a single multimodal model will replace separate LLaVA + Qwen2.5 installs.
+    The install instructions below are preparation for v1.0.1; you do not need Ollama
+    for v1.0.
+  </p>
   </header>
 
   <div class="earth-line mb-8" role="separator" aria-hidden="true"></div>

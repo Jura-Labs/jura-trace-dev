@@ -310,7 +310,7 @@
     </p>
 
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
-      The reference is divided into two groups. The eleven <strong class="text-text-light dark:text-quartz font-medium">automatic detectors</strong>
+      The reference is divided into two groups. The ten <strong class="text-text-light dark:text-quartz font-medium">automatic detectors</strong>
       run on every verification at the mode indicated in each entry's
       <em>Active in modes</em> line. Their findings feed into the numeric trust
       score. A twelfth detector (Video Deepfake) is <strong class="text-text-light dark:text-quartz font-medium">not in v1.0 scope</strong>

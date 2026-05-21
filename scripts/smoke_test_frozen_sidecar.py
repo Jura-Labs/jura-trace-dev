@@ -150,7 +150,7 @@ def wait_for_health(port: int, timeout: float = 60.0) -> dict | None:
     return None
 
 
-def post_image(port: int, endpoint: str, image_bytes: bytes) -> tuple[int, str]:
+def post_image(port: int, endpoint: str, image_bytes: bytes, api_key: str = "") -> tuple[int, str]:
     """POST a multipart upload with a single file field. Returns (status, body)."""
     boundary = "----jurasmokeboundary"
     body = (
@@ -159,10 +159,14 @@ def post_image(port: int, endpoint: str, image_bytes: bytes) -> tuple[int, str]:
         "Content-Type: image/jpeg\r\n\r\n"
     ).encode("utf-8") + image_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
 
+    headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
+    if api_key:
+        headers["X-Jura-API-Key"] = api_key
+
     req = urllib.request.Request(
         f"http://127.0.0.1:{port}{endpoint}",
         data=body,
-        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        headers=headers,
         method="POST",
     )
     try:
@@ -205,7 +209,15 @@ def main(argv: list[str]) -> int:
 
     port = find_free_port()
     env = os.environ.copy()
-    env.pop("JURA_SIDECAR_KEY", None)  # smoke test runs without auth
+    # Generate a session-only key for the smoke test. The 2026-05-21 security
+    # hardening of the auth middleware refuses /forensics requests when
+    # JURA_SIDECAR_KEY is empty (previously bypassed auth, a quiet
+    # vulnerability if a wrapper script dropped the env var). The smoke
+    # test now sets its own per-run key and passes it on every request.
+    import secrets as _secrets
+
+    smoke_key = _secrets.token_hex(32)
+    env["JURA_SIDECAR_KEY"] = smoke_key
 
     print(f"INFO: starting bundled sidecar at {binary} on port {port}")
     proc = subprocess.Popen(
@@ -234,7 +246,7 @@ def main(argv: list[str]) -> int:
             if not value:
                 print(f"SKIP {endpoint} ({capability}=false)")
                 continue
-            status, body = post_image(port, endpoint, image_bytes)
+            status, body = post_image(port, endpoint, image_bytes, smoke_key)
             ok, reason = check_response(endpoint, status, body)
             tag = "PASS" if ok else "FAIL"
             print(f"{tag} {endpoint}: {reason if not ok else f'HTTP {status}'}")

@@ -261,7 +261,7 @@
         spec 2.2), awarded 6 May 2026 and listed on the C2PA Conforming Products
         List from 31 May 2026. Generator-track conformance, which would cover the
         signing side of the dual-mode architecture under Conformant, is a separate
-        award under evaluation for a future release. Neither award is required for
+        Generator-track conformance for the signing path is under evaluation for a future release. Verification is already C2PA Validator-Conformant. Neither award is required for
         Local Signing, which operates entirely outside the conformance programme's
         trust model by design.
       </p>

@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# OSV-Scanner — supply-chain vulnerability scan across every lockfile in the
+# repo (Rust Cargo.lock, npm package-lock.json, Python requirements*.txt).
+# Runs on pull requests against main, on push to main, and on a weekly cron
+# so newly disclosed advisories surface even when the codebase is quiet.
+#
+# Why this is in addition to pip-audit + cargo-audit (in ci.yml):
+#   - pip-audit and cargo-audit each speak their own native ecosystem.
+#   - OSV pulls from the full OSV.dev database (GHSA, RUSTSEC, PYSEC, NPM,
+#     GO, Maven, Packagist, etc.) in one pass and posts a single SARIF
+#     report into the Security tab.
+#   - Defence in depth: any one feed could miss an advisory; running both
+#     OSV and the native scanners gives us overlapping coverage.
+
+name: OSV-Scanner
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # 03:17 UTC every Monday. Off-peak; avoids the on-the-hour stampede.
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write  # required to upload SARIF
+  actions: read
+
+jobs:
+  scan:
+    name: Scan lockfiles
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run OSV-Scanner
+        uses: google/osv-scanner-action/osv-scanner-action@v2.0.0
+        with:
+          scan-args: |-
+            --recursive
+            --skip-git
+            --format=sarif
+            --output=osv-results.sarif
+            ./
+        continue-on-error: true
+
+      - name: Upload SARIF to code-scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: osv-results.sarif
+          category: osv-scanner

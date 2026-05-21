@@ -64,7 +64,7 @@
     <li>
       <a href="#url-watchlist"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        7. URL Watchlist
+        7. Watched Locations
       </a>
     </li>
     <li>
@@ -419,7 +419,7 @@
       </h3>
       <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         Filter by the category of action: <strong class="text-text-light dark:text-text-dark">Protect</strong>
-        (imports, signing, watermarking),
+        (imports, signing),
         <strong class="text-text-light dark:text-text-dark">Verify</strong>
         (file, URL, and batch verifications), or
         <strong class="text-text-light dark:text-text-dark">Database</strong>
@@ -530,7 +530,7 @@
       <tbody class="text-flint-dark dark:text-flint-light">
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4">Republication of the original file on a website</td>
-          <td class="py-2 text-malachite-dark dark:text-malachite-light">✓ Via URL Watchlist: re-verify registered URLs on demand</td>
+          <td class="py-2 text-malachite-dark dark:text-malachite-light">✓ Via Watched Locations: re-verify registered URLs on demand</td>
         </tr>
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4">Metadata stripping before redistribution</td>
@@ -570,15 +570,15 @@
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
-     7. URL Watchlist
+     7. Watched Locations
      ══════════════════════════════════════════════════════════════════ -->
 <section id="url-watchlist" class="mb-12" aria-labelledby="heading-url-watchlist">
   <h2 id="heading-url-watchlist" class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    7. URL Watchlist
+    7. Watched Locations
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    The URL Watchlist lets you register public URLs for on-demand re-verification. Once a
+    The Watched Locations lets you register public URLs for on-demand re-verification. Once a
     URL is added, Jura Trace re-runs C2PA manifest verification and watermark extraction
     against it each time you trigger a check, logging the result in the Activity Record.
     All checking runs entirely on your device, with no cloud infrastructure involved.

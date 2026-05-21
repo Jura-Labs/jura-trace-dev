@@ -337,7 +337,7 @@
               <svg class="flex-shrink-0 w-4 h-4 text-malachite-light" fill="none" viewBox="0 0 16 16" aria-hidden="true">
                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l3 3 7-7" />
               </svg>
-              <span class="text-sm text-quartz">Core verification: C2PA, EXIF, perceptual hash, watermark</span>
+              <span class="text-sm text-quartz">Core verification: C2PA, EXIF, perceptual hash</span>
             </li>
 
             <!-- Forensic analysis -->

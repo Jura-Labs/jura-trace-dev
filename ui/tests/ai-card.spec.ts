@@ -645,7 +645,7 @@ test.describe('AI card — AiDetectorRow chrome', () => {
     });
   });
 
-  test('GBM row gets amber-light title when suspicious', async ({ page }) => {
+  test('GBM row gets amber-dark title (light-mode WCAG fix) when suspicious', async ({ page }) => {
     const r = baseResult();
     r.deepfakeResult = gbmFixture({
       score: 0.73,
@@ -658,10 +658,10 @@ test.describe('AI card — AiDetectorRow chrome', () => {
       .locator('#card-ai-body')
       .getByText('Machine learning classifier')
       .first();
-    await expect(title).toHaveClass(/text-amber-light/);
+    await expect(title).toHaveClass(/text-amber-dark/);
   });
 
-  test('CLIP row gets amber-light title when verdictLevel synthetic', async ({ page }) => {
+  test('CLIP row gets amber-dark title (light-mode WCAG fix) when verdictLevel synthetic', async ({ page }) => {
     const r = baseResult();
     r.clipResult = clipFixture({ score: 0.87, verdictLevel: 'synthetic' });
     await injectAndOpenAiCard(page, r);
@@ -670,7 +670,7 @@ test.describe('AI card — AiDetectorRow chrome', () => {
       .locator('#card-ai-body')
       .getByText('Visual embedding probe')
       .first();
-    await expect(title).toHaveClass(/text-amber-light/);
+    await expect(title).toHaveClass(/text-amber-dark/);
   });
 
   test('CLIP row gets neutral title when verdictLevel inconclusive', async ({ page }) => {
@@ -684,7 +684,7 @@ test.describe('AI card — AiDetectorRow chrome', () => {
       .first();
     // Inconclusive maps to suspicious=false in the AI card's
     // current convention (the verdict text is the differentiator).
-    await expect(title).not.toHaveClass(/text-amber-light/);
+    await expect(title).not.toHaveClass(/text-amber-dark/);
   });
 });
 

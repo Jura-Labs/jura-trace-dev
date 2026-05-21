@@ -81,6 +81,15 @@ jobs:
       - name: cargo test
         run: cd src-tauri && cargo test
 
+      # Audit Rust dependencies against the RustSec advisory database.
+      # Companion to pip-audit in the python job and the cross-ecosystem
+      # OSV-Scanner workflow. Defence in depth: native scanners often pick
+      # up advisories that haven't yet landed in OSV.dev and vice versa.
+      - name: cargo-audit
+        run: |
+          cargo install --locked cargo-audit || true
+          cd src-tauri && cargo audit
+
   # ── Frontend: svelte-check + vitest ─────────────────────────────────────────
   frontend:
     name: Frontend

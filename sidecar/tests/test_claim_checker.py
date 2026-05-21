@@ -636,7 +636,7 @@ class TestHealthRagFlag:
         assert data["capabilities"]["rag"] is False
 
     @pytest.mark.asyncio
-    async def test_rag_true_when_ollama_available(self):
+    async def test_rag_false_pending_v101_deferral(self):
         """When Ollama is reachable, rag capability should be True."""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -653,4 +653,4 @@ class TestHealthRagFlag:
                 resp = await client.get("/health")
 
         data = resp.json()
-        assert data["capabilities"]["rag"] is True
+        assert data["capabilities"]["rag"] is False  # JTV-RAG-DEFER: hardcoded false since 2026-05-17 deferral

@@ -90,6 +90,7 @@ pub struct ExtractResult {
 /// Decode a lowercase hex string to a `Vec<u8>`.
 ///
 /// Returns `Err` if the string contains non-hex characters or has odd length.
+#[allow(dead_code)] // Deferred to v1.1 alongside V1_SHOW_WATERMARK
 fn decode_hex(hex: &str) -> Result<Vec<u8>, String> {
     if !hex.len().is_multiple_of(2) {
         return Err(format!(
@@ -107,6 +108,7 @@ fn decode_hex(hex: &str) -> Result<Vec<u8>, String> {
 }
 
 /// Encode a byte slice as a lowercase hex string.
+#[allow(dead_code)] // Deferred to v1.1 alongside V1_SHOW_WATERMARK
 fn encode_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -116,6 +118,7 @@ fn encode_hex(bytes: &[u8]) -> String {
 /// Using the payload as a seed means the extraction caller only needs the
 /// payload *length* (stored in the DB) to reproduce the same seed — no
 /// separate secret is required.
+#[allow(dead_code)] // Deferred to v1.1 alongside V1_SHOW_WATERMARK
 fn payload_seed(payload: &[u8]) -> u64 {
     const FNV_OFFSET: u64 = 14_695_981_039_346_656_037;
     const FNV_PRIME: u64 = 1_099_511_628_211;
@@ -126,6 +129,7 @@ fn payload_seed(payload: &[u8]) -> u64 {
 
 /// Map user-facing strength level (1/2/3) to the `blind_watermark` `strength_1`
 /// parameter.
+#[allow(dead_code)] // Deferred to v1.1 alongside V1_SHOW_WATERMARK
 fn strength_to_param(strength: u32) -> i32 {
     match strength {
         1 => 20,
@@ -170,6 +174,7 @@ pub fn watermark_output_path(source: &Path) -> PathBuf {
 /// - `payload_hex` is not valid hex or is empty.
 /// - `input_path` cannot be read or decoded as an image.
 /// - `output_path` cannot be written.
+#[allow(dead_code)] // Deferred to v1.1 alongside V1_SHOW_WATERMARK
 pub fn embed_watermark(
     input_path: &Path,
     output_path: &Path,
@@ -275,6 +280,7 @@ pub fn embed_watermark(
 /// from the reference payload when `reference_hex` is provided. When
 /// extracting blindly (no reference), a seed of `None` is used, which falls
 /// back to `WatermarkMode::Normal` in the crate.
+#[allow(dead_code)] // Deferred to v1.1 alongside V1_SHOW_WATERMARK
 pub fn extract_watermark(
     input_path: &Path,
     payload_len_bytes: usize,

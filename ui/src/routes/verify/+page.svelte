@@ -512,15 +512,39 @@
     return MAP[localName] ?? localName;
   }
 
-  // Extract digitalSourceType from the c2pa.claim.v2 or stds.schema-org.CreativeWork assertion.
+  // Extract digitalSourceType from the c2pa.claim.v2 or stds.schema-org.CreativeWork
+  // assertion. Walks the full manifest chain (active first, then ingredients) so
+  // signals declared in the deepest ingredient (e.g. Gemini's pure-AI declaration
+  // when a downstream tool added a chyron-overlay edit) are surfaced. Mirrors the
+  // Rust-side chain walk landed in commit cc5cc75.
   const c2paDigitalSourceType = $derived(() => {
-    const assertions = result?.c2paManifest?.assertions ?? [];
-    for (const a of assertions) {
-      try {
-        const parsed = JSON.parse(a.value);
-        const dst = parsed?.digitalSourceType ?? parsed?.schema_org?.digitalSourceType;
-        if (dst && typeof dst === 'string') return humaniseDigitalSourceType(dst);
-      } catch { /* skip */ }
+    const chain = result?.c2paChain;
+    const manifests = chain
+      ? [chain.active, ...(chain.ingredients ?? [])]
+      : (result?.c2paManifest ? [result.c2paManifest] : []);
+    for (const m of manifests) {
+      for (const a of m?.assertions ?? []) {
+        try {
+          const parsed = JSON.parse(a.value);
+          // Direct top-level field (e.g. on schema-org or claim assertions)
+          const directDst = parsed?.digitalSourceType ?? parsed?.schema_org?.digitalSourceType;
+          if (directDst && typeof directDst === 'string') {
+            return humaniseDigitalSourceType(directDst);
+          }
+          // Per-action field (c2pa.actions / c2pa.actions.v2 / v3): scan every
+          // action for digitalSourceType. Google Gemini's manifest puts the AI
+          // signal here, not at the top level.
+          const actions = parsed?.actions;
+          if (Array.isArray(actions)) {
+            for (const action of actions) {
+              const dst = action?.digitalSourceType;
+              if (dst && typeof dst === 'string') {
+                return humaniseDigitalSourceType(dst);
+              }
+            }
+          }
+        } catch { /* skip */ }
+      }
     }
     return null;
   });
@@ -3562,8 +3586,8 @@
                         src={heatmapSrc(ela.elaImageUrl)}
                         alt="ELA heatmap showing compression artefact distribution"
                         caption={ela.suspicious
-                          ? 'Tap to enlarge and locate which regions differ from the background'
-                          : 'Tap to enlarge. Compression is uniform across the image.'}
+                          ? 'Click to enlarge: bright regions indicate higher compression-error mismatch'
+                          : 'Click to enlarge: no significant compression anomalies detected'}
                       />
                     </div>
                     {#if ela.suspicious}

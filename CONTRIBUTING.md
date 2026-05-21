@@ -112,6 +112,28 @@ This is not gatekeeping for its own sake. The maintainer is solo and pre-revenue
 
 If you discover a security vulnerability, **do not open a public issue.** Email licensing@juralabs.org with details. We will acknowledge within 7 days and aim to ship a fix or mitigation within 30 days for medium-severity issues, sooner for high-severity ones. Coordinated disclosure is preferred.
 
+### Supply-chain scanning on PRs
+
+Three overlapping scanners run automatically on every pull request to catch known-vulnerable dependencies before they reach `main`:
+
+1. **cargo-audit** (Rust). Runs in `ci.yml` against `src-tauri/Cargo.lock` and the RustSec advisory database.
+2. **pip-audit** (Python). Runs in `ci.yml` against the installed sidecar environment.
+3. **OSV-Scanner** (cross-ecosystem). Runs in `osv-scanner.yml` against every lockfile (Rust, Python, npm) and posts a SARIF report to the Security tab. Also fires weekly so newly disclosed advisories surface on quiet branches.
+
+If you add a dependency that triggers one of these, the recommended order is: bump the dependency to a patched version, otherwise document the rationale for accepting the advisory in the PR description (with link to the advisory and any compensating control).
+
+#### Socket.dev (optional, recommended for maintainers)
+
+[Socket.dev](https://socket.dev/) catches a class of supply-chain risks that CVE-based scanners miss: typosquats, install-script payloads, telemetry beacons, and packages that newly request network or filesystem capabilities. It is a free GitHub App for open-source repositories.
+
+To install on a fork or downstream:
+
+1. Visit https://socket.dev/install/github and authorise the Socket app for the target repository.
+2. Socket runs automatically on every PR that touches `package.json`, `requirements*.txt`, or `Cargo.toml`.
+3. Reports appear as a PR check and inline review comments. No CI changes required.
+
+For the upstream `juralabs/jura-archive` repository this is installed at the org level by the maintainer.
+
 ## Questions
 
 For questions about contributing that aren't covered here, open a discussion or email licensing@juralabs.org.
