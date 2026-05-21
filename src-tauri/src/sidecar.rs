@@ -453,6 +453,35 @@ pub struct SpliceBoundaryResult {
     pub summary: String,
 }
 
+/// Watermark embed result from the sidecar.
+///
+/// Returned by `POST /forensics/watermark/embed`. The watermarked image is
+/// returned base64-encoded as PNG (lossless to preserve the watermark); the
+/// Rust caller decodes + writes the file to disk at the chosen output path.
+///
+/// Migrated from Rust `blind_watermark` to sidecar `imwatermark` on 2026-05-21
+/// to fix the embed/extract incompatibility bug. The Rust crate used a
+/// payload-derived seed for bit placement; the Python library uses a fixed
+/// scheme. Now both sides use the Python library so the roundtrip works.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatermarkEmbedResult {
+    /// Base64-encoded PNG bytes of the watermarked image.
+    #[serde(alias = "watermarked_image_base64")]
+    pub watermarked_image_base64: String,
+    /// Watermark algorithm (e.g. `"dwtDctSvd"`).
+    pub algorithm: String,
+    /// Strength level used (`"low"` / `"medium"` / `"high"`).
+    pub strength: String,
+    /// Number of payload bytes embedded after UTF-8 encoding + truncation.
+    #[serde(alias = "payload_length")]
+    pub payload_length: u32,
+    /// Whether the embed operation completed without error.
+    pub success: bool,
+    /// Human-readable status message.
+    pub message: String,
+}
+
 /// Watermark extraction result from the sidecar.
 ///
 /// Attempts to extract an invisible watermark payload from an image file.
@@ -1395,6 +1424,48 @@ impl SidecarClient {
 
         resp.json::<SpliceBoundaryResult>()
             .map_err(|e| format!("Failed to parse splice boundary response: {e}"))
+    }
+
+    /// Embed an invisible watermark into an image via the sidecar.
+    ///
+    /// Sends the file as a multipart upload to `POST /forensics/watermark/embed`
+    /// with the payload + strength as query params. Returns a
+    /// [`WatermarkEmbedResult`] containing the base64-encoded PNG of the
+    /// watermarked image; the caller is responsible for decoding + writing
+    /// the bytes to disk.
+    ///
+    /// `strength` must be `"low"`, `"medium"`, or `"high"`; the sidecar
+    /// silently defaults invalid values to `"medium"`.
+    ///
+    /// `payload` is truncated to 64 UTF-8 bytes by the sidecar. Callers
+    /// already using a hex-encoded byte string (e.g. a 32-character UUID
+    /// hex) can pass it as-is; the hex chars are ASCII and round-trip
+    /// through the UTF-8 encode/decode cleanly.
+    pub fn embed_watermark(
+        &self,
+        image_path: &Path,
+        payload: &str,
+        strength: &str,
+    ) -> Result<WatermarkEmbedResult, String> {
+        let form = self.build_image_form(image_path)?;
+
+        let resp = self
+            .client
+            .post(format!("{}/forensics/watermark/embed", self.base_url))
+            .query(&[("payload", payload), ("strength", strength)])
+            .multipart(form)
+            .timeout(Duration::from_secs(60))
+            .send()
+            .map_err(|e| format!("Sidecar watermark embed request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(format!("Sidecar watermark embed returned {status}: {body}"));
+        }
+
+        resp.json::<WatermarkEmbedResult>()
+            .map_err(|e| format!("Failed to parse watermark embed response: {e}"))
     }
 
     /// Attempt to extract an invisible watermark payload from an image file.

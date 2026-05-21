@@ -4352,6 +4352,8 @@ fn embed_watermark_asset(
     strength: Option<u32>,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<watermark::WatermarkResult, AppError> {
+    use base64::Engine;
+
     let app = state
         .lock()
         .map_err(|_| AppError::Internal("State lock failed".into()))?;
@@ -4378,33 +4380,64 @@ fn embed_watermark_asset(
 
     let output = watermark::watermark_output_path(&source);
 
-    let options = watermark::WatermarkOptions {
-        payload_hex: payload_hex.clone(),
-        strength,
+    // Map the integer strength (1/2/3) to the sidecar's string enum.
+    // 2 (medium) is the safe default for any value outside [1, 3].
+    let strength_str = match strength.unwrap_or(2) {
+        1 => "low",
+        3 => "high",
+        _ => "medium",
     };
 
     log::info!(
-        "Embedding watermark: asset={}, source={}, output={}, strength={:?}",
+        "Embedding watermark via sidecar: asset={}, source={}, output={}, strength={} ({})",
         asset_id,
         source.display(),
         output.display(),
-        strength
+        strength.unwrap_or(2),
+        strength_str
     );
 
-    let result =
-        watermark::embed_watermark(&source, &output, &options).map_err(AppError::FileSystem)?;
+    // Delegate to the Python sidecar so embed + extract use the same
+    // imwatermark library and round-trip correctly. The Rust blind_watermark
+    // crate used a payload-derived seed for bit placement; the Python library
+    // uses a fixed scheme. Mixing the two was the 2026-05-21 bug. See
+    // watermark.rs module doc for the old algorithm, retained for unit tests.
+    let embed = app
+        .sidecar
+        .embed_watermark(&source, &payload_hex, strength_str)
+        .map_err(|e| AppError::FileSystem(format!("Sidecar watermark embed failed: {e}")))?;
+
+    if !embed.success {
+        return Err(AppError::FileSystem(format!(
+            "Sidecar watermark embed reported failure: {}",
+            embed.message
+        )));
+    }
+
+    // Decode the base64 PNG and write it to disk at the agreed output path.
+    let png_bytes = base64::engine::general_purpose::STANDARD
+        .decode(&embed.watermarked_image_base64)
+        .map_err(|e| AppError::FileSystem(format!("Failed to decode sidecar PNG: {e}")))?;
+
+    std::fs::write(&output, &png_bytes).map_err(|e| {
+        AppError::FileSystem(format!(
+            "Cannot write watermarked image '{}': {e}",
+            output.display()
+        ))
+    })?;
+
+    let output_str = output.to_string_lossy().to_string();
 
     // Update the asset record in the database
-    let output_str = output.to_string_lossy().to_string();
     app.db.set_watermarked(&asset_id, &output_str)?;
 
     // Audit log
     let algo_meta = serde_json::json!({
-        "algorithm": "DWT-DCT-SVD",
-        "crate": "blind_watermark",
-        "version": "0.1.2",
-        "strength": strength.unwrap_or(2),
-        "payload_len_bytes": payload_hex.len() / 2,
+        "algorithm": embed.algorithm,
+        "library": "imwatermark",
+        "via": "sidecar",
+        "strength": strength_str,
+        "payload_len_bytes": embed.payload_length,
     });
     let _ = app.db.log_action(
         "watermark",
@@ -4412,14 +4445,20 @@ fn embed_watermark_asset(
         &asset_id,
         Some(&format!(
             "{{\"output\":\"{output_str}\",\"payload_len\":{}}}",
-            payload_hex.len() / 2
+            embed.payload_length
         )),
         None,
         Some(&algo_meta.to_string()),
     );
 
     log::info!("Watermark embedded for asset {asset_id} -> {output_str}");
-    Ok(result)
+
+    Ok(watermark::WatermarkResult {
+        output_path: output_str,
+        payload_hex,
+        success: true,
+        message: embed.message,
+    })
 }
 
 /// Extract and optionally verify a watermark from an image file.
