@@ -81,43 +81,40 @@ export async function getStats(): Promise<AppStats> {
 // testability so future regressions that re-add unsupported formats
 // trigger a Vitest failure before reaching pilots.
 //
-// Format support truth-grid (JTV-105 / 2026-04-28 four-agent audit):
-//   * image/jpeg, png, tiff, webp, avif, heic — full pipeline
-//   * pdf — provenance only
-//   * mp4, mov — C2PA experimental + per-frame deepfake
-// Excluded for v1.0:
-//   * webm, mkv, avi — no C2PA, no watermark, no fingerprint, no trust
-//   * docx, odt, epub, txt — returns 0.50 trust with zero analysis
-//   * gif — animated GIFs have no C2PA / watermark / fingerprint
-//   * audio (wav/mp3/flac/ogg/aac/m4a) — model overfitted (AUC 1.0 on
-//     2 speakers + 1 TTS engine). Drop until v1.1 AASIST retraining.
-//   * 3D (stl/obj/gltf/glb) — no detector path, fall through to Unknown.
+// Format support truth-grid (JTV-105 / 2026-04-28 four-agent audit, narrowed
+// 2026-05-22 to C2PA validator-conformant scope):
+//   * image/jpeg, png, tiff, webp — full pipeline AND validator-conformant
+//     (matches the C2PA Validator submission accepted 2026-05-06).
+// Removed from Protect for v1.0:
+//   * heic, heif, avif, bmp — c2pa-rs CAN sign these (supports_signing on
+//     the Rust side still allows them), but they are NOT in our validator-
+//     conformance scope, so signing them produces output that we cannot
+//     claim is conformant. Out of Protect; still accepted on Verify.
+//   * pdf — provenance-only path deferred to v1.1 (Generator-track
+//     submission targets image scope first).
+//   * mp4, mov — video deepfake + C2PA experimental dropped from v1.0
+//     per project_v1_video_audio_drop, returns in v1.0.1.
+// Generator-track audit (2026-05-22) recommended restricting Protect's
+// file dialog to the four conformant formats so users cannot inadvertently
+// produce non-conformant signed output.
 
 export const PROTECT_FILE_FILTERS: { name: string; extensions: string[] }[] = [
   {
-    name: 'All Supported',
-    extensions: [
-      'jpg', 'jpeg', 'png', 'tiff', 'tif', 'webp', 'heic', 'heif', 'bmp', 'avif',
-      'pdf',
-      'mp4', 'mov',
-    ],
+    name: 'C2PA-signable images',
+    extensions: ['jpg', 'jpeg', 'png', 'tiff', 'tif', 'webp'],
   },
-  {
-    name: 'Images',
-    extensions: ['jpg', 'jpeg', 'png', 'tiff', 'tif', 'webp', 'heic', 'heif', 'bmp', 'avif'],
-  },
-  { name: 'Documents', extensions: ['pdf'] },
-  { name: 'Video', extensions: ['mp4', 'mov'] },
 ];
 
 export const VERIFY_FILE_FILTERS: { name: string; extensions: string[] }[] = [
   {
+    // v1.0 = images only. PDF + video dropped 2026-05-21 / 2026-05-22 per
+    // project_v1_video_audio_drop and the Generator-track audit. The
+    // Verify pipeline accepts the wider image set (HEIC / HEIF / AVIF
+    // included) because forensic analysis runs without signing.
     name: 'Supported Files',
     extensions: [
       'jpg', 'jpeg', 'png', 'tiff', 'tif', 'webp', 'avif',
       'heic', 'heif',
-      'pdf',
-      'mp4', 'mov',
     ],
   },
 ];

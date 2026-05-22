@@ -336,8 +336,14 @@
   }
 
   function canSignC2pa(asset: Asset): boolean {
+    // v1.0 conformance scope: only the four formats accepted by the
+    // C2PA Validator submission (2026-05-06). c2pa-rs supports HEIC,
+    // HEIF, AVIF too, but signing them produces non-conformant output
+    // we cannot claim is interoperable. Narrowed 2026-05-22 per the
+    // Generator-track pre-submission audit. Returns in v1.0.x when we
+    // re-validate the wider format set.
     if (asset.contentType !== 'image') return false;
-    return ['image/jpeg', 'image/png', 'image/tiff', 'image/webp', 'image/avif', 'image/heic', 'image/heif'].includes(asset.mimeType);
+    return ['image/jpeg', 'image/png', 'image/tiff', 'image/webp'].includes(asset.mimeType);
   }
 
   /** Mirror of Rust `supports_watermarking` — raster bitmaps only (DWT-DCT-SVD). */
@@ -2476,11 +2482,17 @@
                           class="w-full mt-1 px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm
                                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                         >
+                          <!-- Option values MUST match license_to_uri() in src-tauri/src/c2pa.rs.
+                               Hyphenated SPDX-style values (e.g. "CC-BY-4.0") previously
+                               failed the lookup, silently dropping the stds.schema-org.CreativeWork
+                               assertion from every single-asset sign. Aligned to the batch
+                               panel and the lookup table 2026-05-22. -->
                           <option value="All Rights Reserved">All Rights Reserved</option>
-                          <option value="CC-BY-4.0">CC BY 4.0</option>
-                          <option value="CC-BY-NC-4.0">CC BY-NC 4.0</option>
-                          <option value="CC-BY-SA-4.0">CC BY-SA 4.0</option>
-                          <option value="CC0-1.0">CC0 (Public Domain)</option>
+                          <option value="CC BY 4.0">CC BY 4.0</option>
+                          <option value="CC BY-NC 4.0">CC BY-NC 4.0</option>
+                          <option value="CC BY-SA 4.0">CC BY-SA 4.0</option>
+                          <option value="CC BY-ND 4.0">CC BY-ND 4.0</option>
+                          <option value="CC0 1.0">CC0 (Public Domain)</option>
                         </select>
                       </div>
                     </div>

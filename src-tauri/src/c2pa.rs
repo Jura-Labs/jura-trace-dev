@@ -2467,6 +2467,42 @@ mod base64 {
 mod tests {
     use super::*;
 
+    /// Every licence option value rendered by the UI must resolve in
+    /// `license_to_uri`, with the single documented exception of
+    /// "All Rights Reserved" (no canonical URI). The earlier rc.24 build
+    /// silently dropped the schema-org licence assertion on the
+    /// single-asset path because the dropdown emitted "CC-BY-4.0" but
+    /// the lookup expected "CC BY 4.0". This test catches that class of
+    /// drift between UI options and the lookup table.
+    #[test]
+    fn every_ui_license_option_resolves() {
+        // Sourced from ui/src/routes/protect/+page.svelte single-asset and
+        // batch dropdowns. Keep in lockstep with both <select> blocks.
+        const UI_OPTIONS: &[&str] = &[
+            "All Rights Reserved",
+            "CC BY 4.0",
+            "CC BY-NC 4.0",
+            "CC BY-SA 4.0",
+            "CC BY-ND 4.0",
+            "CC0 1.0",
+        ];
+
+        for opt in UI_OPTIONS {
+            if *opt == "All Rights Reserved" {
+                assert!(
+                    license_to_uri(opt).is_none(),
+                    "All Rights Reserved is the documented None case"
+                );
+            } else {
+                assert!(
+                    license_to_uri(opt).is_some(),
+                    "Licence option {opt:?} returned None from license_to_uri \
+                     — UI dropdown and lookup table have drifted again"
+                );
+            }
+        }
+    }
+
     #[test]
     fn manifest_info_serialises_to_camel_case() {
         let info = ManifestInfo {

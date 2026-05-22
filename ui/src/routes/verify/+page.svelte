@@ -943,7 +943,7 @@
     const lower = message.toLowerCase();
     if (lower.includes('unsupported') || lower.includes('format') || lower.includes('mime')) {
       errorType = 'format';
-      error = 'Unsupported file format. Jura Trace v1.0 supports JPEG, PNG, TIFF, WebP, HEIC, AVIF, PDF, MP4 and MOV.';
+      error = 'Unsupported file format. Jura Trace v1.0 supports JPEG, PNG, TIFF, WebP, HEIC and AVIF. Video and PDF return in a later release.';
     } else if (lower.includes('sidecar') || lower.includes('connection refused')) {
       errorType = 'sidecar';
       error = 'The Analysis Engine is not running. Core checks are still available.';
@@ -1864,7 +1864,7 @@
                 </svg>
                 <p class="text-obsidian dark:text-quartz font-medium">Drop a file to verify</p>
                 <p class="text-xs text-flint-dark dark:text-flint-light">or click to browse</p>
-                <p class="text-xs text-flint-dark dark:text-flint-light mt-1">JPEG · PNG · TIFF · WebP · HEIC · AVIF · PDF · MP4 · MOV</p>
+                <p class="text-xs text-flint-dark dark:text-flint-light mt-1">JPEG · PNG · TIFF · WebP · HEIC · AVIF</p>
               </div>
             {/if}
           </button>
