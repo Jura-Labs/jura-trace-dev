@@ -104,3 +104,51 @@ export const C2PA_MSG_VALID_AT_SIGNING_DETAIL =
  * letter as a layout-driven abbreviation.
  */
 export const C2PA_STATUS_INVALID_SHORT = 'Invalid or unavailable';
+
+// ── Training-mining reason labels (C2PA Spec 2.1 §18.18) ───────────────────
+//
+// Maps the four canonical c2pa.training-mining reason IDs to consumer-friendly
+// labels. UX Rec v1.4 §6 is the emerging-vocabulary anchor for AI / data-mining
+// opt-out display; spec 2.1 §18.18 defines the underlying assertion. Used by
+// the verify page to surface the policy a signed manifest carries.
+export const C2PA_TRAINING_MINING_REASONS: Record<string, string> = {
+  'c2pa.ai_generative_training': 'Generative AI training',
+  'c2pa.ai_inference':           'AI inference',
+  'c2pa.ai_training':            'General AI training',
+  'c2pa.data_mining':            'Data mining',
+};
+
+/** Human-readable label for a training-mining policy value. */
+export function c2paTrainingMiningPolicyLabel(value: string | undefined | null): string {
+  switch (value) {
+    case 'allowed':     return 'Allowed';
+    case 'notAllowed':  return 'Not allowed';
+    case 'constrained': return 'Allowed with constraints';
+    default:            return 'Not declared';
+  }
+}
+
+/**
+ * Extract the training-mining policy from a parsed c2pa.training-mining
+ * assertion `data` object. Returns a map keyed by canonical reason ID with
+ * the value `"allowed" | "notAllowed" | "constrained"`. Tolerates both the
+ * `data.entries` and the bare-entries shape per spec 2.1 §18.18 examples.
+ */
+export function parseTrainingMiningEntries(
+  data: unknown,
+): Record<string, string> | null {
+  if (!data || typeof data !== 'object') return null;
+  const obj = data as Record<string, unknown>;
+  const entries = (obj.entries as Record<string, unknown> | undefined) ?? obj;
+  if (!entries || typeof entries !== 'object') return null;
+
+  const out: Record<string, string> = {};
+  for (const reason of Object.keys(C2PA_TRAINING_MINING_REASONS)) {
+    const entry = (entries as Record<string, unknown>)[reason];
+    if (entry && typeof entry === 'object' && 'use' in entry) {
+      const use = (entry as Record<string, unknown>).use;
+      if (typeof use === 'string') out[reason] = use;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}

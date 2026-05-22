@@ -29,6 +29,9 @@
     C2PA_STATUS_INVALID_SHORT,
     C2PA_STATUS_VALID_AT_SIGNING,
     C2PA_MSG_VALID_AT_SIGNING_DETAIL,
+    C2PA_TRAINING_MINING_REASONS,
+    c2paTrainingMiningPolicyLabel,
+    parseTrainingMiningEntries,
   } from '$lib/c2pa-labels';
   import LimitationBanner from '$lib/components/LimitationBanner.svelte';
   // EnhancedModeBanner removed — see comment near its previous mount point.
@@ -545,6 +548,29 @@
           }
         } catch { /* skip */ }
       }
+    }
+    return null;
+  });
+
+  // Extract the c2pa.training-mining policy from the active manifest if
+  // present. Walks both label variants (`c2pa.training-mining` and the
+  // `.v2` suffixed form c2pa-rs may auto-upgrade to). Returns null when
+  // no assertion is present, so the verify panel renders nothing rather
+  // than a misleading "Not declared" row. Generator-track audit followup
+  // item #1 (2026-05-22) — the assertion is signed in the protect path
+  // (c2pa.rs sign_file) but was never displayed on the verify side.
+  const c2paTrainingMiningPolicy = $derived(() => {
+    const chain = result?.c2paChain;
+    const active = chain?.active ?? result?.c2paManifest;
+    if (!active) return null;
+    for (const a of active.assertions ?? []) {
+      if (a.label !== 'c2pa.training-mining' && a.label !== 'c2pa.training-mining.v2') {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(a.value);
+        return parseTrainingMiningEntries(parsed);
+      } catch { /* skip */ }
     }
     return null;
   });
@@ -3012,6 +3038,31 @@
                             <div>
                               <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-0.5">Digital source type</p>
                               <p class="text-xs text-obsidian dark:text-quartz">{c2paDigitalSourceType()}</p>
+                            </div>
+                          {/if}
+
+                          <!-- c2pa.training-mining policy (C2PA Spec 2.1 §18.18,
+                               UX Rec v1.4 §6 emerging vocabulary). Surfaces what
+                               the signer declared about AI training + data mining
+                               so the verify side honours the round-trip from
+                               protect. -->
+                          {#if c2paTrainingMiningPolicy()}
+                            {@const policy = c2paTrainingMiningPolicy()!}
+                            <div>
+                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-1">AI training and data mining</p>
+                              <ul class="text-xs text-obsidian dark:text-quartz space-y-0.5">
+                                {#each Object.entries(C2PA_TRAINING_MINING_REASONS) as [reasonId, reasonLabel]}
+                                  {@const value = policy[reasonId]}
+                                  {#if value}
+                                    <li class="flex items-baseline gap-2">
+                                      <span class="text-flint-dark dark:text-flint-light flex-1">{reasonLabel}:</span>
+                                      <span class="font-medium {value === 'allowed' ? 'text-amber-dark dark:text-amber-light' : value === 'notAllowed' ? 'text-malachite-dark dark:text-malachite-light' : 'text-obsidian dark:text-quartz'}">
+                                        {c2paTrainingMiningPolicyLabel(value)}
+                                      </span>
+                                    </li>
+                                  {/if}
+                                {/each}
+                              </ul>
                             </div>
                           {/if}
 

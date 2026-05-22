@@ -384,15 +384,30 @@ export async function checkMetadataBeforeSign(assetId: string): Promise<Metadata
 
 
 /** Sign an asset with C2PA provenance. */
+/**
+ * C2PA action vocabulary surfaced to the Protect-page selector.
+ *
+ *   * `'created'`  → the producer authored the content (default).
+ *   * `'published'` → the producer is re-distributing pre-existing
+ *                     content; the prior signer is preserved as a
+ *                     `parentOf` ingredient.
+ *
+ * Maps to the Rust `c2pa::SignAction` enum (snake_case serde).
+ * Generator-track audit item #9 (2026-05-22).
+ */
+export type SignAction = 'created' | 'published';
+
 export async function signAsset(
   assetId: string,
   creatorName: string,
-  license?: string
+  license?: string,
+  action: SignAction = 'created',
 ): Promise<Asset> {
   return invoke<Asset>('sign_asset', {
     assetId,
     creatorName,
     license: license || null,
+    action,
   });
 }
 
@@ -1267,6 +1282,33 @@ export async function getSigningMode(): Promise<SigningMode> {
     return invoke<SigningMode>('get_signing_mode');
   }
   return 'bedrock';
+}
+
+/**
+ * Pre-seal disclosure data for the Protect Sign panel. Surfaces three
+ * signed-but-previously-hidden claims (claim generator, TSA URL, cert
+ * fingerprint) so producers can review them before sealing. C2PA UX Rec
+ * v1.4 §3 Transparency.
+ */
+export interface SigningDisclosure {
+  claim_generator: string;
+  tsa_url: string;
+  cert_sha256_fingerprint: string;
+}
+
+/**
+ * Returns the disclosure data for the current install. Backend reads the
+ * active signing certificate and hashes it; result is safe to display.
+ * Returns null in browser-mock mode (the Sign panel falls back to the
+ * pre-existing "Software: Jura Trace" row).
+ */
+export async function getSigningDisclosure(): Promise<SigningDisclosure | null> {
+  if (!isTauri) return null;
+  try {
+    return await invoke<SigningDisclosure>('get_signing_disclosure');
+  } catch {
+    return null;
+  }
 }
 
 /**

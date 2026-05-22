@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode, type SignAction } from '$lib/api';
+  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode, getSigningDisclosure, type SignAction, type SigningDisclosure } from '$lib/api';
   import { V1_SHOW_CONFORMANT_SIGNING, V1_SHOW_WATERMARK } from '$lib/featureFlags';
   import { setVerifyHandoff } from '$lib/stores/verifyHandoff';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
@@ -105,6 +105,11 @@
   // as `signingCredential.untrusted` in third-party validators, which
   // is non-negotiable for ICC submissions.
   let signingMode = $state<SigningMode>('bedrock');
+  // Pre-seal disclosure data (claim generator + TSA URL + cert fingerprint).
+  // Fetched lazily on the first mount of the protect page; null in
+  // browser-mock mode and on any backend error (the disclosure UI
+  // gracefully falls back to a single "Software: Jura Trace" row).
+  let signingDisclosure = $state<SigningDisclosure | null>(null);
   $effect(() => {
     void (async () => {
       try {
@@ -113,6 +118,7 @@
         // getSigningMode throws in browser mock; default to bedrock.
         signingMode = 'bedrock';
       }
+      signingDisclosure = await getSigningDisclosure();
     })();
   });
 
@@ -1272,6 +1278,9 @@
                     <span class="block text-xs text-flint-dark dark:text-flint-light">
                       <code class="font-mono text-[10px]">c2pa.created</code> for every file in this batch (typical archive-stamping workflow).
                     </span>
+                    <span class="block text-[11px] text-flint-dark dark:text-flint-light/80 italic mt-0.5">
+                      Use this for content your organisation originated, including digital scans of physical artefacts in your collection.
+                    </span>
                   </span>
                 </label>
                 <label class="flex items-start gap-2 cursor-pointer text-sm text-text-light dark:text-quartz leading-snug">
@@ -1285,6 +1294,9 @@
                     <span class="font-medium">We are publishing pre-existing content</span>
                     <span class="block text-xs text-flint-dark dark:text-flint-light">
                       <code class="font-mono text-[10px]">c2pa.published</code>. Any existing manifest on each source is preserved as a parent ingredient.
+                    </span>
+                    <span class="block text-[11px] text-flint-dark dark:text-flint-light/80 italic mt-0.5">
+                      Use this for content received from third parties (agency photographs, contributor submissions, syndicated press images) where the original creator stays in the chain.
                     </span>
                   </span>
                 </label>
@@ -1303,6 +1315,14 @@
                 What each signature embeds
               </p>
               <ul class="space-y-0.5 text-flint-dark dark:text-flint-light leading-relaxed">
+                <li>Signing mode:
+                  <span class="text-text-light dark:text-quartz">
+                    {signingMode === 'conformant' ? 'Conformant (trust-list anchored)' : 'Local Signing (per-install certificate)'}
+                  </span>
+                  {#if signingMode !== 'conformant'}
+                    <span class="block text-[11px] italic">Credential appears as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in third-party validators. Trust scope is local to this install.</span>
+                  {/if}
+                </li>
                 <li>Producer: <span class="text-text-light dark:text-quartz">{batchSignCreatorName.trim() || '(blank)'}</span></li>
                 <li>Action: <span class="text-text-light dark:text-quartz">c2pa.{batchSelectedAction}</span>
                   ({batchSelectedAction === 'created' ? 'you created this content' : 'you are publishing pre-existing content'})
@@ -1322,7 +1342,13 @@
                 {:else}
                   <li>Source: described by each file's parent ingredient (preserved from any existing manifest)</li>
                 {/if}
-                <li>Software: <span class="text-text-light dark:text-quartz">Jura Trace</span> + timestamp + content hash</li>
+                {#if signingDisclosure}
+                  <li>Claim generator: <span class="text-text-light dark:text-quartz">{signingDisclosure.claim_generator}</span></li>
+                  <li>Timestamp authority: <span class="text-text-light dark:text-quartz font-mono text-[11px] break-all">{signingDisclosure.tsa_url}</span></li>
+                  <li>Signing certificate (SHA-256): <span class="text-text-light dark:text-quartz font-mono text-[10px] break-all">{signingDisclosure.cert_sha256_fingerprint}</span></li>
+                {:else}
+                  <li>Software: <span class="text-text-light dark:text-quartz">Jura Trace</span> + timestamp + content hash</li>
+                {/if}
               </ul>
             </div>
 
@@ -2604,6 +2630,9 @@
                             <span class="block text-xs text-flint-dark dark:text-flint-light">
                               <code class="font-mono text-[10px]">c2pa.created</code> — the standard authorship claim for an original photograph or your own digital work.
                             </span>
+                            <span class="block text-[11px] text-flint-dark dark:text-flint-light/80 italic mt-0.5">
+                              Use this for content you or your team originated, including digital scans of physical artefacts you own.
+                            </span>
                           </span>
                         </label>
                         <label class="flex items-start gap-2 cursor-pointer text-sm text-text-light dark:text-quartz leading-snug">
@@ -2617,6 +2646,9 @@
                             <span class="font-medium">I am publishing pre-existing content</span>
                             <span class="block text-xs text-flint-dark dark:text-flint-light">
                               <code class="font-mono text-[10px]">c2pa.published</code> — re-distribution of an asset that someone else captured or created. Any existing manifest on the source is preserved as a parent ingredient.
+                            </span>
+                            <span class="block text-[11px] text-flint-dark dark:text-flint-light/80 italic mt-0.5">
+                              Use this for content you received from another party (e.g. an agency photo, a community contributor's submission, a press image) where you are adding your own signing event on top.
                             </span>
                           </span>
                         </label>
@@ -2641,6 +2673,14 @@
                         What this signature embeds in the file
                       </p>
                       <ul class="space-y-0.5 text-flint-dark dark:text-flint-light leading-relaxed">
+                        <li>Signing mode:
+                          <span class="text-text-light dark:text-quartz">
+                            {signingMode === 'conformant' ? 'Conformant (trust-list anchored)' : 'Local Signing (per-install certificate)'}
+                          </span>
+                          {#if signingMode !== 'conformant'}
+                            <span class="block text-[11px] italic">Credential appears as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in third-party validators. Trust scope is local to this install.</span>
+                          {/if}
+                        </li>
                         <li>Producer: <span class="text-text-light dark:text-quartz">{creatorName.trim() || '(blank)'}</span></li>
                         <li>Action: <span class="text-text-light dark:text-quartz">c2pa.{selectedAction}</span>
                           ({selectedAction === 'created' ? 'you created this content' : 'you are publishing pre-existing content'})
@@ -2660,7 +2700,13 @@
                         {:else}
                           <li>Source: described by the parent ingredient (preserved from the source file's existing manifest, if any)</li>
                         {/if}
-                        <li>Software: <span class="text-text-light dark:text-quartz">Jura Trace</span> + timestamp + content hash</li>
+                        {#if signingDisclosure}
+                          <li>Claim generator: <span class="text-text-light dark:text-quartz">{signingDisclosure.claim_generator}</span></li>
+                          <li>Timestamp authority: <span class="text-text-light dark:text-quartz font-mono text-[11px] break-all">{signingDisclosure.tsa_url}</span></li>
+                          <li>Signing certificate (SHA-256): <span class="text-text-light dark:text-quartz font-mono text-[10px] break-all">{signingDisclosure.cert_sha256_fingerprint}</span></li>
+                        {:else}
+                          <li>Software: <span class="text-text-light dark:text-quartz">Jura Trace</span> + timestamp + content hash</li>
+                        {/if}
                       </ul>
                     </div>
 

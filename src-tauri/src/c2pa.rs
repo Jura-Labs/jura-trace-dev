@@ -315,6 +315,65 @@ pub fn ensure_certificate(data_dir: &Path) -> Result<(Vec<u8>, Vec<u8>), String>
 
 // ===== Signing =====
 
+/// Public RFC 3161 timestamp-authority URL used by `sign_file`.
+/// HTTP (not HTTPS) is correct here — the signed TSA token's integrity
+/// is the trust boundary, not the transport. DigiCert's TSA accepts
+/// HTTP. Surfaced as a const so the pre-seal disclosure on the protect
+/// page can display it without duplicating the literal.
+pub const TSA_URL: &str = "http://timestamp.digicert.com";
+
+/// Fingerprint of the active signing certificate as colon-separated hex
+/// pairs (the conventional human-comparison form).
+///
+/// Reads the per-install local CA's end-entity certificate from
+/// `<data_dir>/certs/signing_cert.pem` via `ensure_certificate`, takes
+/// the first PEM block (the EE cert, not the CA root), DER-decodes it,
+/// hashes the raw certificate bytes with SHA-256, and renders as
+/// `xx:xx:xx:...:xx`. Surfaced for the pre-seal disclosure block on the
+/// protect page so signers can compare the embedded certificate against
+/// the one they expected to use.
+pub fn signing_cert_fingerprint_hex(data_dir: &Path) -> Result<String, String> {
+    let (cert_pem, _key_pem) = ensure_certificate(data_dir)?;
+    let pem_str = std::str::from_utf8(&cert_pem)
+        .map_err(|_| "Certificate PEM is not valid UTF-8".to_string())?;
+
+    // Extract the first PEM block (the end-entity cert; the CA root
+    // follows it in the chain).
+    let begin = pem_str
+        .find("-----BEGIN CERTIFICATE-----")
+        .ok_or("Certificate PEM is missing BEGIN marker")?;
+    let end_marker = "-----END CERTIFICATE-----";
+    let end_after = pem_str[begin..]
+        .find(end_marker)
+        .ok_or("Certificate PEM is missing END marker")?;
+    let block_end = begin + end_after + end_marker.len();
+    let block = &pem_str[begin..block_end];
+
+    // Strip headers + whitespace to get the base64 body.
+    let b64: String = block
+        .lines()
+        .filter(|line| !line.starts_with("-----"))
+        .collect::<Vec<&str>>()
+        .join("");
+
+    use std::io::Read;
+    let mut decoder = base64::Base64Decoder::new(b64.as_bytes());
+    let mut der = Vec::new();
+    decoder
+        .read_to_end(&mut der)
+        .map_err(|e| format!("Failed to base64-decode certificate DER: {e}"))?;
+
+    let mut hasher = Sha256::new();
+    hasher.update(&der);
+    let digest = hasher.finalize();
+
+    Ok(digest
+        .iter()
+        .map(|b| format!("{b:02X}"))
+        .collect::<Vec<String>>()
+        .join(":"))
+}
+
 /// Map a human-readable licence string to its canonical URI.
 ///
 /// Returns `Some(uri)` for the five Creative Commons licences and CC0.
@@ -545,7 +604,7 @@ pub fn sign_file(
         cert,
         key,
         c2pa::SigningAlg::Es256,
-        Some("http://timestamp.digicert.com".to_string()),
+        Some(TSA_URL.to_string()),
     )
     .map_err(|e| format!("Failed to create signer: {e}"))?;
 

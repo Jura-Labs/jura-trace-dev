@@ -3350,6 +3350,11 @@ fn sign_asset(
     asset_id: String,
     creator_name: String,
     license: Option<String>,
+    // Optional action selector. Snake-case strings to match the
+    // serde_json::tag on c2pa::SignAction (#[serde(rename_all = "snake_case")]).
+    // None defaults to `created` to preserve pre-2026-05-22 behaviour for any
+    // caller that doesn't pass the new field.
+    action: Option<String>,
     state: State<'_, Arc<Mutex<AppState>>>,
     app_handle: tauri::AppHandle,
 ) -> Result<Asset, AppError> {
@@ -3400,11 +3405,26 @@ fn sign_asset(
         c2pa::get_active_signing_mode(&data_dir)
     );
 
+    // Parse the optional action string into a SignAction. Unknown values
+    // are rejected as a validation error rather than silently coerced —
+    // an invalid action would mis-claim the manifest, which is the exact
+    // class of bug Generator-track audit item #9 closes.
+    let sign_action = match action.as_deref() {
+        None | Some("created") => c2pa::SignAction::Created,
+        Some("published") => c2pa::SignAction::Published,
+        Some(other) => {
+            return Err(AppError::Validation(format!(
+                "Unknown sign action {other:?}. Expected 'created' or 'published'."
+            )));
+        }
+    };
+
     let _manifest_info = c2pa::sign_file_with_active_mode(
         &source,
         &output,
         &creator_name,
         license.as_deref(),
+        sign_action,
         &data_dir,
     )
     .map_err(|e| {
@@ -5054,6 +5074,46 @@ async fn get_signing_mode(app_handle: tauri::AppHandle) -> Result<c2pa::SigningM
         AppError::Internal("Failed to resolve application data directory".into())
     })?;
     Ok(c2pa::get_active_signing_mode(&data_dir))
+}
+
+/// Pre-seal disclosure data for the protect-page Sign panel.
+///
+/// Generator-track audit followup #2 (2026-05-22). The C2PA UX
+/// Recommendations §3 Transparency requires the producer see every
+/// signed claim before sealing. These three fields are signed but were
+/// previously invisible to the user:
+/// * `claim_generator` — the `Jura Trace/<ver>` string embedded in the
+///   manifest, useful to confirm which build sealed the file.
+/// * `tsa_url` — RFC 3161 timestamp-authority used by `sign_file`.
+/// * `cert_sha256_fingerprint` — SHA-256 of the active per-install
+///   signing certificate, rendered as `XX:XX:...`. Lets a signer
+///   verify which certificate will bind the file.
+#[derive(Debug, serde::Serialize)]
+struct SigningDisclosure {
+    claim_generator: String,
+    tsa_url: String,
+    cert_sha256_fingerprint: String,
+}
+
+#[tauri::command]
+async fn get_signing_disclosure(
+    app_handle: tauri::AppHandle,
+) -> Result<SigningDisclosure, AppError> {
+    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
+        log::error!("Failed to resolve app data dir: {e}");
+        AppError::Internal("Failed to resolve application data directory".into())
+    })?;
+
+    let fingerprint = c2pa::signing_cert_fingerprint_hex(&data_dir).map_err(|e| {
+        log::error!("Failed to compute signing certificate fingerprint: {e}");
+        AppError::C2pa("Could not read signing certificate".into())
+    })?;
+
+    Ok(SigningDisclosure {
+        claim_generator: format!("Jura Trace/{}", env!("CARGO_PKG_VERSION")),
+        tsa_url: c2pa::TSA_URL.to_string(),
+        cert_sha256_fingerprint: fingerprint,
+    })
 }
 
 /// Set the active signing mode.
@@ -7442,6 +7502,7 @@ pub fn run() {
             import_conformant_certificate,
             get_signing_mode,
             set_signing_mode,
+            get_signing_disclosure,
             get_conformant_cert_info,
             clear_conformant_cert,
             read_manifest_chain,
