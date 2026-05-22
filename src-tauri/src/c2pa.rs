@@ -391,30 +391,38 @@ pub fn sign_file(
     //
     // Version sourced from CARGO_PKG_VERSION so manifest provenance stays
     // accurate across rc.x cuts and the v1.0.x maintenance line (was
-    // hardcoded "0.9.0" until 2026-05-22). Two formats co-exist briefly:
-    // a human-readable string (`Jura Trace <ver>`) for downstream
-    // softwareAgent fields, and the slash-separated v1.x legacy form for
-    // claim_generator (kept for backwards compatibility with readers).
+    // hardcoded "0.9.0" until 2026-05-22). Three views of the same name +
+    // version triple:
+    //  - `claim_generator_info` (v2.x canonical): array of ClaimGeneratorInfoMap.
+    //  - `claim_generator` (v1.x legacy): kept for backwards-compatibility with
+    //    pre-v2 readers; harmless to emit alongside the new field.
+    //  - `software_agent_map`: same object used inline on each action.
     const PRODUCT: &str = "Jura Trace";
     let pkg_ver = env!("CARGO_PKG_VERSION");
-    let software_agent = format!("{PRODUCT} {pkg_ver}");
+    let software_agent_map = serde_json::json!({
+        "name": PRODUCT,
+        "version": pkg_ver,
+        // Optional `operating_system`: Generator-track auditors flag this as
+        // a nice-to-have. Cheap to emit.
+        "operating_system": std::env::consts::OS,
+    });
+    let claim_generator_info = serde_json::json!([
+        { "name": PRODUCT, "version": pkg_ver }
+    ]);
     let claim_generator = format!("{PRODUCT}/{pkg_ver}");
 
-    // The 2026-05-22 Generator-track audit flagged three structural problems
-    // with the previous manifest shape, all fixed here:
-    //   1. `c2pa.rights` is not a spec-defined assertion label (the c2pa.*
-    //      namespace is reserved). Replaced by the spec-correct mechanisms:
-    //      `stds.schema-org.CreativeWork` for licence + copyright, and
-    //      `c2pa.training-mining` (§18.18) for AI / data-mining policy.
-    //   2. AI opt-out was hardcoded inside the bogus `c2pa.rights` blob with
-    //      no canonical reader path. Now emitted via the spec assertion
-    //      (`training_mining_for_license` below), with CC0 correctly
-    //      mapped to `allowed` because public domain cannot prohibit it.
-    //   3. `plus:DataMining` inside `stds.iptc` was redundant with the new
-    //      c2pa.training-mining assertion; removed.
-    //
-    // `stds.iptc` is retained only for `Iptc4xmpExt:DigitalSourceType` until
-    // audit item #6 moves it into the c2pa.created action.
+    // Manifest assertions, rebuilt for C2PA 2.x conformance (Generator-track
+    // audit 2026-05-22):
+    //   * `c2pa.actions` emits softwareAgent as a ClaimGeneratorInfoMap
+    //     object (was a bare string, deprecated in v2.x) and now carries
+    //     `digitalSourceType` as a per-action field (was misplaced inside
+    //     stds.iptc).
+    //   * `stds.schema-org.CreativeWork` always emitted with creator +
+    //     copyrightNotice; licence URI added when canonical.
+    //   * `c2pa.training-mining` per §18.18 with licence-aware policy.
+    //   * `stds.iptc` removed entirely — the only field we wrote there
+    //     (DigitalSourceType) now lives inside the action, and
+    //     plus:DataMining is superseded by c2pa.training-mining.
     let mut creative_work = serde_json::json!({
         "@context": "https://schema.org",
         "@type": "CreativeWork",
@@ -431,7 +439,15 @@ pub fn sign_file(
             "data": {
                 "actions": [{
                     "action": "c2pa.created",
-                    "softwareAgent": software_agent,
+                    "softwareAgent": software_agent_map,
+                    // Per C2PA 2.x §18.10.4 the canonical location for the
+                    // IPTC DigitalSourceType signal is inside the action, not
+                    // a separate stds.iptc blob. Default to digitalCapture
+                    // for files signed via this path (human declaring
+                    // authorship of a captured photograph). An action
+                    // selector arrives in audit item #9 for institutions
+                    // publishing pre-existing or AI-generated content.
+                    "digitalSourceType": "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture",
                     "parameters": {
                         "name": creator_name
                     }
@@ -448,21 +464,11 @@ pub fn sign_file(
                 "entries": training_mining_for_license(license_value)
             }
         }),
-        serde_json::json!({
-            "label": "stds.iptc",
-            "data": {
-                // Default to "digitalCapture" for files signed via this
-                // path because Jura Trace's Sign action is the human
-                // declaring authorship of a captured photograph.
-                // Generator-track audit item #6 moves this into the
-                // c2pa.created action itself (the canonical 2.x location).
-                "Iptc4xmpExt:DigitalSourceType": "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture"
-            }
-        }),
     ];
 
     let manifest_def = serde_json::json!({
         "claim_generator": claim_generator,
+        "claim_generator_info": claim_generator_info,
         "title": file_name,
         "assertions": assertions
     });
@@ -3269,23 +3275,42 @@ mod tests {
         let readback = readback.unwrap();
         assert!(readback.is_valid, "readback manifest should be valid");
 
-        // Step 5 (JTV-119) — verify the stds.iptc assertion now carries
-        // a non-empty DigitalSourceType URI. An empty value would
-        // degrade to absence-of-signal in downstream verifiers.
-        let iptc = readback
+        // Step 5 (JTV-119, updated 2026-05-22) — verify the digitalSourceType
+        // signal is present. Generator-track audit item #6 moved this from
+        // a standalone stds.iptc assertion into the c2pa.created action
+        // (C2PA 2.x §18.10.4 canonical location). The assertion looks for
+        // the field inside the first action of the c2pa.actions assertion.
+        //
+        // c2pa-rs auto-upgrades the assertion label to `c2pa.actions.v2`
+        // when the assertion contains v2-only fields (digitalSourceType
+        // per-action being one of them). Accept either form.
+        let actions = readback
             .assertions
             .iter()
-            .find(|a| a.label == "stds.iptc")
-            .expect("stds.iptc assertion must be present in signed manifest");
-        let parsed: serde_json::Value =
-            serde_json::from_str(&iptc.value).expect("stds.iptc value must be valid JSON");
-        let digital_source = parsed
-            .get("Iptc4xmpExt:DigitalSourceType")
+            .find(|a| a.label == "c2pa.actions" || a.label == "c2pa.actions.v2")
+            .expect("c2pa.actions / c2pa.actions.v2 assertion must be present in signed manifest");
+        let actions_parsed: serde_json::Value =
+            serde_json::from_str(&actions.value).expect("c2pa.actions value must be valid JSON");
+        let digital_source = actions_parsed
+            .get("actions")
+            .and_then(|a| a.get(0))
+            .and_then(|a| a.get("digitalSourceType"))
             .and_then(|v| v.as_str())
             .unwrap_or("");
         assert_eq!(
             digital_source, "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture",
-            "DigitalSourceType must positively assert digitalCapture (JTV-119)"
+            "digitalSourceType must positively assert digitalCapture on the action (JTV-119 + Generator-track audit item #6)"
+        );
+
+        // Bonus check: softwareAgent must be a ClaimGeneratorInfoMap object
+        // (not a bare string). Generator-track audit item #5.
+        let software_agent = actions_parsed
+            .get("actions")
+            .and_then(|a| a.get(0))
+            .and_then(|a| a.get("softwareAgent"));
+        assert!(
+            software_agent.is_some() && software_agent.unwrap().is_object(),
+            "softwareAgent must be a ClaimGeneratorInfoMap object per C2PA 2.x (Generator-track audit item #5), got: {software_agent:?}"
         );
 
         // Step 6 (JTV-120) — verify stds.schema-org.CreativeWork is present with
