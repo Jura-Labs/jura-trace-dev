@@ -150,8 +150,8 @@
     </p>
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       If Ollama is offline at verify time, the optional features simply do not run.
-      Forensic analysis, AI deepfake detection, C2PA verification, and watermark
-      extraction proceed exactly as they would without Ollama installed at all.
+      Forensic analysis, AI deepfake detection, and C2PA verification proceed exactly
+      as they would without Ollama installed at all.
     </p>
   </section>
 

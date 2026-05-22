@@ -215,8 +215,13 @@
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
       <span><strong class="text-text-light dark:text-text-dark">Source type:</strong>
+      conditional on the action you chose. For
+      <code class="font-mono text-xs">c2pa.created</code>,
       <code class="font-mono text-xs">Iptc4xmpExt:DigitalSourceType = digitalCapture</code>
-      (the IPTC vocabulary for a human-authored photograph).</span>
+      is embedded (the IPTC vocabulary for a human-authored photograph). For
+      <code class="font-mono text-xs">c2pa.published</code>, no source-type is
+      claimed by the publisher because the original capture is described by the
+      parent ingredient instead.</span>
     </li>
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>

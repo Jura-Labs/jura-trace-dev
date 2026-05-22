@@ -228,7 +228,7 @@
           An investigation mode that runs the full forensic pipeline including all regional
           detectors: segmented ELA, shadow consistency, colour temperature, and splice
           boundary. More thorough than Standard mode. Typical analysis time: 30–60 seconds
-          depending on file size and whether Ollama is running.
+          depending on file size.
         </dd>
       </div>
 
@@ -538,11 +538,12 @@
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
         >Ollama</dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
-          A local large language model runtime used optionally by Jura Trace. When Ollama
-          is running in v1.0, it enables AI-generated image descriptions and Read Text
-          extraction via the LLaVA vision model. All inference runs entirely on your
-          device, so no data leaves your machine. Jura Trace operates normally when Ollama
-          is unavailable; the feature is simply skipped.
+          A local large language model runtime used optionally by Jura Trace. Ollama-backed
+          features (AI image descriptions, Read Text extraction via LLaVA) are reserved
+          for v1.0.1 and are gated off in the v1.0 build. v1.0 ships pure forensic + C2PA
+          analysis and does not require an Ollama install. When Ollama features are
+          re-enabled all inference will run entirely on your device, so no data leaves
+          your machine.
         </dd>
       </div>
 
@@ -753,7 +754,7 @@
           editable), a C2PA provenance adjustment, a composite-evidence cap at 55%
           when two regional detectors agree, and a deepfake verdict ceiling.
           Full breakdown on the
-          <a href="/help/methodology" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis dark:decoration-lapis-light/30 dark:hover:decoration-lapis-light">methodology page</a>.
+          <a href="/help/methodology#scoring-formula" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis dark:decoration-lapis-light/30 dark:hover:decoration-lapis-light">methodology page</a>.
           A high trust score means few anomalies were detected; a low score means
           multiple detectors raised concerns or a ceiling has been applied. The trust
           score is a forensic confidence indicator, not a guarantee of authenticity. The

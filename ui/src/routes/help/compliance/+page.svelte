@@ -263,7 +263,7 @@
         ></span>
         <span>
           <strong class="font-semibold text-text-light dark:text-text-dark">No external data transfers.</strong>
-          All forensic analysis, C2PA signing, watermarking, and report generation occur on-device.
+          All forensic analysis, C2PA signing, and report generation occur on-device.
           No content crosses the network boundary during normal operation.
         </span>
       </li>

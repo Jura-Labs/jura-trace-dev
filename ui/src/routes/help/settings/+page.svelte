@@ -9,8 +9,10 @@
     Application Settings
   </h1>
   <p class="text-base text-text-light dark:text-quartz leading-relaxed max-w-2xl">
-    The Settings page lets you manage named deployment profiles, check service health,
-    choose where your local database is stored, and review licence and version information.
+    The Settings page lets you check service health, choose where your local
+    database is stored, and review licence and version information. Deployment
+    profiles and the Ollama AI assistant are reserved for v1.0.1 and are not
+    surfaced in the v1.0 build.
   </p>
 </header>
 

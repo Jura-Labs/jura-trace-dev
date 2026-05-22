@@ -888,7 +888,7 @@
           </svg>
           <p class="font-heading text-text-light dark:text-quartz">Drop files or folders here</p>
           <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
-            or click to browse &mdash; JPEG, PNG, TIFF, WebP, PDF, MP4, WAV, and more
+            or click to browse &mdash; JPEG, PNG, TIFF, WebP (C2PA-signable in v1.0)
           </p>
         </div>
       {/if}

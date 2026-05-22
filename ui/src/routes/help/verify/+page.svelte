@@ -172,8 +172,9 @@
         Drag a file onto the drop area, or click <strong class="text-text-light dark:text-text-dark">Browse</strong>
         to open the file picker. Jura Trace detects the format from the file's magic bytes,
         not the extension, so a JPEG saved as <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">.png</span>
-        will still be handled correctly. Supported formats include JPEG, PNG, TIFF, WebP,
-        MP4, MOV, WAV, MP3, and PDF.
+        will still be handled correctly. v1.0 supports JPEG, PNG, TIFF, WebP, HEIC, and
+        AVIF on the Verify side. Video, audio, and PDF analysis return in a later
+        release.
       </p>
     </div>
 
@@ -337,27 +338,42 @@
   </h3>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
-    The trust score combines two independent strands of evidence:
+    The trust score combines five components in a defined order. No single
+    component can override the others when it strongly disagrees with the
+    evidence. The full walkthrough lives on the
+    <a href="/help/methodology#scoring-formula" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis">methodology page</a>;
+    the summary below is what you need to read a result quickly.
   </p>
 
-  <ul class="space-y-2 mb-4 text-sm text-text-light dark:text-quartz leading-relaxed">
-    <li class="flex gap-2">
-      <span class="text-lapis dark:text-lapis-light flex-none font-semibold">40%</span>
-      <span>
-        <strong class="text-text-light dark:text-text-dark">EXIF metadata analysis</strong>:
-        checks camera make and model, GPS coordinates, software fields, and timestamp
-        consistency.
-      </span>
+  <ol class="space-y-2 mb-4 text-sm text-text-light dark:text-quartz leading-relaxed list-decimal list-inside pl-2">
+    <li>
+      <strong class="text-text-light dark:text-text-dark">Forensic signal analysis (primary):</strong>
+      worst-case across pixel-level detectors (ELA, noise, copy-move, JPEG ghost,
+      deepfake ensemble, segmented ELA, colour temperature). Worst-case prevents a
+      single strong negative signal from being averaged away.
     </li>
-    <li class="flex gap-2">
-      <span class="text-lapis dark:text-lapis-light flex-none font-semibold">60%</span>
-      <span>
-        <strong class="text-text-light dark:text-text-dark">Forensic signal analysis</strong>:
-        combines the outputs from all active detectors (ELA, noise, copy-move, and so on),
-        weighted by confidence.
-      </span>
+    <li>
+      <strong class="text-text-light dark:text-text-dark">EXIF metadata consistency (corroborating, capped at 20%):</strong>
+      camera make and model, GPS, software, timestamps, plus injection-detection
+      rules. Capped at 20% because EXIF is trivially editable and frequently
+      stripped by social platforms.
     </li>
-  </ul>
+    <li>
+      <strong class="text-text-light dark:text-text-dark">C2PA provenance adjustment:</strong>
+      +0.10 for a valid manifest, -0.25 when the manifest itself declares AI
+      generation.
+    </li>
+    <li>
+      <strong class="text-text-light dark:text-text-dark">Composite-evidence cap (0.55):</strong>
+      when two regional detectors agree, total trust is capped at 55% regardless
+      of the weighted sum.
+    </li>
+    <li>
+      <strong class="text-text-light dark:text-text-dark">Deepfake verdict ceiling:</strong>
+      synthetic-high caps at 25%, synthetic-medium at 35%, synthetic-low at 45%,
+      inconclusive at 55%. Screenshots and documents bypass this ceiling.
+    </li>
+  </ol>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     When two or more regional detectors fire together (for example, segmented ELA and shadow

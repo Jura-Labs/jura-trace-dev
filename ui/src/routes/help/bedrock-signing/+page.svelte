@@ -132,6 +132,20 @@
       When to use Conformant Signing
     </h2>
 
+    <!-- v1.0 gate notice. Conformant signing is feature-flagged off (per
+         memory project_v1_community_only_launch); backend code is in tree
+         and the help text below remains as forward-looking documentation
+         for v1.1+. -->
+    <div
+      role="note"
+      class="mb-6 px-4 py-3 rounded-md border border-amber/40 bg-amber/[0.06] text-sm text-amber-dark dark:text-amber-light leading-relaxed"
+    >
+      <strong>v1.0 status:</strong> Conformant Signing is under evaluation
+      for a future release and is not selectable in the Settings panel
+      shipped in v1.0. v1.0 ships Local Signing only. The detail below
+      describes how Conformant Signing will work when re-enabled.
+    </div>
+
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       Conformant Signing is the optional second mode. Instead of using the
       per-install local certificate authority, Jura Trace signs files with a
@@ -372,8 +386,8 @@
     </h2>
 
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
-      <li><a href="/help/protect" class="text-lapis dark:text-lapis-light underline hover:no-underline">Protect workflow</a>: the full Protect page covering C2PA signing, watermarking, and fingerprinting.</li>
-      <li><a href="/help/settings" class="text-lapis dark:text-lapis-light underline hover:no-underline">Settings</a>: where the Signing Mode toggle lives, alongside other Jura Trace configuration.</li>
+      <li><a href="/help/protect" class="text-lapis dark:text-lapis-light underline hover:no-underline">Protect workflow</a>: the full Protect page covering C2PA signing and fingerprinting.</li>
+      <li><a href="/help/settings" class="text-lapis dark:text-lapis-light underline hover:no-underline">Settings</a>: where Jura Trace configuration lives. The Signing Mode toggle is hidden in v1.0 (see the v1.0 notice on this page).</li>
       <li><a href="/help/continuity" class="text-lapis dark:text-lapis-light underline hover:no-underline">Continuity Promise</a>: what happens to your signed content if Jura Labs CIC ever ceases operations.</li>
       <li><a href="/help/glossary" class="text-lapis dark:text-lapis-light underline hover:no-underline">Glossary</a>: definitions of C2PA, trust list, certificate authority, and other terms used on this page.</li>
     </ul>
