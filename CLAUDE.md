@@ -17,9 +17,9 @@ Jura Trace is one of two products built by **Jura Labs** (UK Community Interest 
 
 **Developed by**: Juralabs Community Interest Company (UK) — https://juralabs.org
 **Licence**: AGPL-3.0-or-later (with commercial-licence path on request — see `COMMERCIAL.md`). Switched 2026-05-06 from PolyForm Noncommercial 1.0.0; risk accepted on solicitor scoping per memory `project_ip_architecture_dual_entity.md`.
-**Current Version**: 0.9.0-rc.9 (Phase A — v1.0 in launch prep, target **live public release Mon 22 June 2026** (revised 2026-05-09 from 31 May; CPL embargo lifts 31 May silently — Jura Trace makes no public comment between 31 May and 22 June launch; see memories `project_v1_live_release.md` + `project_v1_marketing_plan_may2026.md`))
-**Source repo**: `juralabs/jura-archive` (private)
-**Release repo**: `juralabs/jura-trace` (public — installers only, no source)
+**Current Version**: 0.9.0-rc.25 cut 2026-05-21 (Phase A — v1.0 in launch prep, target **live public release Mon 22 June 2026** (revised 2026-05-09 from 31 May; CPL embargo lifts 31 May silently — Jura Trace makes no public comment between 31 May and 22 June launch; see memories `project_v1_live_release.md` + `project_v1_marketing_plan_may2026.md`))
+**Source repo**: `Jura-Labs/jura-archive` (private)
+**Release repo**: `Jura-Labs/jura-trace` (public — installers only, no source)
 **Windows signing**: Azure Trusted Signing (certificate ID a7e35def-628b-4980-8785-2e535f709418)
 **macOS signing**: Apple Developer ID Application — Jura Labs CIC (Team ID `Y82C4P9L7F`), G2 Sub-CA, valid through 15 April 2031. Cert installed in login keychain. See `docs/install-guides/macos-signing-setup.md` for full setup, notarisation, and CI integration.
 
@@ -125,21 +125,33 @@ Jura Trace uses a split-repo model to keep source code private while distributin
 
 | Repo | Visibility | Purpose |
 |------|-----------|---------|
-| `juralabs/jura-archive` | Private | Source code, CI, development, all branches and tags |
-| `juralabs/jura-trace` | Public | Release installers only — no source code |
+| `Jura-Labs/jura-archive` | Private | Source code, CI, development, all branches and tags |
+| `Jura-Labs/jura-trace` | Public | Release installers only — no source code |
 
 **How it works:**
-1. Tags are pushed to `juralabs/jura-archive` (the source repo where the workflow lives).
+1. Tags are pushed to `Jura-Labs/jura-archive` (the source repo where the workflow lives).
 2. The release workflow runs in `jura-archive` using the default `GITHUB_TOKEN` only for checkout.
-3. All GitHub Releases API calls (create, upload assets, publish) target `juralabs/jura-trace` via the `RELEASE_PAT` secret (a PAT with `repo` scope on `jura-trace`).
-4. `tauri-action` is called without `releaseId` on all platforms — this prevents it from uploading to `jura-archive`. Assets are uploaded manually via `gh release upload --repo juralabs/jura-trace` instead.
-5. The Tauri auto-updater endpoint in `tauri.conf.json` also points to `juralabs/jura-trace` so end-user update checks resolve against the public repo.
+3. All GitHub Releases API calls (create, upload assets, publish) target `Jura-Labs/jura-trace` via the `RELEASE_PAT` secret (a PAT with `repo` scope on `jura-trace`).
+4. `tauri-action` is called without `releaseId` on all platforms — this prevents it from uploading to `jura-archive`. Assets are uploaded manually via `gh release upload --repo Jura-Labs/jura-trace` instead.
+5. The Tauri auto-updater endpoint in `tauri.conf.json` also points to `Jura-Labs/jura-trace` so end-user update checks resolve against the public repo.
 
-**Required secrets in `juralabs/jura-archive`:**
-- `RELEASE_PAT` — GitHub PAT with `repo` scope on `juralabs/jura-trace`
+**Required secrets in `Jura-Labs/jura-archive`:**
+- `RELEASE_PAT` — GitHub PAT with `repo` scope on `Jura-Labs/jura-trace`
 - `GITHUB_TOKEN` — standard Actions token (used only for source checkout)
 
-**CI/CD workflows**: `.github/workflows/` — CI (Rust + Python + Frontend with pip-audit), Release (4-platform matrix), Dependabot
+**CI/CD workflows**: `.github/workflows/` — CI (Rust + Python + Frontend with pip-audit), Release (4-platform matrix), Dependabot, OSV-Scanner (cross-ecosystem SCA, SARIF to Security tab)
+
+### Mac release builds are LOCAL, not CI (2026-05-21)
+
+The release workflow's macOS "Phase 5 — per-file sign nested sidecar-bundle code" step silences codesign stderr (`>/dev/null 2>&1`) inside a `set -euo pipefail` loop, so when any single codesign call across the ~610 nested .dylib/.so files fails, the only visible error is `sort: stdout: Broken pipe`. CI Mac jobs have been unreliable since this surfaced.
+
+**Workaround (the current shipping pattern):**
+1. Push the release tag — CI runs Windows (works) + Mac (will fail, but that creates the draft release as a side effect).
+2. On Apple Silicon: `bash scripts/build-local-mac.sh`. Produces `.app`, signed DMG, `.app.tar.gz`, `.app.tar.gz.sig` under `$CARGO_TARGET_DIR/aarch64-apple-darwin/release/bundle/`.
+3. Upload Mac artefacts: `gh release upload v0.9.0-rc.X --repo Jura-Labs/jura-trace <files>`.
+4. Publish the draft once both platforms are populated.
+
+Prerequisites to avoid the recurring "bundle_dmg.sh failed" error: before running the local build, detach any leftover hdiutil mounts (`for d in $(hdiutil info | awk '/^\/dev\/disk/ {print $1}'); do hdiutil detach "$d" -force; done`) and quit any running Jura Trace + sidecar process. See memory `project_mac_local_release_build.md` for the full procedure and the cargo macro-cache caveat (the build-local-mac.sh patch in commit 162f338 invalidates the cache automatically).
 
 ## Key Files
 
@@ -177,7 +189,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 
 ## Current Status
 
-**Version**: 0.9.0-rc14 (Phase A — v1.0 in launch prep, target **live public release Mon 22 June 2026** (revised 2026-05-09 from 31 May; CPL embargo lifts 31 May silently — no public comment between 31 May and 22 June; see memories `project_v1_live_release.md` revised 2026-05-09 + `project_v1_marketing_plan_may2026.md`); pivot from pilot-cohort framing confirmed 2026-05-06, see memory `project_v1_live_release`). Phases 1–3 complete. Sprint 28 tech-debt sweep closed 8 April 2026; Sprint 29 shipped 7 April 2026; Sprint 30 backlog sweep 9 April 2026 (SIFT copy-move, EXIF injection detection, FP telemetry Phase B review bundle, URL watchlist scheduler, Tauri race-condition fix, Experimental UI tag rollout, XMP AI-provenance detection). For full sprint-by-sprint history see `CHANGELOG.md` and git log.
+**Version**: 0.9.0-rc.25 cut 2026-05-21 (Phase A — v1.0 in launch prep, target **live public release Mon 22 June 2026** (revised 2026-05-09 from 31 May; CPL embargo lifts 31 May silently — no public comment between 31 May and 22 June; see memories `project_v1_live_release.md` revised 2026-05-09 + `project_v1_marketing_plan_may2026.md`); pivot from pilot-cohort framing confirmed 2026-05-06, see memory `project_v1_live_release`). Phases 1–3 complete. Sprint 28 tech-debt sweep closed 8 April 2026; Sprint 29 shipped 7 April 2026; Sprint 30 backlog sweep 9 April 2026 (SIFT copy-move, EXIF injection detection, FP telemetry Phase B review bundle, URL watchlist scheduler, Tauri race-condition fix, Experimental UI tag rollout, XMP AI-provenance detection). rc.25 batch (commits `41a2b8b` + `162f338`, 2026-05-21): P0 tag-cut fixes (C2PA chain-walk Gemini fix, sidecar auth empty-key bypass closed with PYTEST_CURRENT_TEST carve-out, REST watermark routes return 503, ELA caption rewrite, 9 Playwright snapshots regenerated) plus the v1.0 UI gating sweep (Deployment Profiles, Ollama Service-Status card, watermark capability chip + per-asset button + "No Watermark" badge — all behind feature flags). SCA tooling added (OSV-Scanner workflow + cargo-audit in CI + Socket.dev docs in CONTRIBUTING). For full sprint-by-sprint history see `CHANGELOG.md` and git log.
 
 **Models in production** (as of 7 April 2026):
 - **GBM Deepfake Classifier v4** — 10,709 images (5,724 authentic + 4,985 AI), 84-feature vector, AUC-ROC 0.9868, authentic FP 4.54%, AI recall 92.52%, threshold 0.49. SHA-256 `2931f197cba6f376e85b1cbcfd584e6802f36e4fbf68ff00c83d61d4d655db18`.
