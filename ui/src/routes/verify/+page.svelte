@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { V1_SHOW_READ_TEXT, V1_SHOW_AI_DESCRIPTION } from '$lib/featureFlags';
+  import { V1_SHOW_READ_TEXT, V1_SHOW_AI_DESCRIPTION, V1_SHOW_WATERMARK } from '$lib/featureFlags';
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
   import {
@@ -706,11 +706,14 @@
           state: aiDetectionSuppressed ? 'suppressed' as DotState : dotState(result.clipResult?.verdictLevel === 'synthetic', result.clipResult != null),
           ariaDetail: aiDetectionSuppressed ? 'Suppressed — content type' : result.clipResult ? `Score ${Math.round((result.clipResult.score) * 100)}%` : 'Not run',
         }] : []),
-        {
+        // Watermark dot gated behind V1_SHOW_WATERMARK (v1.0 watermark
+        // embed + extract deferred to v1.1). Returns when the feature
+        // flag flips true.
+        ...(V1_SHOW_WATERMARK ? [{
           id: 'card-ai', label: 'Watermark',
           state: dotState(result.watermarkExtractResult?.hasWatermark === false ? false : undefined, result.watermarkExtractResult != null),
           ariaDetail: result.watermarkExtractResult?.hasWatermark ? 'Watermark found' : 'No watermark',
-        },
+        }] : []),
       ],
     };
   });
@@ -3400,8 +3403,12 @@
 
               </li>
 
-              <!-- Watermark Detection — provenance signal -->
-              {#if result.watermarkExtractResult}
+              <!-- Watermark Detection — provenance signal.
+                   v1.0 gate: hidden entirely because watermark embed +
+                   extract are deferred to v1.1. The sidecar may still
+                   return a watermarkExtractResult on legacy builds; the
+                   feature-flag check suppresses the row regardless. -->
+              {#if V1_SHOW_WATERMARK && result.watermarkExtractResult}
                 <li class="px-5 py-4 {result.watermarkExtractResult.hasWatermark ? 'bg-malachite/[0.03]' : ''}">
                   <div class="flex items-start gap-3">
                     <svg class="w-4 h-4 mt-0.5 flex-shrink-0 text-malachite-dark dark:text-malachite-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
