@@ -601,6 +601,45 @@
   // ── SVG ring animation ─────────────────────────────────────────────
   // circumference for r=47: 2π×47 ≈ 295.3
   const RING_CIRC = 295.3;
+
+  // ── Trust-score reveal animation (softer variant, 2026-05-22) ──────
+  //
+  // The ring fills via the existing CSS transition on stroke-dashoffset
+  // (motion-safe:duration-1000). The numeric percentage was previously
+  // rendered instantly, which produced an awkward "number appears then
+  // ring catches up" effect. The three-agent review (persona-testing +
+  // ux-frontend-designer + content-authenticity-expert) converged on:
+  //  - DO animate the ring fill (already happening).
+  //  - DO NOT count the number up from zero — that simulates live
+  //    computation and inflates user confidence in a noisy composite.
+  //  - DO appear the number AT THE END of the ring fill, in one piece.
+  //
+  // Implementation: a boolean `scoreRevealVisible` that resets to false
+  // on each new result and flips to true ~950ms later (just before the
+  // 1000ms ring fill completes, for sub-perceptual visual sync).
+  // Under prefers-reduced-motion the flag is set true immediately and
+  // the ring transition class is already gated by `motion-safe:`.
+  let scoreRevealVisible = $state(false);
+  $effect(() => {
+    // Track result.overallTrust so identical re-analyses don't re-fire.
+    const score = result?.overallTrust;
+    if (score == null) {
+      scoreRevealVisible = false;
+      return;
+    }
+    scoreRevealVisible = false;
+    const reduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) {
+      scoreRevealVisible = true;
+      return;
+    }
+    const timer = setTimeout(() => {
+      scoreRevealVisible = true;
+    }, 950);
+    return () => clearTimeout(timer);
+  });
   const ringDashoffset = $derived(
     result ? RING_CIRC * (1 - result.overallTrust) : RING_CIRC
   );
@@ -2253,7 +2292,11 @@
               class="motion-safe:transition-[stroke-dashoffset] motion-safe:duration-1000 motion-safe:ease-out"
             />
           </svg>
-          <div class="absolute inset-0 flex flex-col items-center justify-center" aria-hidden="true">
+          <div
+            class="absolute inset-0 flex flex-col items-center justify-center motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out"
+            style="opacity: {scoreRevealVisible ? 1 : 0}"
+            aria-hidden="true"
+          >
             <span class="font-serif text-2xl leading-none {trustColorClass()}">{trustScorePercent}<span class="text-sm">%</span></span>
           </div>
         </div>
@@ -2271,8 +2314,15 @@
           How this score is calculated
         </a>
 
-        <!-- Meta -->
-        <div class="flex-1 min-w-0">
+        <!-- Meta — opacity-fades in alongside the score reveal so the
+             title + verdict badge + filename land as one visual unit
+             at the end of the ring fill (2026-05-22 reveal animation).
+             aria-live regions inside still announce immediately at
+             render time, so screen reader users do not wait. -->
+        <div
+          class="flex-1 min-w-0 motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out"
+          style="opacity: {scoreRevealVisible ? 1 : 0}"
+        >
           <div class="flex items-center gap-2 mb-1 flex-wrap">
             <h2 class="font-serif text-xl text-obsidian dark:text-quartz">{trustLabelText()}</h2>
             {#if trustLevel()}
