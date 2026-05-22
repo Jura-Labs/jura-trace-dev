@@ -2277,14 +2277,8 @@
           </div>
         {/if}
 
-        <!-- Trust ring + methodology disclosure link.
-             The wrapper is the only `relative` ancestor that the
-             absolute "How this score is calculated" link should anchor
-             to, so the link sits INSIDE this div. Earlier placement
-             outside this div let the link bubble up to a non-positioned
-             ancestor and float between the question cards (reported
-             2026-05-22). -->
-        <div class="flex-shrink-0 relative w-[110px] h-[110px] pb-5" role="img" aria-label="Trust score: {trustScorePercent}%">
+        <!-- Trust ring -->
+        <div class="flex-shrink-0 relative w-[110px] h-[110px]" role="img" aria-label="Trust score: {trustScorePercent}%">
           <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
             <circle cx="50" cy="50" r="47" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="9"/>
             <circle
@@ -2299,23 +2293,12 @@
             />
           </svg>
           <div
-            class="absolute inset-x-0 top-0 h-[110px] flex flex-col items-center justify-center motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out"
+            class="absolute inset-0 flex flex-col items-center justify-center motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out"
             style="opacity: {scoreRevealVisible ? 1 : 0}"
             aria-hidden="true"
           >
             <span class="font-serif text-2xl leading-none {trustColorClass()}">{trustScorePercent}<span class="text-sm">%</span></span>
           </div>
-          <!-- Methodology disclosure (Generator-track audit + trust-score doc
-               review 2026-05-22): one-click path to the algorithm description.
-               Closes the Berkeley Protocol §6 reproducibility expectation
-               that the scoring method be discoverable in-context. -->
-          <a
-            href="/help/methodology#scoring-formula"
-            class="absolute bottom-0 left-1/2 -translate-x-1/2 text-[10px] text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis whitespace-nowrap
-                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-          >
-            How this score is calculated
-          </a>
         </div>
 
         <!-- Meta — opacity-fades in alongside the score reveal so the
@@ -2338,6 +2321,20 @@
               </span>
             {/if}
           </div>
+
+          <!-- Methodology disclosure (Generator-track audit + trust-score doc
+               review 2026-05-22): one-click path to the algorithm description.
+               Placed directly under the verdict pill per pilot feedback so
+               it sits in the trust card, not between the question cards
+               below. Closes the Berkeley Protocol §6 reproducibility
+               expectation that the scoring method be discoverable in-context. -->
+          <a
+            href="/help/methodology#scoring-formula"
+            class="inline-block mb-2 text-[11px] text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          >
+            How this score is calculated
+          </a>
 
           <p class="text-sm text-flint-dark dark:text-flint-light mb-3">
             {fileName}{#if imageDimensions()} · {imageDimensions()}{/if}
