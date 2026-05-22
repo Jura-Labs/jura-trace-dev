@@ -3366,11 +3366,14 @@ fn sign_asset(
         })?
         .ok_or_else(|| AppError::Validation("Asset not found".into()))?;
 
-    if asset.c2pa_signed {
-        return Err(AppError::Validation(
-            "Asset is already signed with C2PA".into(),
-        ));
-    }
+    // The previous "already signed → refuse" block was removed 2026-05-22
+    // (Generator-track audit item #8). sign_file now detects an existing
+    // manifest on the source and attaches it as a `parentOf` ingredient,
+    // so re-signing preserves the prior signer in the provenance chain.
+    // The Protect-page UI still only surfaces the Sign button on unsigned
+    // assets (canSignC2pa guard) to avoid accidental over-signing; the
+    // REST API and future "Resign with parent provenance" UX are the
+    // intended re-signing entry points.
 
     if !c2pa::supports_signing(&asset.content_type, &asset.mime_type) {
         return Err(AppError::Validation(format!(
