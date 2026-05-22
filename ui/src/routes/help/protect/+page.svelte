@@ -189,9 +189,13 @@
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
       <span><strong class="text-text-light dark:text-text-dark">Action:</strong>
-      <code class="font-mono text-xs">c2pa.created</code> with the producer name you entered.
-      A future release adds <code class="font-mono text-xs">c2pa.published</code> for institutions
-      re-distributing pre-existing content.</span>
+      either <code class="font-mono text-xs">c2pa.created</code> (you authored the
+      content) or <code class="font-mono text-xs">c2pa.published</code> (you are
+      re-distributing pre-existing content). The Sign panel asks which applies
+      before sealing. When you choose <code class="font-mono text-xs">c2pa.published</code>,
+      any existing manifest on the source file is preserved in the new
+      manifest as a <code class="font-mono text-xs">parentOf</code> ingredient,
+      so the upstream creator's signature stays in the provenance chain.</span>
     </li>
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode } from '$lib/api';
+  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode, type SignAction } from '$lib/api';
   import { V1_SHOW_CONFORMANT_SIGNING, V1_SHOW_WATERMARK } from '$lib/featureFlags';
   import { setVerifyHandoff } from '$lib/stores/verifyHandoff';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
@@ -89,6 +89,10 @@
   let signingAssetId: string | null = $state(null);
   let creatorName   = $state('');
   let selectedLicense = $state('All Rights Reserved');
+  // Generator-track audit item #9: selectable action (c2pa.created vs
+  // c2pa.published). Defaults to 'created' to match pre-2026-05-22
+  // behaviour for the most common authorship workflow.
+  let selectedAction = $state<SignAction>('created');
   let signing = $state(false);
   let metadataWarning = $state<MetadataSigningWarning | null>(null);
   let metadataWarningLoading = $state(false);
@@ -128,6 +132,10 @@
   let showBatchSign = $state(false);
   let batchSignCreatorName = $state('');
   let batchSignLicense = $state('All Rights Reserved');
+  // Batch counterpart to selectedAction. Default 'created' matches the
+  // single-asset default and the most common batch workflow (an
+  // institution stamping its own photo archive).
+  let batchSelectedAction = $state<SignAction>('created');
   let batchSignRunning = $state(false);
   let batchSignProgress = $state(0);
   let batchSignTotal = $state(0);
@@ -372,7 +380,7 @@
     signing = true;
     error = null;
     try {
-      const updated = await signAsset(signingAssetId, creatorName.trim(), selectedLicense);
+      const updated = await signAsset(signingAssetId, creatorName.trim(), selectedLicense, selectedAction);
       assets = assets.map(a => a.assetId === updated.assetId ? updated : a);
       selectedAsset = updated;
       signingAssetId = null;
@@ -623,7 +631,7 @@
 
       const t0 = performance.now();
       try {
-        const updated = await signAsset(asset.assetId, batchSignCreatorName.trim(), batchSignLicense);
+        const updated = await signAsset(asset.assetId, batchSignCreatorName.trim(), batchSignLicense, batchSelectedAction);
         assets = assets.map(a => a.assetId === updated.assetId ? updated : a);
         if (selectedAsset?.assetId === updated.assetId) selectedAsset = updated;
         batchSignSuccessCount++;
@@ -1242,6 +1250,47 @@
               {/if}
             </div>
 
+            <!-- Action selector (Generator-track audit item #9 + #11) for
+                 the batch panel. Applies to every file in the batch — useful
+                 for an institution-wide "we are publishing these" or "we
+                 created these" declaration. Mixed batches that need
+                 per-file action selection are deferred to v1.0.x. -->
+            <fieldset>
+              <legend class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide mb-1.5">
+                What is this batch signature recording?
+              </legend>
+              <div class="space-y-1.5">
+                <label class="flex items-start gap-2 cursor-pointer text-sm text-text-light dark:text-quartz leading-snug">
+                  <input
+                    type="radio"
+                    bind:group={batchSelectedAction}
+                    value="created"
+                    class="mt-0.5 accent-lapis dark:accent-lapis-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+                  />
+                  <span>
+                    <span class="font-medium">We created this content</span>
+                    <span class="block text-xs text-flint-dark dark:text-flint-light">
+                      <code class="font-mono text-[10px]">c2pa.created</code> for every file in this batch (typical archive-stamping workflow).
+                    </span>
+                  </span>
+                </label>
+                <label class="flex items-start gap-2 cursor-pointer text-sm text-text-light dark:text-quartz leading-snug">
+                  <input
+                    type="radio"
+                    bind:group={batchSelectedAction}
+                    value="published"
+                    class="mt-0.5 accent-lapis dark:accent-lapis-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+                  />
+                  <span>
+                    <span class="font-medium">We are publishing pre-existing content</span>
+                    <span class="block text-xs text-flint-dark dark:text-flint-light">
+                      <code class="font-mono text-[10px]">c2pa.published</code>. Any existing manifest on each source is preserved as a parent ingredient.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+
             <!-- Pre-seal disclosure (Generator-track audit recommendation #10).
                  Mirrors the single-asset panel so batch signers get the same
                  transparency before sealing many files at once. -->
@@ -1255,7 +1304,9 @@
               </p>
               <ul class="space-y-0.5 text-flint-dark dark:text-flint-light leading-relaxed">
                 <li>Producer: <span class="text-text-light dark:text-quartz">{batchSignCreatorName.trim() || '(blank)'}</span></li>
-                <li>Action: <span class="text-text-light dark:text-quartz">c2pa.created</span> (you created this content)</li>
+                <li>Action: <span class="text-text-light dark:text-quartz">c2pa.{batchSelectedAction}</span>
+                  ({batchSelectedAction === 'created' ? 'you created this content' : 'you are publishing pre-existing content'})
+                </li>
                 <li>Licence: <span class="text-text-light dark:text-quartz">{batchSignLicense}</span></li>
                 <li>
                   AI training and data mining:
@@ -1266,7 +1317,11 @@
                     <span class="block mt-0.5 italic">CC0 is a public-domain waiver — it cannot legally prohibit training. The manifest declares this honestly.</span>
                   {/if}
                 </li>
-                <li>Source: digital camera capture (Iptc4xmpExt:DigitalSourceType)</li>
+                {#if batchSelectedAction === 'created'}
+                  <li>Source: digital camera capture (Iptc4xmpExt:DigitalSourceType)</li>
+                {:else}
+                  <li>Source: described by each file's parent ingredient (preserved from any existing manifest)</li>
+                {/if}
                 <li>Software: <span class="text-text-light dark:text-quartz">Jura Trace</span> + timestamp + content hash</li>
               </ul>
             </div>
@@ -2526,12 +2581,57 @@
                       </div>
                     </div>
 
+                    <!-- Action selector (Generator-track audit item #9 + #11).
+                         Two-radio chooser between c2pa.created (the producer
+                         authored the content; default) and c2pa.published
+                         (re-distribution of pre-existing content; the prior
+                         signer is preserved as a parentOf ingredient by the
+                         backend per audit item #8). -->
+                    <fieldset class="mt-3">
+                      <legend class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide mb-1.5">
+                        What is this signature recording?
+                      </legend>
+                      <div class="space-y-1.5">
+                        <label class="flex items-start gap-2 cursor-pointer text-sm text-text-light dark:text-quartz leading-snug">
+                          <input
+                            type="radio"
+                            bind:group={selectedAction}
+                            value="created"
+                            class="mt-0.5 accent-lapis dark:accent-lapis-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+                          />
+                          <span>
+                            <span class="font-medium">I created this content</span>
+                            <span class="block text-xs text-flint-dark dark:text-flint-light">
+                              <code class="font-mono text-[10px]">c2pa.created</code> — the standard authorship claim for an original photograph or your own digital work.
+                            </span>
+                          </span>
+                        </label>
+                        <label class="flex items-start gap-2 cursor-pointer text-sm text-text-light dark:text-quartz leading-snug">
+                          <input
+                            type="radio"
+                            bind:group={selectedAction}
+                            value="published"
+                            class="mt-0.5 accent-lapis dark:accent-lapis-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+                          />
+                          <span>
+                            <span class="font-medium">I am publishing pre-existing content</span>
+                            <span class="block text-xs text-flint-dark dark:text-flint-light">
+                              <code class="font-mono text-[10px]">c2pa.published</code> — re-distribution of an asset that someone else captured or created. Any existing manifest on the source is preserved as a parent ingredient.
+                            </span>
+                          </span>
+                        </label>
+                      </div>
+                    </fieldset>
+
                     <!-- Pre-seal disclosure (Generator-track audit recommendation
                          #10 of 11, 2026-05-22). Lists what will be permanently
                          embedded so the user can review before sealing. The
                          training-mining row flips based on licence: CC0 cannot
                          legally prohibit training, so it is the one case where
-                         AI training is permitted by default. -->
+                         AI training is permitted by default. The source-type row
+                         only appears for c2pa.created — for c2pa.published the
+                         backend omits digitalSourceType because the original
+                         capture is described by the parent ingredient. -->
                     <div
                       class="mt-3 px-3 py-2 rounded-md border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 text-xs"
                       role="region"
@@ -2542,7 +2642,9 @@
                       </p>
                       <ul class="space-y-0.5 text-flint-dark dark:text-flint-light leading-relaxed">
                         <li>Producer: <span class="text-text-light dark:text-quartz">{creatorName.trim() || '(blank)'}</span></li>
-                        <li>Action: <span class="text-text-light dark:text-quartz">c2pa.created</span> (you created this content)</li>
+                        <li>Action: <span class="text-text-light dark:text-quartz">c2pa.{selectedAction}</span>
+                          ({selectedAction === 'created' ? 'you created this content' : 'you are publishing pre-existing content'})
+                        </li>
                         <li>Licence: <span class="text-text-light dark:text-quartz">{selectedLicense}</span></li>
                         <li>
                           AI training and data mining:
@@ -2553,7 +2655,11 @@
                             <span class="block mt-0.5 italic">CC0 is a public-domain waiver — it cannot legally prohibit training. The manifest declares this honestly.</span>
                           {/if}
                         </li>
-                        <li>Source: digital camera capture (Iptc4xmpExt:DigitalSourceType)</li>
+                        {#if selectedAction === 'created'}
+                          <li>Source: digital camera capture (Iptc4xmpExt:DigitalSourceType)</li>
+                        {:else}
+                          <li>Source: described by the parent ingredient (preserved from the source file's existing manifest, if any)</li>
+                        {/if}
                         <li>Software: <span class="text-text-light dark:text-quartz">Jura Trace</span> + timestamp + content hash</li>
                       </ul>
                     </div>
