@@ -72,11 +72,25 @@ ok "Developer ID cert present in keychain: ${SIGNING_IDENTITY}"
 [[ -f sidecar/jura-sidecar.spec ]] || die "sidecar/jura-sidecar.spec not found."
 ok "Sidecar spec present."
 
-# Optional env vars: report status without failing
-if [[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
-  ok "TAURI_SIGNING_PRIVATE_KEY set — updater payload will be minisign-signed."
+# Auto-load TAURI_SIGNING_PRIVATE_KEY from ~/.tauri/jura-trace-v10.key if
+# not already set. The key was generated fresh (2026-05-22) with an empty
+# password, so TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not needed. Without
+# this auto-load, local builds skip the updater payload (.app.tar.gz +
+# .sig) and only produce the .dmg, which means rc.x testers can never
+# auto-update to the next rc. File mode is 600; gitignored.
+TAURI_KEY_FILE="${HOME}/.tauri/jura-trace-v10.key"
+if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" && -r "$TAURI_KEY_FILE" ]]; then
+  TAURI_SIGNING_PRIVATE_KEY="$(cat "$TAURI_KEY_FILE")"
+  export TAURI_SIGNING_PRIVATE_KEY
+  # Empty-password key generated 2026-05-22; the env var still needs to
+  # be set (Tauri reads it even when empty) to disable password prompting.
+  export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
+  ok "TAURI_SIGNING_PRIVATE_KEY loaded from $TAURI_KEY_FILE (empty password)."
+elif [[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
+  ok "TAURI_SIGNING_PRIVATE_KEY already set in environment."
 else
-  warn "TAURI_SIGNING_PRIVATE_KEY not set — updater payload .sig will be empty."
+  warn "TAURI_SIGNING_PRIVATE_KEY not set and $TAURI_KEY_FILE not readable."
+  warn "Updater payload .sig will be empty. Auto-updater will refuse to apply this release."
 fi
 
 if [[ -n "${APPLE_ID:-}" && -n "${APPLE_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]; then
