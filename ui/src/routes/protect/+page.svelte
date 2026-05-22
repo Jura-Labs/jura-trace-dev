@@ -1242,6 +1242,35 @@
               {/if}
             </div>
 
+            <!-- Pre-seal disclosure (Generator-track audit recommendation #10).
+                 Mirrors the single-asset panel so batch signers get the same
+                 transparency before sealing many files at once. -->
+            <div
+              class="px-3 py-2 rounded-md border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 text-xs"
+              role="region"
+              aria-label="What will be embedded in each manifest"
+            >
+              <p class="font-medium text-text-light dark:text-quartz mb-1.5">
+                What each signature embeds
+              </p>
+              <ul class="space-y-0.5 text-flint-dark dark:text-flint-light leading-relaxed">
+                <li>Producer: <span class="text-text-light dark:text-quartz">{batchSignCreatorName.trim() || '(blank)'}</span></li>
+                <li>Action: <span class="text-text-light dark:text-quartz">c2pa.created</span> (you created this content)</li>
+                <li>Licence: <span class="text-text-light dark:text-quartz">{batchSignLicense}</span></li>
+                <li>
+                  AI training and data mining:
+                  <span class="text-text-light dark:text-quartz">
+                    {batchSignLicense === 'CC0 1.0' ? 'Allowed' : 'Not allowed'}
+                  </span>
+                  {#if batchSignLicense === 'CC0 1.0'}
+                    <span class="block mt-0.5 italic">CC0 is a public-domain waiver — it cannot legally prohibit training. The manifest declares this honestly.</span>
+                  {/if}
+                </li>
+                <li>Source: digital camera capture (Iptc4xmpExt:DigitalSourceType)</li>
+                <li>Software: <span class="text-text-light dark:text-quartz">Jura Trace</span> + timestamp + content hash</li>
+              </ul>
+            </div>
+
             <!-- Action buttons -->
             <div class="flex gap-3 pt-1">
               <button
@@ -2496,6 +2525,39 @@
                         </select>
                       </div>
                     </div>
+
+                    <!-- Pre-seal disclosure (Generator-track audit recommendation
+                         #10 of 11, 2026-05-22). Lists what will be permanently
+                         embedded so the user can review before sealing. The
+                         training-mining row flips based on licence: CC0 cannot
+                         legally prohibit training, so it is the one case where
+                         AI training is permitted by default. -->
+                    <div
+                      class="mt-3 px-3 py-2 rounded-md border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 text-xs"
+                      role="region"
+                      aria-label="What will be embedded in the manifest"
+                    >
+                      <p class="font-medium text-text-light dark:text-quartz mb-1.5">
+                        What this signature embeds in the file
+                      </p>
+                      <ul class="space-y-0.5 text-flint-dark dark:text-flint-light leading-relaxed">
+                        <li>Producer: <span class="text-text-light dark:text-quartz">{creatorName.trim() || '(blank)'}</span></li>
+                        <li>Action: <span class="text-text-light dark:text-quartz">c2pa.created</span> (you created this content)</li>
+                        <li>Licence: <span class="text-text-light dark:text-quartz">{selectedLicense}</span></li>
+                        <li>
+                          AI training and data mining:
+                          <span class="text-text-light dark:text-quartz">
+                            {selectedLicense === 'CC0 1.0' ? 'Allowed' : 'Not allowed'}
+                          </span>
+                          {#if selectedLicense === 'CC0 1.0'}
+                            <span class="block mt-0.5 italic">CC0 is a public-domain waiver — it cannot legally prohibit training. The manifest declares this honestly.</span>
+                          {/if}
+                        </li>
+                        <li>Source: digital camera capture (Iptc4xmpExt:DigitalSourceType)</li>
+                        <li>Software: <span class="text-text-light dark:text-quartz">Jura Trace</span> + timestamp + content hash</li>
+                      </ul>
+                    </div>
+
                     <div class="flex gap-2 mt-3">
                       <button
                         class="px-4 py-2.5 min-h-[44px] inline-flex items-center bg-lapis text-white text-sm rounded hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors

@@ -320,11 +320,11 @@ pub fn ensure_certificate(data_dir: &Path) -> Result<(Vec<u8>, Vec<u8>), String>
 /// Returns `Some(uri)` for the five Creative Commons licences and CC0.
 /// Returns `None` for `"All Rights Reserved"` and any unrecognised string.
 ///
-/// For "All Rights Reserved" we intentionally omit the `stds.schema-org.CreativeWork`
-/// assertion rather than inventing a URI, because Adobe Inspect and other URI-form
-/// verifiers have no standardised URI for proprietary unlicenced content and will
-/// silently ignore or reject a made-up one.  The opaque `c2pa.rights` string assertion
-/// is still emitted in all cases, so verifiers that only read that field are unaffected.
+/// For "All Rights Reserved" we intentionally omit the `license` URI field on
+/// `stds.schema-org.CreativeWork`, because there is no standardised URI for
+/// proprietary unlicenced content. We still emit the CreativeWork assertion
+/// itself with `copyrightNotice` set to the human-readable label, so verifiers
+/// reading creator + copyright still get useful data.
 fn license_to_uri(license: &str) -> Option<&'static str> {
     match license {
         "CC BY 4.0" => Some("https://creativecommons.org/licenses/by/4.0/"),
@@ -335,6 +335,36 @@ fn license_to_uri(license: &str) -> Option<&'static str> {
         // "All Rights Reserved" and any unknown string: no URI emitted.
         _ => None,
     }
+}
+
+/// AI-training + data-mining usage policy keyed by `c2pa.training-mining`
+/// reason ID, per C2PA 2.1 §18.18. Returns one of `"allowed"`, `"notAllowed"`,
+/// or `"constrained"` for each of the four canonical reasons.
+///
+/// v1.0 policy is intentionally binary: CC0 permits everything (public domain
+/// cannot legally prohibit it); all other licences prohibit everything by
+/// default. Per-asset override is deferred to v1.1 when the UI exposes a
+/// toggle. The CC0 carve-out resolves the contradiction the Generator-track
+/// audit flagged: a CC0 file with `notAllowed` on every training reason was
+/// asserting a restriction the licence explicitly waives.
+fn training_mining_for_license(license: &str) -> serde_json::Value {
+    // Canonical reason IDs per C2PA 2.1 §18.18.
+    const REASONS: &[&str] = &[
+        "c2pa.ai_generative_training",
+        "c2pa.ai_inference",
+        "c2pa.ai_training",
+        "c2pa.data_mining",
+    ];
+    let policy = if license == "CC0 1.0" {
+        "allowed"
+    } else {
+        "notAllowed"
+    };
+    let mut entries = serde_json::Map::new();
+    for reason in REASONS {
+        entries.insert(reason.to_string(), serde_json::json!({ "use": policy }));
+    }
+    serde_json::Value::Object(entries)
 }
 
 /// Sign a file with a C2PA provenance manifest.
@@ -370,7 +400,32 @@ pub fn sign_file(
     let software_agent = format!("{PRODUCT} {pkg_ver}");
     let claim_generator = format!("{PRODUCT}/{pkg_ver}");
 
-    let mut assertions = vec![
+    // The 2026-05-22 Generator-track audit flagged three structural problems
+    // with the previous manifest shape, all fixed here:
+    //   1. `c2pa.rights` is not a spec-defined assertion label (the c2pa.*
+    //      namespace is reserved). Replaced by the spec-correct mechanisms:
+    //      `stds.schema-org.CreativeWork` for licence + copyright, and
+    //      `c2pa.training-mining` (§18.18) for AI / data-mining policy.
+    //   2. AI opt-out was hardcoded inside the bogus `c2pa.rights` blob with
+    //      no canonical reader path. Now emitted via the spec assertion
+    //      (`training_mining_for_license` below), with CC0 correctly
+    //      mapped to `allowed` because public domain cannot prohibit it.
+    //   3. `plus:DataMining` inside `stds.iptc` was redundant with the new
+    //      c2pa.training-mining assertion; removed.
+    //
+    // `stds.iptc` is retained only for `Iptc4xmpExt:DigitalSourceType` until
+    // audit item #6 moves it into the c2pa.created action.
+    let mut creative_work = serde_json::json!({
+        "@context": "https://schema.org",
+        "@type": "CreativeWork",
+        "creator": creator_name,
+        "copyrightNotice": license_value,
+    });
+    if let Some(uri) = license_to_uri(license_value) {
+        creative_work["license"] = serde_json::Value::String(uri.to_string());
+    }
+
+    let assertions = vec![
         serde_json::json!({
             "label": "c2pa.actions",
             "data": {
@@ -384,46 +439,27 @@ pub fn sign_file(
             }
         }),
         serde_json::json!({
-            "label": "c2pa.rights",
+            "label": "stds.schema-org.CreativeWork",
+            "data": creative_work
+        }),
+        serde_json::json!({
+            "label": "c2pa.training-mining",
             "data": {
-                "rights": license_value,
-                "ai_training": "notAllowed"
+                "entries": training_mining_for_license(license_value)
             }
         }),
         serde_json::json!({
             "label": "stds.iptc",
             "data": {
-                // Per C2PA spec, this field carries the canonical
-                // provenance signal. We default to "digitalCapture"
-                // for files signed via this code path because Jura
-                // Trace's Sign action is the human declaring
-                // authorship of a captured photograph. Verifiers
-                // (including our own Verify pipeline) check this
-                // field positively for human-capture provenance —
-                // an empty string degrades to absence-of-signal.
-                // For AI-composite or trained-algorithmic-media
-                // assertions, callers should mint a separate
-                // assertion via a future `sign_file_composite`
-                // entry-point rather than overload this default.
-                "Iptc4xmpExt:DigitalSourceType": "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture",
-                "plus:DataMining": "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-EXCEPTSEARCHENGINEINDEXING"
+                // Default to "digitalCapture" for files signed via this
+                // path because Jura Trace's Sign action is the human
+                // declaring authorship of a captured photograph.
+                // Generator-track audit item #6 moves this into the
+                // c2pa.created action itself (the canonical 2.x location).
+                "Iptc4xmpExt:DigitalSourceType": "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture"
             }
         }),
     ];
-
-    // Append stds.schema-org.CreativeWork only when we have a canonical URI.
-    // "All Rights Reserved" and unknown strings are intentionally excluded — see
-    // license_to_uri() doc comment for the rationale.
-    if let Some(uri) = license_to_uri(license_value) {
-        assertions.push(serde_json::json!({
-            "label": "stds.schema-org.CreativeWork",
-            "data": {
-                "@context": "https://schema.org",
-                "@type": "CreativeWork",
-                "license": uri
-            }
-        }));
-    }
 
     let manifest_def = serde_json::json!({
         "claim_generator": claim_generator,

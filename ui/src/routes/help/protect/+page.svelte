@@ -175,25 +175,56 @@
   </h3>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    The signed manifest records three things:
+    The signed manifest records the fields below. The Sign panel shows a live
+    preview of these values before you seal each file.
   </p>
 
   <ul class="space-y-2 mb-6 text-sm text-text-light dark:text-quartz leading-relaxed">
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
       <span><strong class="text-text-light dark:text-text-dark">Claim generator:</strong>
-      identifies Jura Trace as the signing application, including the application version.</span>
+      identifies Jura Trace as the signing application, including the application version
+      (sourced from <code class="font-mono text-xs">CARGO_PKG_VERSION</code> at build time).</span>
+    </li>
+    <li class="flex gap-2">
+      <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
+      <span><strong class="text-text-light dark:text-text-dark">Action:</strong>
+      <code class="font-mono text-xs">c2pa.created</code> with the producer name you entered.
+      A future release adds <code class="font-mono text-xs">c2pa.published</code> for institutions
+      re-distributing pre-existing content.</span>
+    </li>
+    <li class="flex gap-2">
+      <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
+      <span><strong class="text-text-light dark:text-text-dark">Licence + copyright:</strong>
+      embedded as <code class="font-mono text-xs">stds.schema-org.CreativeWork</code> with
+      <code class="font-mono text-xs">creator</code>, <code class="font-mono text-xs">copyrightNotice</code>,
+      and a canonical Creative Commons URI when the selected licence has one.</span>
+    </li>
+    <li class="flex gap-2">
+      <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
+      <span><strong class="text-text-light dark:text-text-dark">AI training and data mining:</strong>
+      a <code class="font-mono text-xs">c2pa.training-mining</code> assertion declares whether
+      the four canonical uses (generative training, inference, training, data mining) are
+      allowed. Default is "Not allowed" for every licence except CC0, which is a public-domain
+      waiver and cannot legally prohibit training.</span>
+    </li>
+    <li class="flex gap-2">
+      <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
+      <span><strong class="text-text-light dark:text-text-dark">Source type:</strong>
+      <code class="font-mono text-xs">Iptc4xmpExt:DigitalSourceType = digitalCapture</code>
+      (the IPTC vocabulary for a human-authored photograph).</span>
     </li>
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
       <span><strong class="text-text-light dark:text-text-dark">Timestamp:</strong>
-      the date and time at which the manifest was written (from the local system clock).</span>
+      RFC 3161 trusted timestamp from a third-party TSA, so the manifest remains
+      verifiable even after the signing certificate eventually expires.</span>
     </li>
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
       <span><strong class="text-text-light dark:text-text-dark">Content hash:</strong>
-      a cryptographic hash of the file's pixel or media data. Any subsequent modification to
-      the file will cause the hash to fail verification.</span>
+      a cryptographic hash of the file's pixel or media data. Any subsequent modification
+      to the file will cause the hash to fail verification.</span>
     </li>
   </ul>
 
