@@ -283,10 +283,18 @@
 
   // Positive authenticity evidence — at least ONE of:
   //   (a) Real camera detected via MakerNote (vendor-recognised binary blob,
-  //       AI generators virtually never synthesise these); OR
+  //       AI generators virtually never synthesise these). Strongest signal.
   //   (b) Valid C2PA Content Credentials with NO AI declaration (manifest
   //       cryptographically valid AND no DigitalSourceType=trainedAlgorithmicMedia
   //       or compositeSynthetic action assertion).
+  //   (c) Soft positive signal added 2026-05-22 after a user-reported false-
+  //       positive cap on a 2015 Samsung Galaxy S5 photo: EXIF Make matches
+  //       a vendor in KNOWN_CAMERA_VENDORS AND camera Model is non-empty
+  //       AND no high-severity EXIF anomaly finding fired. Catches old
+  //       phone photos whose MakerNote was stripped during sharing while
+  //       still letting the injection-detection suite (templated
+  //       timestamps, integer-degree GPS, pipeline library in Software,
+  //       missing-MakerNote-on-mandatory-vendor) reject AI-forged EXIF.
   //
   // Without ONE of these signals, a "High Trust / Authentic" claim is unsafe:
   // it rests purely on the absence of negative findings, which a re-encoded
@@ -298,6 +306,21 @@
     const cameraBonus = result.exifAnalysis?.cameraAuthenticityBonus ?? 0;
     if (cameraBonus > 0.5) return true;
     if (result.c2paValid === true && !c2paDigitalSourceType()) return true;
+
+    // Soft tier: recognised camera Make + non-empty Model + no high-severity
+    // EXIF finding. Both Make and Model must come through the EXIF block;
+    // a forged EXIF with templated values would have tripped the injection-
+    // detection suite and the high-severity check below would fail.
+    const exif = result.exifAnalysis;
+    const meta = result.imageMetadata;
+    if (
+      exif?.isKnownCameraMake &&
+      meta?.cameraModel != null &&
+      meta.cameraModel.trim().length > 0 &&
+      !(exif.findings ?? []).some((f) => f.severity === 'high' || f.severity === 'critical')
+    ) {
+      return true;
+    }
     return false;
   });
 

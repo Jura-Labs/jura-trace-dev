@@ -884,6 +884,21 @@ export interface ExifAnalysis {
    * test at line 900 of that file).
    */
   cameraAuthenticityBonus?: number;
+  /**
+   * True when the EXIF `Make` string matches a vendor in the backend's
+   * `KNOWN_CAMERA_VENDORS` list (case-insensitive substring). Independent
+   * of MakerNote presence — handles the common case of old phone photos
+   * whose MakerNote was stripped during sharing but whose camera Make is
+   * still intact. Used by `hasPositiveAuthenticitySignal` on the verify
+   * page as a softer positive-authenticity signal when combined with a
+   * non-empty Model and no high-severity EXIF anomaly findings.
+   *
+   * Field name on the Rust side: `is_known_camera_make` on `ExifAnalysis`
+   * in `src-tauri/src/exif_anomaly.rs`, serialised via serde camelCase.
+   * Added 2026-05-22 after a user-reported false-positive cap on a 2015
+   * Samsung Galaxy S5 photo.
+   */
+  isKnownCameraMake?: boolean;
 }
 
 /** Severity display configuration */

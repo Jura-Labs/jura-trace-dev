@@ -562,6 +562,21 @@ const KNOWN_CAMERA_VENDORS: &[&str] = &[
     "lenovo",
 ];
 
+/// Whether the supplied EXIF `Make` string matches a vendor in
+/// `KNOWN_CAMERA_VENDORS`. Case-insensitive substring match. Used as a
+/// softer positive-authenticity signal when MakerNote has been stripped
+/// (common on photos that have been through social-platform re-encoding
+/// or older email forwarding paths) but the EXIF block otherwise looks
+/// camera-shaped. AI generators do not typically populate plausible
+/// Make+Model strings; when they do, the EXIF injection-detection suite
+/// (`check_templated_timestamps`, `check_integer_degree_gps`,
+/// `check_pipeline_library_software`) catches the templating.
+pub fn is_known_camera_vendor(make: Option<&str>) -> bool {
+    let Some(m) = make else { return false };
+    let lower = m.to_lowercase();
+    KNOWN_CAMERA_VENDORS.iter().any(|v| lower.contains(v))
+}
+
 /// Determine whether the metadata indicates a genuine camera-origin image
 /// based on MakerNote presence + vendor match. Returns a confidence score
 /// in [0.0, 1.0] where higher = more confident the image came from a real camera.

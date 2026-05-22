@@ -73,6 +73,16 @@ pub struct ExifAnalysis {
     /// the deepfake scoring layer to mitigate false positives on computational
     /// photography output. 0.0 means no MakerNote, no signal either way.
     pub camera_authenticity_bonus: f64,
+    /// Whether the EXIF `Make` string matches a vendor in
+    /// `KNOWN_CAMERA_VENDORS` (case-insensitive substring). Independent
+    /// of MakerNote presence — handles the common case of an old phone
+    /// photo whose MakerNote was stripped during sharing but whose
+    /// camera Make is still intact. Combined with a non-empty Model and
+    /// no high-severity EXIF anomaly findings, this acts as a softer
+    /// positive-authenticity signal that prevents legitimate old phone
+    /// photos from being permanently capped to "Review" by the absence-
+    /// of-MakerNote rule.
+    pub is_known_camera_make: bool,
 }
 
 // ===== Analysis =====
@@ -88,44 +98,58 @@ pub fn analyse(
 ) -> ExifAnalysis {
     let mut findings = Vec::new();
 
-    let (fields_populated, fields_total, gps_latitude, gps_longitude, camera_authenticity_bonus) =
-        match metadata {
-            Some(meta) => {
-                check_software(meta, &mut findings);
-                check_missing_exif(meta, &mut findings);
-                check_timestamps(meta, &mut findings);
-                check_dimensions(meta, actual_width, actual_height, &mut findings);
-                check_gps(meta, &mut findings);
-                let bonus = check_maker_note_authenticity(meta, &mut findings);
-                // Injection-detection heuristics — see docs/design/exif-injection-detection.md
-                check_pipeline_library_software(meta, &mut findings);
-                check_templated_timestamps(meta, &mut findings);
-                check_integer_degree_gps(meta, &mut findings);
-                check_mandatory_maker_note_missing(meta, &mut findings);
-                check_iphone_colour_space_mismatch(meta, &mut findings);
-                check_xmp_ai_digital_source(meta, &mut findings);
-                check_xmp_ai_creator_tool(meta, &mut findings);
-                check_editor_on_phone_capture(meta, &mut findings);
-                check_xmp_history_manipulation_tool(meta, &mut findings);
-                check_xmp_history_multi_save_phone(meta, &mut findings);
-                check_icc_profile_mismatch(meta, &mut findings);
-                let (fp, ft) = compute_completeness(meta);
-                (fp, ft, meta.gps_latitude, meta.gps_longitude, bonus)
-            }
-            None => {
-                findings.push(AnomalyFinding {
-                    check_id: "no_exif_data".into(),
-                    title: "No EXIF data present".into(),
-                    description: "This file contains no EXIF metadata. Authentic camera images \
+    let (
+        fields_populated,
+        fields_total,
+        gps_latitude,
+        gps_longitude,
+        camera_authenticity_bonus,
+        is_known_camera_make,
+    ) = match metadata {
+        Some(meta) => {
+            check_software(meta, &mut findings);
+            check_missing_exif(meta, &mut findings);
+            check_timestamps(meta, &mut findings);
+            check_dimensions(meta, actual_width, actual_height, &mut findings);
+            check_gps(meta, &mut findings);
+            let bonus = check_maker_note_authenticity(meta, &mut findings);
+            // Injection-detection heuristics — see docs/design/exif-injection-detection.md
+            check_pipeline_library_software(meta, &mut findings);
+            check_templated_timestamps(meta, &mut findings);
+            check_integer_degree_gps(meta, &mut findings);
+            check_mandatory_maker_note_missing(meta, &mut findings);
+            check_iphone_colour_space_mismatch(meta, &mut findings);
+            check_xmp_ai_digital_source(meta, &mut findings);
+            check_xmp_ai_creator_tool(meta, &mut findings);
+            check_editor_on_phone_capture(meta, &mut findings);
+            check_xmp_history_manipulation_tool(meta, &mut findings);
+            check_xmp_history_multi_save_phone(meta, &mut findings);
+            check_icc_profile_mismatch(meta, &mut findings);
+            let (fp, ft) = compute_completeness(meta);
+            let known_make = crate::metadata::is_known_camera_vendor(meta.camera_make.as_deref());
+            (
+                fp,
+                ft,
+                meta.gps_latitude,
+                meta.gps_longitude,
+                bonus,
+                known_make,
+            )
+        }
+        None => {
+            findings.push(AnomalyFinding {
+                check_id: "no_exif_data".into(),
+                title: "No EXIF data present".into(),
+                description: "This file contains no EXIF metadata. Authentic camera images \
                                   always have EXIF data — absence may indicate AI generation, \
                                   social media reprocessing, or deliberate stripping."
-                        .into(),
-                    severity: Severity::High,
-                    category: "completeness".into(),
-                });
-                (0, 16, None, None, 0.0)
-            }
-        };
+                    .into(),
+                severity: Severity::High,
+                category: "completeness".into(),
+            });
+            (0, 16, None, None, 0.0, false)
+        }
+    };
 
     // Score: start at 1.0, deduct per finding severity
     let mut score = 1.0_f64;
@@ -146,6 +170,7 @@ pub fn analyse(
         gps_latitude,
         gps_longitude,
         camera_authenticity_bonus,
+        is_known_camera_make,
     }
 }
 
@@ -1799,6 +1824,53 @@ mod tests {
                 "Vendor {vendor} should be recognised as a known camera vendor"
             );
         }
+    }
+
+    /// is_known_camera_make is true purely on the Make string, independent
+    /// of MakerNote presence. Covers the user-reported case (2026-05-22):
+    /// 2015 Samsung Galaxy photo had MakerNote stripped during sharing,
+    /// camera_authenticity_bonus fell to 0.0, hasPositiveAuthenticitySignal
+    /// (which checked bonus > 0.5) returned false and capped the verdict to
+    /// Moderate despite an 89% trust score. The new field gives the
+    /// frontend a softer positive signal it can combine with "no high-
+    /// severity EXIF finding" + "Model present" to unblock the cap.
+    #[test]
+    fn is_known_camera_make_true_for_samsung_without_maker_note() {
+        let mut meta = empty_meta();
+        meta.camera_make = Some("samsung".into());
+        meta.camera_model = Some("SM-G900F".into());
+        meta.has_maker_note = false;
+        meta.maker_note_length = 0;
+        let result = analyse(Some(&meta), None, None);
+        assert!(
+            result.is_known_camera_make,
+            "Samsung Make should be recognised even without MakerNote"
+        );
+        assert_eq!(
+            result.camera_authenticity_bonus, 0.0,
+            "bonus correctly 0.0 when MakerNote is absent"
+        );
+    }
+
+    #[test]
+    fn is_known_camera_make_false_for_unknown_vendor() {
+        let mut meta = empty_meta();
+        meta.camera_make = Some("ObscureBrand".into());
+        let result = analyse(Some(&meta), None, None);
+        assert!(
+            !result.is_known_camera_make,
+            "Non-listed vendor must not pass the recognised-make check"
+        );
+    }
+
+    #[test]
+    fn is_known_camera_make_false_when_make_absent() {
+        let meta = empty_meta(); // no camera_make
+        let result = analyse(Some(&meta), None, None);
+        assert!(
+            !result.is_known_camera_make,
+            "Missing Make tag must not pass the recognised-make check"
+        );
     }
 
     #[test]

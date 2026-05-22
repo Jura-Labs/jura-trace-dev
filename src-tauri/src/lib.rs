@@ -10046,6 +10046,7 @@ mod tests {
             gps_latitude: None,
             gps_longitude: None,
             camera_authenticity_bonus: 0.0,
+            is_known_camera_make: false,
         });
         // No raw_meta → XMP treated as absent
         let quality = assess_input_quality(
@@ -10083,6 +10084,7 @@ mod tests {
             gps_latitude: Some(51.5),
             gps_longitude: Some(-0.1),
             camera_authenticity_bonus: 0.8,
+            is_known_camera_make: true,
         });
         let quality = assess_input_quality(
             &fake_jpeg,
