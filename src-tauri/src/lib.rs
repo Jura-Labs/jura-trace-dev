@@ -3418,9 +3418,13 @@ fn sign_asset(
             AppError::Database("Database operation failed".into())
         })?;
 
+    // c2pa-rs version sourced from the crate's own VERSION constant so
+    // the audit log does not lie when the dependency is bumped (was
+    // hardcoded "0.76" long after the crate moved to 0.79; tightened
+    // 2026-05-22).
     let algo_meta = serde_json::json!({
         "algorithm": "ES256",
-        "c2pa_version": "0.76",
+        "c2pa_version": ::c2pa::VERSION,
         "cert_type": "self-signed"
     });
     let _ = app.db.log_action(

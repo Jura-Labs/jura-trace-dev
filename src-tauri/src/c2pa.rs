@@ -358,13 +358,25 @@ pub fn sign_file(
 
     // Build the base assertions array, then conditionally append the schema-org
     // CreativeWork assertion when a canonical licence URI is available (JTV-120).
+    //
+    // Version sourced from CARGO_PKG_VERSION so manifest provenance stays
+    // accurate across rc.x cuts and the v1.0.x maintenance line (was
+    // hardcoded "0.9.0" until 2026-05-22). Two formats co-exist briefly:
+    // a human-readable string (`Jura Trace <ver>`) for downstream
+    // softwareAgent fields, and the slash-separated v1.x legacy form for
+    // claim_generator (kept for backwards compatibility with readers).
+    const PRODUCT: &str = "Jura Trace";
+    let pkg_ver = env!("CARGO_PKG_VERSION");
+    let software_agent = format!("{PRODUCT} {pkg_ver}");
+    let claim_generator = format!("{PRODUCT}/{pkg_ver}");
+
     let mut assertions = vec![
         serde_json::json!({
             "label": "c2pa.actions",
             "data": {
                 "actions": [{
                     "action": "c2pa.created",
-                    "softwareAgent": "Jura Trace 0.9.0",
+                    "softwareAgent": software_agent,
                     "parameters": {
                         "name": creator_name
                     }
@@ -414,7 +426,7 @@ pub fn sign_file(
     }
 
     let manifest_def = serde_json::json!({
-        "claim_generator": "Jura Trace/0.9.0",
+        "claim_generator": claim_generator,
         "title": file_name,
         "assertions": assertions
     });
