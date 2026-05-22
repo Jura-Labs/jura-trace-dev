@@ -131,63 +131,78 @@
     </div>
 
     <!-- Scoring formula -->
-    <h3 class="font-heading text-lg text-text-light dark:text-quartz mb-3 mt-6 leading-tight">
+    <h3 id="scoring-formula" class="font-heading text-lg text-text-light dark:text-quartz mb-3 mt-6 leading-tight scroll-mt-20">
       Scoring Formula
     </h3>
 
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-      The overall trust score is built from two components:
+      The trust score combines five components in a defined order. No single
+      component can override the others when it strongly disagrees with the
+      evidence. The full algorithm is open-source under AGPL-3.0 at
+      <code class="font-mono text-xs">src-tauri/src/lib.rs::compute_trust</code>.
     </p>
 
-    <ul class="space-y-2 text-sm text-flint-dark dark:text-flint-light mb-4 pl-4">
-      <li class="flex gap-2">
-        <span class="flex-shrink-0 text-lapis dark:text-lapis-light mt-0.5" aria-hidden="true">&#8594;</span>
-        <span>
-          <span class="font-medium text-text-light dark:text-quartz">40%: EXIF metadata trust.</span>
-          Derived from the EXIF anomaly check (twelve base rules plus a five-check
-          injection-detection suite (templated timestamps, integer-degree GPS, programmatic
-          pipeline software, missing MakerNote on mandatory-vendor cameras, iPhone sRGB
-          mismatch) and a two-check XMP AI-provenance suite for DigitalSourceType and
-          AI-tooling CreatorTool values). Missing camera data, GPS/timestamp mismatches,
-          software-editor signatures, and AI-provenance signals each reduce this component.
-        </span>
+    <ol class="space-y-3 text-sm text-flint-dark dark:text-flint-light mb-6 pl-4 list-decimal list-inside">
+      <li>
+        <span class="font-medium text-text-light dark:text-quartz">Forensic signal analysis (primary).</span>
+        The worst-case score across the pixel-level detectors: ELA, noise
+        residuals, copy-move detection, JPEG ghost analysis, the deepfake
+        ensemble (GBM v4 + UnivFD probe), segmented ELA, and colour temperature.
+        The worst-case approach (a <code class="font-mono text-xs">min()</code>
+        across signals) prevents a single strong negative signal from being
+        averaged away by clean results elsewhere. This is the dominant
+        contributor to the score.
       </li>
-      <li class="flex gap-2">
-        <span class="flex-shrink-0 text-lapis dark:text-lapis-light mt-0.5" aria-hidden="true">&#8594;</span>
-        <span>
-          <span class="font-medium text-text-light dark:text-quartz">60%: Forensic analysis trust.</span>
-          The worst-case result across all manipulation signals and the deepfake ensemble
-          score. Taking the worst case ensures that a single strong negative signal cannot
-          be averaged away by clean results elsewhere.
-        </span>
+      <li>
+        <span class="font-medium text-text-light dark:text-quartz">EXIF metadata consistency (corroborating, capped at 20% weight).</span>
+        Derived from the EXIF anomaly check (twelve base rules plus a five-check
+        injection-detection suite for templated timestamps, integer-degree GPS,
+        programmatic pipeline software, missing MakerNote on mandatory-vendor
+        cameras, and iPhone sRGB mismatch, plus a two-check XMP AI-provenance
+        suite for DigitalSourceType and AI-tooling CreatorTool values).
+        Weighted at 20% because EXIF is trivially edited by any free tool and
+        is stripped by most social-media platforms. A clean EXIF block cannot
+        rescue a low forensic-trust score.
       </li>
-    </ul>
+      <li>
+        <span class="font-medium text-text-light dark:text-quartz">C2PA provenance adjustment.</span>
+        When a cryptographically valid C2PA manifest is present, the score
+        receives a +0.10 uplift (capped at 100%). When the manifest itself
+        declares AI generation (IPTC <code class="font-mono text-xs">trainedAlgorithmicMedia</code>),
+        the score is reduced by 0.25. A self-declared origin is the strongest
+        provenance signal we recognise.
+      </li>
+      <li>
+        <span class="font-medium text-text-light dark:text-quartz">Composite-evidence cap (0.55 maximum).</span>
+        When two independent regional detectors (segmented ELA, colour
+        temperature) flag anomalies in the same image, the overall trust
+        score is capped at 55% regardless of the weighted sum. Two
+        independent regional detectors agreeing is a strong indicator of
+        compositing that overrides clean whole-image analysis. (Shadow
+        consistency and splice boundary are available as on-demand
+        investigation tools but do not contribute to this cap.)
+      </li>
+      <li>
+        <span class="font-medium text-text-light dark:text-quartz">Deepfake verdict ceiling.</span>
+        When the deepfake ensemble returns a "synthetic" verdict, the
+        score is capped at: 25% for high confidence, 35% for medium,
+        45% for low. An "inconclusive" verdict caps at 55%. Screenshots
+        and documents bypass this ceiling because AI detection is
+        suppressed for those content types. This ceiling prevents a
+        clean EXIF block or a present-but-unrelated C2PA manifest from
+        inflating the score when the AI detector has already flagged
+        the content.
+      </li>
+    </ol>
 
-    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-      Two adjustments are then applied:
+    <p class="text-xs text-flint-dark dark:text-flint-light mb-6 italic">
+      No single weighting ratio captures the full calculation. The
+      headline 20% EXIF / 80% forensic ratio describes only step 2 above;
+      the composite-evidence cap and verdict ceiling can collapse the
+      score to 25%-55% independent of the weighted sum. A C2PA-declared
+      AI image, for example, lands in the 25% band regardless of how
+      clean its EXIF is.
     </p>
-
-    <ul class="space-y-2 text-sm text-flint-dark dark:text-flint-light mb-6 pl-4">
-      <li class="flex gap-2">
-        <span class="flex-shrink-0 text-lapis dark:text-lapis-light mt-0.5" aria-hidden="true">&#8594;</span>
-        <span>
-          <span class="font-medium text-text-light dark:text-quartz">C2PA provenance bonus: +10%.</span>
-          When a cryptographically valid C2PA provenance manifest is present (providing
-          a verifiable record of the content's origin), the score receives a 10% uplift,
-          up to a maximum of 100%.
-        </span>
-      </li>
-      <li class="flex gap-2">
-        <span class="flex-shrink-0 text-lapis dark:text-lapis-light mt-0.5" aria-hidden="true">&#8594;</span>
-        <span>
-          <span class="font-medium text-text-light dark:text-quartz">Regional composite amplification cap: 0.55 maximum.</span>
-          When two or more regional detectors (Segmented ELA, Shadow Consistency,
-          Colour Temperature, Splice Boundary) independently flag anomalies, the overall
-          trust score is capped at 55%, regardless of other signals. Two independent
-          regional detectors agreeing is a strong indicator of compositing.
-        </span>
-      </li>
-    </ul>
 
     <!-- Document scoring -->
     <h3 class="font-heading text-lg text-text-light dark:text-quartz mb-3 mt-6 leading-tight">

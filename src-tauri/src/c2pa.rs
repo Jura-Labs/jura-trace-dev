@@ -367,15 +367,54 @@ fn training_mining_for_license(license: &str) -> serde_json::Value {
     serde_json::Value::Object(entries)
 }
 
+/// C2PA action vocabulary surfaced to the Protect-page action selector.
+///
+/// Generator-track audit item #9 (2026-05-22): the previous implementation
+/// hardcoded `c2pa.created` regardless of provenance, which falsified the
+/// manifest for institutions publishing or re-distributing pre-existing
+/// content. The selector lets the producer declare which canonical action
+/// best matches their workflow.
+///
+/// Maps to:
+/// * [`SignAction::Created`] → `c2pa.created` (the producer authored the
+///   content; default).
+/// * [`SignAction::Published`] → `c2pa.published` (the producer is
+///   re-distributing pre-existing content; combined with the `parentOf`
+///   ingredient added in audit item #8, this preserves the upstream
+///   creator's manifest while declaring our publication event).
+///
+/// `digitalSourceType` is only emitted for `Created` (where we know
+/// the source is a human-authored capture); `Published` omits it
+/// because the original capture is described by the parent ingredient
+/// rather than re-claimed by us.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SignAction {
+    #[default]
+    Created,
+    Published,
+}
+
+impl SignAction {
+    /// The C2PA action label string emitted in the manifest.
+    fn label(self) -> &'static str {
+        match self {
+            SignAction::Created => "c2pa.created",
+            SignAction::Published => "c2pa.published",
+        }
+    }
+}
+
 /// Sign a file with a C2PA provenance manifest.
 ///
 /// Creates a new file at `output` with an embedded C2PA manifest containing
-/// the specified creator information, licence, and AI training opt-out.
+/// the specified creator information, licence, action, and AI training opt-out.
 pub fn sign_file(
     source: &Path,
     output: &Path,
     creator_name: &str,
     license: Option<&str>,
+    action: SignAction,
     cert: &[u8],
     key: &[u8],
 ) -> Result<ManifestInfo, String> {
@@ -433,25 +472,28 @@ pub fn sign_file(
         creative_work["license"] = serde_json::Value::String(uri.to_string());
     }
 
+    // Build the action object, omitting digitalSourceType when the action
+    // is `c2pa.published` because the source is described by the parent
+    // ingredient rather than re-claimed by the publisher (Generator-track
+    // audit item #9).
+    let mut action_obj = serde_json::json!({
+        "action": action.label(),
+        "softwareAgent": software_agent_map,
+        "parameters": {
+            "name": creator_name
+        }
+    });
+    if action == SignAction::Created {
+        action_obj["digitalSourceType"] = serde_json::Value::String(
+            "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture".to_string(),
+        );
+    }
+
     let assertions = vec![
         serde_json::json!({
             "label": "c2pa.actions",
             "data": {
-                "actions": [{
-                    "action": "c2pa.created",
-                    "softwareAgent": software_agent_map,
-                    // Per C2PA 2.x §18.10.4 the canonical location for the
-                    // IPTC DigitalSourceType signal is inside the action, not
-                    // a separate stds.iptc blob. Default to digitalCapture
-                    // for files signed via this path (human declaring
-                    // authorship of a captured photograph). An action
-                    // selector arrives in audit item #9 for institutions
-                    // publishing pre-existing or AI-generated content.
-                    "digitalSourceType": "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture",
-                    "parameters": {
-                        "name": creator_name
-                    }
-                }]
+                "actions": [action_obj]
             }
         }),
         serde_json::json!({
@@ -2387,13 +2429,14 @@ pub fn sign_file_with_active_mode(
     output: &Path,
     creator_name: &str,
     license: Option<&str>,
+    action: SignAction,
     data_dir: &Path,
 ) -> Result<ManifestInfo, String> {
     let mode = get_active_signing_mode(data_dir);
     match mode {
         SigningMode::Bedrock => {
             let (cert, key) = ensure_certificate(data_dir)?;
-            sign_file(source, output, creator_name, license, &cert, &key)
+            sign_file(source, output, creator_name, license, action, &cert, &key)
         }
         SigningMode::Conformant => {
             let cert_path = conformant_cert_path(data_dir);
@@ -2430,7 +2473,7 @@ pub fn sign_file_with_active_mode(
                 ));
             }
 
-            sign_file(source, output, creator_name, license, &cert, &key)
+            sign_file(source, output, creator_name, license, action, &cert, &key)
         }
     }
 }
@@ -3246,6 +3289,7 @@ mod tests {
             &output_path,
             "Test User",
             Some("CC BY 4.0"),
+            SignAction::Created,
             &cert,
             &key,
         );
@@ -3390,6 +3434,7 @@ mod tests {
             &signed_once,
             "Alice (original photographer)",
             Some("CC BY 4.0"),
+            SignAction::Created,
             &cert,
             &key,
         )
@@ -3402,6 +3447,12 @@ mod tests {
             &signed_twice,
             "Bob (re-publisher)",
             Some("CC BY-SA 4.0"),
+            // Bob is publishing pre-existing content (Alice's signed
+            // photograph). This is exactly the workflow Generator-track
+            // audit item #9 added the action selector for: assert the
+            // distinct semantic of c2pa.published with the upstream
+            // creator preserved as a parentOf ingredient (audit item #8).
+            SignAction::Published,
             &cert,
             &key,
         )
@@ -3746,6 +3797,7 @@ mod tests {
             &output,
             "Test Creator",
             Some("CC BY 4.0"),
+            SignAction::Created,
             &data_dir,
         )
         .expect("Bedrock signing should succeed");
@@ -3770,8 +3822,15 @@ mod tests {
         img.save(&source).expect("save PNG");
         let output = signed_output_path(&source);
 
-        let info = sign_file_with_active_mode(&source, &output, "Test Creator", None, &data_dir)
-            .expect("Conformant signing should succeed");
+        let info = sign_file_with_active_mode(
+            &source,
+            &output,
+            "Test Creator",
+            None,
+            SignAction::Created,
+            &data_dir,
+        )
+        .expect("Conformant signing should succeed");
 
         assert_eq!(info.title.as_deref(), Some("input_conf.png"));
         assert!(output.exists(), "signed output should exist");
@@ -3875,8 +3934,16 @@ mod tests {
         img.save(&source).expect("save PNG");
         let output = signed_output_path(&source);
 
-        sign_file(&source, &output, "Chain Test User", None, &cert, &key)
-            .expect("signing should succeed");
+        sign_file(
+            &source,
+            &output,
+            "Chain Test User",
+            None,
+            SignAction::Created,
+            &cert,
+            &key,
+        )
+        .expect("signing should succeed");
 
         let chain = read_manifest_chain(&output, false)
             .expect("read_manifest_chain should not error")
@@ -3916,6 +3983,7 @@ mod tests {
             &output,
             "Regression User",
             Some("CC BY 4.0"),
+            SignAction::Created,
             &cert,
             &key,
         )

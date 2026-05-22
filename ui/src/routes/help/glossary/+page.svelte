@@ -747,11 +747,16 @@
         >Trust Score</dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A percentage from 0% to 100% reflecting how many forensic signals indicate
-          authentic content. Computed from two weighted components: EXIF metadata analysis
-          (40% weight) and the forensic signal pipeline (60% weight). A high trust score
-          means few anomalies were detected; a low score means multiple detectors raised
-          concerns. The trust score is a forensic confidence indicator, not a guarantee
-          of authenticity. The
+          authentic content. The score combines five components: forensic signal
+          analysis (primary, worst-case across pixel-level detectors), EXIF metadata
+          consistency (corroborating, capped at 20% weight because EXIF is trivially
+          editable), a C2PA provenance adjustment, a composite-evidence cap at 55%
+          when two regional detectors agree, and a deepfake verdict ceiling.
+          Full breakdown on the
+          <a href="/help/methodology" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis dark:decoration-lapis-light/30 dark:hover:decoration-lapis-light">methodology page</a>.
+          A high trust score means few anomalies were detected; a low score means
+          multiple detectors raised concerns or a ceiling has been applied. The trust
+          score is a forensic confidence indicator, not a guarantee of authenticity. The
           <a href="#term-verdict" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis dark:decoration-lapis-light/30 dark:hover:decoration-lapis-light">Verdict</a>
           is the primary classification output.
         </dd>

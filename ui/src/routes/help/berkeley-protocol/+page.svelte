@@ -395,10 +395,17 @@
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Trust score formula.</strong>
-        The weighting applied to each signal is published in-app: 40% EXIF metadata
-        analysis, 60% forensic signal analysis, with C2PA bonus and penalty adjustments
-        and a composite amplification cap when two or more regional detectors fire.
-        Nothing in the scoring is hidden.
+        The scoring algorithm combines five components, documented in full on
+        the <a href="/help/methodology" class="text-lapis dark:text-lapis-light underline">methodology page</a>:
+        forensic signal analysis (primary, worst-case across pixel-level
+        detectors), EXIF metadata consistency (corroborating, capped at 20%
+        weight because EXIF is trivially editable), a C2PA provenance
+        adjustment (+0.10 for a valid manifest, -0.25 for a self-declared
+        AI manifest), a composite-evidence cap at 0.55 when two regional
+        detectors agree, and a deepfake verdict ceiling (0.25 / 0.35 /
+        0.45 / 0.55 depending on verdict and confidence). The full algorithm
+        is published under AGPL-3.0 and reproducible from source. Nothing
+        in the scoring is hidden.
       </span>
     </li>
     <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">

@@ -2209,6 +2209,19 @@
           </div>
         </div>
 
+        <!-- Methodology disclosure (Generator-track audit + trust-score doc
+             review 2026-05-22): give every viewer a one-click path to the
+             algorithm description from the score itself. Closes the
+             Berkeley Protocol §6 reproducibility expectation that the
+             scoring method be discoverable in-context, not buried in /help. -->
+        <a
+          href="/help/methodology#scoring-formula"
+          class="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis whitespace-nowrap
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+        >
+          How this score is calculated
+        </a>
+
         <!-- Meta -->
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 mb-1 flex-wrap">

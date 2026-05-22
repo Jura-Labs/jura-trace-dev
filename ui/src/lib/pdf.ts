@@ -1327,12 +1327,28 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
     ? `${actualCount} of ${expectedCount} expected${isPartialAnalysis ? ' — PARTIAL' : ''}`
     : `${actualCount} (expected count not derivable for this content type)`;
 
+  // Trust-formula row updated 2026-05-22 after the doc-drift audit. The
+  // earlier "40% EXIF + 60% forensic" string was a Berkeley Protocol §6
+  // reproducibility risk: the code uses 20/80 (reduced from 40/60 after a
+  // security audit). The new copy walks the actual algorithm shape so a
+  // reviewer with the open-source AGPL source can trace any number printed
+  // in this PDF back to the function that produced it. Full breakdown:
+  // src-tauri/src/lib.rs::compute_trust.
+  const trustFormulaText =
+    'Forensic signal analysis (primary, worst-case across pixel-level detectors). ' +
+    'EXIF metadata consistency (corroborating, capped at 20% weight). ' +
+    'C2PA provenance adjustment (+0.10 valid manifest, -0.25 self-declared AI). ' +
+    'Composite-evidence cap at 0.55 when two regional detectors agree. ' +
+    'Deepfake verdict ceiling (synthetic-high 0.25, synthetic-medium 0.35, ' +
+    'synthetic-low 0.45, inconclusive 0.55). Full algorithm published under ' +
+    'AGPL-3.0 in src-tauri/src/lib.rs::compute_trust.';
+
   const metaRows: [string, string][] = [
     ['Jura Trace version', `v${pipelineVer}`],
     ...(sidecarVer ? [['Analysis Engine version', sidecarVer] as [string, string]] : []),
     ['Analysis mode', modeLabel],
     ['Analysis completeness', completenessLabel],
-    ['Trust formula', '40% EXIF metadata + 60% forensic analysis'],
+    ['Trust formula', trustFormulaText],
     ['C2PA Content Credentials', 'Valid manifest: +0.10 trust signal. AI disclosure (DigitalSourceType) surfaced separately at L2/L3 — honest disclosure is not penalised.'],
     ['Classifier model', classifierModel + (classifierHash ? ` (${classifierHash})` : '')],
     ['CLIP model', clipModel],
