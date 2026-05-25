@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Eye-mark on transparent canvas. Drop into Canva, Figma, or anywhere
+       that needs the production logo without the app-icon rounded plate. -->
+  <g transform="translate(512, 512) scale(2.25)" stroke-linejoin="round">
+    <path d="M -114 -1 C -38.67 -99.67, 38.67 -99.67, 114 -1 C 38.67 97.67, -38.67 97.67, -114 -1 Z"
+          fill="none" stroke="#5A85B5" stroke-width="16"/>
+    <circle cx="1.62" cy="-0.62" r="54.62" fill="#7DA771" stroke="#5A85B5" stroke-width="12"/>
+    <circle cx="2" cy="-1" r="22" fill="#000000"/>
+    <circle cx="9.97" cy="-16.68" r="4.32" fill="#EDEAE4"/>
+  </g>
+</svg>
