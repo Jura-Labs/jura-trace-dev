@@ -38,45 +38,37 @@
       coverage: 'partial',
       note: 'iPhone photos arrive as HEIC; Linux builds need pillow-heif (shipped in v1.0).',
     },
-    {
-      family: 'Camera video',
-      formats: 'MP4, MOV',
-      protect:
-        'Content Credentials (experimental). No watermark, no fingerprint.',
-      verify:
-        'C2PA content credentials, EXIF metadata, native preview. Deepfake analysis and transcription are under evaluation for a future release.',
-      coverage: 'provenance-only',
-      note:
-        'v1.0 ships container-level provenance only. Per-frame deepfake, audio-visual sync, and transcription require Global Majority device calibration before re-enabling.',
-    },
-    {
-      family: 'Documents',
-      formats: 'PDF',
-      protect: 'No Content Credentials, no watermark.',
-      verify:
-        'PDF Provenance — origin metadata only (signatures, incremental saves, PDF/A). Image manipulation detection is not available for PDF files.',
-      coverage: 'provenance-only',
-    },
   ];
 
   const excludedRows: Row[] = [
     {
+      family: 'Camera video',
+      formats: 'MP4, MOV',
+      protect: '—',
+      verify: 'Not supported in this release. Video files are excluded from the Verify file picker. v1.0 analyses still images only.',
+      coverage: 'none',
+    },
+    {
       family: 'Other video',
       formats: 'WebM, MKV, AVI',
       protect: '—',
-      verify: 'No detector path — excluded from the file picker.',
+      verify: 'Not supported in this release. No detector path — excluded from the file picker.',
       coverage: 'none',
-      note: 'No detector path. Per-frame deepfake is under evaluation for a future release across all video formats.',
     },
     {
       family: 'Audio',
       formats: 'WAV, MP3, FLAC, OGG, AAC, M4A',
       protect: '—',
       verify:
-        'Audio deepfake model is excluded from v1.0. The current corpus has 2 speakers and 1 TTS engine; an honest detector requires retraining on ASVspoof + WaveFake with held-out speakers.',
+        'Not supported in this release. Audio deepfake model is excluded from v1.0. The current corpus has 2 speakers and 1 TTS engine; an honest detector requires retraining on ASVspoof + WaveFake with held-out speakers.',
       coverage: 'none',
-      note:
-        'Voice-note evidence (AASIST + ENF + ASVspoof) is under evaluation for a future release.',
+    },
+    {
+      family: 'Documents',
+      formats: 'PDF',
+      protect: '—',
+      verify: 'Not supported in this release. PDF files are excluded from the Verify file picker. Jura Trace v1.0 analyses still images only.',
+      coverage: 'none',
     },
     {
       family: 'Office documents',
@@ -258,12 +250,10 @@
       the pipeline previously returned 0.50 trust with zero underlying
       analysis &mdash; users interpreted that as &ldquo;clean&rdquo; when
       the system had not actually checked anything. The same principle
-      applies to audio and video deepfake: the existing models trained on
+      applies to audio and video: the existing models trained on
       narrow corpora cannot defensibly assess voice notes or video clips
-      submitted as evidence, so it is better to defer the feature than to
-      ship false confidence. Video deepfake re-enters scope in a future
-      release once Global Majority device calibration and per-generator recall
-      data are published.
+      submitted as evidence, so it is better to exclude the format than to
+      ship false confidence.
     </p>
   </section>
 </article>

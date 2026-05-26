@@ -53,6 +53,7 @@
         { href: '/help/berkeley-protocol',   label: 'Berkeley Protocol' },
         { href: '/help/continuity',          label: 'Continuity Promise' },
         { href: '/help/compliance',          label: 'IT Security' },
+        { href: '/help/open-source',         label: 'Open Source Licences' },
       ] as item}
         <li>
           <a

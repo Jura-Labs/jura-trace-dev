@@ -64,7 +64,7 @@
     <li>
       <a href="#video-and-audio"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        7. Video (v1.0 scope)
+        7. File Scope
       </a>
     </li>
     <li>
@@ -82,7 +82,7 @@
     <li>
       <a href="#document-analysis"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        10. Document Analysis
+        10. Weather Context Lookup
       </a>
     </li>
   </ol>
@@ -173,7 +173,7 @@
         to open the file picker. Jura Trace detects the format from the file's magic bytes,
         not the extension, so a JPEG saved as <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">.png</span>
         will still be handled correctly. v1.0 supports JPEG, PNG, TIFF, WebP, HEIC, and
-        AVIF on the Verify side. Video, audio, and PDF analysis return in a later
+        AVIF on the Verify side. Video, audio, and PDF files are not supported in this
         release.
       </p>
     </div>
@@ -261,18 +261,20 @@
           <td class="py-3 pr-4 align-top whitespace-nowrap">~15 s</td>
           <td class="py-3">
             EXIF anomaly analysis, C2PA credential check, ELA (Error Level Analysis),
-            AI-generation detection (GBM v4 + UnivFD v10onnx ensemble),
-            noise analysis, copy-move detection, JPEG ghost
+            AI-generation detection (GBM v4 + UnivFD v10onnx ensemble), and CLIP
+            zero-shot AI detection
           </td>
         </tr>
         <tr>
           <td class="py-3 pr-4 font-semibold text-text-light dark:text-text-dark align-top">Deep</td>
           <td class="py-3 pr-4 align-top whitespace-nowrap">~60 s</td>
           <td class="py-3">
-            All Standard detectors, plus: segmented ELA (8 × 8 regional grid),
-            colour temperature analysis, splice boundary detection, and shadow
-            consistency. Recommended for suspected composites, digitised archive
-            material, or any content where Standard returns an inconclusive result.
+            All Standard detectors, plus: noise analysis, copy-move detection,
+            JPEG ghost, segmented ELA (8 × 8 regional grid), and colour temperature
+            analysis. The three on-demand investigation tools (NPR, shadow consistency,
+            splice boundary) can also be run manually in Deep mode. Recommended for
+            suspected composites, digitised archive material, or any content where
+            Standard returns an inconclusive result.
           </td>
         </tr>
       </tbody>
@@ -541,11 +543,12 @@
         Region analysis (Deep mode only)
       </h3>
       <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-        When you run Deep mode, a region analysis section appears showing
-        results from the four regional detectors: segmented ELA, shadow consistency, colour
-        temperature, and splice boundary. These detectors divide the image into a grid and
-        look for inconsistencies between regions: a key signal for composite images where
-        different sections originate from different sources.
+        When you run Deep mode, a region analysis section appears showing the two
+        automatic regional detectors: segmented ELA and colour temperature. These divide
+        the image into a grid and look for inconsistencies between regions, a key signal
+        for composite images where different sections originate from different sources.
+        Two further regional tools, shadow consistency and splice boundary, are available
+        on demand in the same panel for manual inspection.
       </p>
     </div>
 
@@ -557,41 +560,26 @@
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
-     7. Video and Audio
+     7. File Scope
      ══════════════════════════════════════════════════════════════════ -->
 <section id="video-and-audio" class="mb-12">
   <h2 class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    7. Video (v1.0 scope)
+    7. File Scope
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    For MP4 and MOV files, v1.0 verifies what Jura Trace can stand behind without
-    overclaiming: container-level provenance, container-level metadata, and a native
-    in-app preview. Video deepfake analysis, audio-visual sync, transcription, and
-    claim verification are <strong class="text-text-light dark:text-text-dark">not in v1.0 scope</strong>.
-    We are evaluating these capabilities for a future release once Global Majority
-    device coverage and current-generation generator calibration (Sora, Runway Gen-3,
-    HeyGen, Synthesia) have been published.
+    Jura Trace v1.0 analyses still images: JPEG, PNG, TIFF, WebP, HEIC, and AVIF.
+    The full forensic pipeline (ELA, noise, copy-move, deepfake detection, JPEG Ghost,
+    segmented ELA, colour temperature, CLIP) applies to these formats.
   </p>
 
-  <div class="rounded-md border border-lapis/20 bg-lapis/5 px-4 py-3 mb-6">
-    <p class="text-sm text-text-light dark:text-text-dark mb-2">
-      <strong>Available now for video files:</strong>
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4 mb-6">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
+      <strong class="text-text-light dark:text-text-dark">Video, audio, and PDF files are not supported in this release.</strong>
+      Dropping an MP4, MOV, WAV, MP3, or PDF onto the Verify page will produce no result.
+      These formats are excluded from the file picker.
     </p>
-    <ul class="list-disc pl-5 text-sm text-flint-dark dark:text-flint-light space-y-1">
-      <li>C2PA Content Credentials (read at the container level, no FFmpeg required)</li>
-      <li>EXIF metadata (read at the container level, no FFmpeg required)</li>
-      <li>Native HTML5 video preview in the verify page</li>
-    </ul>
   </div>
-
-  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
-    Audio
-  </h3>
-  <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-    Standalone audio files (WAV, MP3, FLAC, OGG, AAC, M4A) are not in v1.0 scope.
-    Voice-note evidence (AASIST + ENF + ASVspoof) is under evaluation for a future release.
-  </p>
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
@@ -721,180 +709,99 @@
 
   </div>
 
-  <!-- ── Visual Investigation Tools ──────────────────────────────── -->
+  <!-- ── On-demand Investigation Tools ───────────────────────────── -->
   <div class="mt-8">
 
     <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-      Visual Investigation Tools
+      On-demand Investigation Tools
     </h3>
 
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-      These tools are available on-demand from the results panel. They do not run
-      automatically. Select the tool you need for your investigation.
+      Three forensic detectors do not run automatically. They are triggered by
+      clicking the corresponding button in the results panel. Running them
+      <strong class="text-text-light dark:text-text-dark">does not change the trust score</strong>
+      already shown: they are for cross-examination only, excluded from automatic
+      scoring because they produce higher false-positive rates on everyday photographs.
     </p>
 
     <div class="space-y-4">
 
       <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-          Colour Channel Separation
+          Neighbouring Pixel Relationships (NPR)
         </p>
         <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-          Displays the individual red, green, blue, and difference channels of an image separately.
-          Inconsistencies that are invisible in the composite (such as mismatched noise grain
-          between regions) often become apparent when channels are examined in isolation.
+          Analyses local pixel correlations for signatures characteristic of
+          AI-generation artefacts. Natural photographs show predictable spatial
+          correlations; generative model output often disrupts them. The result
+          includes a heatmap showing regions of anomalous correlation and a
+          summary score. Takes approximately 5 to 15 seconds.
         </p>
       </div>
 
       <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-          Noise Pattern Visualisation
+          Shadow Consistency
         </p>
         <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-          Extracts the noise residual from the image and renders it alongside a variance
-          heatmap. Regions with inconsistent noise signatures (a common indicator of compositing
-          or AI generation) appear as bright areas on the heatmap.
+          Checks whether shadows across the image originate from a consistent light
+          source. Composited images frequently combine regions photographed under
+          different lighting conditions, producing shadows that point in different
+          directions. The detector segments the image and compares shadow angles
+          between regions. Takes approximately 5 to 20 seconds.
         </p>
       </div>
 
       <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-          Per-Channel CLAHE
+          Splice Boundary
         </p>
         <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-          Applies contrast-limited adaptive histogram equalisation (CLAHE) separately to
-          each colour channel. This technique recovers detail in shadows and highlights that
-          standard display gamma obscures, making compression artefacts and tonal discontinuities
-          visible to the eye.
-        </p>
-      </div>
-
-      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-          Frequency Domain Analysis
-        </p>
-        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-          Renders an FFT magnitude spectrum, a DCT coefficient heatmap, and a JPEG block-grid
-          overlay for the image. Splicing and generation artefacts often leave a distinct
-          frequency signature: periodic peaks in the FFT or misaligned DCT block boundaries
-          between image regions.
-        </p>
-      </div>
-
-      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-          JPEG Quantisation Grid
-        </p>
-        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-          Detects misaligned JPEG block boundaries across the image and renders them as a
-          boundary artefact heatmap, alongside the extracted quantisation tables. When a
-          region of an image has been composited from a differently-compressed source, its
-          8×8 block grid typically does not align with the rest of the file.
-        </p>
-      </div>
-
-      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-          Side-by-Side Comparison
-        </p>
-        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-          Places the original image alongside any forensic visualisation (noise heatmap,
-          ELA result, frequency spectrum, or others) in a split view. Use this when you
-          need to correlate a suspected artefact location in the visualisation with the
-          corresponding area in the source image.
-        </p>
-      </div>
-
-      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-          Region of Interest (ROI) Selection
-        </p>
-        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-          Click and drag to define a rectangular region on the image. Jura Trace re-runs the
-          analysis pipeline on that region only, producing a focused result for the selected
-          area. This is useful when a specific part of the image (a face, a sky region,
-          or a suspicious edge) needs closer scrutiny.
-        </p>
-      </div>
-
-      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-          GAN Fingerprint
-        </p>
-        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-          Uses FFT-based spectral analysis to identify the periodic artefacts that generative
-          adversarial networks (including StyleGAN, ProGAN, and similar architectures)
-          leave in their output. The tool subtracts a 1/f noise model and detects residual
-          peaks that match known generator signatures, returning a visualisation and an
-          attribution estimate.
-        </p>
-      </div>
-
-      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-          Annotation Layer
-        </p>
-        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-          Draws an interactive SVG canvas over the image, letting you add arrows, circles,
-          rectangles, and text labels in five colours. Annotations are saved to the local
-          database alongside the analysis record and are included when you export a ZIP case
-          bundle. Use the annotation layer to mark regions of concern for a colleague or
-          legal team.
-        </p>
-      </div>
-
-      <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-        <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-          Analyst Notes
-        </p>
-        <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-          A free-text field of up to 2,000 characters saved with the analysis session in
-          local storage. Use analyst notes to record your reasoning, document steps you
-          took during manual inspection, or flag items for follow-up. Notes persist between
-          application sessions and are included in ZIP exports.
+          Looks for the cut edges that appear when regions from different source images
+          are composited together. Splice boundaries often leave a detectable transition
+          in noise texture, colour response, or compression characteristics. The result
+          includes a heatmap marking candidate splice locations. Takes approximately
+          5 to 20 seconds.
         </p>
       </div>
 
     </div>
   </div>
 
-  <!-- ── Geolocation and Temporal Tools ──────────────────────────── -->
+  <!-- ── Image Viewing ─────────────────────────────────────────────── -->
   <div class="mt-8">
 
     <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-      Geolocation and Temporal Tools
+      Image Viewing
     </h3>
 
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-      When GPS coordinates or a capture timestamp are present in an image's metadata,
-      these tools cross-reference the claimed location and time against physical evidence
-      in the image itself. They are available on-demand from the Geolocation &amp; Temporal
-      panel in the results view.
+      Forensic heatmaps from automatic detectors (ELA, noise, copy-move, segmented ELA,
+      and others) are displayed inline in each detector's expanded row. Two viewing
+      affordances are available for closer inspection.
     </p>
 
     <div class="space-y-4">
 
       <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-          Sun Position Calculator
+          Heatmap zoom
         </p>
         <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-          Calculates the expected sun angle (azimuth and elevation) for the GPS coordinates
-          and timestamp recorded in the image's EXIF data. The calculation runs entirely
-          on-device using a pure Rust solar position model. No internet connection is required.
-          The result can be compared against visible shadows or lighting direction in the image.
+          Click any heatmap thumbnail to open it at full size in a lightbox overlay.
+          Use this when you need to examine a specific region of a forensic visualisation
+          more closely.
         </p>
       </div>
 
       <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
         <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-          Shadow-Based Time Estimation
+          Full-size image overlay
         </p>
         <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-          Estimates the time of capture by measuring shadow angles visible in the image and
-          working backwards through the sun position model. This provides an independent
-          time estimate that can be compared against the EXIF timestamp; a significant
-          discrepancy between the two is a meaningful signal worth investigating.
+          Click the submitted image at the top of the results panel to view it at full
+          resolution. Press Escape or click outside the image to close. No analysis is
+          re-run; this is a display-only affordance.
         </p>
       </div>
 
@@ -1013,55 +920,60 @@
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
-     10. Document Analysis
+     10. Weather Context
      ══════════════════════════════════════════════════════════════════ -->
 <section id="document-analysis" class="mb-12">
   <h2 class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    10. Document Analysis
+    10. Weather Context Lookup
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    PDF documents are handled differently from image and video files. The image forensic
-    pipeline (ELA, noise analysis, deepfake detection, and the regional detectors) does
-    not apply to PDFs, because these analyses are designed for raster image data.
+    When an image carries both GPS coordinates and a capture timestamp in its EXIF data,
+    a <strong class="text-text-light dark:text-text-dark">Weather Context</strong> lookup
+    is available in the Geolocation &amp; Temporal panel of the results view. This is a
+    manual corroboration aid, not an automatic detector. It does not contribute to the
+    trust score.
   </p>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    For a PDF, Jura Trace performs:
+    The lookup retrieves historical weather data (temperature, conditions, precipitation,
+    and cloud cover) for the image's GPS coordinates and capture date from the
+    Open-Meteo historical archive. You can compare the reported conditions against what is
+    visible in the image: an image claiming to be a sunny outdoor scene at a given
+    location and date should be consistent with the historical weather record for that
+    place and time. A significant discrepancy is worth investigating further.
   </p>
 
-  <ul class="space-y-2 mb-6 text-sm text-text-light dark:text-quartz leading-relaxed">
-    <li class="flex gap-2">
-      <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
-      <span>
-        <strong class="text-text-light dark:text-text-dark">C2PA credential check:</strong>
-        reads and verifies any embedded C2PA provenance manifest.
-      </span>
-    </li>
-    <li class="flex gap-2">
-      <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
-      <span>
-        <strong class="text-text-light dark:text-text-dark">Metadata extraction:</strong>
-        reads document author, creation date, modification date, and producing application.
-      </span>
-    </li>
-    <li class="flex gap-2">
-      <span class="text-cinnabar-dark dark:text-cinnabar-light flex-none">✗</span>
-      <span>Image forensic analysis (ELA, noise, copy-move, deepfake, regional detectors)</span>
-    </li>
-  </ul>
-
-  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    The trust score for a PDF is based entirely on provenance evidence: whether a valid C2PA
-    manifest is present, whether the content hash matches, and whether the document metadata
-    is internally consistent.
-  </p>
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4 mb-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-2">
+      <strong class="text-text-light dark:text-text-dark">Requirements.</strong>
+      Weather Context requires three conditions to be met:
+    </p>
+    <ul class="space-y-1 text-sm text-text-light dark:text-quartz leading-relaxed pl-4">
+      <li class="flex gap-2">
+        <span class="text-lapis dark:text-lapis-light flex-none font-semibold">→</span>
+        <span>GPS latitude and longitude present in the image's EXIF data.</span>
+      </li>
+      <li class="flex gap-2">
+        <span class="text-lapis dark:text-lapis-light flex-none font-semibold">→</span>
+        <span>A capture date/time present in the image's EXIF data.</span>
+      </li>
+      <li class="flex gap-2">
+        <span class="text-lapis dark:text-lapis-light flex-none font-semibold">→</span>
+        <span>Enhanced network mode enabled in Settings. The lookup makes a single outbound
+        request to the Open-Meteo public API. It is disabled in Standard (local-first) mode
+        to preserve the offline-first default.</span>
+      </li>
+    </ul>
+  </div>
 
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-      A high trust score on a PDF confirms provenance integrity, meaning the document has not
-      been modified since it was signed and the signing identity is declared. It does not
-      indicate anything about the truthfulness of the document's contents.
+      <strong class="text-text-light dark:text-text-dark">This is a corroboration tool, not evidence.</strong>
+      Historical weather data is accurate to broad regional conditions. Microclimatic
+      variation, indoor scenes, and studio photography are not captured. Use Weather Context
+      as a supplementary cross-reference alongside the forensic signals, not as a
+      standalone finding.
     </p>
   </div>
 </section>

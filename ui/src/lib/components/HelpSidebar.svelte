@@ -40,6 +40,7 @@
         { href: '/help/continuity',        label: 'Continuity Promise',   title: 'Data portability and long-term availability commitments' },
         { href: '/help/compliance',        label: 'IT Security Summary',  title: 'Information security and data protection overview' },
         { href: '/help/compliance#dpia',   label: 'DPIA Template',        title: 'Data Protection Impact Assessment guidance' },
+        { href: '/help/open-source',       label: 'Open Source Licences', title: 'Licence notices and third-party attributions' },
       ],
     },
   ];

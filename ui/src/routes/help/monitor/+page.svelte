@@ -95,8 +95,8 @@
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">How well protected is my collection?</strong>
-        The Protection Chronicle shows how many assets have been imported, signed with C2PA
-        credentials, and watermarked.
+        The Protection Chronicle shows how many assets have been imported and signed with C2PA
+        credentials.
       </span>
     </li>
     <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -164,18 +164,11 @@
             files that carry a valid C2PA provenance manifest.
           </span>
         </li>
-        <li class="flex gap-2">
-          <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
-          <span>
-            <strong class="text-text-light dark:text-text-dark">Watermarked:</strong>
-            files that have had an invisible frequency-domain watermark embedded.
-          </span>
-        </li>
       </ul>
       <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-        The difference between "imported" and "signed" or "watermarked" indicates assets
-        that have been catalogued but not yet fully protected. Use this as a prompt to
-        complete protection for any outstanding items.
+        The difference between "imported" and "signed" indicates assets
+        that have been catalogued but not yet protected with C2PA credentials. Use this
+        as a prompt to complete protection for any outstanding items.
       </p>
     </div>
 
@@ -271,14 +264,6 @@
         <li class="flex gap-2">
           <span class="text-lapis dark:text-lapis-light flex-none">→</span>
           <span><strong class="text-text-light dark:text-text-dark">C2PA signing:</strong> output file path, manifest claim generator, content hash, and timestamp.</span>
-        </li>
-        <li class="flex gap-2">
-          <span class="text-lapis dark:text-lapis-light flex-none">→</span>
-          <span><strong class="text-text-light dark:text-text-dark">Watermark embedding:</strong> asset ID, watermark strength level, institution name encoded, and timestamp.</span>
-        </li>
-        <li class="flex gap-2">
-          <span class="text-lapis dark:text-lapis-light flex-none">→</span>
-          <span><strong class="text-text-light dark:text-text-dark">Batch watermarking:</strong> count of files processed, any failures, and overall completion timestamp.</span>
         </li>
       </ul>
     </div>
@@ -537,10 +522,6 @@
           <td class="py-2 text-malachite-dark dark:text-malachite-light">✓ C2PA verification will show manifest missing</td>
         </tr>
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-          <td class="py-2 pr-4">Watermark surviving JPEG compression and redistribution</td>
-          <td class="py-2 text-malachite-dark dark:text-malachite-light">✓ Watermark extraction in Verify pipeline</td>
-        </tr>
-        <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4">Use of your image to train an AI model</td>
           <td class="py-2 text-cinnabar-dark dark:text-cinnabar-light">✗ Not detectable: no traceable signal survives</td>
         </tr>
@@ -550,7 +531,7 @@
         </tr>
         <tr>
           <td class="py-2 pr-4">AI-generated image that resembles your content</td>
-          <td class="py-2 text-amber-600 dark:text-amber-400">~ Perceptual similarity search (planned feature)</td>
+          <td class="py-2 text-flint-dark dark:text-flint-light">Not supported in this release</td>
         </tr>
       </tbody>
     </table>
@@ -578,64 +559,37 @@
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    The Watched Locations lets you register public URLs for on-demand re-verification. Once a
-    URL is added, Jura Trace re-runs C2PA manifest verification and watermark extraction
-    against it each time you trigger a check, logging the result in the Activity Record.
+    Watched Locations is hidden in v1.0. It will return in v1.1 as two distinct features.
+  </p>
+
+  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
+    Content Credentials integrity monitor
+  </h3>
+
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
+    Add a public URL where a signed asset of yours is published. Jura Trace re-fetches the
+    file on a schedule you choose and re-runs Content Credentials validation against it. If
+    the manifest is stripped or altered, the event is logged and surfaced in the audit trail.
     All checking runs entirely on your device, with no cloud infrastructure involved.
   </p>
 
   <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-    Adding a URL
+    Provenance breadcrumb
   </h3>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    Navigate to the Monitor tab and enter a public URL in the
-    <strong class="text-text-light dark:text-text-dark">Add URL</strong> field, then click
-    <strong class="text-text-light dark:text-text-dark">Add</strong>. The URL appears in
-    your watchlist immediately with a status badge reflecting the last known check result.
-  </p>
-
-  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-    Status badges
-  </h3>
-
-  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    Each URL entry carries a status badge that updates after every check:
-  </p>
-
-  <ul class="space-y-2 mb-4 text-sm text-text-light dark:text-quartz leading-relaxed">
-    <li class="flex gap-3">
-      <span class="flex-none font-semibold text-malachite-dark dark:text-malachite-light">Active</span>
-      <span>The URL is reachable and its last verification result was recorded successfully.</span>
-    </li>
-    <li class="flex gap-3">
-      <span class="flex-none font-semibold text-amber-dark dark:text-amber-light">Changed</span>
-      <span>The C2PA status or watermark result differs from a previous check, review the event history.</span>
-    </li>
-    <li class="flex gap-3">
-      <span class="flex-none font-semibold text-cinnabar-dark dark:text-cinnabar-light">Error</span>
-      <span>The URL could not be reached or the verification pipeline encountered a problem.</span>
-    </li>
-  </ul>
-
-  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-    Detection history and case management
-  </h3>
-
-  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    Click any watchlist entry to expand it and view the full detection history. Each event
-    row shows the timestamp, C2PA manifest result, and watermark extraction outcome. You can
-    assign a case status to any entry (for example, marking it as
-    <strong class="text-text-light dark:text-text-dark">Under Review</strong> or
-    <strong class="text-text-light dark:text-text-dark">Resolved</strong>) to track your
-    investigative response over time.
+    Record where and when an asset was first published as part of its evidence trail. The
+    URL and date are stored locally as asset metadata and included in the PDF and ZIP
+    verification report. No network call is made.
   </p>
 
   <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-      <strong class="text-text-light dark:text-text-dark">Local-first design.</strong>
-      All watchlist data (registered URLs, event history, and case notes) is stored in the
-      application database on your device. Nothing is sent to any external server.
+      <strong class="text-text-light dark:text-text-dark">Not available in this release.</strong>
+      Watched Locations is hidden in v1.0. The URL watcher was originally paired with
+      invisible watermarking, which is also not in this release. Shipping the URL watcher
+      without its detection anchor would create a feature that monitors for changes it
+      cannot reliably observe. This section will return in a future release.
     </p>
   </div>
 </section>
@@ -682,8 +636,8 @@
       <span class="text-lapis dark:text-lapis-light mt-0.5 flex-none font-semibold">→</span>
       <span>
         <strong class="text-text-light dark:text-text-dark">Keep the Protection Chronicle balanced.</strong>
-        Aim to sign and watermark every catalogued asset. Unsigned assets provide no
-        cryptographic proof of origin if challenged later. The Chronicle makes it easy
+        Aim to sign every catalogued asset with C2PA credentials. Unsigned assets provide
+        no cryptographic proof of origin if challenged later. The Chronicle makes it easy
         to see at a glance how complete your protection coverage is.
       </span>
     </li>

@@ -271,16 +271,6 @@
           <td class="py-2 pr-4 font-mono text-xs">image/webp</td>
           <td class="py-2 text-malachite-dark dark:text-malachite-light">✓</td>
         </tr>
-        <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-          <td class="py-2 pr-4">MP4 video</td>
-          <td class="py-2 pr-4 font-mono text-xs">video/mp4</td>
-          <td class="py-2 text-malachite-dark dark:text-malachite-light">✓</td>
-        </tr>
-        <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-          <td class="py-2 pr-4">QuickTime video</td>
-          <td class="py-2 pr-4 font-mono text-xs">video/quicktime</td>
-          <td class="py-2 text-malachite-dark dark:text-malachite-light">✓</td>
-        </tr>
       </tbody>
     </table>
   </div>

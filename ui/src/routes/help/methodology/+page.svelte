@@ -328,9 +328,10 @@
       The reference is divided into two groups. The ten <strong class="text-text-light dark:text-quartz font-medium">automatic detectors</strong>
       run on every verification at the mode indicated in each entry's
       <em>Active in modes</em> line. Their findings feed into the numeric trust
-      score. A twelfth detector (Video Deepfake) is <strong class="text-text-light dark:text-quartz font-medium">not in v1.0 scope</strong>
-      and currently shows as an "Under evaluation" banner on video files; v1.0 verifies
-      provenance and metadata only on video. Below the automatic detectors, an amber-tinted panel
+      score. A twelfth entry (Video Deepfake) is included for reference only: it is
+      <strong class="text-text-light dark:text-quartz font-medium">not available in this release</strong>.
+      Jura Trace v1.0 analyses still images only; video files are not supported in the
+      Verify pipeline. Below the automatic detectors, an amber-tinted panel
       lists the three
       <strong class="text-text-light dark:text-quartz font-medium">on-demand investigation tools</strong>:
       these are available in Expert View and can be triggered manually when the
@@ -385,11 +386,14 @@
         Shadow Consistency — demoted April 2026
         Splice Boundary — demoted April 2026
 
-      Removed entirely:
+      Removed entirely (scoring detectors):
         Chromatic Aberration — S28-1 (April 2026), audit 1/5 accuracy
         Diffusion artefacts — S28-2 (April 2026), superseded by UnivFD probe (now v9)
         Seasonal indicators — Sprint 27 April 2026, pseudoscience
-        Weather cross-reference — Sprint 27 April 2026, was browser-mock
+        Weather scoring detector — Sprint 27 April 2026, was browser-mock only
+          (NOTE: a manual Weather Context lookup IS live in Enhanced mode via
+           fetch_weather_context / Open-Meteo; it does not feed the trust score.
+           Documented on the Verify help page §10.)
     -->
 
     <h3 class="font-heading text-lg text-text-light dark:text-quartz mb-3 mt-2 tracking-heading">
@@ -986,10 +990,8 @@
         </summary>
         <div class="px-4 pb-4 pt-3 border-t border-border-light dark:border-border-dark">
           <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-3 italic">
-            Dropped from v1.0 on 2 May 2026 and currently under evaluation for
-            a future release once Global Majority device coverage and per-generator
-            calibration data are published. The methodology below describes
-            the intended implementation.
+            Not available in this release. The methodology below describes
+            the intended implementation for reference.
           </p>
           <dl class="space-y-3 text-sm">
             <div>

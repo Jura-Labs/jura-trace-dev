@@ -268,8 +268,8 @@
           A frequency-domain invisible watermarking technique using three sequential
           transforms: Discrete Wavelet Transform, Discrete Cosine Transform, and Singular
           Value Decomposition. The embedded signal typically survives JPEG compression at
-          quality 70 or above, proportional resizing, and modest cropping. Jura Trace's
-          watermark feature is deferred from v1.0 (planned for v1.1 release).
+          quality 70 or above, proportional resizing, and modest cropping. Invisible
+          watermarking is not available in this release.
         </dd>
       </div>
 
@@ -446,9 +446,8 @@
           immediate neighbours as a binary string. Natural photographs have characteristic
           LBP distributions; AI-generated images often produce measurably different ones.
           LBP block variance is one of the three highest-weighted features in Jura Trace's
-          GBM classifier. LBP drift would also serve as a temporal consistency signal in
-          video deepfake analysis, though that detector is under evaluation for a future release
-          (deferred from v1.0).
+          GBM classifier. LBP drift is also used as a temporal consistency signal in video
+          deepfake analysis; that detector is not available in this release.
         </dd>
       </div>
 
@@ -609,8 +608,8 @@
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A technique that combines a large language model with a searchable knowledge base
           to verify factual claims. The RAG-based Knowledge Base Retrieval feature is
-          deferred from v1.0 pending corpus expansion and formal accuracy evaluation,
-          and is under evaluation for a future release.
+          not available in this release, pending corpus expansion and formal accuracy
+          evaluation.
         </dd>
       </div>
 
@@ -666,9 +665,9 @@
           (GBM v4 + UnivFD v10onnx ensemble), CLIP classification, JPEG Ghost, segmented
           ELA, and colour temperature, plus the on-demand investigation tools
           (NPR, shadow consistency, splice boundary) available in Expert View. Video
-          deepfake and audio analysis are deferred from v1.0 and under evaluation for
-          a future release. Jura Trace operates normally when the Analysis Engine is
-          not running; forensic analysis results are simply omitted from the report.
+          deepfake and audio analysis are not available in this release. Jura Trace
+          operates normally when the Analysis Engine is not running; forensic analysis
+          results are simply omitted from the report.
         </dd>
       </div>
 
@@ -736,8 +735,9 @@
           frames over time. Genuine video has consistent noise patterns, spectral
           characteristics, and LBP texture distributions across frames. Deepfake video
           (where frames are synthesised independently) often shows frame-to-frame drift in
-          these signals. Jura Trace computes temporal consistency from three drift metrics:
-          noise drift, spectral drift, and LBP drift.
+          these signals. Jura Trace's intended implementation computes temporal consistency
+          from three drift metrics: noise drift, spectral drift, and LBP drift. Video
+          deepfake analysis is not available in this release.
         </dd>
       </div>
 
@@ -815,8 +815,26 @@
           <a href="#term-dwt-dct-svd" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis dark:decoration-lapis-light/30 dark:hover:decoration-lapis-light">DWT-DCT-SVD</a>
           technique. Invisible to the human eye, the watermark carries a short payload that
           identifies the asset and the institution that protected it, providing a secondary
-          provenance layer that does not depend on file metadata. Invisible-watermark embed
-          and extract are deferred from Jura Trace v1.0 and planned for the v1.1 release.
+          provenance layer that does not depend on file metadata. Invisible watermarking is
+          not available in this release.
+        </dd>
+      </div>
+
+      <div>
+        <dt
+          id="term-weather-context"
+          class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
+        >Weather Context</dt>
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
+          An optional manual corroboration lookup available on the Verify page when an
+          image carries both GPS coordinates and a capture timestamp in its EXIF data.
+          Retrieves historical weather conditions (temperature, precipitation, cloud cover)
+          for the image's GPS location and date from the Open-Meteo public archive. The
+          lookup requires Enhanced network mode to be enabled in Settings and makes a
+          single outbound request to the Open-Meteo API. Weather Context is informational
+          only: it does not contribute to the trust score. Use it to cross-reference
+          whether the conditions visible in the image are consistent with the historical
+          record for that place and time.
         </dd>
       </div>
 
