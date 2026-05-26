@@ -181,6 +181,61 @@
   // ── Selected asset ────────────────────────────────────────────────
   let selectedAsset: Asset | null = $state(null);
 
+  // ── Multi-select (JTV-203) ────────────────────────────────────────
+  // Per the 3-agent UX review (2026-05-23): the existing "Bulk Actions"
+  // panel operates on ALL unsigned assets, which is unsafe at any volume
+  // above ~30 files (Sarah Chen risks bulk-signing 4,000 assets when she
+  // means to sign 340). Selection-scoped bulk actions close that gap.
+  // When the selection is non-empty, all bulk derivations
+  // (unsignedAssets, unwatermarkedImages) filter to selected assets only.
+  // When empty, the existing whole-library semantics are preserved so
+  // power users who want "sign everything that can be signed" still
+  // have the one-click path.
+  let selectedAssetIds = $state<Set<string>>(new Set<string>());
+  let lastCheckedAssetId = $state<string | null>(null);
+
+  function isAssetSelected(assetId: string): boolean {
+    return selectedAssetIds.has(assetId);
+  }
+
+  function toggleAssetSelection(assetId: string, event?: MouseEvent) {
+    const next = new Set(selectedAssetIds);
+    // Shift-click range select within the current displayed list.
+    if (event?.shiftKey && lastCheckedAssetId !== null && lastCheckedAssetId !== assetId) {
+      const ids = displayedAssets.map(a => a.assetId);
+      const a = ids.indexOf(lastCheckedAssetId);
+      const b = ids.indexOf(assetId);
+      if (a !== -1 && b !== -1) {
+        const [lo, hi] = a < b ? [a, b] : [b, a];
+        const shouldSelect = !next.has(assetId);
+        for (let i = lo; i <= hi; i++) {
+          if (shouldSelect) next.add(ids[i]);
+          else next.delete(ids[i]);
+        }
+        selectedAssetIds = next;
+        lastCheckedAssetId = assetId;
+        return;
+      }
+    }
+    if (next.has(assetId)) next.delete(assetId);
+    else next.add(assetId);
+    selectedAssetIds = next;
+    lastCheckedAssetId = assetId;
+  }
+
+  function clearSelection() {
+    selectedAssetIds = new Set();
+    lastCheckedAssetId = null;
+  }
+
+  function selectAllVisible() {
+    selectedAssetIds = new Set(displayedAssets.map(a => a.assetId));
+  }
+
+  // Note: allVisibleSelected and someVisibleSelected are declared after
+  // displayedAssets below (Svelte $derived is block-scoped so must follow
+  // the definition of the value it derives from).
+
   // ── Debounce search input (300 ms) ────────────────────────────────
   $effect(() => {
     const raw = searchRaw;
@@ -224,14 +279,35 @@
       })
   );
 
+  // ── Multi-select derived state (after displayedAssets is defined) ──
+  const allVisibleSelected = $derived(
+    displayedAssets.length > 0 &&
+    displayedAssets.every(a => selectedAssetIds.has(a.assetId))
+  );
+
+  const someVisibleSelected = $derived(
+    !allVisibleSelected && displayedAssets.some(a => selectedAssetIds.has(a.assetId))
+  );
+
   // ── Images eligible for batch watermarking ───────────────────────
+  // When selection is non-empty, scope to selected; else whole library.
   const unwatermarkedImages = $derived(
-    assets.filter(a => !a.watermarked && canWatermark(a))
+    selectedAssetIds.size > 0
+      ? assets.filter(a => selectedAssetIds.has(a.assetId) && !a.watermarked && canWatermark(a))
+      : assets.filter(a => !a.watermarked && canWatermark(a))
   );
 
   // ── Assets eligible for batch C2PA signing ────────────────────────
+  // When selection is non-empty, scope to selected; else whole library.
   const unsignedAssets = $derived(
-    assets.filter(a => !a.c2paSigned && canSignC2pa(a))
+    selectedAssetIds.size > 0
+      ? assets.filter(a => selectedAssetIds.has(a.assetId) && !a.c2paSigned && canSignC2pa(a))
+      : assets.filter(a => !a.c2paSigned && canSignC2pa(a))
+  );
+
+  // ── True selection set, for the floating toolbar count + bulk delete ──
+  const selectedAssetsArray = $derived(
+    assets.filter(a => selectedAssetIds.has(a.assetId))
   );
 
   // ── Sort handler ─────────────────────────────────────────────────
@@ -437,8 +513,41 @@
       confirmDeleteId = null;
       assets = assets.filter(a => a.assetId !== assetId);
       if (selectedAsset?.assetId === assetId) selectedAsset = null;
+      if (selectedAssetIds.has(assetId)) {
+        const next = new Set(selectedAssetIds);
+        next.delete(assetId);
+        selectedAssetIds = next;
+      }
     } catch (e) {
       error = e instanceof Error ? e.message : 'Delete failed';
+    }
+  }
+
+  // ── Bulk delete (JTV-203 floating toolbar) ───────────────────────
+  let bulkDeleteConfirmOpen = $state(false);
+  let bulkDeleteRunning = $state(false);
+
+  async function handleBulkDelete() {
+    if (selectedAssetIds.size === 0 || bulkDeleteRunning) return;
+    bulkDeleteRunning = true;
+    const ids = [...selectedAssetIds];
+    const failed: string[] = [];
+    for (const id of ids) {
+      try {
+        await deleteAsset(id);
+      } catch {
+        failed.push(id);
+      }
+    }
+    assets = assets.filter(a => !selectedAssetIds.has(a.assetId) || failed.includes(a.assetId));
+    if (selectedAsset && selectedAssetIds.has(selectedAsset.assetId) && !failed.includes(selectedAsset.assetId)) {
+      selectedAsset = null;
+    }
+    selectedAssetIds = new Set(failed);
+    bulkDeleteRunning = false;
+    bulkDeleteConfirmOpen = false;
+    if (failed.length > 0) {
+      error = `Removed ${ids.length - failed.length} of ${ids.length} assets. ${failed.length} failed.`;
     }
   }
 
@@ -765,9 +874,19 @@
 
   /**
    * Svelte action that resolves a thumbnail URL via Tauri's convertFileSrc
-   * when the row is first mounted. Safe no-op in browser mode.
+   * only when the row enters the viewport. Defers convertFileSrc calls for
+   * off-screen rows so a 1,000-asset library does not trigger 1,000
+   * simultaneous resolutions on mount. Safe no-op in browser mode and on
+   * runtimes without IntersectionObserver (falls back to eager resolve).
+   *
+   * JTV-203 follow-up — addresses the scroll lag the UX agent flagged at
+   * 100+ assets. The action is attached via `use:loadThumbnailEffect`
+   * on every row container in both list view (line ~2367) and grid view
+   * (line ~2086).
    */
   function loadThumbnailEffect(node: HTMLElement, asset: Asset) {
+    let currentAsset = asset;
+
     function resolve(a: Asset) {
       if (inTauri && a.contentType === 'image' && !thumbnailUrls[a.assetId]) {
         import('@tauri-apps/api/core').then(({ convertFileSrc }) => {
@@ -775,9 +894,46 @@
         }).catch(() => { /* Tauri API unavailable */ });
       }
     }
-    resolve(asset);
+
+    // Fallback path: SSR, jsdom in tests, or any runtime without IO.
+    if (typeof IntersectionObserver === 'undefined') {
+      resolve(asset);
+      return {
+        update(newAsset: Asset) { currentAsset = newAsset; resolve(newAsset); },
+      };
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            resolve(currentAsset);
+            // One-shot per row: once the URL is in thumbnailUrls the
+            // subsequent intersections are cheap (the resolve early-returns)
+            // but disconnecting frees the observer slot.
+            observer.disconnect();
+            break;
+          }
+        }
+      },
+      // 200 px rootMargin pre-resolves rows just below the fold so the
+      // user sees thumbnails before they finish scrolling to them.
+      { rootMargin: '200px 0px', threshold: 0 },
+    );
+    observer.observe(node);
+
     return {
-      update(newAsset: Asset) { resolve(newAsset); },
+      update(newAsset: Asset) {
+        currentAsset = newAsset;
+        // If the row is already past the observer (URL resolved or
+        // intersection fired) and the asset prop changes to a new image,
+        // resolve immediately for the new asset.
+        if (thumbnailUrls[newAsset.assetId]) return;
+        resolve(newAsset);
+      },
+      destroy() {
+        observer.disconnect();
+      },
     };
   }
 </script>
@@ -1901,6 +2057,70 @@
 
   {:else if displayedAssets.length > 0}
 
+    <!-- ── Selection toolbar (JTV-203) ──────────────────────────────
+         Appears when the user has at least one asset selected via the
+         row checkboxes. Bulk actions (Add Credentials, Watermark when
+         enabled, Remove) become selection-scoped: openBatchSign +
+         openBatchWatermark already read from unsignedAssets /
+         unwatermarkedImages which honour the selection filter. -->
+    {#if selectedAssetIds.size > 0}
+      <div
+        class="mb-3 px-4 py-3 rounded-lg border border-lapis/40 bg-lapis/5 dark:bg-lapis/10
+               flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+        role="toolbar"
+        aria-label="Actions for selected assets"
+        aria-live="polite"
+      >
+        <p class="text-sm text-text-light dark:text-quartz">
+          <span class="font-medium">{selectedAssetIds.size}</span>
+          {selectedAssetIds.size === 1 ? 'asset' : 'assets'} selected.
+          {#if unsignedAssets.length < selectedAssetIds.size}
+            <span class="text-xs text-flint-dark dark:text-flint-light">
+              ({unsignedAssets.length} eligible for signing)
+            </span>
+          {/if}
+        </p>
+        <div class="flex flex-wrap gap-2">
+          {#if unsignedAssets.length > 0}
+            <button
+              type="button"
+              onclick={openBatchSign}
+              class="px-3 py-1.5 min-h-[36px] text-sm rounded border border-lapis/60 text-lapis dark:text-lapis-light hover:bg-lapis/15 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
+            >
+              Add credentials to {unsignedAssets.length}
+            </button>
+          {/if}
+          {#if V1_SHOW_WATERMARK && unwatermarkedImages.length > 0}
+            <button
+              type="button"
+              onclick={openBatchWatermark}
+              class="px-3 py-1.5 min-h-[36px] text-sm rounded border border-lapis/60 text-lapis dark:text-lapis-light hover:bg-lapis/15 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
+            >
+              Watermark {unwatermarkedImages.length}
+            </button>
+          {/if}
+          <button
+            type="button"
+            onclick={() => { bulkDeleteConfirmOpen = true; }}
+            class="px-3 py-1.5 min-h-[36px] text-sm rounded border border-cinnabar/50 text-cinnabar-dark dark:text-cinnabar-light hover:bg-cinnabar/10 transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-1"
+          >
+            Remove from library
+          </button>
+          <button
+            type="button"
+            onclick={clearSelection}
+            class="px-3 py-1.5 min-h-[36px] text-sm rounded text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
+          >
+            Clear selection
+          </button>
+        </div>
+      </div>
+    {/if}
+
     <!-- ── Grid view ──────────────────────────────────────────────── -->
     {#if viewLayout === 'grid'}
       <div
@@ -2034,12 +2254,29 @@
     <!-- ── List view (default) ─────────────────────────────────────── -->
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark overflow-hidden">
 
-      <!-- Column headers (sortable) — desktop only -->
+      <!-- Column headers (sortable) — desktop only.
+           JTV-203: leading flex wrapper hosts a 44 px checkbox column +
+           the existing 5-column grid that aligns with each row's grid. -->
       <div
-        class="hidden sm:grid grid-cols-[1fr_80px_220px_90px_130px] gap-4 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
+        class="hidden sm:flex items-center border-b border-border-light dark:border-border-dark text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
         role="row"
         aria-label="Asset list column headers"
       >
+        <!-- Select-all-visible checkbox (44 px column matching the rows) -->
+        <label
+          class="flex items-center justify-center cursor-pointer w-11 h-10 flex-shrink-0"
+          title={allVisibleSelected ? 'Clear selection' : 'Select all visible'}
+        >
+          <input
+            type="checkbox"
+            checked={allVisibleSelected}
+            indeterminate={someVisibleSelected}
+            onchange={() => allVisibleSelected ? clearSelection() : selectAllVisible()}
+            class="w-4 h-4 rounded border-flint cursor-pointer accent-lapis"
+            aria-label={allVisibleSelected ? 'Clear all selections' : 'Select all visible assets'}
+          />
+        </label>
+        <div class="flex-1 min-w-0 grid grid-cols-[1fr_80px_220px_90px_130px] gap-4 px-4 py-2">
         <!-- File Name -->
         <button
           class="flex items-center gap-1 text-left hover:text-text-light dark:hover:text-quartz transition-colors select-none
@@ -2099,13 +2336,30 @@
             </span>
           {/if}
         </button>
+        </div>
       </div>
 
       <!-- Rows -->
       {#each displayedAssets as asset (asset.assetId)}
-        <!-- Mobile card row -->
+        <!-- Mobile card row with leading checkbox -->
+        <div
+          class="sm:hidden flex items-start gap-2 px-4 py-3 border-b border-border-light/50 dark:border-graphite-light/50
+                 {selectedAssetIds.has(asset.assetId) ? 'bg-lapis/5 dark:bg-lapis/10' : ''}"
+        >
+          <label
+            class="flex items-center justify-center cursor-pointer min-h-[44px] min-w-[44px] flex-shrink-0 -ml-2"
+            onclick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={selectedAssetIds.has(asset.assetId)}
+              onclick={(e) => toggleAssetSelection(asset.assetId, e as unknown as MouseEvent)}
+              class="w-4 h-4 rounded border-flint cursor-pointer accent-lapis"
+              aria-label="Select {asset.fileName}"
+            />
+          </label>
         <button
-          class="sm:hidden w-full flex flex-col px-4 py-3 border-b border-border-light/50 dark:border-graphite-light/50 hover:bg-gray-50 dark:hover:bg-graphite-light/30 transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
+          class="flex-1 min-w-0 flex flex-col hover:bg-gray-50 dark:hover:bg-graphite-light/30 transition-colors text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                  {selectedAsset?.assetId === asset.assetId ? 'bg-lapis/10 border-l-2 border-l-lapis' : ''}"
           onclick={() => selectAsset(asset)}
           aria-expanded={selectedAsset?.assetId === asset.assetId}
@@ -2127,10 +2381,27 @@
             <span>{new Date(asset.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
           </div>
         </button>
+        </div>
 
-        <!-- Desktop row -->
+        <!-- Desktop row with leading checkbox -->
+        <div
+          class="hidden sm:flex items-stretch border-b border-border-light/50 dark:border-graphite-light/50
+                 {selectedAssetIds.has(asset.assetId) ? 'bg-lapis/5 dark:bg-lapis/10' : ''}"
+        >
+          <label
+            class="flex items-center justify-center cursor-pointer w-11 flex-shrink-0"
+            onclick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={selectedAssetIds.has(asset.assetId)}
+              onclick={(e) => toggleAssetSelection(asset.assetId, e as unknown as MouseEvent)}
+              class="w-4 h-4 rounded border-flint cursor-pointer accent-lapis"
+              aria-label="Select {asset.fileName}"
+            />
+          </label>
         <button
-          class="hidden sm:grid w-full grid-cols-[1fr_80px_220px_90px_130px] gap-4 px-4 py-3 border-b border-border-light/50 dark:border-graphite-light/50
+          class="flex-1 min-w-0 grid grid-cols-[1fr_80px_220px_90px_130px] gap-4 px-4 py-3
                  hover:bg-gray-50 dark:hover:bg-graphite-light/30 transition-colors text-left
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                  {selectedAsset?.assetId === asset.assetId
@@ -2218,6 +2489,7 @@
             })}
           </span>
         </button>
+        </div>
 
         <!-- Expanded detail panel -->
         {#if selectedAsset?.assetId === asset.assetId}
@@ -3066,3 +3338,67 @@
   <!-- End displayedAssets conditional -->
 
 </div>
+
+<!-- Bulk-delete confirmation modal (JTV-203). Mirrors the per-asset
+     two-step confirm but for the selection set. Operates on whatever is
+     in selectedAssetIds at modal-open time; the toolbar's clearSelection
+     button is the natural escape hatch. -->
+{#if bulkDeleteConfirmOpen}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-obsidian/70 backdrop-blur-sm px-4"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="bulk-delete-heading"
+    aria-describedby="bulk-delete-body"
+    onclick={() => { if (!bulkDeleteRunning) bulkDeleteConfirmOpen = false; }}
+  >
+    <div
+      class="bg-white dark:bg-graphite rounded-lg border border-cinnabar/40 max-w-md w-full p-6 shadow-2xl"
+      onclick={(e) => e.stopPropagation()}
+      role="document"
+    >
+      <h3
+        id="bulk-delete-heading"
+        class="text-base font-heading text-cinnabar-dark dark:text-cinnabar-light mb-2"
+      >
+        Remove {selectedAssetIds.size} {selectedAssetIds.size === 1 ? 'asset' : 'assets'} from the library?
+      </h3>
+      <p id="bulk-delete-body" class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
+        Their database records, fingerprints, and verification history will be removed. The original files on disk are not deleted. The audit log entry for this removal is preserved.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-2 justify-end">
+        <button
+          type="button"
+          onclick={() => { bulkDeleteConfirmOpen = false; }}
+          disabled={bulkDeleteRunning}
+          class="px-4 py-2 min-h-[44px] text-sm font-medium rounded border border-border-light dark:border-border-dark text-text-light dark:text-quartz
+                 hover:bg-gray-100 dark:hover:bg-graphite-light/40 transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onclick={handleBulkDelete}
+          disabled={bulkDeleteRunning}
+          aria-busy={bulkDeleteRunning}
+          class="px-4 py-2 min-h-[44px] text-sm font-medium rounded bg-cinnabar text-white
+                 hover:bg-cinnabar-dark transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2
+                 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite
+                 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {#if bulkDeleteRunning}
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full motion-safe:animate-spin" aria-hidden="true"></span>
+              Removing...
+            </span>
+          {:else}
+            Remove from library
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

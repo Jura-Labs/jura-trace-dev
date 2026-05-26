@@ -957,14 +957,15 @@
   // Total detectors that ran.  CLIP is excluded from the count when the
   // sidecar build does not ship open-clip-torch (CI builds excludes it for
   // size reasons — ~2 GB).  Counting "CLIP" as a missing detector when the
-  // user has no way to install it produces a misleading "N/15" denominator.
+  // user has no way to install it produces a misleading "N/13" denominator.
+  // Watermark detection is gated off in v1.0 and is excluded from the 13.
   const detectorsRun = $derived(() => {
     if (!result) return 0;
     const slots: Array<unknown> = [
       result.exifAnalysis, result.c2paValid !== undefined && result.c2paValid !== null,
       result.elaResult, result.noiseResult, result.copyMoveResult,
       result.deepfakeResult, result.jpegGhostResult, result.segmentedElaResult,
-      result.colourTemperatureResult, result.watermarkExtractResult,
+      result.colourTemperatureResult,
       result.shadowConsistencyResult, result.spliceBoundaryResult, result.nprResult,
     ];
     if (sidecarHealth?.capabilities?.clipDetect) {
@@ -974,10 +975,11 @@
   });
 
   // Total detectors the build is capable of running (denominator for "N/M").
-  // Adapts to the sidecar's actual capability list — when CLIP is not bundled,
-  // the total is 14 not 15.
+  // 13 forensic detectors in v1.0 (watermark detection is gated off and is not
+  // counted). Adapts to the sidecar's capability list: when CLIP is not bundled
+  // the total is 12 not 13.
   const detectorsAvailable = $derived(() => {
-    return sidecarHealth?.capabilities?.clipDetect ? 15 : 14;
+    return sidecarHealth?.capabilities?.clipDetect ? 13 : 12;
   });
 
   const totalFindings = $derived(provenanceFindings + integrityFindings + aiFindings);
@@ -1842,20 +1844,27 @@
       class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border
              {sidecarAvailable
                ? 'bg-malachite/10 text-malachite-dark dark:text-malachite-light border-malachite/20'
-               : 'bg-white dark:bg-graphite text-flint-dark dark:text-flint-light border-border-light dark:border-border-dark'}"
+               : 'bg-amber/10 text-amber-dark dark:text-amber-light border-amber/20'}"
       role="status"
-      aria-label={sidecarAvailable ? 'Analysis services connected' : 'Analysis services offline'}
+      aria-label={sidecarAvailable ? 'Analysis services connected' : 'Analysis Engine offline. Some forensic checks will not run.'}
     >
-      <span class="w-1.5 h-1.5 rounded-full {sidecarAvailable ? 'bg-malachite' : 'bg-flint/50'}" aria-hidden="true"></span>
-      {sidecarAvailable ? 'Services connected' : 'Services offline'}
+      <span class="w-1.5 h-1.5 rounded-full {sidecarAvailable ? 'bg-malachite' : 'bg-amber dark:bg-amber-light'}" aria-hidden="true"></span>
+      {sidecarAvailable ? 'Services connected' : 'Analysis Engine offline'}
+      {#if !sidecarAvailable}
+        <a
+          href="/settings"
+          class="ml-1 underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-dark dark:focus-visible:ring-amber-light rounded"
+          aria-label="Analysis Engine offline. Go to Settings to check service status."
+        >Settings</a>
+      {/if}
     </div>
 
     {#if checked && result}
       <button
-        class="text-xs text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded px-2 py-1"
+        class="text-xs text-lapis dark:text-lapis-light hover:text-lapis-dark dark:hover:text-quartz underline underline-offset-2 hover:no-underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded px-2 py-1 min-h-[36px]"
         onclick={reset}
-        aria-label="Clear result and verify a new file"
-      >Clear result</button>
+        aria-label="Clear this result and verify a different file"
+      >Verify another file</button>
     {/if}
   </div>
 
@@ -1873,6 +1882,12 @@
     >
       <span class="font-medium">{errorType === 'sidecar' ? 'Analysis Engine offline' : errorType === 'format' ? 'Unsupported format' : errorType === 'network' ? 'Network error' : 'Error'}:</span>
       {error}
+      {#if errorType === 'sidecar'}
+        <a
+          href="/settings"
+          class="ml-1 underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-dark dark:focus-visible:ring-amber-light rounded"
+        >Go to Settings to check service status.</a>
+      {/if}
     </div>
   {/if}
 
@@ -1927,7 +1942,7 @@
                   {#if powerSaverEnabled && analysisElapsed >= 5}
                     Restarting analysis engine…
                   {:else}
-                    {verifyMode === 'deep' ? 'Running deep analysis, up to 60 seconds…' : 'Running standard analysis…'}
+                    {verifyMode === 'deep' ? 'Running deep analysis, up to 60 seconds…' : 'Running standard analysis, typically under 15 seconds…'}
                   {/if}
                 </p>
                 {#if fileName}
@@ -1975,7 +1990,7 @@
       {#if activeTab === 'url'}
         <div id="v2-tab-url" role="tabpanel" aria-labelledby="v2-tab-btn-url" class="p-4">
           <label for="v2-url-input" class="block text-xs text-flint-dark dark:text-flint-light mb-2">
-            Image or media URL
+            Image URL
           </label>
           <div class="flex gap-2">
             <input
@@ -2020,6 +2035,7 @@
               </svg>
               <p class="text-obsidian dark:text-quartz font-medium">Drop multiple files to verify</p>
               <p class="text-xs text-flint-dark dark:text-flint-light">or click to browse (files are queued for sequential verification)</p>
+              <p class="text-xs text-flint-dark dark:text-flint-light mt-1">JPEG · PNG · TIFF · WebP · HEIC · AVIF</p>
             </div>
           </button>
 
@@ -2343,21 +2359,26 @@
           {#if insufficientSignal()}
             <div role="status" aria-live="polite" class="mb-3 px-3 py-2 rounded-lg border border-flint/30 bg-flint/5 text-xs text-flint-dark dark:text-flint-light leading-relaxed">
               <strong class="text-text-light dark:text-quartz">Insufficient signal.</strong>
-              Only {detectorsRun()} of the expected automatic detectors ran on this file.
-              The numeric score above is not a meaningful authenticity verdict, too few
+              Only {detectorsRun()} of {detectorsAvailable()} forensic detectors ran on this file.
+              The numeric score above is not a meaningful authenticity verdict. Too few
               forensic signals contributed to make any judgement. Common causes:
               the Analysis Engine was unreachable during the verify run, the sidecar
               terminated mid-pipeline, or this file's format gated most detectors off.
-              Re-run with a stable Analysis Engine before treating the result as authoritative.
+              Re-verify the file with the Analysis Engine running.
+              <a
+                href="/settings"
+                class="ml-1 text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+              >Check service status in Settings.</a>
             </div>
           {:else if rawTrustLevel === 'high' && !hasPositiveAuthenticitySignal()}
             <div role="status" aria-live="polite" class="mb-3 px-3 py-2 rounded-lg border border-amber/30 bg-amber/5 text-xs text-amber-dark dark:text-amber-light leading-relaxed">
-              <strong>No positive authenticity signal.</strong>
-              The numeric score is high, but no positive provenance evidence supports an
-              "Authentic" claim. There is no recognised camera MakerNote, no valid Content Credentials
-              without AI declaration. Absence of negative findings is not the same as
-              evidence of authenticity, particularly on re-encoded or format-converted files
-              where JPEG-specific forensics cannot run. Verdict capped at Moderate / Review.
+              <strong>No positive provenance signal.</strong>
+              The score is high, but no direct evidence confirms camera or human origin:
+              no recognised camera hardware signature, and no valid Content Credentials
+              without an AI-generation declaration.
+              Absence of suspicious findings alone is not enough to claim authenticity,
+              particularly for re-encoded or format-converted files where compression-based
+              forensics cannot run. Verdict capped at Moderate / Review.
             </div>
           {/if}
 
@@ -2425,10 +2446,69 @@
       </div>
     </section>
 
+    <!-- ── R1: Contextual next-step prompt ───────────────────────── -->
+    <!-- Shown when a verdict has landed and the signal is not insufficient.
+         Copy is tailored to the trust level so the journey closes with a
+         clear, actionable cue rather than a dead end.
+         Inconclusive / insufficient-signal states are excluded: the existing
+         insufficient-signal banner inside the trust card already handles that
+         state and duplicating it would add noise. -->
+    {#if !insufficientSignal() && trustLevel() && trustLevel() !== 'inconclusive'}
+      <div
+        class="mb-4 px-4 py-3 rounded-xl border
+               {trustLevel() === 'high'
+                 ? 'bg-malachite/5 border-malachite/20'
+                 : 'bg-amber/5 border-amber/20'}"
+        role="note"
+        aria-label="Suggested next steps"
+      >
+        {#if trustLevel() === 'high'}
+          <p class="text-sm text-obsidian dark:text-quartz leading-relaxed mb-2">
+            No significant concerns were identified. The provenance and integrity signals are consistent with an authentic image.
+          </p>
+          <div class="flex items-center gap-3 flex-wrap">
+            <button
+              class="text-xs px-3 py-1.5 min-h-[32px] rounded border border-malachite/40 text-malachite-dark dark:text-malachite-light hover:bg-malachite/10 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+              onclick={() => showReportModal = true}
+              aria-label="Export a trust report for this file"
+            >Export trust report</button>
+            <button
+              class="text-xs text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz underline underline-offset-2 hover:no-underline transition-colors min-h-[32px] px-1
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
+              onclick={reset}
+              aria-label="Clear this result and verify a different file"
+            >Verify another file</button>
+          </div>
+        {:else}
+          <!-- medium or low trust -->
+          <p class="text-sm text-obsidian dark:text-quartz leading-relaxed mb-2">
+            {trustLevel() === 'low'
+              ? 'One or more checks raised concerns. Expand the sections below to review the forensic evidence before drawing conclusions.'
+              : 'Some signals require further review. Expand the sections below to inspect the detail behind this result.'}
+          </p>
+          <div class="flex items-center gap-3 flex-wrap">
+            <button
+              class="text-xs px-3 py-1.5 min-h-[32px] rounded border border-border-light dark:border-border-dark text-obsidian dark:text-quartz hover:bg-white/5 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+              onclick={() => showReportModal = true}
+              aria-label="Export a trust report as evidence"
+            >Export report as evidence</button>
+            <button
+              class="text-xs text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz underline underline-offset-2 hover:no-underline transition-colors min-h-[32px] px-1
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
+              onclick={reset}
+              aria-label="Clear this result and verify a different file"
+            >Verify another file</button>
+          </div>
+        {/if}
+      </div>
+    {/if}
+
     <!-- ── 2. Signal Map Strip ────────────────────────────────────── -->
     <section aria-label="Signal overview, all detectors at a glance" class="mb-5">
       <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl px-5 py-4">
-        <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-widest mb-3">Signal Map (click any detector to view detail)</p>
+        <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-widest mb-3">Signal Map: select any detector to jump to its detail below</p>
 
         <div class="flex items-start gap-0" role="group" aria-label="Detector signals grouped by category">
 
@@ -2813,10 +2893,12 @@
                       <div class="flex items-center gap-2 mb-2">
                         <span class="text-sm font-medium text-obsidian dark:text-quartz">Weather Context</span>
                         <span class="text-[10px] px-1.5 py-px rounded-full bg-amber/15 text-amber-dark dark:text-amber-light border border-amber/30">Enhanced</span>
+                        <span class="text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30">Does not affect trust score</span>
                       </div>
                       <p class="text-xs text-flint-dark dark:text-flint-light mb-3">
                         Historical weather at {gpsCoords.lat.toFixed(4)}, {gpsCoords.lon.toFixed(4)} on {exifDate()} ~{exifHour()}:00 UTC.
-                        Useful for verifying visible conditions match the claimed time and location.
+                        Useful for verifying that visible conditions match the claimed time and location.
+                        Fetching this data does not change the trust score.
                       </p>
 
                       {#if weatherData}
@@ -3700,6 +3782,25 @@
           </span>
         </button>
 
+        <!-- R2: Further investigation tools hint — shown only when the card
+             is collapsed, the sidecar is available, and a file path is held
+             (all three conditions must hold for the tools to be usable).
+             Visually quiet (no alarm colours). Activating the link opens
+             the card and scrolls to it so the buttons become visible.
+             Hidden when the sidecar is offline: the tools are disabled in
+             that state and surfacing the hint would create a dead end. -->
+        {#if openCard !== 'integrity' && sidecarAvailable && filePath && (!result.shadowConsistencyResult || !result.spliceBoundaryResult || !result.nprResult)}
+          <div class="px-5 pb-3 pt-0">
+            <button
+              type="button"
+              class="text-[11px] text-flint-dark dark:text-flint-light underline underline-offset-2 hover:text-lapis dark:hover:text-lapis-light hover:no-underline transition-colors min-h-[24px]
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
+              onclick={() => jumpToCard('integrity')}
+              aria-label="Further investigation tools available. Open the integrity card to access them."
+            >Further investigation tools available</button>
+          </div>
+        {/if}
+
         {#if openCard === 'integrity'}
           <div id="card-integrity-body" class="border-t border-border-light dark:border-border-dark/60">
             <ul class="divide-y divide-border-light/70 dark:divide-border-dark/40" aria-label="Integrity checks">
@@ -4131,8 +4232,10 @@
               {#if !result.elaResult && !result.noiseResult && !result.copyMoveResult}
                 <li class="px-5 py-4">
                   <p class="text-sm text-flint-dark dark:text-flint-light">
-                    Integrity checks require the Analysis Engine. {sidecarAvailable ? 'No data returned for this file type.' : 'Start the sidecar to enable forensic analysis.'}
-                    <a href="/settings" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz ml-1">Check service status</a>
+                    {sidecarAvailable
+                      ? 'Integrity checks could not run for this file type or size.'
+                      : 'Integrity checks require the Analysis Engine, which is currently offline.'}
+                    <a href="/settings" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded">Check service status in Settings.</a>
                   </p>
                 </li>
               {/if}
@@ -4171,6 +4274,8 @@
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={!filePath || !sidecarAvailable || onDemandLoading.npr}
                       onclick={() => runOnDemand('npr')}
+                      title="Analyses pixel correlations for AI generation artefacts. Takes 5–15 seconds."
+                      aria-label={onDemandLoading.npr ? 'Running Neighbouring Pixel Relationships analysis' : 'Run Neighbouring Pixel Relationships (pixel correlation check for AI artefacts)'}
                     >
                       {onDemandLoading.npr ? 'Running NPR…' : 'Run NPR'}
                     </button>
@@ -4182,6 +4287,8 @@
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={!filePath || !sidecarAvailable || onDemandLoading.shadow}
                       onclick={() => runOnDemand('shadow')}
+                      title="Checks whether shadows across the image point in the same direction. Takes 5–20 seconds."
+                      aria-label={onDemandLoading.shadow ? 'Running Shadow Consistency analysis' : 'Run Shadow Consistency (checks whether shadows in the image are physically consistent)'}
                     >
                       {onDemandLoading.shadow ? 'Running Shadow Consistency…' : 'Run Shadow Consistency'}
                     </button>
@@ -4193,6 +4300,8 @@
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={!filePath || !sidecarAvailable || onDemandLoading.splice}
                       onclick={() => runOnDemand('splice')}
+                      title="Looks for cut edges between composited image regions. Takes 5–20 seconds."
+                      aria-label={onDemandLoading.splice ? 'Running Splice Boundary analysis' : 'Run Splice Boundary (looks for composite cut edges between image regions)'}
                     >
                       {onDemandLoading.splice ? 'Running Splice Boundary…' : 'Run Splice Boundary'}
                     </button>
@@ -4205,7 +4314,7 @@
                 {/if}
                 {#if !sidecarAvailable}
                   <p class="mt-2 text-[11px] text-flint-dark dark:text-flint-light">
-                    Analysis Engine unavailable. Start the sidecar to enable these tools.
+                    Analysis Engine offline. <a href="/settings" class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded">Check service status in Settings.</a>
                   </p>
                 {/if}
                 {#if !filePath}
@@ -4469,8 +4578,13 @@
                 {#if !result.deepfakeResult && !result.clipResult}
                   <li class="px-5 py-4">
                     <p class="text-sm text-flint-dark dark:text-flint-light">
-                      AI detection requires the Analysis Engine.
-                      {#if !sidecarAvailable}<a href="/settings" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz">Check service status</a>{/if}
+                      AI detection requires the Analysis Engine
+                      {#if !sidecarAvailable}
+                        , which is currently offline.
+                        <a href="/settings" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded">Check service status in Settings.</a>
+                      {:else}
+                        . No data was returned for this file.
+                      {/if}
                     </p>
                   </li>
                 {/if}

@@ -3,6 +3,7 @@
   import { getMonitorOverview, getAuditLog, listMonitorUrls, addMonitorUrl, removeMonitorUrl, getMonitorEvents, updateMonitorCaseStatus } from '$lib/api';
   import type { MonitorOverview, AuditLogEntry, MonitorUrl, MonitorEvent } from '$lib/types';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
+  import { V1_SHOW_WATCHED_LOCATIONS } from '$lib/featureFlags';
 
   // ── State ──────────────────────────────────────────────────────
 
@@ -37,11 +38,20 @@
   // ── Lifecycle ──────────────────────────────────────────────────
 
   onMount(async () => {
-    [overview, auditEntries, watchlistUrls] = await Promise.all([
+    const tasks: [Promise<MonitorOverview>, Promise<AuditLogEntry[]>] = [
       getMonitorOverview(),
       getAuditLog(PAGE_SIZE),
-      listMonitorUrls(),
-    ]);
+    ];
+    if (V1_SHOW_WATCHED_LOCATIONS) {
+      const [ov, audit, urls] = await Promise.all([...tasks, listMonitorUrls()]);
+      overview = ov;
+      auditEntries = audit;
+      watchlistUrls = urls;
+    } else {
+      const [ov, audit] = await Promise.all(tasks);
+      overview = ov;
+      auditEntries = audit;
+    }
     auditOffset = auditEntries.length;
     loading = false;
   });
@@ -585,17 +595,18 @@
 
   <!-- ── Watched locations ─────────────────────────────────────── -->
   <!--
-    Renamed from "URL Watchlist" 2026-04-28 — the previous label
+    Renamed from "URL Watchlist" 2026-04-28. The previous label
     carried a policing connotation and did not telegraph the
     user-effort needed (the user must already know which URLs to
-    seed).  "Watched locations" is neutral and human-scaled.
+    seed). "Watched locations" is neutral and human-scaled.
 
-    The introductory paragraph now states the manual-curation
-    constraint up front, and the AI-training notice (previously a
-    page-level banner above the hero) has been moved into this
-    section as a contextual sub-note since it is specifically about
-    the limits of what URL polling can detect.
+    Hidden in v1.0 behind V1_SHOW_WATCHED_LOCATIONS. The feature's
+    original watermark-tracking premise is moot with V1_SHOW_WATERMARK
+    = false. Scheduler + DB + IPC remain in tree behind the flag.
+    Re-enabled in v1.1 (JTV-206) reframed as C2PA manifest integrity
+    monitor + provenance breadcrumb.
   -->
+  {#if V1_SHOW_WATCHED_LOCATIONS}
   <section
     class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]"
     aria-labelledby="watchlist-heading"
@@ -981,6 +992,48 @@
       </div>
     </div>
   </section>
+  {:else}
+  <!-- v1.0 placeholder. Keeps the Monitor tab honest without surfacing the
+       Watched Locations machinery whose watermark anchor is gated off. -->
+  <section
+    class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]"
+    aria-labelledby="watchlist-deferred-heading"
+  >
+    <div class="flex items-baseline gap-4 mb-2">
+      <span
+        class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20"
+        aria-hidden="true"
+      >
+        Watch
+      </span>
+      <h2
+        id="watchlist-deferred-heading"
+        class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
+        style="letter-spacing: -0.01em;"
+      >
+        Watched locations
+      </h2>
+    </div>
+    <div class="pl-24 max-w-2xl">
+      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed mb-3">
+        Coming in v1.1. Two features will live here.
+      </p>
+      <ul class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed list-disc pl-5 space-y-1.5">
+        <li>
+          <span class="text-text-light dark:text-quartz">Content Credentials integrity monitor.</span>
+          Add a URL where you publish signed content. Jura Trace re-checks the manifest on a schedule and alerts you if it is stripped or altered.
+        </li>
+        <li>
+          <span class="text-text-light dark:text-quartz">Provenance breadcrumb.</span>
+          Record where and when an asset was first published, as part of its evidence trail.
+        </li>
+      </ul>
+      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-4">
+        Automated reverse image search and audio or video fingerprint URL checks are tracked separately on the v1.1 roadmap.
+      </p>
+    </div>
+  </section>
+  {/if}
 
 </div>
 {/if}

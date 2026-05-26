@@ -231,6 +231,13 @@ export async function deleteAsset(assetId: string): Promise<void> {
   await invoke<void>('delete_asset', { assetId });
 }
 
+/** Wipe the entire asset library. Returns the number of assets deleted.
+ *  Destructive. UI must collect a typed-phrase confirmation before calling.
+ *  Audit log is preserved so the wipe itself remains traceable. */
+export async function clearAssetLibrary(): Promise<number> {
+  return invoke<number>('clear_asset_library');
+}
+
 // ── Verify ─────────────────────────────────────────────────────────
 
 export async function verifyContent(

@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-  import { getVersion, checkSidecarHealth, getSidecarStartupStatus, onSidecarStatusChanged, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, getPowerSaverMode, setPowerSaverMode, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert, getNetworkMode, setNetworkMode } from '$lib/api';
+  import { getVersion, checkSidecarHealth, getSidecarStartupStatus, onSidecarStatusChanged, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, getPowerSaverMode, setPowerSaverMode, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert, getNetworkMode, setNetworkMode, clearAssetLibrary } from '$lib/api';
   import type { ApiKeyInfo, CreateKeyResult } from '$lib/api';
   import type { ConformantCertificateInfo, LicenceTier, NetworkMode, SidecarHealth, SidecarStartupSnapshot, SidecarStartupStatus, SigningMode, TierInfo } from '$lib/types';
   import { V1_SHOW_CONFORMANT_SIGNING, V1_SHOW_API_KEYS, V1_SHOW_AI_DESCRIPTION, V1_SHOW_READ_TEXT } from '$lib/featureFlags';
@@ -1069,6 +1069,54 @@
   let networkModeChanging = $state(false);
   let networkModeFeedback = $state<{ ok: boolean; message: string } | null>(null);
   let networkModeFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // ── Danger Zone — Clear Asset Library (JTV-204) ──────────────────
+  // Destructive wipe of assets, fingerprints, verifications, annotations.
+  // Audit log is preserved server-side. Modal collects a typed-phrase
+  // confirmation ("clear library") before the IPC fires. Monitor URLs
+  // and API keys are configuration and survive the wipe.
+  let clearLibraryModalOpen = $state(false);
+  let clearLibraryConfirmText = $state('');
+  let clearLibraryRunning = $state(false);
+  let clearLibraryFeedback = $state<{ ok: boolean; message: string } | null>(null);
+  const CLEAR_LIBRARY_PHRASE = 'clear library';
+  const clearLibraryConfirmReady = $derived(
+    clearLibraryConfirmText.trim().toLowerCase() === CLEAR_LIBRARY_PHRASE,
+  );
+
+  function openClearLibraryModal() {
+    clearLibraryConfirmText = '';
+    clearLibraryFeedback = null;
+    clearLibraryModalOpen = true;
+  }
+
+  function closeClearLibraryModal() {
+    if (clearLibraryRunning) return;
+    clearLibraryModalOpen = false;
+    clearLibraryConfirmText = '';
+  }
+
+  async function handleClearLibrary() {
+    if (!clearLibraryConfirmReady || clearLibraryRunning) return;
+    clearLibraryRunning = true;
+    clearLibraryFeedback = null;
+    try {
+      const deleted = await clearAssetLibrary();
+      clearLibraryFeedback = {
+        ok: true,
+        message: `Asset library cleared. ${deleted} ${deleted === 1 ? 'asset' : 'assets'} removed. Audit log preserved.`,
+      };
+      clearLibraryModalOpen = false;
+      clearLibraryConfirmText = '';
+    } catch (err) {
+      clearLibraryFeedback = {
+        ok: false,
+        message: err instanceof Error ? err.message : String(err),
+      };
+    } finally {
+      clearLibraryRunning = false;
+    }
+  }
 
   async function handleNetworkModeChange(mode: NetworkMode) {
     if (mode === networkMode) return;
@@ -3179,4 +3227,151 @@
       </p>
     {/if}
   </section>
+
+  <!-- Danger Zone — JTV-204.
+       Destructive operations live here, visually separated by a cinnabar
+       border rule. Each action confirms with a typed phrase before firing.
+       Audit log is preserved across the wipe so the wipe itself is traceable. -->
+  <section
+    id="danger-zone"
+    class="rounded-lg border border-cinnabar/40 bg-cinnabar/5 dark:bg-cinnabar/5 p-6 mt-8"
+    aria-labelledby="danger-zone-heading"
+  >
+    <h2
+      id="danger-zone-heading"
+      class="text-lg font-heading text-cinnabar-dark dark:text-cinnabar-light mb-1"
+    >
+      Danger Zone
+    </h2>
+    <p class="text-xs text-flint-dark dark:text-flint-light mb-5 max-w-2xl">
+      These actions are permanent. They cannot be reversed by an undo or by closing the app without saving. Each action asks you to type a phrase before it runs.
+    </p>
+
+    <div class="flex flex-col gap-3 max-w-2xl">
+      <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 p-4 rounded border border-cinnabar/30 bg-white dark:bg-graphite">
+        <div class="flex-1 min-w-0">
+          <h3 class="text-sm font-semibold text-text-light dark:text-quartz mb-1">Clear Asset Library</h3>
+          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+            Removes every asset, every fingerprint, every verification record, and every annotation from the local database. Audit log entries, monitor URLs, API keys, and signing configuration are preserved.
+          </p>
+        </div>
+        <button
+          type="button"
+          onclick={openClearLibraryModal}
+          class="self-start sm:self-center px-4 py-2 min-h-[44px] text-sm font-medium rounded border border-cinnabar/60 text-cinnabar-dark dark:text-cinnabar-light
+                 hover:bg-cinnabar/10 hover:border-cinnabar transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2
+                 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite whitespace-nowrap"
+        >
+          Clear library
+        </button>
+      </div>
+    </div>
+
+    {#if clearLibraryFeedback !== null}
+      <p
+        class="mt-4 text-sm px-3 py-2 rounded border max-w-2xl
+               {clearLibraryFeedback.ok
+                 ? 'text-malachite-dark dark:text-malachite-light border-malachite/20 bg-malachite/5'
+                 : 'text-cinnabar-dark dark:text-cinnabar-light border-cinnabar/20 bg-cinnabar/5'}"
+        role="status"
+        aria-live="polite"
+      >
+        {clearLibraryFeedback.message}
+      </p>
+    {/if}
+  </section>
 </div>
+
+<!-- Clear Asset Library confirmation modal (JTV-204). Renders outside the
+     main settings wrapper so it overlays everything. role="alertdialog" plus
+     aria-modal communicates the modal nature to screen readers. -->
+{#if clearLibraryModalOpen}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-obsidian/70 backdrop-blur-sm px-4"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="clear-library-modal-heading"
+    aria-describedby="clear-library-modal-body"
+    onclick={closeClearLibraryModal}
+  >
+    <div
+      class="bg-white dark:bg-graphite rounded-lg border border-cinnabar/40 max-w-lg w-full p-6 shadow-2xl"
+      onclick={(e) => e.stopPropagation()}
+      role="document"
+    >
+      <h3
+        id="clear-library-modal-heading"
+        class="text-lg font-heading text-cinnabar-dark dark:text-cinnabar-light mb-2"
+      >
+        Clear the asset library?
+      </h3>
+      <div id="clear-library-modal-body" class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-4 space-y-2">
+        <p>
+          Every asset, fingerprint, verification record, and annotation will be removed from the local database.
+        </p>
+        <p>
+          The audit log will be preserved so the clear action itself is recorded. Monitor URLs, API keys, and signing configuration are not affected.
+        </p>
+        <p>
+          This cannot be undone. Type <span class="font-mono text-text-light dark:text-quartz bg-cinnabar/10 px-1.5 py-0.5 rounded">{CLEAR_LIBRARY_PHRASE}</span> below to confirm.
+        </p>
+      </div>
+
+      <label
+        for="clear-library-confirm-input"
+        class="block text-xs font-medium text-text-light dark:text-quartz mb-1"
+      >
+        Type the phrase to enable the button
+      </label>
+      <input
+        id="clear-library-confirm-input"
+        type="text"
+        bind:value={clearLibraryConfirmText}
+        autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck="false"
+        disabled={clearLibraryRunning}
+        class="w-full px-3 py-2 text-sm font-mono rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian
+               text-text-light dark:text-quartz
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:border-cinnabar
+               disabled:opacity-50"
+      />
+
+      <div class="flex flex-col sm:flex-row gap-2 justify-end mt-5">
+        <button
+          type="button"
+          onclick={closeClearLibraryModal}
+          disabled={clearLibraryRunning}
+          class="px-4 py-2 min-h-[44px] text-sm font-medium rounded border border-border-light dark:border-border-dark text-text-light dark:text-quartz
+                 hover:bg-gray-100 dark:hover:bg-graphite-light/40 transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onclick={handleClearLibrary}
+          disabled={!clearLibraryConfirmReady || clearLibraryRunning}
+          aria-busy={clearLibraryRunning}
+          class="px-4 py-2 min-h-[44px] text-sm font-medium rounded bg-cinnabar text-white
+                 hover:bg-cinnabar-dark transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2
+                 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite
+                 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {#if clearLibraryRunning}
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full motion-safe:animate-spin" aria-hidden="true"></span>
+              Clearing...
+            </span>
+          {:else}
+            Clear library permanently
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
