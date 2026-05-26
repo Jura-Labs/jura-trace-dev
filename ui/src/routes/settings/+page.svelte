@@ -1482,7 +1482,12 @@
       <div class="rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 p-4">
         <div class="flex items-center justify-between mb-3">
           <span class="text-sm font-medium text-text-light dark:text-quartz">Analysis Engine</span>
-          {#if sidecarStartup.status === 'ready' && sidecarOnline}
+          {#if sidecarOnline}
+            <!-- Live /health is the ground truth: if the engine answers, it is
+                 running, whether the app spawned it (production) or it is an
+                 external sidecar (dev `make dev-sidecar`, where the startup
+                 snapshot stays NotPresent). This keeps Settings consistent with
+                 the Verify page, which also keys off the live health check. -->
             <span class="text-xs px-2 py-0.5 rounded-full bg-malachite/15 text-malachite-light border border-malachite/20">
               Ready
             </span>
@@ -1513,7 +1518,7 @@
           {/if}
         </div>
 
-        {#if sidecarStartup.status === 'ready' && sidecarOnline && sidecarHealth}
+        {#if sidecarOnline && sidecarHealth}
           <p class="text-xs text-flint-dark dark:text-flint-light mb-2">Version: <span class="text-text-light dark:text-quartz">{sidecarHealth.version}</span></p>
           <div class="flex flex-wrap gap-1.5">
             {#each Object.entries(sidecarHealth.capabilities).filter(([cap]) => !V1_DEFERRED_CAPABILITIES.has(cap)) as [cap, enabled]}

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
-  import { checkSidecarHealth } from '$lib/api';
-  import type { SidecarHealth } from '$lib/types';
+  import { checkSidecarHealth, getSidecarStartupStatus, onSidecarStatusChanged } from '$lib/api';
+  import type { SidecarHealth, SidecarStartupStatus } from '$lib/types';
 
   // ── Props ──────────────────────────────────────────────────────────
   interface Props {
@@ -26,6 +26,11 @@
   let currentStep = $state(0);
   let health = $state<SidecarHealth | null>(null);
   let healthChecking = $state(true);
+  // Live sidecar startup status and elapsed time (JTV-184 snapshot API).
+  let startupStatus = $state<SidecarStartupStatus>('connecting');
+  let startupElapsed = $state(0);
+  let _unlistenStartup: (() => void) | null = null;
+  let _elapsedTick: ReturnType<typeof setInterval> | null = null;
 
   // Reference to the dialog element for focus trap
   let dialogEl: HTMLElement | null = $state(null);
@@ -135,6 +140,20 @@
   onMount(async () => {
     previouslyFocused = document.activeElement as HTMLElement | null;
     focusPrimaryAction();
+    // Fetch initial sidecar startup snapshot and subscribe to transitions.
+    const snapshot = await getSidecarStartupStatus();
+    startupStatus = snapshot.status;
+    startupElapsed = snapshot.elapsedSecs;
+    _unlistenStartup = await onSidecarStatusChanged((status) => {
+      startupStatus = status;
+    });
+    // Increment the elapsed counter locally every second while connecting.
+    // Cleanup is in onDestroy to handle premature component removal.
+    _elapsedTick = setInterval(() => {
+      if (startupStatus === 'connecting') {
+        startupElapsed += 1;
+      }
+    }, 1000);
     await refreshHealth();
   });
 
@@ -151,6 +170,8 @@
   });
 
   onDestroy(() => {
+    _unlistenStartup?.();
+    if (_elapsedTick !== null) clearInterval(_elapsedTick);
     previouslyFocused?.focus();
   });
 
@@ -280,7 +301,7 @@
             </div>
 
           {:else}
-            <!-- Offline state -->
+            <!-- Offline/connecting state -->
             <div
               class="flex items-start gap-3 rounded-lg px-4 py-3.5"
               style="background: rgba(212,148,58,0.08); border: 1px solid rgba(212,148,58,0.25);"
@@ -294,11 +315,16 @@
                 <circle cx="10" cy="15" r="0.5" fill="currentColor" stroke="none" />
               </svg>
               <div>
-                <p class="text-sm font-medium text-amber-light">Analysis engine starting</p>
+                <p class="text-sm font-medium text-amber-light">
+                  Starting…{startupStatus === 'connecting' && startupElapsed > 0 ? ` (${startupElapsed}s elapsed)` : ''}
+                </p>
                 <p class="text-xs text-flint-light mt-1 leading-relaxed">
-                  The analysis engine may take a moment to start on first launch. Core features
-                  (C2PA signing, EXIF metadata) work without it. If it remains offline, check
-                  Settings for details.
+                  First launch can take up to about 90 seconds while the analysis
+                  engine unpacks. This is normal.
+                </p>
+                <p class="text-xs text-malachite-light mt-1.5 leading-relaxed">
+                  Protect and EXIF metadata checks work now while the engine
+                  finishes loading.
                 </p>
                 <button
                   onclick={refreshHealth}

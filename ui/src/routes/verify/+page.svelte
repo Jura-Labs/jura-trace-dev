@@ -49,6 +49,7 @@
   import { exportCaseZip } from '$lib/zip';
   import { saveVerifySession, restoreVerifySession, clearVerifySession } from '$lib/stores/verifySession';
   import { consumeVerifyHandoff } from '$lib/stores/verifyHandoff';
+  import { focusTrap } from '$lib/actions/focusTrap';
 
   // ── State ──────────────────────────────────────────────────────────
   let activeTab = $state<'file' | 'batch' | 'url'>('file');
@@ -1625,11 +1626,14 @@
 
 <!-- ─── Full-size image overlay ────────────────────────────────────── -->
 {#if showImageOverlay && previewUrl}
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
     class="fixed inset-0 z-[100] bg-black/85 flex items-center justify-center cursor-zoom-out"
     role="dialog"
     aria-label="Full-size image preview, press Escape to close"
     aria-modal="true"
+    tabindex="-1"
+    use:focusTrap={{ onEscape: () => { showImageOverlay = false; } }}
     onclick={() => showImageOverlay = false}
   >
     <img
@@ -1653,11 +1657,14 @@
 
 <!-- ─── Export report modal ────────────────────────────────────────── -->
 {#if showReportModal}
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
     class="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
     role="dialog"
     aria-label="Export trust report"
     aria-modal="true"
+    tabindex="-1"
+    use:focusTrap={{ onEscape: () => { showReportModal = false; } }}
     onclick={(e) => { if (e.target === e.currentTarget) showReportModal = false; }}
   >
     <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl p-6 w-full max-w-md space-y-4">
@@ -1706,11 +1713,14 @@
 
 <!-- ─── False positive modal ───────────────────────────────────────── -->
 {#if showFalsePositiveModal}
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
     class="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
     role="dialog"
     aria-label="Report false positive"
     aria-modal="true"
+    tabindex="-1"
+    use:focusTrap={{ onEscape: () => { handleFpModalClose(); } }}
     onclick={(e) => { if (e.target === e.currentTarget) handleFpModalClose(); }}
   >
     <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl p-6 w-full max-w-md space-y-4">
@@ -1934,6 +1944,7 @@
             ondrop={handleDrop}
             onclick={handleFileClick}
             aria-busy={loading}
+            aria-label={loading ? undefined : 'Drop an image to verify, or activate to browse. Supported formats: JPEG, PNG, TIFF, WebP, HEIC, AVIF.'}
           >
             {#if loading}
               <div class="flex flex-col items-center gap-3">
@@ -2294,7 +2305,7 @@
         {/if}
 
         <!-- Trust ring -->
-        <div class="flex-shrink-0 relative w-[110px] h-[110px]" role="img" aria-label="Trust score: {trustScorePercent}%">
+        <div class="flex-shrink-0 relative w-[110px] h-[110px]" role="img" aria-label="Trust score {trustScorePercent} per cent. Verdict: {trustLabelText() || 'pending'}.">
           <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
             <circle cx="50" cy="50" r="47" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="9"/>
             <circle
@@ -2317,6 +2328,25 @@
           </div>
         </div>
 
+        <!-- Screen-reader live summary: announces the complete settled result
+             once, after the reveal animation completes (or immediately under
+             prefers-reduced-motion). The animated badge and heading above still
+             carry their own role="status" for immediate rendering, but this
+             region provides the authoritative one-shot announcement that
+             includes score + verdict + detectors-run so the user gets the full
+             picture without waiting for individual elements to come into view.
+             aria-live="polite" avoids interrupting in-progress speech. -->
+        <div
+          class="sr-only"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {#if scoreRevealVisible && result}
+            Verification complete. Trust score {trustScorePercent} per cent. Verdict: {trustLabelText() || 'unknown'}. {detectorsRun()} of {detectorsAvailable()} detectors ran.
+          {/if}
+        </div>
+
         <!-- Meta — opacity-fades in alongside the score reveal so the
              title + verdict badge + filename land as one visual unit
              at the end of the ring fill (2026-05-22 reveal animation).
@@ -2329,7 +2359,7 @@
           <div class="flex items-center gap-2 mb-1 flex-wrap">
             <h2 class="font-serif text-xl text-obsidian dark:text-quartz">{trustLabelText()}</h2>
             {#if trustLevel()}
-              <span class="px-2 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-full border {verdictBadgeClass()}" role="status" aria-live="polite">
+              <span class="px-2 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-full border {verdictBadgeClass()}" aria-hidden="true">
                 {trustLevel() === 'high' ? 'Authentic'
                   : trustLevel() === 'medium' ? 'Review'
                   : trustLevel() === 'inconclusive' ? 'Insufficient signal'
@@ -2368,6 +2398,26 @@
               <a
                 href="/settings"
                 class="ml-1 text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+              >Check service status in Settings.</a>
+            </div>
+          {:else if detectorsRun() < detectorsAvailable()}
+            <!-- Partial analysis: above the MIN_DETECTORS_FOR_VERDICT threshold so a
+                 verdict renders, but not all detectors contributed. Surface this as an
+                 amber advisory so the verdict is understood as provisional, not
+                 authoritative. Role="status" + aria-live="polite" announces once when
+                 the result panel mounts without interrupting assistive-technology flow. -->
+            <div
+              role="status"
+              aria-live="polite"
+              class="mb-3 px-3 py-2 rounded-lg border border-amber/30 bg-amber/5 text-xs text-amber-dark dark:text-amber-light leading-relaxed"
+            >
+              <strong>Partial analysis:</strong>
+              {detectorsRun()} of {detectorsAvailable()} forensic detectors ran.
+              Treat this verdict as provisional. The detectors that did not run
+              may carry signals relevant to this file.
+              <a
+                href="/settings"
+                class="ml-1 underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-dark dark:focus-visible:ring-amber-light rounded"
               >Check service status in Settings.</a>
             </div>
           {:else if rawTrustLevel === 'high' && !hasPositiveAuthenticitySignal()}

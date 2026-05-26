@@ -957,10 +957,13 @@
     {:else}
       <strong class="font-semibold">Local Signing.</strong>
       Signed files carry a valid C2PA v2.x manifest. Our per-install
-      certificate isn't on the C2PA trust list, so third-party validators
+      certificate is not on the C2PA public trust list, so third-party validators
       will display the signer as
       <code class="font-mono text-[11px]">signingCredential.untrusted</code>.
-      This will be updated in a future release.{#if V1_SHOW_CONFORMANT_SIGNING}
+      This is expected for Local Signing. The certificate is your own
+      per-install authority rather than a public trust-list CA. The credential
+      still proves the file has not changed since you signed it.
+      {#if V1_SHOW_CONFORMANT_SIGNING}
       Import a trust-list certificate from
       <a href="/settings#signing-mode-heading" class="underline underline-offset-2 hover:no-underline">Settings → Signing Mode</a>
       to switch to Conformant Signing.{/if}
@@ -1404,7 +1407,9 @@
               {:else}
                 Local Signing: signer shows as
                 <code class="font-mono text-[10px]">signingCredential.untrusted</code>
-                in external validators (manifest is valid; trust scope is local to this install).{#if V1_SHOW_CONFORMANT_SIGNING}
+                in external validators. This is expected for Local Signing. The manifest is
+                cryptographically valid and proves the file has not changed since you signed it.
+                Trust scope is local to this install.{#if V1_SHOW_CONFORMANT_SIGNING}
                 <a
                   href="/settings#signing-mode-heading"
                   class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
@@ -1476,7 +1481,7 @@
                     {signingMode === 'conformant' ? 'Conformant (trust-list anchored)' : 'Local Signing (per-install certificate)'}
                   </span>
                   {#if signingMode !== 'conformant'}
-                    <span class="block text-[11px] italic">Credential appears as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in third-party validators. Trust scope is local to this install.</span>
+                    <span class="block text-[11px] italic">Credential appears as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in third-party validators. This is expected for Local Signing. The credential still proves the file has not changed since you signed it.</span>
                   {/if}
                 </li>
                 <li>Producer: <span class="text-text-light dark:text-quartz">{batchSignCreatorName.trim() || '(blank)'}</span></li>
@@ -2799,7 +2804,9 @@
                       {:else}
                         Local Signing: signer shows as
                         <code class="font-mono text-[10px]">signingCredential.untrusted</code>
-                        in external validators (manifest is valid; trust scope is local to this install).{#if V1_SHOW_CONFORMANT_SIGNING}
+                        in external validators. This is expected for Local Signing. The manifest is
+                        cryptographically valid and proves the file has not changed since you signed it.
+                        Trust scope is local to this install.{#if V1_SHOW_CONFORMANT_SIGNING}
                         <a
                           href="/settings#signing-mode-heading"
                           class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
@@ -2950,7 +2957,7 @@
                             {signingMode === 'conformant' ? 'Conformant (trust-list anchored)' : 'Local Signing (per-install certificate)'}
                           </span>
                           {#if signingMode !== 'conformant'}
-                            <span class="block text-[11px] italic">Credential appears as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in third-party validators. Trust scope is local to this install.</span>
+                            <span class="block text-[11px] italic">Credential appears as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in third-party validators. This is expected for Local Signing. The credential still proves the file has not changed since you signed it.</span>
                           {/if}
                         </li>
                         <li>Producer: <span class="text-text-light dark:text-quartz">{creatorName.trim() || '(blank)'}</span></li>
