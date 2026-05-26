@@ -17,6 +17,7 @@ mod filename_analysis;
 mod fingerprint;
 mod format_router;
 mod heatmap;
+mod menu;
 mod metadata;
 mod monitor_scheduler;
 mod network_mode;
@@ -3868,6 +3869,28 @@ fn delete_asset(asset_id: String, state: State<'_, Arc<Mutex<AppState>>>) -> Res
     Ok(())
 }
 
+/// Wipe the entire asset library. Destructive. Caller must confirm via typed
+/// phrase in the UI before invoking. Preserves audit log so the wipe itself is
+/// traceable.
+#[tauri::command]
+fn clear_asset_library(state: State<'_, Arc<Mutex<AppState>>>) -> Result<u64, AppError> {
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let count = app.db.clear_asset_library()?;
+    let details = serde_json::json!({ "assets_deleted": count }).to_string();
+    let _ = app.db.log_action(
+        "clear_library",
+        "database",
+        "all",
+        Some(&details),
+        None,
+        None,
+    );
+    log::warn!("Asset library cleared. {count} assets deleted.");
+    Ok(count)
+}
+
 /// Get recent assets for the dashboard.
 #[tauri::command]
 fn get_recent_assets(
@@ -6947,6 +6970,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .menu(menu::build_menu)
+        .on_menu_event(menu::handle_menu_event)
         .setup(|app| {
             let db_path = resolve_db_path(app);
             log::info!("Database: {}", db_path.display());
@@ -7015,7 +7040,17 @@ pub fn run() {
             // Fallback to 8200 if `bind("127.0.0.1:0")` fails — extremely
             // unlikely (would mean process-level FD exhaustion), but keeps
             // the app launchable even in that degenerate case.
-            let sidecar_port = pick_ephemeral_port().unwrap_or(8200);
+            // Dev builds do not spawn their own sidecar (`spawn_sidecar`
+            // returns None under debug_assertions); the developer starts it
+            // manually on the conventional port 8200 (`make dev-sidecar`), so
+            // the client must point there. Production builds spawn the bundled
+            // sidecar on a free ephemeral port to dodge stale-process / unrelated
+            // collisions on 8200 (Option C, 2026-05-12).
+            let sidecar_port = if cfg!(debug_assertions) {
+                8200
+            } else {
+                pick_ephemeral_port().unwrap_or(8200)
+            };
             log::info!("Sidecar will bind 127.0.0.1:{sidecar_port}");
             let sidecar_base_url = format!("http://127.0.0.1:{sidecar_port}");
             let sidecar_client = sidecar::SidecarClient::new(&sidecar_base_url, &sidecar_key);
@@ -7307,9 +7342,19 @@ pub fn run() {
                                 Err(_) => continue,
                             }
                         };
-                        let status = match sidecar.clip_status() {
-                            Ok(s) => s,
-                            Err(_) => continue, // sidecar unreachable — retry next tick
+                        // `clip_status` / `unload_clip` use `reqwest::blocking`,
+                        // which must never run on the async executor: reqwest
+                        // 0.12 drops a tokio `BlockingPool` inside `wait::enter`,
+                        // panicking the worker ("Cannot drop a runtime in a
+                        // context where blocking is not allowed"). Run them on a
+                        // blocking thread, matching `monitor_scheduler::check_url`.
+                        let status = {
+                            let sc = sidecar.clone();
+                            match tokio::task::spawn_blocking(move || sc.clip_status()).await {
+                                Ok(Ok(s)) => s,
+                                // sidecar unreachable or join error — retry next tick
+                                _ => continue,
+                            }
                         };
                         if status.loaded
                             && status.idle_seconds >= CLIP_IDLE_SECONDS_BEFORE_UNLOAD as f64
@@ -7318,8 +7363,11 @@ pub fn run() {
                                 "CLIP model idle for {:.0}s — requesting eviction",
                                 status.idle_seconds
                             );
-                            if let Err(e) = sidecar.unload_clip() {
-                                log::warn!("CLIP unload request failed: {e}");
+                            let sc = sidecar.clone();
+                            match tokio::task::spawn_blocking(move || sc.unload_clip()).await {
+                                Ok(Ok(())) => {}
+                                Ok(Err(e)) => log::warn!("CLIP unload request failed: {e}"),
+                                Err(e) => log::warn!("CLIP unload task panicked: {e}"),
                             }
                         }
                     }
@@ -7452,6 +7500,7 @@ pub fn run() {
             get_filtered_assets,
             get_recent_assets,
             delete_asset,
+            clear_asset_library,
             verify_content,
             sign_asset,
             read_manifest,

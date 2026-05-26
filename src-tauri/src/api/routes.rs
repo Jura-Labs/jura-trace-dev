@@ -402,11 +402,17 @@ pub async fn protect_sign(
 
         let (cert_bytes, key_bytes) = crate::c2pa::ensure_certificate(&data_dir)
             .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "C2pa", e))?;
+        // REST API defaults to SignAction::Created. A future v1.0.x exposes
+        // the action selector as an additional multipart field so /protect
+        // callers (Pro tier + Custom Engineering integrations) can declare
+        // publication rather than authorship. Tracked alongside Generator-
+        // track audit item #9 follow-up.
         crate::c2pa::sign_file(
             &src_path,
             &out_path,
             &creator_name,
             license.as_deref(),
+            crate::c2pa::SignAction::Created,
             &cert_bytes,
             &key_bytes,
         )

@@ -2,13 +2,22 @@
 
 # ── Development ────────────────────────────────────────────────────
 
+# Shared development-only sidecar auth key. The sidecar rejects /forensics/*
+# requests when JURA_SIDECAR_KEY is empty (auth hardening 2026-05-21), so dev
+# runs must use a matching non-empty key on BOTH the sidecar and the app, or
+# only the Rust-native detectors (C2PA, EXIF) run. Override per-invocation with
+# `make dev-sidecar JURA_DEV_SIDECAR_KEY=...`.
+JURA_DEV_SIDECAR_KEY ?= jura-dev-local
+
 # Start the Python ML sidecar (port 8200)
 dev-sidecar:
-	cd sidecar && JURA_SIDECAR_KEY="" uvicorn main:app --host 127.0.0.1 --port 8200 --reload
+	cd sidecar && JURA_SIDECAR_KEY="$(JURA_DEV_SIDECAR_KEY)" uvicorn main:app --host 127.0.0.1 --port 8200 --reload
 
 # Start the Tauri desktop app (includes SvelteKit dev server on port 1420)
+# JURA_SIDECAR_KEY must match dev-sidecar so the app's SidecarClient can
+# authenticate against the sidecar's /forensics/* endpoints.
 dev-tauri:
-	cargo tauri dev
+	JURA_SIDECAR_KEY="$(JURA_DEV_SIDECAR_KEY)" cargo tauri dev
 
 # Quick start: prints the two commands to run in separate terminals
 dev:

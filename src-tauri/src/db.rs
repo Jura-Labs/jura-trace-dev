@@ -693,6 +693,25 @@ impl Database {
         Ok(())
     }
 
+    /// Wipe the asset library: assets, fingerprints, verifications, annotations.
+    ///
+    /// Audit log is preserved so the wipe itself remains traceable for any user
+    /// (Niamh, Elena) who depends on chain-of-custody continuity. Monitor URLs
+    /// and API keys are also preserved as they are configuration, not content.
+    /// Returns the number of assets deleted.
+    pub fn clear_asset_library(&self) -> SqliteResult<u64> {
+        let conn = self
+            .conn
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let count: u64 = conn.query_row("SELECT COUNT(*) FROM assets", [], |r| r.get(0))?;
+        conn.execute("DELETE FROM annotations", [])?;
+        conn.execute("DELETE FROM verifications", [])?;
+        conn.execute("DELETE FROM fingerprints", [])?;
+        conn.execute("DELETE FROM assets", [])?;
+        Ok(count)
+    }
+
     /// Get assets matching optional filters, ordered by created_at DESC.
     pub fn get_filtered_assets(
         &self,
