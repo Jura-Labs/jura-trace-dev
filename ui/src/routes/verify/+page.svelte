@@ -8,12 +8,13 @@
     openBatchFileDialog, extractTextFromImage,
     getNetworkMode, getPowerSaverMode,
     runNprOnDemand, runShadowConsistencyOnDemand, runSpliceBoundaryOnDemand,
+    findCatalogueMatches,
   } from '$lib/api';
   import { getTrustLevel, formatFileSize, formatDuration } from '$lib/types';
   import type {
     VerificationResult, SidecarHealth, VerifyMode, LicenceTier,
     AnomalyFinding, InputQualityAssessment, ManifestInfo,
-    BatchItem, BatchItemStatus, NetworkMode,
+    BatchItem, BatchItemStatus, NetworkMode, CatalogueMatch,
   } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
   import {
@@ -124,6 +125,41 @@
   // power user can inspect without flipping the global Settings raw-scores
   // toggle.  The global toggle still reveals them automatically.
   let showClipZeroShot = $state(false);
+
+  // Catalogue check state.
+  // The check is entirely on-demand: never auto-triggered, never contributes
+  // to the trust score.  Rendered outside the forensic-question card stack.
+  type CatalogueCheckState = 'idle' | 'loading' | 'done' | 'error';
+  let catalogueCheckState = $state<CatalogueCheckState>('idle');
+  let catalogueMatches = $state<CatalogueMatch[]>([]);
+  let catalogueCheckError = $state<string | null>(null);
+  let catalogueShowAll = $state(false);
+
+  async function runCatalogueCheck(): Promise<void> {
+    if (!filePath) return;
+    catalogueCheckState = 'loading';
+    catalogueCheckError = null;
+    catalogueMatches = [];
+    catalogueShowAll = false;
+    try {
+      catalogueMatches = await findCatalogueMatches(filePath);
+      catalogueCheckState = 'done';
+    } catch (err) {
+      const parsed = parseAppError(err);
+      catalogueCheckError = parsed.message;
+      catalogueCheckState = 'error';
+    }
+  }
+
+  // Reset catalogue check when a new verification begins.
+  $effect(() => {
+    if (loading) {
+      catalogueCheckState = 'idle';
+      catalogueMatches = [];
+      catalogueCheckError = null;
+      catalogueShowAll = false;
+    }
+  });
 
   // On-demand detector loading state — set per detector while the
   // sidecar request is in-flight, cleared when the result merges back
@@ -4830,6 +4866,137 @@
           <SignalAgreement {result} />
         </div>
       </details>
+    </section>
+
+    <!-- ── Catalogue check (on-demand, non-scoring) ─────────────────
+         Strictly informational: does not affect overallTrust or any
+         detector result.  Placed outside the forensic-question card
+         stack so the non-scoring status is unambiguous.
+         role="note" signals supplementary information to screen readers. -->
+    <section
+      class="mb-4 bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl overflow-hidden"
+      role="note"
+      aria-labelledby="catalogue-check-heading"
+    >
+      <div class="px-5 py-4">
+        <div class="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 id="catalogue-check-heading" class="font-serif text-base text-obsidian dark:text-quartz">
+              Catalogue Check
+            </h2>
+            <p class="text-[11px] text-flint-dark dark:text-flint-light mt-0.5">
+              Informational. Does not affect the trust score.
+            </p>
+          </div>
+          {#if catalogueCheckState === 'idle' || catalogueCheckState === 'error'}
+            <button
+              type="button"
+              onclick={runCatalogueCheck}
+              disabled={!filePath}
+              class="flex-shrink-0 text-xs px-3 py-2 min-h-[44px] rounded border border-lapis/40 text-lapis dark:text-lapis-light
+                     hover:bg-lapis/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+              aria-label="Check whether this image is visually similar to anything in your catalogue"
+              title={!filePath ? 'No local file path retained. Re-verify from file to enable this check.' : undefined}
+            >
+              Check your catalogue
+            </button>
+          {/if}
+        </div>
+
+        {#if catalogueCheckState === 'idle'}
+          <p class="mt-2 text-xs text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+            Search your protected catalogue for images that are visually similar to this one.
+            {#if !filePath}
+              <span class="text-amber-dark dark:text-amber-light"> No local file path was retained for this verification, so the check cannot run.</span>
+            {/if}
+          </p>
+        {:else if catalogueCheckState === 'loading'}
+          <div class="mt-3 flex items-center gap-2" aria-live="polite" aria-busy="true">
+            <span
+              class="w-3.5 h-3.5 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin flex-shrink-0"
+              aria-hidden="true"
+            ></span>
+            <p class="text-xs text-flint-dark dark:text-flint-light">Checking your catalogue...</p>
+          </div>
+        {:else if catalogueCheckState === 'error'}
+          <p class="mt-3 text-xs text-cinnabar-dark dark:text-cinnabar-light" role="alert">
+            {catalogueCheckError ?? 'The check could not complete. Please try again.'}
+          </p>
+        {:else if catalogueCheckState === 'done'}
+          {#if catalogueMatches.length === 0}
+            <p class="mt-3 text-xs text-flint-dark dark:text-flint-light" aria-live="polite">
+              No near-duplicates in your catalogue.
+            </p>
+          {:else}
+            {@const visibleMatches = catalogueShowAll ? catalogueMatches : catalogueMatches.slice(0, 3)}
+            <div class="mt-3" aria-live="polite">
+              <p class="text-sm font-medium text-obsidian dark:text-quartz">
+                Near-duplicate{catalogueMatches.length === 1 ? '' : 's'} in your catalogue
+              </p>
+              <p class="text-xs text-flint-dark dark:text-flint-light mt-1 leading-relaxed max-w-prose">
+                A previously catalogued image is visually similar to this one. It does not indicate authenticity,
+                confirm origin, or verify provenance.
+              </p>
+              <ul
+                class="mt-3 space-y-2"
+                aria-label="Catalogue near-duplicates"
+              >
+                {#each visibleMatches as match (match.assetId)}
+                  <li class="flex items-center justify-between gap-3 rounded-lg bg-gray-50 dark:bg-obsidian/40 border border-border-light dark:border-border-dark px-3 py-2.5">
+                    <div class="min-w-0 flex-1">
+                      <p
+                        class="text-sm text-obsidian dark:text-quartz font-medium truncate"
+                        title={match.filePath}
+                      >
+                        {match.fileName}
+                      </p>
+                      <div class="flex items-center gap-3 mt-0.5 flex-wrap">
+                        <span class="text-xs text-flint-dark dark:text-flint-light tabular-nums">
+                          {Math.round(match.similarity * 100)}% similar
+                        </span>
+                        <span class="text-[10px] px-1.5 py-px rounded-full font-medium
+                          {match.matchBand === 'exact'
+                            ? 'bg-malachite/15 text-malachite-dark dark:text-malachite-light border border-malachite/30'
+                            : match.matchBand === 'likely'
+                              ? 'bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30'
+                              : 'bg-amber/15 text-amber-dark dark:text-amber-light border border-amber/30'}">
+                          {match.matchBand === 'exact' ? 'Exact' : match.matchBand === 'likely' ? 'Likely' : 'Near'}
+                        </span>
+                      </div>
+                    </div>
+                    <a
+                      href="/protect"
+                      class="flex-shrink-0 text-xs px-2.5 py-1.5 min-h-[36px] inline-flex items-center rounded border border-lapis/40 text-lapis dark:text-lapis-light
+                             hover:bg-lapis/10 transition-colors
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+                      aria-label="View {match.fileName} in Protect"
+                    >
+                      View in Protect
+                    </a>
+                  </li>
+                {/each}
+              </ul>
+              {#if catalogueMatches.length > 3}
+                <button
+                  type="button"
+                  onclick={() => { catalogueShowAll = !catalogueShowAll; }}
+                  class="mt-2 text-xs text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
+                  aria-expanded={catalogueShowAll}
+                >
+                  {catalogueShowAll
+                    ? 'Show fewer'
+                    : `Show ${catalogueMatches.length - 3} more`}
+                </button>
+              {/if}
+            </div>
+          {/if}
+          <p class="mt-3 text-[11px] text-flint-dark dark:text-flint-light leading-relaxed max-w-prose border-t border-border-light dark:border-border-dark/60 pt-3">
+            Matching tolerates re-encoding, resizing, and full-frame screenshots.
+            It may not match heavy crops, rotations, or edited versions.
+          </p>
+        {/if}
+      </div>
     </section>
 
     <!-- ── Actions footer ──────────────────────────────────────────── -->

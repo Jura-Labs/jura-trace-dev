@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode, getSigningDisclosure, type SignAction, type SigningDisclosure } from '$lib/api';
+  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode, getSigningDisclosure, findCatalogueMatches, parseAppError, type SignAction, type SigningDisclosure } from '$lib/api';
   import { V1_SHOW_CONFORMANT_SIGNING, V1_SHOW_WATERMARK } from '$lib/featureFlags';
 
   // ── Tauri event listener types ────────────────────────────────────
@@ -36,6 +36,7 @@
     type MetadataSigningWarning,
     type SigningMode,
     type WatermarkEmbedResult,
+    type CatalogueMatch,
     parseMetadata,
     formatFileSize,
     CONTENT_TYPE_LABELS,
@@ -313,6 +314,33 @@
   // ── Selected asset ────────────────────────────────────────────────
   let selectedAsset: Asset | null = $state(null);
 
+  // ── Catalogue check (per-asset, on-demand, non-scoring) ──────────
+  // Self-match caveat: the asset is already in the catalogue, so its own
+  // fingerprint will always return distance 0.  We filter it out by
+  // assetId client-side after the call returns.
+  type CatalogueCheckState = 'idle' | 'loading' | 'done' | 'error';
+  let catalogueCheckAssetId = $state<string | null>(null);
+  let catalogueCheckState = $state<CatalogueCheckState>('idle');
+  let catalogueCheckMatches = $state<CatalogueMatch[]>([]);
+  let catalogueCheckError = $state<string | null>(null);
+
+  async function runProtectCatalogueCheck(asset: Asset): Promise<void> {
+    catalogueCheckAssetId = asset.assetId;
+    catalogueCheckState = 'loading';
+    catalogueCheckError = null;
+    catalogueCheckMatches = [];
+    try {
+      const raw = await findCatalogueMatches(asset.filePath);
+      // Exclude the asset's own entry to avoid a trivial self-match.
+      catalogueCheckMatches = raw.filter(m => m.assetId !== asset.assetId);
+      catalogueCheckState = 'done';
+    } catch (err) {
+      const parsed = parseAppError(err);
+      catalogueCheckError = parsed.message;
+      catalogueCheckState = 'error';
+    }
+  }
+
   // ── Multi-select (JTV-203) ────────────────────────────────────────
   // Per the 3-agent UX review (2026-05-23): the existing "Bulk Actions"
   // panel operates on ALL unsigned assets, which is unsafe at any volume
@@ -562,6 +590,11 @@
       watermarkResult = null;
       lastSignedAssetId = null;
       confirmDeleteId = null;
+      // Reset catalogue check when a different asset is selected
+      catalogueCheckAssetId = null;
+      catalogueCheckState = 'idle';
+      catalogueCheckMatches = [];
+      catalogueCheckError = null;
       // Reset and fetch media metadata for video/audio assets
       videoMetadata = null;
       audioMetadata = null;
@@ -3766,6 +3799,88 @@
                   </button>
                 </div>
               {/if}
+
+              <!-- Catalogue check (on-demand, non-scoring).
+                   Self-match caveat: the asset is already in the catalogue,
+                   so its own fingerprint is filtered out client-side.
+                   Surfaced as a lightweight notice; not blocking. -->
+              <div
+                class="col-span-full mt-3 pt-3 border-t border-border-light/50 dark:border-graphite-light/50"
+              >
+                <div class="flex items-center justify-between gap-3 flex-wrap">
+                  <p class="text-xs section-label uppercase tracking-wide">
+                    Near-duplicates in catalogue
+                  </p>
+                  {#if catalogueCheckAssetId !== asset.assetId || catalogueCheckState === 'idle' || catalogueCheckState === 'error'}
+                    <button
+                      type="button"
+                      onclick={() => runProtectCatalogueCheck(asset)}
+                      disabled={catalogueCheckState === 'loading' && catalogueCheckAssetId === asset.assetId}
+                      class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-lapis/40 text-lapis dark:text-lapis-light
+                             hover:bg-lapis/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
+                      aria-label="Check whether {asset.fileName} is visually similar to other assets in your catalogue"
+                    >
+                      Check
+                    </button>
+                  {/if}
+                </div>
+
+                {#if catalogueCheckAssetId === asset.assetId}
+                  {#if catalogueCheckState === 'loading'}
+                    <div class="mt-1.5 flex items-center gap-2">
+                      <span
+                        class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin flex-shrink-0"
+                        aria-hidden="true"
+                      ></span>
+                      <p class="text-xs muted-help" aria-live="polite">Checking your catalogue...</p>
+                    </div>
+                  {:else if catalogueCheckState === 'error'}
+                    <p class="mt-1.5 text-xs text-cinnabar-dark dark:text-cinnabar-light" role="alert">
+                      {catalogueCheckError ?? 'Check could not complete.'}
+                    </p>
+                  {:else if catalogueCheckState === 'done'}
+                    {#if catalogueCheckMatches.length === 0}
+                      <p class="mt-1.5 text-xs muted-help" aria-live="polite">
+                        No near-duplicates found.
+                      </p>
+                    {:else}
+                      <ul class="mt-1.5 space-y-1.5" aria-label="Near-duplicate assets in catalogue" aria-live="polite">
+                        {#each catalogueCheckMatches as match (match.assetId)}
+                          <li class="flex items-center justify-between gap-2">
+                            <div class="min-w-0 flex-1">
+                              <p
+                                class="text-xs text-text-light dark:text-quartz font-medium truncate"
+                                title={match.filePath}
+                              >
+                                {match.fileName}
+                              </p>
+                              <div class="flex items-center gap-2 mt-px flex-wrap">
+                                <span class="text-[10px] muted-help tabular-nums">{Math.round(match.similarity * 100)}% similar</span>
+                                <span class="text-[10px] px-1 py-px rounded font-medium
+                                  {match.matchBand === 'exact'
+                                    ? 'bg-malachite/15 text-malachite-dark dark:text-malachite-light'
+                                    : match.matchBand === 'likely'
+                                      ? 'bg-lapis/15 text-lapis dark:text-lapis-light'
+                                      : 'bg-amber/15 text-amber-dark dark:text-amber-light'}">
+                                  {match.matchBand === 'exact' ? 'Exact' : match.matchBand === 'likely' ? 'Likely' : 'Near'}
+                                </span>
+                              </div>
+                            </div>
+                          </li>
+                        {/each}
+                      </ul>
+                      <p class="mt-1.5 text-[10px] muted-help leading-relaxed">
+                        Informational. Does not affect protection status or provenance.
+                      </p>
+                    {/if}
+                  {/if}
+                {:else}
+                  <p class="mt-1 text-[10px] muted-help">
+                    Check whether this asset is visually similar to others in your catalogue.
+                  </p>
+                {/if}
+              </div>
 
               <!-- Delete asset -->
               <div class="col-span-full mt-3 pt-3 border-t border-border-light/50 dark:border-graphite-light/50 flex items-center justify-end gap-2">

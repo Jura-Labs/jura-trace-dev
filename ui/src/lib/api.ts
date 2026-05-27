@@ -8,7 +8,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, ConformantCertificateInfo, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, NetworkMode, NprResult, RoiAnalysisResult, ShadowConsistencyResult, SidecarHealth, SidecarStartupSnapshot, SidecarStartupStatus, SigningMode, SimilarAsset, SolarPosition, SpliceBoundaryResult, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
+import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, CatalogueMatch, ConformantCertificateInfo, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, NetworkMode, NprResult, RoiAnalysisResult, ShadowConsistencyResult, SidecarHealth, SidecarStartupSnapshot, SidecarStartupStatus, SigningMode, SimilarAsset, SolarPosition, SpliceBoundaryResult, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -442,6 +442,39 @@ export async function findSimilar(
   try {
     return await invoke<SimilarAsset[]>('find_similar', {
       assetId,
+      threshold: threshold ?? null,
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Check whether an image already exists in the user's catalogue by
+ * perceptual-fingerprint (pHash) matching.
+ *
+ * Strictly non-scoring: this command never affects `overallTrust` or any
+ * `VerificationResult` field.  It is a standalone read-only catalogue
+ * lookup intended for duplicate detection and re-upload guards.
+ *
+ * @param path - Absolute path to the query image file.
+ * @param threshold - Maximum Hamming distance to include (default 10,
+ *   maximum 15).  Pass 15 to widen the search into the "near" band.
+ * @returns Array of catalogue matches sorted by distance ascending.
+ *   Returns an empty array when the file is not an image type or no
+ *   catalogued fingerprint is within the threshold.  In browser/mock mode
+ *   always returns an empty array.
+ */
+export async function findCatalogueMatches(
+  path: string,
+  threshold?: number,
+): Promise<CatalogueMatch[]> {
+  if (!isTauri) {
+    return [];
+  }
+  try {
+    return await invoke<CatalogueMatch[]>('find_catalogue_matches', {
+      path,
       threshold: threshold ?? null,
     });
   } catch {

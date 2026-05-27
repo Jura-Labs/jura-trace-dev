@@ -3963,6 +3963,176 @@ fn get_fingerprints(
         .collect())
 }
 
+/// A catalogue match returned by [`find_catalogue_matches`].
+///
+/// Represents a single asset in the local catalogue whose pHash is within
+/// the requested Hamming-distance threshold of the query image.  The command
+/// is strictly non-scoring: it never touches `VerificationResult` or
+/// `overall_trust`.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueMatch {
+    /// UUID of the matching asset in the local catalogue.
+    pub asset_id: String,
+    /// Original file name of the matching asset (e.g. `"photo.jpg"`).
+    pub file_name: String,
+    /// Absolute path of the matching asset on disk as it was stored at import.
+    pub file_path: String,
+    /// Hamming distance between the query pHash and the catalogued pHash (0–64).
+    pub distance: u32,
+    /// Normalised similarity score derived as `1.0 - distance / 64.0`.
+    pub similarity: f64,
+    /// Proximity band:
+    /// - `"exact"` — distance 0–5 (visually identical or near-identical)
+    /// - `"likely"` — distance 6–10 (strong visual similarity)
+    /// - `"near"` — distance 11–15 (noticeable similarity; useful at higher thresholds)
+    pub match_band: String,
+}
+
+impl CatalogueMatch {
+    /// Derive the match band from the Hamming distance.
+    pub fn band_for(distance: u32) -> &'static str {
+        match distance {
+            0..=5 => "exact",
+            6..=10 => "likely",
+            _ => "near",
+        }
+    }
+}
+
+/// Check whether an image already exists in the user's catalogue by
+/// perceptual-fingerprint matching.
+///
+/// # Parameters
+/// - `path` — absolute path to the query image file.
+/// - `threshold` — maximum Hamming distance to include (default 10, maximum 15).
+///   Callers may pass 15 to widen the search into the "near" band.
+///
+/// # Returns
+/// A list of [`CatalogueMatch`] records sorted by distance ascending.
+/// Returns an empty list (not an error) when the file is not an image type
+/// or when no catalogued fingerprint is within the threshold.
+///
+/// # Errors
+/// Returns `AppError::Validation` for path traversal, null bytes, or a
+/// non-existent file.  Returns `AppError::Database` on SQLite failure.
+/// Returns `AppError::Internal` on a Hamming computation failure (corrupted
+/// hex in the database).
+///
+/// # Non-scoring guarantee
+/// This command is entirely independent of `verify_content_inner`.  It
+/// performs no trust scoring and does not modify `VerificationResult`.
+#[tauri::command]
+fn find_catalogue_matches(
+    path: String,
+    threshold: Option<u32>,
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<Vec<CatalogueMatch>, AppError> {
+    // ── Input validation ────────────────────────────────────────────────────
+    if path.contains('\0') {
+        return Err(AppError::Validation("Invalid file path".into()));
+    }
+    let canonical = PathBuf::from(&path).canonicalize().map_err(|e| {
+        log::error!("find_catalogue_matches: path canonicalisation failed: {e}");
+        AppError::FileSystem("File not found or inaccessible".into())
+    })?;
+    if !canonical.is_file() {
+        return Err(AppError::Validation("Path does not point to a file".into()));
+    }
+
+    // ── Format check ────────────────────────────────────────────────────────
+    let format_info = format_router::detect(&canonical);
+    if !fingerprint::supports_fingerprinting(format_info.content_type.as_str()) {
+        log::debug!(
+            "find_catalogue_matches: {} is not an image; returning empty matches",
+            canonical.display()
+        );
+        return Ok(vec![]);
+    }
+
+    // ── Compute pHash for the query image ───────────────────────────────────
+    let query_phash = match fingerprint::compute_phash(&canonical) {
+        Some(h) => h,
+        None => {
+            log::warn!(
+                "find_catalogue_matches: could not compute pHash for {}",
+                canonical.display()
+            );
+            return Ok(vec![]);
+        }
+    };
+
+    let max_distance = threshold.unwrap_or(10).min(15);
+
+    // ── Scan catalogue fingerprints ─────────────────────────────────────────
+    let app = state
+        .lock()
+        .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
+
+    let candidates = app.db.get_all_fingerprints_by_type("phash").map_err(|e| {
+        log::error!("find_catalogue_matches: database error fetching pHash rows: {e}");
+        AppError::Database("Database operation failed".into())
+    })?;
+
+    let mut matches: Vec<CatalogueMatch> = Vec::new();
+    // Track asset IDs so we keep only the best (lowest-distance) row per asset
+    // when an asset has more than one pHash fingerprint.
+    let mut best: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+
+    for candidate in &candidates {
+        let distance =
+            fingerprint::hamming_distance(&query_phash, &candidate.hash_value).map_err(|e| {
+                log::error!("find_catalogue_matches: Hamming distance error: {e}");
+                AppError::Internal("An internal error occurred".into())
+            })?;
+
+        if distance > max_distance {
+            continue;
+        }
+
+        // Keep only the best (lowest) distance per asset.
+        if let Some(prev) = best.get(&candidate.asset_id) {
+            if distance >= *prev {
+                continue;
+            }
+            // Remove any previously inserted match for this asset.
+            matches.retain(|m: &CatalogueMatch| m.asset_id != candidate.asset_id);
+        }
+        best.insert(candidate.asset_id.clone(), distance);
+
+        let asset = app.db.get_asset_by_id(&candidate.asset_id).map_err(|e| {
+            log::error!(
+                "find_catalogue_matches: database error fetching asset {}: {e}",
+                candidate.asset_id
+            );
+            AppError::Database("Database operation failed".into())
+        })?;
+
+        let (file_name, file_path) = match asset {
+            Some(a) => (a.file_name, a.file_path),
+            None => {
+                log::warn!(
+                    "find_catalogue_matches: orphan fingerprint for asset {}",
+                    candidate.asset_id
+                );
+                continue;
+            }
+        };
+
+        matches.push(CatalogueMatch {
+            asset_id: candidate.asset_id.clone(),
+            file_name,
+            file_path,
+            distance,
+            similarity: 1.0 - (distance as f64 / 64.0),
+            match_band: CatalogueMatch::band_for(distance).to_string(),
+        });
+    }
+
+    matches.sort_by_key(|m| m.distance);
+    Ok(matches)
+}
+
 /// Find assets with similar perceptual hashes.
 #[tauri::command]
 fn find_similar(
@@ -7711,6 +7881,7 @@ pub fn run() {
             verify_c2pa,
             get_fingerprints,
             find_similar,
+            find_catalogue_matches,
             verify_url,
             check_sidecar_health,
             get_sidecar_startup_status,
@@ -10560,5 +10731,173 @@ mod tests {
             SIDECAR_IDLE_SECONDS_BEFORE_KILL, 300,
             "Idle threshold must be 300 seconds (5 minutes)"
         );
+    }
+
+    // ── find_catalogue_matches ──────────────────────────────────────────────
+
+    /// The three proximity bands map correctly from Hamming distance.
+    #[test]
+    fn catalogue_match_band_exact() {
+        assert_eq!(CatalogueMatch::band_for(0), "exact");
+        assert_eq!(CatalogueMatch::band_for(3), "exact");
+        assert_eq!(CatalogueMatch::band_for(5), "exact");
+    }
+
+    #[test]
+    fn catalogue_match_band_likely() {
+        assert_eq!(CatalogueMatch::band_for(6), "likely");
+        assert_eq!(CatalogueMatch::band_for(8), "likely");
+        assert_eq!(CatalogueMatch::band_for(10), "likely");
+    }
+
+    #[test]
+    fn catalogue_match_band_near() {
+        assert_eq!(CatalogueMatch::band_for(11), "near");
+        assert_eq!(CatalogueMatch::band_for(15), "near");
+        assert_eq!(CatalogueMatch::band_for(32), "near");
+        assert_eq!(CatalogueMatch::band_for(64), "near");
+    }
+
+    /// Similarity is exactly `1.0 - distance / 64.0`.
+    #[test]
+    fn catalogue_match_similarity_formula() {
+        let m = CatalogueMatch {
+            asset_id: "a".into(),
+            file_name: "f.jpg".into(),
+            file_path: "/f.jpg".into(),
+            distance: 0,
+            similarity: 1.0 - 0.0 / 64.0,
+            match_band: "exact".into(),
+        };
+        assert!((m.similarity - 1.0).abs() < f64::EPSILON);
+
+        let m2 = CatalogueMatch {
+            asset_id: "b".into(),
+            file_name: "g.jpg".into(),
+            file_path: "/g.jpg".into(),
+            distance: 64,
+            similarity: 1.0 - 64.0 / 64.0,
+            match_band: "near".into(),
+        };
+        assert!((m2.similarity - 0.0).abs() < f64::EPSILON);
+    }
+
+    /// `CatalogueMatch` must round-trip through JSON serialisation with
+    /// camelCase field names that match the TypeScript contract.
+    #[test]
+    fn catalogue_match_serialises_camel_case() {
+        let m = CatalogueMatch {
+            asset_id: "abc-123".into(),
+            file_name: "photo.jpg".into(),
+            file_path: "/home/user/photo.jpg".into(),
+            distance: 4,
+            similarity: 1.0 - 4.0 / 64.0,
+            match_band: "exact".into(),
+        };
+        let json = serde_json::to_string(&m).expect("serialisation must succeed");
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        // Verify camelCase field names match the TypeScript CatalogueMatch interface.
+        assert_eq!(v["assetId"], "abc-123");
+        assert_eq!(v["fileName"], "photo.jpg");
+        assert_eq!(v["filePath"], "/home/user/photo.jpg");
+        assert_eq!(v["distance"], 4);
+        assert_eq!(v["matchBand"], "exact");
+        // Verify no snake_case keys leaked through.
+        assert!(v.get("asset_id").is_none());
+        assert!(v.get("file_name").is_none());
+        assert!(v.get("match_band").is_none());
+    }
+
+    /// Round-trip: a serialised `CatalogueMatch` can be deserialised back.
+    #[test]
+    fn catalogue_match_round_trips() {
+        let original = CatalogueMatch {
+            asset_id: "uuid-456".into(),
+            file_name: "test.png".into(),
+            file_path: "/data/test.png".into(),
+            distance: 8,
+            similarity: 1.0 - 8.0 / 64.0,
+            match_band: "likely".into(),
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let recovered: CatalogueMatch = serde_json::from_str(&json).unwrap();
+        assert_eq!(recovered.asset_id, original.asset_id);
+        assert_eq!(recovered.file_name, original.file_name);
+        assert_eq!(recovered.file_path, original.file_path);
+        assert_eq!(recovered.distance, original.distance);
+        assert_eq!(recovered.match_band, original.match_band);
+        assert!((recovered.similarity - original.similarity).abs() < 1e-10);
+    }
+
+    /// Integration test: import a real PNG, fingerprint it, then verify that
+    /// the catalogue-match scan retrieves it at distance 0.
+    ///
+    /// This exercises `get_all_fingerprints_by_type`, `hamming_distance`,
+    /// and `get_asset_by_id` — the three DB/fingerprint helpers that
+    /// `find_catalogue_matches` composes — without needing a live Tauri
+    /// AppHandle.
+    #[test]
+    fn find_catalogue_matches_round_trip() {
+        // Build a temp DB and a small PNG file.
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let db = db::Database::open(&db_path).unwrap();
+
+        let img_path = dir.path().join("sample.png");
+        let img = image::RgbImage::from_fn(64, 64, |x, y| {
+            image::Rgb([(x * 4) as u8, (y * 4) as u8, 128])
+        });
+        img.save(&img_path).unwrap();
+
+        // Compute the pHash and store it in the DB.
+        let phash = fingerprint::compute_phash(&img_path)
+            .expect("pHash computation must succeed for a valid PNG");
+        let asset_id = "test-asset-001";
+        let now = chrono::Utc::now().to_rfc3339();
+        db.insert_asset(&db::AssetRow {
+            asset_id: asset_id.to_string(),
+            file_path: img_path.to_str().unwrap().to_string(),
+            file_name: "sample.png".to_string(),
+            content_type: "image".to_string(),
+            mime_type: "image/png".to_string(),
+            file_size: 1024,
+            width: None,
+            height: None,
+            metadata_json: None,
+            c2pa_signed: false,
+            watermarked: false,
+            sha256_hash: None,
+            created_at: now,
+        })
+        .unwrap();
+        db.insert_fingerprint("fp-001", asset_id, "phash", &phash)
+            .unwrap();
+
+        // Run the match scan against the same pHash.
+        let candidates = db.get_all_fingerprints_by_type("phash").unwrap();
+        assert_eq!(candidates.len(), 1);
+
+        let mut matches: Vec<CatalogueMatch> = Vec::new();
+        for candidate in &candidates {
+            let distance = fingerprint::hamming_distance(&phash, &candidate.hash_value).unwrap();
+            if distance <= 10 {
+                let asset = db.get_asset_by_id(&candidate.asset_id).unwrap().unwrap();
+                matches.push(CatalogueMatch {
+                    asset_id: candidate.asset_id.clone(),
+                    file_name: asset.file_name,
+                    file_path: asset.file_path,
+                    distance,
+                    similarity: 1.0 - (distance as f64 / 64.0),
+                    match_band: CatalogueMatch::band_for(distance).to_string(),
+                });
+            }
+        }
+        matches.sort_by_key(|m| m.distance);
+
+        assert_eq!(matches.len(), 1, "Expected exactly one match");
+        assert_eq!(matches[0].asset_id, asset_id);
+        assert_eq!(matches[0].distance, 0, "Same pHash must give distance 0");
+        assert_eq!(matches[0].match_band, "exact");
+        assert!((matches[0].similarity - 1.0).abs() < f64::EPSILON);
     }
 }
