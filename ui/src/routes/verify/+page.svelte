@@ -294,13 +294,6 @@
   });
 
   // ── Derived ────────────────────────────────────────────────────────
-  // Minimum automatic detectors that must run before any verdict claim is
-  // honest.  Locked 2026-05-11 after a 1-of-15 verify result rendered as
-  // "High Trust / Authentic / 70%" because the score arithmetic neutralised
-  // unrun detectors.  Threshold is the union: EXIF + C2PA + ELA + noise +
-  // (one AI head) = 5.  Below this, verdict downgrades to Insufficient
-  // regardless of the numeric score.
-  const MIN_DETECTORS_FOR_VERDICT = 5;
 
   const rawTrustLevel = $derived(result ? getTrustLevel(result.overallTrust) : null);
 
@@ -309,13 +302,45 @@
     result?.deepfakeResult?.verdictLevel === 'synthetic'
   );
 
-  // A verdict is "insufficient signal" when too few detectors actually ran.
-  // This catches the case where the analysis engine was unreachable mid-run
-  // OR a file's codec/dimension gated most detectors off — both produce a
-  // numeric score that is arithmetically valid but operationally meaningless.
+  // A verdict is "insufficient signal" when the core image forensic detectors
+  // (ELA + deepfake) did not run. This indicates the sidecar was unreachable
+  // mid-run, producing an arithmetically valid but operationally hollow score.
+  //
+  // Design principles:
+  //   - Uses the authoritative result.detectorsRun list from the backend
+  //     (schema v6, Sprint 28) as the source of truth, not result-field
+  //     presence. The backend records "c2pa" even when no manifest is found,
+  //     so a normal unsigned JPEG correctly shows ["exif_anomaly","c2pa","ela",
+  //     "deepfake",...] rather than the old ["exif_anomaly","ela","deepfake",...].
+  //   - For IMAGE content: insufficient = neither "ela" nor "deepfake" ran.
+  //     Standard mode always runs both when the sidecar is up; their absence
+  //     means the engine was down. A no-C2PA JPEG with sidecar up = 4+ entries
+  //     (exif+c2pa+ela+deepfake) and is never insufficient. A sidecar-down
+  //     run = 2 entries (exif+c2pa) and correctly fires.
+  //   - For NON-IMAGE content (document, video, audio): sidecar image detectors
+  //     do not run by design. Never flag insufficient for these content types.
+  //   - Falls back to the old absolute-count heuristic only when detectorsRun
+  //     comes from the legacy slot-counter (no result.detectorsRun list), to
+  //     maintain back-compat with old DB records opened in newer builds.
   const insufficientSignal = $derived(() => {
     if (!result) return false;
-    return detectorsRun() < MIN_DETECTORS_FOR_VERDICT;
+    const ran: string[] | undefined = result.detectorsRun;
+    if (ran && ran.length > 0) {
+      // Authoritative path: use the backend list.
+      // Non-image content never trips insufficient (no sidecar image detectors
+      // are expected). Image content needs at least one of ela/deepfake.
+      const isImageContent =
+        result.exifAnalysis != null ||
+        ran.includes('ela') ||
+        ran.includes('deepfake') ||
+        ran.includes('exif_anomaly');
+      if (!isImageContent) return false;
+      return !ran.includes('ela') && !ran.includes('deepfake');
+    }
+    // Legacy fallback: result.detectorsRun absent (old DB record or old build).
+    // Use slot-counting with threshold 4 (post-c2pa-fix baseline: a healthy
+    // standard run of a no-C2PA JPEG = exif+c2pa+ela+deepfake = 4).
+    return detectorsRun() < 4;
   });
 
   // Positive authenticity evidence — at least ONE of:
@@ -1000,13 +1025,33 @@
     ].filter(Boolean).length
   );
 
-  // Total detectors that ran.  CLIP is excluded from the count when the
-  // sidecar build does not ship open-clip-torch (CI builds excludes it for
-  // size reasons — ~2 GB).  Counting "CLIP" as a missing detector when the
-  // user has no way to install it produces a misleading "N/13" denominator.
-  // Watermark detection is gated off in v1.0 and is excluded from the 13.
+  // Total detectors that ran.
+  //
+  // Primary path: use result.detectorsRun (authoritative backend list, schema
+  // v6). This correctly counts "c2pa" even for unsigned files (no manifest),
+  // because the backend now records c2pa as "ran" whenever the verification
+  // stage executed, not only when a manifest was found.
+  //
+  // Fallback (legacy records / old builds without result.detectorsRun): count
+  // truthy result slots. CLIP is excluded from the slot-count when the sidecar
+  // build does not ship open-clip-torch (CI builds exclude it for size reasons).
+  // Watermark detection is gated off in v1.0 and is excluded from both counts.
   const detectorsRun = $derived(() => {
     if (!result) return 0;
+    if (result.detectorsRun && result.detectorsRun.length > 0) {
+      // Authoritative: exclude on-demand / watermark from the "ran" display
+      // count the same way detectorsAvailable() excludes them from the
+      // denominator.  On-demand detectors (npr, shadow_consistency,
+      // splice_boundary) and watermark are separate from the automatic
+      // pipeline count shown in the "X / Y" display.
+      const automaticIds = new Set([
+        'exif_anomaly','c2pa','ela','noise','copy_move','deepfake',
+        'jpeg_ghost','segmented_ela','colour_temperature','clip',
+        'video_deepfake','transcription',
+      ]);
+      return result.detectorsRun.filter((id) => automaticIds.has(id)).length;
+    }
+    // Legacy slot-counting fallback.
     const slots: Array<unknown> = [
       result.exifAnalysis, result.c2paValid !== undefined && result.c2paValid !== null,
       result.elaResult, result.noiseResult, result.copyMoveResult,

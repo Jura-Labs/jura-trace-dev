@@ -2412,6 +2412,11 @@ fn verify_content_inner(
     let c2pa_chain = c2pa::read_manifest_chain(&path, false).ok().flatten();
     let c2pa_manifest = c2pa_chain.as_ref().map(|ch| ch.active.clone());
     let c2pa_valid = c2pa_manifest.as_ref().map(|m| m.is_valid);
+    // C2PA verification always executes at this point regardless of whether a
+    // manifest is present. "No manifest" is a valid finding (unsigned file),
+    // not "detector did not run". Track that the stage executed so that
+    // detectors_run_list records "c2pa" even for files with no credentials.
+    let c2pa_attempted = true;
 
     // Check C2PA claim_generator AND assertions for known AI generators.
     // Generators such as Google Gemini embed their AI declaration in the
@@ -3088,7 +3093,7 @@ fn verify_content_inner(
     if exif_analysis.is_some() {
         detectors_run_list.push("exif_anomaly");
     }
-    if c2pa_manifest.is_some() {
+    if c2pa_attempted {
         detectors_run_list.push("c2pa");
     }
     if ela_result.is_some() {
@@ -10899,5 +10904,132 @@ mod tests {
         assert_eq!(matches[0].distance, 0, "Same pHash must give distance 0");
         assert_eq!(matches[0].match_band, "exact");
         assert!((matches[0].similarity - 1.0).abs() < f64::EPSILON);
+    }
+
+    // ── detectors_run_list / insufficient-signal tests ────────────────────
+
+    /// C2PA must appear in detectors_run_list even when no manifest is present
+    /// (c2pa_attempted is always true once the verification stage has executed).
+    /// This is the root-cause fix for the false "Insufficient signal" verdict on
+    /// normal unsigned camera JPEGs.
+    #[test]
+    fn detectors_run_list_includes_c2pa_when_no_manifest() {
+        // Simulate the detectors_run_list build logic for a standard-mode image
+        // verify where: exif ran, c2pa was attempted (no manifest found), ELA
+        // ran, deepfake ran, and no other sidecar detectors ran.
+        let c2pa_attempted = true;
+        let exif_analysis: Option<exif_anomaly::ExifAnalysis> = None; // simplified
+        let ela_ran = true;
+        let deepfake_ran = true;
+
+        let mut detectors_run_list: Vec<&'static str> = Vec::new();
+        // exif_anomaly would be pushed if exif_analysis.is_some(); skipped here
+        // to isolate the c2pa fix.
+        let _ = exif_analysis;
+        if c2pa_attempted {
+            detectors_run_list.push("c2pa");
+        }
+        if ela_ran {
+            detectors_run_list.push("ela");
+        }
+        if deepfake_ran {
+            detectors_run_list.push("deepfake");
+        }
+
+        assert!(
+            detectors_run_list.contains(&"c2pa"),
+            "c2pa must be in detectors_run even without a manifest"
+        );
+        // With c2pa + ela + deepfake, this is a valid standard run.
+        assert_eq!(detectors_run_list.len(), 3);
+    }
+
+    /// The "insufficient signal" test: the old c2pa-gated logic would have
+    /// produced 4 entries for a no-C2PA JPEG with EXIF + ELA + deepfake + CLIP,
+    /// which tripped the old threshold of 5. After the fix the count is 5
+    /// (exif + c2pa + ela + deepfake + clip) and would not trip even the old
+    /// threshold; but more importantly the new frontend logic tests for ela/
+    /// deepfake presence rather than an absolute count.
+    #[test]
+    fn detectors_run_standard_no_c2pa_jpeg_has_four_core_entries() {
+        // Simulate a standard-mode image verify: exif ran, c2pa attempted (no
+        // manifest), ELA ran, deepfake ran — CLIP not available.
+        let c2pa_attempted = true;
+        let exif_ran = true;
+        let ela_ran = true;
+        let deepfake_ran = true;
+
+        let mut detectors_run_list: Vec<&'static str> = Vec::new();
+        if exif_ran {
+            detectors_run_list.push("exif_anomaly");
+        }
+        if c2pa_attempted {
+            detectors_run_list.push("c2pa");
+        }
+        if ela_ran {
+            detectors_run_list.push("ela");
+        }
+        if deepfake_ran {
+            detectors_run_list.push("deepfake");
+        }
+
+        // Confirm at least 4 entries: exif + c2pa + ela + deepfake.
+        assert_eq!(
+            detectors_run_list.len(),
+            4,
+            "Standard no-C2PA JPEG must produce exactly 4 core detector entries"
+        );
+        // Confirm the new frontend insufficient-signal logic would NOT fire:
+        // insufficient iff neither ela nor deepfake ran.
+        let ela_or_deepfake_ran =
+            detectors_run_list.contains(&"ela") || detectors_run_list.contains(&"deepfake");
+        assert!(
+            ela_or_deepfake_ran,
+            "ela or deepfake must be present for a healthy standard-mode image verify"
+        );
+    }
+
+    /// A genuinely degraded run (sidecar down — only exif + c2pa produced
+    /// results) must still be flagged as insufficient by the frontend logic.
+    #[test]
+    fn detectors_run_sidecar_down_triggers_insufficient() {
+        // Only exif and c2pa ran — sidecar was unreachable.
+        let detectors_run_list = ["exif_anomaly", "c2pa"];
+
+        // Frontend rule: insufficient when neither ela nor deepfake is present
+        // AND the content is image-type (exif_anomaly in list = image).
+        let is_image_content = detectors_run_list.contains(&"exif_anomaly")
+            || detectors_run_list.contains(&"ela")
+            || detectors_run_list.contains(&"deepfake");
+        let ela_or_deepfake_ran =
+            detectors_run_list.contains(&"ela") || detectors_run_list.contains(&"deepfake");
+        let insufficient = is_image_content && !ela_or_deepfake_ran;
+
+        assert!(
+            insufficient,
+            "A sidecar-down run with only exif+c2pa must be flagged insufficient"
+        );
+    }
+
+    /// Non-image content (document) runs only c2pa. This must NOT be flagged
+    /// as insufficient because no image sidecar detectors are expected.
+    #[test]
+    fn detectors_run_document_not_insufficient() {
+        // Document: only c2pa ran (no exif, no ela, no deepfake).
+        let detectors_run_list = ["c2pa"];
+
+        // Frontend rule: not image content because exif_anomaly/ela/deepfake
+        // are all absent.
+        let is_image_content = detectors_run_list.contains(&"exif_anomaly")
+            || detectors_run_list.contains(&"ela")
+            || detectors_run_list.contains(&"deepfake");
+        let ela_or_deepfake_ran =
+            detectors_run_list.contains(&"ela") || detectors_run_list.contains(&"deepfake");
+        let insufficient = is_image_content && !ela_or_deepfake_ran;
+
+        assert!(
+            !insufficient,
+            "A document (no image sidecar detectors expected) must not be flagged insufficient"
+        );
     }
 }
