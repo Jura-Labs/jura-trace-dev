@@ -672,12 +672,18 @@
       (f: AnomalyFinding) => f.severity === 'high' || f.severity === 'critical'
     );
     if (highSeverity.length > 0) return 'suspicious';
-    // hasExif=false (EXIF block absent or fully stripped) plus no findings
-    // means we have nothing to assess — informationally neutral, not pass.
-    // Firefly / Midjourney / DALL-E outputs typically strip EXIF on export;
-    // a green dot in that case is misleading.
-    if (result.exifAnalysis.hasExif === false && findings.length === 0) return 'empty-data';
-    return 'pass';
+    // Green is reserved for genuine positive provenance: a recognised camera
+    // signature (MakerNote authenticity bonus) or both Make and Model present.
+    // Absent or thin metadata with no camera provenance is NOT positive evidence
+    // (it is common on AI-generated and platform-stripped images), so it reads
+    // amber, not green. Reported in testing 2026-05-27: a green EXIF dot on a
+    // file with no usable provenance was misleading.
+    const exif = result.exifAnalysis as any;
+    const make = exif.cameraMake ?? exif.make ?? null;
+    const model = exif.cameraModel ?? exif.model ?? null;
+    const cameraBonus = exif.cameraAuthenticityBonus ?? 0;
+    if (cameraBonus > 0 || (make && model)) return 'pass';
+    return 'concern';
   }
 
   // C2PA-specific dot state: a valid manifest that contains an AI-disclosure
@@ -712,8 +718,11 @@
           state: exifState,
           ariaDetail: exifState === 'suspicious'
             ? `${exifHighFindings.length} high-severity anomal${exifHighFindings.length === 1 ? 'y' : 'ies'}`
-            : exifState === 'empty-data' ? 'No metadata — frequently seen on AI-generated images'
-            : exifState === 'pass' ? 'No critical anomalies'
+            : exifState === 'pass' ? 'Camera provenance present, no critical anomalies'
+            : exifState === 'concern'
+              ? (result.exifAnalysis?.hasExif === false
+                  ? 'No metadata, frequently seen on AI-generated images'
+                  : 'No camera provenance in the metadata')
             : 'Not run',
         },
         {
@@ -1671,22 +1680,22 @@
       <h2 class="font-serif text-lg text-obsidian dark:text-quartz">Export Trust Report</h2>
       <div class="space-y-3">
         <div>
-          <label for="v2-analyst-name" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Analyst name (optional)</label>
+          <label for="v2-analyst-name" class="block text-xs muted-help mb-1">Analyst name (optional)</label>
           <input id="v2-analyst-name" type="text" bind:value={analystName}
             class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light" />
         </div>
         <div>
-          <label for="v2-analyst-org" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Organisation (optional)</label>
+          <label for="v2-analyst-org" class="block text-xs muted-help mb-1">Organisation (optional)</label>
           <input id="v2-analyst-org" type="text" bind:value={analystOrg}
             class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light" />
         </div>
         <div>
-          <label for="v2-case-ref" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Case reference (optional)</label>
+          <label for="v2-case-ref" class="block text-xs muted-help mb-1">Case reference (optional)</label>
           <input id="v2-case-ref" type="text" bind:value={analystCaseRef}
             class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light" />
         </div>
         <div>
-          <label for="v2-report-format" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Format</label>
+          <label for="v2-report-format" class="block text-xs muted-help mb-1">Format</label>
           <select id="v2-report-format" bind:value={reportFormat}
             class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light">
             <option value="standard">Standard</option>
@@ -1733,11 +1742,11 @@
           <p class="text-malachite-dark dark:text-malachite-light text-sm">
             ✓ Saved locally.
           </p>
-          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-xs muted-help leading-relaxed">
             Your email client should have opened with a pre-filled report. Review and send
             it to contribute this case to model improvement.
           </p>
-          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-xs muted-help leading-relaxed">
             If nothing opened, you can copy the report and email it manually:
           </p>
           <div class="flex flex-wrap gap-2 items-center pt-1">
@@ -1747,13 +1756,13 @@
               onclick={handleFpCopyToClipboard}
               aria-live="polite"
             >{fpClipboardCopied ? '✓ Copied' : 'Copy report to clipboard'}</button>
-            <span class="text-xs text-flint-dark dark:text-flint-light">Send to</span>
+            <span class="text-xs muted-help">Send to</span>
             <a
               href="mailto:{FP_FEEDBACK_EMAIL}"
               class="text-xs text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
             >{FP_FEEDBACK_EMAIL}</a>
           </div>
-          <p class="text-[11px] text-flint-dark dark:text-flint-light leading-relaxed pt-2 border-t border-border-light dark:border-border-dark">
+          <p class="text-[11px] muted-help leading-relaxed pt-2 border-t border-border-light dark:border-border-dark">
             The exported report contains only the reason code, MIME type, app version,
             platform, and timestamp. Your free-text notes stay on this device.
           </p>
@@ -1767,7 +1776,7 @@
       {:else}
         <div class="space-y-3">
           <div>
-            <label for="v2-fp-reason" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Reason</label>
+            <label for="v2-fp-reason" class="block text-xs muted-help mb-1">Reason</label>
             <select id="v2-fp-reason" bind:value={fpReasonCode}
               class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light">
               <option value="modern_codec">Modern codec (AVIF/WebP)</option>
@@ -1778,14 +1787,14 @@
             </select>
           </div>
           <div>
-            <label for="v2-fp-note" class="block text-xs text-flint-dark dark:text-flint-light mb-1">
+            <label for="v2-fp-note" class="block text-xs muted-help mb-1">
               Additional notes (optional, max 500 characters)
             </label>
             <textarea id="v2-fp-note" bind:value={fpReasonNote} rows="3" maxlength="500"
               placeholder="Do not include personal data. Notes are stored locally only and are NOT included in any emailed or copied report."
               class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"></textarea>
           </div>
-          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-xs muted-help leading-relaxed">
             Your report is saved on this device. Clicking <strong>Save &amp; prepare email</strong>
             will also open your email client with a pre-filled draft. Nothing is sent
             automatically. You choose whether to send it.
@@ -1957,7 +1966,7 @@
                   {/if}
                 </p>
                 {#if fileName}
-                  <p class="text-xs text-flint-dark dark:text-flint-light">{fileName}</p>
+                  <p class="text-xs muted-help">{fileName}</p>
                 {/if}
                 <!-- Power-saver disclosure shown immediately (not after 5 s) so a
                      respawn pause is recognisable as expected behaviour from the
@@ -1965,12 +1974,12 @@
                      2026 flagged the silent first 5 s as a crash-look that
                      drives force-quits during respawn. -->
                 {#if powerSaverEnabled && analysisElapsed < 5}
-                  <p class="text-xs text-flint-dark dark:text-flint-light max-w-xs text-center">
+                  <p class="text-xs muted-help max-w-xs text-center">
                     Power-saver mode is on. If the engine was idle, the first verification may take an extra 30–90 seconds.
                   </p>
                 {/if}
                 {#if analysisElapsed > 2}
-                  <p class="text-xs text-flint-dark dark:text-flint-light tabular-nums">{analysisElapsed}s elapsed</p>
+                  <p class="text-xs muted-help tabular-nums">{analysisElapsed}s elapsed</p>
                 {/if}
               </div>
             {:else}
@@ -1980,8 +1989,8 @@
                     d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                 </svg>
                 <p class="text-obsidian dark:text-quartz font-medium">Drop a file to verify</p>
-                <p class="text-xs text-flint-dark dark:text-flint-light">or click to browse</p>
-                <p class="text-xs text-flint-dark dark:text-flint-light mt-1">JPEG · PNG · TIFF · WebP · HEIC · AVIF</p>
+                <p class="text-xs muted-help">or click to browse</p>
+                <p class="text-xs muted-help mt-1">JPEG · PNG · TIFF · WebP · HEIC · AVIF</p>
               </div>
             {/if}
           </button>
@@ -2000,7 +2009,7 @@
       <!-- URL tab -->
       {#if activeTab === 'url'}
         <div id="v2-tab-url" role="tabpanel" aria-labelledby="v2-tab-btn-url" class="p-4">
-          <label for="v2-url-input" class="block text-xs text-flint-dark dark:text-flint-light mb-2">
+          <label for="v2-url-input" class="block text-xs muted-help mb-2">
             Image URL
           </label>
           <div class="flex gap-2">
@@ -2045,8 +2054,8 @@
                   d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
               <p class="text-obsidian dark:text-quartz font-medium">Drop multiple files to verify</p>
-              <p class="text-xs text-flint-dark dark:text-flint-light">or click to browse (files are queued for sequential verification)</p>
-              <p class="text-xs text-flint-dark dark:text-flint-light mt-1">JPEG · PNG · TIFF · WebP · HEIC · AVIF</p>
+              <p class="text-xs muted-help">or click to browse (files are queued for sequential verification)</p>
+              <p class="text-xs muted-help mt-1">JPEG · PNG · TIFF · WebP · HEIC · AVIF</p>
             </div>
           </button>
 
@@ -2063,7 +2072,7 @@
                 >
                   {batchRunning ? 'Running…' : 'Run Batch'}
                 </button>
-                <span class="text-xs text-flint-dark dark:text-flint-light">{batchCompleted} of {batchItems.length} complete</span>
+                <span class="text-xs muted-help">{batchCompleted} of {batchItems.length} complete</span>
               </div>
               <div class="flex items-center gap-2">
                 {#if batchCompleted > 0}
@@ -2092,7 +2101,7 @@
             <!-- Results table -->
             <div class="mt-4 bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded-lg overflow-x-auto">
               <div class="grid grid-cols-[1fr_90px_70px_70px_36px] gap-3 px-4 py-2 border-b border-border-light dark:border-border-dark
-                          text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wide min-w-[480px]">
+                          text-[10px] section-label uppercase tracking-wide min-w-[480px]">
                 <span>File</span>
                 <span>Status</span>
                 <span>Trust</span>
@@ -2298,7 +2307,7 @@
               <line x1="3" y1="9" x2="21" y2="9" />
               <line x1="9" y1="21" x2="9" y2="9" />
             </svg>
-            <p class="text-[11px] text-flint-dark dark:text-flint-light leading-tight">
+            <p class="text-[11px] muted-help leading-tight">
               Preview unavailable for this codec.<br />Analysis still ran.
             </p>
           </div>
@@ -2382,7 +2391,7 @@
             How this score is calculated
           </a>
 
-          <p class="text-sm text-flint-dark dark:text-flint-light mb-3">
+          <p class="text-sm muted-help mb-3">
             {fileName}{#if imageDimensions()} · {imageDimensions()}{/if}
           </p>
 
@@ -2425,7 +2434,7 @@
           <!-- Breakdown row -->
           <div class="flex items-center gap-4 flex-wrap border-t border-border-light dark:border-border-dark/60 pt-3" role="list" aria-label="Verification summary">
             <div role="listitem" class="flex flex-col gap-0.5">
-              <span class="text-[10px] {insufficientSignal() ? 'text-cinnabar-dark dark:text-cinnabar-light font-semibold' : 'text-flint-dark dark:text-flint-light'} uppercase tracking-wider">
+              <span class="text-[10px] {insufficientSignal() ? 'text-cinnabar-dark dark:text-cinnabar-light font-semibold' : 'section-label'} uppercase tracking-wider">
                 Detectors run{insufficientSignal() ? ' (partial)' : ''}
               </span>
               <span class="text-sm {insufficientSignal() ? 'text-cinnabar-dark dark:text-cinnabar-light font-bold' : 'text-obsidian dark:text-quartz font-medium'}">
@@ -2434,7 +2443,7 @@
             </div>
             <div role="separator" aria-hidden="true" class="w-px h-6 bg-border-light dark:bg-border-dark"></div>
             <div role="listitem" class="flex flex-col gap-0.5">
-              <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Findings</span>
+              <span class="text-[10px] section-label uppercase tracking-wider">Findings</span>
               <span class="text-sm font-medium {totalFindings > 0 ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}">
                 {totalFindings === 0 ? 'None' : totalFindings === 1 ? '1 concern' : `${totalFindings} concerns`}
               </span>
@@ -2442,13 +2451,13 @@
             {#if cameraLabel()}
               <div role="separator" aria-hidden="true" class="w-px h-6 bg-border-light dark:bg-border-dark"></div>
               <div role="listitem" class="flex flex-col gap-0.5">
-                <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Camera</span>
+                <span class="text-[10px] section-label uppercase tracking-wider">Camera</span>
                 <span class="text-sm text-obsidian dark:text-quartz font-medium">{cameraLabel()}</span>
               </div>
             {/if}
             <div role="separator" aria-hidden="true" class="w-px h-6 bg-border-light dark:bg-border-dark"></div>
             <div role="listitem" class="flex flex-col gap-0.5">
-              <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Content Credentials</span>
+              <span class="text-[10px] section-label uppercase tracking-wider">Content Credentials</span>
               <!--
                 Status labels per C2PA UX Rec v1.4 Table 4:
                   invalid -> "Content Credential unavailable or invalid" (verbatim).
@@ -2548,13 +2557,13 @@
     <!-- ── 2. Signal Map Strip ────────────────────────────────────── -->
     <section aria-label="Signal overview, all detectors at a glance" class="mb-5">
       <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl px-5 py-4">
-        <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-widest mb-3">Signal Map: select any detector to jump to its detail below</p>
+        <p class="text-[10px] section-label uppercase tracking-widest mb-3">Signal Map: select any detector to jump to its detail below</p>
 
         <div class="flex items-start gap-0" role="group" aria-label="Detector signals grouped by category">
 
           <!-- Provenance group -->
           <div class="flex-1 pr-4">
-            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold mb-2" id="sm-prov">Provenance</p>
+            <p class="text-[10px] section-label uppercase tracking-wider mb-2" id="sm-prov">Provenance</p>
             <div class="flex flex-wrap gap-x-4 gap-y-2" role="list" aria-labelledby="sm-prov">
               {#each signalDots().provenance as dot}
                 <button
@@ -2579,7 +2588,7 @@
 
           <!-- Integrity group -->
           <div class="flex-[2] px-4">
-            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold mb-2" id="sm-int">Integrity</p>
+            <p class="text-[10px] section-label uppercase tracking-wider mb-2" id="sm-int">Integrity</p>
             <div class="flex flex-wrap gap-x-4 gap-y-2" role="list" aria-labelledby="sm-int">
               {#each signalDots().integrity as dot}
                 <button
@@ -2604,7 +2613,7 @@
 
           <!-- AI Detection group -->
           <div class="flex-1 pl-4">
-            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold mb-2" id="sm-ai">AI Detection</p>
+            <p class="text-[10px] section-label uppercase tracking-wider mb-2" id="sm-ai">AI Detection</p>
             <div class="flex flex-wrap gap-x-4 gap-y-2" role="list" aria-labelledby="sm-ai">
               {#each signalDots().ai as dot}
                 <button
@@ -2633,7 +2642,7 @@
     <section aria-label="Forensic analysis by question" class="space-y-2 mb-5">
       <div class="flex items-baseline gap-2 mb-3">
         <h2 class="font-serif text-lg text-obsidian dark:text-quartz">All Checks</h2>
-        <span class="text-xs text-flint-dark dark:text-flint-light">Click a question to expand the full analysis</span>
+        <span class="text-xs muted-help">Click a question to expand the full analysis</span>
       </div>
 
       <!-- Card 1: Does the provenance hold? -->
@@ -2795,67 +2804,67 @@
                         <div class="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
                           {#if meta.cameraMake || meta.cameraModel}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Camera</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Camera</p>
                               <p class="text-obsidian dark:text-quartz">{[meta.cameraMake, meta.cameraModel].filter(Boolean).join(' ')}</p>
                             </div>
                           {/if}
                           {#if meta.software}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Software</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Software</p>
                               <p class="text-obsidian dark:text-quartz">{meta.software}</p>
                             </div>
                           {/if}
                           {#if meta.datetimeOriginal}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Date taken</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Date taken</p>
                               <p class="text-obsidian dark:text-quartz">{meta.datetimeOriginal}</p>
                             </div>
                           {/if}
                           {#if meta.datetimeModified}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Date modified</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Date modified</p>
                               <p class="text-obsidian dark:text-quartz">{meta.datetimeModified}</p>
                             </div>
                           {/if}
                           {#if meta.iso}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">ISO</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">ISO</p>
                               <p class="text-obsidian dark:text-quartz">{meta.iso}</p>
                             </div>
                           {/if}
                           {#if meta.focalLength}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Focal length</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Focal length</p>
                               <p class="text-obsidian dark:text-quartz">{meta.focalLength}</p>
                             </div>
                           {/if}
                           {#if meta.exposureTime}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Exposure</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Exposure</p>
                               <p class="text-obsidian dark:text-quartz">{meta.exposureTime}</p>
                             </div>
                           {/if}
                           {#if meta.fNumber}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Aperture</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Aperture</p>
                               <p class="text-obsidian dark:text-quartz">{meta.fNumber}</p>
                             </div>
                           {/if}
                           {#if meta.colorSpace}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Colour space</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Colour space</p>
                               <p class="text-obsidian dark:text-quartz">{meta.colorSpace}</p>
                             </div>
                           {/if}
                           {#if meta.exifWidth && meta.exifHeight}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">EXIF dimensions</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">EXIF dimensions</p>
                               <p class="text-obsidian dark:text-quartz">{meta.exifWidth} x {meta.exifHeight}</p>
                             </div>
                           {/if}
                           {#if meta.gpsLatitude != null && meta.gpsLongitude != null}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">GPS</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">GPS</p>
                               <p class="text-obsidian dark:text-quartz">
                                 {meta.gpsLatitude.toFixed(6)}, {meta.gpsLongitude.toFixed(6)}
                                 <a
@@ -2869,37 +2878,37 @@
                           {/if}
                           {#if meta.iccProfileDescription}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">ICC Profile</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">ICC Profile</p>
                               <p class="text-obsidian dark:text-quartz">{meta.iccProfileDescription}</p>
                             </div>
                           {/if}
                           {#if meta.jpegQuantTables?.estimatedQuality != null}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">JPEG Quality</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">JPEG Quality</p>
                               <p class="text-obsidian dark:text-quartz tabular-nums">{meta.jpegQuantTables.estimatedQuality} / 100</p>
                             </div>
                           {/if}
                           {#if meta.jpegQuantTables?.knownSource}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Q-table encoder</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Q-table encoder</p>
                               <p class="text-obsidian dark:text-quartz">{meta.jpegQuantTables.knownSource}</p>
                             </div>
                           {/if}
                           {#if meta.artist}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Artist</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Artist</p>
                               <p class="text-obsidian dark:text-quartz">{meta.artist}</p>
                             </div>
                           {/if}
                           {#if meta.copyright}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Copyright</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Copyright</p>
                               <p class="text-obsidian dark:text-quartz">{meta.copyright}</p>
                             </div>
                           {/if}
                           {#if meta.description}
                             <div class="col-span-2">
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Description</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Description</p>
                               <p class="text-obsidian dark:text-quartz">{meta.description}</p>
                             </div>
                           {/if}
@@ -2944,11 +2953,11 @@
                       {#if weatherData}
                         <dl class="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-xs" aria-label="Historical weather conditions">
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Temperature</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Temperature</dt>
                             <dd class="text-obsidian dark:text-quartz font-medium">{weatherData.temperature.toFixed(1)} °C</dd>
                           </div>
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Cloud cover</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Cloud cover</dt>
                             <dd class="text-obsidian dark:text-quartz font-medium">{weatherData.cloudCover.toFixed(0)}%
                               {#if weatherData.cloudCover > 80}
                                 <span class="text-flint-dark dark:text-flint-light ml-1">(overcast, no sharp shadows expected)</span>
@@ -2960,11 +2969,11 @@
                             </dd>
                           </div>
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Precipitation</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Precipitation</dt>
                             <dd class="text-obsidian dark:text-quartz font-medium">{weatherData.precipitation.toFixed(1)} mm</dd>
                           </div>
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Visibility</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Visibility</dt>
                             <dd class="text-obsidian dark:text-quartz font-medium">{(weatherData.visibility / 1000).toFixed(1)} km
                               {#if weatherData.visibility < 1000}
                                 <span class="text-amber-dark dark:text-amber-light ml-1">(fog/mist)</span>
@@ -2972,7 +2981,7 @@
                             </dd>
                           </div>
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Wind speed</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Wind speed</dt>
                             <dd class="text-obsidian dark:text-quartz font-medium">{weatherData.windSpeed.toFixed(1)} km/h</dd>
                           </div>
                         </dl>
@@ -3738,34 +3747,34 @@
                       <dl class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
                         {#if pdf.producer}
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Producer</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Producer</dt>
                             <dd class="text-obsidian dark:text-quartz">{pdf.producer}</dd>
                           </div>
                         {/if}
                         {#if pdf.creator}
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Creator</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Creator</dt>
                             <dd class="text-obsidian dark:text-quartz">{pdf.creator}</dd>
                           </div>
                         {/if}
                         {#if pdf.creationDate}
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Created</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Created</dt>
                             <dd class="text-obsidian dark:text-quartz">{pdf.creationDate}</dd>
                           </div>
                         {/if}
                         {#if pdf.modDate}
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Modified</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Modified</dt>
                             <dd class="text-obsidian dark:text-quartz">{pdf.modDate}</dd>
                           </div>
                         {/if}
                         <div>
-                          <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Pages</dt>
+                          <dt class="text-[10px] section-label uppercase tracking-wider">Pages</dt>
                           <dd class="text-obsidian dark:text-quartz tabular-nums">{pdf.pageCount}</dd>
                         </div>
                         <div>
-                          <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">PDF Version</dt>
+                          <dt class="text-[10px] section-label uppercase tracking-wider">PDF Version</dt>
                           <dd class="text-obsidian dark:text-quartz font-mono">{pdf.pdfVersion}</dd>
                         </div>
                       </dl>
@@ -4570,7 +4579,7 @@
                       {#if showZeroShot}
                         <div class="mt-2 space-y-1" aria-label="CLIP class probability distribution">
                           <div class="flex items-center justify-between mb-1">
-                            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">
+                            <p class="text-[10px] section-label uppercase tracking-wider">
                               {#if isAuxiliary}
                                 Zero-shot CLIP labels (auxiliary, not used for score)
                               {:else}
