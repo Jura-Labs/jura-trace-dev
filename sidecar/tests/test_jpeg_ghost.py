@@ -128,3 +128,50 @@ class TestJpegGhostDetection:
         assert result.quality_variance < 100.0, (
             f"Single-compression JPEG variance {result.quality_variance} unexpectedly high"
         )
+
+    # ── Non-JPEG codec gate tests (Finding 1) ─────────────────────────────
+
+    def test_webp_returns_neutral(self):
+        """WebP images must return a neutral result — no ghost analysis."""
+        img = Image.new("RGB", (256, 256), (100, 150, 200))
+        buf = io.BytesIO()
+        img.save(buf, format="WEBP")
+        result = perform_jpeg_ghost_detection(buf.getvalue())
+        assert result.score == 0.0
+        assert not result.suspicious
+        assert result.total_blocks == 0
+        assert "WebP" in result.summary
+
+    def test_tiff_returns_neutral(self):
+        """TIFF images must return a neutral result — no ghost analysis."""
+        img = Image.new("RGB", (256, 256), (80, 80, 80))
+        buf = io.BytesIO()
+        img.save(buf, format="TIFF")
+        result = perform_jpeg_ghost_detection(buf.getvalue())
+        assert result.score == 0.0
+        assert not result.suspicious
+        assert result.total_blocks == 0
+        assert "TIFF" in result.summary
+
+    def test_bmp_returns_neutral(self):
+        """BMP images must return a neutral result — no ghost analysis."""
+        img = Image.new("RGB", (64, 64), (200, 100, 50))
+        buf = io.BytesIO()
+        img.save(buf, format="BMP")
+        result = perform_jpeg_ghost_detection(buf.getvalue())
+        assert result.score == 0.0
+        assert not result.suspicious
+        assert result.total_blocks == 0
+        assert "BMP" in result.summary
+
+    def test_avif_heic_magic_bytes_return_neutral(self):
+        """Bytes with an ftyp box (AVIF/HEIC) must return a neutral result."""
+        # Construct a minimal ftyp box: 4-byte size + b'ftyp' + 4-byte brand.
+        # This mimics AVIF container magic without being a valid AVIF file.
+        size_bytes = (20).to_bytes(4, "big")
+        ftyp_box = size_bytes + b"ftyp" + b"avif" + b"\x00" * 8
+        result = perform_jpeg_ghost_detection(ftyp_box)
+        assert result.score == 0.0
+        assert not result.suspicious
+        assert result.total_blocks == 0
+        assert "AVIF" in result.summary or "HEIC" in result.summary

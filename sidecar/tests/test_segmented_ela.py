@@ -132,3 +132,45 @@ class TestSegmentedEla:
 
         result2 = perform_segmented_ela(_make_composite_jpeg())
         assert 0.0 <= result2["score"] <= 1.0
+
+    # ── Non-JPEG codec gate tests (Finding 2) ─────────────────────────────
+
+    def test_avif_heic_magic_bytes_return_neutral(self):
+        """Bytes with an ftyp box (AVIF/HEIC) must return neutral — PIL cannot
+        open these formats; the old 'except Exception: pass' fell through to
+        OpenCV ELA and returned a spurious score."""
+        # Minimal ftyp container (AVIF magic bytes without a valid AVIF payload).
+        size_bytes = (20).to_bytes(4, "big")
+        ftyp_box = size_bytes + b"ftyp" + b"avif" + b"\x00" * 8
+        result = perform_segmented_ela(ftyp_box)
+        assert result["score"] == 0.0
+        assert not result["suspicious"]
+        assert result["total_regions"] == 0
+        assert "not applicable" in result["summary"].lower() or "could not" in result["summary"].lower()
+
+    def test_heic_ftyp_brand_returns_neutral(self):
+        """HEIC ftyp brand must also return neutral (belt-and-braces)."""
+        size_bytes = (20).to_bytes(4, "big")
+        ftyp_box = size_bytes + b"ftyp" + b"heic" + b"\x00" * 8
+        result = perform_segmented_ela(ftyp_box)
+        assert result["score"] == 0.0
+        assert not result["suspicious"]
+
+    def test_pil_open_failure_returns_neutral_not_through_to_opencv(self):
+        """Any PIL open failure must return neutral — must not fall through
+        to the OpenCV ELA path (root cause of Finding 2)."""
+        # Craft bytes that cv2.imdecode can partially handle but PIL cannot
+        # open as JPEG. Use raw noise that is not a valid image format.
+        import numpy as np
+        rng = np.random.default_rng(7)
+        noise = rng.integers(0, 256, 512, dtype=np.uint8).tobytes()
+        # cv2.imdecode will return None (handled by the existing guard),
+        # so the real test here is the PIL path for something that looks like
+        # it might be an image container but isn't.
+        # Use a ftyp box with an unknown brand — PIL will raise.
+        size_bytes = (20).to_bytes(4, "big")
+        ftyp_box = size_bytes + b"ftyp" + b"xxxx" + b"\x00" * 8
+        result = perform_segmented_ela(ftyp_box)
+        # Must return neutral (score=0, not suspicious) regardless of PIL behaviour.
+        assert result["score"] == 0.0
+        assert not result["suspicious"]

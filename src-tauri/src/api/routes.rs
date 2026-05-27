@@ -200,8 +200,15 @@ pub async fn verify_file(
     .map_err(|_| ApiError::internal("Verification task panicked"))?
     .map_err(ApiError::from)?;
 
-    let degraded =
-        result.ela_result.is_none() && result.deepfake_result.is_none() && result.mode != "quick";
+    // Only treat missing ELA/deepfake as "degraded" for image content. For
+    // documents, video, audio, and other non-image formats these detectors are
+    // never expected, so their absence is the correct outcome, not a signal
+    // that the pipeline was degraded (Finding 5).
+    let is_image_content = result.content_type == "image";
+    let degraded = is_image_content
+        && result.ela_result.is_none()
+        && result.deepfake_result.is_none()
+        && result.mode != "quick";
 
     Ok(Json(if degraded {
         ApiResponse::degraded(result)
@@ -239,8 +246,12 @@ pub async fn verify_url(
             .map_err(|_| ApiError::internal("Verification task panicked"))?
             .map_err(ApiError::from)?;
 
-    let degraded =
-        result.ela_result.is_none() && result.deepfake_result.is_none() && result.mode != "quick";
+    // Same content-aware degraded gate as the upload route (Finding 5).
+    let is_image_content = result.content_type == "image";
+    let degraded = is_image_content
+        && result.ela_result.is_none()
+        && result.deepfake_result.is_none()
+        && result.mode != "quick";
 
     Ok(Json(if degraded {
         ApiResponse::degraded(result)

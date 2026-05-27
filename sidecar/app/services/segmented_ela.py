@@ -45,7 +45,23 @@ def perform_segmented_ela(image_bytes: bytes, quality: int = 90) -> dict:
 
     h, w = img.shape[:2]
 
-    # Check if JPEG — for non-JPEG, return neutral result
+    # Check if JPEG — for non-JPEG formats return a neutral result so that
+    # no spurious score reaches the Rust pipeline. PIL cannot open AVIF/HEIC
+    # (raises UnidentifiedImageError), which the original code swallowed in
+    # the `except Exception: pass` branch and then fell through to the full
+    # OpenCV ELA computation, producing a bogus score (Finding 2). The fix:
+    # treat any PIL open failure as "not JPEG" and return neutral immediately.
+    # AVIF/HEIC magic bytes are also checked explicitly as a belt-and-braces
+    # guard for environments where PIL might gain AVIF support in future.
+    _AVIF_MAGIC = b"ftyp"  # bytes 4-8 of AVIF/HEIF container
+    _HEIC_BRANDS = {b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis",
+                    b"hevm", b"hevs", b"mif1", b"msf1"}
+    if len(image_bytes) >= 12 and image_bytes[4:8] == _AVIF_MAGIC:
+        brand = image_bytes[8:12].lower()
+        if brand in _HEIC_BRANDS or b"avif" in image_bytes[8:12].lower():
+            return _neutral_result(
+                "Segmented ELA is not applicable for AVIF/HEIC images"
+            )
     try:
         pil_img = Image.open(BytesIO(image_bytes))
         if pil_img.format and pil_img.format.upper() not in ("JPEG", "JPG"):
@@ -53,7 +69,12 @@ def perform_segmented_ela(image_bytes: bytes, quality: int = 90) -> dict:
                 "Segmented ELA is not applicable for non-JPEG images"
             )
     except Exception:
-        pass
+        # PIL could not open the image (e.g. AVIF/HEIC without a plugin, or
+        # corrupt data). Treat as non-JPEG — return neutral rather than
+        # proceeding to OpenCV and generating a spurious score.
+        return _neutral_result(
+            "Segmented ELA is not applicable: could not identify image format"
+        )
 
     # Recompress at target quality
     encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
