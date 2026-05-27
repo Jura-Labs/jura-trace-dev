@@ -739,10 +739,14 @@
     // (it is common on AI-generated and platform-stripped images), so it reads
     // amber, not green. Reported in testing 2026-05-27: a green EXIF dot on a
     // file with no usable provenance was misleading.
-    const exif = result.exifAnalysis as any;
-    const make = exif.cameraMake ?? exif.make ?? null;
-    const model = exif.cameraModel ?? exif.model ?? null;
-    const cameraBonus = exif.cameraAuthenticityBonus ?? 0;
+    // Make/Model live on imageMetadata, not exifAnalysis; the authenticity
+    // bonus lives on exifAnalysis. Reading make/model off exifAnalysis (as an
+    // earlier version did) always yielded null, so the dot wrongly showed amber
+    // for recognised-camera photos while the verdict said High Trust.
+    const meta = result.imageMetadata as any;
+    const make = meta?.cameraMake ?? meta?.make ?? null;
+    const model = meta?.cameraModel ?? meta?.model ?? null;
+    const cameraBonus = result.exifAnalysis?.cameraAuthenticityBonus ?? 0;
     if (cameraBonus > 0 || (make && model)) return 'pass';
     return 'concern';
   }
@@ -1075,10 +1079,10 @@
 
   const totalFindings = $derived(provenanceFindings + integrityFindings + aiFindings);
 
-  // Camera make/model from EXIF
+  // Camera make/model live on imageMetadata, not exifAnalysis.
   const cameraLabel = $derived(() => {
-    if (!result?.exifAnalysis) return null;
-    const meta = result.exifAnalysis as any;
+    const meta = result?.imageMetadata as any;
+    if (!meta) return null;
     const make = meta.cameraMake ?? meta.make ?? null;
     const model = meta.cameraModel ?? meta.model ?? null;
     if (make && model) return `${make} ${model}`;
