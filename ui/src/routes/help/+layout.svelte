@@ -74,7 +74,7 @@
                 ? currentPath === '/help' || currentPath === '/help/'
                 : currentPath === item.href || currentPath.startsWith(item.href + '/'))
                 ? 'text-lapis dark:text-lapis-light font-medium bg-lapis/5 dark:bg-lapis/10'
-                : 'text-flint-dark dark:text-flint-light hover:text-lapis dark:hover:text-lapis dark:text-lapis-light'}
+                : 'muted-help hover:text-lapis dark:hover:text-lapis'}
             "
           >
             {item.label}

@@ -364,7 +364,7 @@
           <p class="text-sm font-medium text-text-light dark:text-quartz">
             Analysis Engine is offline
           </p>
-          <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5">
+          <p class="text-xs muted-help mt-0.5">
             Full forensic analysis (AI detection, noise analysis, copy-move detection) requires the Analysis Engine.
             Core features like C2PA signing and EXIF metadata still work without it.
           </p>
@@ -405,7 +405,7 @@
           <span class="brand-name text-xs text-text-light dark:text-text-dark">Jura Trace</span>
           <span class="text-xs">v0.9.0</span>
         </div>
-        <p class="text-xs text-center text-flint-dark dark:text-flint-light">Know What's Real</p>
+        <p class="text-xs text-center muted-help">Know What's Real</p>
         <div class="flex items-center gap-4 text-xs">
           <button
             onclick={() => showFeedback = true}
@@ -440,7 +440,7 @@
         </div>
       </div>
       <!-- AGPL-3.0 §5(d) Appropriate Legal Notices -->
-      <p class="mt-4 text-[0.7rem] leading-relaxed text-center text-flint-dark dark:text-flint-light">
+      <p class="mt-4 text-[0.7rem] leading-relaxed text-center muted-help">
         Copyright &copy; 2025{new Date().getFullYear() > 2025 ? `–${new Date().getFullYear()}` : ''} Paul Griffiths, published by Jura Labs CIC.
         Free software under
         <a

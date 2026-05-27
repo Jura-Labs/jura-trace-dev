@@ -59,7 +59,7 @@
     <div class="mb-6">
       <!-- Section group label -->
       <p
-        class="px-2 mb-1 text-[0.65rem] font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light select-none"
+        class="px-2 mb-1 text-[0.65rem] section-label uppercase tracking-widest select-none"
         aria-hidden="true"
       >
         {section.groupLabel}

@@ -21,7 +21,7 @@
 
 <!-- ── Table of contents ───────────────────────────────────────────── -->
 <nav aria-label="Page contents" class="mb-10">
-  <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-3">
+  <p class="text-xs section-label uppercase tracking-widest mb-3">
     On this page
   </p>
   <ol class="space-y-1 text-sm">
@@ -255,7 +255,7 @@
           <th class="text-left py-2 text-text-light dark:text-text-dark font-semibold">Detectors included</th>
         </tr>
       </thead>
-      <tbody class="text-flint-dark dark:text-flint-light">
+      <tbody class="muted-help">
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-3 pr-4 font-semibold text-text-light dark:text-text-dark align-top">Standard</td>
           <td class="py-3 pr-4 align-top whitespace-nowrap">~15 s</td>
@@ -315,7 +315,7 @@
           <th class="text-left py-2 text-text-light dark:text-text-dark font-semibold">Interpretation</th>
         </tr>
       </thead>
-      <tbody class="text-flint-dark dark:text-flint-light">
+      <tbody class="muted-help">
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4 font-semibold text-malachite-dark dark:text-malachite-light">High Trust</td>
           <td class="py-2 pr-4">71–100%</td>
@@ -554,7 +554,7 @@
 
   </div>
 
-  <div class="text-xs text-flint-dark dark:text-flint-light italic my-2" role="note">
+  <div class="text-xs muted-help italic my-2" role="note">
     Visual guide: Results panel with an Inconclusive verdict badge, a 61% trust score bar, EXIF anomalies highlighted, and an expanded ELA forensic row with heatmap.
   </div>
 </section>
@@ -677,7 +677,7 @@
           contextually coherent.
         </li>
       </ol>
-      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-3 italic">
+      <p class="text-xs muted-help leading-relaxed mt-3 italic">
         These checks were previously available as an interactive in-app component. They were
         moved to the help docs in April 2026 because forensic visual inspection is reference
         material that benefits from being browseable and printable, not a fillable form.
@@ -898,7 +898,7 @@
           <th class="text-left py-2 text-text-light dark:text-text-dark font-semibold">Contains</th>
         </tr>
       </thead>
-      <tbody class="text-flint-dark dark:text-flint-light">
+      <tbody class="muted-help">
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4 font-semibold text-text-light dark:text-text-dark align-top">PDF report</td>
           <td class="py-2 pr-4 align-top">Sharing with non-technical colleagues, editorial review</td>
@@ -991,28 +991,28 @@
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         How Analysis Works
       </a>
-      <span class="text-flint-dark dark:text-flint-light">: the full technical methodology behind every detector and trust score component</span>
+      <span class="muted-help">: the full technical methodology behind every detector and trust score component</span>
     </li>
     <li>
       <a href="/help/glossary"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Glossary
       </a>
-      <span class="text-flint-dark dark:text-flint-light">: definitions of ELA, NPR, pHash, C2PA, and all other technical terms</span>
+      <span class="muted-help">: definitions of ELA, NPR, pHash, C2PA, and all other technical terms</span>
     </li>
     <li>
       <a href="/help/personas"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Usage Guides
       </a>
-      <span class="text-flint-dark dark:text-flint-light">: practical workflows for museum curators, journalists, and fact-checkers</span>
+      <span class="muted-help">: practical workflows for museum curators, journalists, and fact-checkers</span>
     </li>
     <li>
       <a href="/help/protect"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Protecting Your Content
       </a>
-      <span class="text-flint-dark dark:text-flint-light">: apply C2PA credentials to your own assets</span>
+      <span class="muted-help">: apply C2PA credentials to your own assets</span>
     </li>
   </ul>
 </section>

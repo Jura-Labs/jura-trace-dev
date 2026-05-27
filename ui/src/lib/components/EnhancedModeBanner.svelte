@@ -78,7 +78,7 @@
       <p class="text-sm text-obsidian dark:text-quartz leading-relaxed">
         <strong class="font-semibold">Enable Enhanced mode for full Content Credentials validation?</strong>
       </p>
-      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-1 max-w-prose">
+      <p class="text-xs muted-help leading-relaxed mt-1 max-w-prose">
         Jura Trace runs fully offline by default. Enhanced mode adds online certificate
         revocation checks (OCSP/CRL) and remote Content Credentials retrieval — recommended
         for real-world content verification and standards-conformant validation.

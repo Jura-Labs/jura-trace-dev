@@ -161,13 +161,13 @@
       {#each layers as layer}
         <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6">
           <h3 class="font-medium text-base text-text-light dark:text-quartz mb-1">{layer.title}</h3>
-          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-4">{layer.blurb}</p>
+          <p class="text-xs muted-help leading-relaxed mb-4">{layer.blurb}</p>
           <ul class="space-y-2">
             {#each layer.items as [name, licence, note]}
               <li class="text-sm text-text-light dark:text-quartz leading-relaxed flex flex-col sm:flex-row sm:items-baseline sm:gap-3">
                 <span class="font-medium text-text-light dark:text-text-dark sm:flex-none sm:w-2/5">{name}</span>
-                <span class="text-xs text-flint-dark dark:text-flint-light sm:flex-none sm:w-1/4">{licence}</span>
-                <span class="text-xs text-flint-dark dark:text-flint-light">{note}</span>
+                <span class="text-xs muted-help sm:flex-none sm:w-1/4">{licence}</span>
+                <span class="text-xs muted-help">{note}</span>
               </li>
             {/each}
           </ul>

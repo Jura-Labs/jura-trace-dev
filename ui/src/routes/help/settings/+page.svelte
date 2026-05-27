@@ -20,7 +20,7 @@
 
 <!-- ── Table of contents ───────────────────────────────────────────── -->
 <nav aria-label="Page contents" class="mb-10">
-  <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-3">
+  <p class="text-xs section-label uppercase tracking-widest mb-3">
     On this page
   </p>
   <ol class="space-y-1 text-sm">
@@ -98,7 +98,7 @@
               <th class="text-left py-2 text-text-light dark:text-text-dark font-semibold">Meaning</th>
             </tr>
           </thead>
-          <tbody class="text-flint-dark dark:text-flint-light">
+          <tbody class="muted-help">
             <tr class="border-b border-border-light/50 dark:border-border-dark/50">
               <td class="py-2 pr-4 font-semibold text-malachite-dark dark:text-malachite-light">Online</td>
               <td class="py-2">The Analysis Engine is running and responding. Forensic analysis is available.</td>
@@ -176,7 +176,7 @@
           <th class="text-left py-2 text-text-light dark:text-text-dark font-semibold">Default path</th>
         </tr>
       </thead>
-      <tbody class="text-flint-dark dark:text-flint-light">
+      <tbody class="muted-help">
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4 font-semibold">macOS</td>
           <td class="py-2 font-mono text-xs break-all">~/Library/Application Support/com.juralabs.jura-trace/jura_trace.db</td>

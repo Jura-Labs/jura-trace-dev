@@ -35,7 +35,7 @@
 
 <!-- ── Table of contents ─────────────────────────────────────────────── -->
 <nav aria-label="Page contents" class="mb-10">
-  <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-3">
+  <p class="text-xs section-label uppercase tracking-widest mb-3">
     On this page
   </p>
   <ol class="space-y-1 text-sm">
@@ -183,33 +183,33 @@
       <tbody class="divide-y divide-border-light dark:divide-border-dark">
         <tr>
           <td class="py-2.5 pr-6 text-text-light dark:text-text-dark font-medium">Chain of custody</td>
-          <td class="py-2.5 pr-6 tabular-nums text-flint-dark dark:text-flint-light">§5.3</td>
-          <td class="py-2.5 text-flint-dark dark:text-flint-light">SHA-256 hash chain audit log with tamper-evident integrity verification</td>
+          <td class="py-2.5 pr-6 tabular-nums muted-help">§5.3</td>
+          <td class="py-2.5 muted-help">SHA-256 hash chain audit log with tamper-evident integrity verification</td>
         </tr>
         <tr>
           <td class="py-2.5 pr-6 text-text-light dark:text-text-dark font-medium">Content integrity</td>
-          <td class="py-2.5 pr-6 tabular-nums text-flint-dark dark:text-flint-light">§5.4</td>
-          <td class="py-2.5 text-flint-dark dark:text-flint-light">C2PA provenance, perceptual hashing</td>
+          <td class="py-2.5 pr-6 tabular-nums muted-help">§5.4</td>
+          <td class="py-2.5 muted-help">C2PA provenance, perceptual hashing</td>
         </tr>
         <tr>
           <td class="py-2.5 pr-6 text-text-light dark:text-text-dark font-medium">Methodology documentation</td>
-          <td class="py-2.5 pr-6 tabular-nums text-flint-dark dark:text-flint-light">§6.2</td>
-          <td class="py-2.5 text-flint-dark dark:text-flint-light">13 forensic detectors documented in-app (10 automatic, 3 on-demand investigation tools); trust score formula fully disclosed</td>
+          <td class="py-2.5 pr-6 tabular-nums muted-help">§6.2</td>
+          <td class="py-2.5 muted-help">13 forensic detectors documented in-app (10 automatic, 3 on-demand investigation tools); trust score formula fully disclosed</td>
         </tr>
         <tr>
           <td class="py-2.5 pr-6 text-text-light dark:text-text-dark font-medium">Analyst accountability</td>
-          <td class="py-2.5 pr-6 tabular-nums text-flint-dark dark:text-flint-light">§6.3</td>
-          <td class="py-2.5 text-flint-dark dark:text-flint-light">Analyst declaration in PDF export; deterministic, reproducible pipeline</td>
+          <td class="py-2.5 pr-6 tabular-nums muted-help">§6.3</td>
+          <td class="py-2.5 muted-help">Analyst declaration in PDF export; deterministic, reproducible pipeline</td>
         </tr>
         <tr>
           <td class="py-2.5 pr-6 text-text-light dark:text-text-dark font-medium">Privacy and security</td>
-          <td class="py-2.5 pr-6 tabular-nums text-flint-dark dark:text-flint-light">§4</td>
-          <td class="py-2.5 text-flint-dark dark:text-flint-light">Local-first architecture; no cloud dependency; no telemetry</td>
+          <td class="py-2.5 pr-6 tabular-nums muted-help">§4</td>
+          <td class="py-2.5 muted-help">Local-first architecture; no cloud dependency; no telemetry</td>
         </tr>
         <tr>
           <td class="py-2.5 pr-6 text-text-light dark:text-text-dark font-medium">Preservation of original evidence</td>
-          <td class="py-2.5 pr-6 tabular-nums text-flint-dark dark:text-flint-light">§5.2</td>
-          <td class="py-2.5 text-flint-dark dark:text-flint-light">Original files never modified; C2PA signing creates a new file; metadata preserved</td>
+          <td class="py-2.5 pr-6 tabular-nums muted-help">§5.2</td>
+          <td class="py-2.5 muted-help">Original files never modified; C2PA signing creates a new file; metadata preserved</td>
         </tr>
       </tbody>
     </table>
@@ -224,7 +224,7 @@
     id="chain-of-custody-heading"
     class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4"
   >
-    3. Chain of Custody <span class="text-base font-normal text-flint-dark dark:text-flint-light ml-2">Berkeley Protocol §5.3</span>
+    3. Chain of Custody <span class="text-base font-normal muted-help ml-2">Berkeley Protocol §5.3</span>
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
@@ -293,7 +293,7 @@
     id="content-integrity-heading"
     class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4"
   >
-    4. Content Integrity <span class="text-base font-normal text-flint-dark dark:text-flint-light ml-2">Berkeley Protocol §5.4</span>
+    4. Content Integrity <span class="text-base font-normal muted-help ml-2">Berkeley Protocol §5.4</span>
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
@@ -362,7 +362,7 @@
     id="methodology-documentation-heading"
     class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4"
   >
-    5. Methodology Documentation <span class="text-base font-normal text-flint-dark dark:text-flint-light ml-2">Berkeley Protocol §6.2</span>
+    5. Methodology Documentation <span class="text-base font-normal muted-help ml-2">Berkeley Protocol §6.2</span>
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
@@ -452,7 +452,7 @@
     id="analyst-accountability-heading"
     class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4"
   >
-    6. Analyst Accountability <span class="text-base font-normal text-flint-dark dark:text-flint-light ml-2">Berkeley Protocol §6.3</span>
+    6. Analyst Accountability <span class="text-base font-normal muted-help ml-2">Berkeley Protocol §6.3</span>
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
@@ -514,7 +514,7 @@
     id="privacy-and-security-heading"
     class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4"
   >
-    7. Privacy and Security <span class="text-base font-normal text-flint-dark dark:text-flint-light ml-2">Berkeley Protocol §4</span>
+    7. Privacy and Security <span class="text-base font-normal muted-help ml-2">Berkeley Protocol §4</span>
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
@@ -591,7 +591,7 @@
     id="preservation-of-evidence-heading"
     class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4"
   >
-    8. Preservation of Original Evidence <span class="text-base font-normal text-flint-dark dark:text-flint-light ml-2">Berkeley Protocol §5.2</span>
+    8. Preservation of Original Evidence <span class="text-base font-normal muted-help ml-2">Berkeley Protocol §5.2</span>
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
@@ -604,7 +604,7 @@
   <ul class="space-y-3 mb-6">
     <li class="flex gap-2 text-sm">
       <span class="text-malachite-dark dark:text-malachite-light flex-none mt-0.5">✓</span>
-      <span class="text-flint-dark dark:text-flint-light leading-relaxed">
+      <span class="muted-help leading-relaxed">
         <strong class="text-text-light dark:text-text-dark">Verification never modifies the source file.</strong>
         When you submit a file for analysis, Jura Trace reads it into memory. The
         forensic pipeline operates on the in-memory copy. The file on disk is not
@@ -613,7 +613,7 @@
     </li>
     <li class="flex gap-2 text-sm">
       <span class="text-malachite-dark dark:text-malachite-light flex-none mt-0.5">✓</span>
-      <span class="text-flint-dark dark:text-flint-light leading-relaxed">
+      <span class="muted-help leading-relaxed">
         <strong class="text-text-light dark:text-text-dark">C2PA signing creates a new file.</strong>
         When you sign a file with C2PA provenance, Jura Trace writes a new file
         alongside the original, appending <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">_c2pa</span>
@@ -622,7 +622,7 @@
     </li>
     <li class="flex gap-2 text-sm">
       <span class="text-malachite-dark dark:text-malachite-light flex-none mt-0.5">✓</span>
-      <span class="text-flint-dark dark:text-flint-light leading-relaxed">
+      <span class="muted-help leading-relaxed">
         <strong class="text-text-light dark:text-text-dark">Existing metadata is preserved during signing.</strong>
         The C2PA signing process preserves all existing IPTC, XMP, and EXIF metadata
         fields in the signed copy. No pre-existing provenance information is stripped
@@ -805,21 +805,21 @@
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         How Analysis Works
       </a>
-      <span class="text-flint-dark dark:text-flint-light">: full documentation of all 13 forensic detectors, the trust score formula, and known limitations</span>
+      <span class="muted-help">: full documentation of all 13 forensic detectors, the trust score formula, and known limitations</span>
     </li>
     <li>
       <a href="/help/verify"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Verifying Content Authenticity
       </a>
-      <span class="text-flint-dark dark:text-flint-light">: step-by-step guide to submitting files for verification and reading the results</span>
+      <span class="muted-help">: step-by-step guide to submitting files for verification and reading the results</span>
     </li>
     <li>
       <a href="/help/protect"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Protecting Your Content
       </a>
-      <span class="text-flint-dark dark:text-flint-light">: C2PA signing and batch protection workflows</span>
+      <span class="muted-help">: C2PA signing and batch protection workflows</span>
     </li>
   </ul>
 </section>

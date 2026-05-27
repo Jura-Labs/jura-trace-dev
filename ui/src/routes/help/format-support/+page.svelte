@@ -123,7 +123,7 @@
 
 <article aria-labelledby="format-support-heading">
   <header class="mb-10">
-    <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-widest mb-2">
       Reference
     </p>
     <h1
@@ -165,17 +165,17 @@
             <tr class="border-b border-border-light/60 dark:border-border-dark/40 align-top">
               <td class="px-4 py-4">
                 <p class="font-medium text-obsidian dark:text-quartz">{row.family}</p>
-                <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5">{row.formats}</p>
+                <p class="text-xs muted-help mt-0.5">{row.formats}</p>
               </td>
               <td class="px-4 py-4 whitespace-nowrap">
                 <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium border {badgeClass(row.coverage)}">
                   {badgeLabel(row.coverage)}
                 </span>
               </td>
-              <td class="px-4 py-4 text-flint-dark dark:text-flint-light leading-relaxed">
+              <td class="px-4 py-4 muted-help leading-relaxed">
                 {row.protect}
               </td>
-              <td class="px-4 py-4 text-flint-dark dark:text-flint-light leading-relaxed">
+              <td class="px-4 py-4 muted-help leading-relaxed">
                 {row.verify}
                 {#if row.note}
                   <p class="text-[11px] italic mt-1 text-flint-dark dark:text-flint-light/80">{row.note}</p>
@@ -215,14 +215,14 @@
             <tr class="border-b border-border-light/60 dark:border-border-dark/40 align-top">
               <td class="px-4 py-4">
                 <p class="font-medium text-obsidian dark:text-quartz">{row.family}</p>
-                <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5">{row.formats}</p>
+                <p class="text-xs muted-help mt-0.5">{row.formats}</p>
               </td>
               <td class="px-4 py-4 whitespace-nowrap">
                 <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium border {badgeClass(row.coverage)}">
                   {badgeLabel(row.coverage)}
                 </span>
               </td>
-              <td class="px-4 py-4 text-flint-dark dark:text-flint-light leading-relaxed">
+              <td class="px-4 py-4 muted-help leading-relaxed">
                 {row.verify}
                 {#if row.note}
                   <p class="text-[11px] italic mt-1 text-flint-dark dark:text-flint-light/80">{row.note}</p>

@@ -36,7 +36,7 @@
 
   <!-- ── Table of contents ────────────────────────────────────────────── -->
   <nav aria-label="Page contents" class="mb-10">
-    <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-3">
+    <p class="text-xs section-label uppercase tracking-widest mb-3">
       On this page
     </p>
     <ol class="space-y-1 text-sm">

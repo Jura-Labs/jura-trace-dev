@@ -28,7 +28,7 @@
 
 <!-- On-page navigation -->
 <nav aria-label="On this page" class="mb-8">
-  <p class="text-xs font-medium uppercase tracking-wider text-flint-dark dark:text-flint-light mb-3">
+  <p class="text-xs section-label uppercase tracking-wider mb-3">
     On this page
   </p>
   <ul role="list" class="space-y-1">
@@ -117,7 +117,7 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -221,7 +221,7 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -319,7 +319,7 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -434,7 +434,7 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -540,7 +540,7 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -645,7 +645,7 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -749,7 +749,7 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -851,7 +851,7 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">

@@ -21,7 +21,7 @@
 
 <!-- ── Table of contents ───────────────────────────────────────────── -->
 <nav aria-label="Page contents" class="mb-10">
-  <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-3">
+  <p class="text-xs section-label uppercase tracking-widest mb-3">
     On this page
   </p>
   <ol class="space-y-1 text-sm">
@@ -188,7 +188,7 @@
               <th class="text-left py-2 text-text-light dark:text-text-dark font-semibold">Meaning</th>
             </tr>
           </thead>
-          <tbody class="text-flint-dark dark:text-flint-light">
+          <tbody class="muted-help">
             <tr class="border-b border-border-light/50 dark:border-border-dark/50">
               <td class="py-2 pr-4 font-semibold text-malachite-dark dark:text-malachite-light">Authentic</td>
               <td class="py-2">Signals consistent with camera capture; no significant anomalies detected.</td>
@@ -512,7 +512,7 @@
           <th class="text-left py-2 text-text-light dark:text-text-dark font-semibold">Can Monitor detect it?</th>
         </tr>
       </thead>
-      <tbody class="text-flint-dark dark:text-flint-light">
+      <tbody class="muted-help">
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4">Republication of the original file on a website</td>
           <td class="py-2 text-malachite-dark dark:text-malachite-light">✓ Via Watched Locations: re-verify registered URLs on demand</td>

@@ -113,7 +113,7 @@
   </div>
 
   {#if alwaysVisibleHint}
-    <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-6 leading-snug">{alwaysVisibleHint}</p>
+    <p class="text-xs muted-help mt-1 ml-6 leading-snug">{alwaysVisibleHint}</p>
   {/if}
 
   {@render children?.()}

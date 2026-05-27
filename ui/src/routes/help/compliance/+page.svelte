@@ -37,7 +37,7 @@
 
   <!-- ── Table of contents ─────────────────────────────────────────────── -->
   <nav aria-label="Page contents" class="mb-10">
-    <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-3">
+    <p class="text-xs section-label uppercase tracking-widest mb-3">
       On this page
     </p>
     <ol class="space-y-1 text-sm">
@@ -99,7 +99,7 @@
       port is not fixed across launches.
     </p>
     <div
-      class="rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 p-4 mb-4 font-mono text-xs text-flint-dark dark:text-flint-light leading-relaxed"
+      class="rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 p-4 mb-4 font-mono text-xs muted-help leading-relaxed"
       role="img"
       aria-label="Architecture diagram: User Device contains the Tauri application, local SQLite database, Analysis Engine on a loopback ephemeral port assigned at launch, and optional Ollama on localhost port 11434. No external network traffic for core functionality."
     >
@@ -140,7 +140,7 @@
             <th class="text-left py-2 font-semibold text-text-light dark:text-text-dark">Default path</th>
           </tr>
         </thead>
-        <tbody class="text-flint-dark dark:text-flint-light">
+        <tbody class="muted-help">
           <tr class="border-b border-border-light dark:border-border-dark">
             <td class="py-2 pr-4">macOS</td>
             <td class="py-2 font-mono text-xs">~/Library/Application Support/Jura Trace/jura_trace.db</td>
@@ -178,7 +178,7 @@
       analytics, and no crash reporting. Two optional features involve external network
       communication, both requiring explicit user action:
     </p>
-    <ul class="space-y-2 text-sm text-flint-dark dark:text-flint-light mb-3 ml-4 list-disc">
+    <ul class="space-y-2 text-sm muted-help mb-3 ml-4 list-disc">
       <li>
         <strong class="font-semibold text-text-light dark:text-text-dark">Auto-update check:</strong>
         A single HTTPS GET to GitHub Releases containing only the current version number and
@@ -243,7 +243,7 @@
     </h3>
 
     <!-- Key points list -->
-    <ul class="space-y-3 text-sm text-flint-dark dark:text-flint-light mb-6">
+    <ul class="space-y-3 text-sm muted-help mb-6">
       <li class="flex gap-3">
         <span
           class="mt-0.5 flex-none w-2 h-2 rounded-full bg-malachite"
@@ -313,7 +313,7 @@
       and content provenance tagging) do not require a formal DPIA. A DPIA is more likely
       to be required when:
     </p>
-    <ul class="space-y-1 text-sm text-flint-dark dark:text-flint-light ml-4 list-disc mb-3">
+    <ul class="space-y-1 text-sm muted-help ml-4 list-disc mb-3">
       <li>Processing images of identifiable individuals at scale (e.g. systematic monitoring of public content).</li>
       <li>Using verification outputs as part of automated decision-making with significant effects on individuals.</li>
       <li>Deploying the tool across a large organisation with centralised audit log storage.</li>
@@ -435,7 +435,7 @@
             <th class="text-left py-2 font-semibold text-text-light dark:text-text-dark">Fixed</th>
           </tr>
         </thead>
-        <tbody class="text-flint-dark dark:text-flint-light">
+        <tbody class="muted-help">
           <tr class="border-b border-border-light dark:border-border-dark">
             <td class="py-2 pr-4">Critical</td>
             <td class="py-2 pr-4">0</td>

@@ -1170,7 +1170,7 @@
           autocomplete="off"
           spellcheck={false}
         />
-        <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
+        <p class="text-xs muted-help mt-1">
           Ollama runs an AI model locally on your computer for one optional feature in v1.0:
           reading text visible in images such as screenshots or memes. This is not required,
           Jura Trace works fully without Ollama.
@@ -1191,7 +1191,7 @@
           autocomplete="off"
           spellcheck={false}
         />
-        <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
+        <p class="text-xs muted-help mt-1">
           Used for image description and visual analysis
         </p>
       </div>
@@ -1239,7 +1239,7 @@
     <div class="flex items-center justify-between mb-4">
       <div>
         <h2 id="profiles-heading" class="text-lg font-heading text-text-light dark:text-quartz">Deployment Profiles</h2>
-        <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5">
+        <p class="text-xs muted-help mt-0.5">
           Save your current AI settings as a named profile so you can quickly switch between different configurations.
         </p>
       </div>
@@ -1304,7 +1304,7 @@
               {nameError}
             </p>
           {:else}
-            <p id="profile-name-hint" class="text-xs text-flint-dark dark:text-flint-light">
+            <p id="profile-name-hint" class="text-xs muted-help">
               1–50 characters. Captures current Ollama URL, vision model, and text model.
             </p>
           {/if}
@@ -1352,7 +1352,7 @@
             <div class="flex items-center justify-between gap-3 px-4 py-3">
               <div class="min-w-0">
                 <p class="text-sm font-medium text-text-light dark:text-quartz truncate">{profile.name}</p>
-                <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5 truncate">
+                <p class="text-xs muted-help mt-0.5 truncate">
                   Created {formatProfileDate(profile.createdAt)}
                   &mdash; {profile.ollamaUrl}
                 </p>
@@ -1519,7 +1519,7 @@
         </div>
 
         {#if sidecarOnline && sidecarHealth}
-          <p class="text-xs text-flint-dark dark:text-flint-light mb-2">Version: <span class="text-text-light dark:text-quartz">{sidecarHealth.version}</span></p>
+          <p class="text-xs muted-help mb-2">Version: <span class="text-text-light dark:text-quartz">{sidecarHealth.version}</span></p>
           <div class="flex flex-wrap gap-1.5">
             {#each Object.entries(sidecarHealth.capabilities).filter(([cap]) => !V1_DEFERRED_CAPABILITIES.has(cap)) as [cap, enabled]}
               <span
@@ -1539,7 +1539,7 @@
           </div>
         {:else if sidecarStartup.status === 'connecting'}
           <div class="mt-2 space-y-2">
-            <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+            <p class="text-xs muted-help leading-relaxed">
               The first launch after install can take 1–2 minutes while the
               analysis engine extracts. The verify and protect features remain
               fully usable once this indicator turns green; meanwhile, core
@@ -1548,7 +1548,7 @@
           </div>
         {:else if sidecarStartup.status === 'notPresent'}
           <div class="mt-2 space-y-2">
-            <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+            <p class="text-xs muted-help leading-relaxed">
               The analysis engine is not running (development build). To enable
               full forensic analysis in dev mode, start the sidecar manually:
               <code class="text-[10px] font-mono px-1 py-0.5 rounded bg-gray-100 dark:bg-graphite-light">cd sidecar &amp;&amp; uvicorn main:app --host 127.0.0.1 --port 8200</code>
@@ -1559,7 +1559,7 @@
             <p class="text-xs font-medium text-cinnabar-dark dark:text-cinnabar-light leading-relaxed">
               Analysis Engine: not responding
             </p>
-            <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+            <p class="text-xs muted-help leading-relaxed">
               Core checks (provenance and metadata) work without it. For full
               forensic analysis including AI detection, restart Jura Trace. If
               the engine remains unavailable after restarting, visit the Help
@@ -1595,7 +1595,7 @@
           </span>
         </div>
 
-        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+        <p class="text-xs muted-help leading-relaxed mb-3">
           Reserved for v1.0.1 AI enrichment (a single multimodal+text model for image
           descriptions and claim verification). Not used by v1.0 features. Core verification,
           forensic analysis, and AI deepfake detection all work without Ollama.
@@ -1652,7 +1652,7 @@
             </div>
           {/if}
 
-          <p class="text-[11px] text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-[11px] muted-help leading-relaxed">
             <a
               href="/help/ollama"
               class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
@@ -1668,9 +1668,9 @@
                 <div class="flex-1 min-w-0">
                   <p class="text-xs font-medium {model.installed ? 'text-malachite-dark dark:text-malachite-light' : 'text-text-light dark:text-quartz'}">
                     <code class="font-mono">{model.name}</code>
-                    <span class="ml-1.5 font-normal text-flint-dark dark:text-flint-light">{model.size}</span>
+                    <span class="ml-1.5 font-normal muted-help">{model.size}</span>
                   </p>
-                  <p class="text-[11px] text-flint-dark dark:text-flint-light mt-0.5">
+                  <p class="text-[11px] muted-help mt-0.5">
                     {model.installed
                       ? `${model.label}: ready`
                       : pullingModel === model.name
@@ -1705,7 +1705,7 @@
             </div>
           {/if}
 
-          <p class="text-[11px] text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-[11px] muted-help leading-relaxed">
             If you also use ROOTED these models are shared, so you only need to download them once.
             <a
               href="/help/ollama"
@@ -1727,7 +1727,7 @@
       <h2 id="db-location-heading" class="text-lg font-heading text-text-light dark:text-quartz">Database Location</h2>
       <ContextualHelpLink href="/help/settings#database" label="Learn about database storage and location settings" />
     </div>
-    <p class="text-xs text-flint-dark dark:text-flint-light mb-4">
+    <p class="text-xs muted-help mb-4">
       Where assets, fingerprints, and verification records are stored. Useful for institutional deployments where data must reside on a shared or managed drive.
     </p>
 
@@ -1770,7 +1770,7 @@
         </button>
       </div>
 
-      <p id="db-path-hint" class="text-xs text-flint-dark dark:text-flint-light mt-1">
+      <p id="db-path-hint" class="text-xs muted-help mt-1">
         The database will be copied atomically to the new location. The original file is not deleted until the move is verified.
       </p>
 
@@ -1797,14 +1797,14 @@
     <div class="flex items-center gap-1.5 mb-1">
       <h2 id="data-mgmt-heading" class="text-lg font-heading text-text-light dark:text-quartz">Data Management</h2>
     </div>
-    <p class="text-xs text-flint-dark dark:text-flint-light mb-5">
+    <p class="text-xs muted-help mb-5">
       Disaster-recovery tools for institutional deployments. Snapshots include the full asset catalogue, fingerprints, audit log, and verification history.
     </p>
 
     <!-- Backup -->
     <div class="mb-6">
       <h3 class="text-sm font-medium text-text-light dark:text-quartz mb-1">Backup</h3>
-      <p class="text-xs text-flint-dark dark:text-flint-light mb-2">
+      <p class="text-xs muted-help mb-2">
         Write a defragmented snapshot of the current database to a folder of your choice. A JSON manifest sidecar records the schema version and a SHA-256 checksum for later verification.
       </p>
       <button
@@ -1834,13 +1834,13 @@
         >
           <p class="font-medium mb-1">Snapshot written.</p>
           <dl class="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-xs">
-            <dt class="text-flint-dark dark:text-flint-light">File</dt>
+            <dt class="muted-help">File</dt>
             <dd class="break-all font-mono select-all">{backupSuccess.snapshotPath}</dd>
-            <dt class="text-flint-dark dark:text-flint-light">Manifest</dt>
+            <dt class="muted-help">Manifest</dt>
             <dd class="break-all font-mono select-all">{backupSuccess.manifestPath}</dd>
-            <dt class="text-flint-dark dark:text-flint-light">Schema</dt>
+            <dt class="muted-help">Schema</dt>
             <dd>v{backupSuccess.schemaVersion}</dd>
-            <dt class="text-flint-dark dark:text-flint-light">SHA-256</dt>
+            <dt class="muted-help">SHA-256</dt>
             <dd class="flex items-start gap-2 min-w-0">
               <code class="break-all font-mono text-[11px] select-all flex-1">{backupSuccess.sha256}</code>
               <button
@@ -1868,7 +1868,7 @@
     <!-- Restore -->
     <div class="mb-6 pt-5 border-t border-border-light dark:border-border-dark">
       <h3 class="text-sm font-medium text-text-light dark:text-quartz mb-1">Restore</h3>
-      <p class="text-xs text-flint-dark dark:text-flint-light mb-2">
+      <p class="text-xs muted-help mb-2">
         Replace the current database with a previously-saved snapshot. The audit trail in the snapshot is verified before any destructive change is made. This cannot be undone.
       </p>
       <button
@@ -1907,7 +1907,7 @@
     <!-- Import CSV catalogue -->
     <div class="pt-5 border-t border-border-light dark:border-border-dark">
       <h3 class="text-sm font-medium text-text-light dark:text-quartz mb-1">Import CSV catalogue</h3>
-      <p class="text-xs text-flint-dark dark:text-flint-light mb-2">
+      <p class="text-xs muted-help mb-2">
         Bulk-add assets to the catalogue from a CSV file. The CSV must have a <code class="font-mono text-[11px]">file_path</code> column. Rows whose SHA-256 already exists in the catalogue are skipped silently.
       </p>
       <button
@@ -1982,23 +1982,23 @@
           The current database will be replaced with the snapshot you selected. <strong>This cannot be undone.</strong>
         </p>
         <dl class="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 text-xs mb-4">
-          <dt class="text-flint-dark dark:text-flint-light">Snapshot path</dt>
+          <dt class="muted-help">Snapshot path</dt>
           <dd class="text-text-light dark:text-quartz break-all font-mono">{pendingRestore.path}</dd>
-          <dt class="text-flint-dark dark:text-flint-light">Asset count</dt>
+          <dt class="muted-help">Asset count</dt>
           <dd class="text-text-light dark:text-quartz">{pendingRestore.preflight.assetCount}</dd>
-          <dt class="text-flint-dark dark:text-flint-light">Schema version</dt>
+          <dt class="muted-help">Schema version</dt>
           <dd class="text-text-light dark:text-quartz">v{pendingRestore.preflight.snapshotSchemaVersion}{pendingRestore.preflight.snapshotSchemaVersion !== pendingRestore.preflight.currentSchemaVersion ? ` → v${pendingRestore.preflight.currentSchemaVersion} (forward migration on open)` : ''}</dd>
-          <dt class="text-flint-dark dark:text-flint-light">Audit chain</dt>
+          <dt class="muted-help">Audit chain</dt>
           <dd class="text-text-light dark:text-quartz">{pendingRestore.preflight.auditChainValid ? 'Verified' : 'Invalid'}</dd>
         </dl>
-        <p class="text-xs text-flint-dark dark:text-flint-light mb-3">
+        <p class="text-xs muted-help mb-3">
           The application will reload after the restore completes.
         </p>
         <!-- P1-2: Offer to back up the current database first.
              Niamh Gallagher persona flagged the destructive replace
              without an undo path. -->
         {#if !backupSuccess}
-          <p class="text-xs text-flint-dark dark:text-flint-light mb-5">
+          <p class="text-xs muted-help mb-5">
             <button
               type="button"
               onclick={handleBackupDatabase}
@@ -2052,11 +2052,11 @@
   >
     <h2 id="about-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-4">About</h2>
     <dl class="grid grid-cols-[max-content_1fr] gap-x-8 gap-y-2 text-sm max-w-md">
-      <dt class="text-flint-dark dark:text-flint-light">Version</dt>
+      <dt class="muted-help">Version</dt>
       <dd class="text-text-light dark:text-quartz">{appVersion}</dd>
-      <dt class="text-flint-dark dark:text-flint-light">Licence</dt>
+      <dt class="muted-help">Licence</dt>
       <dd class="text-text-light dark:text-quartz">AGPL-3.0-or-later</dd>
-      <dt class="text-flint-dark dark:text-flint-light">Developer</dt>
+      <dt class="muted-help">Developer</dt>
       <dd class="text-text-light dark:text-quartz">
         <a
           href="https://juralabs.org"
@@ -2137,7 +2137,7 @@
         {/if}
       </div>
 
-      <p class="text-xs text-flint-dark dark:text-flint-light mt-2">
+      <p class="text-xs muted-help mt-2">
         Updates are downloaded and applied locally. No telemetry is sent.
       </p>
     </div>
@@ -2152,7 +2152,7 @@
       <h2 id="setup-wizard-heading" class="text-lg font-heading text-text-light dark:text-quartz">Setup Wizard</h2>
       <ContextualHelpLink href="/help/settings#setup-wizard" label="Learn about the setup wizard" />
     </div>
-    <p class="text-xs text-flint-dark dark:text-flint-light mb-4">
+    <p class="text-xs muted-help mb-4">
       Re-run the first-launch setup wizard to check the Analysis Engine, FFmpeg, and Ollama configuration.
       Useful after reinstalling or upgrading Jura Trace.
     </p>
@@ -2176,7 +2176,7 @@
       <h2 id="plan-heading" class="text-lg font-heading text-text-light dark:text-quartz">Your Plan</h2>
       <ContextualHelpLink href="/help/settings#your-plan" label="Learn about licence plans and features" />
     </div>
-    <p class="text-xs text-flint-dark dark:text-flint-light mb-4">
+    <p class="text-xs muted-help mb-4">
       Jura Trace v1.0 is free for everyone under AGPL-3.0-or-later. The asset-locked
       Community Interest Company structure guarantees a free Community release in perpetuity.
     </p>
@@ -2197,7 +2197,7 @@
           The full Jura Trace application. Free under AGPL-3.0-or-later.
         </span>
       </div>
-      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+      <p class="text-xs muted-help leading-relaxed">
         Need to embed Jura Trace in your own product without an AGPL licence, or bespoke
         engineering, training, custom RAG knowledge bases, MDM packaging, or documentation?
         Contact
@@ -2231,7 +2231,7 @@
     <div class="flex items-center gap-1.5 mb-1">
       <h2 id="analysis-heading" class="text-lg font-heading text-text-light dark:text-quartz">Analysis preferences</h2>
     </div>
-    <p class="text-xs text-flint-dark dark:text-flint-light mb-4">
+    <p class="text-xs muted-help mb-4">
       Control which optional analysis stages run during verify. Turning stages off makes verify faster.
     </p>
 
@@ -2241,22 +2241,22 @@
         <label for="ai-desc-toggle" class="block text-sm font-medium text-text-light dark:text-quartz">
           AI image descriptions
         </label>
-        <p class="text-xs text-flint-dark dark:text-flint-light mt-1 leading-relaxed">
+        <p class="text-xs muted-help mt-1 leading-relaxed">
           Uses Ollama LLaVA to generate a plain-English description of each verified image.
           Adds roughly 5–30 seconds per image. Requires Ollama with a vision model installed.
         </p>
         <p class="text-xs mt-2">
           {#if ollamaDetected}
             <span class="text-malachite-dark dark:text-malachite-light">Ollama detected</span>
-            {#if sidecarHealth?.ollama}<span class="text-flint-dark dark:text-flint-light"> (version {sidecarHealth.ollama})</span>{/if}
+            {#if sidecarHealth?.ollama}<span class="muted-help"> (version {sidecarHealth.ollama})</span>{/if}
           {:else}
-            <span class="text-flint-dark dark:text-flint-light">
+            <span class="muted-help">
               Ollama not detected. Enabling this has no effect until Ollama is installed and a vision model (e.g. <code class="font-mono text-[11px]">llava</code>) is pulled.
             </span>
           {/if}
         </p>
         {#if aiDescPref === null}
-          <p class="text-xs text-flint-dark dark:text-flint-light mt-2 italic">
+          <p class="text-xs muted-help mt-2 italic">
             Not yet set, currently off. Enable to opt in.
           </p>
         {/if}
@@ -2303,7 +2303,7 @@
         <label for="power-saver-toggle" class="block text-sm font-medium text-text-light dark:text-quartz">
           Power-saver mode
         </label>
-        <p id="power-saver-hint" class="text-xs text-flint-dark dark:text-flint-light mt-1 leading-relaxed">
+        <p id="power-saver-hint" class="text-xs muted-help mt-1 leading-relaxed">
           Stops the analysis engine after five minutes of inactivity to free approximately 300–500 MB of RAM. The first verification afterwards takes 30–90 seconds longer while the engine reloads. Recommended only on machines with under 16 GB of RAM.
         </p>
       </div>
@@ -2359,7 +2359,7 @@
       <h2 id="signing-mode-heading" class="text-lg font-heading text-text-light dark:text-quartz">Signing Mode</h2>
       <ContextualHelpLink href="/help/bedrock-signing" label="Learn about Local and Conformant signing modes" />
     </div>
-    <p class="text-xs text-flint-dark dark:text-flint-light mb-5">
+    <p class="text-xs muted-help mb-5">
       Controls which certificate Jura Trace uses when embedding C2PA manifests into protected assets.
     </p>
 
@@ -2385,10 +2385,10 @@
 
         <div class="mb-3">
           <p class="text-sm font-semibold text-text-light dark:text-quartz">Local Signing</p>
-          <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5">Offline-first default</p>
+          <p class="text-xs muted-help mt-0.5">Offline-first default</p>
         </div>
 
-        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+        <p class="text-xs muted-help leading-relaxed mb-3">
           Uses a per-install certificate authority generated on first launch. Fully offline,
           with no account, no external connections, and no dependency on external services. Produces
           fully valid C2PA v2.x manifests readable by any C2PA-capable tool worldwide.
@@ -2490,10 +2490,10 @@
 
         <div class="mb-3">
           <p class="text-sm font-semibold text-text-light dark:text-quartz">Conformant Signing</p>
-          <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5">Trust-list certificate (optional)</p>
+          <p class="text-xs muted-help mt-0.5">Trust-list certificate (optional)</p>
         </div>
 
-        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-3">
+        <p class="text-xs muted-help leading-relaxed mb-3">
           Uses an institution-supplied certificate from a C2PA-approved certificate authority.
           Manifests signed with this certificate validate cleanly in any conformant C2PA tool,
           including Adobe Inspect and enterprise procurement gates. Requires an annual certificate
@@ -2528,7 +2528,7 @@
             <p class="text-sm font-medium text-text-light dark:text-quartz truncate" title={conformantCert.subjectCn}>
               {conformantCert.subjectCn}
             </p>
-            <p class="text-xs text-flint-dark dark:text-flint-light">
+            <p class="text-xs muted-help">
               {formatAbsoluteDate(conformantCert.notBefore)} to {formatAbsoluteDate(conformantCert.notAfter)}
               <span
                 class="ml-1 {conformantCert.isCurrentlyValid ? 'text-malachite-dark dark:text-malachite-light' : 'text-cinnabar-dark dark:text-cinnabar-light'}"
@@ -2536,7 +2536,7 @@
                 ({humaniseDistance(conformantCert.notAfter)})
               </span>
             </p>
-            <p class="text-xs text-flint-dark dark:text-flint-light">Imported {humaniseAgo(conformantCert.importedAt)}</p>
+            <p class="text-xs muted-help">Imported {humaniseAgo(conformantCert.importedAt)}</p>
 
             <!-- Action row -->
             <div class="flex flex-wrap items-center gap-2 pt-1">
@@ -2685,7 +2685,7 @@
               Browse…
             </button>
           </div>
-          <p class="text-xs text-flint-dark dark:text-flint-light mt-1">Accepted formats: .pem, .crt, .cer</p>
+          <p class="text-xs muted-help mt-1">Accepted formats: .pem, .crt, .cer</p>
         </div>
 
         <!-- Private key picker -->
@@ -2715,7 +2715,7 @@
               Browse…
             </button>
           </div>
-          <p class="text-xs text-flint-dark dark:text-flint-light mt-1">Accepted formats: .pem, .key</p>
+          <p class="text-xs muted-help mt-1">Accepted formats: .pem, .key</p>
         </div>
 
         <!-- Help text -->
@@ -2837,7 +2837,7 @@
           {#if conformantCert.issuerCn && !conformantCert.issuerCn.startsWith('(see')}
             <div>
               <p class="text-xs font-medium text-text-light dark:text-quartz mb-0.5">Issuer</p>
-              <p class="text-xs text-flint-dark dark:text-flint-light">{conformantCert.issuerCn}</p>
+              <p class="text-xs muted-help">{conformantCert.issuerCn}</p>
             </div>
           {/if}
 
@@ -2895,7 +2895,7 @@
       <h2 id="api-keys-heading" class="text-lg font-heading text-text-light dark:text-quartz">API Keys</h2>
       <ContextualHelpLink href="/help/settings#api-keys" label="Learn about API key management" />
     </div>
-    <p class="text-xs text-flint-dark dark:text-flint-light mb-4">
+    <p class="text-xs muted-help mb-4">
       Manage authentication keys for the local REST API on port 8300. Keys allow external tools (CI pipelines, n8n workflows, custom scripts) to call the Jura Trace verification engine programmatically.
     </p>
 
@@ -3040,7 +3040,7 @@
                 <tr class="border-b border-border-light/50 dark:border-border-dark/50 {key.revoked ? 'opacity-50' : ''}">
                   <td class="py-2.5 pr-4 text-text-light dark:text-quartz">{key.name}</td>
                   <td class="py-2.5 pr-4">
-                    <code class="text-xs text-flint-dark dark:text-flint-light">{key.keyId.slice(0, 8)}...</code>
+                    <code class="text-xs muted-help">{key.keyId.slice(0, 8)}...</code>
                   </td>
                   <td class="py-2.5 pr-4 text-flint-dark dark:text-flint-light">{key.rateLimit} requests per minute</td>
                   <td class="py-2.5 pr-4">
@@ -3107,7 +3107,7 @@
     aria-labelledby="network-access-heading"
   >
     <h2 id="network-access-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-1">Network Access</h2>
-    <p class="text-xs text-flint-dark dark:text-flint-light mb-5">
+    <p class="text-xs muted-help mb-5">
       Controls whether Jura Trace makes outbound network connections. Standard mode is fully local with no external calls. Enhanced mode enables online certificate verification and remote Content Credentials retrieval.
     </p>
 
@@ -3256,7 +3256,7 @@
       <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 p-4 rounded border border-cinnabar/30 bg-white dark:bg-graphite">
         <div class="flex-1 min-w-0">
           <h3 class="text-sm font-semibold text-text-light dark:text-quartz mb-1">Clear Asset Library</h3>
-          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-xs muted-help leading-relaxed">
             Removes every asset, every fingerprint, every verification record, and every annotation from the local database. Audit log entries, monitor URLs, API keys, and signing configuration are preserved.
           </p>
         </div>

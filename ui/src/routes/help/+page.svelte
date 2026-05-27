@@ -125,7 +125,7 @@
 
 <!-- Start here -->
 <section aria-label="Getting started steps" class="mb-8">
-  <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4">
+  <p class="text-xs section-label uppercase tracking-widest mb-4">
     Start here
   </p>
   <ol class="space-y-3">
@@ -147,7 +147,7 @@
 <div class="mb-6">
   <label
     for="help-search"
-    class="block text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-2"
+    class="block text-xs section-label uppercase tracking-widest mb-2"
   >
     Search Help
   </label>
@@ -171,11 +171,11 @@
     aria-label="Search help topics"
   />
   {#if searchQuery.trim() !== '' && filteredCards.length === 0}
-    <p class="mt-3 text-sm text-flint-dark dark:text-flint-light" role="status">
+    <p class="mt-3 text-sm muted-help" role="status">
       No topics match <strong class="text-text-light dark:text-text-dark">"{searchQuery.trim()}"</strong>. Try a shorter term.
     </p>
   {:else if searchQuery.trim() !== ''}
-    <p class="mt-2 text-xs text-flint-dark dark:text-flint-light" role="status" aria-live="polite">
+    <p class="mt-2 text-xs muted-help" role="status" aria-live="polite">
       {filteredCards.length} {filteredCards.length === 1 ? 'topic' : 'topics'} found
     </p>
   {/if}
