@@ -130,11 +130,11 @@
   </p>
   <ol class="space-y-3">
     <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">1</span>
+      <span class="flex-none w-6 h-6 rounded-full bg-lapis text-white dark:bg-lapis-light dark:text-obsidian text-xs font-semibold flex items-center justify-center">1</span>
       <span>Confirm the <strong class="text-text-light dark:text-text-dark">Analysis Engine</strong> is online during the brief first-launch wizard. The core forensic pipeline is fully available once the Analysis Engine is running.</span>
     </li>
     <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
+      <span class="flex-none w-6 h-6 rounded-full bg-lapis text-white dark:bg-lapis-light dark:text-obsidian text-xs font-semibold flex items-center justify-center">2</span>
       <span>Run your first verification on the <a href="/help/verify" class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"><strong class="text-text-light dark:text-text-dark">Verify</strong> page</a> to see the forensic pipeline in action.</span>
     </li>
   </ol>

@@ -19,6 +19,47 @@
   let mobileMenuOpen = $state(false);
   let currentPath = $state('/');
 
+  // ── Webview zoom ──────────────────────────────────────────────────────────
+  // Persists across launches via localStorage.  Steps 0.1 in range [0.8, 1.5].
+  // Applied via the Tauri Webview.setZoom() API (available in @tauri-apps/api/webview).
+  // In plain-browser dev mode the API import is skipped gracefully.
+  const ZOOM_MIN = 0.8;
+  const ZOOM_MAX = 1.5;
+  const ZOOM_STEP = 0.1;
+  const ZOOM_DEFAULT = 1.0;
+  const ZOOM_KEY = 'jura-ui-zoom';
+
+  let zoomFactor = $state(ZOOM_DEFAULT);
+
+  async function applyZoom(factor: number) {
+    const tauriAvailable = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+    if (!tauriAvailable) return;
+    try {
+      const { getCurrentWebview } = await import('@tauri-apps/api/webview');
+      await getCurrentWebview().setZoom(factor);
+    } catch {
+      // Non-fatal — setZoom may not be available in dev/mock builds
+    }
+  }
+
+  function clampZoom(f: number): number {
+    return Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, f)) * 10) / 10;
+  }
+
+  function handleZoom(direction: 'in' | 'out' | 'reset') {
+    let next: number;
+    if (direction === 'reset') {
+      next = ZOOM_DEFAULT;
+    } else if (direction === 'in') {
+      next = clampZoom(zoomFactor + ZOOM_STEP);
+    } else {
+      next = clampZoom(zoomFactor - ZOOM_STEP);
+    }
+    zoomFactor = next;
+    localStorage.setItem(ZOOM_KEY, String(next));
+    applyZoom(next);
+  }
+
   // Unlisten functions for native OS menu events.
   // Populated in onMount (Tauri env only), cleaned up in onDestroy.
   let menuUnlisteners: Array<() => void> = [];
@@ -35,6 +76,16 @@
     // Treat absence or 'true' as dark (dark-first default)
     darkMode = stored === null ? true : stored === 'true';
     applyTheme(darkMode);
+
+    // Restore persisted zoom level
+    const storedZoom = localStorage.getItem(ZOOM_KEY);
+    if (storedZoom !== null) {
+      const parsed = parseFloat(storedZoom);
+      if (!isNaN(parsed)) {
+        zoomFactor = clampZoom(parsed);
+        applyZoom(zoomFactor);
+      }
+    }
 
     currentPath = window.location.pathname;
 
@@ -140,6 +191,14 @@
       menuUnlisteners.push(
         await listen('menu:search-help', () => {
           goto('/help?search=1');
+        }),
+      );
+
+      // menu:zoom — adjust webview zoom level
+      menuUnlisteners.push(
+        await listen<string>('menu:zoom', (event) => {
+          const direction = event.payload as 'in' | 'out' | 'reset';
+          handleZoom(direction);
         }),
       );
     }
@@ -356,7 +415,7 @@
   {#if showSidecarReminder}
     <div
       class="sticky bottom-0 z-30 border-t border-amber/30 bg-amber/10 dark:bg-amber/5"
-      role="alert"
+      role="status"
       aria-live="polite"
     >
       <div class="max-w-4xl mx-auto px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
@@ -417,14 +476,14 @@
             href="https://juralabs.org"
             target="_blank"
             rel="noopener noreferrer"
-            class="hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            class="underline underline-offset-2 hover:no-underline hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
             Jura Labs CIC
             <span class="sr-only">(opens in new tab)</span>
           </a>
           <a
             href="/help/open-source"
-            class="hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            class="underline underline-offset-2 hover:no-underline hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
             Licences
           </a>
@@ -432,7 +491,7 @@
             href="https://codeberg.org/jura-labs/jura-trace"
             target="_blank"
             rel="noopener noreferrer"
-            class="hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            class="underline underline-offset-2 hover:no-underline hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
             Source
             <span class="sr-only">(opens in new tab)</span>

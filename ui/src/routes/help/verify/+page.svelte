@@ -419,7 +419,7 @@
   <div class="space-y-4 mb-6">
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
       <div class="flex items-center gap-3 mb-2">
-        <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-malachite/10 text-malachite-dark dark:text-malachite-light border border-malachite/20">
+        <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-malachite text-white dark:bg-malachite-light dark:text-obsidian">
           Authentic
         </span>
       </div>
@@ -433,7 +433,7 @@
 
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
       <div class="flex items-center gap-3 mb-2">
-        <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber/10 text-amber-dark dark:text-amber-light border border-amber/20">
+        <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber text-obsidian dark:bg-amber-light dark:text-obsidian">
           Inconclusive
         </span>
       </div>
@@ -449,7 +449,7 @@
 
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
       <div class="flex items-center gap-3 mb-2">
-        <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-cinnabar/10 text-cinnabar-dark dark:text-cinnabar-light border border-cinnabar/20">
+        <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-cinnabar text-white dark:bg-cinnabar-light dark:text-obsidian">
           Synthetic
         </span>
       </div>

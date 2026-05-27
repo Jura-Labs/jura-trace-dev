@@ -2190,7 +2190,7 @@
          in v1.0. Pro-tier forward-promise copy intentionally removed for launch. -->
     <div class="flex flex-col gap-3 max-w-xl rounded-lg border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/40 p-4">
       <div class="flex items-center gap-2">
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-malachite/10 text-malachite-dark dark:bg-malachite/20 dark:text-malachite-light">
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-malachite text-white dark:bg-malachite-light dark:text-obsidian">
           Community
         </span>
         <span class="text-sm text-text-light dark:text-quartz">
@@ -2376,7 +2376,7 @@
       >
         {#if signingMode === 'bedrock'}
           <span
-            class="absolute top-3 right-3 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30"
+            class="absolute top-3 right-3 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lapis text-white dark:bg-lapis-light dark:text-obsidian border border-lapis/0"
             aria-label="Currently active"
           >
             Active
@@ -2481,7 +2481,7 @@
       >
         {#if signingMode === 'conformant'}
           <span
-            class="absolute top-3 right-3 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30"
+            class="absolute top-3 right-3 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lapis text-white dark:bg-lapis-light dark:text-obsidian border border-lapis/0"
             aria-label="Currently active"
           >
             Active
@@ -3124,7 +3124,7 @@
       >
         {#if networkMode === 'standard'}
           <span
-            class="absolute top-3 right-3 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30"
+            class="absolute top-3 right-3 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lapis text-white dark:bg-lapis-light dark:text-obsidian border border-lapis/0"
             aria-label="Currently active"
           >
             Active

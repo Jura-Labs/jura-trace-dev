@@ -22,6 +22,9 @@
 //! | `check-updates`   | `menu:check-updates`   | *(none)*             |
 //! | `send-feedback`   | `menu:show-feedback`   | *(none)*             |
 //! | `search-help`     | `menu:search-help`     | *(none)*             |
+//! | `zoom-in`         | `menu:zoom`            | `"in"`               |
+//! | `zoom-out`        | `menu:zoom`            | `"out"`              |
+//! | `zoom-reset`      | `menu:zoom`            | `"reset"`            |
 
 use tauri::{
     menu::{AboutMetadata, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder},
@@ -34,6 +37,14 @@ use tauri::{
 /// `Menu` replaces Tauri v2's default auto-menu entirely.  All predefined
 /// items that the webview renderer relies on (clipboard, undo/redo, window
 /// controls, quit) are re-included so keyboard shortcuts remain functional.
+///
+/// # Event contract (additions)
+///
+/// | Menu-item ID        | Tauri event emitted | Payload               |
+/// |---------------------|---------------------|-----------------------|
+/// | `zoom-in`           | `menu:zoom`         | `"in"`                |
+/// | `zoom-out`          | `menu:zoom`         | `"out"`               |
+/// | `zoom-reset`        | `menu:zoom`         | `"reset"`             |
 ///
 /// # Errors
 /// Returns a `tauri::Error` if any menu item construction fails (e.g. a
@@ -129,9 +140,25 @@ pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> Result<tauri::menu::Menu<R>
             .item(&quit)
             .build()?;
 
-        // View submenu
+        // View submenu — includes text-size zoom items
         let fullscreen = PredefinedMenuItem::fullscreen(app, None)?;
-        let view_submenu = SubmenuBuilder::new(app, "View").item(&fullscreen).build()?;
+        let zoom_in = MenuItemBuilder::with_id("zoom-in", "Increase Text Size")
+            .accelerator("CmdOrCtrl+=")
+            .build(app)?;
+        let zoom_out = MenuItemBuilder::with_id("zoom-out", "Decrease Text Size")
+            .accelerator("CmdOrCtrl+-")
+            .build(app)?;
+        let zoom_reset = MenuItemBuilder::with_id("zoom-reset", "Reset Text Size")
+            .accelerator("CmdOrCtrl+0")
+            .build(app)?;
+
+        let view_submenu = SubmenuBuilder::new(app, "View")
+            .item(&fullscreen)
+            .separator()
+            .item(&zoom_in)
+            .item(&zoom_out)
+            .item(&zoom_reset)
+            .build()?;
 
         // Window submenu
         let minimise = PredefinedMenuItem::minimize(app, Some("Minimise"))?;
@@ -186,9 +213,25 @@ pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> Result<tauri::menu::Menu<R>
             .item(&quit)
             .build()?;
 
-        // View submenu (fullscreen optional on Win/Linux but harmless)
+        // View submenu — fullscreen + text-size zoom items
         let fullscreen = PredefinedMenuItem::fullscreen(app, None)?;
-        let view_submenu = SubmenuBuilder::new(app, "View").item(&fullscreen).build()?;
+        let zoom_in = MenuItemBuilder::with_id("zoom-in", "Increase Text Size")
+            .accelerator("CmdOrCtrl+=")
+            .build(app)?;
+        let zoom_out = MenuItemBuilder::with_id("zoom-out", "Decrease Text Size")
+            .accelerator("CmdOrCtrl+-")
+            .build(app)?;
+        let zoom_reset = MenuItemBuilder::with_id("zoom-reset", "Reset Text Size")
+            .accelerator("CmdOrCtrl+0")
+            .build(app)?;
+
+        let view_submenu = SubmenuBuilder::new(app, "View")
+            .item(&fullscreen)
+            .separator()
+            .item(&zoom_in)
+            .item(&zoom_out)
+            .item(&zoom_reset)
+            .build()?;
 
         // Window submenu
         let minimise = PredefinedMenuItem::minimize(app, Some("Minimise"))?;
@@ -266,6 +309,16 @@ pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: tauri::menu::Men
         }
         "search-help" => {
             let _ = app.emit("menu:search-help", ());
+        }
+        // ── View — text-size zoom ─────────────────────────────────────────────
+        "zoom-in" => {
+            let _ = app.emit("menu:zoom", "in");
+        }
+        "zoom-out" => {
+            let _ = app.emit("menu:zoom", "out");
+        }
+        "zoom-reset" => {
+            let _ = app.emit("menu:zoom", "reset");
         }
         // All other IDs (predefined items handled natively by the OS) are ignored.
         _ => {}

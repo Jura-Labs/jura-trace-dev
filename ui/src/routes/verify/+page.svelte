@@ -1901,8 +1901,11 @@
   </div>
 {/if}
 
-<!-- ─── Page ───────────────────────────────────────────────────────── -->
-<main id="main-content" tabindex="-1" class="outline-none max-w-[900px] mx-auto px-6 py-8 pb-16">
+<!-- ─── Page ─────────────────────────────────────────────────────────────
+     NOTE: this component renders inside the layout <main id="main-content">
+     wrapper. Using a second <main> here is invalid HTML (nested main) and
+     creates a duplicate id that breaks skip-link navigation. Use <div>. -->
+<div class="max-w-[900px] mx-auto px-6 py-8 pb-16">
 
   <!-- Header -->
   <div class="flex items-center gap-3 mb-6">
@@ -1916,7 +1919,32 @@
 
   <!-- Mode selector + sidecar status row -->
   <div class="flex items-center gap-3 mb-5 flex-wrap">
-    <div role="radiogroup" aria-label="Verification mode" class="flex rounded-lg border border-border-light dark:border-border-dark overflow-hidden">
+    <!-- ARIA radiogroup pattern: checked radio is in the tab sequence (tabindex 0),
+         unchecked radios are removed from it (tabindex -1). Arrow keys move focus
+         and selection within the group. This matches the ARIA 1.2 radio-group pattern. -->
+    <div
+      role="radiogroup"
+      aria-label="Verification mode"
+      class="flex rounded-lg border border-border-light dark:border-border-dark overflow-hidden"
+      tabindex="-1"
+      onkeydown={(e) => {
+        const modes: VerifyMode[] = ['standard', 'deep'];
+        const idx = modes.indexOf(verifyMode);
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          const next = modes[(idx + 1) % modes.length];
+          verifyMode = next;
+          localStorage.setItem('jura-verify-mode', next);
+          (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role=radio]')[modes.indexOf(next)]?.focus();
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const prev = modes[(idx - 1 + modes.length) % modes.length];
+          verifyMode = prev;
+          localStorage.setItem('jura-verify-mode', prev);
+          (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role=radio]')[modes.indexOf(prev)]?.focus();
+        }
+      }}
+    >
       {#each [
         { mode: 'standard' as VerifyMode, label: 'Standard', description: '~15s' },
         { mode: 'deep' as VerifyMode, label: 'Deep', description: '~60s' },
@@ -1935,6 +1963,7 @@
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis-light"
           role="radio"
           aria-checked={verifyMode === opt.mode}
+          tabindex={verifyMode === opt.mode ? 0 : -1}
           onclick={() => { verifyMode = opt.mode; localStorage.setItem('jura-verify-mode', opt.mode); }}
         >{opt.label} <span class="ml-0.5 {verifyMode === opt.mode ? 'text-white dark:text-obsidian' : 'text-flint-dark dark:text-flint-light'}">{opt.description}</span></button>
       {/each}
@@ -5094,4 +5123,4 @@
 
   {/if}<!-- end #if checked && result -->
 
-</main>
+</div>

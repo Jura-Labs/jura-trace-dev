@@ -78,7 +78,7 @@
                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
                 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
                 {isActive(item.href)
-                  ? 'text-lapis dark:text-lapis-light font-medium bg-lapis/5 dark:bg-lapis/10'
+                  ? 'text-lapis dark:text-lapis-light font-medium bg-lapis/5 dark:bg-graphite-light'
                   : 'text-flint-dark dark:text-flint-light hover:text-lapis dark:hover:text-lapis dark:text-lapis-light hover:bg-gray-50 dark:hover:bg-graphite-light/30'}
               "
             >
