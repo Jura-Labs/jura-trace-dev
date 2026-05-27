@@ -665,27 +665,63 @@ const CLIP_IDLE_SECONDS_BEFORE_UNLOAD: u64 = 600;
 /// Default OFF — opt-in via Settings to avoid surprising cold-start latency.
 const SIDECAR_IDLE_SECONDS_BEFORE_KILL: u64 = 300;
 
+/// Minimal per-file record passed to the background fingerprinting task.
+///
+/// Carries only the fields needed to open the file, compute hashes, write to
+/// the DB, and emit progress — no database handles or locks are held.
+struct FingerprintJob {
+    asset_id: String,
+    file_path: PathBuf,
+}
+
 /// Import files into the PROTECT pipeline.
+///
+/// **Catalogue phase (synchronous, returns quickly)**
 ///
 /// For each path:
 ///   1. Detect content type and MIME via format router
-///   2. Extract EXIF metadata (images only, for now)
+///   2. Extract EXIF metadata (images only)
 ///   3. Read image dimensions
 ///   4. Compute SHA-256 of the file
-///   5. Store in SQLite and log the action
+///   5. Store in SQLite and write "import" audit entry
+///   6. Emit `protect:import-progress` event
+///
+/// After cataloguing, a background task is spawned to compute perceptual
+/// hashes (aHash, dHash, pHash) for all image assets.  The background task
+/// emits `protect:fingerprint-progress` per asset and
+/// `protect:fingerprint-batch-complete` when the whole batch finishes.
+///
+/// **Import is strictly read-only**: no write to source files at any point.
+///
+/// **Event contract** (frontend must match exactly):
+///
+/// - `protect:import-progress`
+///   Payload: `{ done: number, total: number, path: string }`
+///   Emitted once per catalogued file.
+///
+/// - `protect:fingerprint-progress`
+///   Payload: `{ assetId: string, done: number, total: number, ok: boolean, error: string | null }`
+///   Emitted once per image after the background hash computation finishes.
+///   `ok` is `false` and `error` contains a message if the hash failed for
+///   that image (the asset row still exists; it just remains unfingerprinted).
+///
+/// - `protect:fingerprint-batch-complete`
+///   Payload: `{ total: number, failed: number }`
+///   Emitted once when the entire background batch is complete.
 #[tauri::command]
-fn import_files(
+async fn import_files(
+    app: tauri::AppHandle,
     paths: Vec<String>,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<Vec<Asset>, AppError> {
     log::info!("Importing {} file(s)", paths.len());
-    let app = state
-        .lock()
-        .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
 
+    let total = paths.len();
     let mut imported: Vec<Asset> = Vec::new();
+    // Collect image assets that need background fingerprinting.
+    let mut fingerprint_jobs: Vec<FingerprintJob> = Vec::new();
 
-    for path_str in &paths {
+    for (idx, path_str) in paths.iter().enumerate() {
         // SECURITY: Null-byte check before any path construction.
         if path_str.contains('\0') {
             log::warn!("Skipping path with null byte");
@@ -849,59 +885,40 @@ fn import_files(
             sha256_hash: sha256_hash.clone(),
         };
 
-        // 5. Store
+        // 5. Store — acquire the state lock per file so the mutex is not held
+        //    across the expensive SHA-256 / metadata work above.
         // SECURITY (LOW-1): Map database errors to AppError::Database so raw
         // SQLite internals (schema details, table names) are logged but never
         // returned to the frontend.
-        app.db.insert_asset(&row).map_err(|e| {
-            log::error!("Failed to insert asset into database: {e}");
-            AppError::Database("Database operation failed".into())
-        })?;
+        {
+            let app_guard = state
+                .lock()
+                .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
+            app_guard.db.insert_asset(&row).map_err(|e| {
+                log::error!("Failed to insert asset into database: {e}");
+                AppError::Database("Database operation failed".into())
+            })?;
 
-        // 6. Audit log
-        let _ = app.db.log_action(
-            "import",
-            "asset",
-            &asset_id,
-            Some(&format!(
-                "{{\"mime\":\"{}\",\"size\":{}}}",
-                info.mime_type, file_size
-            )),
-            None,
-            None,
-        );
+            // 6. Audit log — "import" entry with MIME + size for chain-of-custody.
+            let _ = app_guard.db.log_action(
+                "import",
+                "asset",
+                &asset_id,
+                Some(&format!(
+                    "{{\"mime\":\"{}\",\"size\":{}}}",
+                    info.mime_type, file_size
+                )),
+                None,
+                None,
+            );
+        } // lock released here
 
-        // 7. Perceptual fingerprinting (images only)
+        // Schedule background fingerprinting for image assets.
         if fingerprint::supports_fingerprinting(info.content_type.as_str()) {
-            let hashes = fingerprint::compute_hashes(&path);
-            for hash_result in &hashes {
-                let fp_id = uuid::Uuid::new_v4().to_string();
-                let _ = app.db.insert_fingerprint(
-                    &fp_id,
-                    &asset_id,
-                    hash_result.algorithm.as_str(),
-                    &hash_result.hash_hex,
-                );
-            }
-
-            if !hashes.is_empty() {
-                let algo_meta = serde_json::json!({
-                    "algorithms": hashes.iter()
-                        .map(|h| h.algorithm.as_str())
-                        .collect::<Vec<_>>(),
-                    "hash_size": "8x8",
-                    "crate": "image_hasher",
-                    "version": "3.1"
-                });
-                let _ = app.db.log_action(
-                    "fingerprint",
-                    "asset",
-                    &asset_id,
-                    Some(&format!("{{\"count\":{}}}", hashes.len())),
-                    None,
-                    Some(&algo_meta.to_string()),
-                );
-            }
+            fingerprint_jobs.push(FingerprintJob {
+                asset_id: asset_id.clone(),
+                file_path: path.clone(),
+            });
         }
 
         imported.push(Asset {
@@ -918,15 +935,202 @@ fn import_files(
             metadata_json: meta_json,
             c2pa_signed: false,
             watermarked: false,
-            // Fingerprints are inserted after this push; newly imported assets
-            // start as false and the caller re-fetches if it needs the live value.
+            // Fingerprinting is deferred to a background task; assets start
+            // as unfingerprinted and the frontend updates via events.
             fingerprinted: false,
             created_at: now,
             sha256_hash,
         });
+
+        // 7. Emit per-file catalogue progress so the frontend can show a
+        //    progress indicator without waiting for fingerprinting.
+        //
+        //    Event: `protect:import-progress`
+        //    Payload: { done: number, total: number, path: string }
+        let _ = app.emit(
+            "protect:import-progress",
+            serde_json::json!({
+                "done": idx + 1,
+                "total": total,
+                "path": path_str,
+            }),
+        );
     }
 
-    log::info!("Successfully imported {} file(s)", imported.len());
+    log::info!("Successfully catalogued {} file(s)", imported.len());
+
+    // 8. Spawn background fingerprinting task.
+    //
+    //    CPU-bound hash computation runs inside `spawn_blocking` so it does not
+    //    starve the Tokio I/O thread pool. A bounded sequential loop inside a
+    //    single `spawn_blocking` call is used rather than many parallel
+    //    `spawn_blocking` calls: hashing a single 24 MP JPEG takes < 100 ms
+    //    with the Triangle filter, so the sequential cost for a typical
+    //    batch (5–20 images) is < 2 s. This avoids spinning up N threads that
+    //    each try to decode a full-resolution JPEG simultaneously, which would
+    //    cause memory pressure on large batches.
+    if !fingerprint_jobs.is_empty() {
+        let app_handle = app.clone();
+        let state_arc = Arc::clone(&*state);
+        let fp_total = fingerprint_jobs.len();
+
+        tauri::async_runtime::spawn(async move {
+            // Clone the handle for use inside spawn_blocking (which requires 'static).
+            // The outer app_handle clone is used to emit the batch-complete event
+            // after spawn_blocking returns.
+            let app_handle_inner = app_handle.clone();
+
+            let result = tauri::async_runtime::spawn_blocking(move || {
+                let mut failed: usize = 0;
+
+                for (done_idx, job) in fingerprint_jobs.iter().enumerate() {
+                    let hashes = match image::open(&job.file_path) {
+                        Ok(img) => fingerprint::compute_hashes_from_image(&img),
+                        Err(e) => {
+                            log::warn!(
+                                "Background fingerprint: cannot decode {}: {e}",
+                                job.file_path.display()
+                            );
+                            vec![]
+                        }
+                    };
+
+                    let (ok, error_msg): (bool, Option<String>) = if hashes.is_empty() {
+                        failed += 1;
+                        (
+                            false,
+                            Some(format!(
+                                "Could not decode image for fingerprinting: {}",
+                                job.file_path
+                                    .file_name()
+                                    .map(|n| n.to_string_lossy().to_string())
+                                    .unwrap_or_default()
+                            )),
+                        )
+                    } else {
+                        // Build batch rows: (fp_id, asset_id, hash_type, hash_value)
+                        let rows: Vec<(String, String, String, String)> = hashes
+                            .iter()
+                            .map(|h| {
+                                (
+                                    uuid::Uuid::new_v4().to_string(),
+                                    job.asset_id.clone(),
+                                    h.algorithm.as_str().to_string(),
+                                    h.hash_hex.clone(),
+                                )
+                            })
+                            .collect();
+
+                        // Acquire the DB lock only for the writes, not across the
+                        // expensive image decode above.
+                        let write_ok = if let Ok(guard) = state_arc.lock() {
+                            let batch_result = guard.db.insert_fingerprints_batch(rows);
+                            if let Err(ref e) = batch_result {
+                                log::error!(
+                                    "Background fingerprint DB write failed for {}: {e}",
+                                    job.asset_id
+                                );
+                            }
+
+                            if batch_result.is_ok() {
+                                // Enriched "fingerprint" audit entry for acquisition-hash
+                                // citation (Berkeley Protocol / legal chain-of-custody).
+                                // Records: algorithm names, hash values, hash_size, filter,
+                                // crate version, and the UTC timestamp of computation.
+                                let hash_values: Vec<serde_json::Value> = hashes
+                                    .iter()
+                                    .map(|h| {
+                                        serde_json::json!({
+                                            "algorithm": h.algorithm.as_str(),
+                                            "value": h.hash_hex,
+                                        })
+                                    })
+                                    .collect();
+                                let algo_meta = serde_json::json!({
+                                    "hashes": hash_values,
+                                    "hash_size": "8x8",
+                                    "resize_filter": "Triangle",
+                                    "crate": "image_hasher",
+                                    "crate_version": "3.1",
+                                    "computed_at": chrono::Utc::now().to_rfc3339(),
+                                });
+                                let _ = guard.db.log_action(
+                                    "fingerprint",
+                                    "asset",
+                                    &job.asset_id,
+                                    Some(&format!("{{\"count\":{}}}", hashes.len())),
+                                    None,
+                                    Some(&algo_meta.to_string()),
+                                );
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            log::error!(
+                                "Background fingerprint: state lock poisoned for {}",
+                                job.asset_id
+                            );
+                            false
+                        };
+
+                        if !write_ok {
+                            failed += 1;
+                            (
+                                false,
+                                Some("Database write failed during fingerprinting".to_string()),
+                            )
+                        } else {
+                            (true, None)
+                        }
+                    };
+
+                    // Emit per-asset progress.
+                    //
+                    //    Event: `protect:fingerprint-progress`
+                    //    Payload: { assetId: string, done: number, total: number,
+                    //               ok: boolean, error: string | null }
+                    let _ = app_handle_inner.emit(
+                        "protect:fingerprint-progress",
+                        serde_json::json!({
+                            "assetId": job.asset_id,
+                            "done": done_idx + 1,
+                            "total": fp_total,
+                            "ok": ok,
+                            "error": error_msg,
+                        }),
+                    );
+                }
+
+                failed
+            })
+            .await;
+
+            let failed = result.unwrap_or_else(|e| {
+                log::error!("Background fingerprint task panicked: {e}");
+                fp_total
+            });
+
+            // Emit batch-complete summary.
+            //
+            //    Event: `protect:fingerprint-batch-complete`
+            //    Payload: { total: number, failed: number }
+            let _ = app_handle.emit(
+                "protect:fingerprint-batch-complete",
+                serde_json::json!({
+                    "total": fp_total,
+                    "failed": failed,
+                }),
+            );
+
+            log::info!(
+                "Background fingerprinting complete: {}/{} succeeded",
+                fp_total - failed,
+                fp_total
+            );
+        });
+    }
+
     Ok(imported)
 }
 

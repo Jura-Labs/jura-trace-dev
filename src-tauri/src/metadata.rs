@@ -246,9 +246,10 @@ pub fn extract_exif(path: &Path) -> Option<ImageMetadata> {
 
 /// Maximum number of bytes we will read from the head of a file when hunting
 /// for an XMP packet. XMP is conventionally placed in the first APP1 segment
-/// (JPEG) or the first iTXt chunk (PNG) near the file head, so 2 MB is a
-/// very generous cap that still keeps the I/O cost bounded on large files.
-const XMP_SCAN_LIMIT: usize = 2 * 1024 * 1024;
+/// (JPEG) or the first iTXt chunk (PNG) near the file head. 64 KB is
+/// sufficient to cover the vast majority of real-world XMP placements; the
+/// previous 2 MB cap caused unnecessary buffering on every import.
+const XMP_SCAN_LIMIT: usize = 64 * 1024;
 
 /// Locate and parse an XMP packet from a file.
 ///
@@ -698,8 +699,11 @@ pub fn extract_exif_thumbnail(path: &Path) -> Option<Vec<u8>> {
 // ── ICC colour profile extraction ────────────────────────────────────────────
 
 /// Maximum bytes to scan when hunting for an ICC profile chunk.
-/// Most ICC profiles appear near the head of the file.
-const ICC_SCAN_LIMIT: usize = 4 * 1024 * 1024; // 4 MB
+/// Real-world ICC profiles in JPEG/PNG files appear within the first few
+/// kilobytes (APP2 marker in JPEG, iCCP chunk near the PNG IHDR). 512 KB is
+/// a generous cap that catches all legitimate placements while cutting the
+/// previous 4 MB maximum buffer cost by 8×.
+const ICC_SCAN_LIMIT: usize = 512 * 1024;
 
 /// Extract the human-readable description string from an embedded ICC profile.
 ///

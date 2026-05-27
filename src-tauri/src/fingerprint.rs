@@ -5,7 +5,31 @@
 //! Supports three hash algorithms: aHash (average), dHash (difference),
 //! and pHash (perceptual, via DoubleGradient). All hashes are 64-bit
 //! values stored as 16-character hex strings.
+//!
+//! ## Triangle-filter migration note (introduced 2026-05-27)
+//!
+//! Hash values computed after this change are **not** comparable to those
+//! computed before it. The resize filter was changed from the default
+//! `Lanczos3` to `Triangle` for performance: Lanczos3 is a high-quality
+//! 6-tap kernel that is expensive to evaluate; Triangle is a 2-tap bilinear
+//! filter that is roughly 3× faster on the small resize targets used here
+//! (8×8 and 9×9 pixels). The forensic accuracy difference is negligible
+//! at these scales because both filters are working far below their
+//! intended detail range.
+//!
+//! Existing `fingerprints` rows in the database were computed with
+//! `Lanczos3`. New rows use `Triangle`. Hamming-distance comparisons
+//! across the migration boundary will produce unreliable results.
+//! See the migration recommendation in the `CHANGELOG.md` entry for v0.9.0.
+//!
+//! **Migration recommendation**: run `DELETE FROM fingerprints;` once
+//! after upgrading, then re-trigger fingerprinting for all existing assets
+//! via the "Re-fingerprint library" action in Settings (JTV-backlog).
+//! The asset records themselves are unaffected; only the perceptual hash
+//! rows must be regenerated.
 
+use image::imageops::FilterType;
+use image::DynamicImage;
 use image_hasher::{HashAlg, HasherConfig};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -63,18 +87,24 @@ pub struct SimilarAsset {
 
 // ===== Hashing =====
 
-/// Compute all three perceptual hashes for an image file.
+/// Resize filter used for all perceptual hash computations.
 ///
-/// Returns an empty Vec if the image cannot be decoded (SVG, corrupt, etc.).
-pub fn compute_hashes(path: &Path) -> Vec<HashResult> {
-    let img = match image::open(path) {
-        Ok(img) => img,
-        Err(e) => {
-            log::warn!("Cannot compute hashes for {}: {e}", path.display());
-            return vec![];
-        }
-    };
+/// `Triangle` (bilinear) is chosen over the previous `Lanczos3` default for
+/// performance: the hash resize targets are 8×8 and 9×9 pixels, so the
+/// quality advantage of Lanczos3 is negligible while Triangle is ~3× faster.
+///
+/// **Incompatibility**: changing this constant invalidates all existing hash
+/// values stored in the `fingerprints` table. See the module-level doc comment
+/// for the migration procedure.
+const HASH_RESIZE_FILTER: FilterType = FilterType::Triangle;
 
+/// Compute all three perceptual hashes for a pre-decoded [`DynamicImage`].
+///
+/// The image is decoded once by the caller and reused across all three
+/// algorithm passes, avoiding redundant file I/O and decode work.
+/// Returns an empty Vec only when image data is genuinely unprocessable
+/// (the caller is responsible for handling the open/decode step).
+pub fn compute_hashes_from_image(img: &DynamicImage) -> Vec<HashResult> {
     let configs = [
         (HashAlgorithm::AHash, HashAlg::Mean),
         (HashAlgorithm::DHash, HashAlg::Gradient),
@@ -87,8 +117,9 @@ pub fn compute_hashes(path: &Path) -> Vec<HashResult> {
             let hasher = HasherConfig::new()
                 .hash_alg(*hash_alg)
                 .hash_size(8, 8)
+                .resize_filter(HASH_RESIZE_FILTER)
                 .to_hasher();
-            let hash = hasher.hash_image(&img);
+            let hash = hasher.hash_image(img);
             let raw_hex: String = hash.as_bytes().iter().map(|b| format!("{b:02x}")).collect();
             // Zero-pad to 16 chars (64 bits) for consistent Hamming distance
             let hash_hex = format!("{raw_hex:0>16}");
@@ -98,6 +129,23 @@ pub fn compute_hashes(path: &Path) -> Vec<HashResult> {
             }
         })
         .collect()
+}
+
+/// Compute all three perceptual hashes for an image file.
+///
+/// Opens and decodes the file once, then delegates to
+/// [`compute_hashes_from_image`] so the decoded image is reused across all
+/// three algorithm passes. Returns an empty Vec if the image cannot be decoded
+/// (SVG, corrupt, etc.).
+pub fn compute_hashes(path: &Path) -> Vec<HashResult> {
+    let img = match image::open(path) {
+        Ok(img) => img,
+        Err(e) => {
+            log::warn!("Cannot compute hashes for {}: {e}", path.display());
+            return vec![];
+        }
+    };
+    compute_hashes_from_image(&img)
 }
 
 /// Compute only a pHash for a file on disk.
@@ -116,6 +164,7 @@ pub fn compute_phash(path: &Path) -> Option<String> {
     let hasher = HasherConfig::new()
         .hash_alg(HashAlg::DoubleGradient)
         .hash_size(8, 8)
+        .resize_filter(HASH_RESIZE_FILTER)
         .to_hasher();
     let hash = hasher.hash_image(&img);
     let raw_hex: String = hash.as_bytes().iter().map(|b| format!("{b:02x}")).collect();
@@ -137,6 +186,7 @@ pub fn compute_phash_from_bytes(image_bytes: &[u8]) -> Option<String> {
     let hasher = HasherConfig::new()
         .hash_alg(HashAlg::DoubleGradient)
         .hash_size(8, 8)
+        .resize_filter(HASH_RESIZE_FILTER)
         .to_hasher();
     let hash = hasher.hash_image(&img);
     let raw_hex: String = hash.as_bytes().iter().map(|b| format!("{b:02x}")).collect();
