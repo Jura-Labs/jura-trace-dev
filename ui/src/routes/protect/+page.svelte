@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode, getSigningDisclosure, findCatalogueMatches, parseAppError, type SignAction, type SigningDisclosure } from '$lib/api';
   import { V1_SHOW_CONFORMANT_SIGNING, V1_SHOW_WATERMARK } from '$lib/featureFlags';
+  import { focusTrap } from '$lib/actions/focusTrap';
 
   // ── Tauri event listener types ────────────────────────────────────
   interface ImportProgressEvent {
@@ -2678,7 +2679,6 @@
         >
           <label
             class="flex items-center justify-center cursor-pointer min-h-[44px] min-w-[44px] flex-shrink-0 -ml-2"
-            onclick={(e) => e.stopPropagation()}
           >
             <input
               type="checkbox"
@@ -2720,7 +2720,6 @@
         >
           <label
             class="flex items-center justify-center cursor-pointer w-11 flex-shrink-0"
-            onclick={(e) => e.stopPropagation()}
           >
             <input
               type="checkbox"
@@ -3938,14 +3937,21 @@
      in selectedAssetIds at modal-open time; the toolbar's clearSelection
      button is the natural escape hatch. -->
 {#if bulkDeleteConfirmOpen}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- Backdrop onclick is a redundant pointer convenience; Escape (via focusTrap) and the Cancel button are the keyboard paths. -->
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-obsidian/70 backdrop-blur-sm px-4"
     role="alertdialog"
     aria-modal="true"
     aria-labelledby="bulk-delete-heading"
     aria-describedby="bulk-delete-body"
+    tabindex="-1"
+    use:focusTrap={{ onEscape: () => { if (!bulkDeleteRunning) bulkDeleteConfirmOpen = false; } }}
     onclick={() => { if (!bulkDeleteRunning) bulkDeleteConfirmOpen = false; }}
   >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <!-- stopPropagation prevents the backdrop dismiss from firing when clicking inside the card; Escape is the keyboard close path. -->
     <div
       class="bg-white dark:bg-graphite rounded-lg border border-cinnabar/40 max-w-md w-full p-6 shadow-2xl"
       onclick={(e) => e.stopPropagation()}

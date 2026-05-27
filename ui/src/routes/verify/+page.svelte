@@ -1720,7 +1720,8 @@
 
 <!-- ─── Full-size image overlay ────────────────────────────────────── -->
 {#if showImageOverlay && previewUrl}
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+  <!-- Backdrop onclick is a redundant pointer convenience; Escape (via focusTrap) and the close button are the keyboard paths. -->
   <div
     class="fixed inset-0 z-[100] bg-black/85 flex items-center justify-center cursor-zoom-out"
     role="dialog"
@@ -1730,6 +1731,9 @@
     use:focusTrap={{ onEscape: () => { showImageOverlay = false; } }}
     onclick={() => showImageOverlay = false}
   >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <!-- stopPropagation on the image prevents the backdrop dismiss from firing when clicking the image itself; Escape is the keyboard close path. -->
     <img
       src={previewUrl}
       alt="Full-size preview of {fileName}"
@@ -1751,7 +1755,8 @@
 
 <!-- ─── Export report modal ────────────────────────────────────────── -->
 {#if showReportModal}
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+  <!-- Backdrop onclick is a redundant pointer convenience; Escape (via focusTrap) and the close button are the keyboard paths. -->
   <div
     class="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
     role="dialog"
@@ -1807,7 +1812,8 @@
 
 <!-- ─── False positive modal ───────────────────────────────────────── -->
 {#if showFalsePositiveModal}
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+  <!-- Backdrop onclick is a redundant pointer convenience; Escape (via focusTrap) and the close button are the keyboard paths. -->
   <div
     class="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
     role="dialog"
@@ -2224,6 +2230,8 @@
               </div>
               {#each batchItems as item (item.id)}
                 <div class="border-b border-border-light dark:border-border-dark/50 last:border-0 min-w-[480px]">
+                  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+                  <!-- role="button" and tabindex=0 are set together when status is 'done'; the element is interactive in that state. -->
                   <div
                     class="w-full grid grid-cols-[1fr_90px_70px_70px_36px] gap-3 px-4 py-2.5 text-left
                            {item.status === 'done' ? 'cursor-pointer hover:bg-white/[0.03]' : ''}
@@ -2683,7 +2691,6 @@
                 <button
                   class="flex items-center gap-1.5 rounded px-1 py-0.5 min-h-[28px] transition-colors hover:bg-white/5
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
-                  role="listitem"
                   aria-label="{dot.label}: {dot.ariaDetail}. Click to jump to provenance section"
                   onclick={() => jumpToCard('provenance')}
                 >
@@ -2708,7 +2715,6 @@
                 <button
                   class="flex items-center gap-1.5 rounded px-1 py-0.5 min-h-[28px] transition-colors hover:bg-white/5
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
-                  role="listitem"
                   aria-label="{dot.label}: {dot.ariaDetail}. Click to jump to integrity section"
                   onclick={() => jumpToCard('integrity')}
                 >
@@ -2733,7 +2739,6 @@
                 <button
                   class="flex items-center gap-1.5 rounded px-1 py-0.5 min-h-[28px] transition-colors hover:bg-white/5
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
-                  role="listitem"
                   aria-label="{dot.label}: {dot.ariaDetail}. Click to jump to AI detection section"
                   onclick={() => jumpToCard('ai')}
                 >

@@ -8,6 +8,7 @@
   import { V1_SHOW_CONFORMANT_SIGNING, V1_SHOW_API_KEYS, V1_SHOW_AI_DESCRIPTION, V1_SHOW_READ_TEXT } from '$lib/featureFlags';
   import { checkForUpdate as runCheckForUpdate, type UpdateStatus } from '$lib/updater';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
+  import { focusTrap } from '$lib/actions/focusTrap';
   import {
     type DeploymentProfile,
     MAX_PROFILES,
@@ -3292,14 +3293,21 @@
      main settings wrapper so it overlays everything. role="alertdialog" plus
      aria-modal communicates the modal nature to screen readers. -->
 {#if clearLibraryModalOpen}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- Backdrop onclick is a redundant pointer convenience; Escape (via focusTrap) and the Cancel button are the keyboard paths. -->
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-obsidian/70 backdrop-blur-sm px-4"
     role="alertdialog"
     aria-modal="true"
     aria-labelledby="clear-library-modal-heading"
     aria-describedby="clear-library-modal-body"
+    tabindex="-1"
+    use:focusTrap={{ onEscape: closeClearLibraryModal }}
     onclick={closeClearLibraryModal}
   >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <!-- stopPropagation prevents the backdrop dismiss from firing when clicking inside the card; Escape is the keyboard close path. -->
     <div
       class="bg-white dark:bg-graphite rounded-lg border border-cinnabar/40 max-w-lg w-full p-6 shadow-2xl"
       onclick={(e) => e.stopPropagation()}
