@@ -2400,26 +2400,16 @@
                 class="ml-1 text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
               >Check service status in Settings.</a>
             </div>
-          {:else if detectorsRun() < detectorsAvailable()}
-            <!-- Partial analysis: above the MIN_DETECTORS_FOR_VERDICT threshold so a
-                 verdict renders, but not all detectors contributed. Surface this as an
-                 amber advisory so the verdict is understood as provisional, not
-                 authoritative. Role="status" + aria-live="polite" announces once when
-                 the result panel mounts without interrupting assistive-technology flow. -->
-            <div
-              role="status"
-              aria-live="polite"
-              class="mb-3 px-3 py-2 rounded-lg border border-amber/30 bg-amber/5 text-xs text-amber-dark dark:text-amber-light leading-relaxed"
-            >
-              <strong>Partial analysis:</strong>
-              {detectorsRun()} of {detectorsAvailable()} forensic detectors ran.
-              Treat this verdict as provisional. The detectors that did not run
-              may carry signals relevant to this file.
-              <a
-                href="/settings"
-                class="ml-1 underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-dark dark:focus-visible:ring-amber-light rounded"
-              >Check service status in Settings.</a>
-            </div>
+          <!-- JTV-225 partial-analysis banner removed 2026-05-27. Its trigger
+               (detectorsRun < 13) fired on every healthy verify, because the 13
+               forensic detectors include the 3 on-demand tools (user-triggered,
+               so they never auto-run) and format-gated detectors (e.g. JPEG Ghost
+               does not run on a PNG). That produced a false "provisional / check
+               Settings" warning while Settings correctly showed the engine healthy.
+               Genuine under-coverage is already caught by the insufficient-signal
+               banner (<5 detectors); "you can run more" is covered by the on-demand
+               discoverability hint. A real partial-run signal needs a backend
+               expected-vs-ran-for-this-file comparison, not a count against 13. -->
           {:else if rawTrustLevel === 'high' && !hasPositiveAuthenticitySignal()}
             <div role="status" aria-live="polite" class="mb-3 px-3 py-2 rounded-lg border border-amber/30 bg-amber/5 text-xs text-amber-dark dark:text-amber-light leading-relaxed">
               <strong>No positive provenance signal.</strong>
