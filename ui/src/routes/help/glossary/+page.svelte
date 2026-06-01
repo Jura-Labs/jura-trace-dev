@@ -84,7 +84,7 @@
   <section aria-labelledby="letter-A">
     <h2
       id="letter-A"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >A</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -93,7 +93,7 @@
         <dt
           id="term-ahash"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >aHash <span class="font-normal text-flint-dark dark:text-flint-light">(Average Hash)</span></dt>
+        >aHash <span class="font-normal muted-help">(Average Hash)</span></dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A perceptual hashing algorithm that reduces an image to an 8×8 greyscale grid and
           compares the average brightness of each cell. Fast to compute and effective for
@@ -106,7 +106,7 @@
         <dt
           id="term-authentic"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >Authentic <span class="font-normal text-flint-dark dark:text-flint-light">(Verdict)</span></dt>
+        >Authentic <span class="font-normal muted-help">(Verdict)</span></dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           The verdict assigned when no forensic detectors flag significant anomalies and
           the deepfake ensemble score falls below 0.30. An Authentic verdict does not
@@ -122,7 +122,7 @@
   <section aria-labelledby="letter-C">
     <h2
       id="letter-C"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >C</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -131,7 +131,7 @@
         <dt
           id="term-c2pa"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >C2PA <span class="font-normal text-flint-dark dark:text-flint-light">(Coalition for Content Provenance and Authenticity)</span></dt>
+        >C2PA <span class="font-normal muted-help">(Coalition for Content Provenance and Authenticity)</span></dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           An open technical standard for embedding cryptographic provenance metadata
           (provenance manifests) directly into digital files. Supported by Adobe, Microsoft,
@@ -145,7 +145,7 @@
         <dt
           id="term-clip"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >CLIP <span class="font-normal text-flint-dark dark:text-flint-light">(Contrastive Language-Image Pre-training)</span></dt>
+        >CLIP <span class="font-normal muted-help">(Contrastive Language-Image Pre-training)</span></dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A neural network trained to understand images and text jointly. Jura Trace uses an
           open-source implementation (open_clip ViT-B/32) for zero-shot AI/authentic
@@ -187,7 +187,7 @@
           geological record of the content's history. Jura Trace signs with a C2PA
           provenance manifest and verifies manifests from other signers including Adobe,
           BBC, Canon, Leica, Microsoft, and Nikon.
-          <span class="block mt-2 text-xs text-flint-dark dark:text-flint-light">
+          <span class="block mt-2 text-xs muted-help">
             See also: <em>Content Credentials</em>, Adobe's branded term for the same
             underlying C2PA standard. The two terms refer to the same technology.
           </span>
@@ -214,7 +214,7 @@
   <section aria-labelledby="letter-D">
     <h2
       id="letter-D"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >D</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -250,7 +250,7 @@
         <dt
           id="term-dhash"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >dHash <span class="font-normal text-flint-dark dark:text-flint-light">(Difference Hash)</span></dt>
+        >dHash <span class="font-normal muted-help">(Difference Hash)</span></dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A perceptual hashing algorithm that compares adjacent pixel brightness differences
           rather than absolute values. More sensitive to structural changes (such as
@@ -268,8 +268,8 @@
           A frequency-domain invisible watermarking technique using three sequential
           transforms: Discrete Wavelet Transform, Discrete Cosine Transform, and Singular
           Value Decomposition. The embedded signal typically survives JPEG compression at
-          quality 70 or above, proportional resizing, and modest cropping. Jura Trace's
-          watermark feature is deferred from v1.0 (planned for v1.1 release).
+          quality 70 or above, proportional resizing, and modest cropping. Invisible
+          watermarking is not available in this release.
         </dd>
       </div>
 
@@ -280,7 +280,7 @@
   <section aria-labelledby="letter-E">
     <h2
       id="letter-E"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >E</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -289,7 +289,7 @@
         <dt
           id="term-ela"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >ELA <span class="font-normal text-flint-dark dark:text-flint-light">(Error Level Analysis)</span></dt>
+        >ELA <span class="font-normal muted-help">(Error Level Analysis)</span></dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A forensic technique that re-compresses an image at a known quality level and
           measures the difference between the re-compressed and original versions. Regions
@@ -304,7 +304,7 @@
         <dt
           id="term-exif"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >EXIF <span class="font-normal text-flint-dark dark:text-flint-light">(Exchangeable Image File Format)</span></dt>
+        >EXIF <span class="font-normal muted-help">(Exchangeable Image File Format)</span></dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           Metadata embedded in image files by cameras and editing software. Includes camera
           make and model, capture date and time, GPS coordinates, resolution, exposure
@@ -321,7 +321,7 @@
   <section aria-labelledby="letter-F">
     <h2
       id="letter-F"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >F</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -348,7 +348,7 @@
   <section aria-labelledby="letter-G">
     <h2
       id="letter-G"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >G</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -357,7 +357,7 @@
         <dt
           id="term-gbm"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >GBM <span class="font-normal text-flint-dark dark:text-flint-light">(Gradient Boosted Machine)</span></dt>
+        >GBM <span class="font-normal muted-help">(Gradient Boosted Machine)</span></dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           The machine learning classifier at the centre of Jura Trace's AI detection
           ensemble. Current version is <strong>GBM v4</strong>, trained on an
@@ -378,7 +378,7 @@
   <section aria-labelledby="letter-I">
     <h2
       id="letter-I"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >I</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -387,7 +387,7 @@
         <dt
           id="term-inconclusive"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >Inconclusive <span class="font-normal text-flint-dark dark:text-flint-light">(Verdict)</span></dt>
+        >Inconclusive <span class="font-normal muted-help">(Verdict)</span></dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           The verdict assigned when forensic signals are mixed or insufficient to reach a
           confident classification. Corresponds to a deepfake ensemble score between 0.30
@@ -405,7 +405,7 @@
   <section aria-labelledby="letter-J">
     <h2
       id="letter-J"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >J</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -431,7 +431,7 @@
   <section aria-labelledby="letter-L">
     <h2
       id="letter-L"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >L</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -440,15 +440,14 @@
         <dt
           id="term-lbp"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >LBP <span class="font-normal text-flint-dark dark:text-flint-light">(Local Binary Pattern)</span></dt>
+        >LBP <span class="font-normal muted-help">(Local Binary Pattern)</span></dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A texture descriptor that encodes the relationship between each pixel and its
           immediate neighbours as a binary string. Natural photographs have characteristic
           LBP distributions; AI-generated images often produce measurably different ones.
           LBP block variance is one of the three highest-weighted features in Jura Trace's
-          GBM classifier. LBP drift would also serve as a temporal consistency signal in
-          video deepfake analysis, though that detector is under evaluation for a future release
-          (deferred from v1.0).
+          GBM classifier. LBP drift is also used as a temporal consistency signal in video
+          deepfake analysis; that detector is not available in this release.
         </dd>
       </div>
 
@@ -459,7 +458,7 @@
   <section aria-labelledby="letter-M">
     <h2
       id="letter-M"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >M</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -486,7 +485,7 @@
   <section aria-labelledby="letter-N">
     <h2
       id="letter-N"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >N</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -510,7 +509,7 @@
         <dt
           id="term-npr"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >NPR <span class="font-normal text-flint-dark dark:text-flint-light">(Neighbouring Pixel Relationships)</span></dt>
+        >NPR <span class="font-normal muted-help">(Neighbouring Pixel Relationships)</span></dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A forensic technique that analyses the statistical relationships between adjacent
           pixels. Natural photographs captured through a lens and sensor have characteristic
@@ -527,7 +526,7 @@
   <section aria-labelledby="letter-O">
     <h2
       id="letter-O"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >O</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -554,7 +553,7 @@
   <section aria-labelledby="letter-P">
     <h2
       id="letter-P"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >P</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -563,7 +562,7 @@
         <dt
           id="term-perceptual-hash"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >Perceptual Hash <span class="font-normal text-flint-dark dark:text-flint-light">(pHash)</span></dt>
+        >Perceptual Hash <span class="font-normal muted-help">(pHash)</span></dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A fingerprinting technique that creates a compact numerical representation of an
           image's visual content. Unlike cryptographic hashes (where a single changed pixel
@@ -596,7 +595,7 @@
   <section aria-labelledby="letter-R">
     <h2
       id="letter-R"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >R</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -605,12 +604,12 @@
         <dt
           id="term-rag"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >RAG <span class="font-normal text-flint-dark dark:text-flint-light">(Retrieval-Augmented Generation)</span></dt>
+        >RAG <span class="font-normal muted-help">(Retrieval-Augmented Generation)</span></dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A technique that combines a large language model with a searchable knowledge base
           to verify factual claims. The RAG-based Knowledge Base Retrieval feature is
-          deferred from v1.0 pending corpus expansion and formal accuracy evaluation,
-          and is under evaluation for a future release.
+          not available in this release, pending corpus expansion and formal accuracy
+          evaluation.
         </dd>
       </div>
 
@@ -621,7 +620,7 @@
   <section aria-labelledby="letter-S">
     <h2
       id="letter-S"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >S</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -666,9 +665,9 @@
           (GBM v4 + UnivFD v10onnx ensemble), CLIP classification, JPEG Ghost, segmented
           ELA, and colour temperature, plus the on-demand investigation tools
           (NPR, shadow consistency, splice boundary) available in Expert View. Video
-          deepfake and audio analysis are deferred from v1.0 and under evaluation for
-          a future release. Jura Trace operates normally when the Analysis Engine is
-          not running; forensic analysis results are simply omitted from the report.
+          deepfake and audio analysis are not available in this release. Jura Trace
+          operates normally when the Analysis Engine is not running; forensic analysis
+          results are simply omitted from the report.
         </dd>
       </div>
 
@@ -704,7 +703,7 @@
         <dt
           id="term-synthetic"
           class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
-        >Synthetic <span class="font-normal text-flint-dark dark:text-flint-light">(Verdict)</span></dt>
+        >Synthetic <span class="font-normal muted-help">(Verdict)</span></dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           The verdict assigned when multiple forensic detectors flag strong AI generation
           or manipulation signals and the deepfake ensemble score exceeds 0.65. Indicates
@@ -721,7 +720,7 @@
   <section aria-labelledby="letter-T">
     <h2
       id="letter-T"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >T</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -736,8 +735,9 @@
           frames over time. Genuine video has consistent noise patterns, spectral
           characteristics, and LBP texture distributions across frames. Deepfake video
           (where frames are synthesised independently) often shows frame-to-frame drift in
-          these signals. Jura Trace computes temporal consistency from three drift metrics:
-          noise drift, spectral drift, and LBP drift.
+          these signals. Jura Trace's intended implementation computes temporal consistency
+          from three drift metrics: noise drift, spectral drift, and LBP drift. Video
+          deepfake analysis is not available in this release.
         </dd>
       </div>
 
@@ -770,7 +770,7 @@
   <section aria-labelledby="letter-V">
     <h2
       id="letter-V"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >V</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -800,7 +800,7 @@
   <section aria-labelledby="letter-W">
     <h2
       id="letter-W"
-      class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-4 scroll-mt-16"
+      class="text-xs section-label uppercase tracking-widest mb-4 scroll-mt-16"
     >W</h2>
     <div class="earth-line mb-5" role="separator" aria-hidden="true"></div>
     <dl class="space-y-5">
@@ -815,8 +815,26 @@
           <a href="#term-dwt-dct-svd" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis dark:decoration-lapis-light/30 dark:hover:decoration-lapis-light">DWT-DCT-SVD</a>
           technique. Invisible to the human eye, the watermark carries a short payload that
           identifies the asset and the institution that protected it, providing a secondary
-          provenance layer that does not depend on file metadata. Invisible-watermark embed
-          and extract are deferred from Jura Trace v1.0 and planned for the v1.1 release.
+          provenance layer that does not depend on file metadata. Invisible watermarking is
+          not available in this release.
+        </dd>
+      </div>
+
+      <div>
+        <dt
+          id="term-weather-context"
+          class="font-medium text-base text-text-light dark:text-text-dark scroll-mt-20"
+        >Weather Context</dt>
+        <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
+          An optional manual corroboration lookup available on the Verify page when an
+          image carries both GPS coordinates and a capture timestamp in its EXIF data.
+          Retrieves historical weather conditions (temperature, precipitation, cloud cover)
+          for the image's GPS location and date from the Open-Meteo public archive. The
+          lookup requires Enhanced network mode to be enabled in Settings and makes a
+          single outbound request to the Open-Meteo API. Weather Context is informational
+          only: it does not contribute to the trust score. Use it to cross-reference
+          whether the conditions visible in the image are consistent with the historical
+          record for that place and time.
         </dd>
       </div>
 
@@ -827,7 +845,7 @@
 
 <!-- Footer -->
 <div class="earth-line mt-10 mb-6" role="separator" aria-hidden="true"></div>
-<p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+<p class="text-xs muted-help leading-relaxed">
   Jura Trace processes all analysis on-device. No content, metadata, or fingerprints are
   transmitted to external services. See
   <a href="/help/methodology" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis dark:decoration-lapis-light/30 dark:hover:decoration-lapis-light">How Analysis Works</a>

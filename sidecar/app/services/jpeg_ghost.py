@@ -60,8 +60,19 @@ def perform_jpeg_ghost_detection(image_bytes: bytes) -> JpegGhostResponse:
     Raises:
         ValueError: If image cannot be decoded.
     """
-    # PNG images have no JPEG compression history — ghost analysis is not applicable
-    if image_bytes[:4] == b'\x89PNG':
+    # JPEG Ghost analysis relies on detecting JPEG quantisation residuals from
+    # double-compression. Non-JPEG codecs have no DCT quantisation history, so
+    # the analysis produces uncalibrated noise scores. Return a neutral result
+    # for all non-JPEG formats rather than a spurious forensic finding.
+    #
+    # Checks ordered cheapest-first:
+    #   1. PNG magic bytes (\x89PNG)
+    #   2. WebP magic bytes (RIFF....WEBP)
+    #   3. TIFF little-endian (II\x2a\x00) and big-endian (MM\x00\x2a)
+    #   4. AVIF/HEIC ftyp box (bytes 4-8) — PIL cannot open these formats
+    #   5. BMP magic bytes (BM)
+    #   6. GIF magic bytes (GIF8)
+    def _non_jpeg_neutral(fmt: str) -> "JpegGhostResponse":
         return JpegGhostResponse(
             score=0.0,
             suspicious=False,
@@ -70,8 +81,21 @@ def perform_jpeg_ghost_detection(image_bytes: bytes) -> JpegGhostResponse:
             deviating_blocks=0,
             total_blocks=0,
             heatmap_base64="",
-            summary="JPEG ghost analysis is not applicable for PNG images",
+            summary=f"JPEG ghost analysis is not applicable for {fmt} images",
         )
+
+    if image_bytes[:4] == b'\x89PNG':
+        return _non_jpeg_neutral("PNG")
+    if len(image_bytes) >= 12 and image_bytes[:4] == b'RIFF' and image_bytes[8:12] == b'WEBP':
+        return _non_jpeg_neutral("WebP")
+    if image_bytes[:4] in (b'II\x2a\x00', b'MM\x00\x2a'):
+        return _non_jpeg_neutral("TIFF")
+    if len(image_bytes) >= 12 and image_bytes[4:8] == b'ftyp':
+        return _non_jpeg_neutral("AVIF/HEIC")
+    if image_bytes[:2] == b'BM':
+        return _non_jpeg_neutral("BMP")
+    if image_bytes[:4] in (b'GIF8', ):
+        return _non_jpeg_neutral("GIF")
 
     try:
         original = Image.open(io.BytesIO(image_bytes)).convert("RGB")

@@ -616,6 +616,51 @@ impl Database {
         Ok(())
     }
 
+    /// Insert multiple fingerprint rows inside a single SQLite transaction.
+    ///
+    /// This is the batch-insert path used by the background fingerprinting task
+    /// to reduce per-image transaction overhead when writing three hash rows
+    /// (aHash, dHash, pHash) for each asset.
+    ///
+    /// `rows` is an iterator of `(fingerprint_id, asset_id, hash_type, hash_value)`
+    /// tuples. All rows are committed atomically; on any error the transaction
+    /// is rolled back and the error is returned.
+    pub fn insert_fingerprints_batch(
+        &self,
+        rows: impl IntoIterator<Item = (String, String, String, String)>,
+    ) -> SqliteResult<()> {
+        let conn = self
+            .conn
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let now = chrono::Utc::now().to_rfc3339();
+
+        // BEGIN an explicit transaction so all three inserts per asset land
+        // atomically and we take only one fsync per asset rather than three.
+        conn.execute_batch("BEGIN")?;
+        let result = (|| {
+            let mut stmt = conn.prepare_cached(
+                "INSERT INTO fingerprints (fingerprint_id, asset_id, hash_type, hash_value, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+            )?;
+            for (fp_id, asset_id, hash_type, hash_value) in rows {
+                stmt.execute(params![fp_id, asset_id, hash_type, hash_value, now])?;
+            }
+            Ok::<(), rusqlite::Error>(())
+        })();
+
+        match result {
+            Ok(()) => {
+                conn.execute_batch("COMMIT")?;
+                Ok(())
+            }
+            Err(e) => {
+                let _ = conn.execute_batch("ROLLBACK");
+                Err(e)
+            }
+        }
+    }
+
     // ── Audit log ─────────────────────────────────────────────────────
 
     // ── Verification operations ─────────────────────────────────────────
@@ -691,6 +736,25 @@ impl Database {
         )?;
         conn.execute("DELETE FROM assets WHERE asset_id = ?1", params![asset_id])?;
         Ok(())
+    }
+
+    /// Wipe the asset library: assets, fingerprints, verifications, annotations.
+    ///
+    /// Audit log is preserved so the wipe itself remains traceable for any user
+    /// (Niamh, Elena) who depends on chain-of-custody continuity. Monitor URLs
+    /// and API keys are also preserved as they are configuration, not content.
+    /// Returns the number of assets deleted.
+    pub fn clear_asset_library(&self) -> SqliteResult<u64> {
+        let conn = self
+            .conn
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let count: u64 = conn.query_row("SELECT COUNT(*) FROM assets", [], |r| r.get(0))?;
+        conn.execute("DELETE FROM annotations", [])?;
+        conn.execute("DELETE FROM verifications", [])?;
+        conn.execute("DELETE FROM fingerprints", [])?;
+        conn.execute("DELETE FROM assets", [])?;
+        Ok(count)
     }
 
     /// Get assets matching optional filters, ordered by created_at DESC.

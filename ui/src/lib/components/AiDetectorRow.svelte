@@ -91,7 +91,7 @@
       <div class="flex items-center gap-2 mb-1 flex-wrap">
         <span class="text-sm font-medium {suspicious ? 'text-amber-dark dark:text-amber-light' : 'text-obsidian dark:text-quartz'}">{name}</span>
         {#if confidence}
-          <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light">{confidence}</span>
+          <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-graphite-light border border-border-light dark:border-border-dark muted-help">{confidence}</span>
         {/if}
         {@render badges?.()}
       </div>

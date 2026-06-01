@@ -1,8 +1,29 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode, getSigningDisclosure, type SignAction, type SigningDisclosure } from '$lib/api';
+  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode, getSigningDisclosure, findCatalogueMatches, parseAppError, type SignAction, type SigningDisclosure } from '$lib/api';
   import { V1_SHOW_CONFORMANT_SIGNING, V1_SHOW_WATERMARK } from '$lib/featureFlags';
+  import { focusTrap } from '$lib/actions/focusTrap';
+
+  // ── Tauri event listener types ────────────────────────────────────
+  interface ImportProgressEvent {
+    done: number;
+    total: number;
+    path: string;
+  }
+
+  interface FingerprintProgressEvent {
+    assetId: string;
+    done: number;
+    total: number;
+    ok: boolean;
+    error: string | null;
+  }
+
+  interface FingerprintBatchCompleteEvent {
+    total: number;
+    failed: number;
+  }
   import { setVerifyHandoff } from '$lib/stores/verifyHandoff';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
   import { createBlobTracker, triggerDownload, escapeCsvField } from '$lib/blob';
@@ -16,12 +37,76 @@
     type MetadataSigningWarning,
     type SigningMode,
     type WatermarkEmbedResult,
+    type CatalogueMatch,
     parseMetadata,
     formatFileSize,
     CONTENT_TYPE_LABELS,
   } from '$lib/types';
 
   const blobs = createBlobTracker();
+
+  // ── Tauri event subscriptions (protect:* events) ──────────────────
+  // Guard: all three listeners no-op in browser/mock mode (no Tauri).
+  // The listeners are attached once on mount and torn down on destroy
+  // alongside the drag-drop unlisten.
+  async function setupProtectEventListeners() {
+    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
+      return;
+    }
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+
+      _unlistenImportProgress = await listen<ImportProgressEvent>(
+        'protect:import-progress',
+        (event) => {
+          importProgressDone  = event.payload.done;
+          importProgressTotal = event.payload.total;
+          currentImportFile   = event.payload.path.split('/').pop() ?? event.payload.path.split('\\').pop() ?? event.payload.path;
+        },
+      );
+
+      _unlistenFingerprintProgress = await listen<FingerprintProgressEvent>(
+        'protect:fingerprint-progress',
+        (event) => {
+          const { assetId, ok } = event.payload;
+          if (ok) {
+            // Asset is now fingerprinted: remove from pending/failed,
+            // flip the flag on the local asset list so the chip disappears.
+            const nextPending = new Set(fingerprintPending);
+            nextPending.delete(assetId);
+            fingerprintPending = nextPending;
+            assets = assets.map(a =>
+              a.assetId === assetId ? { ...a, fingerprinted: true } : a,
+            );
+            if (selectedAsset?.assetId === assetId) {
+              selectedAsset = { ...selectedAsset, fingerprinted: true };
+            }
+          } else {
+            // Fingerprinting failed for this asset.
+            const nextPending = new Set(fingerprintPending);
+            nextPending.delete(assetId);
+            fingerprintPending = nextPending;
+            const nextFailed = new Set(fingerprintFailed);
+            nextFailed.add(assetId);
+            fingerprintFailed = nextFailed;
+          }
+        },
+      );
+
+      _unlistenFingerprintBatchComplete = await listen<FingerprintBatchCompleteEvent>(
+        'protect:fingerprint-batch-complete',
+        (_event) => {
+          // All background fingerprinting is done; any asset still in
+          // fingerprintPending that did not receive a progress event
+          // should be cleared (defensive clean-up).
+          fingerprintPending = new Set();
+        },
+      );
+    } catch {
+      // Tauri event API unavailable — silently degrade.
+    }
+  }
+
   async function setupTauriProtectDragDrop() {
     try {
       const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
@@ -36,15 +121,33 @@
           const paths = event.payload.paths;
           if (paths && paths.length > 0) {
             importingCount = paths.length;
+            importProgressDone  = 0;
+            importProgressTotal = paths.length;
+            currentImportFile   = '';
             error = null;
             importFiles(paths).then((imported) => {
               if (imported.length) {
                 assets = [...imported, ...assets];
+                // Track which freshly imported assets still need fingerprinting.
+                const needFingerprint = imported.filter(a => !a.fingerprinted).map(a => a.assetId);
+                if (needFingerprint.length > 0) {
+                  const next = new Set(fingerprintPending);
+                  for (const id of needFingerprint) next.add(id);
+                  fingerprintPending = next;
+                }
+                // Completion notice (item 3).
+                lastImportCount = imported.length;
+                showImportNotice = true;
+                if (importNoticeTimer) clearTimeout(importNoticeTimer);
+                importNoticeTimer = setTimeout(() => { showImportNotice = false; }, 12000);
               }
             }).catch((e) => {
               error = e instanceof Error ? e.message : String(e);
             }).finally(() => {
               importingCount = 0;
+              importProgressDone  = 0;
+              importProgressTotal = 0;
+              currentImportFile   = '';
             });
           }
         }
@@ -56,11 +159,16 @@
 
   onMount(() => {
     setupTauriProtectDragDrop();
+    setupProtectEventListeners();
   });
 
   onDestroy(() => {
     blobs.revokeAll();
     _unlistenProtectDragDrop?.();
+    _unlistenImportProgress?.();
+    _unlistenFingerprintProgress?.();
+    _unlistenFingerprintBatchComplete?.();
+    if (importNoticeTimer) clearTimeout(importNoticeTimer);
   });
 
   // ── View layout ──────────────────────────────────────────────────
@@ -84,6 +192,32 @@
   let importingCount = $state(0);   // 0 = not importing; >0 = N files in flight
   let dragOver       = $state(false);
   let error: string | null = $state(null);
+
+  // ── Import progress (protect:import-progress events) ─────────────
+  // done/total come from the backend; currentImportFile is the filename
+  // displayed under the progress bar. These are reset to 0/'' when
+  // importingCount returns to 0.
+  let importProgressDone  = $state(0);
+  let importProgressTotal = $state(0);
+  let currentImportFile   = $state('');
+
+  // ── Fingerprint-in-progress per-asset chip state ──────────────────
+  // fingerprintPending: assetIds that arrived fingerprinted:false and
+  //   whose background task has not yet emitted a result.
+  // fingerprintFailed: assetIds whose ok:false result arrived.
+  let fingerprintPending = $state<Set<string>>(new Set<string>());
+  let fingerprintFailed  = $state<Set<string>>(new Set<string>());
+
+  // ── Post-import completion notice ────────────────────────────────
+  // shown after a batch import finishes; holds the count of imported files.
+  let lastImportCount = $state(0);
+  let showImportNotice = $state(false);
+  let importNoticeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // ── Tauri event unlisteners ───────────────────────────────────────
+  let _unlistenImportProgress: (() => void) | null = null;
+  let _unlistenFingerprintProgress: (() => void) | null = null;
+  let _unlistenFingerprintBatchComplete: (() => void) | null = null;
 
   // ── C2PA signing state ────────────────────────────────────────────
   let signingAssetId: string | null = $state(null);
@@ -181,6 +315,88 @@
   // ── Selected asset ────────────────────────────────────────────────
   let selectedAsset: Asset | null = $state(null);
 
+  // ── Catalogue check (per-asset, on-demand, non-scoring) ──────────
+  // Self-match caveat: the asset is already in the catalogue, so its own
+  // fingerprint will always return distance 0.  We filter it out by
+  // assetId client-side after the call returns.
+  type CatalogueCheckState = 'idle' | 'loading' | 'done' | 'error';
+  let catalogueCheckAssetId = $state<string | null>(null);
+  let catalogueCheckState = $state<CatalogueCheckState>('idle');
+  let catalogueCheckMatches = $state<CatalogueMatch[]>([]);
+  let catalogueCheckError = $state<string | null>(null);
+
+  async function runProtectCatalogueCheck(asset: Asset): Promise<void> {
+    catalogueCheckAssetId = asset.assetId;
+    catalogueCheckState = 'loading';
+    catalogueCheckError = null;
+    catalogueCheckMatches = [];
+    try {
+      const raw = await findCatalogueMatches(asset.filePath);
+      // Exclude the asset's own entry to avoid a trivial self-match.
+      catalogueCheckMatches = raw.filter(m => m.assetId !== asset.assetId);
+      catalogueCheckState = 'done';
+    } catch (err) {
+      const parsed = parseAppError(err);
+      catalogueCheckError = parsed.message;
+      catalogueCheckState = 'error';
+    }
+  }
+
+  // ── Multi-select (JTV-203) ────────────────────────────────────────
+  // Per the 3-agent UX review (2026-05-23): the existing "Bulk Actions"
+  // panel operates on ALL unsigned assets, which is unsafe at any volume
+  // above ~30 files (Sarah Chen risks bulk-signing 4,000 assets when she
+  // means to sign 340). Selection-scoped bulk actions close that gap.
+  // When the selection is non-empty, all bulk derivations
+  // (unsignedAssets, unwatermarkedImages) filter to selected assets only.
+  // When empty, the existing whole-library semantics are preserved so
+  // power users who want "sign everything that can be signed" still
+  // have the one-click path.
+  let selectedAssetIds = $state<Set<string>>(new Set<string>());
+  let lastCheckedAssetId = $state<string | null>(null);
+
+  function isAssetSelected(assetId: string): boolean {
+    return selectedAssetIds.has(assetId);
+  }
+
+  function toggleAssetSelection(assetId: string, event?: MouseEvent) {
+    const next = new Set(selectedAssetIds);
+    // Shift-click range select within the current displayed list.
+    if (event?.shiftKey && lastCheckedAssetId !== null && lastCheckedAssetId !== assetId) {
+      const ids = displayedAssets.map(a => a.assetId);
+      const a = ids.indexOf(lastCheckedAssetId);
+      const b = ids.indexOf(assetId);
+      if (a !== -1 && b !== -1) {
+        const [lo, hi] = a < b ? [a, b] : [b, a];
+        const shouldSelect = !next.has(assetId);
+        for (let i = lo; i <= hi; i++) {
+          if (shouldSelect) next.add(ids[i]);
+          else next.delete(ids[i]);
+        }
+        selectedAssetIds = next;
+        lastCheckedAssetId = assetId;
+        return;
+      }
+    }
+    if (next.has(assetId)) next.delete(assetId);
+    else next.add(assetId);
+    selectedAssetIds = next;
+    lastCheckedAssetId = assetId;
+  }
+
+  function clearSelection() {
+    selectedAssetIds = new Set();
+    lastCheckedAssetId = null;
+  }
+
+  function selectAllVisible() {
+    selectedAssetIds = new Set(displayedAssets.map(a => a.assetId));
+  }
+
+  // Note: allVisibleSelected and someVisibleSelected are declared after
+  // displayedAssets below (Svelte $derived is block-scoped so must follow
+  // the definition of the value it derives from).
+
   // ── Debounce search input (300 ms) ────────────────────────────────
   $effect(() => {
     const raw = searchRaw;
@@ -193,7 +409,7 @@
   // ── Re-fetch when filters change ─────────────────────────────────
   $effect(() => {
     const contentType = filterContentType || undefined;
-    // 'watermarked' and 'unprotected' are applied client-side; 'signed' goes to backend
+    // 'watermarked', 'catalogued', and 'unsigned' are applied client-side; 'signed' goes to backend
     const c2paSigned  = filterStatus === 'signed' ? true : undefined;
     const query = searchDebounced.trim() || undefined;
 
@@ -207,7 +423,10 @@
     [...assets]
       .filter(a => {
         if (filterStatus === 'watermarked') return a.watermarked;
-        if (filterStatus === 'unprotected') return !a.c2paSigned && !a.watermarked;
+        // 'unsigned' replaces 'unprotected' — factually correct label for !signed assets
+        if (filterStatus === 'unsigned') return !a.c2paSigned && !a.watermarked;
+        // 'catalogued': fingerprinted but not yet signed (item 5)
+        if (filterStatus === 'catalogued') return a.fingerprinted && !a.c2paSigned;
         return true;
       })
       .sort((a, b) => {
@@ -224,15 +443,40 @@
       })
   );
 
+  // ── Multi-select derived state (after displayedAssets is defined) ──
+  const allVisibleSelected = $derived(
+    displayedAssets.length > 0 &&
+    displayedAssets.every(a => selectedAssetIds.has(a.assetId))
+  );
+
+  const someVisibleSelected = $derived(
+    !allVisibleSelected && displayedAssets.some(a => selectedAssetIds.has(a.assetId))
+  );
+
   // ── Images eligible for batch watermarking ───────────────────────
+  // When selection is non-empty, scope to selected; else whole library.
   const unwatermarkedImages = $derived(
-    assets.filter(a => !a.watermarked && canWatermark(a))
+    selectedAssetIds.size > 0
+      ? assets.filter(a => selectedAssetIds.has(a.assetId) && !a.watermarked && canWatermark(a))
+      : assets.filter(a => !a.watermarked && canWatermark(a))
   );
 
   // ── Assets eligible for batch C2PA signing ────────────────────────
+  // When selection is non-empty, scope to selected; else whole library.
   const unsignedAssets = $derived(
-    assets.filter(a => !a.c2paSigned && canSignC2pa(a))
+    selectedAssetIds.size > 0
+      ? assets.filter(a => selectedAssetIds.has(a.assetId) && !a.c2paSigned && canSignC2pa(a))
+      : assets.filter(a => !a.c2paSigned && canSignC2pa(a))
   );
+
+  // ── True selection set, for the floating toolbar count + bulk delete ──
+  const selectedAssetsArray = $derived(
+    assets.filter(a => selectedAssetIds.has(a.assetId))
+  );
+
+  // ── Header micro-stats (item 5) ────────────────────────────────────
+  const signedCount     = $derived(assets.filter(a => a.c2paSigned).length);
+  const cataloguedCount = $derived(assets.filter(a => a.fingerprinted && !a.c2paSigned).length);
 
   // ── Sort handler ─────────────────────────────────────────────────
   function handleSort(key: SortKey) {
@@ -247,16 +491,32 @@
   // ── Import handlers ──────────────────────────────────────────────
   async function handleFilePicker() {
     importingCount = 1; // unknown count until dialog resolves
+    importProgressDone  = 0;
+    importProgressTotal = 0;
+    currentImportFile   = '';
     error = null;
     try {
       const imported = await openFileDialog();
       if (imported.length) {
         assets = [...imported, ...assets];
+        const needFingerprint = imported.filter(a => !a.fingerprinted).map(a => a.assetId);
+        if (needFingerprint.length > 0) {
+          const next = new Set(fingerprintPending);
+          for (const id of needFingerprint) next.add(id);
+          fingerprintPending = next;
+        }
+        lastImportCount = imported.length;
+        showImportNotice = true;
+        if (importNoticeTimer) clearTimeout(importNoticeTimer);
+        importNoticeTimer = setTimeout(() => { showImportNotice = false; }, 12000);
       }
     } catch (e) {
       error = e instanceof Error ? e.message : 'Import failed';
     } finally {
       importingCount = 0;
+      importProgressDone  = 0;
+      importProgressTotal = 0;
+      currentImportFile   = '';
     }
   }
 
@@ -286,16 +546,32 @@
       return;
     }
     importingCount = paths.length;
+    importProgressDone  = 0;
+    importProgressTotal = paths.length;
+    currentImportFile   = '';
     error = null;
     try {
       const imported = await importFiles(paths);
       if (imported.length) {
         assets = [...imported, ...assets];
+        const needFingerprint = imported.filter(a => !a.fingerprinted).map(a => a.assetId);
+        if (needFingerprint.length > 0) {
+          const next = new Set(fingerprintPending);
+          for (const id of needFingerprint) next.add(id);
+          fingerprintPending = next;
+        }
+        lastImportCount = imported.length;
+        showImportNotice = true;
+        if (importNoticeTimer) clearTimeout(importNoticeTimer);
+        importNoticeTimer = setTimeout(() => { showImportNotice = false; }, 12000);
       }
     } catch (e) {
       error = e instanceof Error ? e.message : 'Import failed';
     } finally {
       importingCount = 0;
+      importProgressDone  = 0;
+      importProgressTotal = 0;
+      currentImportFile   = '';
     }
   }
 
@@ -315,6 +591,11 @@
       watermarkResult = null;
       lastSignedAssetId = null;
       confirmDeleteId = null;
+      // Reset catalogue check when a different asset is selected
+      catalogueCheckAssetId = null;
+      catalogueCheckState = 'idle';
+      catalogueCheckMatches = [];
+      catalogueCheckError = null;
       // Reset and fetch media metadata for video/audio assets
       videoMetadata = null;
       audioMetadata = null;
@@ -437,8 +718,41 @@
       confirmDeleteId = null;
       assets = assets.filter(a => a.assetId !== assetId);
       if (selectedAsset?.assetId === assetId) selectedAsset = null;
+      if (selectedAssetIds.has(assetId)) {
+        const next = new Set(selectedAssetIds);
+        next.delete(assetId);
+        selectedAssetIds = next;
+      }
     } catch (e) {
       error = e instanceof Error ? e.message : 'Delete failed';
+    }
+  }
+
+  // ── Bulk delete (JTV-203 floating toolbar) ───────────────────────
+  let bulkDeleteConfirmOpen = $state(false);
+  let bulkDeleteRunning = $state(false);
+
+  async function handleBulkDelete() {
+    if (selectedAssetIds.size === 0 || bulkDeleteRunning) return;
+    bulkDeleteRunning = true;
+    const ids = [...selectedAssetIds];
+    const failed: string[] = [];
+    for (const id of ids) {
+      try {
+        await deleteAsset(id);
+      } catch {
+        failed.push(id);
+      }
+    }
+    assets = assets.filter(a => !selectedAssetIds.has(a.assetId) || failed.includes(a.assetId));
+    if (selectedAsset && selectedAssetIds.has(selectedAsset.assetId) && !failed.includes(selectedAsset.assetId)) {
+      selectedAsset = null;
+    }
+    selectedAssetIds = new Set(failed);
+    bulkDeleteRunning = false;
+    bulkDeleteConfirmOpen = false;
+    if (failed.length > 0) {
+      error = `Removed ${ids.length - failed.length} of ${ids.length} assets. ${failed.length} failed.`;
     }
   }
 
@@ -765,9 +1079,19 @@
 
   /**
    * Svelte action that resolves a thumbnail URL via Tauri's convertFileSrc
-   * when the row is first mounted. Safe no-op in browser mode.
+   * only when the row enters the viewport. Defers convertFileSrc calls for
+   * off-screen rows so a 1,000-asset library does not trigger 1,000
+   * simultaneous resolutions on mount. Safe no-op in browser mode and on
+   * runtimes without IntersectionObserver (falls back to eager resolve).
+   *
+   * JTV-203 follow-up — addresses the scroll lag the UX agent flagged at
+   * 100+ assets. The action is attached via `use:loadThumbnailEffect`
+   * on every row container in both list view (line ~2367) and grid view
+   * (line ~2086).
    */
   function loadThumbnailEffect(node: HTMLElement, asset: Asset) {
+    let currentAsset = asset;
+
     function resolve(a: Asset) {
       if (inTauri && a.contentType === 'image' && !thumbnailUrls[a.assetId]) {
         import('@tauri-apps/api/core').then(({ convertFileSrc }) => {
@@ -775,9 +1099,46 @@
         }).catch(() => { /* Tauri API unavailable */ });
       }
     }
-    resolve(asset);
+
+    // Fallback path: SSR, jsdom in tests, or any runtime without IO.
+    if (typeof IntersectionObserver === 'undefined') {
+      resolve(asset);
+      return {
+        update(newAsset: Asset) { currentAsset = newAsset; resolve(newAsset); },
+      };
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            resolve(currentAsset);
+            // One-shot per row: once the URL is in thumbnailUrls the
+            // subsequent intersections are cheap (the resolve early-returns)
+            // but disconnecting frees the observer slot.
+            observer.disconnect();
+            break;
+          }
+        }
+      },
+      // 200 px rootMargin pre-resolves rows just below the fold so the
+      // user sees thumbnails before they finish scrolling to them.
+      { rootMargin: '200px 0px', threshold: 0 },
+    );
+    observer.observe(node);
+
     return {
-      update(newAsset: Asset) { resolve(newAsset); },
+      update(newAsset: Asset) {
+        currentAsset = newAsset;
+        // If the row is already past the observer (URL resolved or
+        // intersection fired) and the asset prop changes to a new image,
+        // resolve immediately for the new asset.
+        if (thumbnailUrls[newAsset.assetId]) return;
+        resolve(newAsset);
+      },
+      destroy() {
+        observer.disconnect();
+      },
     };
   }
 </script>
@@ -801,10 +1162,13 @@
     {:else}
       <strong class="font-semibold">Local Signing.</strong>
       Signed files carry a valid C2PA v2.x manifest. Our per-install
-      certificate isn't on the C2PA trust list, so third-party validators
+      certificate is not on the C2PA public trust list, so third-party validators
       will display the signer as
       <code class="font-mono text-[11px]">signingCredential.untrusted</code>.
-      This will be updated in a future release.{#if V1_SHOW_CONFORMANT_SIGNING}
+      This is expected for Local Signing. The certificate is your own
+      per-install authority rather than a public trust-list CA. The credential
+      still proves the file has not changed since you signed it.
+      {#if V1_SHOW_CONFORMANT_SIGNING}
       Import a trust-list certificate from
       <a href="/settings#signing-mode-heading" class="underline underline-offset-2 hover:no-underline">Settings → Signing Mode</a>
       to switch to Conformant Signing.{/if}
@@ -815,19 +1179,33 @@
   <div class="flex items-start justify-between gap-4">
     <div>
       <h1 class="text-2xl font-heading text-text-light dark:text-quartz">Protect</h1>
-      <p class="text-flint-dark dark:text-flint-light text-sm mt-1">
-        Import, catalogue, and safeguard your digital content.
+      <p class="muted-help text-sm mt-1">
+        Import and catalogue your content. Each file is fingerprinted for reuse detection, then you can add Content Credentials to establish provenance.
       </p>
     </div>
 
-    <!-- Asset count + CSV export -->
+    <!-- Asset count micro-stats + CSV export -->
     <div class="flex items-center gap-3 flex-shrink-0 pt-1 flex-wrap justify-end">
-      <span class="text-xs text-flint-dark dark:text-flint-light" aria-live="polite" aria-atomic="true">
-        {displayedAssets.length} asset{displayedAssets.length !== 1 ? 's' : ''}
-        {#if displayedAssets.length !== assets.length}
-          <span class="sr-only">(filtered)</span>
+      <div class="text-xs muted-help flex items-center gap-2 flex-wrap" aria-live="polite" aria-atomic="true">
+        <span>
+          {displayedAssets.length} asset{displayedAssets.length !== 1 ? 's' : ''}
+          {#if displayedAssets.length !== assets.length}
+            <span class="sr-only">(filtered)</span>
+          {/if}
+        </span>
+        {#if assets.length > 0 && (signedCount > 0 || cataloguedCount > 0)}
+          <span class="text-flint-dark/40 dark:text-flint-light/40" aria-hidden="true">·</span>
+          {#if signedCount > 0}
+            <span class="text-malachite-dark dark:text-malachite-light">{signedCount} signed</span>
+          {/if}
+          {#if cataloguedCount > 0}
+            {#if signedCount > 0}
+              <span class="text-flint-dark/40 dark:text-flint-light/40" aria-hidden="true">,</span>
+            {/if}
+            <span class="text-lapis dark:text-lapis-light">{cataloguedCount} catalogued</span>
+          {/if}
         {/if}
-      </span>
+      </div>
       {#if displayedAssets.length > 0}
         <button
           class="text-xs px-3 py-2.5 min-h-[44px] inline-flex items-center rounded border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz hover:border-lapis/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
@@ -849,6 +1227,86 @@
       aria-live="assertive"
     >
       {error}
+    </div>
+  {/if}
+
+  <!-- Import progress affordance (item 1) — visible while importingCount > 0
+       and importProgressTotal > 0 (i.e. the backend sent at least one
+       protect:import-progress event). Falls back gracefully to the
+       existing indefinite spinner inside the drop-zone if no events arrive. -->
+  {#if importingCount > 0 && importProgressTotal > 0}
+    <div
+      class="rounded-lg border border-lapis/30 bg-lapis/5 dark:bg-lapis/10 px-4 py-3 space-y-2"
+      role="status"
+      aria-live="polite"
+      aria-atomic="false"
+      aria-label="Cataloguing files"
+    >
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center gap-2 min-w-0">
+          <span
+            class="w-3.5 h-3.5 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin flex-shrink-0"
+            aria-hidden="true"
+          ></span>
+          <p class="text-sm text-text-light dark:text-quartz">
+            Cataloguing {importProgressDone} of {importProgressTotal} file{importProgressTotal !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <span class="text-xs muted-help flex-shrink-0">
+          {importProgressTotal > 0 ? Math.round((importProgressDone / importProgressTotal) * 100) : 0}%
+        </span>
+      </div>
+      <!-- Deterministic progress bar -->
+      <div
+        class="h-1.5 w-full rounded-full bg-lapis/20 overflow-hidden"
+        role="progressbar"
+        aria-valuenow={importProgressDone}
+        aria-valuemin={0}
+        aria-valuemax={importProgressTotal}
+        aria-label="Import progress"
+      >
+        <div
+          class="h-full bg-lapis rounded-full motion-safe:transition-all motion-safe:duration-200"
+          style="width: {importProgressTotal > 0 ? Math.round((importProgressDone / importProgressTotal) * 100) : 0}%"
+        ></div>
+      </div>
+      {#if currentImportFile}
+        <p class="text-xs muted-help truncate">
+          <span class="sr-only">Current file:</span>{currentImportFile}
+        </p>
+      {/if}
+    </div>
+  {/if}
+
+  <!-- Post-import completion notice (item 3).
+       Dismissed automatically after 12 s or when the user clicks close.
+       Critical message: imported is NOT protected; signing is the next step. -->
+  {#if showImportNotice && importingCount === 0}
+    <div
+      class="rounded-lg border border-lapis/30 bg-lapis/8 dark:bg-lapis/10 px-4 py-3 flex items-start gap-3"
+      role="status"
+      aria-live="polite"
+    >
+      <svg class="w-4 h-4 flex-shrink-0 mt-0.5 text-lapis dark:text-lapis-light" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm text-text-light dark:text-quartz">
+          <strong class="font-semibold">{lastImportCount} {lastImportCount === 1 ? 'file' : 'files'} catalogued.</strong>
+          None are protected yet. To add provenance, sign them with Content Credentials.
+        </p>
+      </div>
+      <button
+        class="flex-shrink-0 p-1 rounded text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
+        onclick={() => { showImportNotice = false; }}
+        aria-label="Dismiss import notice"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
   {/if}
 
@@ -880,11 +1338,17 @@
             class="w-6 h-6 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
             aria-hidden="true"
           ></div>
-          <p class="text-sm text-flint-dark dark:text-flint-light" aria-live="polite">
-            {importingCount > 1
-              ? `Importing ${importingCount} file${importingCount !== 1 ? 's' : ''}...`
-              : 'Importing files...'}
-          </p>
+          {#if importProgressTotal > 0}
+            <p class="text-sm muted-help" aria-live="polite">
+              Cataloguing {importProgressDone} of {importProgressTotal} file{importProgressTotal !== 1 ? 's' : ''}
+            </p>
+          {:else}
+            <p class="text-sm muted-help" aria-live="polite">
+              {importingCount > 1
+                ? `Importing ${importingCount} file${importingCount !== 1 ? 's' : ''}...`
+                : 'Importing files...'}
+            </p>
+          {/if}
         </div>
       {:else}
         <div class="flex flex-col items-center gap-2">
@@ -893,8 +1357,8 @@
               d="M12 16V4m0 0L8 8m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4" />
           </svg>
           <p class="font-heading text-text-light dark:text-quartz">Drop files or folders here</p>
-          <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
-            or click to browse &mdash; JPEG, PNG, TIFF, WebP (C2PA-signable in v1.0)
+          <p class="text-xs muted-help mt-1">
+            or click to browse. JPEG, PNG, TIFF, WebP supported.
           </p>
         </div>
       {/if}
@@ -920,17 +1384,21 @@
           class="w-4 h-4 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin flex-shrink-0"
           aria-hidden="true"
         ></div>
-        <p class="text-sm text-flint-dark dark:text-flint-light" aria-live="polite">
-          {importingCount > 1
-            ? `Importing ${importingCount} files...`
-            : 'Importing files...'}
+        <p class="text-sm muted-help" aria-live="polite">
+          {#if importProgressTotal > 0}
+            Cataloguing {importProgressDone} of {importProgressTotal}...
+          {:else}
+            {importingCount > 1
+              ? `Importing ${importingCount} files...`
+              : 'Importing files...'}
+          {/if}
         </p>
       {:else}
         <svg class="w-4 h-4 text-flint-dark dark:text-flint-light flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
             d="M12 16V4m0 0L8 8m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4" />
         </svg>
-        <span class="text-sm text-flint-dark dark:text-flint-light">Import more files</span>
+        <span class="text-sm muted-help">Import more files</span>
         <span class="text-xs text-flint-dark/60 dark:text-flint-light/60 hidden sm:inline">(drop here or click to browse)</span>
       {/if}
     </button>
@@ -944,7 +1412,7 @@
   >
     <!-- Content type filter -->
     <div class="flex items-center gap-2">
-      <label for="filter-content-type" class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide flex-shrink-0">Type</label>
+      <label for="filter-content-type" class="text-xs section-label uppercase tracking-wide flex-shrink-0">Type</label>
       <select
         id="filter-content-type"
         bind:value={filterContentType}
@@ -962,7 +1430,7 @@
 
     <!-- Status filter -->
     <div class="flex items-center gap-2">
-      <label for="filter-status" class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide flex-shrink-0">Status</label>
+      <label for="filter-status" class="text-xs section-label uppercase tracking-wide flex-shrink-0">Status</label>
       <select
         id="filter-status"
         bind:value={filterStatus}
@@ -972,16 +1440,17 @@
       >
         <option value="">All Status</option>
         <option value="signed">Signed</option>
+        <option value="catalogued">Catalogued (fingerprinted, unsigned)</option>
         {#if V1_SHOW_WATERMARK}
           <option value="watermarked">Watermarked</option>
         {/if}
-        <option value="unprotected">Unprotected</option>
+        <option value="unsigned">Unsigned</option>
       </select>
     </div>
 
     <!-- Sort dropdown -->
     <div class="flex items-center gap-2">
-      <label for="filter-sort" class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide flex-shrink-0">Sort</label>
+      <label for="filter-sort" class="text-xs section-label uppercase tracking-wide flex-shrink-0">Sort</label>
       <select
         id="filter-sort"
         onchange={(e) => {
@@ -1008,7 +1477,7 @@
 
     <!-- Search input -->
     <div class="flex items-center gap-2 flex-1 min-w-48">
-      <label for="filter-search" class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide flex-shrink-0 sr-only">Search</label>
+      <label for="filter-search" class="text-xs section-label uppercase tracking-wide flex-shrink-0 sr-only">Search</label>
       <div class="relative flex-1">
         <svg
           class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-flint-dark dark:text-flint-light pointer-events-none"
@@ -1101,7 +1570,7 @@
     >
       <h2
         id="bulk-actions-heading"
-        class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide flex-shrink-0 mr-1"
+        class="text-xs section-label uppercase tracking-wide flex-shrink-0 mr-1"
       >
         Bulk Actions
       </h2>
@@ -1111,13 +1580,13 @@
           class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian flex-shrink-0"
           onclick={openBatchSign}
-          aria-label="Add credentials to all unsigned assets ({unsignedAssets.length} eligible)"
+          aria-label="{selectedAssetIds.size > 0 ? 'Add credentials to selected assets' : 'Add credentials to all unsigned assets'} ({unsignedAssets.length} eligible)"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
               d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          Add Credentials to All
+          {selectedAssetIds.size > 0 ? 'Add Credentials to Selected' : 'Add Credentials to All'}
           <span class="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-lapis/20 text-lapis dark:text-lapis-light text-[10px] font-medium px-1" aria-hidden="true">
             {unsignedAssets.length}
           </span>
@@ -1130,13 +1599,13 @@
           class="text-xs px-3 py-2 min-h-[44px] inline-flex items-center gap-1.5 rounded border border-lapis/50 text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian flex-shrink-0"
           onclick={openBatchWatermark}
-          aria-label="Watermark all unwatermarked images ({unwatermarkedImages.length} eligible)"
+          aria-label="{selectedAssetIds.size > 0 ? 'Watermark selected images' : 'Watermark all unwatermarked images'} ({unwatermarkedImages.length} eligible)"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
               d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.955 11.955 0 010 12c0 6.627 5.373 12 12 12s12-5.373 12-12c0-2.416-.714-4.668-1.952-6.56m-8.048.56A4 4 0 0112 8v4m0 0v4m0-4h4m-4 0H8" />
           </svg>
-          Watermark All
+          {selectedAssetIds.size > 0 ? 'Watermark Selected' : 'Watermark All'}
           <span class="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-lapis/20 text-lapis dark:text-lapis-light text-[10px] font-medium px-1" aria-hidden="true">
             {unwatermarkedImages.length}
           </span>
@@ -1179,15 +1648,15 @@
           <div class="space-y-4">
 
             <!-- Eligible asset count -->
-            <p class="text-sm text-flint-dark dark:text-flint-light">
+            <p class="text-sm muted-help">
               <span class="font-medium text-text-light dark:text-quartz">{unsignedAssets.length}</span>
-              {unsignedAssets.length === 1 ? 'image' : 'images'} eligible &mdash; not yet signed.
+              {unsignedAssets.length === 1 ? 'image' : 'images'} eligible (not yet signed).
             </p>
 
             <!-- Creator name input -->
             <div>
               <label
-                class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
+                class="text-xs section-label uppercase tracking-wide"
                 for="batch-sign-creator"
               >
                 Creator / Rights Holder Name
@@ -1203,7 +1672,7 @@
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                 aria-describedby="batch-sign-creator-hint"
               />
-              <p id="batch-sign-creator-hint" class="mt-1 text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+              <p id="batch-sign-creator-hint" class="mt-1 text-xs muted-help leading-relaxed">
                 Written into the manifest as the declared creator. This is a self-attestation: Jura Trace does not verify the name. A third-party validator will display it alongside an "Issuer not trusted" warning until you import a trust-list certificate.
               </p>
             </div>
@@ -1211,7 +1680,7 @@
             <!-- Licence selector -->
             <div>
               <label
-                class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
+                class="text-xs section-label uppercase tracking-wide"
                 for="batch-sign-licence"
               >
                 Licence
@@ -1248,7 +1717,9 @@
               {:else}
                 Local Signing: signer shows as
                 <code class="font-mono text-[10px]">signingCredential.untrusted</code>
-                in external validators (manifest is valid; trust scope is local to this install).{#if V1_SHOW_CONFORMANT_SIGNING}
+                in external validators. This is expected for Local Signing. The manifest is
+                cryptographically valid and proves the file has not changed since you signed it.
+                Trust scope is local to this install.{#if V1_SHOW_CONFORMANT_SIGNING}
                 <a
                   href="/settings#signing-mode-heading"
                   class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
@@ -1262,7 +1733,7 @@
                  created these" declaration. Mixed batches that need
                  per-file action selection are deferred to v1.0.x. -->
             <fieldset>
-              <legend class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide mb-1.5">
+              <legend class="text-xs section-label uppercase tracking-wide mb-1.5">
                 What is this batch signature recording?
               </legend>
               <div class="space-y-1.5">
@@ -1275,10 +1746,10 @@
                   />
                   <span>
                     <span class="font-medium">We created this content</span>
-                    <span class="block text-xs text-flint-dark dark:text-flint-light">
+                    <span class="block text-xs muted-help">
                       <code class="font-mono text-[10px]">c2pa.created</code> for every file in this batch (typical archive-stamping workflow).
                     </span>
-                    <span class="block text-[11px] text-flint-dark dark:text-flint-light/80 italic mt-0.5">
+                    <span class="block text-[11px] text-flint-dark/80 dark:text-flint-light/80 italic mt-0.5">
                       Use this for content your organisation originated, including digital scans of physical artefacts in your collection.
                     </span>
                   </span>
@@ -1292,10 +1763,10 @@
                   />
                   <span>
                     <span class="font-medium">We are publishing pre-existing content</span>
-                    <span class="block text-xs text-flint-dark dark:text-flint-light">
+                    <span class="block text-xs muted-help">
                       <code class="font-mono text-[10px]">c2pa.published</code>. Any existing manifest on each source is preserved as a parent ingredient.
                     </span>
-                    <span class="block text-[11px] text-flint-dark dark:text-flint-light/80 italic mt-0.5">
+                    <span class="block text-[11px] text-flint-dark/80 dark:text-flint-light/80 italic mt-0.5">
                       Use this for content received from third parties (agency photographs, contributor submissions, syndicated press images) where the original creator stays in the chain.
                     </span>
                   </span>
@@ -1314,13 +1785,13 @@
               <p class="font-medium text-text-light dark:text-quartz mb-1.5">
                 What each signature embeds
               </p>
-              <ul class="space-y-0.5 text-flint-dark dark:text-flint-light leading-relaxed">
+              <ul class="space-y-0.5 muted-help leading-relaxed">
                 <li>Signing mode:
                   <span class="text-text-light dark:text-quartz">
                     {signingMode === 'conformant' ? 'Conformant (trust-list anchored)' : 'Local Signing (per-install certificate)'}
                   </span>
                   {#if signingMode !== 'conformant'}
-                    <span class="block text-[11px] italic">Credential appears as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in third-party validators. Trust scope is local to this install.</span>
+                    <span class="block text-[11px] italic">Credential appears as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in third-party validators. This is expected for Local Signing. The credential still proves the file has not changed since you signed it.</span>
                   {/if}
                 </li>
                 <li>Producer: <span class="text-text-light dark:text-quartz">{batchSignCreatorName.trim() || '(blank)'}</span></li>
@@ -1392,12 +1863,12 @@
             </div>
 
             {#if batchSignCurrentFile}
-              <p class="text-xs text-flint-dark dark:text-flint-light truncate">
+              <p class="text-xs muted-help truncate">
                 Signing: <span class="text-text-light dark:text-quartz">{batchSignCurrentFile}</span>
               </p>
             {/if}
             {#if batchSignEta}
-              <p class="text-xs text-flint-dark dark:text-flint-light">{batchSignEta}</p>
+              <p class="text-xs muted-help">{batchSignEta}</p>
             {/if}
 
             <button
@@ -1422,7 +1893,7 @@
                 <p class="text-sm font-medium text-text-light dark:text-quartz">
                   {batchSignCancelled ? 'Signing cancelled' : 'Signing complete'}
                 </p>
-                <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5">
+                <p class="text-xs muted-help mt-0.5">
                   {batchSignSuccessCount} signed successfully{batchSignFailCount > 0 ? `, ${batchSignFailCount} failed` : ''}
                 </p>
               </div>
@@ -1535,15 +2006,15 @@
           <div class="space-y-4">
 
             <!-- Eligible image count -->
-            <p class="text-sm text-flint-dark dark:text-flint-light">
+            <p class="text-sm muted-help">
               <span class="font-medium text-text-light dark:text-quartz">{unwatermarkedImages.length}</span>
-              {unwatermarkedImages.length === 1 ? 'image' : 'images'} eligible &mdash; not yet watermarked.
+              {unwatermarkedImages.length === 1 ? 'image' : 'images'} eligible (not yet watermarked).
             </p>
 
             <!-- Institution name input -->
             <div>
               <label
-                class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
+                class="text-xs section-label uppercase tracking-wide"
                 for="batch-watermark-payload"
               >
                 Organisation Name or Identifier
@@ -1559,14 +2030,14 @@
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
                 aria-describedby="batch-payload-hint"
               />
-              <p id="batch-payload-hint" class="mt-1 text-xs text-flint-dark dark:text-flint-light">
+              <p id="batch-payload-hint" class="mt-1 text-xs muted-help">
                 Encoded invisibly into each file. Maximum 64 characters.
               </p>
             </div>
 
             <!-- Strength selector -->
             <fieldset>
-              <legend class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide mb-2">
+              <legend class="text-xs section-label uppercase tracking-wide mb-2">
                 Embedding Strength
               </legend>
               <div class="flex gap-2">
@@ -1595,7 +2066,7 @@
                    PSNR/SSIM and remove overstated robustness language
                    (cropping/screenshot survival was not defensible). -->
               <p
-                class="mt-2 text-xs text-flint-dark dark:text-flint-light leading-relaxed"
+                class="mt-2 text-xs muted-help leading-relaxed"
                 aria-live="polite"
               >
                 {#if batchStrength === 1}
@@ -1663,7 +2134,7 @@
                  watermark.rs:152 forces .png output; users dropping
                  JPEG/TIFF/HEIC files would otherwise be surprised
                  only after the operation runs. -->
-            <p class="text-[11px] text-flint-dark dark:text-flint-light pt-1" data-testid="batch-watermark-png-notice">
+            <p class="text-[11px] muted-help pt-1" data-testid="batch-watermark-png-notice">
               <span class="font-semibold text-text-light dark:text-quartz">Output:</span>
               every watermarked file is saved as a new PNG alongside the
               original. Originals are not modified.
@@ -1701,10 +2172,10 @@
 
             <!-- Current file name + ETA -->
             {#if batchCurrentFile}
-              <p class="text-xs text-flint-dark dark:text-flint-light truncate" aria-live="polite">
+              <p class="text-xs muted-help truncate" aria-live="polite">
                 Current: <span class="text-text-light dark:text-quartz">{batchCurrentFile}</span>
                 {#if batchEta}
-                  <span class="ml-2 text-flint-dark dark:text-flint-light">{batchEta}</span>
+                  <span class="ml-2 muted-help">{batchEta}</span>
                 {/if}
               </p>
             {/if}
@@ -1859,7 +2330,7 @@
   {#if displayedAssets.length === 0 && importingCount === 0}
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-10 text-center">
       {#if filterContentType || filterStatus || searchRaw}
-        <p class="text-flint-dark dark:text-flint-light">No assets match the current filters.</p>
+        <p class="muted-help">No assets match the current filters.</p>
         <button
           class="mt-3 text-sm text-lapis dark:text-lapis-light hover:text-lapis-dark dark:hover:text-lapis transition-colors underline underline-offset-2
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
@@ -1876,12 +2347,11 @@
             Your collection is empty
           </h2>
           <div class="earth-line mb-5" aria-hidden="true"></div>
-          <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed mb-2">
-            Import images, documents, or media files to begin protecting
-            your content with content credentials and invisible watermarks.
+          <p class="text-sm muted-help leading-relaxed mb-2">
+            Import images to catalogue them, generate a perceptual fingerprint for reuse detection, and then add Content Credentials to establish provenance.
           </p>
           <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-5">
-            Drop files above or click to browse.
+            Drop files above or click to browse. JPEG, PNG, TIFF, and WebP are supported.
           </p>
           <button
             class="inline-flex items-center gap-2 px-6 py-3 min-h-[44px] bg-lapis text-white text-sm rounded hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
@@ -1900,6 +2370,70 @@
     </div>
 
   {:else if displayedAssets.length > 0}
+
+    <!-- ── Selection toolbar (JTV-203) ──────────────────────────────
+         Appears when the user has at least one asset selected via the
+         row checkboxes. Bulk actions (Add Credentials, Watermark when
+         enabled, Remove) become selection-scoped: openBatchSign +
+         openBatchWatermark already read from unsignedAssets /
+         unwatermarkedImages which honour the selection filter. -->
+    {#if selectedAssetIds.size > 0}
+      <div
+        class="mb-3 px-4 py-3 rounded-lg border border-lapis/40 bg-lapis/5 dark:bg-lapis/10
+               flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+        role="toolbar"
+        aria-label="Actions for selected assets"
+        aria-live="polite"
+      >
+        <p class="text-sm text-text-light dark:text-quartz">
+          <span class="font-medium">{selectedAssetIds.size}</span>
+          {selectedAssetIds.size === 1 ? 'asset' : 'assets'} selected.
+          {#if unsignedAssets.length < selectedAssetIds.size}
+            <span class="text-xs muted-help">
+              ({unsignedAssets.length} eligible for signing)
+            </span>
+          {/if}
+        </p>
+        <div class="flex flex-wrap gap-2">
+          {#if unsignedAssets.length > 0}
+            <button
+              type="button"
+              onclick={openBatchSign}
+              class="px-3 py-1.5 min-h-[36px] text-sm rounded border border-lapis/60 text-lapis dark:text-lapis-light hover:bg-lapis/15 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
+            >
+              Add credentials to {unsignedAssets.length}
+            </button>
+          {/if}
+          {#if V1_SHOW_WATERMARK && unwatermarkedImages.length > 0}
+            <button
+              type="button"
+              onclick={openBatchWatermark}
+              class="px-3 py-1.5 min-h-[36px] text-sm rounded border border-lapis/60 text-lapis dark:text-lapis-light hover:bg-lapis/15 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
+            >
+              Watermark {unwatermarkedImages.length}
+            </button>
+          {/if}
+          <button
+            type="button"
+            onclick={() => { bulkDeleteConfirmOpen = true; }}
+            class="px-3 py-1.5 min-h-[36px] text-sm rounded border border-cinnabar/50 text-cinnabar-dark dark:text-cinnabar-light hover:bg-cinnabar/10 transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-1"
+          >
+            Remove from library
+          </button>
+          <button
+            type="button"
+            onclick={clearSelection}
+            class="px-3 py-1.5 min-h-[36px] text-sm rounded text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
+          >
+            Clear selection
+          </button>
+        </div>
+      </div>
+    {/if}
 
     <!-- ── Grid view ──────────────────────────────────────────────── -->
     {#if viewLayout === 'grid'}
@@ -1932,11 +2466,11 @@
                     onerror={() => { thumbnailUrls = { ...thumbnailUrls, [asset.assetId]: '' }; }}
                   />
                 {:else}
-                  <span class="text-xl font-mono text-flint-dark dark:text-flint-light uppercase">
+                  <span class="text-xl font-mono section-label uppercase">
                     {asset.fileName.split('.').pop()?.slice(0, 4) ?? contentTypeIcon(asset.contentType)}
                   </span>
                 {/if}
-                <!-- Status badge overlay -->
+                <!-- Status badge overlay (item 4 dot truth + item 2 fingerprint chip) -->
                 {#if asset.c2paSigned}
                   <span
                     class="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-malachite/90 flex items-center justify-center"
@@ -1947,6 +2481,23 @@
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
                     </svg>
                   </span>
+                {:else if fingerprintPending.has(asset.assetId)}
+                  <span
+                    class="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-lapis/80 text-white text-[9px] leading-tight"
+                    aria-label="Fingerprinting in progress"
+                  >Hashing</span>
+                {:else if fingerprintFailed.has(asset.assetId)}
+                  <span
+                    class="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-amber/80 text-white text-[9px] leading-tight"
+                    aria-label="Fingerprint failed"
+                  >FP fail</span>
+                {:else if asset.fingerprinted}
+                  <!-- Lapis dot: catalogued but not signed -->
+                  <span
+                    class="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-lapis/80"
+                    title="Catalogued"
+                    aria-label="Catalogued"
+                  ></span>
                 {/if}
               </div>
               <!-- Filename -->
@@ -1954,7 +2505,7 @@
                 <p class="text-xs text-text-light dark:text-quartz truncate leading-tight" title={asset.fileName}>
                   {asset.fileName}
                 </p>
-                <p class="text-[10px] text-flint-dark dark:text-flint-light mt-0.5 truncate">{formatFileSize(asset.fileSize)}</p>
+                <p class="text-[10px] muted-help mt-0.5 truncate">{formatFileSize(asset.fileSize)}</p>
               </div>
             </button>
 
@@ -1966,12 +2517,12 @@
                 role="region"
                 aria-label="Asset details for {asset.fileName}"
               >
-                <p class="text-flint-dark dark:text-flint-light truncate" title={asset.filePath}>{asset.filePath}</p>
+                <p class="muted-help truncate" title={asset.filePath}>{asset.filePath}</p>
                 {#if asset.width && asset.height}
                   <p class="text-text-light dark:text-quartz">{asset.width} &times; {asset.height} px</p>
                 {/if}
                 {#if meta?.cameraMake || meta?.cameraModel}
-                  <p class="text-flint-dark dark:text-flint-light">{[meta.cameraMake, meta.cameraModel].filter(Boolean).join(' ')}</p>
+                  <p class="muted-help">{[meta.cameraMake, meta.cameraModel].filter(Boolean).join(' ')}</p>
                 {/if}
                 <!-- Quick action buttons -->
                 <div class="flex flex-wrap gap-1.5 pt-1">
@@ -2034,12 +2585,29 @@
     <!-- ── List view (default) ─────────────────────────────────────── -->
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark overflow-hidden">
 
-      <!-- Column headers (sortable) — desktop only -->
+      <!-- Column headers (sortable) — desktop only.
+           JTV-203: leading flex wrapper hosts a 44 px checkbox column +
+           the existing 5-column grid that aligns with each row's grid. -->
       <div
-        class="hidden sm:grid grid-cols-[1fr_80px_220px_90px_130px] gap-4 px-4 py-2 border-b border-border-light dark:border-border-dark text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
+        class="hidden sm:flex items-center border-b border-border-light dark:border-border-dark text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
         role="row"
         aria-label="Asset list column headers"
       >
+        <!-- Select-all-visible checkbox (44 px column matching the rows) -->
+        <label
+          class="flex items-center justify-center cursor-pointer w-11 h-10 flex-shrink-0"
+          title={allVisibleSelected ? 'Clear selection' : 'Select all visible'}
+        >
+          <input
+            type="checkbox"
+            checked={allVisibleSelected}
+            indeterminate={someVisibleSelected}
+            onchange={() => allVisibleSelected ? clearSelection() : selectAllVisible()}
+            class="w-4 h-4 rounded border-flint cursor-pointer accent-lapis"
+            aria-label={allVisibleSelected ? 'Clear all selections' : 'Select all visible assets'}
+          />
+        </label>
+        <div class="flex-1 min-w-0 grid grid-cols-[1fr_80px_220px_90px_130px] gap-4 px-4 py-2">
         <!-- File Name -->
         <button
           class="flex items-center gap-1 text-left hover:text-text-light dark:hover:text-quartz transition-colors select-none
@@ -2099,13 +2667,29 @@
             </span>
           {/if}
         </button>
+        </div>
       </div>
 
       <!-- Rows -->
       {#each displayedAssets as asset (asset.assetId)}
-        <!-- Mobile card row -->
+        <!-- Mobile card row with leading checkbox -->
+        <div
+          class="sm:hidden flex items-start gap-2 px-4 py-3 border-b border-border-light/50 dark:border-graphite-light/50
+                 {selectedAssetIds.has(asset.assetId) ? 'bg-lapis/5 dark:bg-lapis/10' : ''}"
+        >
+          <label
+            class="flex items-center justify-center cursor-pointer min-h-[44px] min-w-[44px] flex-shrink-0 -ml-2"
+          >
+            <input
+              type="checkbox"
+              checked={selectedAssetIds.has(asset.assetId)}
+              onclick={(e) => toggleAssetSelection(asset.assetId, e as unknown as MouseEvent)}
+              class="w-4 h-4 rounded border-flint cursor-pointer accent-lapis"
+              aria-label="Select {asset.fileName}"
+            />
+          </label>
         <button
-          class="sm:hidden w-full flex flex-col px-4 py-3 border-b border-border-light/50 dark:border-graphite-light/50 hover:bg-gray-50 dark:hover:bg-graphite-light/30 transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
+          class="flex-1 min-w-0 flex flex-col hover:bg-gray-50 dark:hover:bg-graphite-light/30 transition-colors text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                  {selectedAsset?.assetId === asset.assetId ? 'bg-lapis/10 border-l-2 border-l-lapis' : ''}"
           onclick={() => selectAsset(asset)}
           aria-expanded={selectedAsset?.assetId === asset.assetId}
@@ -2121,16 +2705,32 @@
               <span class="text-xs px-1.5 py-0.5 rounded bg-lapis/15 text-lapis dark:text-lapis-light flex-shrink-0">Watermarked</span>
             {/if}
           </div>
-          <div class="flex items-center gap-3 mt-1.5 text-xs text-flint-dark dark:text-flint-light">
+          <div class="flex items-center gap-3 mt-1.5 text-xs muted-help">
             <span>{asset.mimeType}</span>
             <span>{formatFileSize(asset.fileSize)}</span>
             <span>{new Date(asset.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
           </div>
         </button>
+        </div>
 
-        <!-- Desktop row -->
+        <!-- Desktop row with leading checkbox -->
+        <div
+          class="hidden sm:flex items-stretch border-b border-border-light/50 dark:border-graphite-light/50
+                 {selectedAssetIds.has(asset.assetId) ? 'bg-lapis/5 dark:bg-lapis/10' : ''}"
+        >
+          <label
+            class="flex items-center justify-center cursor-pointer w-11 flex-shrink-0"
+          >
+            <input
+              type="checkbox"
+              checked={selectedAssetIds.has(asset.assetId)}
+              onclick={(e) => toggleAssetSelection(asset.assetId, e as unknown as MouseEvent)}
+              class="w-4 h-4 rounded border-flint cursor-pointer accent-lapis"
+              aria-label="Select {asset.fileName}"
+            />
+          </label>
         <button
-          class="hidden sm:grid w-full grid-cols-[1fr_80px_220px_90px_130px] gap-4 px-4 py-3 border-b border-border-light/50 dark:border-graphite-light/50
+          class="flex-1 min-w-0 grid grid-cols-[1fr_80px_220px_90px_130px] gap-4 px-4 py-3
                  hover:bg-gray-50 dark:hover:bg-graphite-light/30 transition-colors text-left
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis
                  {selectedAsset?.assetId === asset.assetId
@@ -2164,23 +2764,29 @@
             </div>
             <div class="min-w-0">
               <p class="text-sm text-text-light dark:text-quartz truncate">{asset.fileName}</p>
-              <p class="text-xs text-flint-dark dark:text-flint-light truncate">{asset.mimeType}</p>
+              <p class="text-xs muted-help truncate">{asset.mimeType}</p>
             </div>
           </div>
 
-          <span class="text-sm text-flint-dark dark:text-flint-light self-center">
+          <span class="text-sm muted-help self-center">
             {CONTENT_TYPE_LABELS[asset.contentType] || asset.contentType}
           </span>
 
           <!-- Status cell: leading dot + badges + optional signing-mode badge.
-               JTV-124: aligns with the DetectorRow [icon · name · badges] pattern. -->
+               JTV-124: aligns with the DetectorRow [icon · name · badges] pattern.
+               Item 4 dot truth fix:
+                 malachite = c2paSigned
+                 lapis     = fingerprinted && !c2paSigned (Catalogued)
+                 amber     = !fingerprinted && !c2paSigned (no data yet)
+               Item 2 fingerprint chip: shown when asset is in fingerprintPending
+               or fingerprintFailed sets. -->
           <div class="self-center flex items-center gap-2 flex-wrap" aria-label="Protection status">
             <!-- 10×10 status dot -->
             <span
               class="w-2.5 h-2.5 rounded-full flex-shrink-0
-                     {asset.c2paSigned && asset.watermarked
+                     {asset.c2paSigned
                        ? 'bg-malachite dark:bg-malachite-light'
-                       : (asset.c2paSigned || asset.watermarked)
+                       : asset.fingerprinted
                          ? 'bg-lapis dark:bg-lapis-light'
                          : 'bg-amber dark:bg-amber-light'}"
               aria-hidden="true"
@@ -2188,28 +2794,29 @@
 
             {#if asset.c2paSigned}
               <span class="text-[10px] px-1.5 py-0.5 rounded bg-malachite/15 text-malachite-dark dark:text-malachite-light leading-tight">Signed</span>
-              <!-- Signing-mode badge: "Local" or "Conformant".  Mirrors the
-                   prose terminology used across the help corpus + dashboard
-                   (was "Sovereign" — renamed for v1.0 to match the user-
-                   facing name everywhere else). -->
               <span
                 class="text-[10px] px-1.5 py-0.5 rounded bg-lapis/10 text-lapis-dark dark:text-lapis-light leading-tight"
                 title="Signing mode used when this credential was created"
               >
                 {signingMode === 'conformant' ? 'Conformant' : 'Local'}
               </span>
+            {:else if asset.fingerprinted}
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-lapis/15 text-lapis dark:text-lapis-light leading-tight">Catalogued</span>
+            {:else if fingerprintPending.has(asset.assetId)}
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-lapis/10 text-lapis dark:text-lapis-light leading-tight italic">Fingerprinting...</span>
+            {:else if fingerprintFailed.has(asset.assetId)}
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber/15 text-amber-dark dark:text-amber-light leading-tight">Fingerprint failed</span>
+            {:else}
+              <span class="text-[10px] muted-help italic">Not catalogued</span>
             {/if}
             {#if asset.watermarked}
               <span class="text-[10px] px-1.5 py-0.5 rounded bg-lapis/15 text-lapis dark:text-lapis-light leading-tight">Watermarked</span>
             {/if}
-            {#if !asset.c2paSigned && !asset.watermarked}
-              <span class="text-[10px] text-flint-dark dark:text-flint-light italic">Unprotected</span>
-            {/if}
           </div>
 
-          <span class="text-sm text-flint-dark dark:text-flint-light self-center">{formatFileSize(asset.fileSize)}</span>
+          <span class="text-sm muted-help self-center">{formatFileSize(asset.fileSize)}</span>
 
-          <span class="text-xs text-flint-dark dark:text-flint-light self-center">
+          <span class="text-xs muted-help self-center">
             {new Date(asset.createdAt).toLocaleDateString('en-GB', {
               day: 'numeric',
               month: 'short',
@@ -2218,6 +2825,7 @@
             })}
           </span>
         </button>
+        </div>
 
         <!-- Expanded detail panel -->
         {#if selectedAsset?.assetId === asset.assetId}
@@ -2231,7 +2839,7 @@
 
               <!-- File path -->
               <div class="col-span-2 md:col-span-3">
-                <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Path</span>
+                <span class="text-xs section-label uppercase tracking-wide">Path</span>
                 <div class="flex items-center gap-2 mt-0.5">
                   <p
                     class="text-text-light dark:text-quartz text-xs truncate max-w-[300px] select-all"
@@ -2283,7 +2891,7 @@
 
               {#if asset.width && asset.height}
                 <div>
-                  <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Dimensions</span>
+                  <span class="text-xs section-label uppercase tracking-wide">Dimensions</span>
                   <p class="text-text-light dark:text-quartz mt-0.5">{asset.width} &times; {asset.height} px</p>
                 </div>
               {/if}
@@ -2292,61 +2900,61 @@
               {#if meta}
                 {#if meta.cameraMake || meta.cameraModel}
                   <div>
-                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Camera</span>
+                    <span class="text-xs section-label uppercase tracking-wide">Camera</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{[meta.cameraMake, meta.cameraModel].filter(Boolean).join(' ')}</p>
                   </div>
                 {/if}
                 {#if meta.datetimeOriginal}
                   <div>
-                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Date Taken</span>
+                    <span class="text-xs section-label uppercase tracking-wide">Date Taken</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.datetimeOriginal}</p>
                   </div>
                 {/if}
                 {#if meta.software}
                   <div>
-                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Software</span>
+                    <span class="text-xs section-label uppercase tracking-wide">Software</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.software}</p>
                   </div>
                 {/if}
                 {#if meta.iso}
                   <div>
-                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">ISO</span>
+                    <span class="text-xs section-label uppercase tracking-wide">ISO</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.iso}</p>
                   </div>
                 {/if}
                 {#if meta.focalLength}
                   <div>
-                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Focal Length</span>
+                    <span class="text-xs section-label uppercase tracking-wide">Focal Length</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.focalLength}</p>
                   </div>
                 {/if}
                 {#if meta.exposureTime}
                   <div>
-                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Exposure</span>
+                    <span class="text-xs section-label uppercase tracking-wide">Exposure</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.exposureTime}</p>
                   </div>
                 {/if}
                 {#if meta.fNumber}
                   <div>
-                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Aperture</span>
+                    <span class="text-xs section-label uppercase tracking-wide">Aperture</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.fNumber}</p>
                   </div>
                 {/if}
                 {#if meta.copyright}
                   <div>
-                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Copyright</span>
+                    <span class="text-xs section-label uppercase tracking-wide">Copyright</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.copyright}</p>
                   </div>
                 {/if}
                 {#if meta.artist}
                   <div>
-                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Artist</span>
+                    <span class="text-xs section-label uppercase tracking-wide">Artist</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.artist}</p>
                   </div>
                 {/if}
                 {#if meta.gpsLatitude != null && meta.gpsLongitude != null}
                   <div>
-                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">GPS</span>
+                    <span class="text-xs section-label uppercase tracking-wide">GPS</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">{meta.gpsLatitude.toFixed(6)}, {meta.gpsLongitude.toFixed(6)}</p>
                   </div>
                 {/if}
@@ -2360,41 +2968,41 @@
                       class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
                       aria-hidden="true"
                     ></span>
-                    <p class="text-xs text-flint-dark dark:text-flint-light">Loading video metadata...</p>
+                    <p class="text-xs muted-help">Loading video metadata...</p>
                   </div>
                 {:else if videoMetadata && selectedAsset?.assetId === asset.assetId && videoMetadata.success}
                   {#if videoMetadata.duration != null}
                     <div>
-                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Duration</span>
+                      <span class="text-xs section-label uppercase tracking-wide">Duration</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">{formatDurationSecs(videoMetadata.duration)}</p>
                     </div>
                   {/if}
                   {#if videoMetadata.codec}
                     <div>
-                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Video Codec</span>
+                      <span class="text-xs section-label uppercase tracking-wide">Video Codec</span>
                       <p class="text-text-light dark:text-quartz mt-0.5 uppercase">{videoMetadata.codec}</p>
                     </div>
                   {/if}
                   {#if videoMetadata.width && videoMetadata.height}
                     <div>
-                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Resolution</span>
+                      <span class="text-xs section-label uppercase tracking-wide">Resolution</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">{videoMetadata.width} &times; {videoMetadata.height}</p>
                     </div>
                   {/if}
                   {#if videoMetadata.fps != null}
                     <div>
-                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Frame Rate</span>
+                      <span class="text-xs section-label uppercase tracking-wide">Frame Rate</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">{videoMetadata.fps} fps</p>
                     </div>
                   {/if}
                   {#if videoMetadata.bitrate != null}
                     <div>
-                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Bitrate</span>
+                      <span class="text-xs section-label uppercase tracking-wide">Bitrate</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">{formatBitrate(videoMetadata.bitrate)}</p>
                     </div>
                   {/if}
                   <div>
-                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Audio</span>
+                    <span class="text-xs section-label uppercase tracking-wide">Audio</span>
                     <p class="text-text-light dark:text-quartz mt-0.5">
                       {videoMetadata.hasAudio
                         ? videoMetadata.audioCodec
@@ -2408,7 +3016,7 @@
                 <!-- Video frame thumbnails -->
                 {#if videoFrames && selectedAsset?.assetId === asset.assetId && videoFrames.success && videoFrames.frames.length > 0}
                   <div class="col-span-full mt-2">
-                    <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide block mb-2">
+                    <span class="text-xs section-label uppercase tracking-wide block mb-2">
                       Frame Samples
                     </span>
                     <div
@@ -2442,30 +3050,30 @@
                       class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
                       aria-hidden="true"
                     ></span>
-                    <p class="text-xs text-flint-dark dark:text-flint-light">Loading audio metadata...</p>
+                    <p class="text-xs muted-help">Loading audio metadata...</p>
                   </div>
                 {:else if audioMetadata && selectedAsset?.assetId === asset.assetId && audioMetadata.success}
                   {#if audioMetadata.duration != null}
                     <div>
-                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Duration</span>
+                      <span class="text-xs section-label uppercase tracking-wide">Duration</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">{formatDurationSecs(audioMetadata.duration)}</p>
                     </div>
                   {/if}
                   {#if audioMetadata.codec}
                     <div>
-                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Codec</span>
+                      <span class="text-xs section-label uppercase tracking-wide">Codec</span>
                       <p class="text-text-light dark:text-quartz mt-0.5 uppercase">{audioMetadata.codec}</p>
                     </div>
                   {/if}
                   {#if audioMetadata.sampleRate != null}
                     <div>
-                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Sample Rate</span>
+                      <span class="text-xs section-label uppercase tracking-wide">Sample Rate</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">{(audioMetadata.sampleRate / 1000).toFixed(1)} kHz</p>
                     </div>
                   {/if}
                   {#if audioMetadata.channels != null}
                     <div>
-                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Channels</span>
+                      <span class="text-xs section-label uppercase tracking-wide">Channels</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">
                         {audioMetadata.channels === 1 ? 'Mono' : audioMetadata.channels === 2 ? 'Stereo' : `${audioMetadata.channels} ch`}
                       </p>
@@ -2473,15 +3081,38 @@
                   {/if}
                   {#if audioMetadata.bitrate != null}
                     <div>
-                      <span class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide">Bitrate</span>
+                      <span class="text-xs section-label uppercase tracking-wide">Bitrate</span>
                       <p class="text-text-light dark:text-quartz mt-0.5">{formatBitrate(audioMetadata.bitrate)}</p>
                     </div>
                   {/if}
                 {/if}
               {/if}
 
-              <!-- Status badges -->
+              <!-- Status badges + fingerprint detail (item 6) -->
               <div class="col-span-full flex gap-2 mt-2 flex-wrap">
+                <!-- Fingerprint badge: always shown.
+                     Item 2: show Fingerprinting.../Fingerprint failed chip when in-progress. -->
+                {#if fingerprintPending.has(asset.assetId)}
+                  <span
+                    class="text-xs px-2 py-0.5 rounded bg-lapis/10 text-lapis dark:text-lapis-light italic"
+                    aria-live="polite"
+                    aria-atomic="true"
+                  >
+                    Fingerprinting...
+                  </span>
+                {:else if fingerprintFailed.has(asset.assetId)}
+                  <span class="text-xs px-2 py-0.5 rounded bg-amber/15 text-amber-dark dark:text-amber-light">
+                    Fingerprint failed
+                  </span>
+                {:else}
+                  <span
+                    class="text-xs px-2 py-0.5 rounded {asset.fingerprinted
+                      ? 'bg-lapis/10 text-lapis-dark dark:text-lapis-light'
+                      : 'bg-gray-100 dark:bg-graphite-light text-flint-dark dark:text-flint-light'}"
+                  >
+                    {asset.fingerprinted ? 'Fingerprinted' : 'Not fingerprinted'}
+                  </span>
+                {/if}
                 <span
                   class="text-xs px-2 py-0.5 rounded {asset.c2paSigned
                     ? 'bg-malachite/15 text-malachite-dark dark:text-malachite-light'
@@ -2500,7 +3131,41 @@
                 {/if}
               </div>
 
-              <!-- C2PA signing form -->
+              <!-- Fingerprint detail block (item 6): honest framing of what the
+                   fingerprint does and does not do. Gated on image assets
+                   (fingerprinting is image-only in v1.0). The find-similar
+                   action is disabled while fingerprinting is still in progress. -->
+              {#if asset.contentType === 'image'}
+                <div class="col-span-full mt-1">
+                  {#if fingerprintPending.has(asset.assetId)}
+                    <div class="px-3 py-2 rounded border border-lapis/20 bg-lapis/5 text-xs muted-help leading-relaxed">
+                      <p>
+                        <strong class="text-text-light dark:text-quartz">Fingerprint computing.</strong>
+                        A perceptual fingerprint is being computed in the background. Actions that require it will become available shortly.
+                      </p>
+                    </div>
+                  {:else if asset.fingerprinted}
+                    <div class="px-3 py-2 rounded border border-border-light dark:border-border-dark bg-gray-50 dark:bg-obsidian/30 text-xs muted-help leading-relaxed space-y-1">
+                      <p>
+                        <strong class="text-text-light dark:text-quartz">Fingerprint stored.</strong>
+                        Algorithm: pHash (perceptual hash). Stored locally in the Jura Trace database.
+                      </p>
+                      <p>
+                        The fingerprint identifies this image by comparison when you bring a candidate to Jura Trace: re-verifying the file, registering a URL in Monitor, or a future reverse-image-search action will check it against candidates you submit. It does not travel with the file and does not search the web on its own. It enables detection of reuse or alteration of copies you bring back to Jura Trace; it does not prevent copying.
+                      </p>
+                      <p>
+                        Matching tolerates re-uploads, re-encoding, format conversion, resizing and full-frame screenshots. It may not match heavy crops, rotations or flips, or images that have been edited or regenerated.
+                      </p>
+                    </div>
+                  {:else if fingerprintFailed.has(asset.assetId)}
+                    <p class="text-xs text-amber-dark dark:text-amber-light">
+                      Fingerprinting failed for this asset. Re-import the file to retry.
+                    </p>
+                  {/if}
+                </div>
+              {/if}
+
+              <!-- C2PA signing form — first-time sign -->
               {#if !asset.c2paSigned && canSignC2pa(asset)}
                 {#if signingAssetId === asset.assetId}
                   <div class="col-span-full mt-3 p-3 bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark">
@@ -2527,7 +3192,9 @@
                       {:else}
                         Local Signing: signer shows as
                         <code class="font-mono text-[10px]">signingCredential.untrusted</code>
-                        in external validators (manifest is valid; trust scope is local to this install).{#if V1_SHOW_CONFORMANT_SIGNING}
+                        in external validators. This is expected for Local Signing. The manifest is
+                        cryptographically valid and proves the file has not changed since you signed it.
+                        Trust scope is local to this install.{#if V1_SHOW_CONFORMANT_SIGNING}
                         <a
                           href="/settings#signing-mode-heading"
                           class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
@@ -2536,7 +3203,7 @@
                     </div>
 
                     {#if metadataWarningLoading}
-                      <div class="mb-3 flex items-center gap-2 text-xs text-flint-dark dark:text-flint-light">
+                      <div class="mb-3 flex items-center gap-2 text-xs muted-help">
                         <span
                           class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin"
                           aria-hidden="true"
@@ -2561,7 +3228,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
                         <label
-                          class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
+                          class="text-xs section-label uppercase tracking-wide"
                           for="creator-name"
                         >
                           Creator Name
@@ -2575,13 +3242,13 @@
                           placeholder="e.g. Jane Smith / National Archive UK"
                           aria-describedby="creator-name-hint"
                         />
-                        <p id="creator-name-hint" class="mt-1 text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+                        <p id="creator-name-hint" class="mt-1 text-xs muted-help leading-relaxed">
                           Written into the manifest as the declared creator. This is a self-attestation: Jura Trace does not verify the name. A third-party validator will display it alongside an "Issuer not trusted" warning until you import a trust-list certificate.
                         </p>
                       </div>
                       <div>
                         <label
-                          class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
+                          class="text-xs section-label uppercase tracking-wide"
                           for="license-select"
                         >
                           Licence
@@ -2614,7 +3281,7 @@
                          signer is preserved as a parentOf ingredient by the
                          backend per audit item #8). -->
                     <fieldset class="mt-3">
-                      <legend class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide mb-1.5">
+                      <legend class="text-xs section-label uppercase tracking-wide mb-1.5">
                         What is this signature recording?
                       </legend>
                       <div class="space-y-1.5">
@@ -2627,10 +3294,10 @@
                           />
                           <span>
                             <span class="font-medium">I created this content</span>
-                            <span class="block text-xs text-flint-dark dark:text-flint-light">
+                            <span class="block text-xs muted-help">
                               <code class="font-mono text-[10px]">c2pa.created</code> — the standard authorship claim for an original photograph or your own digital work.
                             </span>
-                            <span class="block text-[11px] text-flint-dark dark:text-flint-light/80 italic mt-0.5">
+                            <span class="block text-[11px] text-flint-dark/80 dark:text-flint-light/80 italic mt-0.5">
                               Use this for content you or your team originated, including digital scans of physical artefacts you own.
                             </span>
                           </span>
@@ -2644,10 +3311,10 @@
                           />
                           <span>
                             <span class="font-medium">I am publishing pre-existing content</span>
-                            <span class="block text-xs text-flint-dark dark:text-flint-light">
+                            <span class="block text-xs muted-help">
                               <code class="font-mono text-[10px]">c2pa.published</code> — re-distribution of an asset that someone else captured or created. Any existing manifest on the source is preserved as a parent ingredient.
                             </span>
-                            <span class="block text-[11px] text-flint-dark dark:text-flint-light/80 italic mt-0.5">
+                            <span class="block text-[11px] text-flint-dark/80 dark:text-flint-light/80 italic mt-0.5">
                               Use this for content you received from another party (e.g. an agency photo, a community contributor's submission, a press image) where you are adding your own signing event on top.
                             </span>
                           </span>
@@ -2672,13 +3339,13 @@
                       <p class="font-medium text-text-light dark:text-quartz mb-1.5">
                         What this signature embeds in the file
                       </p>
-                      <ul class="space-y-0.5 text-flint-dark dark:text-flint-light leading-relaxed">
+                      <ul class="space-y-0.5 muted-help leading-relaxed">
                         <li>Signing mode:
                           <span class="text-text-light dark:text-quartz">
                             {signingMode === 'conformant' ? 'Conformant (trust-list anchored)' : 'Local Signing (per-install certificate)'}
                           </span>
                           {#if signingMode !== 'conformant'}
-                            <span class="block text-[11px] italic">Credential appears as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in third-party validators. Trust scope is local to this install.</span>
+                            <span class="block text-[11px] italic">Credential appears as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in third-party validators. This is expected for Local Signing. The credential still proves the file has not changed since you signed it.</span>
                           {/if}
                         </li>
                         <li>Producer: <span class="text-text-light dark:text-quartz">{creatorName.trim() || '(blank)'}</span></li>
@@ -2768,6 +3435,122 @@
                 </div>
               {/if}
 
+              <!-- Re-sign path (item 8): offer "Update Credential" for assets
+                   that are already signed. Opens the same signing form; the
+                   backend chains the new signing event as c2pa.published
+                   (parent ingredient) per the Generator-track audit.
+                   Visually distinct from the first-time sign button to avoid
+                   confusion. Only shown when the signing panel is NOT open. -->
+              {#if asset.c2paSigned && canSignC2pa(asset) && signingAssetId !== asset.assetId}
+                <div class="col-span-full mt-2">
+                  <button
+                    class="px-4 py-2.5 min-h-[44px] inline-flex items-center gap-2 text-sm border border-lapis/30 text-lapis dark:text-lapis-light rounded
+                           hover:bg-lapis/10 transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+                    onclick={() => openSigningPanel(asset.assetId, meta?.artist ?? null)}
+                    aria-label="Update Content Credential for {asset.fileName}: add a new signing event that chains the existing credential as a parent ingredient"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Update Credential
+                  </button>
+                  <p class="mt-1 text-[11px] muted-help">
+                    Adds a new signing event. The existing credential is preserved as a parent ingredient in the chain.
+                  </p>
+                </div>
+              {/if}
+
+              <!-- Re-sign: signing form (re-used from the first-time sign path). -->
+              {#if asset.c2paSigned && canSignC2pa(asset) && signingAssetId === asset.assetId}
+                <div class="col-span-full mt-3 p-3 bg-white dark:bg-graphite rounded-lg border border-lapis/30 dark:border-lapis/20">
+                  <div class="flex items-center gap-1.5 mb-2">
+                    <p class="text-sm text-text-light dark:text-quartz">Update Content Credential</p>
+                    <ContextualHelpLink href="/help/protect#c2pa-signing" label="Learn about content credentials" />
+                  </div>
+                  <p class="text-xs muted-help mb-3 leading-relaxed">
+                    The existing credential will be preserved as a parent ingredient. A new signing event will be added on top, chaining the provenance history.
+                  </p>
+
+                  <!-- Active signing-mode badge -->
+                  <div
+                    class="rounded-md border px-3 py-2 mb-3 text-xs leading-relaxed
+                           {signingMode === 'conformant'
+                             ? 'bg-malachite/10 border-malachite/30 text-malachite-dark dark:text-malachite-light'
+                             : 'bg-lapis/10 border-lapis/30 text-lapis-dark dark:text-lapis-light'}"
+                  >
+                    <span class="font-semibold">Active signing mode:</span>
+                    {#if signingMode === 'conformant'}
+                      Conformant: credentials validate against the C2PA trust list.
+                    {:else}
+                      Local Signing: signer shows as
+                      <code class="font-mono text-[10px]">signingCredential.untrusted</code>
+                      in external validators. This is expected for Local Signing.
+                    {/if}
+                  </div>
+
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label class="text-xs section-label uppercase tracking-wide" for="resign-creator-{asset.assetId}">
+                        Creator Name
+                      </label>
+                      <input
+                        id="resign-creator-{asset.assetId}"
+                        type="text"
+                        bind:value={creatorName}
+                        class="w-full mt-1 px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                        placeholder="e.g. Jane Smith / National Archive UK"
+                      />
+                    </div>
+                    <div>
+                      <label class="text-xs section-label uppercase tracking-wide" for="resign-licence-{asset.assetId}">
+                        Licence
+                      </label>
+                      <select
+                        id="resign-licence-{asset.assetId}"
+                        bind:value={selectedLicense}
+                        class="w-full mt-1 px-3 py-2 rounded border border-border-light dark:border-border-dark bg-white dark:bg-obsidian-dark text-text-light dark:text-quartz text-sm
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                      >
+                        <option value="All Rights Reserved">All Rights Reserved</option>
+                        <option value="CC BY 4.0">CC BY 4.0</option>
+                        <option value="CC BY-NC 4.0">CC BY-NC 4.0</option>
+                        <option value="CC BY-SA 4.0">CC BY-SA 4.0</option>
+                        <option value="CC BY-ND 4.0">CC BY-ND 4.0</option>
+                        <option value="CC0 1.0">CC0 (Public Domain)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <!-- Force c2pa.published for re-sign (item 8 — existing manifest becomes parent ingredient) -->
+                  <p class="mt-2 text-xs muted-help leading-relaxed">
+                    Action: <span class="text-text-light dark:text-quartz font-mono text-[11px]">c2pa.published</span>
+                    (re-distribution with parent provenance chain preserved).
+                  </p>
+
+                  <div class="flex gap-2 mt-3">
+                    <button
+                      class="px-4 py-2.5 min-h-[44px] inline-flex items-center bg-lapis text-white text-sm rounded hover:bg-lapis-dark dark:hover:bg-lapis-light transition-colors
+                             disabled:opacity-50 disabled:cursor-not-allowed
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                      onclick={handleSign}
+                      disabled={signing || !creatorName.trim()}
+                    >
+                      {signing ? 'Updating...' : 'Update Credential'}
+                    </button>
+                    <button
+                      class="px-4 py-2.5 min-h-[44px] inline-flex items-center text-flint-dark dark:text-flint-light text-sm rounded hover:text-text-light dark:hover:text-quartz transition-colors
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+                      onclick={() => signingAssetId = null}
+                      disabled={signing}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              {/if}
+
               <!-- Watermark embedding -->
               {#if V1_SHOW_WATERMARK && canWatermark(asset)}
                 {#if watermarkAssetId === asset.assetId}
@@ -2811,7 +3594,7 @@
                       <!-- Institution / payload input -->
                       <div>
                         <label
-                          class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
+                          class="text-xs section-label uppercase tracking-wide"
                           for="watermark-payload-{asset.assetId}"
                         >
                           Institution Name or Identifier
@@ -2828,7 +3611,7 @@
                         />
                         <p
                           id="watermark-payload-hint-{asset.assetId}"
-                          class="mt-1 text-xs text-flint-dark dark:text-flint-light"
+                          class="mt-1 text-xs muted-help"
                         >
                           This text will be encoded invisibly into the file. Max 64 characters.
                         </p>
@@ -2836,7 +3619,7 @@
 
                       <!-- Strength selector -->
                       <fieldset>
-                        <legend class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide mb-2">
+                        <legend class="text-xs section-label uppercase tracking-wide mb-2">
                           Embedding Strength
                         </legend>
                         <div
@@ -2866,7 +3649,7 @@
 
                         <!-- Live explainer (JTV-117 — calibrated PSNR/SSIM). -->
                         <p
-                          class="mt-2 text-xs text-flint-dark dark:text-flint-light leading-relaxed"
+                          class="mt-2 text-xs muted-help leading-relaxed"
                           aria-live="polite"
                         >
                           {#if watermarkStrength === 1}
@@ -3016,10 +3799,92 @@
                 </div>
               {/if}
 
+              <!-- Catalogue check (on-demand, non-scoring).
+                   Self-match caveat: the asset is already in the catalogue,
+                   so its own fingerprint is filtered out client-side.
+                   Surfaced as a lightweight notice; not blocking. -->
+              <div
+                class="col-span-full mt-3 pt-3 border-t border-border-light/50 dark:border-graphite-light/50"
+              >
+                <div class="flex items-center justify-between gap-3 flex-wrap">
+                  <p class="text-xs section-label uppercase tracking-wide">
+                    Near-duplicates in catalogue
+                  </p>
+                  {#if catalogueCheckAssetId !== asset.assetId || catalogueCheckState === 'idle' || catalogueCheckState === 'error'}
+                    <button
+                      type="button"
+                      onclick={() => runProtectCatalogueCheck(asset)}
+                      disabled={catalogueCheckState === 'loading' && catalogueCheckAssetId === asset.assetId}
+                      class="text-[10px] px-2 py-1 min-h-[28px] rounded border border-lapis/40 text-lapis dark:text-lapis-light
+                             hover:bg-lapis/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-1"
+                      aria-label="Check whether {asset.fileName} is visually similar to other assets in your catalogue"
+                    >
+                      Check
+                    </button>
+                  {/if}
+                </div>
+
+                {#if catalogueCheckAssetId === asset.assetId}
+                  {#if catalogueCheckState === 'loading'}
+                    <div class="mt-1.5 flex items-center gap-2">
+                      <span
+                        class="w-3 h-3 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin flex-shrink-0"
+                        aria-hidden="true"
+                      ></span>
+                      <p class="text-xs muted-help" aria-live="polite">Checking your catalogue...</p>
+                    </div>
+                  {:else if catalogueCheckState === 'error'}
+                    <p class="mt-1.5 text-xs text-cinnabar-dark dark:text-cinnabar-light" role="alert">
+                      {catalogueCheckError ?? 'Check could not complete.'}
+                    </p>
+                  {:else if catalogueCheckState === 'done'}
+                    {#if catalogueCheckMatches.length === 0}
+                      <p class="mt-1.5 text-xs muted-help" aria-live="polite">
+                        No near-duplicates found.
+                      </p>
+                    {:else}
+                      <ul class="mt-1.5 space-y-1.5" aria-label="Near-duplicate assets in catalogue" aria-live="polite">
+                        {#each catalogueCheckMatches as match (match.assetId)}
+                          <li class="flex items-center justify-between gap-2">
+                            <div class="min-w-0 flex-1">
+                              <p
+                                class="text-xs text-text-light dark:text-quartz font-medium truncate"
+                                title={match.filePath}
+                              >
+                                {match.fileName}
+                              </p>
+                              <div class="flex items-center gap-2 mt-px flex-wrap">
+                                <span class="text-[10px] muted-help tabular-nums">{Math.round(match.similarity * 100)}% similar</span>
+                                <span class="text-[10px] px-1 py-px rounded font-medium
+                                  {match.matchBand === 'exact'
+                                    ? 'bg-malachite/15 text-malachite-dark dark:text-malachite-light'
+                                    : match.matchBand === 'likely'
+                                      ? 'bg-lapis/15 text-lapis dark:text-lapis-light'
+                                      : 'bg-amber/15 text-amber-dark dark:text-amber-light'}">
+                                  {match.matchBand === 'exact' ? 'Exact' : match.matchBand === 'likely' ? 'Likely' : 'Near'}
+                                </span>
+                              </div>
+                            </div>
+                          </li>
+                        {/each}
+                      </ul>
+                      <p class="mt-1.5 text-[10px] muted-help leading-relaxed">
+                        Informational. Does not affect protection status or provenance.
+                      </p>
+                    {/if}
+                  {/if}
+                {:else}
+                  <p class="mt-1 text-[10px] muted-help">
+                    Check whether this asset is visually similar to others in your catalogue.
+                  </p>
+                {/if}
+              </div>
+
               <!-- Delete asset -->
               <div class="col-span-full mt-3 pt-3 border-t border-border-light/50 dark:border-graphite-light/50 flex items-center justify-end gap-2">
                 {#if confirmDeleteId === asset.assetId}
-                  <span class="text-xs text-flint-dark dark:text-flint-light" id="delete-confirm-label-{asset.assetId}">
+                  <span class="text-xs muted-help" id="delete-confirm-label-{asset.assetId}">
                     Permanently delete this asset?
                   </span>
                   <button
@@ -3066,3 +3931,74 @@
   <!-- End displayedAssets conditional -->
 
 </div>
+
+<!-- Bulk-delete confirmation modal (JTV-203). Mirrors the per-asset
+     two-step confirm but for the selection set. Operates on whatever is
+     in selectedAssetIds at modal-open time; the toolbar's clearSelection
+     button is the natural escape hatch. -->
+{#if bulkDeleteConfirmOpen}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- Backdrop onclick is a redundant pointer convenience; Escape (via focusTrap) and the Cancel button are the keyboard paths. -->
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-obsidian/70 backdrop-blur-sm px-4"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="bulk-delete-heading"
+    aria-describedby="bulk-delete-body"
+    tabindex="-1"
+    use:focusTrap={{ onEscape: () => { if (!bulkDeleteRunning) bulkDeleteConfirmOpen = false; } }}
+    onclick={() => { if (!bulkDeleteRunning) bulkDeleteConfirmOpen = false; }}
+  >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <!-- stopPropagation prevents the backdrop dismiss from firing when clicking inside the card; Escape is the keyboard close path. -->
+    <div
+      class="bg-white dark:bg-graphite rounded-lg border border-cinnabar/40 max-w-md w-full p-6 shadow-2xl"
+      onclick={(e) => e.stopPropagation()}
+      role="document"
+    >
+      <h3
+        id="bulk-delete-heading"
+        class="text-base font-heading text-cinnabar-dark dark:text-cinnabar-light mb-2"
+      >
+        Remove {selectedAssetIds.size} {selectedAssetIds.size === 1 ? 'asset' : 'assets'} from the library?
+      </h3>
+      <p id="bulk-delete-body" class="text-sm text-flint-dark dark:text-flint-light leading-relaxed mb-5">
+        Their database records, fingerprints, and verification history will be removed. The original files on disk are not deleted. The audit log entry for this removal is preserved.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-2 justify-end">
+        <button
+          type="button"
+          onclick={() => { bulkDeleteConfirmOpen = false; }}
+          disabled={bulkDeleteRunning}
+          class="px-4 py-2 min-h-[44px] text-sm font-medium rounded border border-border-light dark:border-border-dark text-text-light dark:text-quartz
+                 hover:bg-gray-100 dark:hover:bg-graphite-light/40 transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onclick={handleBulkDelete}
+          disabled={bulkDeleteRunning}
+          aria-busy={bulkDeleteRunning}
+          class="px-4 py-2 min-h-[44px] text-sm font-medium rounded bg-cinnabar text-white
+                 hover:bg-cinnabar-dark transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cinnabar focus-visible:ring-offset-2
+                 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite
+                 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {#if bulkDeleteRunning}
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full motion-safe:animate-spin" aria-hidden="true"></span>
+              Removing...
+            </span>
+          {:else}
+            Remove from library
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

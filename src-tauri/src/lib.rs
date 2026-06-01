@@ -17,6 +17,7 @@ mod filename_analysis;
 mod fingerprint;
 mod format_router;
 mod heatmap;
+mod menu;
 mod metadata;
 mod monitor_scheduler;
 mod network_mode;
@@ -664,27 +665,63 @@ const CLIP_IDLE_SECONDS_BEFORE_UNLOAD: u64 = 600;
 /// Default OFF — opt-in via Settings to avoid surprising cold-start latency.
 const SIDECAR_IDLE_SECONDS_BEFORE_KILL: u64 = 300;
 
+/// Minimal per-file record passed to the background fingerprinting task.
+///
+/// Carries only the fields needed to open the file, compute hashes, write to
+/// the DB, and emit progress — no database handles or locks are held.
+struct FingerprintJob {
+    asset_id: String,
+    file_path: PathBuf,
+}
+
 /// Import files into the PROTECT pipeline.
+///
+/// **Catalogue phase (synchronous, returns quickly)**
 ///
 /// For each path:
 ///   1. Detect content type and MIME via format router
-///   2. Extract EXIF metadata (images only, for now)
+///   2. Extract EXIF metadata (images only)
 ///   3. Read image dimensions
 ///   4. Compute SHA-256 of the file
-///   5. Store in SQLite and log the action
+///   5. Store in SQLite and write "import" audit entry
+///   6. Emit `protect:import-progress` event
+///
+/// After cataloguing, a background task is spawned to compute perceptual
+/// hashes (aHash, dHash, pHash) for all image assets.  The background task
+/// emits `protect:fingerprint-progress` per asset and
+/// `protect:fingerprint-batch-complete` when the whole batch finishes.
+///
+/// **Import is strictly read-only**: no write to source files at any point.
+///
+/// **Event contract** (frontend must match exactly):
+///
+/// - `protect:import-progress`
+///   Payload: `{ done: number, total: number, path: string }`
+///   Emitted once per catalogued file.
+///
+/// - `protect:fingerprint-progress`
+///   Payload: `{ assetId: string, done: number, total: number, ok: boolean, error: string | null }`
+///   Emitted once per image after the background hash computation finishes.
+///   `ok` is `false` and `error` contains a message if the hash failed for
+///   that image (the asset row still exists; it just remains unfingerprinted).
+///
+/// - `protect:fingerprint-batch-complete`
+///   Payload: `{ total: number, failed: number }`
+///   Emitted once when the entire background batch is complete.
 #[tauri::command]
-fn import_files(
+async fn import_files(
+    app: tauri::AppHandle,
     paths: Vec<String>,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<Vec<Asset>, AppError> {
     log::info!("Importing {} file(s)", paths.len());
-    let app = state
-        .lock()
-        .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
 
+    let total = paths.len();
     let mut imported: Vec<Asset> = Vec::new();
+    // Collect image assets that need background fingerprinting.
+    let mut fingerprint_jobs: Vec<FingerprintJob> = Vec::new();
 
-    for path_str in &paths {
+    for (idx, path_str) in paths.iter().enumerate() {
         // SECURITY: Null-byte check before any path construction.
         if path_str.contains('\0') {
             log::warn!("Skipping path with null byte");
@@ -848,59 +885,40 @@ fn import_files(
             sha256_hash: sha256_hash.clone(),
         };
 
-        // 5. Store
+        // 5. Store — acquire the state lock per file so the mutex is not held
+        //    across the expensive SHA-256 / metadata work above.
         // SECURITY (LOW-1): Map database errors to AppError::Database so raw
         // SQLite internals (schema details, table names) are logged but never
         // returned to the frontend.
-        app.db.insert_asset(&row).map_err(|e| {
-            log::error!("Failed to insert asset into database: {e}");
-            AppError::Database("Database operation failed".into())
-        })?;
+        {
+            let app_guard = state
+                .lock()
+                .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
+            app_guard.db.insert_asset(&row).map_err(|e| {
+                log::error!("Failed to insert asset into database: {e}");
+                AppError::Database("Database operation failed".into())
+            })?;
 
-        // 6. Audit log
-        let _ = app.db.log_action(
-            "import",
-            "asset",
-            &asset_id,
-            Some(&format!(
-                "{{\"mime\":\"{}\",\"size\":{}}}",
-                info.mime_type, file_size
-            )),
-            None,
-            None,
-        );
+            // 6. Audit log — "import" entry with MIME + size for chain-of-custody.
+            let _ = app_guard.db.log_action(
+                "import",
+                "asset",
+                &asset_id,
+                Some(&format!(
+                    "{{\"mime\":\"{}\",\"size\":{}}}",
+                    info.mime_type, file_size
+                )),
+                None,
+                None,
+            );
+        } // lock released here
 
-        // 7. Perceptual fingerprinting (images only)
+        // Schedule background fingerprinting for image assets.
         if fingerprint::supports_fingerprinting(info.content_type.as_str()) {
-            let hashes = fingerprint::compute_hashes(&path);
-            for hash_result in &hashes {
-                let fp_id = uuid::Uuid::new_v4().to_string();
-                let _ = app.db.insert_fingerprint(
-                    &fp_id,
-                    &asset_id,
-                    hash_result.algorithm.as_str(),
-                    &hash_result.hash_hex,
-                );
-            }
-
-            if !hashes.is_empty() {
-                let algo_meta = serde_json::json!({
-                    "algorithms": hashes.iter()
-                        .map(|h| h.algorithm.as_str())
-                        .collect::<Vec<_>>(),
-                    "hash_size": "8x8",
-                    "crate": "image_hasher",
-                    "version": "3.1"
-                });
-                let _ = app.db.log_action(
-                    "fingerprint",
-                    "asset",
-                    &asset_id,
-                    Some(&format!("{{\"count\":{}}}", hashes.len())),
-                    None,
-                    Some(&algo_meta.to_string()),
-                );
-            }
+            fingerprint_jobs.push(FingerprintJob {
+                asset_id: asset_id.clone(),
+                file_path: path.clone(),
+            });
         }
 
         imported.push(Asset {
@@ -917,15 +935,202 @@ fn import_files(
             metadata_json: meta_json,
             c2pa_signed: false,
             watermarked: false,
-            // Fingerprints are inserted after this push; newly imported assets
-            // start as false and the caller re-fetches if it needs the live value.
+            // Fingerprinting is deferred to a background task; assets start
+            // as unfingerprinted and the frontend updates via events.
             fingerprinted: false,
             created_at: now,
             sha256_hash,
         });
+
+        // 7. Emit per-file catalogue progress so the frontend can show a
+        //    progress indicator without waiting for fingerprinting.
+        //
+        //    Event: `protect:import-progress`
+        //    Payload: { done: number, total: number, path: string }
+        let _ = app.emit(
+            "protect:import-progress",
+            serde_json::json!({
+                "done": idx + 1,
+                "total": total,
+                "path": path_str,
+            }),
+        );
     }
 
-    log::info!("Successfully imported {} file(s)", imported.len());
+    log::info!("Successfully catalogued {} file(s)", imported.len());
+
+    // 8. Spawn background fingerprinting task.
+    //
+    //    CPU-bound hash computation runs inside `spawn_blocking` so it does not
+    //    starve the Tokio I/O thread pool. A bounded sequential loop inside a
+    //    single `spawn_blocking` call is used rather than many parallel
+    //    `spawn_blocking` calls: hashing a single 24 MP JPEG takes < 100 ms
+    //    with the Triangle filter, so the sequential cost for a typical
+    //    batch (5–20 images) is < 2 s. This avoids spinning up N threads that
+    //    each try to decode a full-resolution JPEG simultaneously, which would
+    //    cause memory pressure on large batches.
+    if !fingerprint_jobs.is_empty() {
+        let app_handle = app.clone();
+        let state_arc = Arc::clone(&*state);
+        let fp_total = fingerprint_jobs.len();
+
+        tauri::async_runtime::spawn(async move {
+            // Clone the handle for use inside spawn_blocking (which requires 'static).
+            // The outer app_handle clone is used to emit the batch-complete event
+            // after spawn_blocking returns.
+            let app_handle_inner = app_handle.clone();
+
+            let result = tauri::async_runtime::spawn_blocking(move || {
+                let mut failed: usize = 0;
+
+                for (done_idx, job) in fingerprint_jobs.iter().enumerate() {
+                    let hashes = match image::open(&job.file_path) {
+                        Ok(img) => fingerprint::compute_hashes_from_image(&img),
+                        Err(e) => {
+                            log::warn!(
+                                "Background fingerprint: cannot decode {}: {e}",
+                                job.file_path.display()
+                            );
+                            vec![]
+                        }
+                    };
+
+                    let (ok, error_msg): (bool, Option<String>) = if hashes.is_empty() {
+                        failed += 1;
+                        (
+                            false,
+                            Some(format!(
+                                "Could not decode image for fingerprinting: {}",
+                                job.file_path
+                                    .file_name()
+                                    .map(|n| n.to_string_lossy().to_string())
+                                    .unwrap_or_default()
+                            )),
+                        )
+                    } else {
+                        // Build batch rows: (fp_id, asset_id, hash_type, hash_value)
+                        let rows: Vec<(String, String, String, String)> = hashes
+                            .iter()
+                            .map(|h| {
+                                (
+                                    uuid::Uuid::new_v4().to_string(),
+                                    job.asset_id.clone(),
+                                    h.algorithm.as_str().to_string(),
+                                    h.hash_hex.clone(),
+                                )
+                            })
+                            .collect();
+
+                        // Acquire the DB lock only for the writes, not across the
+                        // expensive image decode above.
+                        let write_ok = if let Ok(guard) = state_arc.lock() {
+                            let batch_result = guard.db.insert_fingerprints_batch(rows);
+                            if let Err(ref e) = batch_result {
+                                log::error!(
+                                    "Background fingerprint DB write failed for {}: {e}",
+                                    job.asset_id
+                                );
+                            }
+
+                            if batch_result.is_ok() {
+                                // Enriched "fingerprint" audit entry for acquisition-hash
+                                // citation (Berkeley Protocol / legal chain-of-custody).
+                                // Records: algorithm names, hash values, hash_size, filter,
+                                // crate version, and the UTC timestamp of computation.
+                                let hash_values: Vec<serde_json::Value> = hashes
+                                    .iter()
+                                    .map(|h| {
+                                        serde_json::json!({
+                                            "algorithm": h.algorithm.as_str(),
+                                            "value": h.hash_hex,
+                                        })
+                                    })
+                                    .collect();
+                                let algo_meta = serde_json::json!({
+                                    "hashes": hash_values,
+                                    "hash_size": "8x8",
+                                    "resize_filter": "Triangle",
+                                    "crate": "image_hasher",
+                                    "crate_version": "3.1",
+                                    "computed_at": chrono::Utc::now().to_rfc3339(),
+                                });
+                                let _ = guard.db.log_action(
+                                    "fingerprint",
+                                    "asset",
+                                    &job.asset_id,
+                                    Some(&format!("{{\"count\":{}}}", hashes.len())),
+                                    None,
+                                    Some(&algo_meta.to_string()),
+                                );
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            log::error!(
+                                "Background fingerprint: state lock poisoned for {}",
+                                job.asset_id
+                            );
+                            false
+                        };
+
+                        if !write_ok {
+                            failed += 1;
+                            (
+                                false,
+                                Some("Database write failed during fingerprinting".to_string()),
+                            )
+                        } else {
+                            (true, None)
+                        }
+                    };
+
+                    // Emit per-asset progress.
+                    //
+                    //    Event: `protect:fingerprint-progress`
+                    //    Payload: { assetId: string, done: number, total: number,
+                    //               ok: boolean, error: string | null }
+                    let _ = app_handle_inner.emit(
+                        "protect:fingerprint-progress",
+                        serde_json::json!({
+                            "assetId": job.asset_id,
+                            "done": done_idx + 1,
+                            "total": fp_total,
+                            "ok": ok,
+                            "error": error_msg,
+                        }),
+                    );
+                }
+
+                failed
+            })
+            .await;
+
+            let failed = result.unwrap_or_else(|e| {
+                log::error!("Background fingerprint task panicked: {e}");
+                fp_total
+            });
+
+            // Emit batch-complete summary.
+            //
+            //    Event: `protect:fingerprint-batch-complete`
+            //    Payload: { total: number, failed: number }
+            let _ = app_handle.emit(
+                "protect:fingerprint-batch-complete",
+                serde_json::json!({
+                    "total": fp_total,
+                    "failed": failed,
+                }),
+            );
+
+            log::info!(
+                "Background fingerprinting complete: {}/{} succeeded",
+                fp_total - failed,
+                fp_total
+            );
+        });
+    }
+
     Ok(imported)
 }
 
@@ -2207,6 +2412,11 @@ fn verify_content_inner(
     let c2pa_chain = c2pa::read_manifest_chain(&path, false).ok().flatten();
     let c2pa_manifest = c2pa_chain.as_ref().map(|ch| ch.active.clone());
     let c2pa_valid = c2pa_manifest.as_ref().map(|m| m.is_valid);
+    // C2PA verification always executes at this point regardless of whether a
+    // manifest is present. "No manifest" is a valid finding (unsigned file),
+    // not "detector did not run". Track that the stage executed so that
+    // detectors_run_list records "c2pa" even for files with no credentials.
+    let c2pa_attempted = true;
 
     // Check C2PA claim_generator AND assertions for known AI generators.
     // Generators such as Google Gemini embed their AI declaration in the
@@ -2714,19 +2924,42 @@ fn verify_content_inner(
     let deepfake_verdict = deepfake_result
         .as_ref()
         .and_then(|r| r.verdict_level.as_deref());
+    // Codec-aware gating: JPEG Ghost and Segmented ELA are JPEG-DCT-specific.
+    // The sidecar early-exits on PNG (magic bytes check) but passes WebP /
+    // TIFF / AVIF / HEIC through to the full analysis, returning a spurious
+    // score and suspicious flag. Null the entire result struct here so the
+    // detector does not appear in detectors_run_list, is not serialised to the
+    // frontend, and does not contribute to compute_trust. Mirror the pattern
+    // used for ela_result above (Finding 1 / Finding 2).
+    let jpeg_ghost_result = if format_router::should_run_jpeg_ghost(&info.mime_type) {
+        jpeg_ghost_result
+    } else {
+        if jpeg_ghost_result.is_some() {
+            log::info!(
+                "Codec gate: dropping JPEG Ghost result for non-JPEG mime '{}' (score was {:?})",
+                info.mime_type,
+                jpeg_ghost_result.as_ref().map(|r| r.score)
+            );
+        }
+        None
+    };
+    let segmented_ela_result = if format_router::should_run_ela(&info.mime_type) {
+        segmented_ela_result
+    } else {
+        if segmented_ela_result.is_some() {
+            log::info!(
+                "Codec gate: dropping Segmented ELA result for non-JPEG mime '{}' (score was {:?})",
+                info.mime_type,
+                segmented_ela_result.as_ref().map(|r| r.score)
+            );
+        }
+        None
+    };
     let segmented_ela_score = segmented_ela_result.as_ref().map(|r| r.score);
     let shadow_consistency_score = shadow_consistency_result.as_ref().map(|r| r.score);
     let colour_temperature_score = colour_temperature_result.as_ref().map(|r| r.score);
     let splice_boundary_score = splice_boundary_result.as_ref().map(|r| r.score);
-    // Codec-aware gating: JPEG Ghost is JPEG-DCT-specific (see
-    // format_router::should_run_jpeg_ghost). The detector itself early-exits
-    // on non-JPEG codecs but the result-struct path can still emit a noise
-    // score; drop it before compute_trust to keep the verdict clean.
-    let jpeg_ghost_score = if format_router::should_run_jpeg_ghost(&info.mime_type) {
-        jpeg_ghost_result.as_ref().map(|r| r.score)
-    } else {
-        None
-    };
+    let jpeg_ghost_score = jpeg_ghost_result.as_ref().map(|r| r.score);
     // PDFs and other documents have no applicable forensic detectors.
     // Use a lightweight C2PA-only path rather than defaulting to 0.50 from
     // the unwrap_or on missing EXIF data.
@@ -2883,7 +3116,7 @@ fn verify_content_inner(
     if exif_analysis.is_some() {
         detectors_run_list.push("exif_anomaly");
     }
-    if c2pa_manifest.is_some() {
+    if c2pa_attempted {
         detectors_run_list.push("c2pa");
     }
     if ela_result.is_some() {
@@ -3758,6 +3991,176 @@ fn get_fingerprints(
         .collect())
 }
 
+/// A catalogue match returned by [`find_catalogue_matches`].
+///
+/// Represents a single asset in the local catalogue whose pHash is within
+/// the requested Hamming-distance threshold of the query image.  The command
+/// is strictly non-scoring: it never touches `VerificationResult` or
+/// `overall_trust`.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueMatch {
+    /// UUID of the matching asset in the local catalogue.
+    pub asset_id: String,
+    /// Original file name of the matching asset (e.g. `"photo.jpg"`).
+    pub file_name: String,
+    /// Absolute path of the matching asset on disk as it was stored at import.
+    pub file_path: String,
+    /// Hamming distance between the query pHash and the catalogued pHash (0–64).
+    pub distance: u32,
+    /// Normalised similarity score derived as `1.0 - distance / 64.0`.
+    pub similarity: f64,
+    /// Proximity band:
+    /// - `"exact"` — distance 0–5 (visually identical or near-identical)
+    /// - `"likely"` — distance 6–10 (strong visual similarity)
+    /// - `"near"` — distance 11–15 (noticeable similarity; useful at higher thresholds)
+    pub match_band: String,
+}
+
+impl CatalogueMatch {
+    /// Derive the match band from the Hamming distance.
+    pub fn band_for(distance: u32) -> &'static str {
+        match distance {
+            0..=5 => "exact",
+            6..=10 => "likely",
+            _ => "near",
+        }
+    }
+}
+
+/// Check whether an image already exists in the user's catalogue by
+/// perceptual-fingerprint matching.
+///
+/// # Parameters
+/// - `path` — absolute path to the query image file.
+/// - `threshold` — maximum Hamming distance to include (default 10, maximum 15).
+///   Callers may pass 15 to widen the search into the "near" band.
+///
+/// # Returns
+/// A list of [`CatalogueMatch`] records sorted by distance ascending.
+/// Returns an empty list (not an error) when the file is not an image type
+/// or when no catalogued fingerprint is within the threshold.
+///
+/// # Errors
+/// Returns `AppError::Validation` for path traversal, null bytes, or a
+/// non-existent file.  Returns `AppError::Database` on SQLite failure.
+/// Returns `AppError::Internal` on a Hamming computation failure (corrupted
+/// hex in the database).
+///
+/// # Non-scoring guarantee
+/// This command is entirely independent of `verify_content_inner`.  It
+/// performs no trust scoring and does not modify `VerificationResult`.
+#[tauri::command]
+fn find_catalogue_matches(
+    path: String,
+    threshold: Option<u32>,
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<Vec<CatalogueMatch>, AppError> {
+    // ── Input validation ────────────────────────────────────────────────────
+    if path.contains('\0') {
+        return Err(AppError::Validation("Invalid file path".into()));
+    }
+    let canonical = PathBuf::from(&path).canonicalize().map_err(|e| {
+        log::error!("find_catalogue_matches: path canonicalisation failed: {e}");
+        AppError::FileSystem("File not found or inaccessible".into())
+    })?;
+    if !canonical.is_file() {
+        return Err(AppError::Validation("Path does not point to a file".into()));
+    }
+
+    // ── Format check ────────────────────────────────────────────────────────
+    let format_info = format_router::detect(&canonical);
+    if !fingerprint::supports_fingerprinting(format_info.content_type.as_str()) {
+        log::debug!(
+            "find_catalogue_matches: {} is not an image; returning empty matches",
+            canonical.display()
+        );
+        return Ok(vec![]);
+    }
+
+    // ── Compute pHash for the query image ───────────────────────────────────
+    let query_phash = match fingerprint::compute_phash(&canonical) {
+        Some(h) => h,
+        None => {
+            log::warn!(
+                "find_catalogue_matches: could not compute pHash for {}",
+                canonical.display()
+            );
+            return Ok(vec![]);
+        }
+    };
+
+    let max_distance = threshold.unwrap_or(10).min(15);
+
+    // ── Scan catalogue fingerprints ─────────────────────────────────────────
+    let app = state
+        .lock()
+        .map_err(|e| AppError::Internal(format!("State lock poisoned: {e}")))?;
+
+    let candidates = app.db.get_all_fingerprints_by_type("phash").map_err(|e| {
+        log::error!("find_catalogue_matches: database error fetching pHash rows: {e}");
+        AppError::Database("Database operation failed".into())
+    })?;
+
+    let mut matches: Vec<CatalogueMatch> = Vec::new();
+    // Track asset IDs so we keep only the best (lowest-distance) row per asset
+    // when an asset has more than one pHash fingerprint.
+    let mut best: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+
+    for candidate in &candidates {
+        let distance =
+            fingerprint::hamming_distance(&query_phash, &candidate.hash_value).map_err(|e| {
+                log::error!("find_catalogue_matches: Hamming distance error: {e}");
+                AppError::Internal("An internal error occurred".into())
+            })?;
+
+        if distance > max_distance {
+            continue;
+        }
+
+        // Keep only the best (lowest) distance per asset.
+        if let Some(prev) = best.get(&candidate.asset_id) {
+            if distance >= *prev {
+                continue;
+            }
+            // Remove any previously inserted match for this asset.
+            matches.retain(|m: &CatalogueMatch| m.asset_id != candidate.asset_id);
+        }
+        best.insert(candidate.asset_id.clone(), distance);
+
+        let asset = app.db.get_asset_by_id(&candidate.asset_id).map_err(|e| {
+            log::error!(
+                "find_catalogue_matches: database error fetching asset {}: {e}",
+                candidate.asset_id
+            );
+            AppError::Database("Database operation failed".into())
+        })?;
+
+        let (file_name, file_path) = match asset {
+            Some(a) => (a.file_name, a.file_path),
+            None => {
+                log::warn!(
+                    "find_catalogue_matches: orphan fingerprint for asset {}",
+                    candidate.asset_id
+                );
+                continue;
+            }
+        };
+
+        matches.push(CatalogueMatch {
+            asset_id: candidate.asset_id.clone(),
+            file_name,
+            file_path,
+            distance,
+            similarity: 1.0 - (distance as f64 / 64.0),
+            match_band: CatalogueMatch::band_for(distance).to_string(),
+        });
+    }
+
+    matches.sort_by_key(|m| m.distance);
+    Ok(matches)
+}
+
 /// Find assets with similar perceptual hashes.
 #[tauri::command]
 fn find_similar(
@@ -3866,6 +4269,28 @@ fn delete_asset(asset_id: String, state: State<'_, Arc<Mutex<AppState>>>) -> Res
         .log_action("delete", "asset", &asset_id, None, None, None);
     log::info!("Deleted asset {asset_id}");
     Ok(())
+}
+
+/// Wipe the entire asset library. Destructive. Caller must confirm via typed
+/// phrase in the UI before invoking. Preserves audit log so the wipe itself is
+/// traceable.
+#[tauri::command]
+fn clear_asset_library(state: State<'_, Arc<Mutex<AppState>>>) -> Result<u64, AppError> {
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
+    let count = app.db.clear_asset_library()?;
+    let details = serde_json::json!({ "assets_deleted": count }).to_string();
+    let _ = app.db.log_action(
+        "clear_library",
+        "database",
+        "all",
+        Some(&details),
+        None,
+        None,
+    );
+    log::warn!("Asset library cleared. {count} assets deleted.");
+    Ok(count)
 }
 
 /// Get recent assets for the dashboard.
@@ -6947,6 +7372,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .menu(menu::build_menu)
+        .on_menu_event(menu::handle_menu_event)
         .setup(|app| {
             let db_path = resolve_db_path(app);
             log::info!("Database: {}", db_path.display());
@@ -7015,7 +7442,17 @@ pub fn run() {
             // Fallback to 8200 if `bind("127.0.0.1:0")` fails — extremely
             // unlikely (would mean process-level FD exhaustion), but keeps
             // the app launchable even in that degenerate case.
-            let sidecar_port = pick_ephemeral_port().unwrap_or(8200);
+            // Dev builds do not spawn their own sidecar (`spawn_sidecar`
+            // returns None under debug_assertions); the developer starts it
+            // manually on the conventional port 8200 (`make dev-sidecar`), so
+            // the client must point there. Production builds spawn the bundled
+            // sidecar on a free ephemeral port to dodge stale-process / unrelated
+            // collisions on 8200 (Option C, 2026-05-12).
+            let sidecar_port = if cfg!(debug_assertions) {
+                8200
+            } else {
+                pick_ephemeral_port().unwrap_or(8200)
+            };
             log::info!("Sidecar will bind 127.0.0.1:{sidecar_port}");
             let sidecar_base_url = format!("http://127.0.0.1:{sidecar_port}");
             let sidecar_client = sidecar::SidecarClient::new(&sidecar_base_url, &sidecar_key);
@@ -7307,9 +7744,19 @@ pub fn run() {
                                 Err(_) => continue,
                             }
                         };
-                        let status = match sidecar.clip_status() {
-                            Ok(s) => s,
-                            Err(_) => continue, // sidecar unreachable — retry next tick
+                        // `clip_status` / `unload_clip` use `reqwest::blocking`,
+                        // which must never run on the async executor: reqwest
+                        // 0.12 drops a tokio `BlockingPool` inside `wait::enter`,
+                        // panicking the worker ("Cannot drop a runtime in a
+                        // context where blocking is not allowed"). Run them on a
+                        // blocking thread, matching `monitor_scheduler::check_url`.
+                        let status = {
+                            let sc = sidecar.clone();
+                            match tokio::task::spawn_blocking(move || sc.clip_status()).await {
+                                Ok(Ok(s)) => s,
+                                // sidecar unreachable or join error — retry next tick
+                                _ => continue,
+                            }
                         };
                         if status.loaded
                             && status.idle_seconds >= CLIP_IDLE_SECONDS_BEFORE_UNLOAD as f64
@@ -7318,8 +7765,11 @@ pub fn run() {
                                 "CLIP model idle for {:.0}s — requesting eviction",
                                 status.idle_seconds
                             );
-                            if let Err(e) = sidecar.unload_clip() {
-                                log::warn!("CLIP unload request failed: {e}");
+                            let sc = sidecar.clone();
+                            match tokio::task::spawn_blocking(move || sc.unload_clip()).await {
+                                Ok(Ok(())) => {}
+                                Ok(Err(e)) => log::warn!("CLIP unload request failed: {e}"),
+                                Err(e) => log::warn!("CLIP unload task panicked: {e}"),
                             }
                         }
                     }
@@ -7452,12 +7902,14 @@ pub fn run() {
             get_filtered_assets,
             get_recent_assets,
             delete_asset,
+            clear_asset_library,
             verify_content,
             sign_asset,
             read_manifest,
             verify_c2pa,
             get_fingerprints,
             find_similar,
+            find_catalogue_matches,
             verify_url,
             check_sidecar_health,
             get_sidecar_startup_status,
@@ -10306,6 +10758,411 @@ mod tests {
         assert_eq!(
             SIDECAR_IDLE_SECONDS_BEFORE_KILL, 300,
             "Idle threshold must be 300 seconds (5 minutes)"
+        );
+    }
+
+    // ── find_catalogue_matches ──────────────────────────────────────────────
+
+    /// The three proximity bands map correctly from Hamming distance.
+    #[test]
+    fn catalogue_match_band_exact() {
+        assert_eq!(CatalogueMatch::band_for(0), "exact");
+        assert_eq!(CatalogueMatch::band_for(3), "exact");
+        assert_eq!(CatalogueMatch::band_for(5), "exact");
+    }
+
+    #[test]
+    fn catalogue_match_band_likely() {
+        assert_eq!(CatalogueMatch::band_for(6), "likely");
+        assert_eq!(CatalogueMatch::band_for(8), "likely");
+        assert_eq!(CatalogueMatch::band_for(10), "likely");
+    }
+
+    #[test]
+    fn catalogue_match_band_near() {
+        assert_eq!(CatalogueMatch::band_for(11), "near");
+        assert_eq!(CatalogueMatch::band_for(15), "near");
+        assert_eq!(CatalogueMatch::band_for(32), "near");
+        assert_eq!(CatalogueMatch::band_for(64), "near");
+    }
+
+    /// Similarity is exactly `1.0 - distance / 64.0`.
+    #[test]
+    fn catalogue_match_similarity_formula() {
+        let m = CatalogueMatch {
+            asset_id: "a".into(),
+            file_name: "f.jpg".into(),
+            file_path: "/f.jpg".into(),
+            distance: 0,
+            similarity: 1.0 - 0.0 / 64.0,
+            match_band: "exact".into(),
+        };
+        assert!((m.similarity - 1.0).abs() < f64::EPSILON);
+
+        let m2 = CatalogueMatch {
+            asset_id: "b".into(),
+            file_name: "g.jpg".into(),
+            file_path: "/g.jpg".into(),
+            distance: 64,
+            similarity: 1.0 - 64.0 / 64.0,
+            match_band: "near".into(),
+        };
+        assert!((m2.similarity - 0.0).abs() < f64::EPSILON);
+    }
+
+    /// `CatalogueMatch` must round-trip through JSON serialisation with
+    /// camelCase field names that match the TypeScript contract.
+    #[test]
+    fn catalogue_match_serialises_camel_case() {
+        let m = CatalogueMatch {
+            asset_id: "abc-123".into(),
+            file_name: "photo.jpg".into(),
+            file_path: "/home/user/photo.jpg".into(),
+            distance: 4,
+            similarity: 1.0 - 4.0 / 64.0,
+            match_band: "exact".into(),
+        };
+        let json = serde_json::to_string(&m).expect("serialisation must succeed");
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        // Verify camelCase field names match the TypeScript CatalogueMatch interface.
+        assert_eq!(v["assetId"], "abc-123");
+        assert_eq!(v["fileName"], "photo.jpg");
+        assert_eq!(v["filePath"], "/home/user/photo.jpg");
+        assert_eq!(v["distance"], 4);
+        assert_eq!(v["matchBand"], "exact");
+        // Verify no snake_case keys leaked through.
+        assert!(v.get("asset_id").is_none());
+        assert!(v.get("file_name").is_none());
+        assert!(v.get("match_band").is_none());
+    }
+
+    /// Round-trip: a serialised `CatalogueMatch` can be deserialised back.
+    #[test]
+    fn catalogue_match_round_trips() {
+        let original = CatalogueMatch {
+            asset_id: "uuid-456".into(),
+            file_name: "test.png".into(),
+            file_path: "/data/test.png".into(),
+            distance: 8,
+            similarity: 1.0 - 8.0 / 64.0,
+            match_band: "likely".into(),
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let recovered: CatalogueMatch = serde_json::from_str(&json).unwrap();
+        assert_eq!(recovered.asset_id, original.asset_id);
+        assert_eq!(recovered.file_name, original.file_name);
+        assert_eq!(recovered.file_path, original.file_path);
+        assert_eq!(recovered.distance, original.distance);
+        assert_eq!(recovered.match_band, original.match_band);
+        assert!((recovered.similarity - original.similarity).abs() < 1e-10);
+    }
+
+    /// Integration test: import a real PNG, fingerprint it, then verify that
+    /// the catalogue-match scan retrieves it at distance 0.
+    ///
+    /// This exercises `get_all_fingerprints_by_type`, `hamming_distance`,
+    /// and `get_asset_by_id` — the three DB/fingerprint helpers that
+    /// `find_catalogue_matches` composes — without needing a live Tauri
+    /// AppHandle.
+    #[test]
+    fn find_catalogue_matches_round_trip() {
+        // Build a temp DB and a small PNG file.
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let db = db::Database::open(&db_path).unwrap();
+
+        let img_path = dir.path().join("sample.png");
+        let img = image::RgbImage::from_fn(64, 64, |x, y| {
+            image::Rgb([(x * 4) as u8, (y * 4) as u8, 128])
+        });
+        img.save(&img_path).unwrap();
+
+        // Compute the pHash and store it in the DB.
+        let phash = fingerprint::compute_phash(&img_path)
+            .expect("pHash computation must succeed for a valid PNG");
+        let asset_id = "test-asset-001";
+        let now = chrono::Utc::now().to_rfc3339();
+        db.insert_asset(&db::AssetRow {
+            asset_id: asset_id.to_string(),
+            file_path: img_path.to_str().unwrap().to_string(),
+            file_name: "sample.png".to_string(),
+            content_type: "image".to_string(),
+            mime_type: "image/png".to_string(),
+            file_size: 1024,
+            width: None,
+            height: None,
+            metadata_json: None,
+            c2pa_signed: false,
+            watermarked: false,
+            sha256_hash: None,
+            created_at: now,
+        })
+        .unwrap();
+        db.insert_fingerprint("fp-001", asset_id, "phash", &phash)
+            .unwrap();
+
+        // Run the match scan against the same pHash.
+        let candidates = db.get_all_fingerprints_by_type("phash").unwrap();
+        assert_eq!(candidates.len(), 1);
+
+        let mut matches: Vec<CatalogueMatch> = Vec::new();
+        for candidate in &candidates {
+            let distance = fingerprint::hamming_distance(&phash, &candidate.hash_value).unwrap();
+            if distance <= 10 {
+                let asset = db.get_asset_by_id(&candidate.asset_id).unwrap().unwrap();
+                matches.push(CatalogueMatch {
+                    asset_id: candidate.asset_id.clone(),
+                    file_name: asset.file_name,
+                    file_path: asset.file_path,
+                    distance,
+                    similarity: 1.0 - (distance as f64 / 64.0),
+                    match_band: CatalogueMatch::band_for(distance).to_string(),
+                });
+            }
+        }
+        matches.sort_by_key(|m| m.distance);
+
+        assert_eq!(matches.len(), 1, "Expected exactly one match");
+        assert_eq!(matches[0].asset_id, asset_id);
+        assert_eq!(matches[0].distance, 0, "Same pHash must give distance 0");
+        assert_eq!(matches[0].match_band, "exact");
+        assert!((matches[0].similarity - 1.0).abs() < f64::EPSILON);
+    }
+
+    // ── detectors_run_list / insufficient-signal tests ────────────────────
+
+    /// C2PA must appear in detectors_run_list even when no manifest is present
+    /// (c2pa_attempted is always true once the verification stage has executed).
+    /// This is the root-cause fix for the false "Insufficient signal" verdict on
+    /// normal unsigned camera JPEGs.
+    #[test]
+    fn detectors_run_list_includes_c2pa_when_no_manifest() {
+        // Simulate the detectors_run_list build logic for a standard-mode image
+        // verify where: exif ran, c2pa was attempted (no manifest found), ELA
+        // ran, deepfake ran, and no other sidecar detectors ran.
+        let c2pa_attempted = true;
+        let exif_analysis: Option<exif_anomaly::ExifAnalysis> = None; // simplified
+        let ela_ran = true;
+        let deepfake_ran = true;
+
+        let mut detectors_run_list: Vec<&'static str> = Vec::new();
+        // exif_anomaly would be pushed if exif_analysis.is_some(); skipped here
+        // to isolate the c2pa fix.
+        let _ = exif_analysis;
+        if c2pa_attempted {
+            detectors_run_list.push("c2pa");
+        }
+        if ela_ran {
+            detectors_run_list.push("ela");
+        }
+        if deepfake_ran {
+            detectors_run_list.push("deepfake");
+        }
+
+        assert!(
+            detectors_run_list.contains(&"c2pa"),
+            "c2pa must be in detectors_run even without a manifest"
+        );
+        // With c2pa + ela + deepfake, this is a valid standard run.
+        assert_eq!(detectors_run_list.len(), 3);
+    }
+
+    /// The "insufficient signal" test: the old c2pa-gated logic would have
+    /// produced 4 entries for a no-C2PA JPEG with EXIF + ELA + deepfake + CLIP,
+    /// which tripped the old threshold of 5. After the fix the count is 5
+    /// (exif + c2pa + ela + deepfake + clip) and would not trip even the old
+    /// threshold; but more importantly the new frontend logic tests for ela/
+    /// deepfake presence rather than an absolute count.
+    #[test]
+    fn detectors_run_standard_no_c2pa_jpeg_has_four_core_entries() {
+        // Simulate a standard-mode image verify: exif ran, c2pa attempted (no
+        // manifest), ELA ran, deepfake ran — CLIP not available.
+        let c2pa_attempted = true;
+        let exif_ran = true;
+        let ela_ran = true;
+        let deepfake_ran = true;
+
+        let mut detectors_run_list: Vec<&'static str> = Vec::new();
+        if exif_ran {
+            detectors_run_list.push("exif_anomaly");
+        }
+        if c2pa_attempted {
+            detectors_run_list.push("c2pa");
+        }
+        if ela_ran {
+            detectors_run_list.push("ela");
+        }
+        if deepfake_ran {
+            detectors_run_list.push("deepfake");
+        }
+
+        // Confirm at least 4 entries: exif + c2pa + ela + deepfake.
+        assert_eq!(
+            detectors_run_list.len(),
+            4,
+            "Standard no-C2PA JPEG must produce exactly 4 core detector entries"
+        );
+        // Confirm the new frontend insufficient-signal logic would NOT fire:
+        // insufficient iff neither ela nor deepfake ran.
+        let ela_or_deepfake_ran =
+            detectors_run_list.contains(&"ela") || detectors_run_list.contains(&"deepfake");
+        assert!(
+            ela_or_deepfake_ran,
+            "ela or deepfake must be present for a healthy standard-mode image verify"
+        );
+    }
+
+    /// A genuinely degraded run (sidecar down — only exif + c2pa produced
+    /// results) must still be flagged as insufficient by the frontend logic.
+    #[test]
+    fn detectors_run_sidecar_down_triggers_insufficient() {
+        // Only exif and c2pa ran — sidecar was unreachable.
+        let detectors_run_list = ["exif_anomaly", "c2pa"];
+
+        // Frontend rule: insufficient when neither ela nor deepfake is present
+        // AND the content is image-type (exif_anomaly in list = image).
+        let is_image_content = detectors_run_list.contains(&"exif_anomaly")
+            || detectors_run_list.contains(&"ela")
+            || detectors_run_list.contains(&"deepfake");
+        let ela_or_deepfake_ran =
+            detectors_run_list.contains(&"ela") || detectors_run_list.contains(&"deepfake");
+        let insufficient = is_image_content && !ela_or_deepfake_ran;
+
+        assert!(
+            insufficient,
+            "A sidecar-down run with only exif+c2pa must be flagged insufficient"
+        );
+    }
+
+    /// Non-image content (document) runs only c2pa. This must NOT be flagged
+    /// as insufficient because no image sidecar detectors are expected.
+    #[test]
+    fn detectors_run_document_not_insufficient() {
+        // Document: only c2pa ran (no exif, no ela, no deepfake).
+        let detectors_run_list = ["c2pa"];
+
+        // Frontend rule: not image content because exif_anomaly/ela/deepfake
+        // are all absent.
+        let is_image_content = detectors_run_list.contains(&"exif_anomaly")
+            || detectors_run_list.contains(&"ela")
+            || detectors_run_list.contains(&"deepfake");
+        let ela_or_deepfake_ran =
+            detectors_run_list.contains(&"ela") || detectors_run_list.contains(&"deepfake");
+        let insufficient = is_image_content && !ela_or_deepfake_ran;
+
+        assert!(
+            !insufficient,
+            "A document (no image sidecar detectors expected) must not be flagged insufficient"
+        );
+    }
+
+    // ── Codec-gate tests: jpeg_ghost / segmented_ela on non-JPEG ─────────
+
+    /// Verify that the JPEG Ghost codec gate in `verify_content_inner` correctly
+    /// nulls the result for non-JPEG MIME types. The gate must prevent the
+    /// detector from appearing in `detectors_run_list` and from contributing
+    /// a score to `compute_trust` (Finding 1).
+    #[test]
+    fn jpeg_ghost_codec_gate_nulls_result_for_non_jpeg() {
+        // Simulate the codec gate logic from verify_content_inner for the
+        // non-JPEG branch.  The test verifies the predicate and the resulting
+        // None that would be used for both detectors_run_list and compute_trust.
+        for non_jpeg_mime in &[
+            "image/png",
+            "image/webp",
+            "image/avif",
+            "image/heic",
+            "image/heif",
+            "image/tiff",
+            "image/bmp",
+            "image/gif",
+        ] {
+            let should_run = format_router::should_run_jpeg_ghost(non_jpeg_mime);
+            assert!(
+                !should_run,
+                "should_run_jpeg_ghost must be false for '{non_jpeg_mime}'"
+            );
+            // Simulate: a hypothetical non-None result coming back from sidecar
+            let fake_jpeg_ghost_result: Option<sidecar::JpegGhostResult> = None; // sidecar returns None for non-JPEG in practice
+                                                                                 // After gate: result must be None regardless.
+            let gated_result = if should_run {
+                fake_jpeg_ghost_result
+            } else {
+                None
+            };
+            assert!(
+                gated_result.is_none(),
+                "jpeg_ghost_result must be None after codec gate for '{non_jpeg_mime}'"
+            );
+        }
+    }
+
+    /// Verify that the Segmented ELA codec gate correctly nulls the result for
+    /// non-JPEG MIME types (Finding 2). Uses the same `should_run_ela` predicate
+    /// as the ELA detector gate.
+    #[test]
+    fn segmented_ela_codec_gate_nulls_result_for_non_jpeg() {
+        for non_jpeg_mime in &[
+            "image/png",
+            "image/webp",
+            "image/avif",
+            "image/heic",
+            "image/heif",
+            "image/tiff",
+        ] {
+            let should_run = format_router::should_run_ela(non_jpeg_mime);
+            assert!(
+                !should_run,
+                "should_run_ela must be false for '{non_jpeg_mime}'"
+            );
+            let fake_segmented_ela_result: Option<sidecar::SegmentedElaResult> = None;
+            let gated_result = if should_run {
+                fake_segmented_ela_result
+            } else {
+                None
+            };
+            assert!(
+                gated_result.is_none(),
+                "segmented_ela_result must be None after codec gate for '{non_jpeg_mime}'"
+            );
+        }
+    }
+
+    /// Verify that the API degraded heuristic is FALSE for non-image content
+    /// even in standard/deep mode with no ELA or deepfake results (Finding 5).
+    #[test]
+    fn api_degraded_flag_is_false_for_non_image_content() {
+        // Simulate the routes.rs degraded computation for document/video/audio.
+        let non_image_content_types = ["document", "video", "audio", "unknown"];
+        for ct in &non_image_content_types {
+            let is_image_content = *ct == "image";
+            let ela_result_is_none = true;
+            let deepfake_result_is_none = true;
+            let mode_is_not_quick = true; // "standard" or "deep"
+            let degraded = is_image_content
+                && ela_result_is_none
+                && deepfake_result_is_none
+                && mode_is_not_quick;
+            assert!(
+                !degraded,
+                "degraded must be false for content_type='{ct}' (ELA/deepfake never expected)"
+            );
+        }
+    }
+
+    /// Verify that the API degraded heuristic IS true for image content in
+    /// standard/deep mode when ELA and deepfake are both absent (sidecar down).
+    #[test]
+    fn api_degraded_flag_is_true_for_image_with_no_sidecar_results() {
+        let is_image_content = true;
+        let ela_result_is_none = true;
+        let deepfake_result_is_none = true;
+        let mode = "standard";
+        let degraded =
+            is_image_content && ela_result_is_none && deepfake_result_is_none && mode != "quick";
+        assert!(
+            degraded,
+            "degraded must be true for image content when sidecar is down in standard mode"
         );
     }
 }

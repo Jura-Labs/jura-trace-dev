@@ -122,3 +122,26 @@ export const V1_SHOW_READ_TEXT = false;
  *                  OCR with stronger text reasoning than LLaVA).
  */
 export const V1_SHOW_AI_DESCRIPTION = false;
+
+
+/**
+ * Watched Locations section on the Monitor tab (add-URL form, watchlist
+ * rows, expanded events panel, AI-training notice, RIS roadmap callout).
+ *
+ * v1.0:  false  — hide the entire Watched Locations section. The feature
+ *                 was originally a watermark-tracking surface; with
+ *                 V1_SHOW_WATERMARK = false its primary premise is moot.
+ *                 The scheduler still ships and idles for Community tier
+ *                 (Pro/Enterprise gate prevents accidental polling).
+ *                 Backend (monitor_scheduler.rs, 4 IPC commands,
+ *                 monitor_urls + monitor_events tables, 23 tests) stays
+ *                 in tree behind the flag.
+ * v1.1:  true   — re-enable via JTV-206, reframed as "C2PA Manifest
+ *                 Integrity Monitor" (the scheduler's c2pa_stripped /
+ *                 c2pa_changed events are already implemented) plus the
+ *                 "first published at URL X on date Y" provenance
+ *                 breadcrumb annotation field (Option 2 from the 5-persona
+ *                 review 2026-05-23). Coordinates with JTV-197 audio/video
+ *                 fingerprint URL check.
+ */
+export const V1_SHOW_WATCHED_LOCATIONS = false;

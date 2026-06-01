@@ -1,0 +1,327 @@
+================================================================================
+JURA TRACE — THIRD-PARTY OPEN SOURCE LICENCES AND ACKNOWLEDGEMENTS
+================================================================================
+
+Jura Trace
+Copyright (C) 2025-2026 Paul Griffiths, published by Jura Labs Community
+Interest Company (UK, Companies House 17117467).
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public Licence as published by the Free
+Software Foundation, either version 3 of the Licence, or (at your option) any
+later version (AGPL-3.0-or-later). A commercial-licence path is available on
+request — see COMMERCIAL.md.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU Affero General Public Licence for more details.
+
+You should have received a copy of the GNU Affero General Public Licence along
+with this program (see the LICENSE file). If not, see
+<https://www.gnu.org/licenses/>.
+
+CORRESPONDING SOURCE (AGPL-3.0 §6): the complete, buildable source code for the
+released version of this application is published at:
+
+    https://codeberg.org/jura-labs/jura-trace
+
+--------------------------------------------------------------------------------
+ABOUT THIS FILE
+--------------------------------------------------------------------------------
+
+Jura Trace bundles open source software from four layers (Rust core, SvelteKit
+frontend, Python ML sidecar, and ML model weights). The licences of those
+components require us to reproduce their copyright and licence notices in this
+distribution. This file does that.
+
+Scope: only components that are actually shipped inside the installer are listed.
+Build-time-only tooling (test frameworks, bundlers, linters) and ML libraries
+explicitly excluded from the frozen sidecar binary (torch, torchvision,
+open_clip runtime, timm, transformers, faster-whisper, ctranslate2,
+invisible-watermark) are NOT distributed and are therefore not reproduced here.
+
+Authoritative artefact: the per-component inventory below is a curated summary.
+The exhaustive, per-package licence texts with exact copyright holders are
+generated mechanically at release time by `scripts/generate-licenses.sh`
+(cargo-about for Rust, license-checker for npm production deps, pip-licenses for
+the frozen Python set) and appended under the MACHINE-GENERATED APPENDIX marker
+at the end of this file. Where this summary and the generated appendix differ,
+the generated appendix governs.
+
+Last curated: 2026-05-26 against jura-trace 0.9.0.
+
+================================================================================
+1. RUST CORE ENGINE (Tauri v2 desktop shell + core crates)
+================================================================================
+
+876 transitive Rust crates are compiled into the desktop binary. The licence
+distribution is overwhelmingly permissive:
+
+    376  MIT OR Apache-2.0
+    224  MIT
+     66  MIT/Apache-2.0
+     57  Apache-2.0 OR MIT
+     20  Zlib OR Apache-2.0 OR MIT
+     18  Unicode-3.0
+     16  Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
+     10  BSD-3-Clause
+     10  Apache-2.0
+      9  Unlicense OR MIT
+      8  MIT OR Apache-2.0 OR Zlib
+      6  BSD-2-Clause
+      6  MPL-2.0
+      others (BSD variants, ISC, BSL-1.0, CDLA-Permissive-2.0, 0BSD, CC0,
+              NCSA, all offered alongside a permissive alternative)
+
+There are NO pure GPL/LGPL/AGPL crates in the shipped Rust dependency tree. One
+crate offers `LGPL-2.1-or-later` only as an alternative within an OR expression;
+the permissive alternative is elected.
+
+Notable components and their obligations:
+
+  c2pa (Apache-2.0 OR MIT) — the Content Authenticity Initiative's C2PA
+    reference library (c2pa-rs). The C2PA library licence does not grant any
+    right to the C2PA / Content Credentials trademarks or conformance marks;
+    those are governed separately by c2pa.org.
+  tauri, wry, tao (Apache-2.0 OR MIT) — desktop application framework and
+    webview bindings.
+  ring (ISC AND MIT AND OpenSSL-style) — cryptographic primitives. Its bundled
+    LICENSE is reproduced verbatim in the generated appendix.
+  openssl / openssl-sys (Apache-2.0) — present via the TLS/C2PA chain. The
+    OpenSSL notice is reproduced in the generated appendix.
+  rusqlite / libsqlite3-sys — SQLite bindings. SQLite itself is public domain.
+  image, image_hasher, reqwest, serde, tokio, axum — MIT OR Apache-2.0.
+
+MPL-2.0 file-level-copyleft crates (used UNMODIFIED as binary dependencies, so
+no source-disclosure obligation arises; listed for completeness): option-ext,
+cssparser, selectors, servo_arc, and the webpki root-certificate crates.
+
+================================================================================
+2. SVELTEKIT FRONTEND (runtime dependencies shipped in the webview bundle)
+================================================================================
+
+Build-only devDependencies (svelte, vite, tailwindcss, playwright, vitest, knip,
+svelte-check) are NOT shipped and are excluded.
+
+  @tauri-apps/api                 Apache-2.0 OR MIT
+  @tauri-apps/plugin-dialog       MIT OR Apache-2.0
+  @tauri-apps/plugin-fs           MIT OR Apache-2.0
+  @tauri-apps/plugin-shell        MIT OR Apache-2.0
+  @tauri-apps/plugin-updater      MIT OR Apache-2.0
+  @babel/runtime                  MIT
+  base64-arraybuffer              MIT
+  canvg                           MIT
+  core-js                         MIT
+  css-line-break                  MIT
+  dompurify                       (MPL-2.0 OR Apache-2.0)  — elected: Apache-2.0
+  fast-png                        MIT
+  fflate                          MIT
+  html2canvas                     MIT
+  iobuffer                        MIT
+  jspdf                           MIT
+  jszip                           (MIT OR GPL-3.0-or-later) — ELECTED: MIT
+  pako                            (MIT AND Zlib)
+  raf                             MIT
+  readable-stream                 MIT
+  rgbcolor                        MIT
+  stackblur-canvas                MIT
+  svg-pathdata                    MIT
+  text-segmentation / utrie       MIT
+  inherits                        ISC
+  (plus their transitive MIT/ISC runtime helpers)
+
+LICENCE ELECTIONS (recorded for the dual-licensed packages above):
+  - jszip:   MIT (NOT GPL-3.0).
+  - dompurify: Apache-2.0.
+
+================================================================================
+3. PYTHON ML SIDECAR (frozen PyInstaller binary — requirements-ci.txt set)
+================================================================================
+
+Only the libraries in the frozen ONNX/CI build are shipped. The heavyweight
+ML stack (torch, open_clip runtime, transformers, faster-whisper, etc.) is
+excluded by jura-sidecar.spec and is NOT distributed.
+
+  fastapi, starlette, pydantic, pydantic-core, python-multipart  MIT / Apache-2.0
+  uvicorn, h11, httptools, anyio, sniffio, click, typer           BSD / MIT
+  numpy, scipy, scikit-learn, scikit-image, joblib, threadpoolctl BSD-3-Clause
+  Pillow                                                          HPND (MIT-CMU)
+  opencv-python-headless (OpenCV 4.x)                             Apache-2.0
+  onnxruntime                                                     MIT
+  regex                                                           Apache-2.0
+  pillow-heif (wraps libheif; HEIC decode)                        BSD-3-Clause
+      NOTE: libheif and its HEVC codecs (libde265 / x265) carry their own
+      LGPL/GPL terms and HEVC patent considerations. On the Linux AppImage
+      these are bundled; on macOS the system ImageIO path is used. See the
+      libheif notice in the generated appendix.
+
+Pillow's HPND (Historical Permission Notice and Disclaimer) text and the OpenCV
+NOTICE file are reproduced in the generated appendix.
+
+================================================================================
+4. ML MODELS AND DATA
+================================================================================
+
+  CLIP ViT-B/32 (ONNX)
+    Architecture and tokeniser from OpenAI CLIP / OpenCLIP (open_clip), MIT
+    licensed. Pretrained checkpoint: laion2b_s34b_b79k. Credit: LAION for the
+    LAION-2B pretraining dataset and the OpenCLIP authors (Ilharco, Wortsman,
+    Wightman, Gordon, Carlini, et al.).
+
+  BPE vocabulary  (bpe_simple_vocab_16e6.txt.gz)
+    MIT — OpenAI / OpenCLIP. The attribution header is preserved in
+    sidecar/app/services/clip_tokenizer.py.
+
+  UnivFD zero-shot AI-image detection method
+    Linear probe on CLIP features per Ojha, Li & Lee, "Towards Universal Fake
+    Image Detectors that Generalize Across Generative Models" (CVPR 2023). Cited
+    in the in-app Model Cards.
+
+  GBM deepfake classifier and the UnivFD probe weights
+    First-party artefacts trained by Jura Labs CIC and distributed under
+    AGPL-3.0-or-later alongside this application. Provenance and performance are
+    documented in the in-app Model Cards.
+
+================================================================================
+5. SYSTEM / FONTS
+================================================================================
+
+Jura Trace uses system fonts only (Georgia and the platform sans-serif stack).
+No web fonts are bundled, so no font licences apply.
+
+================================================================================
+6. CANONICAL LICENCE TEXTS
+================================================================================
+
+Most components above are distributed under one of the following permissive
+licences. The full text of each is reproduced once below; the per-package
+copyright holders are listed in the machine-generated appendix.
+
+--------------------------------------------------------------------------------
+MIT License
+--------------------------------------------------------------------------------
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN
+AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+BSD 2-Clause License
+--------------------------------------------------------------------------------
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+BSD 3-Clause License
+--------------------------------------------------------------------------------
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software without
+   specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+ISC License
+--------------------------------------------------------------------------------
+Permission to use, copy, modify, and/or distribute this software for any purpose
+with or without fee is hereby granted, provided that the above copyright notice
+and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+--------------------------------------------------------------------------------
+zlib License
+--------------------------------------------------------------------------------
+This software is provided 'as-is', without any express or implied warranty. In
+no event will the authors be held liable for any damages arising from the use of
+this software.
+
+Permission is granted to anyone to use this software for any purpose, including
+commercial applications, and to alter it and redistribute it freely, subject to
+the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not claim
+   that you wrote the original software. If you use this software in a product,
+   an acknowledgment in the product documentation would be appreciated but is not
+   required.
+2. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+3. This notice may not be removed or altered from any source distribution.
+
+--------------------------------------------------------------------------------
+HPND (Pillow), Unicode-3.0, MPL-2.0, BSL-1.0, CDLA-Permissive-2.0, Apache-2.0
+--------------------------------------------------------------------------------
+The full texts of the Apache License 2.0, the Mozilla Public License 2.0, the
+Pillow HPND licence, the Unicode Data Files and Software Licence (Unicode-3.0),
+the Boost Software Licence 1.0, and CDLA-Permissive-2.0 are long. They are
+reproduced in full, per package, in the MACHINE-GENERATED APPENDIX below. The
+canonical texts are also available at:
+
+  Apache-2.0            https://www.apache.org/licenses/LICENSE-2.0
+  MPL-2.0               https://www.mozilla.org/MPL/2.0/
+  Unicode-3.0           https://www.unicode.org/license.txt
+  BSL-1.0               https://www.boost.org/LICENSE_1_0.txt
+  CDLA-Permissive-2.0   https://cdla.dev/permissive-2-0/
+  Pillow (HPND)         https://github.com/python-pillow/Pillow/blob/main/LICENSE
+
+================================================================================
+MACHINE-GENERATED APPENDIX
+================================================================================
+The exhaustive per-package licence texts and copyright holders are appended
+below this line by `scripts/generate-licenses.sh` at release time. Do not edit
+by hand; re-run the script to regenerate.
+
+<<< BEGIN GENERATED CONTENT (populated by scripts/generate-licenses.sh) >>>
+<<< END GENERATED CONTENT >>>

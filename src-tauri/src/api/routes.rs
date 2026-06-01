@@ -200,8 +200,15 @@ pub async fn verify_file(
     .map_err(|_| ApiError::internal("Verification task panicked"))?
     .map_err(ApiError::from)?;
 
-    let degraded =
-        result.ela_result.is_none() && result.deepfake_result.is_none() && result.mode != "quick";
+    // Only treat missing ELA/deepfake as "degraded" for image content. For
+    // documents, video, audio, and other non-image formats these detectors are
+    // never expected, so their absence is the correct outcome, not a signal
+    // that the pipeline was degraded (Finding 5).
+    let is_image_content = result.content_type == "image";
+    let degraded = is_image_content
+        && result.ela_result.is_none()
+        && result.deepfake_result.is_none()
+        && result.mode != "quick";
 
     Ok(Json(if degraded {
         ApiResponse::degraded(result)
@@ -239,8 +246,12 @@ pub async fn verify_url(
             .map_err(|_| ApiError::internal("Verification task panicked"))?
             .map_err(ApiError::from)?;
 
-    let degraded =
-        result.ela_result.is_none() && result.deepfake_result.is_none() && result.mode != "quick";
+    // Same content-aware degraded gate as the upload route (Finding 5).
+    let is_image_content = result.content_type == "image";
+    let degraded = is_image_content
+        && result.ela_result.is_none()
+        && result.deepfake_result.is_none()
+        && result.mode != "quick";
 
     Ok(Json(if degraded {
         ApiResponse::degraded(result)
@@ -402,11 +413,17 @@ pub async fn protect_sign(
 
         let (cert_bytes, key_bytes) = crate::c2pa::ensure_certificate(&data_dir)
             .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "C2pa", e))?;
+        // REST API defaults to SignAction::Created. A future v1.0.x exposes
+        // the action selector as an additional multipart field so /protect
+        // callers (Pro tier + Custom Engineering integrations) can declare
+        // publication rather than authorship. Tracked alongside Generator-
+        // track audit item #9 follow-up.
         crate::c2pa::sign_file(
             &src_path,
             &out_path,
             &creator_name,
             license.as_deref(),
+            crate::c2pa::SignAction::Created,
             &cert_bytes,
             &key_bytes,
         )

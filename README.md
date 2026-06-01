@@ -58,6 +58,26 @@ A commercial licence is available for use cases that cannot operate under the AG
 
 Copyright © 2025-2026 Paul Griffiths, published by Jura Labs CIC under perpetual royalty-free licence.
 
+## On the use of Generative AI in this codebase
+
+Jura Trace is developed by a sole maintainer (Paul Griffiths) using Anthropic Claude as a coding and documentation assistant, structured around clear lines of human responsibility.
+
+**Architecture and design decisions are human-led.** Architectural choices (the four-layer Tauri / Rust / Python sidecar / SvelteKit structure, the Sovereign vs Conformant signing-mode split, the trust-score weighting, the local-first guarantee, the detector lineup, the licence and CIC framing) are made by the maintainer. AI may be consulted on trade-offs but does not decide.
+
+**Tests are managed by the developer.** The Rust library tests, Rust API integration tests, Python sidecar tests, Playwright end-to-end tests, and Vitest component tests are authored and reviewed by the maintainer. Recursive and regression-test discipline is run by the maintainer. AI is not used for test sign-off, coverage decisions, or detector threshold setting.
+
+**Sources are human-verified.** Calibration figures, per-generator recall tables, vendor specification references, trust-list certificate fingerprints, conformance-programme record identifiers, and academic citations are checked against primary sources by the maintainer. AI search and AI summarisation are starting points. They are not sufficient evidence on their own.
+
+**Code generation is AI-assisted, human-reviewed.** Boilerplate, error-handling patterns, accessibility fixes, and refactoring are sometimes drafted with AI assistance and then reviewed, edited, and integrated by the maintainer. Generated code is treated as a draft. Nothing reaches `main` without human review.
+
+**Documentation is AI-assisted, human-edited.** README sections, in-source comments, user-facing guides, and changelog entries frequently begin as AI drafts and are edited for accuracy by the maintainer.
+
+**Security-sensitive code** (signing, key handling, network boundaries, file-system access, IPC permissions, certificate handling, trust evaluation) receives explicit human review regardless of how it was drafted.
+
+**Forensic verdicts** (the runtime detection output users see) are produced by the deployed detectors and human-set thresholds. No large language model is in the verdict pipeline.
+
+This declaration follows the [NLnet Foundation's policy on the use of Generative AI for funded projects](https://nlnet.nl/genai/) (effective 8 December 2025). The contributor-facing version of this policy, including disclosure requirements for code generation, is in [`GENAI_USE_POLICY.md`](GENAI_USE_POLICY.md).
+
 ## Credits
 
 Developed by [Jura Labs CIC](https://juralabs.org) — building ethical, local-first AI tools for social good.

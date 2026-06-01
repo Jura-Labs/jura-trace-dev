@@ -40,7 +40,7 @@
 
 <!-- ── Table of contents ───────────────────────────────────────────── -->
 <nav aria-label="Page contents" class="mb-10">
-  <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-3">
+  <p class="text-xs section-label uppercase tracking-widest mb-3">
     On this page
   </p>
   <ol class="space-y-1 text-sm">
@@ -166,7 +166,7 @@
     </li>
   </ol>
 
-  <div class="text-xs text-flint-dark dark:text-flint-light italic my-2" role="note">
+  <div class="text-xs muted-help italic my-2" role="note">
     Visual guide: Protect page with an asset selected, the C2PA signing panel open, and a signed asset showing its manifest details.
   </div>
 
@@ -250,7 +250,7 @@
           <th class="text-left py-2 text-text-light dark:text-text-dark font-semibold">C2PA support</th>
         </tr>
       </thead>
-      <tbody class="text-flint-dark dark:text-flint-light">
+      <tbody class="muted-help">
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4">JPEG</td>
           <td class="py-2 pr-4 font-mono text-xs">image/jpeg</td>
@@ -269,16 +269,6 @@
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4">WebP</td>
           <td class="py-2 pr-4 font-mono text-xs">image/webp</td>
-          <td class="py-2 text-malachite-dark dark:text-malachite-light">✓</td>
-        </tr>
-        <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-          <td class="py-2 pr-4">MP4 video</td>
-          <td class="py-2 pr-4 font-mono text-xs">video/mp4</td>
-          <td class="py-2 text-malachite-dark dark:text-malachite-light">✓</td>
-        </tr>
-        <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-          <td class="py-2 pr-4">QuickTime video</td>
-          <td class="py-2 pr-4 font-mono text-xs">video/quicktime</td>
           <td class="py-2 text-malachite-dark dark:text-malachite-light">✓</td>
         </tr>
       </tbody>
@@ -443,21 +433,21 @@
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Verifying Content Authenticity
       </a>
-      <span class="text-flint-dark dark:text-flint-light">: run forensic analysis on a file and read the trust score</span>
+      <span class="muted-help">: run forensic analysis on a file and read the trust score</span>
     </li>
     <li>
       <a href="/help/methodology"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         How Analysis Works
       </a>
-      <span class="text-flint-dark dark:text-flint-light">: understand the detection methodology behind every signal</span>
+      <span class="muted-help">: understand the detection methodology behind every signal</span>
     </li>
     <li>
       <a href="/help/settings"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
         Settings
       </a>
-      <span class="text-flint-dark dark:text-flint-light">: configure database location and deployment profiles</span>
+      <span class="muted-help">: configure database location and deployment profiles</span>
     </li>
   </ul>
 </section>

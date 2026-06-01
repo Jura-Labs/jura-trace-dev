@@ -8,12 +8,13 @@
     openBatchFileDialog, extractTextFromImage,
     getNetworkMode, getPowerSaverMode,
     runNprOnDemand, runShadowConsistencyOnDemand, runSpliceBoundaryOnDemand,
+    findCatalogueMatches,
   } from '$lib/api';
   import { getTrustLevel, formatFileSize, formatDuration } from '$lib/types';
   import type {
     VerificationResult, SidecarHealth, VerifyMode, LicenceTier,
     AnomalyFinding, InputQualityAssessment, ManifestInfo,
-    BatchItem, BatchItemStatus, NetworkMode,
+    BatchItem, BatchItemStatus, NetworkMode, CatalogueMatch,
   } from '$lib/types';
   import { createBlobTracker } from '$lib/blob';
   import {
@@ -49,6 +50,7 @@
   import { exportCaseZip } from '$lib/zip';
   import { saveVerifySession, restoreVerifySession, clearVerifySession } from '$lib/stores/verifySession';
   import { consumeVerifyHandoff } from '$lib/stores/verifyHandoff';
+  import { focusTrap } from '$lib/actions/focusTrap';
 
   // ── State ──────────────────────────────────────────────────────────
   let activeTab = $state<'file' | 'batch' | 'url'>('file');
@@ -123,6 +125,41 @@
   // power user can inspect without flipping the global Settings raw-scores
   // toggle.  The global toggle still reveals them automatically.
   let showClipZeroShot = $state(false);
+
+  // Catalogue check state.
+  // The check is entirely on-demand: never auto-triggered, never contributes
+  // to the trust score.  Rendered outside the forensic-question card stack.
+  type CatalogueCheckState = 'idle' | 'loading' | 'done' | 'error';
+  let catalogueCheckState = $state<CatalogueCheckState>('idle');
+  let catalogueMatches = $state<CatalogueMatch[]>([]);
+  let catalogueCheckError = $state<string | null>(null);
+  let catalogueShowAll = $state(false);
+
+  async function runCatalogueCheck(): Promise<void> {
+    if (!filePath) return;
+    catalogueCheckState = 'loading';
+    catalogueCheckError = null;
+    catalogueMatches = [];
+    catalogueShowAll = false;
+    try {
+      catalogueMatches = await findCatalogueMatches(filePath);
+      catalogueCheckState = 'done';
+    } catch (err) {
+      const parsed = parseAppError(err);
+      catalogueCheckError = parsed.message;
+      catalogueCheckState = 'error';
+    }
+  }
+
+  // Reset catalogue check when a new verification begins.
+  $effect(() => {
+    if (loading) {
+      catalogueCheckState = 'idle';
+      catalogueMatches = [];
+      catalogueCheckError = null;
+      catalogueShowAll = false;
+    }
+  });
 
   // On-demand detector loading state — set per detector while the
   // sidecar request is in-flight, cleared when the result merges back
@@ -257,13 +294,6 @@
   });
 
   // ── Derived ────────────────────────────────────────────────────────
-  // Minimum automatic detectors that must run before any verdict claim is
-  // honest.  Locked 2026-05-11 after a 1-of-15 verify result rendered as
-  // "High Trust / Authentic / 70%" because the score arithmetic neutralised
-  // unrun detectors.  Threshold is the union: EXIF + C2PA + ELA + noise +
-  // (one AI head) = 5.  Below this, verdict downgrades to Insufficient
-  // regardless of the numeric score.
-  const MIN_DETECTORS_FOR_VERDICT = 5;
 
   const rawTrustLevel = $derived(result ? getTrustLevel(result.overallTrust) : null);
 
@@ -272,13 +302,45 @@
     result?.deepfakeResult?.verdictLevel === 'synthetic'
   );
 
-  // A verdict is "insufficient signal" when too few detectors actually ran.
-  // This catches the case where the analysis engine was unreachable mid-run
-  // OR a file's codec/dimension gated most detectors off — both produce a
-  // numeric score that is arithmetically valid but operationally meaningless.
+  // A verdict is "insufficient signal" when the core image forensic detectors
+  // (ELA + deepfake) did not run. This indicates the sidecar was unreachable
+  // mid-run, producing an arithmetically valid but operationally hollow score.
+  //
+  // Design principles:
+  //   - Uses the authoritative result.detectorsRun list from the backend
+  //     (schema v6, Sprint 28) as the source of truth, not result-field
+  //     presence. The backend records "c2pa" even when no manifest is found,
+  //     so a normal unsigned JPEG correctly shows ["exif_anomaly","c2pa","ela",
+  //     "deepfake",...] rather than the old ["exif_anomaly","ela","deepfake",...].
+  //   - For IMAGE content: insufficient = neither "ela" nor "deepfake" ran.
+  //     Standard mode always runs both when the sidecar is up; their absence
+  //     means the engine was down. A no-C2PA JPEG with sidecar up = 4+ entries
+  //     (exif+c2pa+ela+deepfake) and is never insufficient. A sidecar-down
+  //     run = 2 entries (exif+c2pa) and correctly fires.
+  //   - For NON-IMAGE content (document, video, audio): sidecar image detectors
+  //     do not run by design. Never flag insufficient for these content types.
+  //   - Falls back to the old absolute-count heuristic only when detectorsRun
+  //     comes from the legacy slot-counter (no result.detectorsRun list), to
+  //     maintain back-compat with old DB records opened in newer builds.
   const insufficientSignal = $derived(() => {
     if (!result) return false;
-    return detectorsRun() < MIN_DETECTORS_FOR_VERDICT;
+    const ran: string[] | undefined = result.detectorsRun;
+    if (ran && ran.length > 0) {
+      // Authoritative path: use the backend list.
+      // Non-image content never trips insufficient (no sidecar image detectors
+      // are expected). Image content needs at least one of ela/deepfake.
+      const isImageContent =
+        result.exifAnalysis != null ||
+        ran.includes('ela') ||
+        ran.includes('deepfake') ||
+        ran.includes('exif_anomaly');
+      if (!isImageContent) return false;
+      return !ran.includes('ela') && !ran.includes('deepfake');
+    }
+    // Legacy fallback: result.detectorsRun absent (old DB record or old build).
+    // Use slot-counting with threshold 4 (post-c2pa-fix baseline: a healthy
+    // standard run of a no-C2PA JPEG = exif+c2pa+ela+deepfake = 4).
+    return detectorsRun() < 4;
   });
 
   // Positive authenticity evidence — at least ONE of:
@@ -671,12 +733,22 @@
       (f: AnomalyFinding) => f.severity === 'high' || f.severity === 'critical'
     );
     if (highSeverity.length > 0) return 'suspicious';
-    // hasExif=false (EXIF block absent or fully stripped) plus no findings
-    // means we have nothing to assess — informationally neutral, not pass.
-    // Firefly / Midjourney / DALL-E outputs typically strip EXIF on export;
-    // a green dot in that case is misleading.
-    if (result.exifAnalysis.hasExif === false && findings.length === 0) return 'empty-data';
-    return 'pass';
+    // Green is reserved for genuine positive provenance: a recognised camera
+    // signature (MakerNote authenticity bonus) or both Make and Model present.
+    // Absent or thin metadata with no camera provenance is NOT positive evidence
+    // (it is common on AI-generated and platform-stripped images), so it reads
+    // amber, not green. Reported in testing 2026-05-27: a green EXIF dot on a
+    // file with no usable provenance was misleading.
+    // Make/Model live on imageMetadata, not exifAnalysis; the authenticity
+    // bonus lives on exifAnalysis. Reading make/model off exifAnalysis (as an
+    // earlier version did) always yielded null, so the dot wrongly showed amber
+    // for recognised-camera photos while the verdict said High Trust.
+    const meta = result.imageMetadata as any;
+    const make = meta?.cameraMake ?? meta?.make ?? null;
+    const model = meta?.cameraModel ?? meta?.model ?? null;
+    const cameraBonus = result.exifAnalysis?.cameraAuthenticityBonus ?? 0;
+    if (cameraBonus > 0 || (make && model)) return 'pass';
+    return 'concern';
   }
 
   // C2PA-specific dot state: a valid manifest that contains an AI-disclosure
@@ -711,8 +783,11 @@
           state: exifState,
           ariaDetail: exifState === 'suspicious'
             ? `${exifHighFindings.length} high-severity anomal${exifHighFindings.length === 1 ? 'y' : 'ies'}`
-            : exifState === 'empty-data' ? 'No metadata — frequently seen on AI-generated images'
-            : exifState === 'pass' ? 'No critical anomalies'
+            : exifState === 'pass' ? 'Camera provenance present, no critical anomalies'
+            : exifState === 'concern'
+              ? (result.exifAnalysis?.hasExif === false
+                  ? 'No metadata, frequently seen on AI-generated images'
+                  : 'No camera provenance in the metadata')
             : 'Not run',
         },
         {
@@ -954,17 +1029,38 @@
     ].filter(Boolean).length
   );
 
-  // Total detectors that ran.  CLIP is excluded from the count when the
-  // sidecar build does not ship open-clip-torch (CI builds excludes it for
-  // size reasons — ~2 GB).  Counting "CLIP" as a missing detector when the
-  // user has no way to install it produces a misleading "N/15" denominator.
+  // Total detectors that ran.
+  //
+  // Primary path: use result.detectorsRun (authoritative backend list, schema
+  // v6). This correctly counts "c2pa" even for unsigned files (no manifest),
+  // because the backend now records c2pa as "ran" whenever the verification
+  // stage executed, not only when a manifest was found.
+  //
+  // Fallback (legacy records / old builds without result.detectorsRun): count
+  // truthy result slots. CLIP is excluded from the slot-count when the sidecar
+  // build does not ship open-clip-torch (CI builds exclude it for size reasons).
+  // Watermark detection is gated off in v1.0 and is excluded from both counts.
   const detectorsRun = $derived(() => {
     if (!result) return 0;
+    if (result.detectorsRun && result.detectorsRun.length > 0) {
+      // Authoritative: exclude on-demand / watermark from the "ran" display
+      // count the same way detectorsAvailable() excludes them from the
+      // denominator.  On-demand detectors (npr, shadow_consistency,
+      // splice_boundary) and watermark are separate from the automatic
+      // pipeline count shown in the "X / Y" display.
+      const automaticIds = new Set([
+        'exif_anomaly','c2pa','ela','noise','copy_move','deepfake',
+        'jpeg_ghost','segmented_ela','colour_temperature','clip',
+        'video_deepfake','transcription',
+      ]);
+      return result.detectorsRun.filter((id) => automaticIds.has(id)).length;
+    }
+    // Legacy slot-counting fallback.
     const slots: Array<unknown> = [
       result.exifAnalysis, result.c2paValid !== undefined && result.c2paValid !== null,
       result.elaResult, result.noiseResult, result.copyMoveResult,
       result.deepfakeResult, result.jpegGhostResult, result.segmentedElaResult,
-      result.colourTemperatureResult, result.watermarkExtractResult,
+      result.colourTemperatureResult,
       result.shadowConsistencyResult, result.spliceBoundaryResult, result.nprResult,
     ];
     if (sidecarHealth?.capabilities?.clipDetect) {
@@ -974,18 +1070,19 @@
   });
 
   // Total detectors the build is capable of running (denominator for "N/M").
-  // Adapts to the sidecar's actual capability list — when CLIP is not bundled,
-  // the total is 14 not 15.
+  // 13 forensic detectors in v1.0 (watermark detection is gated off and is not
+  // counted). Adapts to the sidecar's capability list: when CLIP is not bundled
+  // the total is 12 not 13.
   const detectorsAvailable = $derived(() => {
-    return sidecarHealth?.capabilities?.clipDetect ? 15 : 14;
+    return sidecarHealth?.capabilities?.clipDetect ? 13 : 12;
   });
 
   const totalFindings = $derived(provenanceFindings + integrityFindings + aiFindings);
 
-  // Camera make/model from EXIF
+  // Camera make/model live on imageMetadata, not exifAnalysis.
   const cameraLabel = $derived(() => {
-    if (!result?.exifAnalysis) return null;
-    const meta = result.exifAnalysis as any;
+    const meta = result?.imageMetadata as any;
+    if (!meta) return null;
     const make = meta.cameraMake ?? meta.make ?? null;
     const model = meta.cameraModel ?? meta.model ?? null;
     if (make && model) return `${make} ${model}`;
@@ -1623,13 +1720,20 @@
 
 <!-- ─── Full-size image overlay ────────────────────────────────────── -->
 {#if showImageOverlay && previewUrl}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+  <!-- Backdrop onclick is a redundant pointer convenience; Escape (via focusTrap) and the close button are the keyboard paths. -->
   <div
     class="fixed inset-0 z-[100] bg-black/85 flex items-center justify-center cursor-zoom-out"
     role="dialog"
     aria-label="Full-size image preview, press Escape to close"
     aria-modal="true"
+    tabindex="-1"
+    use:focusTrap={{ onEscape: () => { showImageOverlay = false; } }}
     onclick={() => showImageOverlay = false}
   >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <!-- stopPropagation on the image prevents the backdrop dismiss from firing when clicking the image itself; Escape is the keyboard close path. -->
     <img
       src={previewUrl}
       alt="Full-size preview of {fileName}"
@@ -1651,33 +1755,37 @@
 
 <!-- ─── Export report modal ────────────────────────────────────────── -->
 {#if showReportModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+  <!-- Backdrop onclick is a redundant pointer convenience; Escape (via focusTrap) and the close button are the keyboard paths. -->
   <div
     class="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
     role="dialog"
     aria-label="Export trust report"
     aria-modal="true"
+    tabindex="-1"
+    use:focusTrap={{ onEscape: () => { showReportModal = false; } }}
     onclick={(e) => { if (e.target === e.currentTarget) showReportModal = false; }}
   >
     <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl p-6 w-full max-w-md space-y-4">
       <h2 class="font-serif text-lg text-obsidian dark:text-quartz">Export Trust Report</h2>
       <div class="space-y-3">
         <div>
-          <label for="v2-analyst-name" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Analyst name (optional)</label>
+          <label for="v2-analyst-name" class="block text-xs muted-help mb-1">Analyst name (optional)</label>
           <input id="v2-analyst-name" type="text" bind:value={analystName}
             class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light" />
         </div>
         <div>
-          <label for="v2-analyst-org" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Organisation (optional)</label>
+          <label for="v2-analyst-org" class="block text-xs muted-help mb-1">Organisation (optional)</label>
           <input id="v2-analyst-org" type="text" bind:value={analystOrg}
             class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light" />
         </div>
         <div>
-          <label for="v2-case-ref" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Case reference (optional)</label>
+          <label for="v2-case-ref" class="block text-xs muted-help mb-1">Case reference (optional)</label>
           <input id="v2-case-ref" type="text" bind:value={analystCaseRef}
             class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light" />
         </div>
         <div>
-          <label for="v2-report-format" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Format</label>
+          <label for="v2-report-format" class="block text-xs muted-help mb-1">Format</label>
           <select id="v2-report-format" bind:value={reportFormat}
             class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light">
             <option value="standard">Standard</option>
@@ -1704,11 +1812,15 @@
 
 <!-- ─── False positive modal ───────────────────────────────────────── -->
 {#if showFalsePositiveModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+  <!-- Backdrop onclick is a redundant pointer convenience; Escape (via focusTrap) and the close button are the keyboard paths. -->
   <div
     class="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
     role="dialog"
     aria-label="Report false positive"
     aria-modal="true"
+    tabindex="-1"
+    use:focusTrap={{ onEscape: () => { handleFpModalClose(); } }}
     onclick={(e) => { if (e.target === e.currentTarget) handleFpModalClose(); }}
   >
     <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl p-6 w-full max-w-md space-y-4">
@@ -1721,11 +1833,11 @@
           <p class="text-malachite-dark dark:text-malachite-light text-sm">
             ✓ Saved locally.
           </p>
-          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-xs muted-help leading-relaxed">
             Your email client should have opened with a pre-filled report. Review and send
             it to contribute this case to model improvement.
           </p>
-          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-xs muted-help leading-relaxed">
             If nothing opened, you can copy the report and email it manually:
           </p>
           <div class="flex flex-wrap gap-2 items-center pt-1">
@@ -1735,13 +1847,13 @@
               onclick={handleFpCopyToClipboard}
               aria-live="polite"
             >{fpClipboardCopied ? '✓ Copied' : 'Copy report to clipboard'}</button>
-            <span class="text-xs text-flint-dark dark:text-flint-light">Send to</span>
+            <span class="text-xs muted-help">Send to</span>
             <a
               href="mailto:{FP_FEEDBACK_EMAIL}"
               class="text-xs text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
             >{FP_FEEDBACK_EMAIL}</a>
           </div>
-          <p class="text-[11px] text-flint-dark dark:text-flint-light leading-relaxed pt-2 border-t border-border-light dark:border-border-dark">
+          <p class="text-[11px] muted-help leading-relaxed pt-2 border-t border-border-light dark:border-border-dark">
             The exported report contains only the reason code, MIME type, app version,
             platform, and timestamp. Your free-text notes stay on this device.
           </p>
@@ -1755,7 +1867,7 @@
       {:else}
         <div class="space-y-3">
           <div>
-            <label for="v2-fp-reason" class="block text-xs text-flint-dark dark:text-flint-light mb-1">Reason</label>
+            <label for="v2-fp-reason" class="block text-xs muted-help mb-1">Reason</label>
             <select id="v2-fp-reason" bind:value={fpReasonCode}
               class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light">
               <option value="modern_codec">Modern codec (AVIF/WebP)</option>
@@ -1766,14 +1878,14 @@
             </select>
           </div>
           <div>
-            <label for="v2-fp-note" class="block text-xs text-flint-dark dark:text-flint-light mb-1">
+            <label for="v2-fp-note" class="block text-xs muted-help mb-1">
               Additional notes (optional, max 500 characters)
             </label>
             <textarea id="v2-fp-note" bind:value={fpReasonNote} rows="3" maxlength="500"
               placeholder="Do not include personal data. Notes are stored locally only and are NOT included in any emailed or copied report."
               class="w-full bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded px-3 py-2 text-sm text-obsidian dark:text-quartz resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"></textarea>
           </div>
-          <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+          <p class="text-xs muted-help leading-relaxed">
             Your report is saved on this device. Clicking <strong>Save &amp; prepare email</strong>
             will also open your email client with a pre-filled draft. Nothing is sent
             automatically. You choose whether to send it.
@@ -1795,8 +1907,11 @@
   </div>
 {/if}
 
-<!-- ─── Page ───────────────────────────────────────────────────────── -->
-<main id="main-content" tabindex="-1" class="outline-none max-w-[900px] mx-auto px-6 py-8 pb-16">
+<!-- ─── Page ─────────────────────────────────────────────────────────────
+     NOTE: this component renders inside the layout <main id="main-content">
+     wrapper. Using a second <main> here is invalid HTML (nested main) and
+     creates a duplicate id that breaks skip-link navigation. Use <div>. -->
+<div class="max-w-[900px] mx-auto px-6 py-8 pb-16">
 
   <!-- Header -->
   <div class="flex items-center gap-3 mb-6">
@@ -1810,7 +1925,32 @@
 
   <!-- Mode selector + sidecar status row -->
   <div class="flex items-center gap-3 mb-5 flex-wrap">
-    <div role="radiogroup" aria-label="Verification mode" class="flex rounded-lg border border-border-light dark:border-border-dark overflow-hidden">
+    <!-- ARIA radiogroup pattern: checked radio is in the tab sequence (tabindex 0),
+         unchecked radios are removed from it (tabindex -1). Arrow keys move focus
+         and selection within the group. This matches the ARIA 1.2 radio-group pattern. -->
+    <div
+      role="radiogroup"
+      aria-label="Verification mode"
+      class="flex rounded-lg border border-border-light dark:border-border-dark overflow-hidden"
+      tabindex="-1"
+      onkeydown={(e) => {
+        const modes: VerifyMode[] = ['standard', 'deep'];
+        const idx = modes.indexOf(verifyMode);
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          const next = modes[(idx + 1) % modes.length];
+          verifyMode = next;
+          localStorage.setItem('jura-verify-mode', next);
+          (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role=radio]')[modes.indexOf(next)]?.focus();
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const prev = modes[(idx - 1 + modes.length) % modes.length];
+          verifyMode = prev;
+          localStorage.setItem('jura-verify-mode', prev);
+          (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role=radio]')[modes.indexOf(prev)]?.focus();
+        }
+      }}
+    >
       {#each [
         { mode: 'standard' as VerifyMode, label: 'Standard', description: '~15s' },
         { mode: 'deep' as VerifyMode, label: 'Deep', description: '~60s' },
@@ -1829,6 +1969,7 @@
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis-light"
           role="radio"
           aria-checked={verifyMode === opt.mode}
+          tabindex={verifyMode === opt.mode ? 0 : -1}
           onclick={() => { verifyMode = opt.mode; localStorage.setItem('jura-verify-mode', opt.mode); }}
         >{opt.label} <span class="ml-0.5 {verifyMode === opt.mode ? 'text-white dark:text-obsidian' : 'text-flint-dark dark:text-flint-light'}">{opt.description}</span></button>
       {/each}
@@ -1842,20 +1983,27 @@
       class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border
              {sidecarAvailable
                ? 'bg-malachite/10 text-malachite-dark dark:text-malachite-light border-malachite/20'
-               : 'bg-white dark:bg-graphite text-flint-dark dark:text-flint-light border-border-light dark:border-border-dark'}"
+               : 'bg-amber/10 text-amber-dark dark:text-amber-light border-amber/20'}"
       role="status"
-      aria-label={sidecarAvailable ? 'Analysis services connected' : 'Analysis services offline'}
+      aria-label={sidecarAvailable ? 'Analysis services connected' : 'Analysis Engine offline. Some forensic checks will not run.'}
     >
-      <span class="w-1.5 h-1.5 rounded-full {sidecarAvailable ? 'bg-malachite' : 'bg-flint/50'}" aria-hidden="true"></span>
-      {sidecarAvailable ? 'Services connected' : 'Services offline'}
+      <span class="w-1.5 h-1.5 rounded-full {sidecarAvailable ? 'bg-malachite' : 'bg-amber dark:bg-amber-light'}" aria-hidden="true"></span>
+      {sidecarAvailable ? 'Services connected' : 'Analysis Engine offline'}
+      {#if !sidecarAvailable}
+        <a
+          href="/settings"
+          class="ml-1 underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-dark dark:focus-visible:ring-amber-light rounded"
+          aria-label="Analysis Engine offline. Go to Settings to check service status."
+        >Settings</a>
+      {/if}
     </div>
 
     {#if checked && result}
       <button
-        class="text-xs text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded px-2 py-1"
+        class="text-xs text-lapis dark:text-lapis-light hover:text-lapis-dark dark:hover:text-quartz underline underline-offset-2 hover:no-underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded px-2 py-1 min-h-[36px]"
         onclick={reset}
-        aria-label="Clear result and verify a new file"
-      >Clear result</button>
+        aria-label="Clear this result and verify a different file"
+      >Verify another file</button>
     {/if}
   </div>
 
@@ -1873,6 +2021,12 @@
     >
       <span class="font-medium">{errorType === 'sidecar' ? 'Analysis Engine offline' : errorType === 'format' ? 'Unsupported format' : errorType === 'network' ? 'Network error' : 'Error'}:</span>
       {error}
+      {#if errorType === 'sidecar'}
+        <a
+          href="/settings"
+          class="ml-1 underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-dark dark:focus-visible:ring-amber-light rounded"
+        >Go to Settings to check service status.</a>
+      {/if}
     </div>
   {/if}
 
@@ -1919,6 +2073,7 @@
             ondrop={handleDrop}
             onclick={handleFileClick}
             aria-busy={loading}
+            aria-label={loading ? undefined : 'Drop an image to verify, or activate to browse. Supported formats: JPEG, PNG, TIFF, WebP, HEIC, AVIF.'}
           >
             {#if loading}
               <div class="flex flex-col items-center gap-3">
@@ -1927,11 +2082,11 @@
                   {#if powerSaverEnabled && analysisElapsed >= 5}
                     Restarting analysis engine…
                   {:else}
-                    {verifyMode === 'deep' ? 'Running deep analysis, up to 60 seconds…' : 'Running standard analysis…'}
+                    {verifyMode === 'deep' ? 'Running deep analysis, up to 60 seconds…' : 'Running standard analysis, typically under 15 seconds…'}
                   {/if}
                 </p>
                 {#if fileName}
-                  <p class="text-xs text-flint-dark dark:text-flint-light">{fileName}</p>
+                  <p class="text-xs muted-help">{fileName}</p>
                 {/if}
                 <!-- Power-saver disclosure shown immediately (not after 5 s) so a
                      respawn pause is recognisable as expected behaviour from the
@@ -1939,12 +2094,12 @@
                      2026 flagged the silent first 5 s as a crash-look that
                      drives force-quits during respawn. -->
                 {#if powerSaverEnabled && analysisElapsed < 5}
-                  <p class="text-xs text-flint-dark dark:text-flint-light max-w-xs text-center">
+                  <p class="text-xs muted-help max-w-xs text-center">
                     Power-saver mode is on. If the engine was idle, the first verification may take an extra 30–90 seconds.
                   </p>
                 {/if}
                 {#if analysisElapsed > 2}
-                  <p class="text-xs text-flint-dark dark:text-flint-light tabular-nums">{analysisElapsed}s elapsed</p>
+                  <p class="text-xs muted-help tabular-nums">{analysisElapsed}s elapsed</p>
                 {/if}
               </div>
             {:else}
@@ -1954,8 +2109,8 @@
                     d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                 </svg>
                 <p class="text-obsidian dark:text-quartz font-medium">Drop a file to verify</p>
-                <p class="text-xs text-flint-dark dark:text-flint-light">or click to browse</p>
-                <p class="text-xs text-flint-dark dark:text-flint-light mt-1">JPEG · PNG · TIFF · WebP · HEIC · AVIF</p>
+                <p class="text-xs muted-help">or click to browse</p>
+                <p class="text-xs muted-help mt-1">JPEG · PNG · TIFF · WebP · HEIC · AVIF</p>
               </div>
             {/if}
           </button>
@@ -1974,8 +2129,8 @@
       <!-- URL tab -->
       {#if activeTab === 'url'}
         <div id="v2-tab-url" role="tabpanel" aria-labelledby="v2-tab-btn-url" class="p-4">
-          <label for="v2-url-input" class="block text-xs text-flint-dark dark:text-flint-light mb-2">
-            Image or media URL
+          <label for="v2-url-input" class="block text-xs muted-help mb-2">
+            Image URL
           </label>
           <div class="flex gap-2">
             <input
@@ -2019,7 +2174,8 @@
                   d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
               <p class="text-obsidian dark:text-quartz font-medium">Drop multiple files to verify</p>
-              <p class="text-xs text-flint-dark dark:text-flint-light">or click to browse (files are queued for sequential verification)</p>
+              <p class="text-xs muted-help">or click to browse (files are queued for sequential verification)</p>
+              <p class="text-xs muted-help mt-1">JPEG · PNG · TIFF · WebP · HEIC · AVIF</p>
             </div>
           </button>
 
@@ -2036,7 +2192,7 @@
                 >
                   {batchRunning ? 'Running…' : 'Run Batch'}
                 </button>
-                <span class="text-xs text-flint-dark dark:text-flint-light">{batchCompleted} of {batchItems.length} complete</span>
+                <span class="text-xs muted-help">{batchCompleted} of {batchItems.length} complete</span>
               </div>
               <div class="flex items-center gap-2">
                 {#if batchCompleted > 0}
@@ -2065,7 +2221,7 @@
             <!-- Results table -->
             <div class="mt-4 bg-gray-50 dark:bg-obsidian border border-border-light dark:border-border-dark rounded-lg overflow-x-auto">
               <div class="grid grid-cols-[1fr_90px_70px_70px_36px] gap-3 px-4 py-2 border-b border-border-light dark:border-border-dark
-                          text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wide min-w-[480px]">
+                          text-[10px] section-label uppercase tracking-wide min-w-[480px]">
                 <span>File</span>
                 <span>Status</span>
                 <span>Trust</span>
@@ -2074,6 +2230,8 @@
               </div>
               {#each batchItems as item (item.id)}
                 <div class="border-b border-border-light dark:border-border-dark/50 last:border-0 min-w-[480px]">
+                  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+                  <!-- role="button" and tabindex=0 are set together when status is 'done'; the element is interactive in that state. -->
                   <div
                     class="w-full grid grid-cols-[1fr_90px_70px_70px_36px] gap-3 px-4 py-2.5 text-left
                            {item.status === 'done' ? 'cursor-pointer hover:bg-white/[0.03]' : ''}
@@ -2271,14 +2429,14 @@
               <line x1="3" y1="9" x2="21" y2="9" />
               <line x1="9" y1="21" x2="9" y2="9" />
             </svg>
-            <p class="text-[11px] text-flint-dark dark:text-flint-light leading-tight">
+            <p class="text-[11px] muted-help leading-tight">
               Preview unavailable for this codec.<br />Analysis still ran.
             </p>
           </div>
         {/if}
 
         <!-- Trust ring -->
-        <div class="flex-shrink-0 relative w-[110px] h-[110px]" role="img" aria-label="Trust score: {trustScorePercent}%">
+        <div class="flex-shrink-0 relative w-[110px] h-[110px]" role="img" aria-label="Trust score {trustScorePercent} per cent. Verdict: {trustLabelText() || 'pending'}.">
           <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
             <circle cx="50" cy="50" r="47" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="9"/>
             <circle
@@ -2301,6 +2459,25 @@
           </div>
         </div>
 
+        <!-- Screen-reader live summary: announces the complete settled result
+             once, after the reveal animation completes (or immediately under
+             prefers-reduced-motion). The animated badge and heading above still
+             carry their own role="status" for immediate rendering, but this
+             region provides the authoritative one-shot announcement that
+             includes score + verdict + detectors-run so the user gets the full
+             picture without waiting for individual elements to come into view.
+             aria-live="polite" avoids interrupting in-progress speech. -->
+        <div
+          class="sr-only"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {#if scoreRevealVisible && result}
+            Verification complete. Trust score {trustScorePercent} per cent. Verdict: {trustLabelText() || 'unknown'}. {detectorsRun()} of {detectorsAvailable()} detectors ran.
+          {/if}
+        </div>
+
         <!-- Meta — opacity-fades in alongside the score reveal so the
              title + verdict badge + filename land as one visual unit
              at the end of the ring fill (2026-05-22 reveal animation).
@@ -2313,7 +2490,7 @@
           <div class="flex items-center gap-2 mb-1 flex-wrap">
             <h2 class="font-serif text-xl text-obsidian dark:text-quartz">{trustLabelText()}</h2>
             {#if trustLevel()}
-              <span class="px-2 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-full border {verdictBadgeClass()}" role="status" aria-live="polite">
+              <span class="px-2 py-0.5 text-[10px] font-bold tracking-widest uppercase rounded-full border {verdictBadgeClass()}" aria-hidden="true">
                 {trustLevel() === 'high' ? 'Authentic'
                   : trustLevel() === 'medium' ? 'Review'
                   : trustLevel() === 'inconclusive' ? 'Insufficient signal'
@@ -2336,35 +2513,50 @@
             How this score is calculated
           </a>
 
-          <p class="text-sm text-flint-dark dark:text-flint-light mb-3">
+          <p class="text-sm muted-help mb-3">
             {fileName}{#if imageDimensions()} · {imageDimensions()}{/if}
           </p>
 
           {#if insufficientSignal()}
             <div role="status" aria-live="polite" class="mb-3 px-3 py-2 rounded-lg border border-flint/30 bg-flint/5 text-xs text-flint-dark dark:text-flint-light leading-relaxed">
               <strong class="text-text-light dark:text-quartz">Insufficient signal.</strong>
-              Only {detectorsRun()} of the expected automatic detectors ran on this file.
-              The numeric score above is not a meaningful authenticity verdict, too few
+              Only {detectorsRun()} of {detectorsAvailable()} forensic detectors ran on this file.
+              The numeric score above is not a meaningful authenticity verdict. Too few
               forensic signals contributed to make any judgement. Common causes:
               the Analysis Engine was unreachable during the verify run, the sidecar
               terminated mid-pipeline, or this file's format gated most detectors off.
-              Re-run with a stable Analysis Engine before treating the result as authoritative.
+              Re-verify the file with the Analysis Engine running.
+              <a
+                href="/settings"
+                class="ml-1 text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+              >Check service status in Settings.</a>
             </div>
+          <!-- JTV-225 partial-analysis banner removed 2026-05-27. Its trigger
+               (detectorsRun < 13) fired on every healthy verify, because the 13
+               forensic detectors include the 3 on-demand tools (user-triggered,
+               so they never auto-run) and format-gated detectors (e.g. JPEG Ghost
+               does not run on a PNG). That produced a false "provisional / check
+               Settings" warning while Settings correctly showed the engine healthy.
+               Genuine under-coverage is already caught by the insufficient-signal
+               banner (<5 detectors); "you can run more" is covered by the on-demand
+               discoverability hint. A real partial-run signal needs a backend
+               expected-vs-ran-for-this-file comparison, not a count against 13. -->
           {:else if rawTrustLevel === 'high' && !hasPositiveAuthenticitySignal()}
             <div role="status" aria-live="polite" class="mb-3 px-3 py-2 rounded-lg border border-amber/30 bg-amber/5 text-xs text-amber-dark dark:text-amber-light leading-relaxed">
-              <strong>No positive authenticity signal.</strong>
-              The numeric score is high, but no positive provenance evidence supports an
-              "Authentic" claim. There is no recognised camera MakerNote, no valid Content Credentials
-              without AI declaration. Absence of negative findings is not the same as
-              evidence of authenticity, particularly on re-encoded or format-converted files
-              where JPEG-specific forensics cannot run. Verdict capped at Moderate / Review.
+              <strong>No positive provenance signal.</strong>
+              The score is high, but no direct evidence confirms camera or human origin:
+              no recognised camera hardware signature, and no valid Content Credentials
+              without an AI-generation declaration.
+              Absence of suspicious findings alone is not enough to claim authenticity,
+              particularly for re-encoded or format-converted files where compression-based
+              forensics cannot run. Verdict capped at Moderate / Review.
             </div>
           {/if}
 
           <!-- Breakdown row -->
           <div class="flex items-center gap-4 flex-wrap border-t border-border-light dark:border-border-dark/60 pt-3" role="list" aria-label="Verification summary">
             <div role="listitem" class="flex flex-col gap-0.5">
-              <span class="text-[10px] {insufficientSignal() ? 'text-cinnabar-dark dark:text-cinnabar-light font-semibold' : 'text-flint-dark dark:text-flint-light'} uppercase tracking-wider">
+              <span class="text-[10px] {insufficientSignal() ? 'text-cinnabar-dark dark:text-cinnabar-light font-semibold' : 'section-label'} uppercase tracking-wider">
                 Detectors run{insufficientSignal() ? ' (partial)' : ''}
               </span>
               <span class="text-sm {insufficientSignal() ? 'text-cinnabar-dark dark:text-cinnabar-light font-bold' : 'text-obsidian dark:text-quartz font-medium'}">
@@ -2373,7 +2565,7 @@
             </div>
             <div role="separator" aria-hidden="true" class="w-px h-6 bg-border-light dark:bg-border-dark"></div>
             <div role="listitem" class="flex flex-col gap-0.5">
-              <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Findings</span>
+              <span class="text-[10px] section-label uppercase tracking-wider">Findings</span>
               <span class="text-sm font-medium {totalFindings > 0 ? 'text-amber-dark dark:text-amber-light' : 'text-malachite-dark dark:text-malachite-light'}">
                 {totalFindings === 0 ? 'None' : totalFindings === 1 ? '1 concern' : `${totalFindings} concerns`}
               </span>
@@ -2381,13 +2573,13 @@
             {#if cameraLabel()}
               <div role="separator" aria-hidden="true" class="w-px h-6 bg-border-light dark:bg-border-dark"></div>
               <div role="listitem" class="flex flex-col gap-0.5">
-                <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Camera</span>
+                <span class="text-[10px] section-label uppercase tracking-wider">Camera</span>
                 <span class="text-sm text-obsidian dark:text-quartz font-medium">{cameraLabel()}</span>
               </div>
             {/if}
             <div role="separator" aria-hidden="true" class="w-px h-6 bg-border-light dark:bg-border-dark"></div>
             <div role="listitem" class="flex flex-col gap-0.5">
-              <span class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Content Credentials</span>
+              <span class="text-[10px] section-label uppercase tracking-wider">Content Credentials</span>
               <!--
                 Status labels per C2PA UX Rec v1.4 Table 4:
                   invalid -> "Content Credential unavailable or invalid" (verbatim).
@@ -2425,22 +2617,80 @@
       </div>
     </section>
 
+    <!-- ── R1: Contextual next-step prompt ───────────────────────── -->
+    <!-- Shown when a verdict has landed and the signal is not insufficient.
+         Copy is tailored to the trust level so the journey closes with a
+         clear, actionable cue rather than a dead end.
+         Inconclusive / insufficient-signal states are excluded: the existing
+         insufficient-signal banner inside the trust card already handles that
+         state and duplicating it would add noise. -->
+    {#if !insufficientSignal() && trustLevel() && trustLevel() !== 'inconclusive'}
+      <div
+        class="mb-4 px-4 py-3 rounded-xl border
+               {trustLevel() === 'high'
+                 ? 'bg-malachite/5 border-malachite/20'
+                 : 'bg-amber/5 border-amber/20'}"
+        role="note"
+        aria-label="Suggested next steps"
+      >
+        {#if trustLevel() === 'high'}
+          <p class="text-sm text-obsidian dark:text-quartz leading-relaxed mb-2">
+            No significant concerns were identified. The provenance and integrity signals are consistent with an authentic image.
+          </p>
+          <div class="flex items-center gap-3 flex-wrap">
+            <button
+              class="text-xs px-3 py-1.5 min-h-[32px] rounded border border-malachite/40 text-malachite-dark dark:text-malachite-light hover:bg-malachite/10 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+              onclick={() => showReportModal = true}
+              aria-label="Export a trust report for this file"
+            >Export trust report</button>
+            <button
+              class="text-xs text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz underline underline-offset-2 hover:no-underline transition-colors min-h-[32px] px-1
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
+              onclick={reset}
+              aria-label="Clear this result and verify a different file"
+            >Verify another file</button>
+          </div>
+        {:else}
+          <!-- medium or low trust -->
+          <p class="text-sm text-obsidian dark:text-quartz leading-relaxed mb-2">
+            {trustLevel() === 'low'
+              ? 'One or more checks raised concerns. Expand the sections below to review the forensic evidence before drawing conclusions.'
+              : 'Some signals require further review. Expand the sections below to inspect the detail behind this result.'}
+          </p>
+          <div class="flex items-center gap-3 flex-wrap">
+            <button
+              class="text-xs px-3 py-1.5 min-h-[32px] rounded border border-border-light dark:border-border-dark text-obsidian dark:text-quartz hover:bg-white/5 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+              onclick={() => showReportModal = true}
+              aria-label="Export a trust report as evidence"
+            >Export report as evidence</button>
+            <button
+              class="text-xs text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz underline underline-offset-2 hover:no-underline transition-colors min-h-[32px] px-1
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
+              onclick={reset}
+              aria-label="Clear this result and verify a different file"
+            >Verify another file</button>
+          </div>
+        {/if}
+      </div>
+    {/if}
+
     <!-- ── 2. Signal Map Strip ────────────────────────────────────── -->
     <section aria-label="Signal overview, all detectors at a glance" class="mb-5">
       <div class="bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl px-5 py-4">
-        <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-widest mb-3">Signal Map (click any detector to view detail)</p>
+        <p class="text-[10px] section-label uppercase tracking-widest mb-3">Signal Map: select any detector to jump to its detail below</p>
 
         <div class="flex items-start gap-0" role="group" aria-label="Detector signals grouped by category">
 
           <!-- Provenance group -->
           <div class="flex-1 pr-4">
-            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold mb-2" id="sm-prov">Provenance</p>
+            <p class="text-[10px] section-label uppercase tracking-wider mb-2" id="sm-prov">Provenance</p>
             <div class="flex flex-wrap gap-x-4 gap-y-2" role="list" aria-labelledby="sm-prov">
               {#each signalDots().provenance as dot}
                 <button
                   class="flex items-center gap-1.5 rounded px-1 py-0.5 min-h-[28px] transition-colors hover:bg-white/5
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
-                  role="listitem"
                   aria-label="{dot.label}: {dot.ariaDetail}. Click to jump to provenance section"
                   onclick={() => jumpToCard('provenance')}
                 >
@@ -2459,13 +2709,12 @@
 
           <!-- Integrity group -->
           <div class="flex-[2] px-4">
-            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold mb-2" id="sm-int">Integrity</p>
+            <p class="text-[10px] section-label uppercase tracking-wider mb-2" id="sm-int">Integrity</p>
             <div class="flex flex-wrap gap-x-4 gap-y-2" role="list" aria-labelledby="sm-int">
               {#each signalDots().integrity as dot}
                 <button
                   class="flex items-center gap-1.5 rounded px-1 py-0.5 min-h-[28px] transition-colors hover:bg-white/5
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
-                  role="listitem"
                   aria-label="{dot.label}: {dot.ariaDetail}. Click to jump to integrity section"
                   onclick={() => jumpToCard('integrity')}
                 >
@@ -2484,13 +2733,12 @@
 
           <!-- AI Detection group -->
           <div class="flex-1 pl-4">
-            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider font-semibold mb-2" id="sm-ai">AI Detection</p>
+            <p class="text-[10px] section-label uppercase tracking-wider mb-2" id="sm-ai">AI Detection</p>
             <div class="flex flex-wrap gap-x-4 gap-y-2" role="list" aria-labelledby="sm-ai">
               {#each signalDots().ai as dot}
                 <button
                   class="flex items-center gap-1.5 rounded px-1 py-0.5 min-h-[28px] transition-colors hover:bg-white/5
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
-                  role="listitem"
                   aria-label="{dot.label}: {dot.ariaDetail}. Click to jump to AI detection section"
                   onclick={() => jumpToCard('ai')}
                 >
@@ -2513,7 +2761,7 @@
     <section aria-label="Forensic analysis by question" class="space-y-2 mb-5">
       <div class="flex items-baseline gap-2 mb-3">
         <h2 class="font-serif text-lg text-obsidian dark:text-quartz">All Checks</h2>
-        <span class="text-xs text-flint-dark dark:text-flint-light">Click a question to expand the full analysis</span>
+        <span class="text-xs muted-help">Click a question to expand the full analysis</span>
       </div>
 
       <!-- Card 1: Does the provenance hold? -->
@@ -2675,67 +2923,67 @@
                         <div class="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
                           {#if meta.cameraMake || meta.cameraModel}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Camera</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Camera</p>
                               <p class="text-obsidian dark:text-quartz">{[meta.cameraMake, meta.cameraModel].filter(Boolean).join(' ')}</p>
                             </div>
                           {/if}
                           {#if meta.software}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Software</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Software</p>
                               <p class="text-obsidian dark:text-quartz">{meta.software}</p>
                             </div>
                           {/if}
                           {#if meta.datetimeOriginal}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Date taken</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Date taken</p>
                               <p class="text-obsidian dark:text-quartz">{meta.datetimeOriginal}</p>
                             </div>
                           {/if}
                           {#if meta.datetimeModified}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Date modified</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Date modified</p>
                               <p class="text-obsidian dark:text-quartz">{meta.datetimeModified}</p>
                             </div>
                           {/if}
                           {#if meta.iso}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">ISO</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">ISO</p>
                               <p class="text-obsidian dark:text-quartz">{meta.iso}</p>
                             </div>
                           {/if}
                           {#if meta.focalLength}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Focal length</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Focal length</p>
                               <p class="text-obsidian dark:text-quartz">{meta.focalLength}</p>
                             </div>
                           {/if}
                           {#if meta.exposureTime}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Exposure</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Exposure</p>
                               <p class="text-obsidian dark:text-quartz">{meta.exposureTime}</p>
                             </div>
                           {/if}
                           {#if meta.fNumber}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Aperture</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Aperture</p>
                               <p class="text-obsidian dark:text-quartz">{meta.fNumber}</p>
                             </div>
                           {/if}
                           {#if meta.colorSpace}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Colour space</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Colour space</p>
                               <p class="text-obsidian dark:text-quartz">{meta.colorSpace}</p>
                             </div>
                           {/if}
                           {#if meta.exifWidth && meta.exifHeight}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">EXIF dimensions</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">EXIF dimensions</p>
                               <p class="text-obsidian dark:text-quartz">{meta.exifWidth} x {meta.exifHeight}</p>
                             </div>
                           {/if}
                           {#if meta.gpsLatitude != null && meta.gpsLongitude != null}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">GPS</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">GPS</p>
                               <p class="text-obsidian dark:text-quartz">
                                 {meta.gpsLatitude.toFixed(6)}, {meta.gpsLongitude.toFixed(6)}
                                 <a
@@ -2749,37 +2997,37 @@
                           {/if}
                           {#if meta.iccProfileDescription}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">ICC Profile</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">ICC Profile</p>
                               <p class="text-obsidian dark:text-quartz">{meta.iccProfileDescription}</p>
                             </div>
                           {/if}
                           {#if meta.jpegQuantTables?.estimatedQuality != null}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">JPEG Quality</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">JPEG Quality</p>
                               <p class="text-obsidian dark:text-quartz tabular-nums">{meta.jpegQuantTables.estimatedQuality} / 100</p>
                             </div>
                           {/if}
                           {#if meta.jpegQuantTables?.knownSource}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Q-table encoder</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Q-table encoder</p>
                               <p class="text-obsidian dark:text-quartz">{meta.jpegQuantTables.knownSource}</p>
                             </div>
                           {/if}
                           {#if meta.artist}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Artist</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Artist</p>
                               <p class="text-obsidian dark:text-quartz">{meta.artist}</p>
                             </div>
                           {/if}
                           {#if meta.copyright}
                             <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Copyright</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Copyright</p>
                               <p class="text-obsidian dark:text-quartz">{meta.copyright}</p>
                             </div>
                           {/if}
                           {#if meta.description}
                             <div class="col-span-2">
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Description</p>
+                              <p class="text-[10px] section-label uppercase tracking-wider">Description</p>
                               <p class="text-obsidian dark:text-quartz">{meta.description}</p>
                             </div>
                           {/if}
@@ -2813,20 +3061,22 @@
                       <div class="flex items-center gap-2 mb-2">
                         <span class="text-sm font-medium text-obsidian dark:text-quartz">Weather Context</span>
                         <span class="text-[10px] px-1.5 py-px rounded-full bg-amber/15 text-amber-dark dark:text-amber-light border border-amber/30">Enhanced</span>
+                        <span class="text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30">Does not affect trust score</span>
                       </div>
                       <p class="text-xs text-flint-dark dark:text-flint-light mb-3">
                         Historical weather at {gpsCoords.lat.toFixed(4)}, {gpsCoords.lon.toFixed(4)} on {exifDate()} ~{exifHour()}:00 UTC.
-                        Useful for verifying visible conditions match the claimed time and location.
+                        Useful for verifying that visible conditions match the claimed time and location.
+                        Fetching this data does not change the trust score.
                       </p>
 
                       {#if weatherData}
                         <dl class="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-xs" aria-label="Historical weather conditions">
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Temperature</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Temperature</dt>
                             <dd class="text-obsidian dark:text-quartz font-medium">{weatherData.temperature.toFixed(1)} °C</dd>
                           </div>
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Cloud cover</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Cloud cover</dt>
                             <dd class="text-obsidian dark:text-quartz font-medium">{weatherData.cloudCover.toFixed(0)}%
                               {#if weatherData.cloudCover > 80}
                                 <span class="text-flint-dark dark:text-flint-light ml-1">(overcast, no sharp shadows expected)</span>
@@ -2838,11 +3088,11 @@
                             </dd>
                           </div>
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Precipitation</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Precipitation</dt>
                             <dd class="text-obsidian dark:text-quartz font-medium">{weatherData.precipitation.toFixed(1)} mm</dd>
                           </div>
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Visibility</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Visibility</dt>
                             <dd class="text-obsidian dark:text-quartz font-medium">{(weatherData.visibility / 1000).toFixed(1)} km
                               {#if weatherData.visibility < 1000}
                                 <span class="text-amber-dark dark:text-amber-light ml-1">(fog/mist)</span>
@@ -2850,7 +3100,7 @@
                             </dd>
                           </div>
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Wind speed</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Wind speed</dt>
                             <dd class="text-obsidian dark:text-quartz font-medium">{weatherData.windSpeed.toFixed(1)} km/h</dd>
                           </div>
                         </dl>
@@ -3616,34 +3866,34 @@
                       <dl class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
                         {#if pdf.producer}
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Producer</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Producer</dt>
                             <dd class="text-obsidian dark:text-quartz">{pdf.producer}</dd>
                           </div>
                         {/if}
                         {#if pdf.creator}
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Creator</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Creator</dt>
                             <dd class="text-obsidian dark:text-quartz">{pdf.creator}</dd>
                           </div>
                         {/if}
                         {#if pdf.creationDate}
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Created</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Created</dt>
                             <dd class="text-obsidian dark:text-quartz">{pdf.creationDate}</dd>
                           </div>
                         {/if}
                         {#if pdf.modDate}
                           <div>
-                            <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Modified</dt>
+                            <dt class="text-[10px] section-label uppercase tracking-wider">Modified</dt>
                             <dd class="text-obsidian dark:text-quartz">{pdf.modDate}</dd>
                           </div>
                         {/if}
                         <div>
-                          <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">Pages</dt>
+                          <dt class="text-[10px] section-label uppercase tracking-wider">Pages</dt>
                           <dd class="text-obsidian dark:text-quartz tabular-nums">{pdf.pageCount}</dd>
                         </div>
                         <div>
-                          <dt class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">PDF Version</dt>
+                          <dt class="text-[10px] section-label uppercase tracking-wider">PDF Version</dt>
                           <dd class="text-obsidian dark:text-quartz font-mono">{pdf.pdfVersion}</dd>
                         </div>
                       </dl>
@@ -3699,6 +3949,25 @@
             {integrityPass() === null ? '—' : integrityPass() ? 'Pass' : 'Concern'}
           </span>
         </button>
+
+        <!-- R2: Further investigation tools hint — shown only when the card
+             is collapsed, the sidecar is available, and a file path is held
+             (all three conditions must hold for the tools to be usable).
+             Visually quiet (no alarm colours). Activating the link opens
+             the card and scrolls to it so the buttons become visible.
+             Hidden when the sidecar is offline: the tools are disabled in
+             that state and surfacing the hint would create a dead end. -->
+        {#if openCard !== 'integrity' && sidecarAvailable && filePath && (!result.shadowConsistencyResult || !result.spliceBoundaryResult || !result.nprResult)}
+          <div class="px-5 pb-3 pt-0">
+            <button
+              type="button"
+              class="text-[11px] text-flint-dark dark:text-flint-light underline underline-offset-2 hover:text-lapis dark:hover:text-lapis-light hover:no-underline transition-colors min-h-[24px]
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
+              onclick={() => jumpToCard('integrity')}
+              aria-label="Further investigation tools available. Open the integrity card to access them."
+            >Further investigation tools available</button>
+          </div>
+        {/if}
 
         {#if openCard === 'integrity'}
           <div id="card-integrity-body" class="border-t border-border-light dark:border-border-dark/60">
@@ -4131,8 +4400,10 @@
               {#if !result.elaResult && !result.noiseResult && !result.copyMoveResult}
                 <li class="px-5 py-4">
                   <p class="text-sm text-flint-dark dark:text-flint-light">
-                    Integrity checks require the Analysis Engine. {sidecarAvailable ? 'No data returned for this file type.' : 'Start the sidecar to enable forensic analysis.'}
-                    <a href="/settings" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz ml-1">Check service status</a>
+                    {sidecarAvailable
+                      ? 'Integrity checks could not run for this file type or size.'
+                      : 'Integrity checks require the Analysis Engine, which is currently offline.'}
+                    <a href="/settings" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded">Check service status in Settings.</a>
                   </p>
                 </li>
               {/if}
@@ -4171,6 +4442,8 @@
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={!filePath || !sidecarAvailable || onDemandLoading.npr}
                       onclick={() => runOnDemand('npr')}
+                      title="Analyses pixel correlations for AI generation artefacts. Takes 5–15 seconds."
+                      aria-label={onDemandLoading.npr ? 'Running Neighbouring Pixel Relationships analysis' : 'Run Neighbouring Pixel Relationships (pixel correlation check for AI artefacts)'}
                     >
                       {onDemandLoading.npr ? 'Running NPR…' : 'Run NPR'}
                     </button>
@@ -4182,6 +4455,8 @@
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={!filePath || !sidecarAvailable || onDemandLoading.shadow}
                       onclick={() => runOnDemand('shadow')}
+                      title="Checks whether shadows across the image point in the same direction. Takes 5–20 seconds."
+                      aria-label={onDemandLoading.shadow ? 'Running Shadow Consistency analysis' : 'Run Shadow Consistency (checks whether shadows in the image are physically consistent)'}
                     >
                       {onDemandLoading.shadow ? 'Running Shadow Consistency…' : 'Run Shadow Consistency'}
                     </button>
@@ -4193,6 +4468,8 @@
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={!filePath || !sidecarAvailable || onDemandLoading.splice}
                       onclick={() => runOnDemand('splice')}
+                      title="Looks for cut edges between composited image regions. Takes 5–20 seconds."
+                      aria-label={onDemandLoading.splice ? 'Running Splice Boundary analysis' : 'Run Splice Boundary (looks for composite cut edges between image regions)'}
                     >
                       {onDemandLoading.splice ? 'Running Splice Boundary…' : 'Run Splice Boundary'}
                     </button>
@@ -4205,7 +4482,7 @@
                 {/if}
                 {#if !sidecarAvailable}
                   <p class="mt-2 text-[11px] text-flint-dark dark:text-flint-light">
-                    Analysis Engine unavailable. Start the sidecar to enable these tools.
+                    Analysis Engine offline. <a href="/settings" class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded">Check service status in Settings.</a>
                   </p>
                 {/if}
                 {#if !filePath}
@@ -4421,7 +4698,7 @@
                       {#if showZeroShot}
                         <div class="mt-2 space-y-1" aria-label="CLIP class probability distribution">
                           <div class="flex items-center justify-between mb-1">
-                            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider">
+                            <p class="text-[10px] section-label uppercase tracking-wider">
                               {#if isAuxiliary}
                                 Zero-shot CLIP labels (auxiliary, not used for score)
                               {:else}
@@ -4469,8 +4746,13 @@
                 {#if !result.deepfakeResult && !result.clipResult}
                   <li class="px-5 py-4">
                     <p class="text-sm text-flint-dark dark:text-flint-light">
-                      AI detection requires the Analysis Engine.
-                      {#if !sidecarAvailable}<a href="/settings" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz">Check service status</a>{/if}
+                      AI detection requires the Analysis Engine
+                      {#if !sidecarAvailable}
+                        , which is currently offline.
+                        <a href="/settings" class="text-lapis dark:text-lapis-light underline hover:text-obsidian dark:hover:text-quartz ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded">Check service status in Settings.</a>
+                      {:else}
+                        . No data was returned for this file.
+                      {/if}
                     </p>
                   </li>
                 {/if}
@@ -4669,6 +4951,137 @@
       </details>
     </section>
 
+    <!-- ── Catalogue check (on-demand, non-scoring) ─────────────────
+         Strictly informational: does not affect overallTrust or any
+         detector result.  Placed outside the forensic-question card
+         stack so the non-scoring status is unambiguous.
+         role="note" signals supplementary information to screen readers. -->
+    <section
+      class="mb-4 bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl overflow-hidden"
+      role="note"
+      aria-labelledby="catalogue-check-heading"
+    >
+      <div class="px-5 py-4">
+        <div class="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 id="catalogue-check-heading" class="font-serif text-base text-obsidian dark:text-quartz">
+              Catalogue Check
+            </h2>
+            <p class="text-[11px] text-flint-dark dark:text-flint-light mt-0.5">
+              Informational. Does not affect the trust score.
+            </p>
+          </div>
+          {#if catalogueCheckState === 'idle' || catalogueCheckState === 'error'}
+            <button
+              type="button"
+              onclick={runCatalogueCheck}
+              disabled={!filePath}
+              class="flex-shrink-0 text-xs px-3 py-2 min-h-[44px] rounded border border-lapis/40 text-lapis dark:text-lapis-light
+                     hover:bg-lapis/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+              aria-label="Check whether this image is visually similar to anything in your catalogue"
+              title={!filePath ? 'No local file path retained. Re-verify from file to enable this check.' : undefined}
+            >
+              Check your catalogue
+            </button>
+          {/if}
+        </div>
+
+        {#if catalogueCheckState === 'idle'}
+          <p class="mt-2 text-xs text-flint-dark dark:text-flint-light leading-relaxed max-w-prose">
+            Search your protected catalogue for images that are visually similar to this one.
+            {#if !filePath}
+              <span class="text-amber-dark dark:text-amber-light"> No local file path was retained for this verification, so the check cannot run.</span>
+            {/if}
+          </p>
+        {:else if catalogueCheckState === 'loading'}
+          <div class="mt-3 flex items-center gap-2" aria-live="polite" aria-busy="true">
+            <span
+              class="w-3.5 h-3.5 border-2 border-lapis border-t-transparent rounded-full motion-safe:animate-spin flex-shrink-0"
+              aria-hidden="true"
+            ></span>
+            <p class="text-xs text-flint-dark dark:text-flint-light">Checking your catalogue...</p>
+          </div>
+        {:else if catalogueCheckState === 'error'}
+          <p class="mt-3 text-xs text-cinnabar-dark dark:text-cinnabar-light" role="alert">
+            {catalogueCheckError ?? 'The check could not complete. Please try again.'}
+          </p>
+        {:else if catalogueCheckState === 'done'}
+          {#if catalogueMatches.length === 0}
+            <p class="mt-3 text-xs text-flint-dark dark:text-flint-light" aria-live="polite">
+              No near-duplicates in your catalogue.
+            </p>
+          {:else}
+            {@const visibleMatches = catalogueShowAll ? catalogueMatches : catalogueMatches.slice(0, 3)}
+            <div class="mt-3" aria-live="polite">
+              <p class="text-sm font-medium text-obsidian dark:text-quartz">
+                Near-duplicate{catalogueMatches.length === 1 ? '' : 's'} in your catalogue
+              </p>
+              <p class="text-xs text-flint-dark dark:text-flint-light mt-1 leading-relaxed max-w-prose">
+                A previously catalogued image is visually similar to this one. It does not indicate authenticity,
+                confirm origin, or verify provenance.
+              </p>
+              <ul
+                class="mt-3 space-y-2"
+                aria-label="Catalogue near-duplicates"
+              >
+                {#each visibleMatches as match (match.assetId)}
+                  <li class="flex items-center justify-between gap-3 rounded-lg bg-gray-50 dark:bg-obsidian/40 border border-border-light dark:border-border-dark px-3 py-2.5">
+                    <div class="min-w-0 flex-1">
+                      <p
+                        class="text-sm text-obsidian dark:text-quartz font-medium truncate"
+                        title={match.filePath}
+                      >
+                        {match.fileName}
+                      </p>
+                      <div class="flex items-center gap-3 mt-0.5 flex-wrap">
+                        <span class="text-xs text-flint-dark dark:text-flint-light tabular-nums">
+                          {Math.round(match.similarity * 100)}% similar
+                        </span>
+                        <span class="text-[10px] px-1.5 py-px rounded-full font-medium
+                          {match.matchBand === 'exact'
+                            ? 'bg-malachite/15 text-malachite-dark dark:text-malachite-light border border-malachite/30'
+                            : match.matchBand === 'likely'
+                              ? 'bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30'
+                              : 'bg-amber/15 text-amber-dark dark:text-amber-light border border-amber/30'}">
+                          {match.matchBand === 'exact' ? 'Exact' : match.matchBand === 'likely' ? 'Likely' : 'Near'}
+                        </span>
+                      </div>
+                    </div>
+                    <a
+                      href="/protect"
+                      class="flex-shrink-0 text-xs px-2.5 py-1.5 min-h-[36px] inline-flex items-center rounded border border-lapis/40 text-lapis dark:text-lapis-light
+                             hover:bg-lapis/10 transition-colors
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+                      aria-label="View {match.fileName} in Protect"
+                    >
+                      View in Protect
+                    </a>
+                  </li>
+                {/each}
+              </ul>
+              {#if catalogueMatches.length > 3}
+                <button
+                  type="button"
+                  onclick={() => { catalogueShowAll = !catalogueShowAll; }}
+                  class="mt-2 text-xs text-lapis dark:text-lapis-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light rounded"
+                  aria-expanded={catalogueShowAll}
+                >
+                  {catalogueShowAll
+                    ? 'Show fewer'
+                    : `Show ${catalogueMatches.length - 3} more`}
+                </button>
+              {/if}
+            </div>
+          {/if}
+          <p class="mt-3 text-[11px] text-flint-dark dark:text-flint-light leading-relaxed max-w-prose border-t border-border-light dark:border-border-dark/60 pt-3">
+            Matching tolerates re-encoding, resizing, and full-frame screenshots.
+            It may not match heavy crops, rotations, or edited versions.
+          </p>
+        {/if}
+      </div>
+    </section>
+
     <!-- ── Actions footer ──────────────────────────────────────────── -->
     <div class="flex items-center gap-3 flex-wrap bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl px-5 py-4">
       <button
@@ -4715,4 +5128,4 @@
 
   {/if}<!-- end #if checked && result -->
 
-</main>
+</div>

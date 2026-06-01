@@ -3,6 +3,7 @@
   import { getMonitorOverview, getAuditLog, listMonitorUrls, addMonitorUrl, removeMonitorUrl, getMonitorEvents, updateMonitorCaseStatus } from '$lib/api';
   import type { MonitorOverview, AuditLogEntry, MonitorUrl, MonitorEvent } from '$lib/types';
   import ContextualHelpLink from '$lib/components/ContextualHelpLink.svelte';
+  import { V1_SHOW_WATCHED_LOCATIONS } from '$lib/featureFlags';
 
   // ── State ──────────────────────────────────────────────────────
 
@@ -37,11 +38,20 @@
   // ── Lifecycle ──────────────────────────────────────────────────
 
   onMount(async () => {
-    [overview, auditEntries, watchlistUrls] = await Promise.all([
+    const tasks: [Promise<MonitorOverview>, Promise<AuditLogEntry[]>] = [
       getMonitorOverview(),
       getAuditLog(PAGE_SIZE),
-      listMonitorUrls(),
-    ]);
+    ];
+    if (V1_SHOW_WATCHED_LOCATIONS) {
+      const [ov, audit, urls] = await Promise.all([...tasks, listMonitorUrls()]);
+      overview = ov;
+      auditEntries = audit;
+      watchlistUrls = urls;
+    } else {
+      const [ov, audit] = await Promise.all(tasks);
+      overview = ov;
+      auditEntries = audit;
+    }
     auditOffset = auditEntries.length;
     loading = false;
   });
@@ -229,7 +239,7 @@
 <!-- ── Loading skeleton ─────────────────────────────────────────── -->
 {#if loading}
   <div class="py-32 text-center" aria-live="polite" aria-busy="true">
-    <p class="text-sm text-flint-dark dark:text-flint-light">Loading activity record…</p>
+    <p class="text-sm muted-help">Loading activity record…</p>
   </div>
 
 {:else}
@@ -250,7 +260,7 @@
     accurate rather than globally alarming on first paint.
   -->
   <section class="text-center py-16 pb-12">
-    <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] uppercase tracking-widest mb-5">
+    <p class="text-xs section-label uppercase tracking-widest mb-5">
       Your local record
     </p>
     <h1
@@ -259,12 +269,12 @@
     >
       What this machine knows about your content
     </h1>
-    <p class="text-base text-flint-dark dark:text-flint-light dark:text-[#9B9890] max-w-xl mx-auto mb-3 leading-relaxed">
+    <p class="text-base muted-help max-w-xl mx-auto mb-3 leading-relaxed">
       Monitor shows what Jura Trace has done here — files protected, claims examined, and any
       URLs you have asked it to watch. It does not scan the open web or detect whether your
       content has been reused without your knowledge.
     </p>
-    <p class="text-sm text-flint-dark dark:text-flint-light max-w-sm mx-auto italic leading-relaxed">
+    <p class="text-sm muted-help max-w-sm mx-auto italic leading-relaxed">
       Everything stored locally. Nothing leaves this machine.
     </p>
   </section>
@@ -279,7 +289,7 @@
   >
     <div class="flex items-baseline gap-4 mb-6">
       <span
-        class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20"
+        class="text-xs section-label uppercase tracking-widest flex-shrink-0 w-20"
         aria-hidden="true"
       >
         Record
@@ -319,7 +329,7 @@
     <!-- Entries -->
     <div class="pl-24">
       {#if filteredAudit.length === 0}
-        <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] py-4">
+        <p class="text-sm muted-help py-4">
           {activeFilter === 'all' ? 'No activity recorded yet.' : `No ${activeFilter} activity recorded.`}
         </p>
       {:else}
@@ -327,7 +337,7 @@
           {#each filteredAudit as entry (entry.logId)}
             <li class="py-3 border-b border-border-light dark:border-[rgba(122,119,112,0.12)] last:border-0">
               <div class="flex items-baseline gap-3">
-                <span class="text-xs text-flint-dark dark:text-flint-light flex-shrink-0 w-28">
+                <span class="text-xs muted-help flex-shrink-0 w-28">
                   <time datetime={entry.createdAt}>{formatDateTime(entry.createdAt)}</time>
                 </span>
                 <span class="text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -335,7 +345,7 @@
                 </span>
               </div>
               {#if entry.details}
-                <p class="text-xs text-flint-dark dark:text-flint-light mt-1 ml-31 pl-[calc(theme(spacing.28)+theme(spacing.3))] leading-relaxed">
+                <p class="text-xs muted-help mt-1 ml-31 pl-[calc(theme(spacing.28)+theme(spacing.3))] leading-relaxed">
                   {entry.details}
                 </p>
               {/if}
@@ -370,7 +380,7 @@
   >
     <div class="flex items-baseline gap-4 mb-4">
       <span
-        class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20"
+        class="text-xs section-label uppercase tracking-widest flex-shrink-0 w-20"
         aria-hidden="true"
       >
         Archive
@@ -391,7 +401,7 @@
 
     {#if overview && overview.protection.totalAssets > 0}
       {@const p = overview.protection}
-      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-8">
+      <p class="text-sm muted-help leading-relaxed pl-24 max-w-2xl mb-8">
         {p.totalAssets.toLocaleString()} {p.totalAssets === 1 ? 'file' : 'files'} in your archive,
         {p.c2paSigned.toLocaleString()} with C2PA provenance,
         {p.fingerprinted.toLocaleString()} fingerprinted.
@@ -413,7 +423,7 @@
           >
             {p.totalAssets.toLocaleString()}
           </p>
-          <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
+          <p class="text-xs muted-help mt-1.5 tracking-wide lowercase">
             assets
           </p>
         </div>
@@ -426,7 +436,7 @@
           >
             {p.c2paSigned.toLocaleString()}
           </p>
-          <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
+          <p class="text-xs muted-help mt-1.5 tracking-wide lowercase">
             C2PA signed
           </p>
         </div>
@@ -439,7 +449,7 @@
           >
             {p.fingerprinted.toLocaleString()}
           </p>
-          <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
+          <p class="text-xs muted-help mt-1.5 tracking-wide lowercase">
             fingerprinted
           </p>
         </div>
@@ -458,7 +468,7 @@
       {/if}
 
     {:else}
-      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
+      <p class="text-sm muted-help leading-relaxed pl-24 max-w-2xl">
         No files protected yet.
         <a
           href="/protect"
@@ -481,7 +491,7 @@
   >
     <div class="flex items-baseline gap-4 mb-4">
       <span
-        class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20"
+        class="text-xs section-label uppercase tracking-widest flex-shrink-0 w-20"
         aria-hidden="true"
       >
         Trust
@@ -498,7 +508,7 @@
     {#if overview && overview.trust.total > 0}
       {@const t = overview.trust}
 
-      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-6">
+      <p class="text-sm muted-help leading-relaxed pl-24 max-w-2xl mb-6">
         Of {t.total.toLocaleString()} {t.total === 1 ? 'verification' : 'verifications'},
         {t.highCount.toLocaleString()} returned high confidence,
         {t.mediumCount.toLocaleString()} {t.mediumCount === 1 ? 'was' : 'were'} reviewed,
@@ -536,7 +546,7 @@
         </div>
 
         <!-- Bar legend -->
-        <div class="flex gap-4 text-xs text-flint-dark dark:text-flint-light" aria-hidden="true">
+        <div class="flex gap-4 text-xs muted-help" aria-hidden="true">
           <span class="flex items-center gap-1.5">
             <span class="w-2 h-2 rounded-full bg-malachite dark:bg-malachite-light flex-shrink-0"></span>
             High ({t.highCount})
@@ -561,13 +571,13 @@
         >
           {Math.round(t.averageTrust * 100)}%
         </p>
-        <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#A09D95] mt-1.5 tracking-wide lowercase">
+        <p class="text-xs muted-help mt-1.5 tracking-wide lowercase">
           average trust score
         </p>
       </div>
 
     {:else}
-      <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl">
+      <p class="text-sm muted-help leading-relaxed pl-24 max-w-2xl">
         No verifications yet.
         <a
           href="/verify"
@@ -585,24 +595,25 @@
 
   <!-- ── Watched locations ─────────────────────────────────────── -->
   <!--
-    Renamed from "URL Watchlist" 2026-04-28 — the previous label
+    Renamed from "URL Watchlist" 2026-04-28. The previous label
     carried a policing connotation and did not telegraph the
     user-effort needed (the user must already know which URLs to
-    seed).  "Watched locations" is neutral and human-scaled.
+    seed). "Watched locations" is neutral and human-scaled.
 
-    The introductory paragraph now states the manual-curation
-    constraint up front, and the AI-training notice (previously a
-    page-level banner above the hero) has been moved into this
-    section as a contextual sub-note since it is specifically about
-    the limits of what URL polling can detect.
+    Hidden in v1.0 behind V1_SHOW_WATCHED_LOCATIONS. The feature's
+    original watermark-tracking premise is moot with V1_SHOW_WATERMARK
+    = false. Scheduler + DB + IPC remain in tree behind the flag.
+    Re-enabled in v1.1 (JTV-206) reframed as C2PA manifest integrity
+    monitor + provenance breadcrumb.
   -->
+  {#if V1_SHOW_WATCHED_LOCATIONS}
   <section
     class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]"
     aria-labelledby="watchlist-heading"
   >
     <div class="flex items-baseline gap-4 mb-2">
       <span
-        class="text-xs uppercase tracking-widest text-flint-dark dark:text-flint-light dark:text-[#A09D95] flex-shrink-0 w-20"
+        class="text-xs section-label uppercase tracking-widest flex-shrink-0 w-20"
         aria-hidden="true"
       >
         Watch
@@ -619,7 +630,7 @@
       </div>
     </div>
 
-    <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed pl-24 max-w-2xl mb-6">
+    <p class="text-sm muted-help leading-relaxed pl-24 max-w-2xl mb-6">
       You tell Jura Trace where your protected content is published. It checks those locations
       on a schedule you set, and alerts you if credentials or watermarks have changed. This
       does not scan the open web — you must know the URL in advance.
@@ -630,12 +641,12 @@
       <!-- How URL monitoring works explanation -->
       <div class="rounded-lg border border-lapis/20 bg-lapis/5 px-4 py-3 mb-6 max-w-2xl">
         <p class="text-sm text-lapis dark:text-lapis-light font-medium mb-1">How URL Monitoring Works</p>
-        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-xs muted-help leading-relaxed">
           Add URLs where your protected content is published (for example, your website, social media profiles,
           or any page hosting your images). Jura Trace will periodically check each URL for changes
           and verify that your C2PA provenance manifest and perceptual fingerprints remain intact.
         </p>
-        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-1">
+        <p class="text-xs muted-help leading-relaxed mt-1">
           <span class="font-medium">Note:</span> Domain-wide monitoring (scanning every page on a website)
           is planned for a future release. Currently, each URL is monitored individually.
         </p>
@@ -659,11 +670,11 @@
             <div>
               <label
                 for="watchlist-url"
-                class="block text-xs text-flint-dark dark:text-flint-light mb-1.5"
+                class="block text-xs muted-help mb-1.5"
               >
                 URL <span class="text-cinnabar-dark dark:text-cinnabar-light" aria-hidden="true">*</span>
               </label>
-              <p class="text-xs text-flint-dark dark:text-flint-light mb-1.5">
+              <p class="text-xs muted-help mb-1.5">
                 Enter the exact URL of a page or image you want to monitor
               </p>
               <input
@@ -679,7 +690,7 @@
             <div>
               <label
                 for="watchlist-label"
-                class="block text-xs text-flint-dark dark:text-flint-light mb-1.5"
+                class="block text-xs muted-help mb-1.5"
               >
                 Label <span class="text-flint-dark dark:text-flint-light font-normal">(optional)</span>
               </label>
@@ -693,7 +704,7 @@
               />
             </div>
             <div>
-              <p class="text-xs text-flint-dark dark:text-flint-light mt-1 leading-relaxed">
+              <p class="text-xs muted-help mt-1 leading-relaxed">
                 URLs are saved for manual checking. Automated monitoring is planned for a future release.
               </p>
             </div>
@@ -737,7 +748,7 @@
             No locations added yet
           </h3>
           <div class="earth-line mb-5" aria-hidden="true"></div>
-          <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed mb-2">
+          <p class="text-sm muted-help leading-relaxed mb-2">
             Add the URL of any page where your protected content is published.
             Jura Trace will track changes and verify that your content
             credentials remain intact.
@@ -780,7 +791,7 @@
                           <p class="text-sm font-medium text-text-light dark:text-quartz truncate">
                             {entry.label}
                           </p>
-                          <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5 truncate">
+                          <p class="text-xs muted-help mt-0.5 truncate">
                             {truncateUrl(entry.url)}
                           </p>
                         {:else}
@@ -801,14 +812,14 @@
                     </span>
 
                     {#if entry.lastCheckedAt}
-                      <span class="text-xs text-flint-dark dark:text-flint-light">
+                      <span class="text-xs muted-help">
                         <time datetime={entry.lastCheckedAt}>
                           {formatDateTime(entry.lastCheckedAt)}
                         </time>
                       </span>
                     {/if}
 
-                    <span class="text-xs text-flint-dark dark:text-flint-light">
+                    <span class="text-xs muted-help">
                       {entry.checkFrequency}
                     </span>
 
@@ -843,9 +854,9 @@
                   aria-label="Recent check events for {entry.label ?? entry.url}"
                 >
                   {#if eventsLoading}
-                    <p class="text-xs text-flint-dark dark:text-flint-light py-2">Loading events…</p>
+                    <p class="text-xs muted-help py-2">Loading events…</p>
                   {:else if expandedEvents.length === 0}
-                    <p class="text-xs text-flint-dark dark:text-flint-light dark:text-[#9B9890] py-2">
+                    <p class="text-xs muted-help py-2">
                       No check events recorded yet. Events will appear here once Jura Trace has performed its first check.
                     </p>
                   {:else}
@@ -864,7 +875,7 @@
                                   {ev.caseStatus}
                                 </span>
                               </div>
-                              <p class="text-xs text-flint-dark dark:text-flint-light mt-1">
+                              <p class="text-xs muted-help mt-1">
                                 <time datetime={ev.checkedAt}>{formatDateTime(ev.checkedAt)}</time>
                                 {#if ev.httpStatus}
                                   &middot; HTTP {ev.httpStatus}
@@ -874,7 +885,7 @@
                                 {/if}
                               </p>
                               {#if ev.caseNotes}
-                                <p class="text-xs text-flint-dark dark:text-flint-light mt-1.5 italic">
+                                <p class="text-xs muted-help mt-1.5 italic">
                                   {ev.caseNotes}
                                 </p>
                               {/if}
@@ -941,7 +952,7 @@
         aria-label="AI training detection limitation"
         class="mt-8 max-w-2xl rounded-lg border border-lapis/20 bg-lapis/5 px-4 py-3"
       >
-        <p class="text-xs leading-relaxed text-flint-dark dark:text-flint-light">
+        <p class="text-xs muted-help leading-relaxed">
           <span class="font-medium text-lapis dark:text-lapis-light">Note:</span>
           Watching a URL cannot detect whether your content has been used to train AI models.
           Watermarks and C2PA provenance manifests do not survive AI model training — they are
@@ -969,18 +980,60 @@
         <p class="text-sm font-medium text-lapis dark:text-lapis-light mb-1">
           What Monitor does not do yet
         </p>
-        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+        <p class="text-xs muted-help leading-relaxed">
           Jura Trace cannot search the open web for your content. If you want to find out whether
           an image has been republished without your knowledge — on social media, news sites, or
           image aggregators — you currently need to use a reverse image search service such as
           TinEye or Google Images manually.
         </p>
-        <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-1.5">
+        <p class="text-xs muted-help leading-relaxed mt-1.5">
           Automated reverse image search (BYOK API key) is planned for a future release.
         </p>
       </div>
     </div>
   </section>
+  {:else}
+  <!-- v1.0 placeholder. Keeps the Monitor tab honest without surfacing the
+       Watched Locations machinery whose watermark anchor is gated off. -->
+  <section
+    class="py-12 border-t border-border-light dark:border-[rgba(122,119,112,0.15)]"
+    aria-labelledby="watchlist-deferred-heading"
+  >
+    <div class="flex items-baseline gap-4 mb-2">
+      <span
+        class="text-xs section-label uppercase tracking-widest flex-shrink-0 w-20"
+        aria-hidden="true"
+      >
+        Watch
+      </span>
+      <h2
+        id="watchlist-deferred-heading"
+        class="font-heading text-2xl font-normal text-text-light dark:text-quartz"
+        style="letter-spacing: -0.01em;"
+      >
+        Watched locations
+      </h2>
+    </div>
+    <div class="pl-24 max-w-2xl">
+      <p class="text-sm muted-help leading-relaxed mb-3">
+        Coming in v1.1. Two features will live here.
+      </p>
+      <ul class="text-sm muted-help leading-relaxed list-disc pl-5 space-y-1.5">
+        <li>
+          <span class="text-text-light dark:text-quartz">Content Credentials integrity monitor.</span>
+          Add a URL where you publish signed content. Jura Trace re-checks the manifest on a schedule and alerts you if it is stripped or altered.
+        </li>
+        <li>
+          <span class="text-text-light dark:text-quartz">Provenance breadcrumb.</span>
+          Record where and when an asset was first published, as part of its evidence trail.
+        </li>
+      </ul>
+      <p class="text-xs muted-help leading-relaxed mt-4">
+        Automated reverse image search and audio or video fingerprint URL checks are tracked separately on the v1.1 roadmap.
+      </p>
+    </div>
+  </section>
+  {/if}
 
 </div>
 {/if}

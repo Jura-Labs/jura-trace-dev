@@ -7,9 +7,10 @@
 //! spawned as a background task on app startup and cancelled cleanly on exit.
 //!
 //! ## Tier gating
-//! The scheduler is **only active on Professional, Team, and Enterprise tiers**.
+//! The scheduler is **only active on Professional and Enterprise tiers**.
 //! On the Community tier it logs a single notice and then idles indefinitely.
 //! This enforcement is in-process and cannot be bypassed via the UI.
+//! (Team tier was retired 2026-05-04 per project_tier_simplification_locked.)
 //!
 //! ## Politeness
 //! A [`INTER_URL_DELAY_SECS`]-second sleep is inserted between consecutive URL

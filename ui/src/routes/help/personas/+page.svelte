@@ -28,7 +28,7 @@
 
 <!-- On-page navigation -->
 <nav aria-label="On this page" class="mb-8">
-  <p class="text-xs font-medium uppercase tracking-wider text-flint-dark dark:text-flint-light mb-3">
+  <p class="text-xs section-label uppercase tracking-wider mb-3">
     On this page
   </p>
   <ul role="list" class="space-y-1">
@@ -117,7 +117,7 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -148,7 +148,7 @@
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-5">
-    You verify images, videos, and documents received from sources or found online.
+    You verify images received from sources or found online.
     You need to assess authenticity quickly and document your findings clearly. Each
     analysis builds another layer of verifiable evidence: a provenance chain you can
     cite in your records.
@@ -221,7 +221,7 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -262,7 +262,7 @@
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-5">
-    You create original photographs, illustrations, or videos and want to prove your
+    You create original photographs or illustrations and want to prove your
     authorship before publishing. C2PA provenance
     deposit a durable record of your creative origin: one that survives the compression
     and cropping common across social media platforms.
@@ -319,7 +319,7 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -434,7 +434,7 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -540,7 +540,7 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -645,7 +645,7 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -700,16 +700,15 @@
   </h3>
   <ol class="list-decimal pl-6 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed mb-5">
     <li>
-      Receive suspicious content (a video call recording, social media post, or forwarded image).
+      Receive suspicious content (a social media post, forwarded image, or shared photograph).
     </li>
     <li>
       Drop the file on the
       <strong class="text-text-light dark:text-text-dark">Verify</strong> page.
     </li>
     <li>
-      For video: use
-      <strong class="text-text-light dark:text-text-dark">Standard</strong> mode for rapid
-      triage (approximately 15 seconds). Switch to
+      Use <strong class="text-text-light dark:text-text-dark">Standard</strong> mode for
+      rapid triage (approximately 15 seconds). Switch to
       <strong class="text-text-light dark:text-text-dark">Deep</strong> for full analysis
       once triage indicates a concern.
     </li>
@@ -742,7 +741,7 @@
     Key features to explore
   </h3>
   <ul class="list-disc pl-6 space-y-1 text-sm text-text-light dark:text-quartz leading-relaxed mb-5">
-    <li>Video deepfake detection with temporal consistency signals (under evaluation for a future release)</li>
+    <li>AI generation detection ensemble (GBM v4 + UnivFD probe) across the full image</li>
     <li>C2PA AI declaration detection: flags content declared as AI-generated by its creator tool</li>
     <li>Three-way verdict classification for clear incident response framing</li>
     <li>Rapid Standard mode for crisis triage</li>
@@ -750,18 +749,13 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
       <li>
-        "Inconclusive" on a deepfake video means automated analysis could not confirm
-        authenticity. Do not treat it as clearance to declare the content genuine.
-      </li>
-      <li>
-        For video, the frame timeline shows per-frame deepfake scores. Consistent
-        flagging across many frames is more significant than isolated spikes in one
-        or two frames.
+        "Inconclusive" means automated analysis could not confirm authenticity. Do not
+        treat it as clearance to declare the content genuine.
       </li>
       <li>
         If C2PA credentials declare AI generation (for example, content originating
@@ -790,8 +784,8 @@
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-5">
-    You document human rights abuses using photographs, video, and audio from conflict
-    zones and crisis environments. Your evidence must be tamper-evident and its analysis
+    You document human rights abuses using photographs from conflict zones and crisis
+    environments. Your evidence must be tamper-evident and its analysis
     methodology transparent for international accountability mechanisms. Jura Trace
     processes everything locally. No content leaves your device, and the SHA-256 hash
     chain creates a verifiable record of every action taken on your evidence from the
@@ -857,7 +851,7 @@
 
   <!-- Tips callout -->
   <div class="bg-obsidian/5 dark:bg-obsidian/50 rounded border border-border-light dark:border-border-dark p-4 mt-4">
-    <p class="text-xs font-semibold uppercase tracking-wider text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-wider mb-2">
       Tips
     </p>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed">
@@ -874,8 +868,9 @@
       </li>
       <li>
         For field deployment without internet connectivity: Jura Trace operates fully
-        offline. Ollama (LLM descriptions) and FFmpeg (video/audio metadata) are optional
-        enhancements that are not required for core forensic analysis.
+        offline. All core forensic analysis runs on-device without any network connection.
+        Ollama (AI descriptions, deferred to v1.0.1) is an optional enhancement not
+        required for image forensics.
       </li>
       <li>
         Sign evidence as early as possible in the chain of custody. The C2PA timestamp

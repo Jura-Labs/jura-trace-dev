@@ -103,6 +103,42 @@
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
            focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian;
   }
+
+  /*
+   * LIGHT-MODE READABILITY — shared text-role utilities
+   *
+   * Problem: flint-dark (#5C5A55) at text-[10px] or text-xs with font-weight 400
+   * is perceptually faint on cream surfaces in light mode, even though the
+   * colour contrast of 6.59:1 on #FAFAF7 passes WCAG 2.2 AA (4.5:1).
+   * At sub-14px sizes, thin strokes read lighter than contrast numbers imply.
+   *
+   * Fix: font-semibold (600) for uppercase micro-labels; font-medium (500) for
+   * helper/subtitle text. Dark mode is unchanged — flint-light (#ABA8A0) gives
+   * 6.78:1 on obsidian and 5.97:1 on graphite, both passing AA comfortably at
+   * existing weights.
+   *
+   * Usage:
+   *   section-label — uppercase micro-labels (e.g. "PROVENANCE", "DETECTORS RUN",
+   *                   field keys like "Camera", "ISO"). Always paired with uppercase
+   *                   and tracking-wider/widest in the element itself.
+   *   muted-help    — helper/subtitle/descriptive text below headings or in forms
+   *                   (e.g. "Click a question to expand the full analysis").
+   */
+
+  /* Uppercase micro-label (10px–12px, uppercase, wide tracking).
+   * Darkened to graphite in light mode (per request, 2026-05-27) on top of the
+   * font-semibold weight; the labels read faint at small sizes. Graphite
+   * (#272B34) gives roughly 12:1 on the cream surface. */
+  .section-label {
+    @apply text-graphite dark:text-flint-light font-semibold;
+  }
+
+  /* Helper / subtitle / descriptive muted text (12px–14px, sentence case).
+   * Darkened to graphite in light mode (per request, 2026-05-27) plus font-medium.
+   * If this reads too heavy for secondary text, dial back to text-flint-dark. */
+  .muted-help {
+    @apply text-graphite dark:text-flint-light font-medium;
+  }
 }
 
 @layer utilities {

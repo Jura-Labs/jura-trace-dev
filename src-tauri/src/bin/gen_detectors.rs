@@ -69,7 +69,9 @@ struct MatrixRow {
 /// changes. Then re-run the generator to propagate changes to TypeScript.
 const MODE_MATRIX: &[MatrixRow] = &[
     // ── quick ─────────────────────────────────────────────────────────────
-    // Minimal pass: EXIF + C2PA only. Sidecar is not called.
+    // Minimal pass: EXIF + C2PA only for images; C2PA only for non-image.
+    // EXIF anomaly analysis is only run for image content — the backend skips
+    // it entirely for video, audio, document, and other types (Finding 4).
     MatrixRow {
         mode: "quick",
         category: "image",
@@ -78,61 +80,56 @@ const MODE_MATRIX: &[MatrixRow] = &[
     MatrixRow {
         mode: "quick",
         category: "video",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
     MatrixRow {
         mode: "quick",
         category: "audio",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
     MatrixRow {
         mode: "quick",
         category: "document",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
     MatrixRow {
         mode: "quick",
         category: "other",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
     // ── standard ──────────────────────────────────────────────────────────
-    // Images: ELA + GBM deepfake + CLIP + watermark (no noise/copy-move/ghost).
-    // Video / Audio v1.0: container provenance + metadata only — deepfake +
-    // transcription are deferred to v1.0.x (JTV-138/JTV-139).
+    // Images: ELA + GBM deepfake + CLIP (watermark is v1.0-gated off via
+    // V1_SHOW_WATERMARK=false and must not appear here — Finding 4).
+    // Video / Audio v1.0: C2PA only — deepfake + transcription deferred to
+    // v1.0.x (JTV-138/JTV-139). exif_anomaly not run on non-image (Finding 4).
     MatrixRow {
         mode: "standard",
         category: "image",
-        detectors: &[
-            "exif_anomaly",
-            "c2pa",
-            "ela",
-            "deepfake",
-            "clip",
-            "watermark",
-        ],
+        detectors: &["exif_anomaly", "c2pa", "ela", "deepfake", "clip"],
     },
     MatrixRow {
         mode: "standard",
         category: "video",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
     MatrixRow {
         mode: "standard",
         category: "audio",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
     MatrixRow {
         mode: "standard",
         category: "document",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
     MatrixRow {
         mode: "standard",
         category: "other",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
     // ── deep ──────────────────────────────────────────────────────────────
     // Adds noise, copy-move, JPEG ghost, segmented ELA, colour temperature.
+    // watermark excluded (v1.0-gated); exif_anomaly image-only (Finding 4).
     MatrixRow {
         mode: "deep",
         category: "image",
@@ -147,32 +144,32 @@ const MODE_MATRIX: &[MatrixRow] = &[
             "segmented_ela",
             "colour_temperature",
             "clip",
-            "watermark",
         ],
     },
     MatrixRow {
         mode: "deep",
         category: "video",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
     MatrixRow {
         mode: "deep",
         category: "audio",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
     MatrixRow {
         mode: "deep",
         category: "document",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
     MatrixRow {
         mode: "deep",
         category: "other",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
     // ── archival ──────────────────────────────────────────────────────────
     // Same as deep — archival adds thoroughness on JPEG ghost quality steps,
     // not new detectors. Video deepfake + transcription deferred to v1.0.x.
+    // watermark excluded (v1.0-gated); exif_anomaly image-only (Finding 4).
     MatrixRow {
         mode: "archival",
         category: "image",
@@ -187,28 +184,27 @@ const MODE_MATRIX: &[MatrixRow] = &[
             "segmented_ela",
             "colour_temperature",
             "clip",
-            "watermark",
         ],
     },
     MatrixRow {
         mode: "archival",
         category: "video",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
     MatrixRow {
         mode: "archival",
         category: "audio",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
     MatrixRow {
         mode: "archival",
         category: "document",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
     MatrixRow {
         mode: "archival",
         category: "other",
-        detectors: &["exif_anomaly", "c2pa"],
+        detectors: &["c2pa"],
     },
 ];
 

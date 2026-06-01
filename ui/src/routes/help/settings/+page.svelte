@@ -11,8 +11,7 @@
   <p class="text-base text-text-light dark:text-quartz leading-relaxed max-w-2xl">
     The Settings page lets you check service health, choose where your local
     database is stored, and review licence and version information. Deployment
-    profiles and the Ollama AI assistant are reserved for v1.0.1 and are not
-    surfaced in the v1.0 build.
+    profiles are reserved for a later release and are not surfaced in the v1.0 build.
   </p>
 </header>
 
@@ -21,186 +20,61 @@
 
 <!-- ── Table of contents ───────────────────────────────────────────── -->
 <nav aria-label="Page contents" class="mb-10">
-  <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-3">
+  <p class="text-xs section-label uppercase tracking-widest mb-3">
     On this page
   </p>
   <ol class="space-y-1 text-sm">
     <li>
-      <a href="#ollama"
-         class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        1. Ollama Configuration
-      </a>
-    </li>
-    <li>
-      <a href="#deployment-profiles"
-         class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        2. Deployment Profiles
-      </a>
-    </li>
-    <li>
       <a href="#service-status"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        3. Service Status
+        1. Service Status
       </a>
     </li>
     <li>
       <a href="#database"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        4. Database Location
+        2. Database Location
       </a>
     </li>
     <li>
       <a href="#about"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        5. About
+        3. About
       </a>
     </li>
     <li>
       <a href="#setup-wizard"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        6. Setup Wizard
+        4. Setup Wizard
       </a>
     </li>
     <li>
       <a href="#auto-updater"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        7. Updates
+        5. Updates
       </a>
     </li>
     <li>
       <a href="#your-plan"
          class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
-        8. Your Plan
+        6. Your Plan
       </a>
     </li>
   </ol>
 </nav>
 
 <!-- ══════════════════════════════════════════════════════════════════
-     1. Ollama Configuration
-     ══════════════════════════════════════════════════════════════════ -->
-<section id="ollama" class="mb-12" aria-labelledby="heading-ollama">
-  <h2 id="heading-ollama" class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    1. Ollama Configuration
-  </h2>
-
-  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    Ollama is a free tool that runs AI models locally. Jura Trace v1.0 ships with
-    no Ollama-dependent features enabled. The AI Assistant section is reserved for
-    v1.0.1, where a single multimodal+text model will provide image descriptions and
-    claim verification. Until then, this section is hidden in Settings and no Ollama
-    install is required.
-  </p>
-
-  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">All v1.0 features run without Ollama</p>
-    <ul class="space-y-1 text-sm text-flint-dark dark:text-flint-light">
-      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> 10 automatic forensic detectors plus 3 on-demand investigation tools</li>
-      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> C2PA Validator-Conformant verification</li>
-      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> EXIF anomaly analysis with injection-detection and XMP AI-provenance sub-checks</li>
-      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> AI deepfake detection (GBM v4 + UnivFD v10onnx ensemble)</li>
-      <li class="flex gap-2"><span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span> Local Signing with per-install certificate</li>
-    </ul>
-  </div>
-
-</section>
-
-<!-- ══════════════════════════════════════════════════════════════════
-     2. Deployment Profiles
-     ══════════════════════════════════════════════════════════════════ -->
-<section id="deployment-profiles" class="mb-12" aria-labelledby="heading-profiles">
-  <h2 id="heading-profiles" class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    2. Deployment Profiles
-  </h2>
-
-  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    Deployment profiles let you save your current Ollama configuration under a name and
-    switch between saved configurations quickly. This is useful when you use Jura Trace
-    in different contexts (for example, when working in an office with access to a
-    shared institutional Ollama server versus working offline in the field).
-  </p>
-
-  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-    Saving a profile
-  </h3>
-
-  <ol class="space-y-3 mb-6">
-    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">1</span>
-      <span>
-        Configure the Ollama URL and model names to match the environment you want to save.
-      </span>
-    </li>
-    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">2</span>
-      <span>
-        Click <strong class="text-text-light dark:text-text-dark">Save as profile</strong>
-        in the Deployment Profiles section. Enter a name (for example,
-        "Office" or "Field") and confirm.
-      </span>
-    </li>
-    <li class="flex gap-3 text-sm text-text-light dark:text-quartz leading-relaxed">
-      <span class="flex-none w-6 h-6 rounded-full bg-lapis/10 dark:bg-lapis/20 text-lapis dark:text-lapis-light text-xs font-semibold flex items-center justify-center">3</span>
-      <span>
-        The profile appears in the profile list with the date it was created. You can save
-        up to ten profiles.
-      </span>
-    </li>
-  </ol>
-
-  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-    Loading a profile
-  </h3>
-
-  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    Click <strong class="text-text-light dark:text-text-dark">Load</strong> next to the
-    profile you want to apply. The Ollama URL and model fields update immediately to
-    reflect the saved values. A confirmation message appears briefly to confirm the
-    profile has been loaded.
-  </p>
-
-  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    After loading a profile, click
-    <strong class="text-text-light dark:text-text-dark">Save settings</strong>
-    to persist the loaded values to the application's local settings. If you do not save, the values will
-    revert to the previous configuration on the next application restart.
-  </p>
-
-  <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-    Deleting a profile
-  </h3>
-
-  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
-    Click <strong class="text-text-light dark:text-text-dark">Delete</strong> next to a
-    profile, then confirm the deletion. This removes the profile from the application's local settings.
-    The active settings are not affected; only the saved profile entry is removed.
-  </p>
-
-  <!-- Callout: use case example -->
-  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
-    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-      <strong class="text-text-light dark:text-text-dark">Example.</strong>
-      A photojournalist might save an "Office" profile pointing to a shared Ollama server
-      at <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">http://192.168.1.10:11434</span>
-      used by the editorial team, and a "Field" profile pointing to
-      <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">http://localhost:11434</span>
-      for their laptop's local instance. Switching between them takes a single click.
-    </p>
-  </div>
-</section>
-
-<!-- ══════════════════════════════════════════════════════════════════
-     3. Service Status
+     1. Service Status
      ══════════════════════════════════════════════════════════════════ -->
 <section id="service-status" class="mb-12" aria-labelledby="heading-service-status">
   <h2 id="heading-service-status" class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    3. Service Status
+    1. Service Status
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    The Service Status panel shows the current availability of the two optional services
-    that extend Jura Trace's analysis capabilities. Both services are optional; the core
-    protect and verify features work without them.
+    The Service Status panel shows the current availability of the Analysis Engine,
+    which powers the forensic pipeline. The core protect and verify features require
+    the Analysis Engine to be running.
   </p>
 
   <div class="space-y-5 mb-6">
@@ -211,10 +85,10 @@
       </h3>
       <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
         This indicator shows the status of the Analysis Engine, which runs locally on
-        the 127.0.0.1 loopback interface. The Analysis Engine provides forensic image analysis (ELA, noise, copy-move,
-        deepfake detection, JPEG ghost, regional analysis),
-        video and audio processing, transcription, and the on-demand investigation tools
-        (NPR, shadow consistency, splice boundary) available in Expert View.
+        the 127.0.0.1 loopback interface. The Analysis Engine provides all 13 forensic
+        detectors — including the 10 automatic detectors and the 3 on-demand investigation
+        tools (NPR, shadow consistency, splice boundary). Video and audio processing are
+        not available in this release.
       </p>
       <div class="overflow-x-auto">
         <table class="w-full text-sm border-collapse">
@@ -224,7 +98,7 @@
               <th class="text-left py-2 text-text-light dark:text-text-dark font-semibold">Meaning</th>
             </tr>
           </thead>
-          <tbody class="text-flint-dark dark:text-flint-light">
+          <tbody class="muted-help">
             <tr class="border-b border-border-light/50 dark:border-border-dark/50">
               <td class="py-2 pr-4 font-semibold text-malachite-dark dark:text-malachite-light">Online</td>
               <td class="py-2">The Analysis Engine is running and responding. Forensic analysis is available.</td>
@@ -238,48 +112,15 @@
       </div>
     </div>
 
-    <div>
-      <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-2">
-        Ollama
-      </h3>
-      <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
-        This indicator shows whether Ollama is reachable at the URL configured in the
-        Ollama Configuration section above.
-      </p>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm border-collapse">
-          <thead>
-            <tr class="border-b border-border-light dark:border-border-dark">
-              <th class="text-left py-2 pr-4 text-text-light dark:text-text-dark font-semibold">Status</th>
-              <th class="text-left py-2 text-text-light dark:text-text-dark font-semibold">Meaning</th>
-            </tr>
-          </thead>
-          <tbody class="text-flint-dark dark:text-flint-light">
-            <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-              <td class="py-2 pr-4 font-semibold text-malachite-dark dark:text-malachite-light">Online</td>
-              <td class="py-2">Ollama is running and at least one model is available. AI-assisted features are reserved for v1.0.1. All current v1.0 analysis continues normally.</td>
-            </tr>
-            <tr>
-              <td class="py-2 pr-4 font-semibold text-cinnabar-dark dark:text-cinnabar-light">Unavailable</td>
-              <td class="py-2">Ollama is not running, not reachable at the configured URL, or has no models installed. These features will be skipped; all other analysis continues normally.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
   </div>
 
   <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">
-    What to do when a service is offline
+    What to do when the Analysis Engine is offline
   </h3>
 
   <div class="space-y-3 mb-4">
 
     <div>
-      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-1">
-        Analysis Services offline
-      </p>
       <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         The Analysis Engine starts automatically when you launch Jura Trace. If it shows as
         <strong class="text-text-light dark:text-text-dark">Offline</strong>, try restarting
@@ -287,19 +128,6 @@
         conflicts are unlikely. Once the service is running, click
         <strong class="text-text-light dark:text-text-dark">Refresh</strong> in the Service
         Status panel to confirm the connection.
-      </p>
-    </div>
-
-    <div>
-      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-1">
-        Ollama unavailable
-      </p>
-      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-        Ensure Ollama is running (on macOS it runs as a menu bar application) and that
-        the URL in the Ollama Configuration section matches the port Ollama is using.
-        If you have not yet pulled the required models, refer to the
-        <a href="#ollama" class="text-lapis dark:text-lapis-light underline decoration-lapis/30 hover:decoration-lapis">installation steps</a>
-        above.
       </p>
     </div>
 
@@ -317,11 +145,11 @@
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
-     4. Database Location
+     2. Database Location
      ══════════════════════════════════════════════════════════════════ -->
 <section id="database" class="mb-12" aria-labelledby="heading-database">
   <h2 id="heading-database" class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    4. Database Location
+    2. Database Location
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
@@ -348,7 +176,7 @@
           <th class="text-left py-2 text-text-light dark:text-text-dark font-semibold">Default path</th>
         </tr>
       </thead>
-      <tbody class="text-flint-dark dark:text-flint-light">
+      <tbody class="muted-help">
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4 font-semibold">macOS</td>
           <td class="py-2 font-mono text-xs break-all">~/Library/Application Support/com.juralabs.jura-trace/jura_trace.db</td>
@@ -466,11 +294,11 @@
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
-     5. About
+     3. About
      ══════════════════════════════════════════════════════════════════ -->
 <section id="about" class="mb-12" aria-labelledby="heading-about">
   <h2 id="heading-about" class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    5. About
+    3. About
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
@@ -525,11 +353,11 @@
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
-     6. Setup Wizard
+     4. Setup Wizard
      ══════════════════════════════════════════════════════════════════ -->
 <section id="setup-wizard" class="mb-12" aria-labelledby="heading-setup-wizard">
   <h2 id="heading-setup-wizard" class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    6. Setup Wizard
+    4. Setup Wizard
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
@@ -560,9 +388,9 @@
         Step 2: FFmpeg
       </p>
       <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-        Checks that FFmpeg is available on your system. FFmpeg is required for video and
-        audio analysis: metadata extraction, frame thumbnails, and transcription. If it
-        is not found, the wizard provides installation guidance for your platform.
+        Checks that FFmpeg is available on your system. FFmpeg is not required for image
+        analysis in this release. It will be used for video and audio processing in a
+        future release. If it is not found, the wizard notes this but does not block setup.
       </p>
     </div>
 
@@ -571,27 +399,15 @@
         Step 3: Speech Transcription
       </p>
       <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-        Checks whether a Whisper transcription model is available. Whisper enables audio
-        and video transcription, which feeds into the claim verification pipeline. This
-        step prompts you to download the model if it has not yet been installed.
+        Checks whether a Whisper transcription model is available. Whisper will enable audio
+        and video transcription in a future release. These features are not available in
+        this release. This step is informational only; no download is required for v1.0.
       </p>
     </div>
 
     <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
       <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Step 4: Local AI (Ollama)
-      </p>
-      <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
-        Checks whether Ollama is running and whether the vision model (LLaVA) and text
-        model (Qwen2.5) are installed. These models are optional; all 10 automatic
-        forensic detectors work without them. If Ollama is unavailable, the wizard
-        confirms which features will be skipped.
-      </p>
-    </div>
-
-    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-5">
-      <p class="text-sm font-semibold text-text-light dark:text-text-dark mb-2">
-        Step 5: Ready
+        Step 4: Ready
       </p>
       <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         Summarises the results of all checks. Green items are ready. Items with warnings
@@ -608,9 +424,9 @@
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
     The wizard records its completion state in the application's local storage so it does
-    not appear on every launch. To re-run it (for example, after installing FFmpeg or
-    pulling new Ollama models), clear the application's local settings and relaunch Jura
-    Trace. The wizard will run again on the next startup.
+    not appear on every launch. To re-run it (for example, after installing FFmpeg), clear
+    the application's local settings and relaunch Jura Trace. The wizard will run again on
+    the next startup.
   </p>
 
   <!-- Callout: how to clear local storage -->
@@ -621,18 +437,18 @@
       <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">localStorage</span>
       store. On Windows, this is located in the Jura Trace application data folder under
       <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">%APPDATA%\com.juralabs.jura-trace\</span>.
-      Note: clearing local settings resets deployment profiles and display preferences.
+      Note: clearing local settings resets display preferences.
       Your database file and all asset records are stored separately and are not affected.
     </p>
   </div>
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
-     7. Updates
+     5. Updates
      ══════════════════════════════════════════════════════════════════ -->
 <section id="auto-updater" class="mb-12" aria-labelledby="heading-auto-updater">
   <h2 id="heading-auto-updater" class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    7. Updates
+    5. Updates
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
@@ -688,11 +504,11 @@
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════════
-     8. Your Plan
+     6. Your Plan
      ══════════════════════════════════════════════════════════════════ -->
 <section id="your-plan" class="mb-12" aria-labelledby="heading-your-plan">
   <h2 id="heading-your-plan" class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
-    8. Your Plan
+    6. Your Plan
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
@@ -709,11 +525,11 @@
       </p>
       <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
         The full Jura Trace application: C2PA Validator-Conformant verification, Local
-        Signing, ten automatic forensic detectors, three on-demand investigation tools,
-        perceptual fingerprinting, EXIF anomaly detection with injection-detection and
-        XMP AI-provenance sub-checks, Watched Locations folder monitoring, PDF trust
-        reports, ZIP case exports. Free for everyone under AGPL-3.0-or-later. Permanent:
-        the CIC's asset-locked status guarantees a free Community release in perpetuity.
+        Signing, 13 forensic detectors, perceptual fingerprinting, EXIF anomaly detection
+        with injection-detection and XMP AI-provenance sub-checks, Watched Locations folder
+        monitoring, PDF trust reports, ZIP case exports. Free for everyone under
+        AGPL-3.0-or-later. Permanent: the CIC's asset-locked status guarantees a free
+        Community release in perpetuity.
       </p>
     </div>
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import '../app.css';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
+  import { goto } from '$app/navigation';
   import OnboardingOverlay from '$lib/components/OnboardingOverlay.svelte';
   import SetupWizard from '$lib/components/SetupWizard.svelte';
   import LogoMark from '$lib/components/LogoMark.svelte';
@@ -18,11 +19,73 @@
   let mobileMenuOpen = $state(false);
   let currentPath = $state('/');
 
+  // ── Webview zoom ──────────────────────────────────────────────────────────
+  // Persists across launches via localStorage.  Steps 0.1 in range [0.8, 1.5].
+  // Applied via the Tauri Webview.setZoom() API (available in @tauri-apps/api/webview).
+  // In plain-browser dev mode the API import is skipped gracefully.
+  const ZOOM_MIN = 0.8;
+  const ZOOM_MAX = 1.5;
+  const ZOOM_STEP = 0.1;
+  const ZOOM_DEFAULT = 1.0;
+  const ZOOM_KEY = 'jura-ui-zoom';
+
+  let zoomFactor = $state(ZOOM_DEFAULT);
+
+  async function applyZoom(factor: number) {
+    const tauriAvailable = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+    if (!tauriAvailable) return;
+    try {
+      const { getCurrentWebview } = await import('@tauri-apps/api/webview');
+      await getCurrentWebview().setZoom(factor);
+    } catch {
+      // Non-fatal — setZoom may not be available in dev/mock builds
+    }
+  }
+
+  function clampZoom(f: number): number {
+    return Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, f)) * 10) / 10;
+  }
+
+  function handleZoom(direction: 'in' | 'out' | 'reset') {
+    let next: number;
+    if (direction === 'reset') {
+      next = ZOOM_DEFAULT;
+    } else if (direction === 'in') {
+      next = clampZoom(zoomFactor + ZOOM_STEP);
+    } else {
+      next = clampZoom(zoomFactor - ZOOM_STEP);
+    }
+    zoomFactor = next;
+    localStorage.setItem(ZOOM_KEY, String(next));
+    applyZoom(next);
+  }
+
+  // Unlisten functions for native OS menu events.
+  // Populated in onMount (Tauri env only), cleaned up in onDestroy.
+  let menuUnlisteners: Array<() => void> = [];
+
+  onDestroy(() => {
+    for (const off of menuUnlisteners) {
+      off();
+    }
+    menuUnlisteners = [];
+  });
+
   onMount(async () => {
     const stored = localStorage.getItem('jura-dark-mode');
     // Treat absence or 'true' as dark (dark-first default)
     darkMode = stored === null ? true : stored === 'true';
     applyTheme(darkMode);
+
+    // Restore persisted zoom level
+    const storedZoom = localStorage.getItem(ZOOM_KEY);
+    if (storedZoom !== null) {
+      const parsed = parseFloat(storedZoom);
+      if (!isNaN(parsed)) {
+        zoomFactor = clampZoom(parsed);
+        applyZoom(zoomFactor);
+      }
+    }
 
     currentPath = window.location.pathname;
 
@@ -81,6 +144,63 @@
           showSidecarReminder = true;
         }
       }, 5000);
+    }
+
+    // ── Native OS menu event listeners ─────────────────────────────────────
+    // Only wire up when running inside Tauri (browser dev mode has no menu).
+    // Each listener returns an unlisten function stored in menuUnlisteners so
+    // onDestroy can clean them up and prevent duplicate registrations on
+    // hot-reload.
+    const tauriAvailable = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+    if (tauriAvailable) {
+      const { listen } = await import('@tauri-apps/api/event');
+
+      // menu:navigate — route to any app tab
+      menuUnlisteners.push(
+        await listen<string>('menu:navigate', (event) => {
+          goto(event.payload);
+        }),
+      );
+
+      // menu:show-feedback — open the feedback panel
+      menuUnlisteners.push(
+        await listen('menu:show-feedback', () => {
+          showFeedback = true;
+        }),
+      );
+
+      // menu:check-updates — navigate to Settings then trigger the updater
+      menuUnlisteners.push(
+        await listen('menu:check-updates', async () => {
+          await goto('/settings');
+          // Dynamically import to keep the updater out of the initial bundle.
+          try {
+            const { checkForUpdate, makeTauriDeps } = await import('$lib/updater');
+            const deps = await makeTauriDeps();
+            // No-op status handler here — Settings page owns the status UI.
+            // This call triggers the underlying check; Settings will render
+            // the result on its next mount / via its own poll on re-mount.
+            await checkForUpdate(() => {}, deps);
+          } catch {
+            // Non-fatal: Settings page will show its own update UI.
+          }
+        }),
+      );
+
+      // menu:search-help — navigate to help with search focus flag
+      menuUnlisteners.push(
+        await listen('menu:search-help', () => {
+          goto('/help?search=1');
+        }),
+      );
+
+      // menu:zoom — adjust webview zoom level
+      menuUnlisteners.push(
+        await listen<string>('menu:zoom', (event) => {
+          const direction = event.payload as 'in' | 'out' | 'reset';
+          handleZoom(direction);
+        }),
+      );
     }
   });
 
@@ -213,17 +333,6 @@
           </a>
         {/each}
 
-        <!-- External link -->
-        <a
-          href="https://juralabs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="text-xs text-flint-dark dark:text-flint-light hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian rounded"
-        >
-          Juralabs.org
-          <span class="sr-only">(opens in new tab)</span>
-        </a>
-
         <!-- Dark mode toggle -->
         <button
           onclick={toggleDarkMode}
@@ -288,15 +397,6 @@
               {item.label}
             </a>
           {/each}
-          <a
-            href="https://juralabs.org"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="flex items-center h-[44px] px-2 text-sm text-flint-dark dark:text-flint-light hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lapis rounded"
-          >
-            Juralabs.org
-            <span class="sr-only">(opens in new tab)</span>
-          </a>
         </nav>
       </div>
     {/if}
@@ -315,7 +415,7 @@
   {#if showSidecarReminder}
     <div
       class="sticky bottom-0 z-30 border-t border-amber/30 bg-amber/10 dark:bg-amber/5"
-      role="alert"
+      role="status"
       aria-live="polite"
     >
       <div class="max-w-4xl mx-auto px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
@@ -323,7 +423,7 @@
           <p class="text-sm font-medium text-text-light dark:text-quartz">
             Analysis Engine is offline
           </p>
-          <p class="text-xs text-flint-dark dark:text-flint-light mt-0.5">
+          <p class="text-xs muted-help mt-0.5">
             Full forensic analysis (AI detection, noise analysis, copy-move detection) requires the Analysis Engine.
             Core features like C2PA signing and EXIF metadata still work without it.
           </p>
@@ -364,7 +464,7 @@
           <span class="brand-name text-xs text-text-light dark:text-text-dark">Jura Trace</span>
           <span class="text-xs">v0.9.0</span>
         </div>
-        <p class="text-xs text-center text-flint-dark dark:text-flint-light">Know What's Real</p>
+        <p class="text-xs text-center muted-help">Know What's Real</p>
         <div class="flex items-center gap-4 text-xs">
           <button
             onclick={() => showFeedback = true}
@@ -376,22 +476,38 @@
             href="https://juralabs.org"
             target="_blank"
             rel="noopener noreferrer"
-            class="hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            class="underline underline-offset-2 hover:no-underline hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
             Jura Labs CIC
             <span class="sr-only">(opens in new tab)</span>
           </a>
           <a
-            href="https://juralabs.org/jura-trace"
+            href="/help/open-source"
+            class="underline underline-offset-2 hover:no-underline hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          >
+            Licences
+          </a>
+          <a
+            href="https://codeberg.org/jura-labs/jura-trace"
             target="_blank"
             rel="noopener noreferrer"
-            class="hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+            class="underline underline-offset-2 hover:no-underline hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
-            About
+            Source
             <span class="sr-only">(opens in new tab)</span>
           </a>
         </div>
       </div>
+      <!-- AGPL-3.0 §5(d) Appropriate Legal Notices -->
+      <p class="mt-4 text-[0.7rem] leading-relaxed text-center muted-help">
+        Copyright &copy; 2025{new Date().getFullYear() > 2025 ? `–${new Date().getFullYear()}` : ''} Paul Griffiths, published by Jura Labs CIC.
+        Free software under
+        <a
+          href="/help/open-source"
+          class="underline underline-offset-2 hover:text-lapis dark:hover:text-lapis-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          >AGPL-3.0-or-later</a
+        >, distributed WITHOUT WARRANTY.
+      </p>
     </div>
   </footer>
 </div>

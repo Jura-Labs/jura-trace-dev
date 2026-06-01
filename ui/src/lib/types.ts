@@ -1108,6 +1108,36 @@ export interface SimilarAsset {
   similarity: number;
 }
 
+/**
+ * A catalogue match returned by `findCatalogueMatches`.
+ *
+ * Represents an asset in the local catalogue whose pHash is within the
+ * requested Hamming-distance threshold of a query image.  The lookup is
+ * strictly non-scoring: it never affects `overallTrust` or
+ * `VerificationResult`.
+ *
+ * Mirrors the Rust `CatalogueMatch` struct in `src-tauri/src/lib.rs`.
+ */
+export interface CatalogueMatch {
+  /** UUID of the matching asset in the local catalogue. */
+  assetId: string;
+  /** Original file name of the matching asset (e.g. `"photo.jpg"`). */
+  fileName: string;
+  /** Absolute path of the matching asset on disk as stored at import time. */
+  filePath: string;
+  /** Hamming distance between the query pHash and the catalogued pHash (0–64). */
+  distance: number;
+  /** Normalised similarity score: `1.0 - distance / 64.0`. */
+  similarity: number;
+  /**
+   * Proximity band:
+   * - `"exact"` — distance 0–5 (visually identical or near-identical)
+   * - `"likely"` — distance 6–10 (strong visual similarity)
+   * - `"near"` — distance 11–15 (noticeable similarity at higher thresholds)
+   */
+  matchBand: 'exact' | 'likely' | 'near';
+}
+
 /** Hash type display labels */
 export const HASH_TYPE_LABELS: Record<HashType, string> = {
   ahash: 'Average Hash',

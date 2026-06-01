@@ -848,6 +848,61 @@ async fn test_verify_file_streaming_returns_200() {
     );
 }
 
+/// Test 17: A non-image file (PDF stub) verified in standard mode must NOT
+/// return `degraded: true`, even though ELA and deepfake are both absent.
+/// Prior to the Finding 5 fix, every non-image standard/deep verify was
+/// incorrectly marked degraded because the heuristic was not content-aware.
+#[tokio::test]
+async fn test_non_image_standard_verify_not_degraded() {
+    let state = build_test_state_async().await;
+    let bootstrap_raw = insert_bootstrap_key(state.clone()).await;
+    let auth = format!("jt_{bootstrap_raw}");
+
+    let (listener, _) = bind_random_port();
+    let base_url = start_test_server(state, listener).await;
+
+    let client = reqwest::Client::new();
+    // A minimal PDF stub — enough for the pipeline to detect the format
+    // and route to the document path. The pipeline returns without ELA/deepfake
+    // (document content), which was the false-degraded trigger before the fix.
+    let pdf_stub = b"%PDF-1.4\n%%EOF\n";
+    let form = reqwest::multipart::Form::new()
+        .text("mode", "standard")
+        .part(
+            "file",
+            reqwest::multipart::Part::bytes(pdf_stub.to_vec())
+                .file_name("test.pdf")
+                .mime_str("application/pdf")
+                .unwrap(),
+        );
+
+    let resp = client
+        .post(format!("{base_url}/api/v1/verify"))
+        .header("Authorization", format!("Bearer {auth}"))
+        .multipart(form)
+        .send()
+        .await
+        .expect("request");
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "non-image standard verify should return 200"
+    );
+
+    let body: Value = resp.json().await.expect("json body");
+    assert_eq!(body["apiVersion"], "1.0");
+    assert_eq!(
+        body["degraded"], false,
+        "non-image content must not be marked degraded (Finding 5): {body}"
+    );
+    // The pipeline should report document content type.
+    assert_eq!(
+        body["data"]["contentType"], "document",
+        "PDF stub must be classified as document"
+    );
+}
+
 // ── Test image helper ─────────────────────────────────────────────────────────
 
 /// A valid 16×16 pixel PNG in raw bytes.

@@ -35,7 +35,7 @@
 
   <!-- ── Table of contents ─────────────────────────────────────────────── -->
   <nav aria-label="Page contents" class="mb-10">
-    <p class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-nav font-medium mb-3">Contents</p>
+    <p class="text-xs section-label uppercase tracking-nav mb-3">Contents</p>
     <ol class="space-y-1 text-sm">
       {#each [
         { href: '#gbm-classifier', label: 'GBM Deepfake Classifier' },
@@ -71,11 +71,11 @@
       <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Model type</dt>
-          <dd class="text-flint-dark dark:text-flint-light">Gradient Boosting Machine (GBM)</dd>
+          <dd class="muted-help">Gradient Boosting Machine (GBM)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Framework</dt>
-          <dd class="text-flint-dark dark:text-flint-light">scikit-learn GradientBoostingClassifier</dd>
+          <dd class="muted-help">scikit-learn GradientBoostingClassifier</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">File</dt>
@@ -83,18 +83,18 @@
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">File size</dt>
-          <dd class="text-flint-dark dark:text-flint-light">~1.2 MB</dd>
+          <dd class="muted-help">~1.2 MB</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Shipped in</dt>
-          <dd class="text-flint-dark dark:text-flint-light">v1.0 (22 June 2026)</dd>
+          <dd class="muted-help">v1.0 (22 June 2026)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Model build</dt>
-          <dd class="text-flint-dark dark:text-flint-light">v1.0 launch build</dd>
+          <dd class="muted-help">v1.0 launch build</dd>
         </div>
       </dl>
-      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-4 italic">
+      <p class="text-xs muted-help leading-relaxed mt-4 italic">
         Performance metrics and training-corpus figures below describe the v1.0 launch
         build retrained in the run-up to release. Earlier development-time builds
         are not documented here; the figures on this page are the build that ships.
@@ -118,19 +118,19 @@
       <dl class="space-y-3 text-sm">
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Total images</dt>
-          <dd class="text-flint-dark dark:text-flint-light">over 10,000 (balanced authentic and AI-generated)</dd>
+          <dd class="muted-help">over 10,000 (balanced authentic and AI-generated)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Authentic sources</dt>
-          <dd class="text-flint-dark dark:text-flint-light">Guardian press photos, COCO (train + validation), Flickr30k, Flickr8k, real camera DCIM photos, Wikimedia Commons photographs (curated, non-art)</dd>
+          <dd class="muted-help">Guardian press photos, COCO (train + validation), Flickr30k, Flickr8k, real camera DCIM photos, Wikimedia Commons photographs (curated, non-art)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">AI-generated sources (14 generator families)</dt>
-          <dd class="text-flint-dark dark:text-flint-light">ELSA 1M (Stable Diffusion, DALL-E mix), DiffusionDB, DALL-E 3, Civitai SFW, SDXL-Turbo, Midjourney v6, Gemini Imagen 4, Grok Aurora, ArtBench, HuggingFace AI, and others</dd>
+          <dd class="muted-help">ELSA 1M (Stable Diffusion, DALL-E mix), DiffusionDB, DALL-E 3, Civitai SFW, SDXL-Turbo, Midjourney v6, Gemini Imagen 4, Grok Aurora, ArtBench, HuggingFace AI, and others</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Feature vector</dt>
-          <dd class="text-flint-dark dark:text-flint-light">84 features grouped into the following classes:
+          <dd class="muted-help">84 features grouped into the following classes:
             <ul class="list-disc pl-4 mt-1 space-y-0.5">
               <li>ELA (mean, std, max, entropy)</li>
               <li>Noise analysis</li>
@@ -160,7 +160,7 @@
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Value</th>
           </tr>
         </thead>
-        <tbody class="text-flint-dark dark:text-flint-light">
+        <tbody class="muted-help">
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">AUC-ROC (5-fold cross-validation)</td>
             <td class="py-2 pr-4 font-mono">0.9868</td>
@@ -206,7 +206,7 @@
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Notes</th>
           </tr>
         </thead>
-        <tbody class="text-flint-dark dark:text-flint-light">
+        <tbody class="muted-help">
           <tr>
             <td class="py-2 pr-4 font-mono">v1.0 launch build</td>
             <td class="py-2 pr-4">22 June 2026</td>
@@ -214,7 +214,7 @@
           </tr>
         </tbody>
       </table>
-      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-3 italic">
+      <p class="text-xs muted-help leading-relaxed mt-3 italic">
         Development-time iterations between March and June 2026 are not documented here.
         The next scheduled retrain is described in the Update Schedule section below.
       </p>
@@ -239,15 +239,15 @@
       <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Model type</dt>
-          <dd class="text-flint-dark dark:text-flint-light">Logistic Regression on CLIP embeddings</dd>
+          <dd class="muted-help">Logistic Regression on CLIP embeddings</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Base model</dt>
-          <dd class="text-flint-dark dark:text-flint-light">CLIP ViT-B/32 (open_clip, laion2b_s34b_b79k)</dd>
+          <dd class="muted-help">CLIP ViT-B/32 (open_clip, laion2b_s34b_b79k)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Approach</dt>
-          <dd class="text-flint-dark dark:text-flint-light">UnivFD (Ojha et al. 2023) — linear probe on frozen CLIP features</dd>
+          <dd class="muted-help">UnivFD (Ojha et al. 2023) — linear probe on frozen CLIP features</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Embedding dimension</dt>
@@ -259,18 +259,18 @@
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">File size</dt>
-          <dd class="text-flint-dark dark:text-flint-light">4.8 KB</dd>
+          <dd class="muted-help">4.8 KB</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Shipped in</dt>
-          <dd class="text-flint-dark dark:text-flint-light">v1.0 (22 June 2026)</dd>
+          <dd class="muted-help">v1.0 (22 June 2026)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Model build</dt>
-          <dd class="text-flint-dark dark:text-flint-light">v1.0 launch build (multi-format: JPEG / PNG / TIFF / WebP / HEIC)</dd>
+          <dd class="muted-help">v1.0 launch build (multi-format: JPEG / PNG / TIFF / WebP / HEIC)</dd>
         </div>
       </dl>
-      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-4 italic">
+      <p class="text-xs muted-help leading-relaxed mt-4 italic">
         Performance metrics and training-corpus figures below describe the v1.0 launch
         build retrained in the run-up to release. Earlier development-time builds
         are not documented here; the figures on this page are the build that ships.
@@ -295,19 +295,19 @@
       <dl class="space-y-3 text-sm">
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Total samples</dt>
-          <dd class="text-flint-dark dark:text-flint-light">over 50,000 (training corpus includes platform-forwarded re-saves at Q=75/85/2× plus multi-format augmentation across PNG, TIFF, WebP and HEIC)</dd>
+          <dd class="muted-help">over 50,000 (training corpus includes platform-forwarded re-saves at Q=75/85/2× plus multi-format augmentation across PNG, TIFF, WebP and HEIC)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Authentic sources</dt>
-          <dd class="text-flint-dark dark:text-flint-light">COCO (train + validation), Flickr30k, Flickr8k, Google Photos, ImageNet validation, CelebA faces, camera DCIM photos, Wikimedia Commons photographs (curated, non-art)</dd>
+          <dd class="muted-help">COCO (train + validation), Flickr30k, Flickr8k, Google Photos, ImageNet validation, CelebA faces, camera DCIM photos, Wikimedia Commons photographs (curated, non-art)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">AI-generated sources (14 generator families)</dt>
-          <dd class="text-flint-dark dark:text-flint-light">ELSA 1M / Stable Diffusion, DiffusionDB, DALL-E 3, Civitai SFW, SDXL-Turbo, ArtBench, Midjourney v6, Gemini Imagen 4, Grok Aurora, HuggingFace AI, and others</dd>
+          <dd class="muted-help">ELSA 1M / Stable Diffusion, DiffusionDB, DALL-E 3, Civitai SFW, SDXL-Turbo, ArtBench, Midjourney v6, Gemini Imagen 4, Grok Aurora, HuggingFace AI, and others</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Regularisation</dt>
-          <dd class="text-flint-dark dark:text-flint-light">C=0.5 (L2), class_weight=balanced, solver=lbfgs, max_iter=1000</dd>
+          <dd class="muted-help">C=0.5 (L2), class_weight=balanced, solver=lbfgs, max_iter=1000</dd>
         </div>
       </dl>
     </div>
@@ -322,7 +322,7 @@
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Value</th>
           </tr>
         </thead>
-        <tbody class="text-flint-dark dark:text-flint-light">
+        <tbody class="muted-help">
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">AUC-ROC (5-fold cross-validation)</td>
             <td class="py-2 pr-4 font-mono">0.9933</td>
@@ -365,7 +365,7 @@
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Notes</th>
           </tr>
         </thead>
-        <tbody class="text-flint-dark dark:text-flint-light">
+        <tbody class="muted-help">
           <tr>
             <td class="py-2 pr-4 font-mono">v1.0 launch build</td>
             <td class="py-2 pr-4">22 June 2026</td>
@@ -373,7 +373,7 @@
           </tr>
         </tbody>
       </table>
-      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-3 italic">
+      <p class="text-xs muted-help leading-relaxed mt-3 italic">
         Development-time iterations between March and June 2026 are not documented here.
         The next scheduled retrain is described in the Update Schedule section below.
       </p>

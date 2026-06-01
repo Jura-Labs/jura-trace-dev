@@ -19,7 +19,7 @@
 
   <!-- ── Page heading ──────────────────────────────────────────────────── -->
   <header class="mb-10">
-    <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-widest mb-2">
       Start here
     </p>
     <h1
@@ -40,7 +40,7 @@
 
   <!-- ── Table of contents ─────────────────────────────────────────────── -->
   <nav aria-label="Page contents" class="mb-10">
-    <p class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-nav font-medium mb-3">
+    <p class="text-xs section-label uppercase tracking-nav mb-3">
       On this page
     </p>
     <ol class="space-y-1 text-sm">
@@ -233,7 +233,7 @@
         <tbody class="divide-y divide-border-light dark:divide-border-dark">
           <tr>
             <td class="py-3 pr-6 align-top">
-              <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">What it looks for</p>
+              <p class="text-xs section-label uppercase tracking-widest mb-1">What it looks for</p>
               <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 Low-level image artefacts. JPEG compression patterns, noise
                 distribution, colour channel statistics, and 84 other measurable
@@ -241,7 +241,7 @@
               </p>
             </td>
             <td class="py-3 align-top">
-              <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">What it looks for</p>
+              <p class="text-xs section-label uppercase tracking-widest mb-1">What it looks for</p>
               <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 High-level semantic patterns. What the image depicts and whether
                 the overall composition, textures, and spatial relationships match
@@ -252,7 +252,7 @@
           </tr>
           <tr>
             <td class="py-3 pr-6 align-top">
-              <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">When it helps most</p>
+              <p class="text-xs section-label uppercase tracking-widest mb-1">When it helps most</p>
               <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 Detecting AI images that have been re-saved, re-compressed, or
                 shared through social media. The pixel-level traces survive
@@ -260,7 +260,7 @@
               </p>
             </td>
             <td class="py-3 align-top">
-              <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">When it helps most</p>
+              <p class="text-xs section-label uppercase tracking-widest mb-1">When it helps most</p>
               <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 Detecting AI images where pixel-level artefacts have been
                 smoothed away. The semantic pattern remains even when individual
@@ -270,7 +270,7 @@
           </tr>
           <tr>
             <td class="py-3 pr-6 align-top">
-              <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">Known limitations</p>
+              <p class="text-xs section-label uppercase tracking-widest mb-1">Known limitations</p>
               <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 May be less reliable on images from very recent AI generators not
                 yet represented in the training data, or on heavily cropped images
@@ -278,7 +278,7 @@
               </p>
             </td>
             <td class="py-3 align-top">
-              <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">Known limitations</p>
+              <p class="text-xs section-label uppercase tracking-widest mb-1">Known limitations</p>
               <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 May score some older diffusion-model images (e.g. early Stable
                 Diffusion) with lower confidence, and can be uncertain on
@@ -289,7 +289,7 @@
           </tr>
           <tr>
             <td class="py-3 pr-6 align-top">
-              <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">Accuracy on photographs</p>
+              <p class="text-xs section-label uppercase tracking-widest mb-1">Accuracy on photographs</p>
               <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 <span class="tabular-nums">4.5%</span> false-positive rate
                 (real photographs incorrectly flagged as AI),
@@ -302,7 +302,7 @@
               </p>
             </td>
             <td class="py-3 align-top">
-              <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-1">Accuracy on photographs</p>
+              <p class="text-xs section-label uppercase tracking-widest mb-1">Accuracy on photographs</p>
               <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
                 <span class="tabular-nums">3.9%</span> false-positive rate
                 (real photographs incorrectly flagged as AI),
@@ -325,7 +325,7 @@
         <strong class="font-medium">Combined ensemble FP rate:</strong>
         <span class="tabular-nums">~3.0–3.5%</span> on photographic content.
       </p>
-      <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-1.5">
+      <p class="text-xs muted-help leading-relaxed mt-1.5">
         The per-model figures above are reported independently for transparency.
         In practice the two detectors run together as a weighted ensemble
         (0.20 × heuristic signals + 0.30 × machine-learning classifier + 0.50 × visual embedding probe),
@@ -392,7 +392,7 @@
 
     <div class="bg-amber/5 dark:bg-amber/10 border border-amber/20 dark:border-amber/25 rounded-lg px-5 py-4">
       <p class="text-sm font-medium text-text-light dark:text-quartz mb-1">What to do with an Experimental result</p>
-      <ul class="space-y-1.5 text-sm text-flint-dark dark:text-flint-light">
+      <ul class="space-y-1.5 text-sm muted-help">
         <li class="flex gap-2">
           <span class="text-amber-dark dark:text-amber-light flex-none mt-0.5" aria-hidden="true">→</span>
           Read the finding alongside all the other detector results, not in isolation.
@@ -597,7 +597,7 @@
     >
       Next Steps
     </h2>
-    <ul class="space-y-2 text-sm text-flint-dark dark:text-flint-light">
+    <ul class="space-y-2 text-sm muted-help">
       <li class="flex gap-2">
         <span class="text-lapis dark:text-lapis-light flex-none" aria-hidden="true">→</span>
         <span><a href="/help/verify" class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">Verifying Content Authenticity</a> — step-by-step guide to running an analysis.</span>

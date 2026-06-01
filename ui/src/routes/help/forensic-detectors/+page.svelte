@@ -36,7 +36,7 @@
 
   <!-- ── Page heading ──────────────────────────────────────────────────── -->
   <header class="mb-10">
-    <p class="text-xs font-semibold uppercase tracking-widest text-flint-dark dark:text-flint-light mb-2">
+    <p class="text-xs section-label uppercase tracking-widest mb-2">
       Reference
     </p>
     <h1
@@ -82,7 +82,7 @@
 
   <!-- ── Table of contents ────────────────────────────────────────────────── -->
   <nav aria-label="Detectors on this page" class="mb-12">
-    <p class="text-xs text-flint-dark dark:text-flint-light uppercase tracking-nav font-medium mb-3">
+    <p class="text-xs section-label uppercase tracking-nav mb-3">
       On this page
     </p>
     <ol class="space-y-1 text-sm columns-1 sm:columns-2 gap-x-8">
@@ -248,7 +248,7 @@
       subjects can produce false matches on images that have never been
       touched.
     </p>
-    <p class="text-xs text-flint-dark dark:text-flint-light italic mt-2">
+    <p class="text-xs muted-help italic mt-2">
       Visualisation: when the detector flags duplicates, the in-app preview shows
       matched coloured pairs joining the cloned regions. A 0% score means no
       cloned regions were found, and the preview is just the original image.

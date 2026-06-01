@@ -1,0 +1,35 @@
+# cargo-about configuration for Jura Trace third-party licence generation.
+# Run via: scripts/generate-licenses.sh (which invokes `cargo about generate`).
+#
+# `accepted` is the allow-list of SPDX licences permitted in the shipped Rust
+# dependency tree. cargo-about FAILS if a crate's licence is not on this list,
+# which doubles as a guard against a future copyleft dependency slipping in.
+
+accepted = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSD-1-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "MPL-2.0",
+    "BSL-1.0",
+    "CDLA-Permissive-2.0",
+    "Unlicense",
+    "0BSD",
+    "CC0-1.0",
+    "MIT-0",
+    "NCSA",
+    "OpenSSL",
+]
+
+# Treat these as private/first-party so they are not attributed to themselves.
+private = { ignore = true }
+
+# Some crates do not declare a licence in Cargo.toml; map known ones here when
+# `cargo about generate` reports them (kept empty until the first run surfaces any).
+[clarify]

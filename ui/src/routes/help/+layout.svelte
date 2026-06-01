@@ -53,6 +53,7 @@
         { href: '/help/berkeley-protocol',   label: 'Berkeley Protocol' },
         { href: '/help/continuity',          label: 'Continuity Promise' },
         { href: '/help/compliance',          label: 'IT Security' },
+        { href: '/help/open-source',         label: 'Open Source Licences' },
       ] as item}
         <li>
           <a
@@ -72,8 +73,8 @@
               {(item.href === '/help'
                 ? currentPath === '/help' || currentPath === '/help/'
                 : currentPath === item.href || currentPath.startsWith(item.href + '/'))
-                ? 'text-lapis dark:text-lapis-light font-medium bg-lapis/5 dark:bg-lapis/10'
-                : 'text-flint-dark dark:text-flint-light hover:text-lapis dark:hover:text-lapis dark:text-lapis-light'}
+                ? 'text-lapis dark:text-lapis-light font-medium bg-lapis/5 dark:bg-graphite-light'
+                : 'muted-help hover:text-lapis dark:hover:text-lapis'}
             "
           >
             {item.label}

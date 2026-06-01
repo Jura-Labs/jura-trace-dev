@@ -258,7 +258,7 @@
 
   <!-- ── Section header ─────────────────────────────────────────────── -->
   <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-border-light dark:border-graphite">
-    <h3 class="text-sm font-medium text-flint-dark dark:text-flint-light">Signal Agreement</h3>
+    <h3 class="text-sm font-medium muted-help">Signal Agreement</h3>
 
     <!-- Agreement indicator badge -->
     {#if hasDisagreement}
@@ -278,7 +278,7 @@
         Some inconclusive
       </span>
     {:else if runRows.length === 0}
-      <span class="text-xs text-flint-dark dark:text-flint-light">No detectors ran</span>
+      <span class="text-xs muted-help">No detectors ran</span>
     {:else}
       <span
         class="text-xs px-2 py-0.5 rounded border bg-malachite/10 text-malachite-dark dark:text-malachite-light border-malachite/20"
@@ -306,7 +306,7 @@
 
   <!-- ── Table header ────────────────────────────────────────────────── -->
   <div
-    class="grid grid-cols-[1fr_120px_80px] gap-3 px-4 py-2 border-b border-border-light dark:border-graphite text-xs text-flint-dark dark:text-flint-light uppercase tracking-wide"
+    class="grid grid-cols-[1fr_120px_80px] gap-3 px-4 py-2 border-b border-border-light dark:border-graphite text-xs section-label uppercase tracking-wide"
     aria-hidden="true"
   >
     <span>Detector</span>
@@ -367,7 +367,7 @@
               ></div>
             </div>
           {:else}
-            <span class="text-xs text-flint-dark dark:text-flint-light">—</span>
+            <span class="text-xs muted-help">—</span>
           {/if}
         </div>
 
