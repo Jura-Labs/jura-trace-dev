@@ -148,10 +148,31 @@ The release workflow's macOS "Phase 5 — per-file sign nested sidecar-bundle co
 **Workaround (the current shipping pattern):**
 1. Push the release tag — CI runs Windows (works) + Mac (will fail, but that creates the draft release as a side effect).
 2. On Apple Silicon: `bash scripts/build-local-mac.sh`. Produces `.app`, signed DMG, `.app.tar.gz`, `.app.tar.gz.sig` under `$CARGO_TARGET_DIR/aarch64-apple-darwin/release/bundle/`.
-3. Upload Mac artefacts: `gh release upload v0.9.0-rc.X --repo Jura-Labs/jura-trace <files>`.
-4. Publish the draft once both platforms are populated.
+3. **Verify the DMG was notarised** (search the build log for `Notarisation accepted` + `Stapled + Gatekeeper-validated`). If not, see the notarisation-setup block below — the build is still installable on the building Mac but other Macs will hit a Gatekeeper warning.
+4. Upload Mac artefacts: `gh release upload v0.9.0-rc.X --repo Jura-Labs/jura-trace <files>`.
+5. Publish the draft once both platforms are populated.
 
 Prerequisites to avoid the recurring "bundle_dmg.sh failed" error: before running the local build, detach any leftover hdiutil mounts (`for d in $(hdiutil info | awk '/^\/dev\/disk/ {print $1}'); do hdiutil detach "$d" -force; done`) and quit any running Jura Trace + sidecar process. See memory `project_mac_local_release_build.md` for the full procedure and the cargo macro-cache caveat (the build-local-mac.sh patch in commit 162f338 invalidates the cache automatically).
+
+### Notarisation must not be skipped at tag-cut
+
+This has been forgotten on more than one rc. The DMG carrying only Developer ID signing (without notarisation) installs cleanly on the building Mac but throws a Gatekeeper warning on every other Mac, which silently kills testers' confidence. Notarisation is part of the release, not optional.
+
+`scripts/build-local-mac.sh` resolves Apple notarisation credentials in three places, in this order. The build picks the first one that has all three pieces (`APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`); credentials are GitHub Secrets on `Jura-Labs/jura-archive` (set 2026-04-23) but **GitHub Secrets are write-only** so they cannot be pulled back — they must be re-established locally.
+
+1. **Shell env** — `APPLE_ID + APPLE_PASSWORD + APPLE_TEAM_ID` already exported. Honoured first so CI semantics match local.
+2. **`.env.local`** at the repo root (gitignored). Sourced before the env-var check. Convenient but plaintext-on-disk.
+3. **macOS keychain profile `jura-trace-notary`** — most secure. Set up once with:
+   ```
+   xcrun notarytool store-credentials "jura-trace-notary" --team-id Y82C4P9L7F
+   ```
+   It prompts interactively for the Apple ID email and the 16-char app-specific password (generated at https://appleid.apple.com/account/manage → App-Specific Passwords). The profile then lives in the login keychain at service `com.apple.gke.notary.tool`. Phase 8 of the build script then uses `--keychain-profile jura-trace-notary`, no env-var plumbing required.
+
+If none of the three resolves, the build script warns and still completes — DMG is signed but **not** notarised. The build log will say `Apple notarisation creds not set — DMG signed but NOT notarised.` near the top of pre-flight. Treat that line as a release-blocker: re-set creds and rebuild.
+
+**Pre-tag-cut check**: `xcrun notarytool history --keychain-profile jura-trace-notary` should return at least an empty `JSON history` payload (proves the creds talk to Apple's servers). If it errors with "could not retrieve the credentials", set the profile up again before pushing the tag.
+
+**Post-build check**: `spctl --assess --verbose=2 --type install "<path-to-dmg>"` should report `source=Notarized Developer ID`. If it says `source=Developer ID` (no "Notarized" prefix), the DMG was signed but not notarised — do not publish.
 
 ## Key Files
 
