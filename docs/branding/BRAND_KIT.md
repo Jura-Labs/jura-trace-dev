@@ -162,3 +162,87 @@ When you have a final master:
 ---
 
 *Questions or design conversations: hello@juralabs.org. Brand guidance lives in `docs/BRAND_GUIDELINES.md` (the longer reference); this kit is the practitioner's quick start.*
+
+---
+
+## 10. Content Authenticity Initiative (CAI) Member Lockup
+
+Jura Labs CIC is an approved member of the Content Authenticity Initiative. The CAI's brand guidelines (`CAI Brand Guidelines.pdf` — not redistributed; obtain from the CAI) govern how the CAI marks may be displayed. The summary below is a working checklist; the PDF is authoritative.
+
+### Files in this folder (`cai/`)
+
+| File | Purpose |
+|---|---|
+| `CAI_Lockup_RGB_Black.svg` / `.png` / `.ai` | Official CAI lockup, black ink — for light backgrounds. Do not modify. |
+| `CAI_Lockup_RGB_White.svg` / `.png` | Official CAI lockup, white ink — for dark backgrounds. Do not modify. |
+| `member-lockup-black.svg` | Generated: CAI lockup + 3X divider + Jura Labs identity, black/obsidian — for **light** backgrounds. |
+| `member-lockup-white.svg` | Generated: CAI lockup + 3X divider + Jura Labs identity, white/quartz — for **dark** backgrounds. |
+| `make-cai-member-lockup.py` (in parent `docs/branding/`) | Regenerator. Re-run after any change to the source CAI lockup or `logo-eye-mark.svg`. |
+
+### Which form to use, when
+
+| Form | When to use |
+|---|---|
+| **Member Lockup** (preferred) | The primary form. Use wherever you are claiming membership: footer of every juralabs.org page, homepage trust strip, download page, about/press. Use `member-lockup-{black,white}.svg`. |
+| **CAI Lockup** (symbol + wordmark) | Use when the Member Lockup is too wide and you only need to refer to the CAI itself, not your membership. Use `CAI_Lockup_RGB_{Black,White}.svg`. Minimum digital width **112 px**. |
+| **CAI Symbol** only | Small badges, social avatars, or framing devices. Minimum digital width **40 px**. (We do not ship a symbol-only file in this folder yet — request from the CAI if needed.) |
+
+### Hard rules (from the CAI Brand Guidelines)
+
+- **Colours**: Black or White only on backgrounds; brand Yellow `#FFC840` permitted on specific surfaces. Never recolour outside this set.
+- **Clearspace**: a margin of X around the lockup, where X = ½ the symbol height. Nothing crosses that margin.
+- **Minimum size**: digital 112 px wide for the lockup; 40 px wide for the symbol-only. Print 1.5 in / 0.5 in.
+- **Don't** stretch, alter the angle, recolour, outline, drop-shadow, glow, gradient, or scale below the minimum.
+- **Don't** place on a low-contrast background where the ink fails legibility.
+
+### Member Lockup layout (per CAI guidelines p. 16)
+
+```
+[ CAI lockup ]  ⟵ 1.5X ⟶ │ ⟵ 1.5X ⟶  [ Jura Labs identity ]
+```
+
+- Divider rule between the two halves; total spacer = 3X.
+- Member identity sized so it is **optically equal** to the CAI lockup.
+- Aligned to the centre of the CAI lockup.
+
+The generated `member-lockup-{black,white}.svg` files already encode this geometry. If you re-export the source CAI files or refresh `logo-eye-mark.svg`, regenerate with:
+
+```
+python3 docs/branding/make-cai-member-lockup.py
+```
+
+### Don't conflate with C2PA Validator Conformant
+
+CAI membership and C2PA Validator Conformant are **two separate claims** with **two separate mark regimes**:
+
+- **CAI membership** is governed by the file above. The Member Lockup is the visible claim.
+- **C2PA Validator Conformant** (awarded 2026-05-06, CPL embargoed until 31 May) is governed by **c2pa.org's** mark-usage guidelines, which have not yet been confirmed for Jura Labs. Verbal "C2PA Validator Conformant" copy is safe; **displaying a C2PA / Content Credentials conformance LOGO requires permission first** (tracked as LC-68).
+
+### Web placement recommendations (juralabs.org)
+
+| Surface | Form | Notes |
+|---|---|---|
+| Footer (every page) | `member-lockup-{black,white}.svg` | Pair with caption: *"Member of the Content Authenticity Initiative"* linking to `https://contentauthenticity.org/members`. |
+| Homepage hero / trust strip | `member-lockup-*.svg` | Above the fold for non-scrollers. |
+| Jura Trace product page | CAI Lockup or Member Lockup near the verdict/protect explanation. | Reinforces provenance claim at decision time. |
+| Download / press kit page | `member-lockup-*.svg` + short statement | Conversion-moment reassurance. |
+| About / press release | Member Lockup + body-copy mention | Formal record. |
+
+Recommended HTML pattern (responsive, accessible):
+
+```html
+<a href="https://contentauthenticity.org/members"
+   rel="noopener noreferrer" target="_blank"
+   class="cai-member-lockup">
+  <picture>
+    <source srcset="/branding/cai/member-lockup-white.svg"
+            media="(prefers-color-scheme: dark)">
+    <img src="/branding/cai/member-lockup-black.svg"
+         alt="Jura Labs, member of the Content Authenticity Initiative"
+         width="448" height="51" loading="lazy">
+  </picture>
+</a>
+```
+
+(`448 × 51` keeps the lockup at ~448 px wide, comfortably above the 112 px minimum, and preserves the SVG's aspect ratio.)
+
