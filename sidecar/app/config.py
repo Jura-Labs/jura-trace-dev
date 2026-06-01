@@ -19,7 +19,13 @@ class Settings(BaseSettings):
     # "Ollama unavailable" even when Ollama is running.  Force IPv4 by literal.
     ollama_base_url: str = "http://127.0.0.1:11434"
     ela_quality: int = 90
-    max_image_size: int = 20_000_000  # 20 MB
+    # 200 MB — matches the Rust importer's MAX_IMPORT_FILE_SIZE_BYTES so any
+    # file the desktop accepts also reaches the sidecar. The previous 20 MB
+    # cap silently rejected typical 42 MP DSLR JPEGs (Sony A7R-series _DSC*),
+    # which the Rust layer then counted as a sidecar-detector failure; the
+    # user saw "Insufficient signal — only 2 of 13 detectors ran" (EXIF +
+    # C2PA in Rust only) on a clean image.
+    max_image_size: int = 200_000_000  # 200 MB
     # LLM settings — shared Ollama instance with ROOTED sibling app.
     # Primary model: qwen2.5:7b-instruct (likely already pulled by ROOTED users).
     # Override with JURA_LLM_MODEL env var if desired.
