@@ -93,12 +93,55 @@ else
   warn "Updater payload .sig will be empty. Auto-updater will refuse to apply this release."
 fi
 
+# ── Apple notarisation creds: env > .env.local > keychain profile > skip ─
+#
+# Three local-setup options, tried in order. Pick whichever fits your
+# discipline. All three avoid committing secrets.
+#
+#   1. Shell env (already-set in this shell, CI, or a one-off `source`
+#      step). Honoured first so CI semantics match local behaviour.
+#
+#   2. .env.local at the repo root (gitignored). Convenient for laptop dev:
+#      drop the three vars into a single file and forget. Sourced before
+#      the env-var check below so it feeds into the same path.
+#
+#   3. macOS keychain profile named 'jura-trace-notary'. Most secure of
+#      the three — credentials never sit in plaintext on disk. Set up once
+#      with:
+#          xcrun notarytool store-credentials "jura-trace-notary" \
+#              --apple-id <email> --team-id Y82C4P9L7F --password <app-pw>
+#      Phase 8 below uses `--keychain-profile` when this is found, so no
+#      env-var plumbing is required.
+#
+# If none of the three resolves, the build still completes — the DMG is
+# signed but not notarised, suitable for testing on this Mac only.
+
+NOTARY_PROFILE="jura-trace-notary"
+USE_KEYCHAIN_PROFILE=0
+
+# Path 2: source .env.local (gitignored) if it exists.
+if [[ -f "$REPO_ROOT/.env.local" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$REPO_ROOT/.env.local"
+  set +a
+  ok ".env.local sourced."
+fi
+
 if [[ -n "${APPLE_ID:-}" && -n "${APPLE_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]; then
-  ok "Apple notarisation creds set — DMG will be notarised + stapled."
+  ok "Apple notarisation creds set in environment — DMG will be notarised + stapled."
   NOTARISE=1
+elif security find-generic-password -s "com.apple.gke.notary.tool" \
+        -a "$NOTARY_PROFILE" >/dev/null 2>&1; then
+  ok "Apple notarisation creds in keychain profile '$NOTARY_PROFILE' — DMG will be notarised + stapled."
+  NOTARISE=1
+  USE_KEYCHAIN_PROFILE=1
 else
   warn "Apple notarisation creds not set — DMG signed but NOT notarised."
-  warn "Set APPLE_ID + APPLE_PASSWORD + APPLE_TEAM_ID to notarise for off-machine install."
+  warn "To enable: set APPLE_ID + APPLE_PASSWORD + APPLE_TEAM_ID in env, drop them in"
+  warn "  $REPO_ROOT/.env.local (gitignored), or store them once via:"
+  warn "  xcrun notarytool store-credentials \"$NOTARY_PROFILE\" \\"
+  warn "    --apple-id <email> --team-id Y82C4P9L7F --password <app-specific>"
   NOTARISE=0
 fi
 
@@ -246,11 +289,18 @@ ok "DMG signed."
 # ── Phase 8 (optional): notarise + staple ─────────────────────────────
 if [[ "$NOTARISE" == "1" ]]; then
   log "Phase 8: notarise via xcrun notarytool (may take 1-10 min)"
-  xcrun notarytool submit "$DMG_PATH" \
-    --apple-id "$APPLE_ID" \
-    --password "$APPLE_PASSWORD" \
-    --team-id "$APPLE_TEAM_ID" \
-    --wait
+  if [[ "$USE_KEYCHAIN_PROFILE" == "1" ]]; then
+    # Read creds from the macOS keychain profile — no env-var plumbing.
+    xcrun notarytool submit "$DMG_PATH" \
+      --keychain-profile "$NOTARY_PROFILE" \
+      --wait
+  else
+    xcrun notarytool submit "$DMG_PATH" \
+      --apple-id "$APPLE_ID" \
+      --password "$APPLE_PASSWORD" \
+      --team-id "$APPLE_TEAM_ID" \
+      --wait
+  fi
   ok "Notarisation accepted."
 
   log "Stapling notarisation ticket to DMG and .app"
