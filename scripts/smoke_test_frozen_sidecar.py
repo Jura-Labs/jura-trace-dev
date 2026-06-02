@@ -219,6 +219,34 @@ def main(argv: list[str]) -> int:
     smoke_key = _secrets.token_hex(32)
     env["JURA_SIDECAR_KEY"] = smoke_key
 
+    # Auto-set JURA_MODELS_DIR if not already provided. In production the
+    # Rust spawn (src-tauri/src/lib.rs:7064) sets this to point at the
+    # packaged .app's Resources/models directory, so the bundled sidecar
+    # finds the CLIP ONNX weights and reports clip_detect=true. When the
+    # bundle is launched directly (this smoke test, or any standalone
+    # invocation), no Rust spawn is present and the sidecar's __file__
+    # fallback in clip_detector.py:_models_dir() does not reach the repo
+    # models/ dir because PyInstaller mounts source files inside _MEIPASS,
+    # not at <bundle>/_internal/app/services/. Without this auto-set, the
+    # smoke test runs against a bundle whose clip_detect capability is
+    # falsely reported as false — masking deployment-time correctness.
+    if "JURA_MODELS_DIR" not in env:
+        repo_root = Path(__file__).resolve().parent.parent
+        for candidate in (
+            repo_root / "src-tauri" / "models",
+            repo_root / "models",
+        ):
+            if (candidate / "clip-vit-b32-vision.onnx").exists():
+                env["JURA_MODELS_DIR"] = str(candidate)
+                print(f"INFO: auto-set JURA_MODELS_DIR={candidate}")
+                break
+        else:
+            print(
+                "WARN: no models/ dir with clip-vit-b32-vision.onnx found at "
+                "src-tauri/models/ or models/ relative to repo root. "
+                "Bundled sidecar will report clip_detect=false in /health."
+            )
+
     print(f"INFO: starting bundled sidecar at {binary} on port {port}")
     proc = subprocess.Popen(
         [str(binary), "--host", "127.0.0.1", "--port", str(port)],
