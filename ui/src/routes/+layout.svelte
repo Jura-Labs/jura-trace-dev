@@ -7,6 +7,7 @@
   import LogoMark from '$lib/components/LogoMark.svelte';
   import FeedbackPanel from '$lib/components/FeedbackPanel.svelte';
   import { getSkipWizard, getVersion, checkSidecarHealth } from '$lib/api';
+  import { DONATE_URL, DONATE_FOOTER_LABEL } from '$lib/donate';
 
   let { children } = $props();
 
@@ -494,6 +495,15 @@
             class="underline underline-offset-2 hover:no-underline hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
             Source
+            <span class="sr-only">(opens in new tab)</span>
+          </a>
+          <a
+            href={DONATE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="underline underline-offset-2 hover:no-underline hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+          >
+            {DONATE_FOOTER_LABEL}
             <span class="sr-only">(opens in new tab)</span>
           </a>
         </div>

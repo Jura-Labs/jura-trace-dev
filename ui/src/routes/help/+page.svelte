@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
+  import { DONATE_URL, DONATE_BODY_HELP, DONATE_BUTTON_LABEL } from '$lib/donate';
 
   // Topic cards shown on the help index.
   //
@@ -225,4 +226,28 @@
     no internet connection is required, no data leaves your machine, and no cloud
     account is needed.
   </p>
+</section>
+
+<!-- Earth-line section divider -->
+<div class="earth-line mt-10 mb-8" role="separator" aria-hidden="true"></div>
+
+<!-- Support development -->
+<section aria-labelledby="support-heading" class="mb-8">
+  <h2 id="support-heading" class="font-heading text-lg text-text-light dark:text-quartz mb-3 tracking-heading">
+    Support development
+  </h2>
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed max-w-2xl mb-4">
+    {DONATE_BODY_HELP}
+  </p>
+  <a
+    href={DONATE_URL}
+    target="_blank"
+    rel="noopener noreferrer"
+    class="inline-flex items-center gap-1.5 px-5 py-2.5 min-h-[44px] rounded border text-sm font-medium transition-colors
+           border-lapis/60 text-lapis dark:text-lapis-light hover:bg-lapis/10 hover:border-lapis
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+  >
+    {DONATE_BUTTON_LABEL}
+    <span class="sr-only">(opens in new tab)</span>
+  </a>
 </section>
