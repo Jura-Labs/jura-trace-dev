@@ -116,7 +116,12 @@ pub async fn verify_file(
     // *with* the correct extension up-front (sniffed from the first chunk),
     // eliminating the prior keep+rename TOCTOU window.
     let mut tmp_file: Option<tempfile::NamedTempFile> = None;
-    let mut mode: Option<String> = None;
+    // Default mode is "deep" so the REST API exercises the full 10-detector
+    // automatic pipeline that matches the user-facing claim ("13 forensic
+    // detectors: 10 automatic + 3 on-demand"). Standard mode runs a reduced
+    // 5-detector subset and is available via explicit `mode=standard` form
+    // field. Per smoke-test report 2026-06-01.
+    let mut mode: Option<String> = Some("deep".to_string());
 
     while let Some(mut field) = multipart
         .next_field()
@@ -937,7 +942,10 @@ pub async fn verify_batch(
     use super::types::{BatchVerifyItem, BatchVerifyResponse};
 
     let mut files: Vec<(String, Bytes)> = Vec::new();
-    let mut mode: Option<String> = None;
+    // Default mode is "deep" so batch verification exercises the full
+    // 10-detector automatic pipeline by default (matches the single-file
+    // /api/v1/verify endpoint). Explicit `mode=standard` still available.
+    let mut mode: Option<String> = Some("deep".to_string());
 
     while let Some(field) = multipart
         .next_field()

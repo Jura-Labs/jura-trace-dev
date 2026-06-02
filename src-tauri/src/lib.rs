@@ -3143,9 +3143,17 @@ fn verify_content_inner(
     if clip_result.is_some() {
         detectors_run_list.push("clip");
     }
-    if watermark_extract_result.is_some() {
-        detectors_run_list.push("watermark");
-    }
+    // Watermark detector is feature-flagged off in v1.0 (UI flag
+    // V1_SHOW_WATERMARK = false in ui/src/lib/featureFlags.ts; the Rust
+    // implementations in src-tauri/src/watermark.rs are marked dead_code
+    // and deferred to v1.1). The sidecar /forensics/watermark/extract
+    // endpoint still returns success in this build but does not run actual
+    // detection, so emitting "watermark" in detectors_run misrepresents
+    // what ran and violates the Schema v6 detectors_run contract.
+    // Restore the push when watermark is re-enabled in v1.1.
+    // if watermark_extract_result.is_some() {
+    //     detectors_run_list.push("watermark");
+    // }
     if video_deepfake_result.is_some() {
         detectors_run_list.push("video_deepfake");
     }
