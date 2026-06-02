@@ -78,6 +78,12 @@ Jura Trace is developed by a sole maintainer (Paul Griffiths) using Anthropic Cl
 
 This declaration follows the [NLnet Foundation's policy on the use of Generative AI for funded projects](https://nlnet.nl/genai/) (effective 8 December 2025). The contributor-facing version of this policy, including disclosure requirements for code generation, is in [`GENAI_USE_POLICY.md`](GENAI_USE_POLICY.md).
 
+## C2PA Validator-Conformant
+
+Jura Trace is listed on the public [C2PA Conforming Products List](https://spec.c2pa.org/conformance-explorer/) as a Validator-Conformant implementation since 6 May 2026 (publicly searchable since 31 May 2026). Record identifier: `019d8d83-ed1c-787c-920c-8fad67b55cbe`. Spec version 2.2. Validates Content Credentials on JPEG, PNG, TIFF, and WebP.
+
+Jura Labs CIC is a Content Authenticity Initiative member organisation.
+
 ## Credits
 
 Developed by [Jura Labs CIC](https://juralabs.org) — building ethical, local-first AI tools for social good.
