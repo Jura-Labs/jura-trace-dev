@@ -20,7 +20,7 @@ on:
           - windows-only
 
 # contents: write is still needed for checking out source from jura-archive.
-# All release creation/publishing targets juralabs/jura-trace via RELEASE_PAT.
+# All release creation/publishing targets Jura-Labs/jura-trace via RELEASE_PAT.
 permissions:
   contents: write
 
@@ -120,7 +120,7 @@ jobs:
           ---
 
           - **Privacy:** everything runs on your device. No telemetry, no accounts.
-          - **Licence:** [PolyForm Noncommercial 1.0.0](https://github.com/Jura-Labs/jura-trace/blob/main/LICENSE) — free for non-commercial use.
+          - **Licence:** [AGPL-3.0-or-later](https://github.com/Jura-Labs/jura-trace/blob/main/LICENSE) — free and open source, with a parallel commercial-licence path documented in [COMMERCIAL.md](https://github.com/Jura-Labs/jura-trace/blob/main/COMMERCIAL.md).
           - **Security:** [SECURITY.md](https://github.com/Jura-Labs/jura-trace/blob/main/SECURITY.md)
           - **Bugs:** [open an issue](https://github.com/Jura-Labs/jura-trace/issues/new/choose)
           - **General:** [hello@juralabs.org](mailto:hello@juralabs.org) • [juralabs.org](https://juralabs.org)
@@ -129,7 +129,7 @@ jobs:
           # Truncate to 124 KB (well under GitHub's 125 KB body limit)
           if [ "$(wc -c < "$body_file")" -gt 125000 ]; then
             head -c 124500 "$body_file" > "$body_file.tmp"
-            printf '\n\n...(truncated — see [CHANGELOG.md](https://github.com/juralabs/jura-trace/blob/main/CHANGELOG.md) for full details)\n' >> "$body_file.tmp"
+            printf '\n\n...(truncated — see [CHANGELOG.md](https://github.com/Jura-Labs/jura-trace/blob/main/CHANGELOG.md) for full details)\n' >> "$body_file.tmp"
             mv "$body_file.tmp" "$body_file"
           fi
 
@@ -138,8 +138,8 @@ jobs:
 
       - name: Create draft release
         id: create
-        # Uses RELEASE_PAT so the release is created on juralabs/jura-trace
-        # (the PUBLIC releases-only repo), not on juralabs/jura-archive
+        # Uses RELEASE_PAT so the release is created on Jura-Labs/jura-trace
+        # (the PUBLIC releases-only repo), not on Jura-Labs/jura-archive
         # (the PRIVATE source repo). Users who download installers must never
         # need access to jura-archive.
         #
