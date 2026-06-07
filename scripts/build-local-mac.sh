@@ -184,6 +184,57 @@ cp -R "$SIDECAR_DIST"/. "$SIDECAR_STAGING"/
 chmod +x src-tauri/binaries/jura-sidecar-aarch64-apple-darwin 2>/dev/null || true
 ok "Staged to $SIDECAR_STAGING ($(du -sh "$SIDECAR_STAGING" | cut -f1))"
 
+# ── Phase 0.5: per-file sign nested Mach-O binaries in SOURCE ─────────
+# CRITICAL FIX (2026-06-07, post-rc.29 notarisation failure): cargo tauri
+# bundle's Phase 6 (--bundles dmg,updater) re-copies from src-tauri/
+# sidecar-bundle/ into the .app, OVERWRITING any signatures Phase 5a
+# applied to .app/Contents/Resources/sidecar-bundle/. The .app's
+# top-level re-seal then bakes in hashes of unsigned nested files,
+# producing a DMG that fails notarisation with "binary is not signed
+# with a valid Developer ID certificate" on every nested .so/.dylib.
+#
+# Proper fix: sign the SOURCE at $SIDECAR_STAGING/ before any cargo
+# tauri bundle invocation. Both Phase 1 and Phase 6 then copy already-
+# signed files into the .app. Phase 5a below remains as belt-and-braces
+# (no-op idempotent re-sign).
+#
+# rc.29 was rescued by a 30-min manual recovery (extract .app from DMG,
+# per-file sign 611 binaries, rebuild DMG, re-notarise). This phase
+# eliminates that recovery step from every future build.
+log "Phase 0.5: per-file sign nested Mach-O binaries in SOURCE"
+log "(signs $SIDECAR_STAGING/ BEFORE Tauri bundlers copy from it)"
+
+sign_count=0
+sign_failed=0
+sign_skipped=0
+while IFS= read -r f; do
+  # Skip if file is empty (defensive)
+  [[ -s "$f" ]] || { sign_skipped=$((sign_skipped + 1)); continue; }
+  if codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$f" 2>/dev/null; then
+    sign_count=$((sign_count + 1))
+  else
+    sign_failed=$((sign_failed + 1))
+    warn "codesign FAILED on: $f"
+    codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$f" 2>&1 | head -3 || true
+  fi
+done < <(
+  # Find every Mach-O in $SIDECAR_STAGING/ by INSPECTING content
+  # (file -b), not relying on file extension. Catches the PyInstaller
+  # bootloader at $SIDECAR_STAGING/jura-sidecar (no extension), .so,
+  # .dylib, and any other Mach-O object that PyInstaller may include
+  # in future dependency updates. Sort by path length descending so
+  # deepest files sign first (parents seal after children).
+  find "$SIDECAR_STAGING" -type f \
+    \( -name "*.so" -o -name "*.dylib" -o ! -name "*.*" \) \
+    -exec sh -c 'file -b "$1" 2>/dev/null | grep -q "Mach-O" && echo "$1"' _ {} \; 2>/dev/null \
+  | awk '{print length($0), $0}' | sort -rn | cut -d' ' -f2-
+)
+
+if [[ $sign_failed -gt 0 ]]; then
+  die "$sign_failed source file(s) failed codesign. Total OK: $sign_count, skipped: $sign_skipped."
+fi
+ok "Per-file signed $sign_count Mach-O binaries in $SIDECAR_STAGING/ (skipped $sign_skipped empty)."
+
 # ── Copy model files ──────────────────────────────────────────────────
 log "Copying model files into src-tauri/models/"
 mkdir -p src-tauri/models
@@ -218,8 +269,15 @@ APP_PATH=$(find "$BUNDLE_DIR/macos" -maxdepth 1 -name "*.app" -type d | head -1)
 [[ -n "$APP_PATH" ]] || die "No .app found under $BUNDLE_DIR/macos after Phase 1."
 ok "Built .app: $APP_PATH"
 
-# ── Phase 5a: per-file sign nested sidecar-bundle (with visible stderr) ─
-log "Phase 5a: per-file sign nested .so/.dylib (deepest-first)"
+# ── Phase 5a: per-file sign nested sidecar-bundle (belt-and-braces) ───
+# Phase 0.5 above signs SOURCE at $SIDECAR_STAGING, which is the proper
+# fix for the rc.29-class notarisation failure. Phase 5a here re-signs
+# the SAME files inside the .app as a defensive idempotent pass — covers
+# the case where cargo tauri bundle's Phase-1 signing strips or modifies
+# nested sigs in any way we haven't anticipated. Cost: ~10-30 seconds of
+# build time; risk of removal: a future Tauri release changes its
+# bundler behaviour silently and we don't catch it until notarisation.
+log "Phase 5a: per-file sign nested .so/.dylib in .app (belt-and-braces)"
 log "(stderr is NOT redirected here — CI's silenced version is the bug we're diagnosing)"
 
 SIDECAR_ROOT="$APP_PATH/Contents/Resources/sidecar-bundle"
@@ -279,6 +337,44 @@ log "Phase 6: cargo tauri bundle --bundles dmg,updater (uses re-signed .app)"
 DMG_PATH=$(find "$BUNDLE_DIR/dmg" -maxdepth 1 -name "*.dmg" | head -1)
 [[ -n "$DMG_PATH" ]] || die "No DMG found after Phase 6 regenerate."
 ok "DMG built: $DMG_PATH ($(du -sh "$DMG_PATH" | cut -f1))"
+
+# ── Phase 6.5: verify final .app has properly-signed nested binaries ──
+# Build-time gate that catches yesterday's failure mode (rc.29: Phase 6
+# regenerated unsigned nested files from source, .app passed top-level
+# verify but notarisation rejected with "binary is not signed with a
+# valid Developer ID certificate" on 600+ nested .so/.dylib).
+#
+# Sample the .app's nested Mach-O binaries and confirm every signature
+# bears TeamIdentifier=Y82C4P9L7F. If any nested binary is unsigned or
+# mis-signed, fail the build BEFORE Phase 7 / Phase 8 so the operator
+# sees the problem at build time, not as a 25-minute notarisation
+# rejection later.
+log "Phase 6.5: verify final .app nested signing"
+
+POST6_SIDECAR_ROOT="$APP_PATH/Contents/Resources/sidecar-bundle"
+mis_signed=0
+checked=0
+# Verify every Mach-O in the final .app. Same content-based detection
+# as Phase 0.5.
+while IFS= read -r f; do
+  checked=$((checked + 1))
+  ident=$(codesign --display --verbose=2 "$f" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2}' | head -1)
+  if [[ "$ident" != "$TEAM_ID" ]]; then
+    mis_signed=$((mis_signed + 1))
+    warn "POST-BUNDLE MIS-SIGNED: $f Team='${ident:-NONE}'"
+  fi
+done < <(
+  find "$POST6_SIDECAR_ROOT" -type f \
+    \( -name "*.so" -o -name "*.dylib" -o ! -name "*.*" \) \
+    -exec sh -c 'file -b "$1" 2>/dev/null | grep -q "Mach-O" && echo "$1"' _ {} \; 2>/dev/null
+)
+
+if [[ $mis_signed -gt 0 ]]; then
+  die "$mis_signed of $checked nested Mach-O binaries in the final .app are mis-signed. \
+This is the rc.29-class notarisation failure mode. Phase 0.5 (source signing) or Phase 5a \
+(in-.app signing) is not effective; investigate cargo tauri bundle behaviour."
+fi
+ok "All $checked nested Mach-O binaries in final .app signed by Team=$TEAM_ID."
 
 # ── Phase 7: codesign the DMG itself ──────────────────────────────────
 log "Phase 7: codesign the DMG"
