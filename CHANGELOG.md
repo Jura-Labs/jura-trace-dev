@@ -6,6 +6,127 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 8 June 2026 — rc.30 cut: pre-launch documentation hardening, copyright sweep, build-script verification gate, Tauri updater URL fix
+
+Six commits across three calendar days (6–8 June) preparing rc.30 for the v1.0 launch on Monday 22 June 2026. Closes the post-rc.29 punch list: build-script architecture bug that caused rc.29's first notarisation to be rejected, Tauri updater URL typo that broke the auto-updater fallback, copyright-sensitive training-data attribution in user-facing documentation, the v10 retrain decision, and 31 of 46 findings from the 8 June documentation deep review.
+
+### Build script Phase 0.5 + Phase 6.5 — eliminates the rc.29 notarisation failure (7 June, commit `8aac1d8`)
+
+Diagnosed root cause of rc.29's first notarisation rejection (Apple notarytool reported 600+ nested `.so`/`.dylib` files plus the PyInstaller bootloader `jura-sidecar` as "binary is not signed with a valid Developer ID certificate"). The build script's Phase 5a per-file-signed every Mach-O inside `.app/Contents/Resources/sidecar-bundle/` correctly. But Phase 6 (`cargo tauri bundle --bundles dmg,updater`) re-copied from `src-tauri/sidecar-bundle/` into the .app, overwriting Phase 5a's signed files with the unsigned source. The .app's top-level re-seal then baked hashes of unsigned nested files into the new signature. The DMG passed `codesign --verify` but failed Apple notarisation. rc.29 was rescued by a 30-minute manual recovery: extract .app from rejected DMG, per-file sign 611 binaries, rebuild DMG with hdiutil, re-notarise.
+
+Two new phases in `scripts/build-local-mac.sh`:
+
+- **Phase 0.5** — sign the source at `src-tauri/sidecar-bundle/` BEFORE any `cargo tauri bundle` invocation. Both Phase 1 and Phase 6 then copy already-signed files, preserving signatures in the final DMG. Content-based Mach-O detection (`file -b | grep Mach-O`), not extension-based, so the PyInstaller bootloader is caught naturally without a hard-coded one-off sign line. Deepest-first ordering for correct sealing semantics. Surfaces codesign failures visibly (no stderr redirect, unlike the CI workflow bug we are fixing in parallel).
+- **Phase 6.5** — post-bundle verification gate. Walks every Mach-O in the final `.app`'s `Resources/sidecar-bundle/` and asserts every signature bears `TeamIdentifier=Y82C4P9L7F`. Build fails fast at this step if any nested binary is unsigned or mis-signed, instead of silently producing a DMG that wastes 25 minutes at notarisation.
+
+Phase 5a kept as belt-and-braces (now functionally redundant since the source is signed pre-bundle, but cheap defensive insurance against future Tauri bundler behaviour changes). rc.30 and v1.0 should notarise on first attempt without the 30-minute manual recovery required for rc.29.
+
+### Tauri updater fallback URL + release-notes licence typo (6 June, commits `db84af3`, `9d2ad8d`)
+
+Two real shipping bugs caught during the post-rc.29 audit:
+
+- **`src-tauri/tauri.conf.json:40`** — the updater endpoint fallback URL was `https://github.com/juralabs/jura-trace/releases/latest/download/latest.json` (lowercase org). The real GitHub org is `Jura-Labs/jura-trace` (capital J, hyphen). The lowercase URL 404s. Auto-updater fallback was non-functional in every build through rc.29. Fixed to `https://github.com/Jura-Labs/jura-trace/releases/latest/download/latest.json`.
+- **`.github/workflows/release.yml:123`** — the release-notes template footer still quoted `PolyForm Noncommercial 1.0.0` as the licence. The project switched to AGPL-3.0-or-later on 2026-05-06. Every auto-generated release-notes default body (rc.27, rc.28, rc.29) carried the wrong licence. Replaced with `AGPL-3.0-or-later` plus a link to `COMMERCIAL.md` for the dual-licence path. Same typo fixed in the truncation-footer CHANGELOG link (line 132) and two cosmetic comments (lines 23, 141).
+
+### Copyright-sensitive training-data attribution removed from public documentation (7-8 June, commits `195064a`, `df74850`, `b68b1e3`)
+
+Public-facing documentation named specific external corpora and AI-generator brands as authentic and synthetic training sources. Public attribution of these references carries copyright-exposure risk independent of how the underlying training data is actually licensed or sourced.
+
+This sweep removes the public attribution. The training data on disk is NOT touched. Reproducibility anchors remain at the model-card metadata JSON shipped alongside each release.
+
+Three classes of treatment:
+
+- **In-app help model card rewritten** (compiled into the desktop bundle): `ui/src/routes/help/model-cards/+page.svelte` — both training-data sections rewritten across both model cards on the page. Authentic sources reduced to "real camera DCIM photos, Wikimedia Commons photographs (curated, non-art)". AI-generated sources reduced to "diverse imagery across the diffusion and GAN landscape spanning commercial and open-weights model families; specific generator names withheld from public documentation; per-generator recall is reported in the model-card metadata JSON shipped alongside each release".
+- **Four high-risk docs moved out to internal**: `docs/decisions/option-c-corpus-strategy.md`, `docs/fairness/corpus-demographic-profile.md`, `docs/TEST_CORPUS_BRIEFING.md`, `docs/testing/real-world-test-plan.md` moved to `../jura-labs-docs/jura-trace-internal/` per the existing `project_repo_doc_hygiene` discipline. `.gitignore` extended with explicit entries for the four moved paths so they do not creep back into the working tree of any clone. Empty `docs/testing/` directory removed.
+- **Ten medium-risk docs lightly redacted** with named generator labels replaced by categorical descriptors. The model-card metadata JSON (with the actual per-generator recall numbers) stays as the reproducibility-anchor reference. Affected: `docs/calibration/univfd-v10-multi-format-augmentation-plan.md`, `docs/calibration/univfd-v10-screenshot-retrain-plan.md`, `docs/calibration/univfd-v10onnx-divergence-fix.md` (the public model card cited from `docs/methodology.md` on the release repo; per-generator-recall table retained with generic "Generator family A/B/C/D" labels), `docs/calibration/univfd-v9-onnx-validation.md`, `docs/calibration/univfd-v9-platform-augmentation.md`, `docs/calibration/s28-jpeg-ghost-weight.md`, `docs/decisions/splice-benchmark-longterm.md`, `docs/av-corpus-methodology.md`, `docs/design/exif-injection-detection.md`, `docs/development-workflow.md`.
+
+Net 2,179 lines deleted / 54 added across 14 files in the source repo. Out of scope for this sweep (separate follow-up): the agent scripts at `scripts/agents/crawl_authentic_images.py` still contain code-level references to specific corpora (function names, HuggingFace dataset URLs). The script's behaviour is functional code, not documentation, and redacting it would break the corpus-rebuild path; to be addressed by relocating those scripts to internal if needed. Also out of scope: `docs/backlog.md` progress notes, which name specific generators in historical context — sweep planned for the next cleanup pass.
+
+### Pre-launch documentation deep review — 31 of 46 findings closed (8 June, commit `b68b1e3`)
+
+Documentation deep-review agent identified 46 findings across four categories: inconsistencies between documents (12), backlog promises and future-version claims (14), internal tracker references in public copy (13), and detector language too specialist for non-technical readers (7). Overall RAG: Amber. Audit report saved to `../jura-labs-docs/jura-trace-strategy/documentation-deep-review-2026-06-08.md`.
+
+Top 5 P0 items fixed across release repo, in-app help, and the wiki:
+
+- **C-01** `GETTING_STARTED.md:59` — "Intel support returns at v1.0 via a universal binary" (false at v1.0) replaced with "this build requires Apple Silicon (M1 or later); a universal binary is planned for a future release". v1.0 ships Apple Silicon only.
+- **T-01 / T-02 / T-03** `ui/src/routes/help/methodology/+page.svelte:789` — JPEG Ghost calibration `<dd>` block rewritten without "Sprint 28 calibration sweep (S28-FU9)", "CASIA v2" (named external corpus, also flagged by the copyright sweep), or "backlog item #10". Honest disclosure of the calibration limitation retained (Berkeley Protocol §6 reproducibility commitment).
+- **C-06** `ui/src/routes/help/compliance/+page.svelte:480` — security status callout "0 open items as of v0.9.0-rc.1" (factually wrong, four months stale, understated the audit scope) replaced with "all findings from the most recent audit (May 2026) have been resolved; 0 open items".
+- **C-04** wiki `Home.md:24, 42` — three instances of "Juralabs CIC" (one word) corrected to "Jura Labs CIC" (canonical abbreviated form with space). Full legal name "Juralabs Community Interest Company" at line 5 left unchanged per the canonical form.
+- **B-12 / B-13** `GETTING_STARTED.md:315, 317` — "Thank you for piloting Jura Trace" pilot framing in the public release footer replaced with "Thank you for using Jura Trace"; stale "27 April 2026" date updated to "June 2026".
+
+P1 fixes batched in the same sweep across in-app help (methodology + compliance + forensic-detectors pages), the GitHub Wiki (Home + Methodology + Glossary), and the public release repo's methodology overview:
+
+- **C-02** detector-count consistency: "12 automatic forensic detectors" replaced with "ten automatic (thirteen in total, with three available on demand)" at all occurrences across `GETTING_STARTED.md` and the in-app methodology page.
+- **C-03** database-path consistency: `jura.db` (incorrect) replaced with `jura_archive.db` (canonical, matches `src-tauri/src/db.rs`) at four occurrences.
+- **C-05, B-11** Linux platform claim: removed from the v1.0 platform list (wiki Home + Format-Support). Amended to "macOS (Apple Silicon), Windows (x64); Linux installer planned for a future release".
+- **C-09** audit-report contact email: `consultancy@juralabs.org` replaced with `security@juralabs.org` for security-audit requests and `licensing@juralabs.org` for commercial-licence enquiries (canonical per `SECURITY.md` and `COMMERCIAL.md`).
+- **T-04** NPR Known Limitations block rewritten without internal "Sprint 28" and "Content-authenticity-expert" references. Tan et al. (AAAI 2024) paper citation kept; framing improved.
+- **T-05** "Demoted Sprint 28: on-demand investigation tool only..." replaced with "On-demand: investigation tool only..." in the signal weighting table (NPR, shadow consistency, splice boundary rows).
+- **T-06 / T-07 / T-08** Sprint 19 + Sprint 14 references in the compliance audit section replaced with "25 March 2026" date references or "the previous audit cycle".
+- **T-09 / T-10** removed `(tracked as JTV-156)` and `(JTV-188)` ticket references from rendered forensic-detectors copy.
+- **B-02** FFmpeg install section in `GETTING_STARTED.md` gained an explicit note that video/audio analysis is planned for a future release: "FFmpeg can be installed now; the features will activate automatically when they become available".
+- **B-03** `docs/methodology.md:21` (release repo) — "reactivated in v1.0.2 (October 2026)" softened to "planned for re-enablement in a later release". No version + date pin.
+- **B-04** `docs/methodology.md:79` (release repo) — "audio and video deepfake analysis are deferred to v1.0.1 (target Monday 4 August 2026)" softened to "planned for a subsequent release, timed to the EU AI Act Article 50 transparency obligations (binding 2 August 2026)". Drops the v1.0.1 version pin and the specific 4 Aug target Monday; keeps the legitimate Article 50 binding-date anchor.
+- **B-05 / B-06 / B-07** "Pro tier feature" softened to "feature-flagged off in v1.0 and planned for a later release" across wiki Methodology + Glossary entries for Conformant Mode + Signing Mode. The Pro tier has not been announced at v1.0 launch.
+- **C-11 / C-12** AGPL-3.0 SPDX identifier extended to AGPL-3.0-or-later at five occurrences across the wiki and in-app help.
+
+Category 4 plain-English rewrites in the wiki Methodology page (the flagship transparency page that journalists, fact-checkers, museum curators, and solicitors will read on launch day):
+
+- **5b** GBM AI Generation Detection: "extracts an 84-feature vector across six classes: noise statistics (LSB randomness, LSB entropy, LF/HF ratio, anisotropy); spectral decay patterns; Local Binary Pattern (LBP) texture descriptors; Grey-Level Co-occurrence Matrix (GLCM) contrast measures; demosaic inter-channel coherence; and PRNU sensor pattern consistency" (six unexplained acronyms in one sentence — discipline-specific signal-processing jargon) preceded by a plain-English opener: "the classifier examines statistical properties of the image that are invisible to the naked eye: the distribution of noise grain, the way fine texture repeats across the image, the consistency of colour-channel data, and the spatial pattern of sensor noise that real camera hardware imprints on every photograph it takes". Technical detail preserved in trailing parenthetical for specialist readers.
+- **5c** Copy-Move Detection: "extracts SIFT (Scale-Invariant Feature Transform) descriptors from image patches and performs nearest-neighbour self-matching with Lowe's ratio test... RANSAC geometric verification and DBSCAN clustering" rewritten in plain English: "breaks the image into small overlapping patches and generates a compact fingerprint for each patch; those fingerprints are compared across the whole image; if two patches in different parts of the image are nearly identical, they are likely copies of each other; the detector verifies that the matches form a geometrically coherent group before flagging them". SIFT/Lowe/RANSAC/DBSCAN technical names preserved in trailing parenthetical.
+- **5d** Colour Temperature: "Converts the image to the CIELAB perceptual colour space" — CIELAB defined inline: "(a standard that aligns colour distance with human visual perception)".
+
+15 findings deferred to v1.0.1 per the audit's own prioritisation: HTML-comment sprint references not rendered to users (T-11/12/13), wiki Glossary + Format-Support version pins (B-08/09), compliance page Video Deepfake numbering inconsistency (C-10), in-app forensic-detectors PRNU residual energy roadmap reference (B-10), and three of the seven Cat 4 readability notes (5a fixed via T-01, 5e/5f noted as no-change-needed templates, 5g handled via T-04).
+
+### v10 retrain decision — skip, v10onnx + GBM v4 IS the v1.0 launch model (7 June)
+
+Third (and final) re-check of the corpus delta against the 18 May reference date. Zero new authentic samples since 11 May v10onnx training (the one "new" file in `corpus/training/authentic/google_photos/` is a `_c2pa.jpg` test artefact — a Jura-Trace-signed copy of an existing image used for verify-pipeline testing, not corpus data). Zero new AI samples. Zero new platform-forwarded augmentation data. Decision locked: skip the refresh-only retrain. v10onnx (`0534a9e80e352a5b…`) + GBM v4 (`512def7ec62cbeb0…`) is the v1.0 launch model.
+
+Rationale documented in memory `project_v10_retrain_committed.md`: retraining identical algorithm on identical data produces a numerically identical model with no quality benefit and exposes the SHA-pinned model identity (already cited in `docs/methodology.md`, the rc.29 release notes, the press release v2.2 Technical reference block, and the sidecar runtime identifier `univfd-probe-v10onnx`) to needless re-publishing risk. The actual retrain trigger is JTV-127 (Track 3 Global Majority handset corpus, ~1,000 outstanding photos); when those land post-launch, schedule UnivFD v11 against the GM additions specifically — a v1.0.1 / v1.1 deliverable, not a pre-launch fire-drill.
+
+Companion change in the public release repo: `docs/methodology.md` §2.3 (commit `c9a1614` on `Jura-Labs/jura-trace`) updated from stale v9 numbers to current v10onnx (training corpus 39,016 → 50,710 samples; AUC-ROC 0.9933 → 0.9929; FP rate 4.12% → 3.87%; AI recall 95.70% → 95.77%; SHA `ed691b45…` → `0534a9e8…`; model card path `univfd-v9-platform-augmentation.md` → `univfd-v10onnx-divergence-fix.md`; new paragraph explaining the "onnx" suffix as a PyTorch↔ONNX preprocess divergence fix retrained against the production sidecar's PIL + ONNX runtime path). Closes funder-audit finding D4 (Medium).
+
+### Codeberg source mirror catch-up sync (8 June, codeberg commit `0bf2f23`)
+
+The post-AGPL clean history on `codeberg.org/jura-labs/jura-trace` diverged from `Jura-Labs/jura-archive` over the rc.30 prep cycle. Cherry-picks failed on different-ancestry conflicts because the clean-history split means several jura-archive commits reference files (the calibration / decisions / fairness docs) that do not exist on codeberg's tree at all.
+
+Resolved via end-state sync: six files brought to current state from jura-archive HEAD and applied as a single squashed commit on codeberg. Equivalent to cherry-picking commits `8aac1d8`, `195064a`, `df74850`, `b68b1e3` from jura-archive but applied without the cherry-pick conflicts.
+
+Synced files: `scripts/build-local-mac.sh` (Phase 0.5 + Phase 6.5), `ui/src/routes/help/model-cards/+page.svelte` (training-data redactions), `ui/src/routes/help/methodology/+page.svelte` (JPEG Ghost block + NPR + signal table + AGPL identifier), `ui/src/routes/help/compliance/+page.svelte` (audit status + Sprint references + contact emails), `ui/src/routes/help/forensic-detectors/+page.svelte` (JTV ticket removals), and `.gitignore` (precautionary entries for the four high-risk files that exist on jura-archive but not on codeberg).
+
+All four remotes now in sync for v1.0 launch on Monday 22 June 2026:
+
+| Remote | Head | Purpose |
+|---|---|---|
+| `Jura-Labs/jura-archive` (private source) | `b68b1e3` | Full dev history + canonical source |
+| `codeberg.org/jura-labs/jura-trace` (public source mirror) | `0bf2f23` | Clean post-AGPL history; goes public on launch day 22 June |
+| `Jura-Labs/jura-trace` (public release) | `8c07e91` | Installers + READMEs + methodology overview |
+| `github.com/Jura-Labs/jura-trace/wiki` | `572f39e` | Mirror of Codeberg wiki content (live now) |
+
+### Test posture post-sweep
+
+- 543 Rust lib tests pass unchanged
+- `cargo clippy --all-targets -- -D warnings`: clean
+- `cargo fmt --check`: clean
+- `svelte-check`: 0 errors across the help-page surface
+- Sidecar `test_health.py`: 3/3 pass
+- Pre-commit hook ran cleanly on each of the documentation commits (`195064a`, `df74850`, `b68b1e3`)
+- `npm ci --dry-run` passes against the restored lockfile (a working-tree drift of the same class that killed rc.28 was caught and reverted in the pre-flight check on the evening of 8 June)
+
+### Open items carried into rc.30 + v1.0 launch
+
+- **rc.30 tag-cut** scheduled for Tuesday 9 June 2026 from current HEAD `b68b1e3`. Pre-flight diagnostic confirms all blockers resolved: lockfile valid, Apple Developer ID cert valid through April 2031, notarytool keychain profile `jura-trace-notary` authenticates, Tauri updater key at `~/.tauri/jura-trace-v10.key` (mode 600), Phase 0.5/6.5 build-script fix in place, all four models present on disk, Python 3.13.5 + PyInstaller 6.19.0 ready, external cargo target (`/Volumes/MAC SSD`) has 730 GB free, no hung processes.
+- **`press@juralabs.org` alias** (JTV-166) — not yet active. Press release v2.2 uses `hello@juralabs.org` as the catch-all per the canonical contact policy.
+- **`juralabs.org/download` page** (JTV-242) — scheduled deploy Friday 19 June 2026. HTML template at `../jura-labs-docs/jura-trace-strategy/juralabs-org-download-page.html`.
+- **Codeberg repo public flip** — scheduled launch day 22 June 2026 (currently private).
+- **rc.29 release on public repo** — to be marked as draft when rc.30 publishes. rc.29 carries the stale model card with named external corpora; users downloading from `/releases/latest` should land on rc.30.
+- **15 of 46 documentation deep-review findings** deferred to v1.0.1 per the audit's own prioritisation; sweep planned for the Article 50 compliance launch (target early August 2026).
+- **Detector plain-English rewrites for the in-app methodology help page** — the equivalent of wiki Cat 4 5b/5c/5d (GBM, Copy-Move, Colour Temperature) applied only to the wiki; the in-app methodology page received the equivalent fix only for the JPEG Ghost block (5a). The non-blocking 5b/5c/5d in-app fixes can be batched into the v1.0.1 cycle if not done before launch.
+- **`scripts/agents/crawl_authentic_images.py`** still contains code-level references to specific corpora that the copyright sweep did not touch. To be addressed by relocating those scripts to internal if the external attribution risk warrants it.
+- **`docs/backlog.md`** historical progress notes naming specific generators in context — sweep planned for the next cleanup pass.
+
+---
+
 ## 18 May 2026 — Pre-launch sweep: JTV-184 sidecar architecture, security audit + 3 HIGH fixes, public-copy honesty pass, KB Retrieval deferral, CI hardening
 
 Fourteen commits across three calendar days (16–18 May) closing out the recurring "Analysis Engine offline" install blocker, executing the pre-v1.0 STRIDE re-audit, deferring one feature from scope, and removing forward commitments from public copy that no longer matched the post-tier-simplification roadmap. JTV-142 (sidecar startup hang) closed in Plane with the full JTV-184 chain as resolution.
