@@ -10,7 +10,7 @@
 
 Multi-format augmentation retrain of **UnivFD v9 → v10** to address AI-detection failures on non-JPEG image formats. Four target formats:
 
-- **PNG** (lossless, common AI export from Firefly + Midjourney + diffusers)
+- **PNG** (lossless, common AI export format across commercial and open-weights generators)
 - **TIFF** (lossless, archive-grade — important for museum / cultural-heritage workflow)
 - **WebP** (modern lossy q=80, increasingly common as AI export)
 - **HEIC** (iPhone default; AI images saved to Photos roll convert to HEIC)
@@ -29,7 +29,7 @@ Multi-format augmentation retrain of **UnivFD v9 → v10** to address AI-detecti
 |---|---|---|---|
 | **W1** | 12-18 May 2026 | ~6,000 format-augmented samples (1,500 per format), SHA-256 manifest, authentic non-JPEG coverage check + top-up to ≥150 per format | **Gate 1**: authentic balance check passes — no severe imbalance that would produce format-as-label confound |
 | **W2** | 19-25 May 2026 | CLIP embeddings extracted (~15 min MPS), UnivFD v10 LogReg retrain with C-grid search, JPEG regression evaluation | **Gate 2 (hard)**: JPEG FP ≤ 5.12% (= 4.12% + 1.0pp ceiling) AND recall ≥ 94.7% (= 95.70% − 1.0pp) AND demographic bias test passes — if fails, abort v10, ship v1.0 with safety cap only |
-| **W3** | 26 May - 1 Jun 2026 | Per-format native-export benchmark (~800 images: 50/generator × 4 generators × 4 formats from Firefly + Midjourney + SDXL + Flux), threshold calibration | **Gate 3**: per-format AUC ≥ 0.85 (PNG / TIFF / WebP) and ≥ 0.80 (HEIC if generated successfully) |
+| **W3** | 26 May - 1 Jun 2026 | Per-format native-export benchmark (~800 images: 50/generator × 4 generators × 4 formats across closed-source and open-weights families), threshold calibration | **Gate 3**: per-format AUC ≥ 0.85 (PNG / TIFF / WebP) and ≥ 0.80 (HEIC if generated successfully) |
 | **W4** | 2-8 Jun 2026 | GBM v4 format-aware confidence floor patch, v10 wired into sidecar, sidecar tests, methodology paper finalised | **Gate 4 (hard cut-off 15 Jun)**: sidecar tests pass, demographic bias pass — v10 promoted OR deferred to v1.0.1 with safety cap as backstop |
 | Buffer | 9-15 Jun 2026 | rc.25 integration, final promotion decision | If gates all pass: v10 ships in v1.0. If not: safety cap is the v1.0 mitigation, v10 → v1.0.1 |
 
@@ -57,7 +57,7 @@ Pillow-only, ~0.4 s/image. LZW (universally readable, not patent-encumbered post
 ```python
 img.save(output_path, format="WEBP", quality=80, method=6)
 ```
-Pillow + libwebp (pip default on macOS). ~0.8 s/image. q=80 matches Midjourney/Firefly/Runway default downloads.
+Pillow + libwebp (pip default on macOS). ~0.8 s/image. q=80 matches the default download quality of common closed-source commercial generators.
 
 ### HEIC (Apple-licensed sips)
 ```bash
@@ -99,18 +99,18 @@ Extend `scripts/build_augmented_training_set.py` with `--multi-format-aug-ai` an
 
 **Generator matrix** (50 images × 4 generators × 4 formats = 800 images total):
 
-| Generator | Native PNG | Native TIFF | Native WebP | Native HEIC | Notes |
+| Generator family | Native PNG | Native TIFF | Native WebP | Native HEIC | Notes |
 |---|---|---|---|---|---|
-| Firefly | Yes | Photoshop save-as | Save-for-Web | sips post-conv | Adobe CC subscription, 25 free credits/mo |
-| Midjourney v6 | Yes (PNG download) | Manual resave | Manual resave | sips post-conv | Discord subscription |
-| SDXL local | Yes | Yes | Yes | sips post-conv | HuggingFace diffusers, no quota |
-| Flux.1-dev local | Yes | Yes | Yes | sips post-conv | HuggingFace diffusers, no quota |
+| Closed-source commercial generator A | Yes | Editor save-as | Save-for-Web | sips post-conv | Subscription required |
+| Closed-source commercial generator B | Yes (PNG download) | Manual resave | Manual resave | sips post-conv | Subscription required |
+| Open-weights diffusion model A | Yes | Yes | Yes | sips post-conv | Self-hosted, no quota |
+| Open-weights diffusion model B | Yes | Yes | Yes | sips post-conv | Self-hosted, no quota |
 
 **Honest caveat documented in methodology paper**: HEIC is never generator-native; benchmark is "re-encoded from PNG", which mirrors real-world (AI image saved to iPhone Photos → HEIC).
 
 **Time**: ~3 hours generation + ~1 hour organisation.
 
-**Fallback if subscription-gated tools are constrained**: 100 images from SDXL + Flux + SD3.5 local + 25 each from Firefly + MJ = ~150 non-JPEG benchmark images total. Adequate for per-format AUC estimation (±0.05 CI at n=150).
+**Fallback if subscription-gated tools are constrained**: 100 images from the open-weights diffusion subset + 25 each from two closed-source commercial generators = ~150 non-JPEG benchmark images total. Adequate for per-format AUC estimation (±0.05 CI at n=150).
 
 ## Threshold calibration (Week 3)
 
@@ -141,7 +141,7 @@ Documented audit trail for legal/compliance side: "we knew about the GBM gap, we
 |---|---|---|---|
 | 1 | PNG augmentation overfits, regresses JPEG performance | Moderate | Enforce ≥500 authentic PNG samples. Gate 2 hard stop. If PNG augmentation causes JPEG FP regression >0.5pp, reduce PNG count from 1,500 to 750, retrain once before checking 1.0pp gate. |
 | 2 | HEIC corpus generation flakey on macOS `sips` | Low-moderate | Pilot 10-image validation first. Fallback: `ffmpeg -i input.jpg output.heic` with libheif. If HEIC unsupportable, drop from augmentation, document explicitly. HEIC is least critical (Apple converts to JPEG on share). |
-| 3 | Firefly/MJ native-PNG benchmark too small | Moderate | Fallback to SDXL + Flux + SD3.5 local only (zero subscription dependency). Benchmark composition documented in methodology paper. |
+| 3 | Closed-source commercial native-PNG benchmark too small | Moderate | Fallback to open-weights diffusion subset only (zero subscription dependency). Benchmark composition documented in methodology paper. |
 | 4 | Codeberg migration block (JTV-149 to JTV-155) consumes the retrain window | Moderate | v10 deferred to v1.0.1 if migration consumes Weeks 2-3. Safety cap is the v1.0 mitigation regardless. |
 | 5 | JPEG regression narrowly fails (4.8-5.1% FP) due to class imbalance | Low-moderate | Rebalance augmented corpus to 1:1 authentic:AI ratio (1,500 each per format). Adds ~1 day corpus work. |
 
@@ -184,7 +184,7 @@ Documented audit trail for legal/compliance side: "we knew about the GBM gap, we
 
 - **Codeberg migration + retrain compete for the same 4-6 weeks.** Do not interleave on the same day — context switching cost is high. Corpus generation (W1) and embedding extraction (W2 first half) automate well and can run overnight.
 - **Authentic non-JPEG coverage gap is the easiest thing to underweight** and the most likely cause of a JPEG regression failure. Budget half a day in W1 just for this.
-- **Per-format benchmark (W3) is the most deferrable.** If behind at Gate 2 decision, cut to SDXL + Flux local only; treat Firefly + MJ as v1.0.1 validation.
+- **Per-format benchmark (W3) is the most deferrable.** If behind at Gate 2 decision, cut to the open-weights diffusion subset only; treat closed-source commercial generators as v1.0.1 validation.
 - **If Gate 2 passes marginally (FP 4.6%, within ceiling but up from 4.12%)**: do not promote v10 silently — document the regression in methodology paper and promotion decision record. Demographic bias test may explain part of it; understand cause before shipping.
 
 ## Cross-references

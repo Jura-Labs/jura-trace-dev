@@ -184,8 +184,8 @@ and deepfake.
 | Authentic — plain baseline | 35 | General authentic |
 | **Total** | **150** | 75 spliced / 75 authentic |
 
-Source pool: 3,686 usable CC-BY JPEG images from COCO + Flickr30k subdirectories
-on USB corpus. Zero generation failures. Wall-clock time: 5.2 seconds.
+Source pool: 3,686 usable CC-BY JPEG images from the open-licence authentic
+subset of the USB corpus. Zero generation failures. Wall-clock time: 5.2 seconds.
 
 ### 4.2 Raw detector score distributions
 
@@ -285,8 +285,8 @@ research benchmark track).
 
 ### 4.6 Section 3.6 sanity check — authentic training corpus
 
-200 authentic images sampled from USB training corpus (COCO + Flickr30k,
-same CC-BY pool, seed=42):
+200 authentic images sampled from the open-licence authentic subset of the
+USB training corpus (same CC-BY pool, seed=42):
 
 | Metric | Value | Verdict |
 |---|---|---|
@@ -375,8 +375,8 @@ Three primary options, in order of preference:
 Generate a controlled splice test set locally using authentic JPEG images from the
 existing USB corpus. This approach:
 
-1. Uses only images already cleared for commercial use (COCO CC-BY, OpenImages
-   CC-BY, Flickr30k).
+1. Uses only images already cleared for commercial use from the open-licence
+   authentic subset of the USB corpus.
 2. Produces ground-truth labels with known Q-delta values.
 3. Is reproducible and extendable.
 

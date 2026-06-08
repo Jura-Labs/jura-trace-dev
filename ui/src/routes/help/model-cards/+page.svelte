@@ -122,11 +122,11 @@
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Authentic sources</dt>
-          <dd class="muted-help">Guardian press photos, COCO (train + validation), Flickr30k, Flickr8k, real camera DCIM photos, Wikimedia Commons photographs (curated, non-art)</dd>
+          <dd class="muted-help">Real camera DCIM photos, Wikimedia Commons photographs (curated, non-art).</dd>
         </div>
         <div>
-          <dt class="font-medium text-text-light dark:text-quartz">AI-generated sources (14 generator families)</dt>
-          <dd class="muted-help">ELSA 1M (Stable Diffusion, DALL-E mix), DiffusionDB, DALL-E 3, Civitai SFW, SDXL-Turbo, Midjourney v6, Gemini Imagen 4, Grok Aurora, ArtBench, HuggingFace AI, and others</dd>
+          <dt class="font-medium text-text-light dark:text-quartz">AI-generated sources (approximately 14 generator families)</dt>
+          <dd class="muted-help">Diverse imagery across the diffusion and GAN landscape spanning commercial and open-weights model families. Specific generator names are withheld from public documentation; per-generator recall is reported in the model-card metadata JSON shipped alongside each release.</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Feature vector</dt>
@@ -299,11 +299,11 @@
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Authentic sources</dt>
-          <dd class="muted-help">COCO (train + validation), Flickr30k, Flickr8k, Google Photos, ImageNet validation, CelebA faces, camera DCIM photos, Wikimedia Commons photographs (curated, non-art)</dd>
+          <dd class="muted-help">Real camera DCIM photos, Wikimedia Commons photographs (curated, non-art).</dd>
         </div>
         <div>
-          <dt class="font-medium text-text-light dark:text-quartz">AI-generated sources (14 generator families)</dt>
-          <dd class="muted-help">ELSA 1M / Stable Diffusion, DiffusionDB, DALL-E 3, Civitai SFW, SDXL-Turbo, ArtBench, Midjourney v6, Gemini Imagen 4, Grok Aurora, HuggingFace AI, and others</dd>
+          <dt class="font-medium text-text-light dark:text-quartz">AI-generated sources (approximately 14 generator families)</dt>
+          <dd class="muted-help">Diverse imagery across the diffusion and GAN landscape spanning commercial and open-weights model families. Specific generator names are withheld from public documentation; per-generator recall is reported in the model-card metadata JSON shipped alongside each release.</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Regularisation</dt>

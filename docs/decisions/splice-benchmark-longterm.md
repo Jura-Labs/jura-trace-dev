@@ -51,7 +51,7 @@ much of the real-world gap as possible without paying licence fees.
 
 **Axis 2 — Larger corpus**
 - Scale from 150 to 1,000+ images drawing from the full USB training
-  pool (COCO + Open Images + Flickr30k + Unsplash + Wikimedia CC-BY).
+  pool (open-licence authentic subset, CC-BY across multiple commons sources).
 - Stratify by camera vendor (consumer phone, DSLR, drone) to match the
   GBM v4 validation strata.
 

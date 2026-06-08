@@ -50,7 +50,7 @@
 
 **No automated smoke test after build.** After `cargo tauri build`, there is no verification that the produced `.app`/`.dmg`/`.exe` launches successfully. A silent link failure or missing sidecar binary in the bundle would only be discovered by a user.
 
-**No corpus backup.** The `scripts/build_corpus.py` and `scripts/expand_corpus.py` scripts download from external sources (Guardian API, HuggingFace, COCO). If those sources become unavailable or the corpus is accidentally deleted, the 545-image training set cannot be reconstructed quickly. The trained model (`models/deepfake_classifier.joblib`) is in the repo, but the training data is not.
+**No corpus backup.** The `scripts/build_corpus.py` and `scripts/expand_corpus.py` scripts download from external image corpora and APIs. If those sources become unavailable or the corpus is accidentally deleted, the training set cannot be reconstructed quickly. The trained model (`models/deepfake_classifier.joblib`) is in the repo, but the training data is not.
 
 **No documented `.env` / environment setup for development.** New contributors need to know about `JURA_SIDECAR_KEY`, `JURA_DB_PATH`, and `JURA_MODELS_DIR`. These are scattered across `DEPLOYMENT.md` and inline comments in the code. There is no `.env.example` file.
 
@@ -298,7 +298,7 @@ rclone sync ./scripts/expanded_corpus/ remote:jura-trace-corpus-expanded/
 
 Cost estimate: 545 images at ~2 MB average = ~1 GB. Backblaze B2 charges $0.006/GB/month = ~$0.006/month. Effectively free. Set up once; costs nothing to maintain.
 
-If the corpus must be rebuilt from scratch, `scripts/build_corpus.py` requires a Guardian API key. Store that key in 1Password or equivalent alongside the signing certificates.
+If the corpus must be rebuilt from scratch, `scripts/build_corpus.py` may require API credentials for some external corpora. Store any such keys in 1Password or equivalent alongside the signing certificates.
 
 ### SQLite database — user guidance
 

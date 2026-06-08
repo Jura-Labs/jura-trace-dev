@@ -21,7 +21,7 @@ UnivFD v10 probe that:
 1. Maintains AI recall ≥95% (current v9: 95.70%)
 2. Maintains authentic FP ≤5% overall (current v9: 4.12%)
 3. Reduces screenshot-specific FP from ~100% → <10%
-4. Does not regress known-weak generators (flux_dev, DiffusionDB)
+4. Does not regress known-weak generator families
 
 ## Corpus additions required
 
@@ -52,8 +52,8 @@ Target: **400 screenshots of AI-generated content**, balanced across:
 
 | Source | Count | Notes |
 |--------|-------|-------|
-| Screenshot of DALL-E 3 / Midjourney output | 100 | macOS + iOS screenshots |
-| Screenshot of Stable Diffusion variants | 100 | Civitai, DiffusionDB outputs screenshot via Chrome |
+| Screenshot of closed-source commercial generator output | 100 | macOS + iOS screenshots |
+| Screenshot of open-weights diffusion model variants | 100 | Outputs screenshot via Chrome |
 | JPEG re-save of AI images (social media forwarding) | 100 | Q=75/85/2x (extend existing platform-forwarded corpus) |
 | HEIC re-encode of AI images | 100 | iOS forwarding pattern |
 

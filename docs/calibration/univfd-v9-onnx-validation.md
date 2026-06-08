@@ -63,9 +63,9 @@ image per several seconds).
 
 ## Open follow-ups
 
-- Re-run validation on a larger AI-generated sample (DiffusionDB, Civitai,
-  flux, sdxl) to confirm cosine perfection holds across the harder-to-classify
-  tails before RC15 cut.
+- Re-run validation on a larger AI-generated sample (broader diffusion and
+  open-weights generator coverage) to confirm cosine perfection holds across
+  the harder-to-classify tails before RC15 cut.
 - Text encoder ONNX has a reshape constraint: batch>1 fails with the current
   export. The runtime workaround (loop one prompt at a time, ~125 ms one-shot
   on first model load) is acceptable since prompt embeddings cache; revisit

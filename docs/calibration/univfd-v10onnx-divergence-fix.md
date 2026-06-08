@@ -31,7 +31,7 @@ Since **JTV-143** (3 May 2026, commit `e2ea8a2`), the shipped sidecar instead ex
 - torchvision's `Resize` with `antialias=True` applies an explicit antialiasing prefilter before downsampling.
 - PIL's `Image.resize(..., BICUBIC)` applies the raw cubic-convolution kernel **without** an antialiasing prefilter.
 
-Same nominal algorithm; **different downsampling kernels**. The resulting embeddings diverge with **mean cosine similarity 0.996** and **min 0.978** on a 20-image civitai_sfw test set (see `scripts/diagnose_clip_onnx_divergence.py`).
+Same nominal algorithm; **different downsampling kernels**. The resulting embeddings diverge with **mean cosine similarity 0.996** and **min 0.978** on a 20-image generator-output test set (see `scripts/diagnose_clip_onnx_divergence.py`).
 
 A probe trained on one distribution and served on a different distribution is calibrated for the wrong inputs. In production this manifested as:
 
@@ -122,21 +122,21 @@ All three hard gates pass; per-format and per-generator stay strong:
 | plt75 | 0.9912 | 1,074 |
 | plt85 | 0.9950 | 1,074 |
 
-**Per-generator recall** (no regressions vs v10 PyTorch candidate):
+**Per-generator-family recall** (no regressions vs v10 PyTorch candidate; specific generator names withheld from public documentation, the labels below preserve the analytical groupings):
 
-| Generator | Recall | n |
-|-----------|--------|---|
-| grok_aurora | 1.0000 | 150 |
-| midjourney_v6 | 1.0000 | 45 |
-| dalle3 | 0.9933 | 150 |
-| diffusiondb | 0.9800 | 150 |
-| civitai_sfw | 0.9800 | 150 |
-| synthetic_faces | 0.9889 | 90 |
-| sdxl_turbo | 0.9333 | 90 |
-| elsa | 0.9205 | 390 |
-| flux_dev | 0.9136 | 81 |
-| gemini | 0.8667 | 15 (low confidence) |
-| __root__ | 0.8194 | 72 |
+| Generator family | Recall | n |
+|------------------|--------|---|
+| Closed-source commercial generator A | 1.0000 | 150 |
+| Closed-source commercial generator B | 1.0000 | 45 |
+| Closed-source commercial generator C | 0.9933 | 150 |
+| Diffusion-image research dataset | 0.9800 | 150 |
+| Community-curated diffusion SFW subset | 0.9800 | 150 |
+| Synthetic face generator | 0.9889 | 90 |
+| Open-weights diffusion model (turbo variant) | 0.9333 | 90 |
+| Latent-space artistic benchmark | 0.9205 | 390 |
+| Open-weights diffusion model (dev variant) | 0.9136 | 81 |
+| Closed-source commercial generator D | 0.8667 | 15 (low confidence) |
+| Unlabelled / generic AI imagery | 0.8194 | 72 |
 
 ---
 

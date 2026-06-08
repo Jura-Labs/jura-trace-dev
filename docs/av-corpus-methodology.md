@@ -257,7 +257,7 @@ Following the existing `scripts/agents/` pattern from the image corpus work:
 |---|---|---|---|
 | `crawl_authentic_video` | `scripts/agents/crawl_authentic_video.py` | Download Kinetics-700 subset, Pexels, VoxCeleb via HuggingFace | **To build** |
 | `crawl_ai_video` | `scripts/agents/crawl_ai_video.py` | Download FaceForensics++, Celeb-DF, DFDC via research forms + HF | **To build** |
-| `generate_ai_video` | `scripts/agents/generate_ai_video.py` | Generate Sora/Veo/Kling/Runway/SVD samples via API | **To build** (requires API keys) |
+| `generate_ai_video` | `scripts/agents/generate_ai_video.py` | Generate closed-source commercial and open-weights video-generator samples via API | **To build** (requires API keys) |
 | `crawl_authentic_audio` | `scripts/agents/crawl_authentic_audio.py` | Download LibriSpeech, Common Voice, VCTK via HuggingFace | **To build** |
 | `crawl_ai_audio` | `scripts/agents/crawl_ai_audio.py` | Download MLAAD, SpeechFake, WaveFake, ASVspoof 5, In-the-Wild | **To build** |
 | `generate_ai_audio` | `scripts/agents/generate_ai_audio.py` | Generate custom samples via ElevenLabs/OpenAI TTS/Bark | **To build** (requires API keys) |
@@ -426,7 +426,7 @@ Mapping this work to the existing TRIED compliance roadmap (`docs/sprint-plans/t
 | Sprint 31 (2–15 Jun) | Durability Infrastructure | **+Audio test set** (Phase 3): LibriSpeech + Common Voice subsets for testing existing transcription pipeline. 500 authentic clips, ~1 GB. Feeds into adversarial robustness testing (S31-03). |
 | Sprint 32 (16–29 Jun) | Institutional Readiness | **+DeepFake-Eval-2024 benchmark** (ties TRIED self-assessment in S32-02 to a published in-the-wild dataset). Makes the self-assessment genuinely measurable rather than self-reported. |
 | Sprint 33 (30 Jun – 13 Jul) | Consumer API Foundation | **+Audio training corpus download** (Phase 4): MLAAD v9 + SpeechFake + ASVspoof 5 in parallel with consumer API work. ~50 GB, free, background download. |
-| Sprint 34 (14–27 Jul) | EMIF & Ecosystem | **+AI audio generation** (Phase 2 for video, overlaps with ecosystem work): Sora/Veo/Kling/Grok Imagine manual generation for test samples. Cost: £50–100. Same pattern as image Grok Aurora. |
+| Sprint 34 (14–27 Jul) | EMIF & Ecosystem | **+AI audio generation** (Phase 2 for video, overlaps with ecosystem work): closed-source commercial video generators (manual generation for test samples). Cost: £50–100. Same pattern as the image-side commercial-generator test subset. |
 | Sprint 35+ (Aug–Sep) | Audio deepfake detector | **+Phase 5 build audio_deepfake.py** service and probe. New 2-sprint project. |
 
 ### Alternative: Concentrated Corpus Sprint
