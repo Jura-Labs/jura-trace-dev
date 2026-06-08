@@ -178,11 +178,11 @@ as statistically unreliable.
 | Generator family | n | v9 recall | Regression vs v8? |
 |---|---|---|---|
 | **grok_aurora** | 150 | 100.0% | — |
-| **midjourney_v6** | 45 | 100.0% | — |
-| **civitai_sfw** | 150 | **98.67%** | +22.9 pp over v8's 75.8% |
-| **dalle3** | 150 | **98.67%** | +7.3 pp over v8's 91.4% |
+| **Closed-source commercial generator A** | 45 | 100.0% | — |
+| **Community-curated diffusion SFW subset** | 150 | **98.67%** | +22.9 pp over v8's 75.8% |
+| **Closed-source commercial generator B** | 150 | **98.67%** | +7.3 pp over v8's 91.4% |
 | **synthetic_faces** | 90 | 98.89% | — |
-| **diffusiondb** | 150 | **97.33%** | **+29.7 pp over v8's 67.6%** |
+| **Diffusion-image research dataset** | 150 | **97.33%** | **+29.7 pp over v8's 67.6%** |
 | **artbench** | 60 | 96.67% | — |
 | **elsa** | 390 | 95.90% | — |
 | **sdxl_turbo** | 90 | 91.11% | −8.9 pp (flag for review) |
@@ -191,15 +191,15 @@ as statistically unreliable.
 | __unknown__ | 500 | 95.40% | — |
 | __root__ | 72 | 81.94% | uncategorised sources |
 
-**The v8 weak-family problem is largely solved.** DiffusionDB (v8 recall
-67.6%) and Civitai SFW (v8 recall 75.8%) were the two generator families
+**The v8 weak-family problem is largely solved.** diffusion-image research dataset (v8 recall
+67.6%) and community-curated diffusion SFW subset (v8 recall 75.8%) were the two generator families
 that consistently underperformed in the v8 calibration. v9 lifts both to
-the 97–99% band. DALL-E 3 also moves from 91.4% to 98.7%.
+the 97–99% band. closed-source commercial generator (B) also moves from 91.4% to 98.7%.
 
 **Two families regressed more than 2 pp**: `sdxl_turbo` (−8.9 pp) and
 `flux_dev` (−11.1 pp). Both are still above 88% recall, but the direction
 matters. The most likely explanation is that the augmentation re-weighted
-the decision boundary toward features that help DiffusionDB / Civitai (older
+the decision boundary toward features that help diffusion-image research dataset / Civitai (older
 SD-family) at a small cost to newer generators whose outputs have a
 distinctly different CLIP signature. This is a known trade-off in distilled
 linear probes trained on skewed class distributions.
@@ -276,7 +276,7 @@ and the TRIED Pillar 3 (Transparent) narrative.
 
 3. **CLIP features may be partially immune to Q-level variation already.** If CLIP ViT-B/32 was pre-trained on images at various quality levels (likely, given LAION-2B scale), the v8 baseline may already be reasonably robust. The augmentation retrain tests this hypothesis empirically.
 
-4. **DiffusionDB and Civitai SFW already have low recall in v8** (67.6% and 75.8%). These generators produce older SD 1.x-style outputs whose CLIP embedding distribution overlaps more with authentic images. Augmenting with platform-forwarded versions of these generators may not fix the underlying distribution overlap.
+4. **diffusion-image research dataset and community-curated diffusion SFW subset already have low recall in v8** (67.6% and 75.8%). These generators produce older SD 1.x-style outputs whose CLIP embedding distribution overlaps more with authentic images. Augmenting with platform-forwarded versions of these generators may not fix the underlying distribution overlap.
 
 5. **Demographic composition unchanged.** This retrain adds augmented variants of the existing corpus; it does not change the demographic composition (skin tone, gender presentation, geographic origin of authentic photos). A TRIED Pillar 4 demographic audit of the augmented corpus is a follow-up task.
 
