@@ -138,7 +138,7 @@
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       The trust score combines five components in a defined order. No single
       component can override the others when it strongly disagrees with the
-      evidence. The full algorithm is open-source under AGPL-3.0 at
+      evidence. The full algorithm is open-source under AGPL-3.0-or-later at
       <code class="font-mono text-xs">src-tauri/src/lib.rs::compute_trust</code>.
     </p>
 
@@ -786,8 +786,8 @@
             <div id="jpeg-ghost-calibration">
               <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Weight calibration status</dt>
               <dd class="muted-help leading-relaxed">
-                JPEG Ghost contributes to the trust score at a 0.5&#215; weight (half that of ELA, noise analysis, and copy-move detection). This weight is a cross-review consensus value, not an empirically measured one. The Sprint 28 calibration sweep (S28-FU9) could not produce meaningful true positive rate data because the synthetic training corpus uses single-resave PIL composites, which equalise DCT coefficients across the frame when the save quality approximates the background quality, exactly the condition JPEG Ghost is designed to detect. Meaningful calibration requires real-world single-JPEG-resave splice forgeries from a research benchmark such as CASIA v2. This is tracked as backlog item&#160;#10 (post-v1.0 research track). Full calibration results are in
-                <code class="font-mono text-xs bg-gray-100 dark:bg-graphite-light px-1 py-0.5 rounded">docs/calibration/s28-jpeg-ghost-weight.md</code>.
+                JPEG Ghost contributes to the trust score at a 0.5&#215; weight (half that of ELA, noise analysis, and copy-move detection). This weight is a carefully considered estimate. Formal empirical validation against real-world splice forgeries was not completed before v1.0 because the current training set does not include the type of double-compression examples needed for that test. Improving this calibration is planned post-launch. For the technical detail, see
+                <code class="font-mono text-xs bg-gray-100 dark:bg-graphite-light px-1 py-0.5 rounded">docs/calibration/s28-jpeg-ghost-weight.md</code> in the source repository.
               </dd>
             </div>
           </dl>
@@ -1101,7 +1101,7 @@
               <div>
                 <dt class="font-medium text-text-light dark:text-quartz mb-0.5">Known Limitations</dt>
                 <dd class="muted-help leading-relaxed">
-                  Demoted to on-demand in Sprint 28 (April 2026). Content-authenticity-expert cross-review noted that the Tan et al. AAAI 2024 paper uses NPR features as input to a learned classifier, not as a standalone threshold, and that a hand-tuned NPR statistic is partially redundant with the UnivFD v10onnx probe which encodes upsampling artefacts at a higher level of abstraction via CLIP features. The sidecar endpoint remains available for manual investigation. Also computationally intensive and less effective on highly compressed content where pixel neighbour relationships are already disrupted by quantisation.
+                  Moved to on-demand in April 2026. The Tan et al. (AAAI 2024) framework uses NPR features as input to a trained classifier rather than as a standalone threshold; a hand-tuned NPR statistic is partially redundant with the AI generation ensemble, which encodes upsampling artefacts at a higher level of abstraction via CLIP features. The endpoint remains available for manual investigation when targeted analysis of pixel-relationship patterns is needed. Also computationally intensive and less effective on highly compressed content where pixel neighbour relationships are already disrupted by quantisation.
                 </dd>
               </div>
             </dl>
@@ -1383,12 +1383,12 @@
           <tr>
             <td class="py-2.5 pr-6 text-text-light dark:text-quartz">Shadow Consistency</td>
             <td class="py-2.5 pr-6 tabular-nums muted-help italic">On-demand</td>
-            <td class="py-2.5 muted-help">Demoted Sprint 28: on-demand investigation tool only, does not contribute to trust score</td>
+            <td class="py-2.5 muted-help">On-demand: investigation tool only, does not contribute to trust score</td>
           </tr>
           <tr>
             <td class="py-2.5 pr-6 text-text-light dark:text-quartz">Splice Boundary</td>
             <td class="py-2.5 pr-6 tabular-nums muted-help italic">On-demand</td>
-            <td class="py-2.5 muted-help">Demoted Sprint 28: on-demand investigation tool only, does not contribute to trust score</td>
+            <td class="py-2.5 muted-help">On-demand: investigation tool only, does not contribute to trust score</td>
           </tr>
           <tr>
             <td class="py-2.5 pr-6 text-text-light dark:text-quartz">AI Generation Detection</td>

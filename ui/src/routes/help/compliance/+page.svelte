@@ -401,9 +401,9 @@
       source release, or cases requiring contractual indemnification beyond what the AGPL
       provides. Contact
       <a
-        href="mailto:consultancy@juralabs.org"
+        href="mailto:licensing@juralabs.org"
         class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-      >consultancy@juralabs.org</a> for the commercial-licence process.
+      >licensing@juralabs.org</a> for the commercial-licence process.
     </p>
   </section>
 
@@ -418,15 +418,16 @@
       Security Audit Status
     </h2>
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
-      A full OWASP-aligned security penetration test was conducted on 25 March 2026 (Sprint 19),
+      A full OWASP-aligned security penetration test was conducted on 25 March 2026,
       covering the Tauri IPC boundary, Analysis Engine API, Content Security Policy, capability
-      configuration, data at rest, and dependency surfaces.
+      configuration, data at rest, and dependency surfaces. A follow-up audit was performed in
+      May 2026; all findings from both audits have been resolved.
     </p>
 
     <!-- Summary table -->
     <div class="overflow-x-auto mb-6">
       <table class="w-full text-sm border-collapse">
-        <caption class="sr-only">Security audit findings by severity, Sprint 19</caption>
+        <caption class="sr-only">Security audit findings by severity, 25 March 2026</caption>
         <thead>
           <tr class="border-b border-border-light dark:border-border-dark">
             <th class="text-left py-2 pr-4 font-semibold text-text-light dark:text-text-dark">Severity</th>
@@ -477,17 +478,16 @@
       aria-label="Security audit status"
     >
       <p class="text-sm font-semibold text-malachite-dark dark:text-malachite-light">
-        All security audit findings have been remediated. There are 0 open items as of v0.9.0-rc.1.
+        All findings from the most recent audit (May 2026) have been resolved. There are 0 open items.
       </p>
     </div>
 
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
-      The Sprint 19 audit confirmed that all findings from the Sprint 14 audit (3 critical, 6 high)
-      remain remediated with no regression. The full Sprint 19 audit report is available on request
-      via <a
-        href="mailto:consultancy@juralabs.org"
+      The 25 March 2026 audit confirmed that all findings from the previous audit cycle remain
+      remediated with no regression. The full audit reports are available on request via <a
+        href="mailto:security@juralabs.org"
         class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-      >consultancy@juralabs.org</a>.
+      >security@juralabs.org</a>.
     </p>
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
       For detector methodology documentation, including how each forensic signal is computed and

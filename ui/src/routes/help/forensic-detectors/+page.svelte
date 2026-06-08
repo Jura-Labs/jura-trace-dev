@@ -214,12 +214,12 @@
       compact cameras (Sony RX-class). This attenuates the underlying PRNU
       signal. The symmetry test is more reliable on raw-pipeline JPEGs than
       on computational-photography output. A future release will add a PRNU
-      residual energy feature to extend the analysis (tracked as JTV-156).
-      A full reference-fingerprint approach (Lukáš/Fridrich/Goljan 2006 §3)
-      where individual camera sensors are pre-enrolled is appropriate for
+      residual energy feature to extend the analysis. A full
+      reference-fingerprint approach (Lukáš/Fridrich/Goljan 2006 §3) where
+      individual camera sensors are pre-enrolled is appropriate for
       institutional workflows (museum collections, news-agency staff
-      equipment) and is filed as a separate Custom Engineering deliverable
-      (JTV-188) rather than a default capability.
+      equipment) and is offered as a separate Custom Engineering deliverable
+      rather than a default capability.
     </p>
   </section>
 
