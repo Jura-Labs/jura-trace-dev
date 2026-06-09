@@ -26,5 +26,7 @@ scipy==1.17.1
 # frontend; backend code stays in tree for v1.1 unhide. Library remains in
 # requirements.txt for dev testing.
 pillow-heif==1.2.0
+# AVIF support added rc.31 (2026-06-09) — see requirements.txt for rationale.
+pillow-avif-plugin==1.5.5
 python-dotenv==1.1.0
 pydantic==2.11.3

@@ -55,6 +55,26 @@ async def lifespan(application: FastAPI):
             "(it is in requirements.txt and requirements-ci.txt)."
         )
 
+    # AVIF codec (added rc.31, 2026-06-09): pillow-heif 1.2.0 does not include
+    # AVIF support, and several published AI-generated images circulate as AVIF
+    # (Twitter/X stripping, Discord re-encoding, Cloudflare Image Resizing).
+    # Without this opener, AVIF files reach detectors as opaque bytes; six
+    # detectors return HTTP 400 'cannot identify image file' and four silently
+    # return score=0 ('clean'), inflating the composite trust score to a
+    # false-pass on known fakes.
+    try:
+        import pillow_avif  # noqa: F401,PLC0415 — auto-registers AvifImagePlugin
+
+        logger.info("AVIF codec registered (pillow-avif-plugin present)")
+    except ImportError:
+        logger.warning(
+            "pillow-avif-plugin unavailable — .avif files will fail to decode. "
+            "Add pillow-avif-plugin to the runtime environment "
+            "(it is in requirements.txt and requirements-ci.txt). "
+            "Non-fatal: AVIF is rarer than HEIC but increasingly common in "
+            "social-media-forwarded images."
+        )
+
     try:
         from app.services.deepfake import _load_classifier  # noqa: PLC0415
 

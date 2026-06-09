@@ -27,6 +27,15 @@ opencv-python-headless==4.11.0.86
 # log CRITICAL and continue (HEIC verification will fail, other formats OK).
 pillow-heif==1.2.0
 
+# AVIF support — added rc.31 (2026-06-09) after a known-fake test image in AVIF
+# format passed the trust algorithm at 77% because six detectors returned HTTP
+# 400 'cannot identify image file' and four returned score=0 ('clean'),
+# inflating the composite. pillow-heif 1.2.0 does not include AVIF; this plugin
+# adds an AVIF reader to PIL via a separate AvifImagePlugin auto-registered on
+# import. macOS sips/Preview have native AVIF but PyInstaller bundles ship a
+# self-contained Python interpreter, so AVIF must come from a pip package.
+pillow-avif-plugin==1.5.5
+
 # Copy-move detection clustering
 scikit-learn==1.8.0
 
