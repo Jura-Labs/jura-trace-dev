@@ -1,3 +1,30 @@
+//! Jura Trace — Tauri v2 backend crate.
+//!
+//! # Module map
+//!
+//! **This file** (`lib.rs`) contains:
+//! - Tauri command registration (`#[tauri::command]` handlers, `generate_handler!` invocation)
+//! - The end-to-end verify pipeline (`run_verify`, `run_verify_inner`, `verify_url_inner`)
+//! - [`compute_trust`] — the trust-score algorithm (AGPL reproducibility anchor; cited in
+//!   the methodology help page and PDF reports)
+//! - [`document_trust`] — simplified C2PA-only scoring for PDFs
+//!
+//! **Sibling modules** (one file each under `src/`):
+//! - [`c2pa`] — C2PA manifest reading, writing, signing, chain-walk, assertion helpers
+//! - [`db`] — SQLite schema, migrations, asset CRUD, audit log
+//! - [`sidecar`] — HTTP client for the Python ML sidecar (FastAPI, port 8200)
+//! - [`fingerprint`] — Perceptual hashing (pHash/dHash/aHash), Hamming distance, deduplication
+//! - [`exif_anomaly`] — EXIF consistency rules, injection-detection, XMP AI-provenance checks
+//! - [`format_router`] — MIME detection, format-specific processing dispatch
+//! - [`metadata`] — EXIF/XMP read and normalisation helpers
+//! - [`watermark`] — DWT-DCT-SVD invisible watermark embed and extract
+//! - [`error`] — `AppError` enum, structured IPC serialisation `{ code, message }`
+//! - [`api`] — Axum REST wrapper on port 8300 (feature-gated: `#[cfg(feature = "api")]`)
+//!
+//! Rust unit tests live in the same file as the code they exercise (idiomatic Rust).
+//! That is why `lib.rs` is large: the `#[cfg(test)] mod tests` block at the bottom
+//! contains 492 tests covering `compute_trust` and the full verify pipeline.
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use serde::{Deserialize, Serialize};
@@ -1149,6 +1176,115 @@ fn get_assets(
         .map_err(Into::into)
 }
 
+// ── compute_trust weights and thresholds ────────────────────────────────────
+// Every numeric constant used by compute_trust is named here so that
+// the public AGPL reproducibility citation (methodology help page + PDF reports)
+// points to a single authoritative location. Do not change a constant without
+// also updating the methodology page, the PDF report template, and the CHANGELOG.
+
+/// Weight applied to the EXIF metadata trust component in the blended base score.
+///
+/// Reduced from 0.4 after a security audit found forged EXIF could inflate AI-image
+/// trust by up to 14 percentage points (see methodology page §2 and Sprint 28 audit).
+const EXIF_WEIGHT: f64 = 0.2;
+
+/// Weight applied to the forensic analysis trust component in the blended base score.
+///
+/// Complement of [`EXIF_WEIGHT`]: `EXIF_WEIGHT + FORENSIC_WEIGHT == 1.0`.
+const FORENSIC_WEIGHT: f64 = 0.8;
+
+/// Weight applied to each regional detector (segmented ELA, colour temperature)
+/// relative to the primary manipulation signals (ELA, noise, copy-move) at 1.0.
+///
+/// Higher weight reflects the corroborating value of spatially-localised analysis.
+const REGIONAL_DETECTOR_WEIGHT: f64 = 1.5;
+
+/// Trust-score cap applied when two or more regional detectors simultaneously flag
+/// the same image as suspicious.
+///
+/// Corresponds to the "Mixed Signals — Moderate Concern" band in the UI.
+/// Cited as "Composite-evidence cap" on the methodology page.
+const COMPOSITE_EVIDENCE_CAP: f64 = 0.55;
+
+/// Adjustment added to the base trust score when a cryptographically valid C2PA
+/// manifest is present and does not declare AI generation.
+///
+/// Cited as "+0.10 uplift" on the methodology page.
+const C2PA_VALID_BONUS: f64 = 0.1;
+
+/// Adjustment applied to the base trust score when a C2PA manifest or XMP metadata
+/// explicitly declares AI-generated content.
+///
+/// Negative value (penalty). Cited as "reduced by 0.25" on the methodology page.
+const C2PA_AI_DECLARED_PENALTY: f64 = -0.25;
+
+/// Verdict ceiling applied when the deepfake ensemble returns "synthetic" with
+/// high confidence. Lands in the "Low Trust" band.
+const VERDICT_CEILING_SYNTHETIC_HIGH: f64 = 0.25;
+
+/// Verdict ceiling applied when the deepfake ensemble returns "synthetic" with
+/// medium confidence.
+const VERDICT_CEILING_SYNTHETIC_MEDIUM: f64 = 0.35;
+
+/// Verdict ceiling applied when the deepfake ensemble returns "synthetic" with
+/// low confidence.
+///
+/// Semantically equivalent to inconclusive at this confidence level.
+const VERDICT_CEILING_SYNTHETIC_LOW: f64 = 0.45;
+
+/// Verdict ceiling applied when the deepfake ensemble returns "inconclusive".
+///
+/// Matches [`COMPOSITE_EVIDENCE_CAP`] in numeric value but represents a distinct
+/// semantic condition: epistemic uncertainty from the deepfake detector, not
+/// convergence of regional manipulation evidence.
+const VERDICT_CEILING_INCONCLUSIVE: f64 = 0.55;
+
+/// Trust-score cap applied to low-resolution images where the deepfake ensemble
+/// and regional forensics operate below their tested-resolution regime.
+///
+/// Matches [`COMPOSITE_EVIDENCE_CAP`] and [`VERDICT_CEILING_INCONCLUSIVE`] numerically
+/// but is a separate semantic cap: low-resolution confidence bound, not a verdict.
+const LOW_RESOLUTION_CAP: f64 = 0.55;
+
+/// Minimum dimension (pixels) below which the low-resolution cap fires.
+///
+/// Corresponds to the shorter edge of the HD-ready boundary (1366 x 768).
+const LOW_RES_MIN_DIMENSION_PX: u32 = 768;
+
+/// Minimum total pixel count below which the low-resolution cap fires.
+///
+/// Lower edge of typical training-corpus images (1.0 megapixel).
+const LOW_RES_MIN_TOTAL_PIXELS: u64 = 1_000_000;
+
+/// Base weight for JPEG Ghost in the manipulation-signal weighted average.
+///
+/// Half the weight of ELA / noise / copy-move to reflect its narrower scope
+/// (single-JPEG-resave splice attacks) and partial redundancy with GBM v4 features.
+/// The quality-adaptive formula scales this:
+/// `effective_weight = JPEG_GHOST_BASE_WEIGHT * (q/100).max(JPEG_GHOST_QUALITY_FLOOR)`.
+const JPEG_GHOST_BASE_WEIGHT: f64 = 0.5;
+
+/// Minimum quality scaling factor for JPEG Ghost weight.
+///
+/// Prevents the effective weight from collapsing to near-zero at very low quality
+/// factors (Q <= 30), where the ghost signal is already attenuated by heavy platform
+/// re-encoding.
+const JPEG_GHOST_QUALITY_FLOOR: f64 = 0.3;
+
+/// Self-declared pure AI ceiling.
+///
+/// Applied when a C2PA manifest or XMP metadata declares `trainedAlgorithmicMedia`.
+/// Caps trust at 25% regardless of other signals.
+const SELF_DECLARED_AI_CEILING: f64 = 0.25;
+
+/// Self-declared composite AI ceiling.
+///
+/// Applied when `compositeWithTrainedAlgorithmicMedia` is declared (real photograph
+/// with AI-generated regions: Pixel Zoom Enhance, Magic Editor, Adobe generative fill).
+/// Caps trust at 55% — disclosure, not condemnation.
+/// Matches [`COMPOSITE_EVIDENCE_CAP`] numerically but represents a distinct condition.
+const SELF_DECLARED_COMPOSITE_CEILING: f64 = 0.55;
+
 /// Compute overall trust from individual forensic scores.
 ///
 /// Uses a concordance-aware formula:
@@ -1281,9 +1417,9 @@ fn compute_trust(
     // declaration is still a positive provenance signal.
     let ai_declared = ai_declared_by_c2pa || ai_declared_by_xmp;
     let c2pa_bonus = if ai_declared {
-        -0.25 // Penalty: manifest or XMP explicitly declares AI-generated content
+        C2PA_AI_DECLARED_PENALTY // Penalty: manifest or XMP explicitly declares AI-generated content
     } else if c2pa_valid == Some(true) {
-        0.1 // Bonus: valid provenance, not declared AI
+        C2PA_VALID_BONUS // Bonus: valid provenance, not declared AI
     } else {
         0.0
     };
@@ -1334,9 +1470,9 @@ fn compute_trust(
         // The 0.5 base constant is unchanged; only the quality factor scales it.
         // See docs/calibration/s28-jpeg-ghost-weight.md §6.3.
         let quality_factor = jpeg_quality_estimate
-            .map(|q| (f64::from(q) / 100.0).max(0.3))
-            .unwrap_or(1.0); // non-JPEG: full base weight (0.5 × 1.0 = 0.5)
-        let effective_weight = 0.5 * quality_factor;
+            .map(|q| (f64::from(q) / 100.0).max(JPEG_GHOST_QUALITY_FLOOR))
+            .unwrap_or(1.0); // non-JPEG: full base weight (JPEG_GHOST_BASE_WEIGHT × 1.0)
+        let effective_weight = JPEG_GHOST_BASE_WEIGHT * quality_factor;
         manipulation_signals.push((1.0 - s, effective_weight));
     }
 
@@ -1394,8 +1530,8 @@ fn compute_trust(
     // discrimination (shadow: noisy gradient analysis; splice: never sets
     // suspicious=true).
     let regional_signals: Vec<(f64, f64)> = [
-        (segmented_ela_score, 1.5_f64),
-        (colour_temperature_score, 1.5),
+        (segmented_ela_score, REGIONAL_DETECTOR_WEIGHT),
+        (colour_temperature_score, REGIONAL_DETECTOR_WEIGHT),
     ]
     .iter()
     .filter_map(|(score_opt, weight)| score_opt.map(|s| (1.0 - s, *weight)))
@@ -1419,11 +1555,11 @@ fn compute_trust(
     };
 
     let base_trust = if let Some(ft) = forensic_trust {
-        // Weight: 20% EXIF metadata, 80% forensic analysis.
+        // Weight: EXIF_WEIGHT (20%) corroborating, FORENSIC_WEIGHT (80%) primary.
         // EXIF is trivially forgeable and absent from most social media images.
         // Reduced from 40% after security audit found forged EXIF could boost
         // AI images to 54% trust, bypassing the inconclusive threshold.
-        (exif_trust * 0.2 + ft * 0.8 + c2pa_bonus).min(1.0)
+        (exif_trust * EXIF_WEIGHT + ft * FORENSIC_WEIGHT + c2pa_bonus).min(1.0)
     } else {
         (exif_trust + c2pa_bonus).min(1.0)
     };
@@ -1438,7 +1574,7 @@ fn compute_trust(
         .count();
 
     let regional_cap = if suspicious_regional_count >= 2 {
-        0.55_f64
+        COMPOSITE_EVIDENCE_CAP
     } else {
         1.0
     };
@@ -1457,11 +1593,11 @@ fn compute_trust(
     // verdict ceiling (both will be None when ai_detection_suitable=false).
     let verdict_ceiling = match effective_deepfake_verdict {
         Some("synthetic") => match effective_deepfake_confidence {
-            Some("high") => 0.25,
-            Some("medium") => 0.35,
-            _ => 0.45, // low confidence synthetic ≈ inconclusive
+            Some("high") => VERDICT_CEILING_SYNTHETIC_HIGH,
+            Some("medium") => VERDICT_CEILING_SYNTHETIC_MEDIUM,
+            _ => VERDICT_CEILING_SYNTHETIC_LOW, // low confidence synthetic ≈ inconclusive
         },
-        Some("inconclusive") => 0.55,
+        Some("inconclusive") => VERDICT_CEILING_INCONCLUSIVE,
         _ => 1.0, // no ceiling for authentic or sidecar offline
     };
 
@@ -1482,8 +1618,8 @@ fn compute_trust(
         (Some(w), Some(h)) if w > 0 && h > 0 => {
             let min_dim = w.min(h);
             let total_px = (w as u64) * (h as u64);
-            if min_dim < 768 || total_px < 1_000_000 {
-                0.55_f64
+            if min_dim < LOW_RES_MIN_DIMENSION_PX || total_px < LOW_RES_MIN_TOTAL_PIXELS {
+                LOW_RESOLUTION_CAP
             } else {
                 1.0
             }
@@ -1512,9 +1648,9 @@ fn compute_trust(
     // If both flags are somehow set (pure AI with composite elements
     // declared), pure AI wins — the stricter ceiling applies.
     let self_declared_ceiling = if ai_declared {
-        0.25
+        SELF_DECLARED_AI_CEILING
     } else if ai_declared_composite {
-        0.55
+        SELF_DECLARED_COMPOSITE_CEILING
     } else {
         1.0
     };
@@ -5252,7 +5388,7 @@ fn get_verification_history(
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum LicenceTier {
-    /// Free tier — PolyForm Noncommercial 1.0.0. Full pipeline, non-commercial use.
+    /// Free tier — AGPL-3.0-or-later. Full verify pipeline + Sovereign-mode signing.
     #[default]
     Community,
     /// Individual commercial licence — £199/year.

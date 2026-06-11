@@ -1,5 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+//! SQLite persistence layer for Jura Trace.
+//!
+//! Owns the [`Database`] wrapper (a `Mutex<Connection>` opened in WAL mode)
+//! and the versioned schema (currently v7, tracked via SQLite `user_version`
+//! with incremental migrations). Tables cover protected assets, perceptual
+//! fingerprints, verification results, monitor URLs and events, annotations,
+//! false-positive reports, API keys, and a hash-chained audit log whose
+//! integrity is checked by [`Database::verify_audit_chain`].
+
 use rusqlite::{params, Connection, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

@@ -4,17 +4,12 @@
 Jura Trace Sidecar — Forensics endpoints.
 """
 
-import os
-import tempfile
 import time
-from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from app.config import settings
 from app.models.schemas import (
-    AudioDeepfakeResponse,
-    AudioMetadataResponse,
     ClaimCheckResponse,
     ClipDetectionResponse,
     ColourTemperatureResponse,
@@ -22,7 +17,6 @@ from app.models.schemas import (
     DctAnalysisResponse,
     DeepfakeResponse,
     ElaResponse,
-    EnfAnalysisResponse,
     FourierAnalysisResponse,
     ImageDescribeResponse,
     JpegGhostResponse,
@@ -32,10 +26,6 @@ from app.models.schemas import (
     SegmentedElaResponse,
     ShadowConsistencyResponse,
     SpliceBoundaryResponse,
-    TranscriptionResponse,
-    VideoDeepfakeResponse,
-    VideoFramesResponse,
-    VideoMetadataResponse,
     WatermarkEmbedResponse,
     WatermarkExtractResponse,
 )
@@ -61,23 +51,17 @@ from app.services.noise_visualisation import perform_noise_visualisation
 from app.services.clahe import perform_clahe
 from app.services.frequency_visualisation import perform_frequency_visualisation
 from app.services.jpeg_grid import perform_jpeg_grid_visualisation
-# JTV-138 (2026-05-02) — audio/video service imports commented out for v1.0.
-# The Rust pipeline gates ENABLE_VIDEO_DEEPFAKE_GROUP and ENABLE_AUDIO_GROUP
-# to false, so the routes that wire these services are unreachable from the
-# v1.0 verify path. The imports are commented (not deleted) so JTV-139
-# (Phase A Sprint 21 v1.0.x re-add) restores them with a single revert PR.
-# Schemas remain imported above so the response types continue to compile.
-# from app.services.audio_metadata import perform_audio_metadata
-# from app.services.transcription import perform_transcription
-# from app.services.video_deepfake import perform_video_deepfake_analysis
-# from app.services.video_frames import perform_frame_extraction
-# from app.services.video_metadata import perform_video_metadata
+# JTV-138 (2026-05-02): audio/video routes and their service imports were
+# removed for v1.0 (audio_metadata, transcription, video_deepfake,
+# video_frames, video_metadata, audio_deepfake, enf_analysis). The Rust
+# pipeline gates ENABLE_VIDEO_DEEPFAKE_GROUP and ENABLE_AUDIO_GROUP to
+# false, and removing the routes closes a reachable-but-ungated HTTP
+# surface on the local sidecar port. JTV-139 restores everything by
+# reverting the pre-launch cleanup commit (2026-06-11) in one PR.
 from app.services.roi_analysis import analyse_roi
 from app.services.gan_fingerprint import visualise_gan_fingerprint
-# from app.services.audio_deepfake import score_audio_deepfake
 from app.services.watermark import perform_watermark_embed, perform_watermark_extract
 from app.services.dct_analysis import analyse_dct
-# from app.services.enf_analysis import analyse_enf
 from app.services.fourier_analysis import analyse_fourier
 from app.services.platform_fingerprint import analyse_platform
 
@@ -564,64 +548,13 @@ async def watermark_extract(
     return result
 
 
-# JTV-138 (2026-05-02) — audio/video routes commented out for v1.0.
-# Restored as a single block under JTV-139 (Phase A Sprint 21 v1.0.x re-add)
-# once Global Majority device coverage and per-generator calibration data
-# are published. The Rust pipeline gates ENABLE_VIDEO_DEEPFAKE_GROUP and
-# ENABLE_AUDIO_GROUP to false, so even if a route was reachable on port
-# 8200 nothing in the v1.0 verify path would call it. Removing the routes
-# closes a reachable-but-ungated HTTP surface on the local sidecar port.
-#
-# @router.post("/video/metadata", response_model=VideoMetadataResponse)
-# async def video_metadata(
-#     file: UploadFile = File(...),
-# ) -> VideoMetadataResponse:
-#     """Extract video metadata via FFprobe — see JTV-139."""
-#     contents = await _read_media(file, _MAX_VIDEO_SIZE, "video")
-#     return perform_video_metadata(contents)
-#
-# @router.post("/audio/metadata", response_model=AudioMetadataResponse)
-# async def audio_metadata(
-#     file: UploadFile = File(...),
-# ) -> AudioMetadataResponse:
-#     """Extract audio metadata via FFprobe — see JTV-139."""
-#     contents = await _read_media(file, _MAX_AUDIO_SIZE, "audio")
-#     return perform_audio_metadata(contents)
-#
-# @router.post("/video/deepfake", response_model=VideoDeepfakeResponse)
-# async def analyse_video_deepfake(
-#     file: UploadFile = File(...),
-#     mode: str = Query(default="standard"),
-# ) -> VideoDeepfakeResponse:
-#     """Per-frame deepfake analysis on extracted video frames — see JTV-139."""
-#     if mode not in ("standard", "deep", "archival"):
-#         raise HTTPException(status_code=400, detail=f"Invalid mode '{mode}'.")
-#     contents = await _read_media(file, _MAX_VIDEO_SIZE, "video")
-#     return perform_video_deepfake_analysis(contents, mode=mode)
-#
-# @router.post("/video/frames", response_model=VideoFramesResponse)
-# async def video_frames(
-#     file: UploadFile = File(...),
-#     count: int = Query(default=6, ge=1, le=12),
-# ) -> VideoFramesResponse:
-#     """Evenly-spaced frame extraction — see JTV-139."""
-#     contents = await _read_media(file, _MAX_VIDEO_SIZE, "video")
-#     return perform_frame_extraction(contents, count=count)
-#
-# @router.post("/transcribe", response_model=TranscriptionResponse)
-# async def transcribe(
-#     file: UploadFile = File(...),
-#     language: str | None = Query(default=None),
-#     model_size: str = Query(default="base"),
-# ) -> TranscriptionResponse:
-#     """Whisper-based transcription — see JTV-139."""
-#     contents = await _read_media(file, _MAX_VIDEO_SIZE, "media")
-#     if model_size not in ("tiny", "base", "small"):
-#         raise HTTPException(status_code=400, detail=f"Invalid model_size '{model_size}'.")
-#     result = perform_transcription(
-#         contents, language=language, model_size=model_size,
-#     )
-#     return TranscriptionResponse(**result)
+# JTV-138 (2026-05-02): five video/audio routes lived here (video/metadata,
+# audio/metadata, video/deepfake, video/frames, transcribe). Removed for
+# v1.0 to close a reachable-but-ungated HTTP surface on the local sidecar
+# port; the Rust pipeline gates ENABLE_VIDEO_DEEPFAKE_GROUP and
+# ENABLE_AUDIO_GROUP to false so nothing in the v1.0 verify path calls
+# them. JTV-139 restores by reverting the pre-launch cleanup commit
+# (2026-06-11).
 
 
 @router.post("/noise-visualisation")
@@ -722,34 +655,10 @@ async def gan_fingerprint(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-# ── Audio deepfake detection ───────────────────────────────────────────────────
-
-_AUDIO_EXTENSIONS = {
-    ".wav", ".mp3", ".flac", ".ogg", ".aac", ".m4a", ".aiff", ".opus",
-}
-
-
-# JTV-138 (2026-05-02) — audio deepfake route commented out for v1.0.
-# Audio deepfake was already a Sprint 35 skeleton with no deployed model;
-# JTV-110 / JTV-113 v1.1 retraining on ASVspoof + WaveFake will restore.
-#
-# @router.post("/audio/deepfake", response_model=AudioDeepfakeResponse)
-# async def audio_deepfake(file: UploadFile = File(...)) -> AudioDeepfakeResponse:
-#     """Detect AI-generated speech / TTS in audio — see JTV-110/JTV-113."""
-#     contents = await _read_media(file, _MAX_AUDIO_SIZE, "audio")
-#     suffix = Path(file.filename or "audio.wav").suffix.lower()
-#     if suffix not in _AUDIO_EXTENSIONS:
-#         raise HTTPException(status_code=400, detail=f"Unsupported audio format '{suffix}'.")
-#     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-#         tmp.write(contents)
-#         tmp_path = tmp.name
-#     try:
-#         return score_audio_deepfake(tmp_path)
-#     finally:
-#         try:
-#             os.unlink(tmp_path)
-#         except OSError:
-#             pass
+# JTV-138 (2026-05-02): the audio/deepfake route lived here. It was a
+# Sprint 35 skeleton with no deployed model; JTV-110 / JTV-113 v1.1
+# retraining on ASVspoof + WaveFake will restore it (revert the
+# pre-launch cleanup commit, 2026-06-11).
 
 
 @router.post("/dct-analysis", response_model=DctAnalysisResponse)
@@ -840,24 +749,10 @@ async def platform_fingerprint(
     return PlatformFingerprintResponse(**result)
 
 
-# ── ENF (Electrical Network Frequency) analysis ─────────────────────────────
-
-
-# JTV-138 (2026-05-02) — ENF (mains-hum) analysis is audio-only and out of
-# v1.0 scope. Restored alongside audio deepfake under JTV-110/JTV-113.
-#
-# @router.post("/enf-analysis", response_model=EnfAnalysisResponse)
-# async def enf_analysis(
-#     file: UploadFile = File(...),
-#     expected_freq: float = Query(default=50.0),
-# ) -> EnfAnalysisResponse:
-#     """Mains-hum ENF analysis on WAV — see JTV-110."""
-#     contents = await _read_media(file, _MAX_AUDIO_SIZE, "audio")
-#     try:
-#         result = analyse_enf(contents, expected_freq=expected_freq)
-#     except ValueError as exc:
-#         raise HTTPException(status_code=400, detail=str(exc)) from exc
-#     return EnfAnalysisResponse(**result)
+# JTV-138 (2026-05-02): the enf-analysis route (mains-hum ENF on WAV)
+# lived here. Audio-only, out of v1.0 scope; restored alongside audio
+# deepfake under JTV-110/JTV-113 (revert the pre-launch cleanup commit,
+# 2026-06-11).
 
 
 # ── CLIP model lifecycle management ──────────────────────────────────────────

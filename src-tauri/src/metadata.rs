@@ -1,5 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+//! Image metadata extraction: EXIF, XMP, ICC, and JPEG quantisation tables.
+//!
+//! Provides [`extract_exif`] (Tier 1 cataloguing via the `kamadak-exif`
+//! crate), XMP packet parsing for AI-provenance signals such as
+//! `Iptc4xmpExt:DigitalSourceType` and edit-history stacks, ICC profile
+//! descriptions, EXIF thumbnail recovery, and JPEG quantisation-table
+//! extraction. Also owns the known-camera-vendor list and
+//! [`camera_authenticity_confidence`], which feed the EXIF anomaly detector.
+
 use exif::{In, Reader as ExifReader, Tag, Value};
 use serde::{Deserialize, Serialize};
 use std::fs::File;

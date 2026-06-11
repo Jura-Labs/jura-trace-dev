@@ -1,5 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+//! Content-type detection and pipeline routing.
+//!
+//! Classifies incoming files into a [`ContentType`] plus a MIME string via
+//! [`detect`], using magic-byte detection (the `infer` crate) first and an
+//! extension lookup as a fallback for formats without magic bytes. Also
+//! hosts the per-detector MIME gates [`should_run_ela`] and
+//! [`should_run_jpeg_ghost`], which stop JPEG-specific forensics from
+//! emitting uncalibrated scores on other codecs.
+
 use std::path::Path;
 
 /// High-level content type classification.

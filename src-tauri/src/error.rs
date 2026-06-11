@@ -1,5 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+//! Typed error handling for the Tauri IPC boundary.
+//!
+//! Defines [`AppError`], the error enum returned by Tauri commands. Each
+//! variant carries an internal detail string that is written to the process
+//! log (via [`AppError::log`]) and never crosses the IPC boundary; the
+//! frontend receives only a structured `{ code, message }` JSON object,
+//! where `code` is the stable variant name and `message` is a generic,
+//! user-safe sentence. This prevents leaking paths, sockets, and internals.
+
 // `C2pa` and `Internal` are defined for completeness and future use; they are
 // not yet wired into all commands. The `log` helper is part of the intended
 // public API for call sites that want to log-and-return in one step.

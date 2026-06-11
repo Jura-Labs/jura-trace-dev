@@ -5,7 +5,7 @@ date: 2026-04-07 (v1), 2026-04-11 (v2)
 sprint: S28 follow-up (S28-FU9)
 author: ml-data-scientist
 related:
-  - src-tauri/src/lib.rs (compute_trust, line ~684)
+  - src-tauri/src/lib.rs::compute_trust
   - sidecar/app/services/jpeg_ghost.py
   - docs/fp-analysis-report.md
 ---
