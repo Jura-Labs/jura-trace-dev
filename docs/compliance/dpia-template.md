@@ -472,7 +472,7 @@ This DPIA is relevant to all tiers of Jura Trace. The core data processing descr
 **Vendor**: Juralabs Community Interest Company
 **Website**: https://juralabs.org
 **Product**: Jura Trace v0.9.0-rc.1
-**Licence**: PolyForm Noncommercial 1.0.0 (Community tier) / Commercial licence (paid tiers)
+**Licence**: AGPL-3.0-or-later (commercial licence available on request — see [`COMMERCIAL.md`](../../COMMERCIAL.md))
 
 For questions about this DPIA template or the data processing described herein, contact Jura Labs CIC via the website above.
 

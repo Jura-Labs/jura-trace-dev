@@ -1,8 +1,8 @@
 ---
 title: "Jura Trace — Deployment Guide"
 description: "System requirements, installation, configuration, and institutional deployment guidance for IT administrators and advanced users."
-last-updated: 28 March 2026
-phase: Phase 3 (v0.9.0-rc)
+last-updated: 11 June 2026
+phase: Phase A (v1.0 launch prep — see CHANGELOG.md)
 ---
 
 # Jura Trace — Deployment Guide
@@ -10,8 +10,8 @@ phase: Phase 3 (v0.9.0-rc)
 Jura Trace is a local-first desktop application for content verification and protection. All processing runs on-device. No data leaves your machine. This guide covers system requirements, installation, optional component setup, and institutional deployment configuration.
 
 **Developed by**: Juralabs Community Interest Company (UK) — https://juralabs.org
-**Licence**: PolyForm Noncommercial 1.0.0
-**Current version**: 0.9.0-rc.3 (Phase 3)
+**Licence**: AGPL-3.0-or-later (commercial licence available — see [`COMMERCIAL.md`](../COMMERCIAL.md))
+**Current version**: see [`CHANGELOG.md`](../CHANGELOG.md) for the latest release
 
 ---
 
@@ -548,7 +548,7 @@ Jura Trace operates under a tiered licence structure:
 | Team         | Geode    | Small teams and cultural organisations        |
 | Enterprise   | Bedrock  | Large institutions, multi-site deployments    |
 
-The Community tier is free and covered by the PolyForm Noncommercial 1.0.0 licence. Professional, Team, and Enterprise tiers include additional capabilities and support. Contact sales@juralabs.org for pricing.
+Jura Trace is free and open-source under the AGPL-3.0-or-later licence for all tiers. Professional, Team, and Enterprise tiers include additional capabilities and support. A commercial licence is available for use cases that cannot operate under the AGPL. Contact sales@juralabs.org for pricing.
 
 ### Disconnected environments
 
@@ -712,4 +712,4 @@ See [Installation — Windows](#windows) above. If the **Run anyway** option is 
 
 ---
 
-*Jura Trace is developed by Juralabs Community Interest Company (UK). Licenced under PolyForm Noncommercial 1.0.0. Local-first — no data leaves your machine.*
+*Jura Trace is developed by Juralabs Community Interest Company (UK). Licenced under AGPL-3.0-or-later. Local-first — no data leaves your machine.*

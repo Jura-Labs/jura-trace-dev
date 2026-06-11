@@ -213,7 +213,7 @@ Use this schedule for each tester. Adjust dates based on the date you sent the w
 - [ ] Ask for any final thoughts, particularly on:
   - Whether they would use the tool in their daily work.
   - Anything they feel strongly about adding before public release.
-- [ ] Remind them of the licence terms: the pilot build is licensed under PolyForm Noncommercial 1.0.0 and must not be used for commercial work beyond the evaluation period.
+- [ ] Remind them of the licence terms: the build is licensed under AGPL-3.0-or-later. Any use case that cannot comply with the AGPL's terms requires a commercial licence from `licensing@juralabs.org`.
 - [ ] Ask whether they would like to be notified when v1.0 is released.
 - [ ] Record the pilot close in the tracking table.
 

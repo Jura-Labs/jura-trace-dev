@@ -263,4 +263,4 @@ echo $XDG_SESSION_TYPE
 
 ---
 
-*Jura Trace is developed by Juralabs Community Interest Company (UK) and is released under the PolyForm Noncommercial 1.0.0 licence for pilot use. For queries, contact your Juralabs pilot coordinator.*
+*Jura Trace is developed by Juralabs Community Interest Company (UK) and is released under the AGPL-3.0-or-later licence. For queries, contact your Juralabs pilot coordinator.*

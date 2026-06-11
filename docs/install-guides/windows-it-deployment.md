@@ -371,4 +371,4 @@ Run this after the uninstaller completes. The `-ErrorAction SilentlyContinue` fl
 
 ---
 
-*Jura Trace is developed by Juralabs Community Interest Company (UK) and is released under the PolyForm Noncommercial 1.0.0 licence. For deployment queries, contact your Juralabs pilot coordinator.*
+*Jura Trace is developed by Juralabs Community Interest Company (UK) and is released under the AGPL-3.0-or-later licence. For deployment queries, contact your Juralabs pilot coordinator.*

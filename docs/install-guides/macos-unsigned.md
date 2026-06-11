@@ -185,5 +185,4 @@ Report issues via the project issue tracker or email pilot@juralabs.org.
 
 ---
 
-*Jura Trace is developed by Juralabs Community Interest Company (UK). Licenced under
-PolyForm Noncommercial 1.0.0. Local-first — no data leaves your machine.*
+*Jura Trace is developed by Juralabs Community Interest Company (UK). Licenced under AGPL-3.0-or-later. Local-first — no data leaves your machine.*

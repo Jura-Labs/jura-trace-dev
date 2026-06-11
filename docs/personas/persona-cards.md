@@ -61,7 +61,7 @@ These four personas were the original Jura Trace design targets. They are update
 | Age | 52 |
 | Location | Edinburgh, Scotland |
 | Organisation | Mid-sized national museum (300–500 staff; digital collections team of 8) |
-| Tier | Community (free) — non-commercial use under PolyForm NC |
+| Tier | Community (free) — AGPL-3.0-or-later |
 | Technical comfort | 2 / 5 |
 
 **Background.** Sarah has led the digital collections team for nine years. She holds a PhD in art history and a postgraduate certificate in digital heritage management. She is fluent in metadata standards — Dublin Core, IPTC, CIDOC-CRM, Spectrum — but finds command-line interfaces alienating and avoids them. She uses the museum's collection management system daily. When a tool requires a terminal window, she asks a colleague to help.

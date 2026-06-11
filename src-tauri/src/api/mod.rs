@@ -54,8 +54,8 @@ use rate_limit::RateLimiter;
         version = env!("CARGO_PKG_VERSION"),
         contact(name = "Jura Labs CIC", url = "https://juralabs.org"),
         license(
-            name = "PolyForm Noncommercial 1.0.0",
-            url = "https://polyformproject.org/licenses/noncommercial/1.0.0/"
+            name = "AGPL-3.0-or-later",
+            url = "https://www.gnu.org/licenses/agpl-3.0.html"
         )
     ),
     servers(

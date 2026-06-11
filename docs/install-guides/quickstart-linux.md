@@ -64,4 +64,4 @@ For dependency details and troubleshooting, see [`linux-requirements.md`](./linu
 
 ---
 
-*Jura Trace — Juralabs Community Interest Company (UK). PolyForm Noncommercial 1.0.0. Local-first — no data leaves your machine.*
+*Jura Trace — Juralabs Community Interest Company (UK). AGPL-3.0-or-later. Local-first — no data leaves your machine.*

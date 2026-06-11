@@ -112,7 +112,7 @@ juralabs.org
 
 ---
 
-*Jura Trace v0.9.0 is a pre-release evaluation build. It is licensed under PolyForm Noncommercial 1.0.0 and must not be used for commercial work. All processing occurs locally on your device — no data is transmitted to Juralabs or any external service.*
+*Jura Trace v0.9.0 is a pre-release evaluation build. It is licensed under AGPL-3.0-or-later. All processing occurs locally on your device. No data is transmitted to Juralabs or any external service.*
 
 ---
 

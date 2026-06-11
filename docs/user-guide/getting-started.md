@@ -34,7 +34,7 @@ Jura Trace gives you two tools in one application.
 
 The tagline is "Know What's Real" — that is the bedrock of what Jura Trace is built to help you do.
 
-Jura Trace is developed by **Juralabs Community Interest Company (UK)** and is free for non-commercial use under the **PolyForm Noncommercial 1.0.0** licence.
+Jura Trace is developed by **Juralabs Community Interest Company (UK)** and is published under the **AGPL-3.0-or-later** licence, free and open-source for anyone who can comply with its terms.
 
 ---
 
@@ -212,7 +212,7 @@ Once you are comfortable with the basics, explore the following:
 
 **Is Jura Trace free?**
 
-Yes, for non-commercial use. Jura Trace is released under the PolyForm Noncommercial 1.0.0 licence. This means it is free for individuals, journalists, cultural institutions, community organisations, and educational use. Commercial use — including use within a for-profit company — requires a Professional or Enterprise licence. See [juralabs.org](https://juralabs.org) for pricing.
+Yes. Jura Trace is published under the **AGPL-3.0-or-later** licence, which means it is free and open-source for everyone, including journalists, cultural institutions, community organisations, researchers, and individual professionals. Commercial use that complies with the AGPL's terms (in particular, the requirement to make modified source available if you operate the software as a network service) needs no additional licence. If your use case cannot meet the AGPL's terms, a commercial licence is available. See [`COMMERCIAL.md`](https://github.com/Jura-Labs/jura-trace/blob/main/COMMERCIAL.md) or email `licensing@juralabs.org`.
 
 **Does Jura Trace need an internet connection?**
 

@@ -115,7 +115,7 @@ All accent pairings have been validated against WCAG 2.2 AA contrast on both Bon
 - **Confident, never breathless.** "Know what's real." stops at the full stop. No exclamation marks.
 - **One verb per headline.** Verbs are: *Know, See, Verify, Examine, Protect, Trust* (in that priority order).
 - **Plain-English subject lines.** "Forensic media verification" not "AI-powered detection platform".
-- **Honest qualifiers** when needed. "Free for not-for-profits" is a fact; "open source" is not (yet — the licence is PolyForm Noncommercial 1.0.0, source-available; an Apache-2.0 dual-licence for the shared core is on the May roadmap as JTV-44).
+- **Honest qualifiers** when needed. "Open source" is accurate — Jura Trace is published under AGPL-3.0-or-later. "Free" is accurate for any use case that complies with the AGPL's terms.
 
 ---
 

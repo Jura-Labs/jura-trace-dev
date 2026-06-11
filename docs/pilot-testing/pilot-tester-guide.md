@@ -674,9 +674,9 @@ Jura Trace v0.9.0 Release Candidate
 Developed by Juralabs Community Interest Company (UK)
 juralabs.org | paul@juralabs.org
 
-Licence: PolyForm Noncommercial 1.0.0
-This pre-release build is provided for evaluation purposes only.
-It must not be used for commercial work.
+Licence: AGPL-3.0-or-later
+This pre-release build is provided for evaluation purposes.
+Commercial use that cannot comply with the AGPL requires a separate licence.
 
 All processing happens on your device.
 No data is sent to Juralabs or any external service.

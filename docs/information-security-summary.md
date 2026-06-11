@@ -405,11 +405,11 @@ The optional Ollama integration (LLaVA and Qwen2.5 models) runs locally. Juralab
 
 Organisations using Jura Trace verification reports in automated decision-making processes should assess their obligations under Article 14 (human oversight) of the EU AI Act. The application explicitly supports human oversight through its visual inspection checklist and signal agreement dashboard. An EU AI Act compliance report template is available from Professional tier upward.
 
-### PolyForm Noncommercial 1.0.0
+### AGPL-3.0-or-later
 
-The Community tier of Jura Trace is licenced under PolyForm Noncommercial 1.0.0. This licence permits use for non-commercial purposes at no cost. **Commercial use requires a paid commercial licence.**
+Jura Trace is published under the GNU Affero General Public License, version 3 or later (AGPL-3.0-or-later). This licence is free and open-source for everyone, including journalists, researchers, NGOs, cultural institutions, and commercial users who can comply with the AGPL's terms. **Use cases that cannot comply with the AGPL (for example, integration into closed-source products or internal modified deployments without source disclosure) require a commercial licence.**
 
-Organisations that use Jura Trace in a commercial context — including insurance claims processing, legal proceedings, commercial journalism, corporate communications, and any other revenue-generating activity — must hold a Professional, Team, or Enterprise commercial licence. Using the Community (free) tier for commercial purposes is a breach of the licence terms.
+Organisations deploying Jura Trace in a context that cannot meet the AGPL's network-use or copyleft requirements should contact `licensing@juralabs.org` to discuss a commercial licence. See [`COMMERCIAL.md`](../COMMERCIAL.md) for full details.
 
 ### ISO 27001 considerations
 
@@ -494,9 +494,9 @@ The principal residual risk is unauthorised access to the local SQLite database 
 
 Jura Trace uses a split-licence model: the same application software is available under two licence frameworks.
 
-**PolyForm Noncommercial 1.0.0** (Community tier, free): Grants full use of the software for non-commercial purposes. No payment required. This is not a trial — it is a permanent free licence for qualifying use cases including journalism, education, research, NGO work, and cultural heritage.
+**AGPL-3.0-or-later** (all tiers, free and open-source): Grants full use, modification, and redistribution of the software, subject to the AGPL's copyleft and network-use terms. No payment required for any use case that complies with those terms. This is not a trial — it is a permanent open-source licence for all users including journalism, education, research, NGO work, and cultural heritage.
 
-**Commercial licence** (Professional, Team, Enterprise tiers): Grants permission to use Jura Trace for commercial purposes and unlocks tier-specific features. The commercial licence is solicitor-drafted and references the tier terms directly. Commercial licences are sold via Juralabs.
+**Commercial licence** (available on request): Grants permission to use Jura Trace in contexts that cannot comply with the AGPL, such as integration into closed-source products or internal modified deployments. Commercial licences are issued by Paul Griffiths personally. Email `licensing@juralabs.org` or see [`COMMERCIAL.md`](../COMMERCIAL.md).
 
 ### Tier summary for procurement
 
@@ -514,7 +514,7 @@ Enterprise licences include:
 
 - Silent installer (MSI for Windows, PKG for macOS) with ADMX/MDM templates for Group Policy or Jamf/Intune deployment
 - Central TOML configuration file for organisation-wide defaults
-- Compliance documentation pack (DPIA template, this Information Security Summary, PolyForm licence summary)
+- Compliance documentation pack (DPIA template, this Information Security Summary, AGPL licence summary)
 - Auto-update management (automatic / notify-only / disabled for air-gapped deployments)
 - SLA-backed support (4-hour response for critical issues, named account contact)
 - Source code access for internal security audit purposes (contractual right under Enterprise licence)
