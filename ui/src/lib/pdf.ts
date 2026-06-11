@@ -933,6 +933,23 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
     row('Fields Populated', `${exif.fieldsPopulated} / ${exif.fieldsTotal}`);
     row('EXIF Present', exif.hasExif ? 'Yes' : 'No');
 
+    // ── Thumbnail consistency ────────────────────────────────────
+    if (result.thumbnailCheck?.hasThumbnail) {
+      const tc = result.thumbnailCheck;
+      const outcome = tc.mismatch ? 'Mismatch detected' : 'Consistent';
+      const hammingStr = tc.hammingDistance != null ? `pHash distance ${tc.hammingDistance}` : 'pHash N/A';
+      const mseStr = tc.differenceScore != null ? `MSE ${tc.differenceScore.toFixed(4)}` : 'pixel comparison N/A';
+      row('Thumbnail Consistency', `${outcome} (${hammingStr}, ${mseStr})`);
+      if (tc.summary) {
+        checkPage(LINE_HEIGHT * 2);
+        doc.setFontSize(7);
+        doc.setTextColor(80);
+        const summaryLines = doc.splitTextToSize(tc.summary, CONTENT_WIDTH - 4);
+        doc.text(summaryLines, MARGIN + 2, y);
+        y += summaryLines.length * 3 + 1;
+      }
+    }
+
     if (exif.findings.length > 0) {
       y += 2;
       doc.setFontSize(8);

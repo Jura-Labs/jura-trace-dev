@@ -2245,6 +2245,39 @@ pub(crate) fn run_deep_sidecar_group(
     )
 }
 
+/// Build an `AnomalyFinding` when the EXIF thumbnail does not match the full
+/// image.  Returns `None` when `tc` has no thumbnail or the comparison found
+/// no mismatch.
+///
+/// Extracted as a free function so the injection logic can be unit-tested
+/// without running the full verification pipeline.
+fn thumbnail_mismatch_finding(tc: &ThumbnailCheck) -> Option<exif_anomaly::AnomalyFinding> {
+    if !tc.has_thumbnail || !tc.mismatch {
+        return None;
+    }
+    let distance_str = tc
+        .hamming_distance
+        .map(|d| format!("pHash Hamming distance {d}"))
+        .unwrap_or_else(|| "pHash comparison unavailable".to_string());
+    let mse_str = tc
+        .difference_score
+        .map(|m| format!("pixel deviation (MSE {m:.4})"))
+        .unwrap_or_else(|| "pixel comparison unavailable".to_string());
+    let description = format!(
+        "The embedded EXIF thumbnail does not match the visible image ({distance_str}, {mse_str}). \
+         Benign causes include editorial crop after capture, filter or tone-map application, \
+         and in-camera HDR processing which writes a composite thumbnail before HDR fusion \
+         completes. Treat as a corroborating signal only; confirm with other detector results."
+    );
+    Some(exif_anomaly::AnomalyFinding {
+        check_id: "exif_thumbnail_mismatch".to_string(),
+        title: "EXIF thumbnail does not match full image".to_string(),
+        description,
+        severity: exif_anomaly::Severity::Info,
+        category: "thumbnail".to_string(),
+    })
+}
+
 /// Inner verification logic shared by `verify_content` and `verify_url`.
 ///
 /// `mode` controls which pipeline stages run:
@@ -2552,6 +2585,19 @@ fn verify_content_inner(
     } else {
         None
     };
+
+    // ── Thumbnail mismatch → EXIF anomaly injection ───────────────────────
+    // When the thumbnail comparison flags a mismatch, surface it as an Info
+    // finding on the already-computed ExifAnalysis.  Info carries 0.0 score
+    // deduction (in-camera HDR / editorial crop are benign); this is a
+    // corroborating signal only.  Re-sort after insertion so Info lands last.
+    let mut exif_analysis = exif_analysis;
+    if let (Some(tc), Some(ref mut ea)) = (thumbnail_check.as_ref(), exif_analysis.as_mut()) {
+        if let Some(finding) = thumbnail_mismatch_finding(tc) {
+            ea.findings.push(finding);
+            ea.findings.sort_by(|a, b| b.severity.cmp(&a.severity));
+        }
+    }
 
     // ── Filename provenance analysis ─────────────────────────────────────
     // Runs for all content types — pure computation on the path stem.
@@ -10674,6 +10720,59 @@ mod tests {
         assert!(!at_boundary.mismatch);
         assert!(over_hamming.mismatch);
         assert!(over_mse.mismatch);
+    }
+
+    // ── thumbnail_mismatch_finding helper ────────────────────────────────
+
+    #[test]
+    fn thumbnail_mismatch_finding_injects_on_mismatch() {
+        let tc = ThumbnailCheck {
+            has_thumbnail: true,
+            thumbnail_width: Some(160),
+            thumbnail_height: Some(120),
+            hamming_distance: Some(24),
+            difference_score: Some(0.08),
+            mismatch: true,
+            summary: "Thumbnail mismatch detected.".to_string(),
+        };
+        let finding = thumbnail_mismatch_finding(&tc)
+            .expect("mismatch ThumbnailCheck must produce a finding");
+        assert_eq!(finding.check_id, "exif_thumbnail_mismatch");
+        assert_eq!(finding.severity, exif_anomaly::Severity::Info);
+        assert_eq!(finding.category, "thumbnail");
+    }
+
+    #[test]
+    fn thumbnail_mismatch_finding_none_on_match() {
+        // No mismatch — no finding expected.
+        let tc_match = ThumbnailCheck {
+            has_thumbnail: true,
+            thumbnail_width: Some(160),
+            thumbnail_height: Some(120),
+            hamming_distance: Some(3),
+            difference_score: Some(0.005),
+            mismatch: false,
+            summary: "Thumbnail matches full image.".to_string(),
+        };
+        assert!(
+            thumbnail_mismatch_finding(&tc_match).is_none(),
+            "matching thumbnail must not produce a finding"
+        );
+
+        // No thumbnail at all — also no finding.
+        let tc_none = ThumbnailCheck {
+            has_thumbnail: false,
+            thumbnail_width: None,
+            thumbnail_height: None,
+            hamming_distance: None,
+            difference_score: None,
+            mismatch: false,
+            summary: "No EXIF thumbnail embedded in this image.".to_string(),
+        };
+        assert!(
+            thumbnail_mismatch_finding(&tc_none).is_none(),
+            "absent thumbnail must not produce a finding"
+        );
     }
 
     // ── assess_input_quality — is_modern_lossy_codec ─────────────────────
