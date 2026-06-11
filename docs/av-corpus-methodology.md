@@ -10,7 +10,7 @@ related-documents:
   - docs/sprint-plans/tried-compliance-roadmap.md
   - docs/av-corpus-revised-proposition.md (REVISED PROPOSITIONS)
   - docs/decisions/option-c-corpus-strategy.md (FORMAL DECISION)
-  - /Users/paulgriffiths/Downloads/jura-trace-strategic-review.md
+  - Jura Trace strategic review (internal consultation document, not in this repo)
   - WITNESS TRIED Benchmark (arxiv 2504.21489)
 ---
 

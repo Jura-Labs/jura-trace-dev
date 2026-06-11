@@ -58,8 +58,6 @@ from app.services.jpeg_grid import perform_jpeg_grid_visualisation
 # false, and removing the routes closes a reachable-but-ungated HTTP
 # surface on the local sidecar port. JTV-139 restores everything by
 # reverting the pre-launch cleanup commit (2026-06-11) in one PR.
-from app.services.roi_analysis import analyse_roi
-from app.services.gan_fingerprint import visualise_gan_fingerprint
 from app.services.watermark import perform_watermark_embed, perform_watermark_extract
 from app.services.dct_analysis import analyse_dct
 from app.services.fourier_analysis import analyse_fourier
@@ -610,49 +608,12 @@ async def jpeg_grid_visualisation(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/roi-analysis")
-async def roi_analysis(
-    file: UploadFile = File(...),
-    x: int = Query(default=0, ge=0),
-    y: int = Query(default=0, ge=0),
-    width: int = Query(default=100, ge=1),
-    height: int = Query(default=100, ge=1),
-):
-    """Run forensic analysis on a rectangular region of interest.
-
-    Re-runs noise, ELA, and frequency analysis on the selected region,
-    enabling comparison between suspicious and reference areas within
-    the same image.
-
-    Returns noise statistics, ELA mean, frequency energy ratio, texture
-    complexity, and a noise residual visualisation (base64 PNG).
-    """
-    image_bytes = await _read_and_validate(file)
-
-    try:
-        return analyse_roi(image_bytes, x, y, width, height)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/gan-fingerprint")
-async def gan_fingerprint(file: UploadFile = File(...)):
-    """Visualise GAN spectral fingerprint with model attribution.
-
-    Computes the 2D FFT magnitude spectrum, fits and subtracts a 1/f
-    natural-image model, detects anomalous periodic peaks characteristic
-    of GAN upsampling, and attempts model attribution (StyleGAN2, ProGAN,
-    StyleGAN3).
-
-    Returns annotated spectrum and residual images (base64 PNG), detected
-    peaks, and a confidence score.
-    """
-    image_bytes = await _read_and_validate(file)
-
-    try:
-        return visualise_gan_fingerprint(image_bytes)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+# Pre-launch cleanup (2026-06-11): the roi-analysis and gan-fingerprint
+# routes were removed. Neither had a Rust caller or any UI rendering, so
+# they were reachable-but-unused HTTP surface (same rationale as the
+# JTV-138 audio/video route removal). The services and their unit tests
+# remain in app/services/ pending a post-launch promote-or-remove
+# decision; restore the routes by reverting this commit.
 
 
 # JTV-138 (2026-05-02): the audio/deepfake route lived here. It was a

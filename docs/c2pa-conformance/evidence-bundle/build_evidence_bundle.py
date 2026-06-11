@@ -3,6 +3,7 @@
 verify-response JSON (only C2PA-relevant fields, no ML heatmaps)."""
 
 import json
+import os
 import shutil
 import subprocess
 import time
@@ -18,9 +19,10 @@ except ImportError:
 from PIL import Image
 
 API = "http://127.0.0.1:8300"
-HEADERS = {"Authorization": "Bearer jt_corpus_scan_f1ef13848615459a"}
+# Local REST API key (Settings → API Keys). Never hardcode: this file is public.
+HEADERS = {"Authorization": f"Bearer {os.environ['JURA_API_KEY']}"}
 SOURCE = Path("/tmp/c2pa-interop/test_input.jpg")
-BUNDLE = Path("/Users/paulgriffiths/Downloads/ecoadvisor/juralabs/docs/c2pa-conformance/evidence-bundle")
+BUNDLE = Path(__file__).resolve().parent
 
 FORMATS = [
     ("image/jpeg", "jpg",  "JPEG"),

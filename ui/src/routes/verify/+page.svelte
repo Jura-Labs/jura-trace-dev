@@ -4315,6 +4315,7 @@
                 >
                   {#snippet badges()}
                     <span class="text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">Deep</span>
+                    <ExperimentalPill variant="not-in-scoring" tooltip="DCT block analysis is informational and does not contribute to the trust score." />
                   {/snippet}
                   {#snippet rawScore()}
                     {#if showRawScores}
@@ -4362,6 +4363,7 @@
                 >
                   {#snippet badges()}
                     <span class="text-[10px] px-1.5 py-px rounded-full bg-lapis/15 text-lapis dark:text-lapis-light border border-lapis/30 font-normal">Deep</span>
+                    <ExperimentalPill variant="not-in-scoring" tooltip="Fourier analysis is informational and does not contribute to the trust score." />
                   {/snippet}
                   {#snippet rawScore()}
                     {#if showRawScores}

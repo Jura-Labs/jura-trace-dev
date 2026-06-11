@@ -8,7 +8,7 @@
  * UI can be developed without the Rust backend running.
  */
 
-import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, CatalogueMatch, ConformantCertificateInfo, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, NetworkMode, NprResult, RoiAnalysisResult, ShadowConsistencyResult, SidecarHealth, SidecarStartupSnapshot, SidecarStartupStatus, SigningMode, SimilarAsset, SolarPosition, SpliceBoundaryResult, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
+import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, CatalogueMatch, ConformantCertificateInfo, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, NetworkMode, NprResult, ShadowConsistencyResult, SidecarHealth, SidecarStartupSnapshot, SidecarStartupStatus, SigningMode, SimilarAsset, SolarPosition, SpliceBoundaryResult, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -1190,47 +1190,6 @@ export async function estimateShadowTime(
     day,
     shadowAzimuth,
   });
-}
-
-/**
- * Analyse a user-selected region of interest (ROI) within a local image file.
- *
- * Posts the image and bounding-box coordinates to the sidecar's
- * `/forensics/roi-analysis` endpoint. Returns noise statistics, ELA mean,
- * frequency energy, and texture complexity for the selected region.
- *
- * All coordinate values are in natural image pixels (not CSS pixels).
- *
- * @param filePath  Absolute path to the image file.
- * @param x         Left edge of the ROI in natural image pixels.
- * @param y         Top edge of the ROI in natural image pixels.
- * @param width     Width of the ROI in natural image pixels.
- * @param height    Height of the ROI in natural image pixels.
- */
-export async function analyseRoi(
-  filePath: string,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-): Promise<RoiAnalysisResult> {
-  if (isTauri) {
-    try {
-      return await invoke<RoiAnalysisResult>('analyse_roi', { filePath, x, y, width, height });
-    } catch {
-      // Command not yet registered — fall through to browser mock
-    }
-  }
-  // Browser mock
-  return {
-    noiseStd: 4.2,
-    noiseMean: 1.1,
-    elaMean: 0.14,
-    frequencyEnergy: 0.38,
-    textureComplexity: 0.55,
-    noiseResidualBase64: '',
-    roi: { x, y, width, height },
-  };
 }
 
 // ── Annotations ─────────────────────────────────────────────────────

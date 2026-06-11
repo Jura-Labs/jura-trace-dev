@@ -1,7 +1,7 @@
 # Jura Trace -- False Positive Analysis Report
 
 **Generated:** 2026-03-25 14:19
-**Model:** `/Users/paulgriffiths/Downloads/ecoadvisor/juralabs/models/deepfake_classifier.joblib`
+**Model:** `models/deepfake_classifier.joblib` (repo-relative)
 **Corpus:** 75 authentic + 67 AI-generated = 142 total
 **Cross-validated AUC-ROC:** 1.0000
 

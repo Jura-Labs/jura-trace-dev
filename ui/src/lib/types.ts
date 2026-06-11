@@ -1492,17 +1492,6 @@ export interface MonitorEvent {
 
 // ── Sprint 24 investigation types ────────────────────────────────
 
-/** Result from a region-of-interest forensic analysis. */
-export interface RoiAnalysisResult {
-  noiseStd: number;
-  noiseMean: number;
-  elaMean: number;
-  frequencyEnergy: number;
-  textureComplexity: number;
-  noiseResidualBase64: string;
-  roi: { x: number; y: number; width: number; height: number };
-}
-
 /** A candidate time estimate from shadow azimuth inversion. */
 export interface TimeEstimate {
   hourUtc: number;

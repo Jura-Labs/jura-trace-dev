@@ -5029,10 +5029,9 @@ fn embed_watermark_asset(
 
     let source = PathBuf::from(&asset.file_path);
     if !source.exists() {
-        return Err(AppError::Validation(format!(
-            "Source file not found: {}",
-            asset.file_path
-        )));
+        // Generic message: do not echo the stored path back to the frontend
+        // (same hardening as sign_asset).
+        return Err(AppError::Validation("Source file not found".into()));
     }
 
     let output = watermark::watermark_output_path(&source);
