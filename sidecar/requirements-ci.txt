@@ -1,9 +1,23 @@
-# CI-safe requirements — excludes heavy optional dependencies
-# open-clip-torch (~2 GB PyTorch), faster-whisper
-# All excluded packages are lazy-loaded at runtime and degrade gracefully
+# Jura Trace — CI / PyInstaller build baseline (fully-pinned mirror)
 #
-# Transitive dependencies are pinned explicitly to prevent version
-# drift from breaking the frozen PyInstaller binary.
+# This file is the fully-pinned equivalent of requirements.txt for use in CI
+# and PyInstaller builds. It mirrors the runtime baseline (requirements.txt)
+# with all transitive dependencies pinned explicitly to prevent version drift
+# from breaking the frozen binary between builds.
+#
+# Relationship to the requirements split:
+#   requirements.txt      — loose runtime pins (source of truth for versions)
+#   requirements-build.txt — adds torch + open_clip for ONNX export + training
+#   requirements-ci.txt   — this file; fully-pinned mirror of requirements.txt
+#
+# Heavy optional dependencies excluded here (and from requirements.txt):
+#   open-clip-torch (~2 GB PyTorch stack) — moved to requirements-build.txt
+#   faster-whisper / ctranslate2         — v1.0 deferred (JTV-138)
+#   invisible-watermark                  — v1.1; see jura-sidecar.spec comment
+#
+# All excluded packages are lazy-loaded at runtime and degrade gracefully.
+# Transitive dependencies are pinned explicitly to prevent version drift
+# from breaking the frozen PyInstaller binary.
 fastapi==0.115.12
 uvicorn[standard]==0.34.0
 httpx==0.28.1

@@ -9,6 +9,13 @@ import numpy as np
 import pytest
 from PIL import Image
 
+# invisible-watermark left requirements.txt in the requirements split (it
+# drags torch; the v1.1 plan is the Rust DWT-DCT-SVD path). The service
+# degrades gracefully without it (success=False), so this suite only runs
+# where the optional package is installed, mirroring the open_clip
+# importorskip pattern in test_clip_detector.py.
+pytest.importorskip("imwatermark")
+
 from app.services.watermark import perform_watermark_embed, perform_watermark_extract
 
 

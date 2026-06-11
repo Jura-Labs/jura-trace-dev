@@ -1,0 +1,25 @@
+# Jura Trace — Build-time / Training Dependencies
+#
+# NEVER install this in CI or production.
+# This file is for local development workflows that require PyTorch:
+#
+#   - scripts/export_clip_onnx.py           (re-export ViT-B/32 to ONNX format)
+#   - scripts/validate_clip_onnx_drift.py   (compare ONNX vs torch logit outputs)
+#   - scripts/train_univfd_probe.py         (train LogReg probe on CLIP embeddings)
+#   - scripts/build_augmented_training_set.py (platform-forwarded augmentation)
+#   - scripts/audit_corpus_demographics.py  (Sprint 29 fairness audit)
+#   - scripts/test_demographic_bias.py      (Sprint 29 bias regression suite)
+#
+# Usage:
+#   pip install -r requirements-build.txt
+#
+# invisible-watermark is deliberately omitted: the v1.1 watermark path will use
+# the pure-Rust DWT-DCT-SVD implementation rather than imwatermark + torch.
+# Add it back here if you need to reproduce v1.0 watermark benchmarks locally.
+
+-r requirements.txt
+
+# PyTorch stack — required for open_clip training/export only
+open-clip-torch==3.3.0
+torch==2.10.0
+torchvision==0.25.0

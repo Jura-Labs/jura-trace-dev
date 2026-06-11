@@ -1,4 +1,9 @@
-# Jura Trace — Python ML Sidecar Dependencies
+# Jura Trace — Python ML Sidecar Dependencies (runtime / production)
+#
+# This file covers ONLY runtime dependencies — what the frozen PyInstaller
+# binary and CI installs need to run. Heavy ML training dependencies
+# (torch, open_clip) live in requirements-build.txt, which is never installed
+# in CI or production.
 #
 # Pin strategy: all production packages use exact versions (==) to prevent
 # silent upgrades from introducing breaking changes or security regressions.
@@ -6,6 +11,11 @@
 # to regenerate requirements.lock after any version bump here.
 # CI should install from requirements.lock (with hashes) and run pip-audit
 # against it to detect known CVEs before deployment.
+#
+# Requirements split:
+#   requirements.txt      — this file; runtime baseline installed in CI + production
+#   requirements-build.txt — adds open-clip-torch + torch for ONNX export + training
+#   requirements-ci.txt   — fully-pinned mirror of the runtime baseline for CI
 
 # API framework
 fastapi==0.115.12
@@ -43,11 +53,28 @@ scikit-learn==1.8.0
 scikit-image==0.26.0
 scipy==1.17.1
 
-# AI watermark detection (SD/SDXL/Flux)
-invisible-watermark==0.2.0
+# ONNX runtime — explicit pin required: production CLIP detection runs via
+# onnxruntime (JTV-143, 3 May 2026). Without this pin onnxruntime would only
+# appear as a transitive resolution from open-clip-torch, which has been
+# moved to requirements-build.txt. Omitting this pin causes onnxruntime to
+# silently disappear from requirements.lock, breaking CLIP at runtime.
+onnxruntime==1.24.4
 
-# CLIP-based AI image detection (optional — graceful degradation if absent)
-open-clip-torch==3.3.0
+# regex — PCRE-compatible pattern library required by app/services/clip_tokenizer.py
+# (imported as `import regex as re`). Previously a transitive dep via open_clip_torch;
+# moving open_clip to requirements-build.txt would silently drop regex from the
+# runtime lock without this explicit pin.
+regex==2025.10.23
+
+# AI watermark detection: invisible-watermark removed from runtime.
+# imwatermark eagerly imports rivaGan -> torch at module load; including it
+# here would drag torch into the lock (and the PyInstaller bundle) despite the
+# spec excludes. Watermark UI is gated behind V1_SHOW_WATERMARK=false for v1.0;
+# v1.1 plan is a pure-Rust DWT-DCT-SVD path. See requirements-build.txt if you
+# need the watermark tooling for local development.
+
+# CLIP / torch: moved to requirements-build.txt — not needed at runtime.
+# The production binary loads CLIP via onnxruntime (see onnxruntime pin above).
 
 # Audio/video transcription (optional — graceful degradation if absent)
 # faster-whisper>=1.0.0
