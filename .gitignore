@@ -118,12 +118,13 @@ dist/
 *_DRAFT.md
 SESSION_*.md
 
-# ===== Claude Code runtime state =====
-.claude/scheduled_tasks.lock
-.claude/worktrees/
-# Local-machine Claude Code settings: contains absolute paths from the
-# developer's home directory. Never commit (pre-launch audit 2026-06-11).
-.claude/settings.local.json
+# ===== Claude Code state (internal consultation material) =====
+# Untracked 2026-06-11 pre-launch: agent memories, agent definitions and
+# local settings contain internal strategy, audit notes and developer
+# machine paths. They stay on disk for tooling but never in the public
+# repo (doc-hygiene rule, memory project_repo_doc_hygiene). The pattern
+# matches .claude/ at any depth (root, src-tauri/, sidecar/).
+.claude/
 
 # ===== Sidecar PyInstaller intermediates =====
 sidecar/build/
