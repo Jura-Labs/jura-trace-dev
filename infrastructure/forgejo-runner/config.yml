@@ -46,7 +46,7 @@ runner:
   # backs them up automatically (irrelevant for the actual build output
   # but useful for debugging when a failure leaves intermediate state).
   envs:
-    HOME: /Users/paulgriffiths
+    HOME: /Users/<runner-user>
     JURA_RUNNER_HOST: mac-mini-m4
 
   # Idle timeout. The launchd plist enforces the 02:00 to 08:00 window

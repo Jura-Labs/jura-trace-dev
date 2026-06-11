@@ -61,10 +61,10 @@ mkdir -p ~/.config/forgejo-runner
 cp infrastructure/forgejo-runner/config.yml ~/.config/forgejo-runner/config.yml
 ```
 
-Edit `~/.config/forgejo-runner/config.yml` if you need to change the
-default user paths. The shipped config assumes the runner user is
-`paulgriffiths`. Update the `HOME` env var + `workdir_parent` if
-running under a different account.
+Edit `~/.config/forgejo-runner/config.yml` and replace every
+`<runner-user>` placeholder with the macOS account the runner will run
+under (check the `HOME` env var + `workdir_parent`). The two launchd
+plists in this directory use the same placeholder.
 
 ## Step 4: Register the runner
 

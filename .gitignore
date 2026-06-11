@@ -121,6 +121,9 @@ SESSION_*.md
 # ===== Claude Code runtime state =====
 .claude/scheduled_tasks.lock
 .claude/worktrees/
+# Local-machine Claude Code settings: contains absolute paths from the
+# developer's home directory. Never commit (pre-launch audit 2026-06-11).
+.claude/settings.local.json
 
 # ===== Sidecar PyInstaller intermediates =====
 sidecar/build/
@@ -161,6 +164,19 @@ models/clip-vit-b32-text.onnx
 models/clip-vit-b32-text.onnx.data
 # Drift validation report from the JTV-143 hard gate — local artefact.
 models/jtv143-drift-validation.json
+
+# Archived retrain scripts (gates failed Jun 2026 — see
+# docs/calibration/gbm-v5-v11-archive-jun2026.md). Kept on disk as the
+# documented reproducers but must not ship in the public repo.
+scripts/score_image_v11.py
+scripts/train_gbm_v5.py
+scripts/augment_corpus_avif_lowres.py
+models/deepfake_classifier_v5.joblib
+models/deepfake_classifier_v5_meta.json
+models/gbm_v5_split.json
+models/univfd_probe_v11.joblib
+models/univfd_probe_v11_meta.json
+models/univfd_v11_split.json
 
 # JTV-184 Phase 5 — onedir bundle for the PyInstaller sidecar.
 # Populated at build time (manually for local cargo tauri build, by CI for

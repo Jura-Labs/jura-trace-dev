@@ -37,11 +37,11 @@
     <string>/opt/homebrew/bin/forgejo-runner</string>
     <string>daemon</string>
     <string>--config</string>
-    <string>/Users/paulgriffiths/.config/forgejo-runner/config.yml</string>
+    <string>/Users/<runner-user>/.config/forgejo-runner/config.yml</string>
   </array>
 
   <key>WorkingDirectory</key>
-  <string>/Users/paulgriffiths/forgejo-jobs</string>
+  <string>/Users/<runner-user>/forgejo-jobs</string>
 
   <!-- Start daily at 02:00 Copenhagen.
        launchd interprets all StartCalendarInterval times in the local
@@ -69,16 +69,16 @@
   </dict>
 
   <key>StandardOutPath</key>
-  <string>/Users/paulgriffiths/Library/Logs/forgejo-runner/stdout.log</string>
+  <string>/Users/<runner-user>/Library/Logs/forgejo-runner/stdout.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/paulgriffiths/Library/Logs/forgejo-runner/stderr.log</string>
+  <string>/Users/<runner-user>/Library/Logs/forgejo-runner/stderr.log</string>
 
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     <key>HOME</key>
-    <string>/Users/paulgriffiths</string>
+    <string>/Users/<runner-user></string>
   </dict>
 
   <!-- Low priority so the runner does not impact interactive use

@@ -25,7 +25,7 @@
   <array>
     <string>/bin/launchctl</string>
     <string>unload</string>
-    <string>/Users/paulgriffiths/Library/LaunchAgents/org.juralabs.forgejo-runner.plist</string>
+    <string>/Users/<runner-user>/Library/LaunchAgents/org.juralabs.forgejo-runner.plist</string>
   </array>
 
   <key>StartCalendarInterval</key>
@@ -40,8 +40,8 @@
   <false/>
 
   <key>StandardOutPath</key>
-  <string>/Users/paulgriffiths/Library/Logs/forgejo-runner/stop-stdout.log</string>
+  <string>/Users/<runner-user>/Library/Logs/forgejo-runner/stop-stdout.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/paulgriffiths/Library/Logs/forgejo-runner/stop-stderr.log</string>
+  <string>/Users/<runner-user>/Library/Logs/forgejo-runner/stop-stderr.log</string>
 </dict>
 </plist>
