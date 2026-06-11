@@ -75,24 +75,33 @@ interface Citation {
   paper: string;
   authors: string;
   year: number;
+  /**
+   * Fidelity prefix rendered before the inline citation so the report never
+   * implies we implement a paper we only follow loosely:
+   * 'Adapted from' = our implementation diverges materially from the paper;
+   * 'Informed by'  = the paper motivates a simpler heuristic;
+   * 'Conforms to'  = a standard/specification, not a paper.
+   * Absent = the citation describes the implemented method.
+   */
+  prefix?: string;
 }
 
 const DETECTOR_CITATIONS: Record<string, Citation> = {
   ela:               { paper: 'A Picture\'s Worth: Digital Image Analysis and Forensics', authors: 'Krawetz, N.', year: 2007 },
-  noise:             { paper: 'Noise Inconsistencies in Digital Photographs', authors: 'Mahdian, B. & Saic, S.', year: 2009 },
+  noise:             { paper: 'Using Noise Inconsistencies for Blind Image Forensics', authors: 'Mahdian, B. & Saic, S.', year: 2009 },
   copyMove:          { paper: 'Distinctive Image Features from Scale-Invariant Keypoints', authors: 'Lowe, D.G.', year: 2004 },
   deepfake:          { paper: 'Greedy Function Approximation: A Gradient Boosting Machine', authors: 'Friedman, J.H.', year: 2001 },
   clipDetect:        { paper: 'Towards Universal Fake Image Detectors that Generalise Across Generative Models', authors: 'Ojha, U. et al.', year: 2023 },
   univfd:            { paper: 'Towards Universal Fake Image Detectors that Generalise Across Generative Models', authors: 'Ojha, U. et al.', year: 2023 },
   jpegGhost:         { paper: 'Exposing Digital Forgeries from JPEG Ghosts', authors: 'Farid, H.', year: 2009 },
-  segmentedEla:      { paper: 'A Picture\'s Worth: Digital Image Analysis and Forensics (region-extended)', authors: 'Krawetz, N.', year: 2007 },
-  shadowConsistency: { paper: 'Exposing Photo Manipulation with Inconsistent Shadows', authors: "Kee, E., O'Brien, J.F. & Farid, H.", year: 2013 },
-  colourTemperature: { paper: 'Exposing Colour Splicing in Digital Images Using Illuminant Colour Estimation', authors: 'de Carvalho, T.J. et al.', year: 2013 },
-  spliceBoundary:    { paper: 'Multi-signal Splice Boundary Detection (heuristic ensemble)', authors: 'Jura Trace', year: 2026 },
-  npr:               { paper: 'Detecting Photographic Image Manipulation with Upsampling Artefacts', authors: 'Tan, C. et al.', year: 2024 },
-  c2pa:              { paper: 'C2PA Technical Specification, version 2.2', authors: 'Coalition for Content Provenance and Authenticity', year: 2026 },
+  segmentedEla:      { paper: 'A Picture\'s Worth: Digital Image Analysis and Forensics', authors: 'Krawetz, N.', year: 2007, prefix: 'Regional application of' },
+  shadowConsistency: { paper: 'Exposing Photo Manipulation with Inconsistent Shadows', authors: "Kee, E., O'Brien, J.F. & Farid, H.", year: 2013, prefix: 'Adapted from' },
+  colourTemperature: { paper: 'Exposing Digital Image Forgeries by Illuminant Color Classification', authors: 'de Carvalho, T.J. et al.', year: 2013, prefix: 'Informed by' },
+  spliceBoundary:    { paper: 'Multi-signal splice boundary heuristic ensemble (no external citation)', authors: 'Jura Trace', year: 2026 },
+  npr:               { paper: 'Rethinking the Up-Sampling Operations in CNN-based Generative Network for Generalizable Deepfake Detection', authors: 'Tan, C. et al.', year: 2024, prefix: 'Adapted from' },
+  c2pa:              { paper: 'C2PA Technical Specification, version 2.2', authors: 'Coalition for Content Provenance and Authenticity', year: 2024, prefix: 'Conforms to' },
   watermark:         { paper: 'Robust Image Watermarking Using DWT-DCT-SVD', authors: 'Navas, K.A. et al.', year: 2008 },
-  exifAnomaly:       { paper: 'Digital Forensics of EXIF Metadata Inconsistencies in Digital Photographs', authors: 'Kee, E. & Farid, H.', year: 2011 },
+  exifAnomaly:       { paper: 'Exchangeable image file format for digital still cameras: Exif Version 3.0 (CIPA DC-008-2023) and IPTC Photo Metadata Standard', authors: 'Camera & Imaging Products Association, JEITA & IPTC', year: 2023, prefix: 'Conforms to' },
 };
 
 // Known thresholds for primary detectors (mirrors Python sidecar defaults).
@@ -1415,7 +1424,7 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
       citationKey: 'noise',
     },
     {
-      text: 'Copy-Move Detection: Uses ORB feature matching to find duplicated regions within the image. Clustered matches suggest content has been cloned from one area to another.',
+      text: 'Copy-Move Detection: Uses SIFT feature matching with RANSAC geometric verification to find duplicated regions within the image. Clustered, geometrically consistent matches suggest content has been cloned from one area to another.',
       citationKey: 'copyMove',
     },
     {
@@ -1468,7 +1477,7 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
         doc.setFontSize(6.5);
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(120);
-        const citText = `${cit.authors} (${cit.year}). ${cit.paper}.`;
+        const citText = `${cit.prefix ? `${cit.prefix}: ` : ''}${cit.authors} (${cit.year}). ${cit.paper}.`;
         const citLines = doc.splitTextToSize(citText, CONTENT_WIDTH - 4);
         doc.text(citLines, MARGIN + 4, y);
         y += citLines.length * 3 + 1;
@@ -1488,13 +1497,23 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
   const citedKeys = methodologyEntries
     .filter(e => e.citationKey)
     .map(e => e.citationKey as string);
-  // Deduplicate (watermark key only appears once but guard defensively).
+  // Deduplicate by citation content, not key: distinct detectors may share a
+  // reference (e.g. ELA and Segmented ELA both cite Krawetz 2007) and must
+  // not produce duplicate bibliography entries.
   const uniqueKeys = [...new Set(citedKeys)];
-
-  // Sort by author surname (first word before comma or space).
-  const sorted = uniqueKeys
+  const seenWorks = new Set<string>();
+  const uniqueWorks = uniqueKeys
     .map(k => ({ key: k, cit: DETECTOR_CITATIONS[k] }))
     .filter(e => !!e.cit)
+    .filter(e => {
+      const id = `${e.cit.authors}|${e.cit.year}|${e.cit.paper}`;
+      if (seenWorks.has(id)) return false;
+      seenWorks.add(id);
+      return true;
+    });
+
+  // Sort by author surname (first word before comma or space).
+  const sorted = uniqueWorks
     .sort((a, b) => {
       const surnameA = a.cit.authors.split(/[,\s]/)[0].toLowerCase();
       const surnameB = b.cit.authors.split(/[,\s]/)[0].toLowerCase();
