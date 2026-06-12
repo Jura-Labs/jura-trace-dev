@@ -14,6 +14,7 @@
 use jura_trace_lib::{api, db::Database, sidecar::SidecarClient, AppState, LicenceTier};
 use reqwest::StatusCode;
 use serde_json::Value;
+use std::io::Write;
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -901,6 +902,297 @@ async fn test_non_image_standard_verify_not_degraded() {
         body["data"]["contentType"], "document",
         "PDF stub must be classified as document"
     );
+}
+
+// ── Verify-pipeline freeze-fix tests (VERIFY_GATE + snapshot-and-drop) ───────
+//
+// These three tests verify the fix for the verify-pipeline mutex hold that
+// previously froze the Tauri event loop and blocked every other IPC command
+// for the entire 5-45 s verify duration.
+//
+// Test strategy: call `verify_content_inner` directly (it is `pub`) with a
+// real AppState backed by a temp SQLite database.  No stub sidecar is needed
+// because when the sidecar is not reachable `sidecar.is_available()` returns
+// false and all detector groups are skipped — graceful degradation means the
+// pipeline still completes successfully (EXIF + C2PA + trust score) and
+// writes its row, making these tests deterministic and fast (~100-400 ms each).
+
+/// Write a minimal 16×16 PNG to a named temp file and return the path.
+fn write_test_png() -> (tempfile::NamedTempFile, String) {
+    let mut tmp = tempfile::Builder::new()
+        .suffix(".png")
+        .tempfile()
+        .expect("temp png file");
+    tmp.write_all(&minimal_png()).expect("write png");
+    let path = tmp.path().to_string_lossy().to_string();
+    (tmp, path)
+}
+
+/// Build a minimal `AppState` with a real Database — sync version for use
+/// inside `std::thread::spawn` (no async context).
+fn build_sync_state() -> (Arc<Mutex<AppState>>, tempfile::TempDir) {
+    // Point at a port that nothing is listening on — sidecar will be
+    // reported unavailable, all detector groups skip gracefully.
+    build_sync_state_at("http://127.0.0.1:19999", 19999)
+}
+
+/// Like `build_sync_state` but with an explicit sidecar base URL/port, so a
+/// test can point the pipeline at a local stub sidecar.
+fn build_sync_state_at(
+    sidecar_url: &str,
+    sidecar_port: u16,
+) -> (Arc<Mutex<AppState>>, tempfile::TempDir) {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let db_path = dir.path().join("verify_test.db");
+    let db = Database::open(&db_path).expect("open db");
+    let sidecar = SidecarClient::new(sidecar_url, "");
+    let state = AppState {
+        db,
+        sidecar,
+        db_path: db_path.to_string_lossy().to_string(),
+        licence_tier: LicenceTier::Community,
+        sidecar_process: None,
+        classifier_model_hash: Some("testhash_gbm".to_string()),
+        univfd_probe_model_hash: Some("testhash_univfd".to_string()),
+        ai_description_enabled: None,
+        scheduler_handle: None,
+        last_heatmap_session: None,
+        last_sidecar_request_ts: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        power_saver_mode: false,
+        respawn_in_progress: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        sidecar_port,
+        sidecar_startup_status: Arc::new(std::sync::atomic::AtomicU8::new(0)),
+        sidecar_startup_started_at: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+    };
+    (Arc::new(Mutex::new(state)), dir)
+}
+
+/// Test 18: State mutex is NOT held during the verify detector pipeline.
+///
+/// With the old code, `verify_content_inner` held the `AppState` mutex for
+/// the entire pipeline (snapshot + all detector groups + DB write), so a
+/// concurrent `try_lock()` would fail.  With the fix, the lock is dropped
+/// after the snapshot, so `try_lock()` succeeds from the main thread while
+/// the worker is in the detector phase.
+///
+/// The sidecar is not reachable in CI, so detector groups are skipped and the
+/// pipeline completes in ~100-400 ms (EXIF + C2PA + trust + DB write).  The
+/// important invariant is that the lock is FREE during that window.
+#[test]
+fn lock_free_during_verify() {
+    use std::sync::Arc;
+
+    let (state, _dir) = build_sync_state();
+    let (tmp_png, png_path) = write_test_png();
+
+    let state_clone = Arc::clone(&state);
+    let path_clone = png_path.clone();
+
+    // Spawn the verify on a worker thread.
+    let handle = std::thread::spawn(move || {
+        jura_trace_lib::verify_content_inner(&path_clone, "file", Some("standard"), &state_clone)
+    });
+
+    // Give the worker thread time to pass the snapshot-and-drop step so
+    // the AppState lock is free.  50 ms is generous — the snapshot itself
+    // completes in <5 ms.
+    std::thread::sleep(Duration::from_millis(50));
+
+    // Assert: the state lock is NOT held by the verify thread at this point.
+    // On old code (long-held lock), this would return `Err(WouldBlock)`.
+    assert!(
+        state.try_lock().is_ok(),
+        "AppState mutex must be free during the verify detector pipeline \
+         (snapshot-and-drop fix regressed or not applied)"
+    );
+
+    // Wait for the verify to complete and confirm it succeeded.
+    let result = handle.join().expect("verify thread panicked");
+    assert!(
+        result.is_ok(),
+        "verify_content_inner must succeed even without a sidecar (graceful degradation): {result:?}"
+    );
+
+    // Keep the temp file alive until the verify is done.
+    drop(tmp_png);
+}
+
+/// Spawn a minimal stub sidecar on an ephemeral port.
+///
+/// `GET /health` answers 200 immediately so `SidecarClient::is_available`
+/// reports the sidecar as up.  Every other request (the detector calls)
+/// sleeps for `delay`, then answers 500 — detectors degrade gracefully on
+/// errors, so the verify still completes while the stub records the time
+/// window in which detector traffic arrived.  Connections are handled on
+/// their own threads so parallel detector calls within one verify are
+/// served concurrently.  The accept-loop thread lives until process exit,
+/// like the tokio servers spawned by the async tests above.
+#[allow(clippy::type_complexity)]
+fn spawn_stub_sidecar(
+    delay: Duration,
+) -> (
+    u16,
+    Arc<Mutex<Vec<(std::time::Instant, std::time::Instant)>>>,
+) {
+    use std::io::Read;
+
+    fn read_request_head(stream: &mut std::net::TcpStream) -> String {
+        // First read blocks for the request line + headers; the short
+        // timeout afterwards drains whatever body bytes have arrived so the
+        // client's write never stalls.
+        let mut buf = Vec::new();
+        let mut chunk = [0u8; 4096];
+        if let Ok(n) = stream.read(&mut chunk) {
+            buf.extend_from_slice(&chunk[..n]);
+        }
+        stream
+            .set_read_timeout(Some(Duration::from_millis(30)))
+            .ok();
+        while let Ok(n) = stream.read(&mut chunk) {
+            if n == 0 || buf.len() > 262_144 {
+                break;
+            }
+            buf.extend_from_slice(&chunk[..n]);
+        }
+        String::from_utf8_lossy(&buf).into_owned()
+    }
+
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind stub sidecar");
+    let port = listener.local_addr().expect("stub addr").port();
+    let windows = Arc::new(Mutex::new(Vec::new()));
+    let recorder = Arc::clone(&windows);
+
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let recorder = Arc::clone(&recorder);
+            std::thread::spawn(move || {
+                let head = read_request_head(&mut stream);
+                if head.starts_with("GET") && head.contains("/health") {
+                    let _ = stream.write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 15\r\nConnection: close\r\n\r\n{\"status\":\"ok\"}",
+                    );
+                } else {
+                    let start = std::time::Instant::now();
+                    std::thread::sleep(delay);
+                    let _ = stream.write_all(
+                        b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                    );
+                    recorder
+                        .lock()
+                        .unwrap()
+                        .push((start, std::time::Instant::now()));
+                }
+            });
+        }
+    });
+
+    (port, windows)
+}
+
+/// Test 19: Concurrent verify calls are serialised — never interleaved.
+///
+/// Each verify gets its OWN stub sidecar, so the time window in which a stub
+/// receives detector traffic is exactly the window in which that verify's
+/// gated section ran.  VERIFY_GATE serialises gated sections, so the two
+/// windows must not overlap.  (Wall-clock ratio assertions are unreliable
+/// here because the pre-gate stages — hashing, EXIF, C2PA — legitimately run
+/// in parallel and dominate when the sidecar work is short.)
+#[test]
+fn verifies_are_serialised() {
+    let delay = Duration::from_millis(150);
+    let (port_a, windows_a) = spawn_stub_sidecar(delay);
+    let (port_b, windows_b) = spawn_stub_sidecar(delay);
+
+    let (state_a, _dir_a) = build_sync_state_at(&format!("http://127.0.0.1:{port_a}"), port_a);
+    let (state_b, _dir_b) = build_sync_state_at(&format!("http://127.0.0.1:{port_b}"), port_b);
+
+    let (tmp_a, path_a) = write_test_png();
+    let (tmp_b, path_b) = write_test_png();
+
+    // Spawn both verify calls at the same instant.
+    let h_a = {
+        let s = Arc::clone(&state_a);
+        std::thread::spawn(move || {
+            jura_trace_lib::verify_content_inner(&path_a, "file", Some("standard"), &s).is_ok()
+        })
+    };
+    let h_b = {
+        let s = Arc::clone(&state_b);
+        std::thread::spawn(move || {
+            jura_trace_lib::verify_content_inner(&path_b, "file", Some("standard"), &s).is_ok()
+        })
+    };
+
+    assert!(
+        h_a.join().expect("thread A panicked"),
+        "verify A must succeed"
+    );
+    assert!(
+        h_b.join().expect("thread B panicked"),
+        "verify B must succeed"
+    );
+
+    let windows_a = windows_a.lock().unwrap();
+    let windows_b = windows_b.lock().unwrap();
+    assert!(
+        !windows_a.is_empty(),
+        "stub A must have received detector traffic — did the standard group run?"
+    );
+    assert!(
+        !windows_b.is_empty(),
+        "stub B must have received detector traffic — did the standard group run?"
+    );
+
+    // The gated section of one verify must finish before the other's begins.
+    let a_start = windows_a.iter().map(|w| w.0).min().unwrap();
+    let a_end = windows_a.iter().map(|w| w.1).max().unwrap();
+    let b_start = windows_b.iter().map(|w| w.0).min().unwrap();
+    let b_end = windows_b.iter().map(|w| w.1).max().unwrap();
+
+    assert!(
+        a_end <= b_start || b_end <= a_start,
+        "Detector windows overlap — VERIFY_GATE is not serialising concurrent verifies \
+         (A {a_start:?}..{a_end:?}, B {b_start:?}..{b_end:?})"
+    );
+
+    drop((tmp_a, tmp_b));
+}
+
+/// Test 20: After a successful verify, the verifications table has a row.
+///
+/// Verifies that the DB-write re-acquisition step actually commits the row
+/// (regression guard for a hypothetical bug where the lock re-acquire fails
+/// silently and the row is never written).
+#[test]
+fn verify_row_persisted() {
+    let (state, _dir) = build_sync_state();
+    let (tmp_png, png_path) = write_test_png();
+
+    let result = jura_trace_lib::verify_content_inner(&png_path, "file", Some("quick"), &state);
+
+    assert!(
+        result.is_ok(),
+        "verify_content_inner must succeed in quick mode: {result:?}"
+    );
+
+    // Read verification history through the Database public API.
+    let history = state
+        .lock()
+        .expect("state lock")
+        .db
+        .get_verification_history(10, 0)
+        .expect("get_verification_history");
+
+    assert_eq!(
+        history.len(),
+        1,
+        "exactly one verification row must be persisted after a successful verify \
+         (re-acquire for DB write may have silently failed). Got {} rows.",
+        history.len()
+    );
+
+    drop(tmp_png);
 }
 
 // ── Test image helper ─────────────────────────────────────────────────────────

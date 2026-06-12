@@ -2278,6 +2278,27 @@ fn thumbnail_mismatch_finding(tc: &ThumbnailCheck) -> Option<exif_anomaly::Anoma
     })
 }
 
+/// One-verify-at-a-time serialisation gate.
+///
+/// `verify_content_inner` drops the `AppState` mutex during the multi-second
+/// sidecar detector groups so other commands can read/write state while a
+/// verify is running.  This gate serialises concurrent verify calls so that
+/// two verifies never interleave their detector pipelines (which would produce
+/// inconsistent MethodologyRecords and confuse the UI).
+///
+/// The gate guards no data — it is a pure concurrency limiter.  If a verify
+/// thread panics after acquiring the gate, `Mutex` would normally mark it
+/// poisoned and all subsequent acquires would return `Err`.  We use
+/// `unwrap_or_else(PoisonError::into_inner)` to recover the inner guard
+/// rather than bricking all future verifies on a panic.  This is safe because
+/// the gate carries no invariant-protected data.
+///
+/// Lock ordering (must always be obeyed to avoid deadlock):
+///   VERIFY_GATE → AppState mutex.
+/// No code must acquire AppState before acquiring VERIFY_GATE inside the
+/// verify pipeline.  `restore_database` follows the same order.
+static VERIFY_GATE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Inner verification logic shared by `verify_content` and `verify_url`.
 ///
 /// `mode` controls which pipeline stages run:
@@ -2287,7 +2308,12 @@ fn thumbnail_mismatch_finding(tc: &ThumbnailCheck) -> Option<exif_anomaly::Anoma
 /// - `"archival"` — retired 2026-04-22; accepted and silently aliased to `"deep"`.
 ///   Will regain a distinct pipeline when scanner-calibrated tolerances and
 ///   uncapped video frame extraction are implemented.
-fn verify_content_inner(
+///
+/// Public so the REST API handler (`api/routes.rs`) and integration tests
+/// can call it directly.  The function takes a `&Mutex<AppState>` rather
+/// than a `State<>` so it is usable from both Tauri commands and the Axum
+/// handler.
+pub fn verify_content_inner(
     source: &str,
     source_type: &str,
     mode: Option<&str>,
@@ -2675,10 +2701,42 @@ fn verify_content_inner(
     //   standard   → ELA + deepfake only
     //   deep       → all detectors
     //   archival   → retired; silently aliased to "deep" below
-    let app = state.lock().map_err(|e| {
-        log::error!("AppState mutex poisoned in verify pipeline: {e}");
-        AppError::Internal("Failed to acquire application state".to_string())
-    })?;
+
+    // ── Verify serialisation gate ─────────────────────────────────────────
+    // Acquire VERIFY_GATE *before* the AppState mutex (lock ordering:
+    // VERIFY_GATE → AppState).  Held for the duration of the function so
+    // two verify pipelines never interleave.  Poisoning is ignored — the
+    // gate carries no data invariant (see VERIFY_GATE doc comment).
+    let _verify_gate = VERIFY_GATE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+    // ── Snapshot AppState and immediately drop the lock ───────────────────
+    // The sidecar detector groups take 5–25 s.  Holding the AppState mutex
+    // for the full duration blocks every other Tauri command (settings reads,
+    // asset queries, DB writes) and freezes the Tauri event-loop thread when
+    // `verify_content` is invoked synchronously.  Instead, we snapshot the
+    // cheap fields we need and release the lock before any sidecar I/O.
+    //
+    // `SidecarClient::clone()` is cheap — the inner reqwest::blocking::Client
+    // uses Arc internally; the shared file-byte cache is also Arc-wrapped.
+    //
+    // The AppState mutex is re-acquired exactly once at the end for the DB
+    // write (insert_verification + log_action).
+    let (sidecar, ai_desc_enabled, classifier_hash_snap, univfd_hash_snap) = {
+        let app = state.lock().map_err(|e| {
+            log::error!("AppState mutex poisoned in verify pipeline: {e}");
+            AppError::Internal("Failed to acquire application state".to_string())
+        })?;
+        (
+            app.sidecar.clone(),
+            app.ai_description_enabled,
+            app.classifier_model_hash.clone(),
+            app.univfd_probe_model_hash.clone(),
+        )
+        // `app` (MutexGuard) is dropped here — lock released.
+    };
+
     // 'archival' was retired 2026-04-22 because it shared the Deep code path
     // end-to-end with no detector or threshold differences.  The value is
     // still accepted for API back-compat (Axum REST, older Tauri clients,
@@ -2694,7 +2752,7 @@ fn verify_content_inner(
     let is_quick = effective_mode == "quick";
     // Single availability probe — reused for all sidecar calls in this pipeline
     // to avoid multiple HTTP round-trips.
-    let sidecar_available = !is_quick && app.sidecar.is_available();
+    let sidecar_available = !is_quick && sidecar.is_available();
     let sidecar_up = is_image && sidecar_available;
     let is_deep = effective_mode == "deep";
     log::info!(
@@ -2727,7 +2785,7 @@ fn verify_content_inner(
     // it runs synchronously here because it is cheap and its result must be
     // known before the standard group fires.
     let content_type_result: Option<sidecar::ContentTypeResult> = if is_image && sidecar_up {
-        match app.sidecar.classify_content_type(&path) {
+        match sidecar.classify_content_type(&path) {
             Ok(ct) => {
                 log::info!(
                     "Content-type classification: category={}, confidence={:.2}, ai_detection_suitable={}",
@@ -2753,7 +2811,7 @@ fn verify_content_inner(
     // (JTV-134, Sprint 30 — promoted from backlog #26 v1.2 to v1.0.)
     let platform_fingerprint_result: Option<sidecar::PlatformFingerprintResult> =
         if is_image && sidecar_up {
-            match app.sidecar.analyse_platform_fingerprint(&path) {
+            match sidecar.analyse_platform_fingerprint(&path) {
                 Ok(pf) => Some(pf),
                 Err(e) => {
                     log::warn!("Sidecar platform-fingerprint failed: {e}");
@@ -2787,10 +2845,10 @@ fn verify_content_inner(
     // standard group. All parallel sidecar calls (4 standard + 5 deep) will
     // use the cached bytes instead of re-reading from disk, saving 4–9×
     // file_size in redundant I/O and peak RAM. The cache is cleared after
-    // the deep group (see `app.sidecar.clear_file_cache()` below).
+    // the deep group (see `sidecar.clear_file_cache()` below).
     if sidecar_up {
         if let Ok(file_bytes) = std::fs::read(&path) {
-            app.sidecar.cache_file_bytes(&path, file_bytes);
+            sidecar.cache_file_bytes(&path, file_bytes);
         }
     }
 
@@ -2804,7 +2862,7 @@ fn verify_content_inner(
     ) = if sidecar_up {
         run_standard_sidecar_group(
             &path,
-            &app.sidecar,
+            &sidecar,
             &info.mime_type,
             has_camera_exif,
             camera_authenticity_bonus,
@@ -2850,7 +2908,7 @@ fn verify_content_inner(
         dct_analysis_result,
         fourier_analysis_result,
     ) = if sidecar_up && is_deep {
-        run_deep_sidecar_group(&path, &app.sidecar)
+        run_deep_sidecar_group(&path, &sidecar)
     } else {
         (
             None, None, None, None, None, None, None, None, None, None, None, None,
@@ -2858,7 +2916,7 @@ fn verify_content_inner(
     };
 
     // PERF: release the cached file bytes — image sidecar calls are done.
-    app.sidecar.clear_file_cache();
+    sidecar.clear_file_cache();
 
     // ── Video parallel group ─────────────────────────────────────────────
     // v1.0 (JTV-138, 2 May 2026): video deepfake, transcription, and FFprobe
@@ -2874,8 +2932,8 @@ fn verify_content_inner(
 
             let vm_path = path.to_path_buf();
             let vd_path = path.to_path_buf();
-            let vm_client = app.sidecar.clone();
-            let vd_client = app.sidecar.clone();
+            let vm_client = sidecar.clone();
+            let vd_client = sidecar.clone();
             // effective_mode is already normalised to "quick" | "standard" |
             // "deep" above; "archival" has been folded into "deep".
             let deepfake_mode_owned = effective_mode.to_string();
@@ -2883,7 +2941,7 @@ fn verify_content_inner(
             // Transcription runs in parallel too (unless quick mode)
             let run_transcription = !is_quick;
             let tr_path = path.to_path_buf();
-            let tr_client = app.sidecar.clone();
+            let tr_client = sidecar.clone();
 
             let (vm_out, vd_out, tr_out) = std::thread::scope(|s| {
                 let vm_h = s.spawn(move || {
@@ -2987,10 +3045,10 @@ fn verify_content_inner(
             let t_audio = std::time::Instant::now();
 
             let am_path = path.to_path_buf();
-            let am_client = app.sidecar.clone();
+            let am_client = sidecar.clone();
             let run_transcription = !is_quick && transcription_result.is_none();
             let tr_path = path.to_path_buf();
-            let tr_client = app.sidecar.clone();
+            let tr_client = sidecar.clone();
 
             let (am_out, tr_out) = std::thread::scope(|s| {
                 let am_h = s.spawn(move || {
@@ -3063,7 +3121,7 @@ fn verify_content_inner(
     let claim_check_result = if let Some(ref transcript) = transcription_result {
         if !transcript.text.is_empty() && sidecar_available {
             let t_claim = std::time::Instant::now();
-            let result = match app.sidecar.check_claim(&transcript.text) {
+            let result = match sidecar.check_claim(&transcript.text) {
                 Ok(claim_result) => {
                     log::info!(
                         "Claim check: verdict={}, claims={}",
@@ -3092,11 +3150,11 @@ fn verify_content_inner(
     // typical hardware) so it is gated behind `AppState::ai_description_enabled`
     // — see that field's doc comment for the tri-state semantics. If Ollama
     // is unavailable the sidecar returns None and the pipeline continues.
-    let ai_desc_allowed = matches!(app.ai_description_enabled, Some(true));
+    let ai_desc_allowed = matches!(ai_desc_enabled, Some(true));
     let ai_description: Option<String> = if is_image && sidecar_available && ai_desc_allowed {
         let t_describe = std::time::Instant::now();
         let desc_path = path.to_path_buf();
-        let desc_client = app.sidecar.clone();
+        let desc_client = sidecar.clone();
         let describe_out =
             std::thread::spawn(move || desc_client.describe_image(&desc_path)).join();
         log::info!("PERF: AI image description took {:?}", t_describe.elapsed());
@@ -3275,7 +3333,7 @@ fn verify_content_inner(
 
     // ── Methodology record ────────────────────────────────────────────────
     let sidecar_ver = if sidecar_available {
-        app.sidecar.check_health().ok().map(|h| h.version)
+        sidecar.check_health().ok().map(|h| h.version)
     } else {
         None
     };
@@ -3286,8 +3344,11 @@ fn verify_content_inner(
     let engine_ver = env!("CARGO_PKG_VERSION").to_string();
     let analysed_at_utc = chrono::Utc::now().to_rfc3339();
     let mode_str = effective_mode.to_string();
-    let classifier_hash = app.classifier_model_hash.clone();
-    let univfd_hash = app.univfd_probe_model_hash.clone();
+    // Use the snapshotted model hashes (captured before the detector pipeline
+    // ran) so the MethodologyRecord reflects what was loaded at verify-start,
+    // not a potentially-updated value from a concurrent set_db_path reload.
+    let classifier_hash = classifier_hash_snap;
+    let univfd_hash = univfd_hash_snap;
 
     let methodology = Some(MethodologyRecord {
         pipeline_version: engine_ver.clone(),
@@ -3302,8 +3363,8 @@ fn verify_content_inner(
         engine_version: engine_ver,
         sidecar_version: sidecar_ver.clone(),
         model_hashes: ModelHashes {
-            deepfake_classifier: classifier_hash,
-            univfd_probe: univfd_hash,
+            deepfake_classifier: classifier_hash.clone(),
+            univfd_probe: univfd_hash.clone(),
         },
         verification_mode: mode_str,
         timestamp_utc: analysed_at_utc,
@@ -3399,49 +3460,60 @@ fn verify_content_inner(
     }
     let detectors_run_json = serde_json::to_string(&detectors_run_list).ok();
 
-    let _ = app.db.insert_verification(
-        &verification_id,
-        source_type,
-        info.content_type.as_str(),
-        ela_score,
-        None,
-        c2pa_valid,
-        &metadata_flags,
-        overall_trust,
-        Some(env!("CARGO_PKG_VERSION")),
-        sidecar_ver.as_deref(),
-        app.classifier_model_hash.as_deref(),
-        Some(effective_mode),
-        detectors_run_json.as_deref(),
-    );
-
-    let canonical_path_str = path.to_string_lossy().to_string();
-    let _ = app.db.log_action(
-        "verify",
-        "file",
-        &canonical_path_str,
-        Some(
-            &serde_json::json!({
-                "mode": effective_mode,
-                "exif_trust": exif_trust,
-                "ela_score": ela_score,
-                "noise_score": noise_score,
-                "copy_move_score": copy_move_score,
-                "deepfake_score": deepfake_score,
-                "npr_score": npr_result.as_ref().map(|r| r.score),
-                "jpeg_ghost_score": jpeg_ghost_result.as_ref().map(|r| r.score),
-                "segmented_ela_score": segmented_ela_score,
-                "shadow_consistency_score": shadow_consistency_score,
-                "colour_temperature_score": colour_temperature_score,
-                "splice_boundary_score": splice_boundary_score,
-                "c2pa_valid": c2pa_valid,
-                "findings_count": metadata_flags.len(),
-            })
-            .to_string(),
-        ),
-        None,
-        None,
-    );
+    // ── Re-acquire AppState for DB write ─────────────────────────────────
+    // The state lock was dropped before the detector pipeline to allow
+    // concurrent commands to proceed.  Re-acquire now for the write-only
+    // DB operations.  Lock order: VERIFY_GATE (already held) → AppState.
+    {
+        let canonical_path_str = path.to_string_lossy().to_string();
+        if let Ok(app) = state.lock() {
+            let _ = app.db.insert_verification(
+                &verification_id,
+                source_type,
+                info.content_type.as_str(),
+                ela_score,
+                None,
+                c2pa_valid,
+                &metadata_flags,
+                overall_trust,
+                Some(env!("CARGO_PKG_VERSION")),
+                sidecar_ver.as_deref(),
+                classifier_hash.as_deref(),
+                Some(effective_mode),
+                detectors_run_json.as_deref(),
+            );
+            let _ = app.db.log_action(
+                "verify",
+                "file",
+                &canonical_path_str,
+                Some(
+                    &serde_json::json!({
+                        "mode": effective_mode,
+                        "exif_trust": exif_trust,
+                        "ela_score": ela_score,
+                        "noise_score": noise_score,
+                        "copy_move_score": copy_move_score,
+                        "deepfake_score": deepfake_score,
+                        "npr_score": npr_result.as_ref().map(|r| r.score),
+                        "jpeg_ghost_score": jpeg_ghost_result.as_ref().map(|r| r.score),
+                        "segmented_ela_score": segmented_ela_score,
+                        "shadow_consistency_score": shadow_consistency_score,
+                        "colour_temperature_score": colour_temperature_score,
+                        "splice_boundary_score": splice_boundary_score,
+                        "c2pa_valid": c2pa_valid,
+                        "findings_count": metadata_flags.len(),
+                    })
+                    .to_string(),
+                ),
+                None,
+                None,
+            );
+        } else {
+            log::error!(
+                "AppState mutex poisoned at DB-write phase — verification row not persisted"
+            );
+        }
+    }
     log::info!("PERF: database operations took {:?}", t_db.elapsed());
 
     log::info!(
@@ -3603,7 +3675,13 @@ fn apply_heatmaps_to_result(
 /// When power-saver mode is enabled and the sidecar has been idle-killed, this
 /// command respawns the sidecar before dispatching the verify pipeline.  The
 /// first verify after a kill takes 30–90 s longer while the sidecar reloads.
-#[tauri::command]
+///
+/// `async` so Tauri dispatches this on the async thread pool instead of the
+/// event-loop thread. The frontend invoke() is already promise-based so this
+/// is a transparent, non-breaking upgrade.  The body is CPU/IO-bound blocking
+/// work; it is wrapped in `spawn_blocking` below to avoid blocking the tokio
+/// reactor.
+#[tauri::command(async)]
 fn verify_content(
     source: String,
     source_type: String,
@@ -4544,7 +4622,11 @@ fn get_recent_assets(
 ///
 /// Downloads the content to a temp file and runs it through the
 /// verification pipeline. Supports images and documents.
-#[tauri::command]
+///
+/// `async` so Tauri dispatches this on the async thread pool instead of the
+/// event-loop thread. Mirrors the `verify_content` upgrade — the frontend
+/// invoke() is already promise-based so this is a non-breaking change.
+#[tauri::command(async)]
 fn verify_url(
     url: String,
     mode: Option<String>,
@@ -6388,20 +6470,29 @@ async fn restore_database(
 
     // Phase B: destructive swap.
     //
-    // 1. Take the state lock.  Capture db_path.
-    // 2. Replace `app.db` with a Database opened on a throwaway temp path,
+    // 1. Acquire VERIFY_GATE so any in-flight verify finishes before we swap
+    //    app.db.  Lock order: VERIFY_GATE → AppState (same as verify_content_inner).
+    // 2. Take the state lock.  Capture db_path.
+    // 3. Replace `app.db` with a Database opened on a throwaway temp path,
     //    which drops the live connection and releases the WAL handles on
     //    `db_path`.
-    // 3. Delete any stale `db_path-wal` / `db_path-shm` left behind.
-    // 4. Copy the snapshot file over `db_path`.
-    // 5. Open a fresh Database on the new `db_path`.
-    // 6. Insert a `backup_restored` audit-log entry — this becomes the
+    // 4. Delete any stale `db_path-wal` / `db_path-shm` left behind.
+    // 5. Copy the snapshot file over `db_path`.
+    // 6. Open a fresh Database on the new `db_path`.
+    // 7. Insert a `backup_restored` audit-log entry — this becomes the
     //    first new entry in the post-restore chain.
-    // 7. Replace `app.db`.
+    // 8. Replace `app.db`.
     let throwaway = std::env::temp_dir().join(format!(
         ".jura_restore_throwaway_{}.db",
         uuid::Uuid::new_v4().simple()
     ));
+
+    // Wait for any in-flight verify to finish before swapping the database.
+    // Lock order: VERIFY_GATE first, then AppState mutex — matches the order
+    // in verify_content_inner.
+    let _restore_gate = VERIFY_GATE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
 
     let restore_outcome: Result<(), AppError> = (|| {
         let mut app = state
