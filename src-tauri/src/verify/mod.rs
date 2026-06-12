@@ -10,4 +10,5 @@
 //!   `estimate_jpeg_quality`, `detect_screenshot`).
 
 pub(crate) mod input_quality;
+pub(crate) mod pipeline;
 pub(crate) mod trust;
