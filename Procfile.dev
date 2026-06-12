@@ -1,2 +1,8 @@
-sidecar: cd sidecar && JURA_SIDECAR_KEY="" uvicorn main:app --host 127.0.0.1 --port 8200 --reload
-tauri: cargo tauri dev
+# Both processes must share the same non-empty JURA_SIDECAR_KEY: the sidecar
+# rejects every /forensics/* request with 503 when its key is empty (auth
+# hardening 2026-05-21), and the app's SidecarClient sends whatever the env
+# var holds. An empty or mismatched key means verify silently runs with only
+# the Rust-native detectors (C2PA, EXIF). Keep in sync with
+# JURA_DEV_SIDECAR_KEY in the Makefile.
+sidecar: cd sidecar && JURA_SIDECAR_KEY="jura-dev-local" uvicorn main:app --host 127.0.0.1 --port 8200 --reload
+tauri: JURA_SIDECAR_KEY="jura-dev-local" cargo tauri dev

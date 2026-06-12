@@ -113,3 +113,12 @@ reqwest = { version = "0.12", features = ["json", "multipart"] }
 default = ["custom-protocol", "api"]
 custom-protocol = ["tauri/custom-protocol"]
 api = ["axum", "tower", "tower-http", "utoipa", "utoipa-swagger-ui", "dashmap", "tokio"]
+
+# Dev-profile speedup (2026-06-12): optimise DEPENDENCIES at O2 while keeping
+# this crate's own code unoptimised for fast incremental builds and usable
+# debugging. Without this, `cargo tauri dev` runs image decode, perceptual
+# hashing and C2PA crypto 10-40x slower than release, making a deep verify
+# take minutes instead of ~20 s and dev-build manual testing unrepresentative.
+# Release builds are unaffected.
+[profile.dev.package."*"]
+opt-level = 2

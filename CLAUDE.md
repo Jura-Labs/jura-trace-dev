@@ -49,14 +49,16 @@ Four-layer local-first stack. See `docs/ARCHITECTURE.md` for the full diagram an
 ## Development Commands
 
 ```bash
-# Start development (Tauri + SvelteKit hot reload)
-make dev
-# Or manually:
-cd ui && npm run dev      # Terminal 1: SvelteKit dev server (port 1420)
-cd src-tauri && cargo tauri dev  # Terminal 2: Tauri app
+# Start development. IMPORTANT: the app and the sidecar must share the same
+# non-empty JURA_SIDECAR_KEY or the sidecar 503s every /forensics/* call and
+# verify silently runs with only the Rust-native detectors (C2PA, EXIF).
+# The make targets and Procfile.dev handle the key for you (jura-dev-local):
+make dev-sidecar          # Terminal 1: Python ML sidecar (port 8200)
+make dev-tauri            # Terminal 2: Tauri app (spawns Vite on port 1420)
 
-# Start the Python ML sidecar (port 8200)
-cd sidecar && uvicorn main:app --host 127.0.0.1 --port 8200 --reload
+# Or manually — export the key on BOTH sides:
+cd sidecar && JURA_SIDECAR_KEY=jura-dev-local uvicorn main:app --host 127.0.0.1 --port 8200 --reload
+cd src-tauri && JURA_SIDECAR_KEY=jura-dev-local cargo tauri dev
 
 # Build production app
 make build

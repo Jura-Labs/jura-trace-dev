@@ -743,13 +743,36 @@ fn get_assets(
 /// is a transparent, non-breaking upgrade.  The body is CPU/IO-bound blocking
 /// work; it is wrapped in `spawn_blocking` below to avoid blocking the tokio
 /// reactor.
-#[tauri::command(async)]
-fn verify_content(
+#[tauri::command]
+async fn verify_content(
     source: String,
     source_type: String,
     mode: Option<String>,
     app: tauri::AppHandle,
     state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<VerificationResult, AppError> {
+    // The pipeline uses reqwest::blocking (SidecarClient), which panics when
+    // executed on a tokio runtime worker ("Cannot drop a runtime in a context
+    // where blocking is not allowed"). A bare `#[tauri::command(async)]`
+    // attribute polls a sync body on exactly such a worker, so the whole
+    // synchronous pipeline must run on the blocking pool instead — the same
+    // pattern the REST API path uses in api/routes.rs (regression found
+    // 2026-06-12 during pre-launch manual testing).
+    let state = Arc::clone(state.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        verify_content_blocking(source, source_type, mode, app, &state)
+    })
+    .await
+    .map_err(|e| AppError::Internal(format!("Verification worker failed: {e}")))?
+}
+
+/// Synchronous body of `verify_content`; must run on a blocking thread.
+fn verify_content_blocking(
+    source: String,
+    source_type: String,
+    mode: Option<String>,
+    app: tauri::AppHandle,
+    state: &Arc<Mutex<AppState>>,
 ) -> Result<VerificationResult, AppError> {
     // Log only the file stem at INFO; full path is at DEBUG to protect
     // operational security for field workers (e.g. journalists, HRDs whose
@@ -874,13 +897,8 @@ fn verify_content(
         guard.last_sidecar_request_ts.store(now, Ordering::Relaxed);
     }
 
-    let mut result = verify_content_inner(
-        &source,
-        &source_type,
-        mode.as_deref(),
-        state.inner().as_ref(),
-    )?;
-    apply_heatmaps_to_result(&mut result, &app, state.inner());
+    let mut result = verify_content_inner(&source, &source_type, mode.as_deref(), state.as_ref())?;
+    apply_heatmaps_to_result(&mut result, &app, state);
     Ok(result)
 }
 
@@ -1622,12 +1640,29 @@ fn get_recent_assets(
 /// `async` so Tauri dispatches this on the async thread pool instead of the
 /// event-loop thread. Mirrors the `verify_content` upgrade — the frontend
 /// invoke() is already promise-based so this is a non-breaking change.
-#[tauri::command(async)]
-fn verify_url(
+#[tauri::command]
+async fn verify_url(
     url: String,
     mode: Option<String>,
     app: tauri::AppHandle,
     state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<VerificationResult, AppError> {
+    // Same blocking-pool requirement as `verify_content`: the body both
+    // downloads the URL with reqwest::blocking and runs the verify pipeline
+    // (SidecarClient), neither of which may execute on a tokio runtime
+    // worker thread.
+    let state = Arc::clone(state.inner());
+    tauri::async_runtime::spawn_blocking(move || verify_url_blocking(url, mode, app, &state))
+        .await
+        .map_err(|e| AppError::Internal(format!("Verification worker failed: {e}")))?
+}
+
+/// Synchronous body of `verify_url`; must run on a blocking thread.
+fn verify_url_blocking(
+    url: String,
+    mode: Option<String>,
+    app: tauri::AppHandle,
+    state: &Arc<Mutex<AppState>>,
 ) -> Result<VerificationResult, AppError> {
     // Redact query string and fragment before logging — URLs may contain
     // credentials or tokens in the query string (e.g. ?token=abc123).
@@ -1753,10 +1788,9 @@ fn verify_url(
     let temp_str = temp_path.to_string_lossy().to_string();
 
     // Run through verify pipeline
-    let mut result =
-        verify_content_inner(&temp_str, "url", mode.as_deref(), state.inner().as_ref())?;
+    let mut result = verify_content_inner(&temp_str, "url", mode.as_deref(), state.as_ref())?;
     result.source_type = "url".to_string();
-    apply_heatmaps_to_result(&mut result, &app, state.inner());
+    apply_heatmaps_to_result(&mut result, &app, state);
 
     Ok(result)
 }
