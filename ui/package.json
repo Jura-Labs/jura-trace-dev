@@ -42,5 +42,8 @@
     "jspdf": "^4.2.1",
     "jszip": "^3.10.1"
   },
-  "type": "module"
+  "type": "module",
+  "overrides": {
+    "esrap": "^2.2.11"
+  }
 }

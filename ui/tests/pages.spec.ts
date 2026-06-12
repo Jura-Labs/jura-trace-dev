@@ -148,11 +148,13 @@ test.describe('Page smoke tests', () => {
       await expect(page.locator('h1')).toHaveText('Settings');
     });
 
-    test('shows Ollama Configuration heading', async ({ page }) => {
+    test('Ollama section hidden in v1.0', async ({ page }) => {
+      // The whole AI Assistant (Ollama) section is feature-gated off in
+      // v1.0 (V1_SHOW_AI_DESCRIPTION and V1_SHOW_READ_TEXT both false).
+      // Flip this back to a visibility + heading-text assertion when the
+      // flags flip in v1.0.1.
       await page.goto('/settings');
-      const ollamaHeading = page.locator('#ollama-heading');
-      await expect(ollamaHeading).not.toBeVisible();  // v1.0: V1_SHOW_AI_DESCRIPTION + V1_SHOW_READ_TEXT both false
-      await expect(ollamaHeading).toHaveText('AI Assistant (Ollama)');
+      await expect(page.locator('#ollama-heading')).toHaveCount(0);
     });
   });
 

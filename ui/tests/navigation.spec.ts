@@ -46,11 +46,14 @@ test.describe('Navigation and layout', () => {
     await expect(juralabsLink).toHaveAttribute('href', 'https://juralabs.org');
   });
 
-  test('footer contains About link', async ({ page }) => {
+  test('footer contains Licences link', async ({ page }) => {
+    // The About link was dropped from the footer in 176eef7 (2026-05-26);
+    // the surviving footer links are Jura Labs CIC (tested above) and
+    // Licences.
     const footer = page.locator('footer');
-    const aboutLink = footer.getByRole('link', { name: 'About' });
-    await expect(aboutLink).toBeVisible();
-    await expect(aboutLink).toHaveAttribute('href', 'https://juralabs.org/jura-trace');
+    const licencesLink = footer.getByRole('link', { name: 'Licences' });
+    await expect(licencesLink).toBeVisible();
+    await expect(licencesLink).toHaveAttribute('href', '/help/open-source');
   });
 
   test('footer contains version string', async ({ page }) => {
