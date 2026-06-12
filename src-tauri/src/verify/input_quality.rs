@@ -1,10 +1,10 @@
 //! Input quality assessment — run before detectors to identify conditions
 //! that reduce the reliability of forensic analysis.
 
+use super::types::InputQualityAssessment;
 use crate::exif_anomaly;
 use crate::format_router;
 use crate::metadata;
-use crate::InputQualityAssessment;
 
 /// Estimate JPEG quality from file size ratio (bytes per pixel).
 ///

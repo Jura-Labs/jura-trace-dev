@@ -57,10 +57,17 @@
 
 ## Rust Core Modules
 
-All modules live in `src-tauri/src/`. `lib.rs` is the entry point: it declares the Tauri commands, the verify pipeline, and the trust-score computation (`compute_trust`).
+All modules live in `src-tauri/src/`. `lib.rs` is the entry point: it registers Tauri commands and bootstraps the application. The verify pipeline, trust-score computation, shared result types, and application state each live in their own module.
 
 | Module | Crate | Purpose |
 |--------|-------|---------|
+| `config` | — | `AppConfig`, config file read/write, `resolve_db_path`; persists user preferences (database path, licence tier, power-saver mode) |
+| `startup` | — | Logging initialisation, sidecar spawn and readiness probing, ephemeral-port selection, MEI temporary-directory cleanup |
+| `state` | — | `AppState` shared across Tauri commands; `LicenceTier` (Community / Professional / Enterprise); `SidecarStartupStatus` probe lifecycle |
+| `verify/types` | — | Shared verification result types: `VerificationResult`, `ThumbnailCheck`, `Provenance`, `ModelHashes`, `MethodologyRecord`, `InputQualityAssessment` |
+| `verify/trust` | — | `compute_trust` and `document_trust` — the AGPL reproducibility anchor cited in methodology docs and PDF reports; all trust-score constants |
+| `verify/input_quality` | — | Pre-pipeline quality assessment: JPEG quality estimation, resolution categorisation, screenshot detection, degraded-detector list |
+| `verify/pipeline` | — | End-to-end verify orchestration: `verify_content_inner`, `verify_url_inner`, parallel sidecar groups, heatmap application |
 | `c2pa` | c2pa-rs | Sign, verify, and read C2PA provenance manifests (Sovereign and Conformant modes); all operations local |
 | `fingerprint` | image_hasher | Perceptual hashing (aHash, dHash, pHash) with Hamming distance similarity |
 | `metadata` | kamadak-exif | Extract EXIF, XMP (AI-provenance signals), ICC profile descriptions, and JPEG quantisation tables; camera-vendor authenticity confidence |

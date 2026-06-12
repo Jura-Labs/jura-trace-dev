@@ -8,15 +8,16 @@ use sha2::{Digest, Sha256};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
+use super::types::{
+    InputQualityAssessment, MethodologyRecord, ModelHashes, Provenance, ThumbnailCheck,
+    VerificationResult,
+};
 use crate::error::AppError;
 use crate::verify::input_quality::assess_input_quality;
 use crate::verify::trust::{compute_trust, document_trust};
+use crate::AppState;
 use crate::{c2pa, exif_anomaly, filename_analysis, fingerprint, format_router, heatmap};
 use crate::{metadata, pdf_provenance, sidecar};
-use crate::{
-    AppState, InputQualityAssessment, MethodologyRecord, ModelHashes, Provenance, ThumbnailCheck,
-    VerificationResult,
-};
 
 // ===== SSRF host validation =====
 

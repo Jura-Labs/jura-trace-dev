@@ -109,7 +109,7 @@ Check disk usage with `df -h /` and target size with
 
 Top-level layout (browse directories directly for file listings):
 
-- `src-tauri/` — Tauri v2 Rust backend. Core modules in `src/`: `lib.rs` (entry), `c2pa.rs`, `db.rs`, `exif_anomaly.rs`, `fingerprint.rs`, `format_router.rs`, `metadata.rs`, `watermark.rs`, `sidecar.rs`, `error.rs`, `sun_position.rs`, `api/` (REST).
+- `src-tauri/` — Tauri v2 Rust backend. Core modules in `src/`: `lib.rs` (entry: Tauri command definitions + registration glue), `verify/` (pipeline, trust scoring incl. `verify/trust.rs::compute_trust`, input quality, result types), `state.rs` (AppState, LicenceTier), `config.rs`, `startup.rs`, `c2pa.rs`, `db.rs`, `exif_anomaly.rs`, `fingerprint.rs`, `format_router.rs`, `metadata.rs`, `watermark.rs`, `sidecar.rs`, `error.rs`, `sun_position.rs`, `api/` (REST).
 - `ui/` — SvelteKit 5 frontend (SPA/static adapter). Routes in `src/routes/` (protect, verify, monitor, settings, help); shared code in `src/lib/` (`types.ts`, `api.ts`, `pdf.ts`, `zip.ts`, `blob.ts`, `components/`, `stores/`); Playwright e2e in `tests/`.
 - `sidecar/` — Python 3.13 FastAPI ML sidecar on port 8200. Routers in `app/api/`, detection/forensics logic in `app/services/`, Pydantic schemas in `app/models/`, pytest suite in `tests/`. `main.py` entry, `requirements.txt` / `requirements-ci.txt` / `requirements.lock`, `jura-sidecar.spec` for PyInstaller.
 - `scripts/` — training, corpus, and calibration scripts; `scripts/agents/` for corpus crawl/protect/verify pipeline.
@@ -180,7 +180,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 
 - **Reference docs**: `CHANGELOG.md`, `docs/ARCHITECTURE.md`, `docs/BRAND_GUIDELINES.md`, `CONTRIBUTING.md` (includes the AI-tool-use policy + high-risk-file list)
 - **Internal-only docs (NOT in repo)**: `../jura-labs-docs/jura-trace-strategy/`, `../jura-labs-docs/jura-trace-funding/`, `../jura-labs-docs/jura-trace-internal/` — see memory `project_repo_doc_hygiene` for the discipline + what belongs where
-- **Rust entry**: `src-tauri/src/lib.rs` — Tauri commands, verify pipeline, `VerificationResult`
+- **Rust entry**: `src-tauri/src/lib.rs` — Tauri commands + registration glue. Verify pipeline lives in `src-tauri/src/verify/` (`pipeline.rs`, `trust.rs::compute_trust`, `types.rs::VerificationResult`)
 - **Sidecar client**: `src-tauri/src/sidecar.rs` — HTTP client for Python sidecar
 - **REST API module**: `src-tauri/src/api/` — Axum REST API on port 8300 (routes, types, auth, rate_limit, error)
 - **Error module**: `src-tauri/src/error.rs` — `AppError` enum with structured IPC serialisation `{ code, message }`
