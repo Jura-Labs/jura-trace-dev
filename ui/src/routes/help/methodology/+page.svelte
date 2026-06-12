@@ -139,7 +139,7 @@
       The trust score combines five components in a defined order. No single
       component can override the others when it strongly disagrees with the
       evidence. The full algorithm is open-source under AGPL-3.0-or-later at
-      <code class="font-mono text-xs">src-tauri/src/lib.rs::compute_trust</code>.
+      <code class="font-mono text-xs">src-tauri/src/verify/trust.rs::compute_trust</code>.
     </p>
 
     <ol class="space-y-3 text-sm muted-help mb-6 pl-4 list-decimal list-inside">

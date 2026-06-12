@@ -1359,7 +1359,7 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
   // security audit). The new copy walks the actual algorithm shape so a
   // reviewer with the open-source AGPL source can trace any number printed
   // in this PDF back to the function that produced it. Full breakdown:
-  // src-tauri/src/lib.rs::compute_trust.
+  // src-tauri/src/verify/trust.rs::compute_trust.
   const trustFormulaText =
     'Forensic signal analysis (primary, worst-case across pixel-level detectors). ' +
     'EXIF metadata consistency (corroborating, capped at 20% weight). ' +
@@ -1367,7 +1367,7 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
     'Composite-evidence cap at 0.55 when two regional detectors agree. ' +
     'Deepfake verdict ceiling (synthetic-high 0.25, synthetic-medium 0.35, ' +
     'synthetic-low 0.45, inconclusive 0.55). Full algorithm published under ' +
-    'AGPL-3.0 in src-tauri/src/lib.rs::compute_trust.';
+    'AGPL-3.0 in src-tauri/src/verify/trust.rs::compute_trust.';
 
   const metaRows: [string, string][] = [
     ['Jura Trace version', `v${pipelineVer}`],
