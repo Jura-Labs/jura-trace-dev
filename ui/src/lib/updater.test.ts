@@ -216,7 +216,7 @@ describe('classifyError — channel-unavailable normalisation', () => {
     expect(last.state).toBe('error');
     if (last.state === 'error') {
       expect(last.message).toContain('Update channel temporarily unavailable');
-      expect(last.message).toContain('juralabs.org/downloads');
+      expect(last.message).toContain('juralabs.org/download.');
       expect(last.message).not.toContain('JSON');
     }
   });

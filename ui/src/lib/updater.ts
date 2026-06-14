@@ -125,7 +125,7 @@ export function classifyError(message: string): UpdateStatus {
     return {
       state: 'error',
       message:
-        'Update channel temporarily unavailable. Please try again later. If the problem persists, download the latest installer from juralabs.org/downloads.',
+        'Update channel temporarily unavailable. Please try again later. If the problem persists, download the latest installer from juralabs.org/download.',
     };
   }
   return { state: 'error', message };
