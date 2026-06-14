@@ -1157,6 +1157,12 @@ export interface BatchItem {
   fileName: string;
   status: BatchItemStatus;
   result: VerificationResult | null;
+  /**
+   * Overall trust (0–1) for a completed item. Held separately from `result`
+   * so the list row can still show the score when the heavy `result` is absent
+   * — e.g. after the lightweight batch session is restored from navigation.
+   */
+  overallTrust: number | null;
   error: string | null;
   startedAt: number | null;
   finishedAt: number | null;

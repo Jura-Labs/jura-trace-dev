@@ -79,3 +79,61 @@ export function clearVerifySession(): void {
     // ignore
   }
 }
+
+// ── Batch list session ────────────────────────────────────────────────
+// Separate, deliberately lightweight cache: just enough to redraw the batch
+// results list (filename + score + status) after the user navigates away and
+// back. The heavy per-item VerificationResult is NOT persisted (it would blow
+// the ~5 MB sessionStorage quota for a multi-file batch); drilling into a
+// restored row re-verifies that file on demand. Kept under its own key so it
+// is independent of the single-result session above.
+
+const BATCH_STORAGE_KEY = 'jura-verify-batch-session';
+
+/** One row of the cached batch list — summary fields only, no detector data. */
+export interface BatchListCacheItem {
+  id: string;
+  fileName: string;
+  filePath: string | null;
+  status: 'done' | 'error';
+  /** Overall trust (0–1) for done items, or null. */
+  overallTrust: number | null;
+  error: string | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+}
+
+export interface BatchListSession {
+  items: BatchListCacheItem[];
+  mode: string;
+  savedAt: string;
+}
+
+/** Save the lightweight batch list so it survives navigation. */
+export function saveBatchSession(session: BatchListSession): void {
+  try {
+    sessionStorage.setItem(BATCH_STORAGE_KEY, JSON.stringify(session));
+  } catch {
+    // sessionStorage full or unavailable — silently ignore
+  }
+}
+
+/** Restore the cached batch list, or null if none exists. */
+export function restoreBatchSession(): BatchListSession | null {
+  try {
+    const raw = sessionStorage.getItem(BATCH_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as BatchListSession;
+  } catch {
+    return null;
+  }
+}
+
+/** Clear the cached batch list (e.g. when starting a new verification). */
+export function clearBatchSession(): void {
+  try {
+    sessionStorage.removeItem(BATCH_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}

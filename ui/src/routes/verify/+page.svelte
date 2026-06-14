@@ -48,7 +48,7 @@
   import { generateTrustReport } from '$lib/pdf';
   import type { ReportContext, ReportFormat } from '$lib/pdf';
   import { exportCaseZip } from '$lib/zip';
-  import { saveVerifySession, restoreVerifySession, clearVerifySession } from '$lib/stores/verifySession';
+  import { saveVerifySession, restoreVerifySession, clearVerifySession, saveBatchSession, restoreBatchSession, clearBatchSession } from '$lib/stores/verifySession';
   import { consumeVerifyHandoff } from '$lib/stores/verifyHandoff';
   import { focusTrap } from '$lib/actions/focusTrap';
 
@@ -104,6 +104,10 @@
   let batchRunning = $state(false);
   let batchDragOver = $state(false);
   let expandedBatchId = $state<string | null>(null);
+  // True while the full forensic result of a single batch item is shown
+  // (the "investigate further" drill-in). Hides the batch list and reveals a
+  // "back to results" control on the result view.
+  let batchDrilldownActive = $state(false);
 
   // Read Text (Ollama LLaVA)
   let extractingText = $state(false);
@@ -1312,6 +1316,29 @@
       }
     }
 
+    // Restore the lightweight batch list (scores only) so the user can
+    // navigate away and back to it. Per-item `result` is not cached, so
+    // restored rows re-verify on drill-in. Don't override a fresh in-memory
+    // batch or a protect→verify handoff.
+    if (!handoff && batchItems.length === 0) {
+      const savedBatch = restoreBatchSession();
+      if (savedBatch && savedBatch.items.length) {
+        batchItems = savedBatch.items.map(ci => ({
+          id: ci.id,
+          filePath: ci.filePath ?? '',
+          fileName: ci.fileName,
+          status: ci.status as BatchItemStatus,
+          result: null,
+          overallTrust: ci.overallTrust,
+          error: ci.error,
+          startedAt: ci.startedAt,
+          finishedAt: ci.finishedAt,
+        }));
+        // Land on the batch tab when there's no single result to show.
+        if (!checked) activeTab = 'batch';
+      }
+    }
+
     (async () => {
       sidecarHealth = await checkSidecarHealth();
       appVersion = await getVersion();
@@ -1398,6 +1425,7 @@
 
   async function runFileVerification(path: string, name: string) {
     clearVerifySession();
+    clearBatchSession();
     blobs.revokeAll();
     filePath = path;
     fileName = name;
@@ -1422,6 +1450,7 @@
     const url = urlInput.trim();
     if (!url) return;
     clearVerifySession();
+    clearBatchSession();
     fileName = url.split('/').pop()?.split('?')[0] || url;
     filePath = null;
     result = null;
@@ -1620,6 +1649,7 @@
         fileName: f.fileName,
         status: 'queued' as BatchItemStatus,
         result: null,
+        overallTrust: null,
         error: null,
         startedAt: null,
         finishedAt: null,
@@ -1648,7 +1678,7 @@
       batchItems = batchItems.map(i => i.id === item.id ? { ...i, status: 'running' as BatchItemStatus, startedAt: Date.now() } : i);
       try {
         const res = await verifyFile(item.filePath, verifyMode);
-        batchItems = batchItems.map(i => i.id === item.id ? { ...i, status: 'done' as BatchItemStatus, result: res, finishedAt: Date.now() } : i);
+        batchItems = batchItems.map(i => i.id === item.id ? { ...i, status: 'done' as BatchItemStatus, result: res, overallTrust: res.overallTrust, finishedAt: Date.now() } : i);
       } catch (err: any) {
         batchItems = batchItems.map(i => i.id === item.id ? { ...i, status: 'error' as BatchItemStatus, error: err?.message ?? 'Unknown error', finishedAt: Date.now() } : i);
       }
@@ -1659,16 +1689,80 @@
       await processItem(item);
     }
     batchRunning = false;
+    persistBatchList();
+  }
+
+  /** Cache the lightweight batch list (scores only) so it survives navigation.
+   *  The heavy per-item `result` is intentionally not persisted. */
+  function persistBatchList() {
+    const items = batchItems
+      .filter(i => i.status === 'done' || i.status === 'error')
+      .map(i => ({
+        id: i.id,
+        fileName: i.fileName,
+        filePath: i.filePath,
+        status: i.status as 'done' | 'error',
+        overallTrust: i.overallTrust,
+        error: i.error,
+        startedAt: i.startedAt,
+        finishedAt: i.finishedAt,
+      }));
+    if (items.length) {
+      saveBatchSession({ items, mode: verifyMode, savedAt: new Date().toISOString() });
+    } else {
+      clearBatchSession();
+    }
   }
 
   function removeBatchItem(id: string) {
     batchItems = batchItems.filter(i => i.id !== id);
     if (expandedBatchId === id) expandedBatchId = null;
+    if (!batchRunning) persistBatchList();
   }
 
   function clearBatch() {
     batchItems = [];
     expandedBatchId = null;
+    batchDrilldownActive = false;
+    clearBatchSession();
+  }
+
+  /** Open the full forensic result for a single batch item ("investigate
+   *  further").  Reuses the single-image result view by pointing the shared
+   *  result state at this item; the preview `$effect` rebuilds from filePath. */
+  function openBatchResult(item: BatchItem) {
+    if (item.result) {
+      result = item.result;
+      fileName = item.fileName;
+      filePath = item.filePath;
+      checked = true;
+      error = null;
+      errorType = null;
+      batchDrilldownActive = true;
+      if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (item.filePath) {
+      // List was restored from cache — the heavy result is gone, so re-verify
+      // this file on demand to populate the full view. This is a fresh verify
+      // and therefore clears the batch cache (see runFileVerification).
+      batchDrilldownActive = true;
+      void runFileVerification(item.filePath, item.fileName);
+    }
+  }
+
+  /** Return from a batch drill-in to the batch results list. */
+  function backToBatchList() {
+    batchDrilldownActive = false;
+    result = null;
+    checked = false;
+    error = null;
+    errorType = null;
+    activeTab = 'batch';
+  }
+
+  /** Tab switch that also leaves any batch drill-in. */
+  function selectTab(tab: 'file' | 'batch' | 'url') {
+    if (tab !== 'batch') batchDrilldownActive = false;
+    activeTab = tab;
   }
 
   function downloadBatchReport() {
@@ -2050,7 +2144,7 @@
             aria-selected={activeTab === tab.id}
             aria-controls="v2-tab-{tab.id}"
             id="v2-tab-btn-{tab.id}"
-            onclick={() => activeTab = tab.id as 'file' | 'batch' | 'url'}
+            onclick={() => selectTab(tab.id as 'file' | 'batch' | 'url')}
           >
             {tab.label}
             {#if (tab as any).badge}
@@ -2154,7 +2248,7 @@
       {/if}
 
       <!-- Batch tab -->
-      {#if activeTab === 'batch'}
+      {#if activeTab === 'batch' && !batchDrilldownActive}
         <div id="v2-tab-batch" role="tabpanel" aria-labelledby="v2-tab-btn-batch" class="p-4">
           <!-- Drop zone -->
           <button
@@ -2252,7 +2346,7 @@
                           <span class="text-lapis dark:text-lapis-light">Running</span>
                         </span>
                       {:else if item.status === 'done'}
-                        {@const lv = getTrustLevel(item.result?.overallTrust ?? 0)}
+                        {@const lv = getTrustLevel(item.overallTrust ?? 0)}
                         <span class="font-medium px-1.5 py-0.5 rounded
                           {lv === 'high' ? 'text-malachite-dark dark:text-malachite-light bg-malachite/10'
                            : lv === 'medium' ? 'text-amber-dark dark:text-amber-light bg-amber/10'
@@ -2262,10 +2356,10 @@
                       {/if}
                     </span>
                     <span class="text-xs tabular-nums self-center">
-                      {#if item.status === 'done' && item.result}
-                        {@const lv = getTrustLevel(item.result.overallTrust)}
+                      {#if item.status === 'done' && item.overallTrust !== null}
+                        {@const lv = getTrustLevel(item.overallTrust)}
                         <span class="{lv === 'high' ? 'text-malachite-dark dark:text-malachite-light' : lv === 'medium' ? 'text-amber-dark dark:text-amber-light' : 'text-cinnabar-dark dark:text-cinnabar-light'}">
-                          {Math.round(item.result.overallTrust * 100)}%
+                          {Math.round(item.overallTrust * 100)}%
                         </span>
                       {:else}
                         <span class="text-flint-dark dark:text-flint-light">—</span>
@@ -2289,21 +2383,38 @@
                     </button>
                   </div>
                   <!-- Expanded result row -->
-                  {#if expandedBatchId === item.id && item.result}
-                    <div class="px-4 py-3 border-t border-border-light dark:border-border-dark/40 bg-gray-50 dark:bg-obsidian/50 text-xs space-y-1">
-                      <p class="text-flint-dark dark:text-flint-light">
-                        Detectors:
-                        {[item.result.exifAnalysis, item.result.elaResult, item.result.noiseResult, item.result.copyMoveResult, item.result.deepfakeResult].filter(Boolean).length} ran
-                        {#if item.result.exifAnalysis?.findings.some((f: AnomalyFinding) => f.severity === 'high' || f.severity === 'critical')}
-                          · <span class="text-amber-dark dark:text-amber-light">EXIF anomalies</span>
-                        {/if}
-                        {#if item.result.elaResult?.suspicious}
-                          · <span class="text-amber-dark dark:text-amber-light">ELA concern</span>
-                        {/if}
-                        {#if item.result.deepfakeResult?.suspicious}
-                          · <span class="text-amber-dark dark:text-amber-light">AI detection concern</span>
-                        {/if}
-                      </p>
+                  {#if expandedBatchId === item.id}
+                    <div class="px-4 py-3 border-t border-border-light dark:border-border-dark/40 bg-gray-50 dark:bg-obsidian/50 text-xs space-y-2">
+                      {#if item.result}
+                        <p class="text-flint-dark dark:text-flint-light">
+                          Detectors:
+                          {[item.result.exifAnalysis, item.result.elaResult, item.result.noiseResult, item.result.copyMoveResult, item.result.deepfakeResult].filter(Boolean).length} ran
+                          {#if item.result.exifAnalysis?.findings.some((f: AnomalyFinding) => f.severity === 'high' || f.severity === 'critical')}
+                            · <span class="text-amber-dark dark:text-amber-light">EXIF anomalies</span>
+                          {/if}
+                          {#if item.result.elaResult?.suspicious}
+                            · <span class="text-amber-dark dark:text-amber-light">ELA concern</span>
+                          {/if}
+                          {#if item.result.deepfakeResult?.suspicious}
+                            · <span class="text-amber-dark dark:text-amber-light">AI detection concern</span>
+                          {/if}
+                        </p>
+                      {:else}
+                        <p class="text-flint-dark dark:text-flint-light">
+                          Full forensic detail wasn’t kept after navigation — opening it will re-verify this file.
+                        </p>
+                      {/if}
+                      <button
+                        class="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded border border-lapis/40
+                               text-lapis dark:text-lapis-light hover:bg-lapis/10 transition-colors font-medium
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+                        onclick={(e) => { e.stopPropagation(); openBatchResult(item); }}
+                      >
+                        Investigate further
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
                     </div>
                   {/if}
                   {#if item.status === 'error' && item.error}
@@ -2324,6 +2435,21 @@
   <!-- RESULTS — shown only after a successful verification            -->
   <!-- ═══════════════════════════════════════════════════════════════ -->
   {#if checked && result}
+
+    <!-- ── Back to batch results (drill-in only) ─────────────────── -->
+    {#if batchDrilldownActive}
+      <button
+        class="mb-4 inline-flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-lg border border-border-light dark:border-border-dark
+               text-sm text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz hover:border-lapis/50 transition-colors
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+        onclick={backToBatchList}
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Back to batch results
+      </button>
+    {/if}
 
     <!-- ── Content-type suppression banner ───────────────────────── -->
     {#if aiDetectionSuppressed && result.contentTypeResult}
