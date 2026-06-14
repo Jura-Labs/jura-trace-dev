@@ -71,7 +71,7 @@
   let cancelled = $state(false);
   let previewUrl = $state<string | null>(null);
   let showImageOverlay = $state(false);
-  let appVersion = $state('0.9.0');
+  let appVersion = $state('1.0.0');
   let licenceTier = $state<LicenceTier>('community');
   let exportingReport = $state(false);
   let exportingCase = $state(false);

@@ -3578,7 +3578,7 @@ dependencies = [
 
 [[package]]
 name = "jura-trace"
-version = "0.9.0"
+version = "1.0.0"
 dependencies = [
  "axum 0.8.8",
  "base64 0.22.1",

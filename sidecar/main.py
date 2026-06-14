@@ -119,7 +119,7 @@ async def lifespan(application: FastAPI):
 # schema documentation to any local process is unnecessary attack surface.
 app = FastAPI(
     title="Jura Trace ML Sidecar",
-    version="0.9.0",
+    version="1.0.0",
     description="Local ML services for content forensics and verification",
     docs_url=None,
     redoc_url=None,
