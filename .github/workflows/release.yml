@@ -18,6 +18,7 @@ on:
           - all
           - macos-only
           - windows-only
+          - linux-only
 
 # contents: write is still needed for checking out source from jura-archive.
 # All release creation/publishing targets Jura-Labs/jura-trace via RELEASE_PAT.
@@ -76,7 +77,8 @@ jobs:
           dmg_name="JuraTrace-${ver}-macOS-AppleSilicon.dmg"
           msi_name="JuraTrace-${ver}-Windows-x64.msi"
           exe_name="JuraTrace-${ver}-Windows-x64-setup.exe"
-          tar_name="JuraTrace-${ver}-macOS-AutoUpdater.app.tar.gz"
+          appimage_name="JuraTrace-${ver}-Linux-x86_64.AppImage"
+          deb_name="JuraTrace-${ver}-Linux-x86_64.deb"
 
           # Write the full body via heredoc — no shell interpolation
           # of the changelog text (single-quoted FOOTER heredoc).
@@ -96,7 +98,8 @@ jobs:
           | **Mac** (Apple Silicon — M1/M2/M3/M4) | **[${dmg_name}](${base}/${dmg_name})** | Apple Developer ID (notarised) |
           | **Windows** (64-bit) — *recommended* | **[${msi_name}](${base}/${msi_name})** | Azure Trusted Signing |
           | **Windows** (64-bit) — *NSIS installer* | **[${exe_name}](${base}/${exe_name})** | Azure Trusted Signing |
-          | Auto-updater archive (advanced) | **[${tar_name}](${base}/${tar_name})** | Apple Developer ID |
+          | **Linux** (x86\_64) — *AppImage* | **[${appimage_name}](${base}/${appimage_name})** | Self-signed (AGPL source build) |
+          | **Linux** (x86\_64) — *DEB package* | **[${deb_name}](${base}/${deb_name})** | Self-signed (AGPL source build) — install with \`sudo apt install ./<file>\` |
 
           **Verify your download:** grab **[SHA256SUMS.txt](${base}/SHA256SUMS.txt)** and run \`shasum -a 256 -c SHA256SUMS.txt\` (macOS / Linux) or \`certutil -hashfile <filename> SHA256\` (Windows).
 
@@ -221,13 +224,13 @@ jobs:
           #   "runner":["self-hosted","macOS","ARM64","m4"]
           MAC='{"label":"macOS (Apple Silicon)","runner":"macos-latest","target":"aarch64-apple-darwin","sidecar_name":"jura-sidecar-aarch64-apple-darwin","platform":"macos-only"}'
           WIN='{"label":"Windows (x64)","runner":"windows-latest","target":"x86_64-pc-windows-msvc","sidecar_name":"jura-sidecar-x86_64-pc-windows-msvc.exe","platform":"windows-only"}'
-          # Linux x64 paused (not under active testing, re-enable post-v1.0):
-          # LIN='{"label":"Linux (x64)","runner":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","sidecar_name":"jura-sidecar-x86_64-unknown-linux-gnu","platform":"linux-only"}'
+          LIN='{"label":"Linux (x64)","runner":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","sidecar_name":"jura-sidecar-x86_64-unknown-linux-gnu","platform":"linux-only"}'
 
           case "$PLATFORMS" in
             macos-only)   INCLUDE="[$MAC]" ;;
             windows-only) INCLUDE="[$WIN]" ;;
-            all|*)        INCLUDE="[$MAC,$WIN]" ;;
+            linux-only)   INCLUDE="[$LIN]" ;;
+            all|*)        INCLUDE="[$MAC,$WIN,$LIN]" ;;
           esac
           echo "Selected platforms: $PLATFORMS"
           echo "matrix={\"include\":$INCLUDE}" >> "$GITHUB_OUTPUT"
@@ -898,9 +901,20 @@ jobs:
           echo "Scanning bundle directory: $bundle_dir"
           ls -lR "$bundle_dir" || echo "(bundle directory not found — build may have failed)"
 
+          # Strip leading "v" from the tag to build friendly installer names.
+          # e.g. tag="v1.0.0" → ver="1.0.0"
+          ver="${tag#v}"
+
           # Collect all installer and updater artefact types produced by Tauri.
-          # Uses a while-read loop instead of mapfile for macOS compatibility
-          # (macOS ships bash 3.2 which lacks mapfile).
+          # Uses a while-read loop instead of mapfile for macOS bash 3.2 compat.
+          #
+          # Naming policy:
+          #   Updater archives (.app.tar.gz, .AppImage.tar.gz, their .sig files)
+          #     → uploaded RAW (unchanged) — the updater manifest job and the
+          #       Cloudflare worker locate them by their raw Tauri suffix.
+          #   User-facing installers (.dmg, .AppImage, .deb)
+          #     → copied to a friendly JuraTrace-<ver>-<platform>.<ext> name
+          #       before upload so the release-body download links resolve.
           count=0
           find "$bundle_dir" \
             \( \
@@ -914,15 +928,58 @@ jobs:
               -o -name "*.rpm" \
             \) \
             -maxdepth 4 2>/dev/null | sort | while IFS= read -r f; do
-            echo "Uploading $(basename "$f") ..."
-            gh release upload "$tag" "$f" \
-              --repo juralabs/jura-trace \
-              --clobber
+            fname="$(basename "$f")"
+            case "$fname" in
+              *.app.tar.gz|*.app.tar.gz.sig|*.AppImage.tar.gz|*.AppImage.tar.gz.sig)
+                # Updater archives: upload raw — manifest job matches by suffix.
+                echo "Uploading (raw) $fname ..."
+                gh release upload "$tag" "$f" \
+                  --repo juralabs/jura-trace \
+                  --clobber
+                ;;
+              *.dmg)
+                friendly="JuraTrace-${ver}-macOS-AppleSilicon.dmg"
+                tmp_dir="$(mktemp -d)"
+                cp "$f" "${tmp_dir}/${friendly}"
+                echo "Uploading (friendly) ${friendly} ..."
+                gh release upload "$tag" "${tmp_dir}/${friendly}" \
+                  --repo juralabs/jura-trace \
+                  --clobber
+                rm -rf "$tmp_dir"
+                ;;
+              *.AppImage)
+                friendly="JuraTrace-${ver}-Linux-x86_64.AppImage"
+                tmp_dir="$(mktemp -d)"
+                cp "$f" "${tmp_dir}/${friendly}"
+                echo "Uploading (friendly) ${friendly} ..."
+                gh release upload "$tag" "${tmp_dir}/${friendly}" \
+                  --repo juralabs/jura-trace \
+                  --clobber
+                rm -rf "$tmp_dir"
+                ;;
+              *.deb)
+                friendly="JuraTrace-${ver}-Linux-x86_64.deb"
+                tmp_dir="$(mktemp -d)"
+                cp "$f" "${tmp_dir}/${friendly}"
+                echo "Uploading (friendly) ${friendly} ..."
+                gh release upload "$tag" "${tmp_dir}/${friendly}" \
+                  --repo juralabs/jura-trace \
+                  --clobber
+                rm -rf "$tmp_dir"
+                ;;
+              *)
+                # .rpm and any future types: upload raw.
+                echo "Uploading (raw) $fname ..."
+                gh release upload "$tag" "$f" \
+                  --repo juralabs/jura-trace \
+                  --clobber
+                ;;
+            esac
             count=$((count + 1))
           done
 
-          # Verify at least one file was found (re-run find for the check since
-          # the while loop runs in a subshell).
+          # Verify at least one installer was found (re-run find for the check
+          # since the while loop runs in a subshell and cannot export $count).
           found=$(find "$bundle_dir" \( -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" \) -maxdepth 4 2>/dev/null | head -1)
           if [ -z "$found" ]; then
             echo "ERROR: No release artefacts found under $bundle_dir"
@@ -1050,30 +1107,56 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
         run: |
           $tag = if ("${{ github.event.inputs.tag }}") { "${{ github.event.inputs.tag }}" } else { "${{ github.ref_name }}" }
+          # Strip leading "v" to build friendly installer names.
+          $ver = $tag -replace '^v', ''
           $bundle = "src-tauri\target\${{ matrix.target }}\release\bundle"
 
           # Collect signed installers and updater artefacts.
-          # Separate globs keep the intent explicit and avoid accidentally
-          # picking up PyInstaller intermediate files.
-          $msi       = Get-ChildItem "$bundle\msi\*.msi"          -ErrorAction SilentlyContinue
-          $setupExe  = Get-ChildItem "$bundle\nsis\*-setup.exe"   -ErrorAction SilentlyContinue
-          $nsisZip   = Get-ChildItem "$bundle\nsis\*.nsis.zip"    -ErrorAction SilentlyContinue
-          $nsisZipSig = Get-ChildItem "$bundle\nsis\*.nsis.zip.sig" -ErrorAction SilentlyContinue
+          # Separate globs keep the intent explicit.
+          $msiFiles    = Get-ChildItem "$bundle\msi\*.msi"            -ErrorAction SilentlyContinue
+          $setupExes   = Get-ChildItem "$bundle\nsis\*-setup.exe"     -ErrorAction SilentlyContinue
+          $nsisZips    = Get-ChildItem "$bundle\nsis\*.nsis.zip"      -ErrorAction SilentlyContinue
+          $nsisZipSigs = Get-ChildItem "$bundle\nsis\*.nsis.zip.sig"  -ErrorAction SilentlyContinue
 
-          $files = @($msi) + @($setupExe) + @($nsisZip) + @($nsisZipSig) |
-                   Where-Object { $_ -ne $null }
+          $allFiles = @($msiFiles) + @($setupExes) + @($nsisZips) + @($nsisZipSigs) |
+                      Where-Object { $_ -ne $null }
 
-          if ($files.Count -eq 0) {
+          if ($allFiles.Count -eq 0) {
             Write-Error "No Windows release artefacts found under $bundle"
             exit 1
           }
 
-          foreach ($f in $files) {
-            Write-Host "Uploading $($f.Name) ..."
-            gh release upload $tag "$($f.FullName)" `
-              --repo juralabs/jura-trace `
-              --clobber
+          $tmpDir = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), [System.IO.Path]::GetRandomFileName())
+          New-Item -ItemType Directory -Path $tmpDir | Out-Null
+
+          foreach ($f in $allFiles) {
+            # Naming policy:
+            #   .nsis.zip and .nsis.zip.sig  → upload raw (updater manifest
+            #     matches by suffix; renaming would break the manifest job).
+            #   .msi                          → friendly JuraTrace-<ver>-Windows-x64.msi
+            #   *-setup.exe                   → friendly JuraTrace-<ver>-Windows-x64-setup.exe
+            if ($f.Name -match '\.nsis\.zip(\.sig)?$') {
+              Write-Host "Uploading (raw) $($f.Name) ..."
+              gh release upload $tag "$($f.FullName)" --repo juralabs/jura-trace --clobber
+            } elseif ($f.Name -match '\.msi$') {
+              $friendly = "JuraTrace-$ver-Windows-x64.msi"
+              $dest = Join-Path $tmpDir $friendly
+              Copy-Item $f.FullName $dest
+              Write-Host "Uploading (friendly) $friendly ..."
+              gh release upload $tag $dest --repo juralabs/jura-trace --clobber
+            } elseif ($f.Name -match '-setup\.exe$') {
+              $friendly = "JuraTrace-$ver-Windows-x64-setup.exe"
+              $dest = Join-Path $tmpDir $friendly
+              Copy-Item $f.FullName $dest
+              Write-Host "Uploading (friendly) $friendly ..."
+              gh release upload $tag $dest --repo juralabs/jura-trace --clobber
+            } else {
+              Write-Host "Uploading (raw) $($f.Name) ..."
+              gh release upload $tag "$($f.FullName)" --repo juralabs/jura-trace --clobber
+            }
           }
+
+          Remove-Item -Recurse -Force $tmpDir
 
   # ── Phase 3: Publish the draft release once all platform builds succeed ──
   publish-release:

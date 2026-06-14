@@ -99,10 +99,10 @@ const USER_AGENT = "JuraTrace-Updater-Worker/1.0";
  * "darwin-x86_64", "linux-x86_64", "windows-x86_64".
  *
  * The Jura Trace release workflow produces assets named:
- *   - Jura.Trace_{version}_aarch64.app.tar.gz       (macOS Apple Silicon)
- *   - Jura.Trace_{version}_x64.app.tar.gz           (macOS Intel, not yet built)
- *   - jura-trace_{version}_amd64.AppImage.tar.gz    (Linux, not yet built)
- *   - Jura.Trace_{version}_x64_en-US.msi.zip        (Windows)
+ *   - Jura Trace_{version}_aarch64.app.tar.gz       (macOS Apple Silicon)
+ *   - Jura Trace_{version}_x64.app.tar.gz           (macOS Intel, not yet built)
+ *   - jura-trace_{version}_amd64.AppImage.tar.gz    (Linux)
+ *   - Jura Trace_{version}_x64-setup.nsis.zip       (Windows, NSIS updater archive)
  *
  * Each platform asset has a corresponding .sig file for the minisign
  * signature.
@@ -111,7 +111,11 @@ const PLATFORM_ASSET_SUFFIXES: Record<string, string> = {
   "darwin-aarch64": "aarch64.app.tar.gz",
   "darwin-x86_64": "x64.app.tar.gz",
   "linux-x86_64": "amd64.AppImage.tar.gz",
-  "windows-x86_64": "x64_en-US.msi.zip",
+  // Windows updater archive is the NSIS bundle (_x64-setup.nsis.zip), NOT the
+  // MSI — must match the suffix release.yml's manifest job writes, or the
+  // primary (juralabs.org) endpoint serves a Windows block pointing at an
+  // asset that does not exist. See release.yml platformMap.
+  "windows-x86_64": "x64-setup.nsis.zip",
 };
 
 export default {

@@ -382,6 +382,23 @@ codesign --force --sign "$SIGNING_IDENTITY" --timestamp "$DMG_PATH"
 codesign --verify --verbose=2 "$DMG_PATH" 2>&1 | tail -3
 ok "DMG signed."
 
+# ── Phase 7.5: copy DMG to friendly release name ──────────────────────
+# The Tauri bundler emits "Jura Trace_<ver>_aarch64.dmg" (raw productName
+# with space). The release workflow and release-body table expect the
+# friendly name "JuraTrace-<ver>-macOS-AppleSilicon.dmg". Produce that
+# copy here so you can upload it directly with gh release upload.
+#
+# The UPDATER archives (.app.tar.gz + .sig) must NOT be renamed — the
+# manifest job and Cloudflare worker match them by their raw Tauri suffix.
+# Upload those raw; only the DMG gets the friendly name.
+_RAW_DMG_BASENAME="$(basename "$DMG_PATH")"
+# Extract version from the raw filename: strip prefix up to first "_" and
+# suffix from the second "_" onwards → e.g. "1.0.0" or "0.9.0-rc.25".
+_VER="$(echo "$_RAW_DMG_BASENAME" | sed 's/^Jura Trace_//' | sed 's/_aarch64\.dmg$//')"
+FRIENDLY_DMG_PATH="$(dirname "$DMG_PATH")/JuraTrace-${_VER}-macOS-AppleSilicon.dmg"
+cp "$DMG_PATH" "$FRIENDLY_DMG_PATH"
+ok "Friendly DMG copy: $FRIENDLY_DMG_PATH"
+
 # ── Phase 8 (optional): notarise + staple ─────────────────────────────
 if [[ "$NOTARISE" == "1" ]]; then
   log "Phase 8: notarise via xcrun notarytool (may take 1-10 min)"
@@ -410,11 +427,14 @@ fi
 
 # ── Final summary ─────────────────────────────────────────────────────
 log "Build complete"
+_UPDATER_TGZ="$(find "$BUNDLE_DIR/macos" -name "*.app.tar.gz" | head -1)"
+_UPDATER_SIG="$(find "$BUNDLE_DIR/macos" -name "*.app.tar.gz.sig" | head -1)"
 echo
-echo "DMG:        $DMG_PATH"
-echo ".app:       $APP_PATH"
-echo "Updater:    $(find "$BUNDLE_DIR/macos" -name "*.app.tar.gz" | head -1)"
-echo "Updater .sig: $(find "$BUNDLE_DIR/macos" -name "*.app.tar.gz.sig" | head -1)"
+echo "Raw DMG:        $DMG_PATH"
+echo "Friendly DMG:   $FRIENDLY_DMG_PATH"
+echo ".app:           $APP_PATH"
+echo "Updater:        ${_UPDATER_TGZ}"
+echo "Updater .sig:   ${_UPDATER_SIG}"
 echo
 if [[ "$NOTARISE" == "1" ]]; then
   echo "Status: Signed + Notarised + Stapled. Installable on any Mac."
@@ -422,5 +442,22 @@ else
   echo "Status: Signed (not notarised). Installable on YOUR Mac. Other Macs will see Gatekeeper warning."
 fi
 echo
-echo "To install:"
+echo "To install locally:"
 echo "  open \"$DMG_PATH\""
+echo
+echo "---- Upload commands for gh release upload ----"
+echo
+echo "  # Friendly-named installer (what the release-body table links to):"
+echo "  gh release upload ${_VER:+v${_VER}} \"${FRIENDLY_DMG_PATH}\" --repo Jura-Labs/jura-trace"
+echo
+echo "  # Updater archives — upload RAW, do NOT rename:"
+echo "  #   The manifest job and Cloudflare worker match these by their raw Tauri suffix."
+if [[ -n "${_UPDATER_TGZ}" ]]; then
+  echo "  gh release upload ${_VER:+v${_VER}} \"${_UPDATER_TGZ}\" --repo Jura-Labs/jura-trace"
+fi
+if [[ -n "${_UPDATER_SIG}" ]]; then
+  echo "  gh release upload ${_VER:+v${_VER}} \"${_UPDATER_SIG}\" --repo Jura-Labs/jura-trace"
+fi
+echo
+echo "  # Replace v${_VER} with the actual tag if it differs (e.g. v${_VER}-rc.26)."
+echo "------------------------------------------------"

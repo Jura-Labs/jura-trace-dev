@@ -240,25 +240,30 @@
         </tr>
       </thead>
       <tbody>
+        <!-- Links point at the latest-release page rather than direct asset
+             URLs: release assets are version-stamped (JuraTrace-<ver>-...),
+             so a fixed /latest/download/<name> path cannot resolve without
+             per-release templating. The release page lists the clearly-named
+             installer for each platform. -->
         <tr>
           <th scope="row">macOS (Apple Silicon, M1 and later)</th>
-          <td><a href="https://github.com/juralabs/jura-trace/releases/latest/download/Jura.Trace_aarch64.dmg" data-platform="darwin-aarch64">DMG installer<span class="badge">Signed</span></a></td>
-          <td>macOS 13 Ventura or later. Apple Developer ID signed and notarised.</td>
+          <td><a href="https://github.com/Jura-Labs/jura-trace/releases/latest" data-platform="darwin-aarch64">DMG installer<span class="badge">Signed</span></a></td>
+          <td>macOS 13 Ventura or later. Apple Developer ID signed and notarised. File: <code>JuraTrace-&lt;version&gt;-macOS-AppleSilicon.dmg</code>.</td>
         </tr>
         <tr>
           <th scope="row">Windows (x64)</th>
-          <td><a href="https://github.com/juralabs/jura-trace/releases/latest/download/Jura.Trace_x64_en-US.msi" data-platform="windows-x86_64">MSI installer<span class="badge">Signed</span></a></td>
-          <td>Windows 10 22H2 or later. Azure Trusted Signing certificate.</td>
+          <td><a href="https://github.com/Jura-Labs/jura-trace/releases/latest" data-platform="windows-x86_64">MSI installer<span class="badge">Signed</span></a></td>
+          <td>Windows 10 22H2 or later. Azure Trusted Signing certificate. File: <code>JuraTrace-&lt;version&gt;-Windows-x64.msi</code>.</td>
         </tr>
         <tr>
           <th scope="row">Linux (x64, AppImage)</th>
-          <td><a href="https://github.com/juralabs/jura-trace/releases/latest/download/jura-trace_amd64.AppImage" data-platform="linux-x86_64">AppImage</a></td>
-          <td>Most modern distributions. Make executable: <code>chmod +x</code>.</td>
+          <td><a href="https://github.com/Jura-Labs/jura-trace/releases/latest" data-platform="linux-x86_64">AppImage</a></td>
+          <td>Most modern distributions. File: <code>JuraTrace-&lt;version&gt;-Linux-x86_64.AppImage</code>. Make executable: <code>chmod +x</code>.</td>
         </tr>
         <tr>
           <th scope="row">Linux (x64, Debian / Ubuntu)</th>
-          <td><a href="https://github.com/juralabs/jura-trace/releases/latest/download/jura-trace_amd64.deb" data-platform="linux-x86_64-deb">DEB package</a></td>
-          <td>Install with <code>sudo apt install ./jura-trace_amd64.deb</code>.</td>
+          <td><a href="https://github.com/Jura-Labs/jura-trace/releases/latest" data-platform="linux-x86_64-deb">DEB package</a></td>
+          <td>File: <code>JuraTrace-&lt;version&gt;-Linux-x86_64.deb</code>. Install with <code>sudo apt install ./JuraTrace-*-Linux-x86_64.deb</code>.</td>
         </tr>
       </tbody>
     </table>
