@@ -1707,6 +1707,18 @@ fn verify_url_blocking(
     // SECURITY: custom redirect policy re-validates each hop against the SSRF blocklist
     let response = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
+        // An honest, identifiable User-Agent. Many image CDNs / WAFs (e.g.
+        // Fastly, Cloudflare, Akamai fronting newsrooms like the Guardian)
+        // reject a request with no UA header with `406 Not Acceptable` or
+        // `403`, so a UA-less client silently fails on a large slice of the
+        // public web. We do not spoof a browser: a verification tool should
+        // say who it is (regression found 2026-06-13 during pre-launch URL
+        // verify testing).
+        .user_agent(concat!(
+            "JuraTrace/",
+            env!("CARGO_PKG_VERSION"),
+            " (+https://juralabs.org)"
+        ))
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= 5 {
                 return attempt.error("too many redirects");
@@ -1721,6 +1733,12 @@ fn verify_url_blocking(
         .build()
         .map_err(|e| AppError::Internal(format!("Failed to build HTTP client: {e}")))?
         .get(&url)
+        // Advertise the formats we can actually verify so a content-negotiating
+        // origin serves us the image rather than an HTML wrapper.
+        .header(
+            reqwest::header::ACCEPT,
+            "image/jpeg,image/png,image/webp,image/avif,image/tiff,image/gif,application/pdf;q=0.9,*/*;q=0.5",
+        )
         .send()
         .map_err(|e| {
             log::error!("HTTP request failed for URL {log_url}: {e}");
@@ -1735,25 +1753,45 @@ fn verify_url_blocking(
         )));
     }
 
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|ct| ct.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+
+    // A web page is not a verifiable asset. Catch it here with an explanation
+    // the user can act on, rather than letting it fall through to the generic
+    // "Unsupported format" error after a wasted download. URL verify takes a
+    // *direct* image or PDF URL; pasting an article page (which returns
+    // text/html, and whose `#fragment` anchors never reach the server) is the
+    // most common mistake.
+    if content_type.starts_with("text/") {
+        log::warn!("URL {log_url} returned {content_type}, not a verifiable asset");
+        return Err(AppError::Validation(
+            "That link is a web page, not an image. Open the image itself \
+             (right-click → Copy Image Address) and paste that direct image \
+             URL instead."
+                .to_string(),
+        ));
+    }
+
     // Determine extension from Content-Type header only.
     // The URL path is attacker-controlled and must not be used to derive the
     // extension — an extension of `../../home/user/.bashrc` would escape the
     // temp directory via path traversal.
-    let raw_ext: &str = response
-        .headers()
-        .get("content-type")
-        .and_then(|ct| ct.to_str().ok())
-        .and_then(|ct| match ct {
-            t if t.starts_with("image/jpeg") => Some("jpg"),
-            t if t.starts_with("image/png") => Some("png"),
-            t if t.starts_with("image/webp") => Some("webp"),
-            t if t.starts_with("image/avif") => Some("avif"),
-            t if t.starts_with("image/gif") => Some("gif"),
-            t if t.starts_with("image/tiff") => Some("tiff"),
-            t if t.starts_with("application/pdf") => Some("pdf"),
-            _ => None,
-        })
-        .unwrap_or("bin");
+    let raw_ext: &str = match content_type.as_str() {
+        t if t.starts_with("image/jpeg") => "jpg",
+        t if t.starts_with("image/png") => "png",
+        t if t.starts_with("image/webp") => "webp",
+        t if t.starts_with("image/avif") => "avif",
+        t if t.starts_with("image/gif") => "gif",
+        t if t.starts_with("image/tiff") => "tiff",
+        t if t.starts_with("application/pdf") => "pdf",
+        // Unknown or generic types (e.g. application/octet-stream) fall back to
+        // byte-sniffing in the verify pipeline rather than being rejected here.
+        _ => "bin",
+    };
 
     // SECURITY: Sanitise the extension to alphanumeric characters only (max 6).
     // This prevents an attacker-controlled Content-Type header from injecting
