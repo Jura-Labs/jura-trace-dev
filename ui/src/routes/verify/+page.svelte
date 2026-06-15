@@ -99,6 +99,9 @@
   // Raw scores toggle (persisted to localStorage)
   let showRawScores = $state(false);
 
+  // First-run intro card (shown once, dismissed to localStorage)
+  let introDismissed = $state(true); // default true to avoid flash; set false in onMount if key absent
+
   // Batch state
   let batchItems = $state<BatchItem[]>([]);
   let batchRunning = $state(false);
@@ -448,11 +451,39 @@
 
   const sidecarAvailable = $derived(sidecarHealth?.status === 'ok');
 
+  // Degraded-mode run: the verification completed but the forensic and AI detectors did NOT run
+  // because the Analysis Engine (Python sidecar) was offline. Only C2PA and EXIF ran.
+  // This is distinct from insufficientSignal (which also fires for format-gated results);
+  // here we specifically detect the sidecar-offline case so we can surface a clear banner.
+  // Detection logic: the result is image content AND neither 'ela' nor 'deepfake' appear in
+  // detectorsRun (the authoritative backend list), AND the sidecar remains unavailable NOW
+  // (to avoid re-showing the banner if the user manually re-verified after bringing it back up).
+  // Falls back to: sidecar offline and insufficient signal fires, for legacy records without detectorsRun.
+  const isDegradedRun = $derived((): boolean => {
+    if (!result) return false;
+    const ran: string[] | undefined = result.detectorsRun;
+    if (ran && ran.length > 0) {
+      // Authoritative path: degraded = image content where ela + deepfake both absent.
+      const isImageContent =
+        result.exifAnalysis != null ||
+        ran.includes('exif_anomaly') ||
+        ran.includes('ela') ||
+        ran.includes('deepfake');
+      if (!isImageContent) return false;
+      return !ran.includes('ela') && !ran.includes('deepfake');
+    }
+    // Legacy fallback: no detectorsRun list, so use insufficientSignal as the proxy.
+    return insufficientSignal();
+  });
+
   // Benign-uncertain: inconclusive verdict with no active manipulation or AI-generation signals.
   // Used to surface the "Uncertain does not mean fake" explanation in both Simple and Expert views.
+  // Excluded from degraded-mode runs so the "Uncertain does not mean fake" note does not
+  // fire alongside the more important degraded-mode banner.
   const isBenignUncertain = $derived(
     result != null &&
     !insufficientSignal() &&
+    !isDegradedRun() &&
     trustLevel() !== 'high' &&
     !result.elaResult?.suspicious &&
     !result.noiseResult?.suspicious &&
@@ -1291,6 +1322,9 @@
 
   // ── Lifecycle ─────────────────────────────────────────────────────
   onMount(() => {
+    // Intro card: show unless the user has already dismissed it.
+    introDismissed = localStorage.getItem('jura-verify-intro-dismissed') === 'true';
+
     const savedMode = localStorage.getItem('jura-verify-mode');
     // Migrate 'archival' -> 'deep' — archival was removed 2026-04-22 because
     // it ran the identical pipeline to Deep.  Existing pilot users had
@@ -2141,6 +2175,37 @@
     </div>
   {/if}
 
+  <!-- ── First-run intro card ──────────────────────────────────── -->
+  <!-- Shown once, until the user dismisses it. Dismissal is persisted to
+       localStorage so it never reappears. Does not block interaction. -->
+  {#if !introDismissed}
+    <div
+      class="mb-5 flex items-start gap-3 px-4 py-3 rounded-xl border border-lapis/25 bg-lapis/5"
+      role="note"
+      aria-label="How to use Jura Trace verification"
+    >
+      <p class="flex-1 text-sm text-text-light dark:text-quartz leading-relaxed">
+        Jura Trace gives you a second opinion, not a verdict. Use it alongside your other verification steps.
+      </p>
+      <button
+        type="button"
+        class="flex-shrink-0 text-xs text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz min-h-[32px] min-w-[32px] flex items-center justify-center rounded
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
+               transition-colors duration-150"
+        aria-label="Dismiss this note"
+        onclick={() => {
+          introDismissed = true;
+          localStorage.setItem('jura-verify-intro-dismissed', 'true');
+        }}
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        <span class="sr-only">Dismiss</span>
+      </button>
+    </div>
+  {/if}
+
   <!-- ── Input panel ─────────────────────────────────────────────── -->
   {#if !checked || !result}
     <div class="mb-6 bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl overflow-hidden">
@@ -2669,7 +2734,16 @@
             {fileName}{#if imageDimensions()} · {imageDimensions()}{/if}
           </p>
 
-          {#if insufficientSignal()}
+          {#if isDegradedRun()}
+            <div role="status" aria-live="polite" class="mb-3 px-3 py-2 rounded-lg border border-amber/30 bg-amber/5 text-xs text-amber-dark dark:text-amber-light leading-relaxed">
+              <strong class="text-text-light dark:text-quartz">Partial check only.</strong>
+              Based on C2PA and EXIF checks only. The Analysis Engine was not running during this verification, so the forensic and AI detection checks did not run. Treat this as a partial check.
+              <a
+                href="/settings"
+                class="ml-1 text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+              >Check service status in Settings.</a>
+            </div>
+          {:else if insufficientSignal()}
             <div role="status" aria-live="polite" class="mb-3 px-3 py-2 rounded-lg border border-flint/30 bg-flint/5 text-xs text-flint-dark dark:text-flint-light leading-relaxed">
               <strong class="text-text-light dark:text-quartz">Insufficient signal.</strong>
               Only {detectorsRun()} of {detectorsAvailable()} forensic detectors ran on this file.

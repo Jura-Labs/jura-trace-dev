@@ -62,6 +62,26 @@
     result.deepfakeResult != null
   );
 
+  /**
+   * True when the verification ran in degraded mode: the sidecar was offline so
+   * only C2PA and EXIF ran. Uses detectorsRun (authoritative backend list) when
+   * available, falling back to sidecarWasOnline for legacy records.
+   */
+  const isDegradedRun = $derived((): boolean => {
+    const ran: string[] | undefined = result.detectorsRun;
+    if (ran && ran.length > 0) {
+      const isImageContent =
+        result.exifAnalysis != null ||
+        ran.includes('exif_anomaly') ||
+        ran.includes('ela') ||
+        ran.includes('deepfake');
+      if (!isImageContent) return false;
+      return !ran.includes('ela') && !ran.includes('deepfake');
+    }
+    // Legacy fallback: no detectorsRun list, infer from result fields.
+    return !sidecarWasOnline && result.exifAnalysis != null;
+  });
+
   // ── Verdict logic (mirrors VerdictSummary derivations) ────────────────
 
   const hasValidC2pa = $derived(
@@ -437,8 +457,20 @@
     </div>
   {/if}
 
+  <!-- ── Degraded-mode banner ──────────────────────────────────── -->
+  {#if isDegradedRun()}
+    <div
+      role="status"
+      aria-live="polite"
+      class="mx-6 mb-4 px-3 py-2.5 rounded-lg border border-amber/30 bg-amber/5 text-xs text-amber-dark dark:text-amber-light leading-relaxed"
+    >
+      <strong class="text-text-light dark:text-quartz">Partial check only.</strong>
+      Based on C2PA and EXIF checks only. The Analysis Engine was not running during this verification, so the forensic and AI detection checks did not run. Treat this as a partial check.
+    </div>
+  {/if}
+
   <!-- ── Benign-uncertain explanation ─────────────────────────── -->
-  {#if verdictCategory() === 'inconclusive' && !hasManipulation && !isAiGenerated}
+  {#if verdictCategory() === 'inconclusive' && !hasManipulation && !isAiGenerated && !isDegradedRun()}
     <div class="px-6 pb-4 text-xs text-flint-dark dark:text-flint-light leading-relaxed">
       <strong class="font-medium text-text-light dark:text-quartz">"Uncertain" does not mean fake.</strong>
       Re-saving, exporting from editing or collection software, cropping, or sending a photo
