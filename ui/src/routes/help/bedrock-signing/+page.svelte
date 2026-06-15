@@ -34,6 +34,25 @@
     <div class="earth-line mt-6" aria-hidden="true"></div>
   </header>
 
+  <!-- ── Quick answer: "untrusted" callout ────────────────────────────── -->
+  <div
+    id="untrusted"
+    role="note"
+    aria-label="Quick answer: the &ldquo;untrusted&rdquo; warning"
+    class="mb-8 rounded-lg border border-amber/40 bg-amber/8 dark:bg-amber/5 px-5 py-4 text-sm text-amber-dark dark:text-amber-light leading-relaxed"
+  >
+    <p class="mb-1"><strong class="font-semibold text-text-light dark:text-quartz">Quick answer.</strong></p>
+    <p>
+      "Untrusted" is expected and does not mean your signature failed. In the default Local Signing
+      mode, Jura Trace signs with a certificate created on your own device. The signature is
+      cryptographically valid and tamper-evident: any later edit to the file breaks it. Other tools
+      mark the signer "untrusted" only because that certificate is not on the shared C2PA trust list,
+      not because anything is wrong with the file. Showing your signing certificate as trusted in
+      other tools needs a trust-list certificate. That option (Conformant Signing) is planned for a
+      future release.
+    </p>
+  </div>
+
   <!-- ── Table of contents ────────────────────────────────────────────── -->
   <nav aria-label="Page contents" class="mb-10">
     <p class="text-xs section-label uppercase tracking-widest mb-3">
@@ -185,7 +204,7 @@
   <div class="earth-line mb-12" aria-hidden="true"></div>
 
   <!-- ── The "untrusted" warning ──────────────────────────────────────── -->
-  <section aria-labelledby="untrusted-heading" id="untrusted" class="mb-12">
+  <section aria-labelledby="untrusted-heading" id="untrusted-detail" class="mb-12">
     <h2
       id="untrusted-heading"
       class="font-heading text-2xl text-text-light dark:text-quartz mb-6 leading-tight tracking-heading"

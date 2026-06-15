@@ -448,6 +448,23 @@
 
   const sidecarAvailable = $derived(sidecarHealth?.status === 'ok');
 
+  // Benign-uncertain: inconclusive verdict with no active manipulation or AI-generation signals.
+  // Used to surface the "Uncertain does not mean fake" explanation in both Simple and Expert views.
+  const isBenignUncertain = $derived(
+    result != null &&
+    !insufficientSignal() &&
+    trustLevel() !== 'high' &&
+    !result.elaResult?.suspicious &&
+    !result.noiseResult?.suspicious &&
+    !result.copyMoveResult?.suspicious &&
+    !result.shadowConsistencyResult?.suspicious &&
+    !result.colourTemperatureResult?.suspicious &&
+    !(result.spliceBoundaryResult?.suspicious && result.segmentedElaResult?.suspicious) &&
+    !(result.exifAnalysis?.findings ?? []).some((f) => f.severity === 'critical' || f.severity === 'high') &&
+    result.deepfakeResult?.verdictLevel !== 'synthetic' &&
+    !result.watermarkExtractResult?.hasWatermark
+  );
+
   // ── Content Credentials (C2PA) derived state ───────────────────────
   // sealState drives the ContentCredentialsSeal icon colour.
   const c2paSealState = $derived(() => {
@@ -2205,6 +2222,15 @@
                 <p class="text-obsidian dark:text-quartz font-medium">Drop a file to verify</p>
                 <p class="text-xs muted-help">or click to browse</p>
                 <p class="text-xs muted-help mt-1">JPEG · PNG · TIFF · WebP · HEIC · AVIF</p>
+                <p class="text-xs muted-help mt-2">
+                  Detection accuracy varies by image type and source device. For high-stakes or
+                  evidentiary work, read
+                  <a
+                    href="/help/model-cards"
+                    class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+                    onclick={(e) => e.stopPropagation()}
+                  >what the models do and do not cover</a>.
+                </p>
               </div>
             {/if}
           </button>
@@ -2676,6 +2702,13 @@
               Absence of suspicious findings alone is not enough to claim authenticity,
               particularly for re-encoded or format-converted files where compression-based
               forensics cannot run. Verdict capped at Moderate / Review.
+            </div>
+          {:else if isBenignUncertain}
+            <div role="status" aria-live="polite" class="mb-3 px-3 py-2 rounded-lg border border-flint/30 bg-flint/5 text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+              <strong class="text-text-light dark:text-quartz">"Uncertain" does not mean fake.</strong>
+              Re-saving, exporting from editing or collection software, cropping, or sending a photo
+              through a messaging app re-compresses the image and strips its metadata, which weakens or
+              removes the signals these checks rely on. Where you can, verify the original file.
             </div>
           {/if}
 

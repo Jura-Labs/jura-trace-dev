@@ -1552,6 +1552,16 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
     y += refLines.length * 3.5 + 1;
   }
 
+  // ── Signals caveat ──────────────────────────────────────────
+  y += SECTION_GAP;
+  checkPage(10);
+  doc.setFontSize(7);
+  doc.setTextColor(120);
+  const signalsCaveat = 'Jura Trace reports forensic and provenance signals consistent or inconsistent with authentic capture. It does not prove authenticity or fakery on its own.';
+  const signalsCaveatLines = doc.splitTextToSize(signalsCaveat, CONTENT_WIDTH);
+  doc.text(signalsCaveatLines, MARGIN, y);
+  y += signalsCaveatLines.length * 3 + 2;
+
   // ── Disclaimer ──────────────────────────────────────────────
   y += SECTION_GAP;
   checkPage(15);

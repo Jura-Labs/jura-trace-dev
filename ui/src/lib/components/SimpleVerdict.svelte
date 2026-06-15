@@ -137,7 +137,7 @@
       }
       if (hasManipulation) return 'Signs of Editing Detected';
       if (hasCriticalExif) return 'Provenance Anomalies Found';
-      return 'Inconclusive — Further Review Advised';
+      return 'Inconclusive. Further review advised.';
     }
     // Authentic
     if (hasValidC2pa) return 'Likely Authentic — Credentials Verified';
@@ -437,6 +437,16 @@
     </div>
   {/if}
 
+  <!-- ── Benign-uncertain explanation ─────────────────────────── -->
+  {#if verdictCategory() === 'inconclusive' && !hasManipulation && !isAiGenerated}
+    <div class="px-6 pb-4 text-xs text-flint-dark dark:text-flint-light leading-relaxed">
+      <strong class="font-medium text-text-light dark:text-quartz">"Uncertain" does not mean fake.</strong>
+      Re-saving, exporting from editing or collection software, cropping, or sending a photo
+      through a messaging app re-compresses the image and strips its metadata, which weakens or
+      removes the signals these checks rely on. Where you can, verify the original file.
+    </div>
+  {/if}
+
   <!-- ── Recommended next step ─────────────────────────────────── -->
   <div class="px-6 py-3 border-t {colorScheme().border} bg-black/5 dark:bg-black/10">
     <p class="text-xs text-flint-dark dark:text-flint-light">
@@ -447,9 +457,15 @@
 
   <!-- ── Footer: see detailed analysis ─────────────────────────── -->
   <div class="px-6 py-4 flex items-center justify-between gap-4 border-t {colorScheme().border}">
-    <p class="text-xs text-flint-dark dark:text-flint-light">
-      All analysis ran locally on your device.
-    </p>
+    <div class="flex flex-col gap-1">
+      <p class="text-xs text-flint-dark dark:text-flint-light">
+        All analysis ran locally on your device.
+      </p>
+      <p class="text-xs text-flint-dark dark:text-flint-light">
+        Jura Trace reports forensic and provenance signals consistent or inconsistent with authentic
+        capture. It does not prove authenticity or fakery on its own.
+      </p>
+    </div>
     <button
       type="button"
       onclick={onViewExpert}

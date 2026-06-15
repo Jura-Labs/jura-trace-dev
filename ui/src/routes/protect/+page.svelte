@@ -1168,6 +1168,7 @@
       This is expected for Local Signing. The certificate is your own
       per-install authority rather than a public trust-list CA. The credential
       still proves the file has not changed since you signed it.
+      <a href="/help/bedrock-signing#untrusted" class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">Why does it show "untrusted"?</a>
       {#if V1_SHOW_CONFORMANT_SIGNING}
       Import a trust-list certificate from
       <a href="/settings#signing-mode-heading" class="underline underline-offset-2 hover:no-underline">Settings → Signing Mode</a>
@@ -1719,7 +1720,9 @@
                 <code class="font-mono text-[10px]">signingCredential.untrusted</code>
                 in external validators. This is expected for Local Signing. The manifest is
                 cryptographically valid and proves the file has not changed since you signed it.
-                Trust scope is local to this install.{#if V1_SHOW_CONFORMANT_SIGNING}
+                Trust scope is local to this install.
+                <a href="/help/bedrock-signing#untrusted" class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">Why does it show "untrusted"?</a>
+                {#if V1_SHOW_CONFORMANT_SIGNING}
                 <a
                   href="/settings#signing-mode-heading"
                   class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
@@ -1791,7 +1794,7 @@
                     {signingMode === 'conformant' ? 'Conformant (trust-list anchored)' : 'Local Signing (per-install certificate)'}
                   </span>
                   {#if signingMode !== 'conformant'}
-                    <span class="block text-[11px] italic">Credential appears as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in third-party validators. This is expected for Local Signing. The credential still proves the file has not changed since you signed it.</span>
+                    <span class="block text-[11px] italic">Credential appears as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in third-party validators. This is expected for Local Signing. The credential still proves the file has not changed since you signed it. <a href="/help/bedrock-signing#untrusted" class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">Why?</a></span>
                   {/if}
                 </li>
                 <li>Producer: <span class="text-text-light dark:text-quartz">{batchSignCreatorName.trim() || '(blank)'}</span></li>
@@ -3194,7 +3197,9 @@
                         <code class="font-mono text-[10px]">signingCredential.untrusted</code>
                         in external validators. This is expected for Local Signing. The manifest is
                         cryptographically valid and proves the file has not changed since you signed it.
-                        Trust scope is local to this install.{#if V1_SHOW_CONFORMANT_SIGNING}
+                        Trust scope is local to this install.
+                        <a href="/help/bedrock-signing#untrusted" class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">Why does it show "untrusted"?</a>
+                        {#if V1_SHOW_CONFORMANT_SIGNING}
                         <a
                           href="/settings#signing-mode-heading"
                           class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
@@ -3345,7 +3350,7 @@
                             {signingMode === 'conformant' ? 'Conformant (trust-list anchored)' : 'Local Signing (per-install certificate)'}
                           </span>
                           {#if signingMode !== 'conformant'}
-                            <span class="block text-[11px] italic">Credential appears as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in third-party validators. This is expected for Local Signing. The credential still proves the file has not changed since you signed it.</span>
+                            <span class="block text-[11px] italic">Credential appears as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in third-party validators. This is expected for Local Signing. The credential still proves the file has not changed since you signed it. <a href="/help/bedrock-signing#untrusted" class="underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">Why?</a></span>
                           {/if}
                         </li>
                         <li>Producer: <span class="text-text-light dark:text-quartz">{creatorName.trim() || '(blank)'}</span></li>
