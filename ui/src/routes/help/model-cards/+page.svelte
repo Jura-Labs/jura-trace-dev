@@ -38,9 +38,10 @@
     <p class="text-xs section-label uppercase tracking-nav mb-3">Contents</p>
     <ol class="space-y-1 text-sm">
       {#each [
-        { href: '#gbm-classifier', label: 'GBM Deepfake Classifier' },
-        { href: '#univfd-probe',   label: 'UnivFD Linear Probe' },
-        { href: '#update-schedule', label: 'Update Schedule' },
+        { href: '#gbm-classifier',     label: 'GBM Deepfake Classifier' },
+        { href: '#univfd-probe',        label: 'UnivFD Linear Probe' },
+        { href: '#device-coverage',     label: 'Device Coverage' },
+        { href: '#update-schedule',     label: 'Update Schedule' },
       ] as item}
         <li>
           <a
@@ -193,6 +194,7 @@
       <li><strong>High-end camera photos:</strong> Images from DJI drones and Sony DSC cameras show a 10.32% FP rate. MakerNote EXIF data provides a partial mitigation at inference time.</li>
       <li><strong>Generator coverage:</strong> May underperform on content from generators released after April 2026 that were not represented in the training set. Quarterly retraining planned.</li>
       <li><strong>Compression sensitivity:</strong> Heavy JPEG compression or multiple re-compression cycles degrade the feature vector quality, reducing reliability.</li>
+      <li><strong>Global Majority device coverage:</strong> Device-specific false-positive rates for individual Global Majority handset families (Tecno, Infinix, Samsung A-series, Xiaomi, Redmi, Realme C) have not been individually characterised at this release. See the <a href="#device-coverage" class="text-lapis dark:text-lapis-light underline hover:no-underline">Device Coverage</a> section for details.</li>
     </ul>
 
     <!-- Release history -->
@@ -351,7 +353,8 @@
       <li><strong>Wildlife and macro photography:</strong> The <code>wikimedia_photos</code> subset (wildlife, insect macro) is the top FP source. iNaturalist photographs are being added to the authentic corpus to address this.</li>
       <li><strong>High-end camera photos:</strong> Images from DJI drones and Sony DSC cameras with very clean noise profiles are occasionally flagged. MakerNote EXIF data provides a partial mitigation at inference time.</li>
       <li><strong>Generator coverage:</strong> Trained on 14 generator families up to April 2026. New generators may produce outputs that fall outside the learned decision boundary. Quarterly retraining planned.</li>
-      <li><strong>Demographic bias:</strong> CLIP-proxy demographic audit completed April 2026. Dark-skin proxy group FP rate 7.8% vs 4.1% overall (1.9&times; ratio &mdash; below the 2&times; failure threshold but notable). Light-skin FP 5.0%. No-people FP 3.1%. Full results in the fairness documentation. Audit uses CLIP text-image similarity as a computational proxy, not human-annotated ground truth.</li>
+      <li><strong>Demographic bias:</strong> CLIP-proxy demographic audit completed April 2026. Dark-skin proxy group FP rate 7.8% vs 4.1% overall (1.9&times; ratio — below the 2&times; failure threshold but notable). Light-skin FP 5.0%. No-people FP 3.1%. Full results in the fairness documentation. Audit uses CLIP text-image similarity as a computational proxy, not human-annotated ground truth.</li>
+      <li><strong>Global Majority device coverage:</strong> Device-specific false-positive rates for individual Global Majority handset families have not been individually characterised at this release. See the <a href="#device-coverage" class="text-lapis dark:text-lapis-light underline hover:no-underline">Device Coverage</a> section for details.</li>
     </ul>
 
     <!-- Release history -->
@@ -378,6 +381,163 @@
         The next scheduled retrain is described in the Update Schedule section below.
       </p>
     </div>
+  </section>
+
+  <div class="earth-line mb-14" aria-hidden="true"></div>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!-- Device Coverage                                                   -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <section aria-labelledby="device-coverage-heading" class="mb-14" id="device-coverage">
+    <h2
+      id="device-coverage-heading"
+      class="font-heading text-2xl text-text-light dark:text-quartz mb-4 leading-tight tracking-heading"
+    >
+      Device Coverage
+    </h2>
+
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
+      Jura Trace analyses authentic photographs from camera phones and digital cameras.
+      The false-positive rate (the rate at which an authentic photograph is
+      incorrectly flagged as AI-generated) varies across device categories. This section
+      states what is known, what is validated, and where the current coverage
+      falls short. If you are using Jura Trace in field work or human-rights
+      documentation with devices common in the Global Majority, read this section
+      before drawing conclusions from trust scores.
+    </p>
+
+    <!-- What EXIF / MakerNote does for device coverage -->
+    <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">How device recognition works</h3>
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
+      Jura Trace includes two independent mechanisms that help authentic camera photos
+      receive a fair assessment:
+    </p>
+    <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
+      <li>
+        <strong>MakerNote authenticity bonus.</strong> When a photograph carries a
+        vendor-proprietary MakerNote block — a binary structure written to the EXIF
+        data by the camera firmware — the analysis pipeline applies a positive
+        authenticity adjustment. AI generators do not synthesise MakerNotes.
+        This adjustment partially offsets the tendency of the classifiers to
+        produce higher AI-probability scores for high-quality computational photography output.
+      </li>
+      <li>
+        <strong>Recognised-vendor list.</strong> A list of 36 camera manufacturers is
+        used as a softer signal when MakerNote data has been stripped (which happens
+        routinely when images are shared via messaging platforms). Of those 36 vendors,
+        11 are brands whose primary market is in Africa, South and South-East Asia, and
+        Latin America: Samsung, Huawei, Xiaomi, Oppo, Vivo, OnePlus, Realme, Tecno,
+        Infinix, Itel, and Honor. When the camera Make field matches one of these
+        vendors and no other anomaly indicators are present, the pipeline avoids
+        applying a Moderate verdict ceiling that would otherwise suppress the score.
+      </li>
+    </ul>
+
+    <!-- Validated FP rates -->
+    <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Validated false-positive rates by device category</h3>
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
+      The following figures are measured on the v1.0 training and test corpus.
+      "False positive" here means an authentic photograph that both classifiers
+      (GBM v4 and UnivFD v10onnx) and the EXIF pipeline together assessed as
+      AI-generated, after the MakerNote bonus is applied.
+    </p>
+    <div class="overflow-x-auto mb-6">
+      <table class="w-full text-sm border-collapse">
+        <thead>
+          <tr class="border-b border-border-light dark:border-border-dark">
+            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Device category</th>
+            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Example devices</th>
+            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">FP rate (post-bonus)</th>
+            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Validation status</th>
+          </tr>
+        </thead>
+        <tbody class="muted-help">
+          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
+            <td class="py-2 pr-4">Consumer smartphone</td>
+            <td class="py-2 pr-4">Google Pixel, Apple iPhone</td>
+            <td class="py-2 pr-4 font-mono">8.81%</td>
+            <td class="py-2 pr-4">Validated on corpus (n&gt;500)</td>
+          </tr>
+          <tr class="border-b border-border-light/50 dark:border-border-dark/50">
+            <td class="py-2 pr-4">High-end camera / drone</td>
+            <td class="py-2 pr-4">DJI Mavic/Mini, Sony DSC</td>
+            <td class="py-2 pr-4 font-mono">10.32%</td>
+            <td class="py-2 pr-4">Validated on corpus (n&gt;500)</td>
+          </tr>
+          <tr>
+            <td class="py-2 pr-4">Global Majority handset</td>
+            <td class="py-2 pr-4">Tecno, Infinix, Samsung A-series, Xiaomi Redmi, Realme C</td>
+            <td class="py-2 pr-4 font-mono">Not yet individually characterised</td>
+            <td class="py-2 pr-4 font-weight-medium text-amber-600 dark:text-amber-400">Gap — see note below</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- The coverage gap — stated plainly -->
+    <div
+      class="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4 mb-6"
+      role="note"
+      aria-label="Coverage gap notice"
+    >
+      <p class="text-sm font-medium text-amber-800 dark:text-amber-300 mb-1">Coverage gap at v1.0</p>
+      <p class="text-sm text-amber-900 dark:text-amber-200 leading-relaxed">
+        The training corpus collected for v1.0 contains approximately 1,000 fewer photographs
+        from Global Majority handsets than the target set for this device category (the shortfall
+        is in the Tecno, Infinix, Samsung A-series, Xiaomi, and Realme families specifically).
+        The classifiers recognise the camera vendors listed above, and the MakerNote
+        authenticity bonus applies when a MakerNote is present. However, a per-device-family
+        false-positive rate at the resolution of "Tecno Camon" or "Xiaomi Redmi Note" has
+        not been measured and cannot be stated at this release.
+      </p>
+      <p class="text-sm text-amber-900 dark:text-amber-200 leading-relaxed mt-2">
+        In practice, this means: if you verify a photograph taken on one of these devices and
+        the result is "Uncertain" or lower, you should not rely on that result alone as
+        evidence of AI generation. Use the per-detector breakdown (accessible via the
+        trust-score detail panel) to understand which signals drove the assessment, and
+        apply the same scrutiny you would apply to any automated tool whose accuracy on
+        your specific device class has not been published.
+      </p>
+      <p class="text-sm text-amber-900 dark:text-amber-200 leading-relaxed mt-2">
+        Addressing this gap is a v1.1 priority. The next retraining cycle will include
+        an expanded corpus of Global Majority handset photographs collected under
+        explicit consent, and per-device-family FP rates will be published in this
+        section when that work is complete.
+      </p>
+    </div>
+
+    <!-- What does validate -->
+    <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">What the models do validate</h3>
+    <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
+      <li>
+        <strong>Cross-generator generalisation.</strong> Both classifiers are trained
+        on approximately 14 AI-generator families spanning commercial closed-source
+        and open-weights diffusion and GAN models. The UnivFD probe's CLIP-based
+        approach in particular generalises well to generator outputs it was not
+        trained on (AUC-ROC 0.9929 on the held-out test set).
+      </li>
+      <li>
+        <strong>Platform-forwarded images.</strong> Both classifiers were trained on
+        re-compressed variants simulating WhatsApp (Q=85), Twitter (Q=75), and
+        cross-platform forwarding chains (Q=85 then Q=75). This is especially relevant
+        for field contexts where photographs are shared via messaging apps before
+        they are verified.
+      </li>
+      <li>
+        <strong>Multi-format robustness.</strong> The UnivFD v10 probe was retrained
+        on JPEG, PNG, TIFF, WebP, and HEIC variants to ensure consistent AI-detection
+        confidence across file formats. This matters because some social-platform
+        workflows convert photographs between formats before they reach a verifier.
+      </li>
+    </ul>
+
+    <p class="text-xs muted-help leading-relaxed italic">
+      FP rate figures above are measured on the internal held-out test corpus and reflect
+      the combined pipeline (both classifiers plus EXIF analysis) after the MakerNote
+      authenticity bonus is applied. They describe aggregate device-category performance,
+      not per-model performance. Source: <code>CLAUDE.md</code> "Models in production" +
+      <code>docs/backlog.md</code> JTV-127/128 entries (v1.0 corpus gap record).
+    </p>
   </section>
 
   <div class="earth-line mb-14" aria-hidden="true"></div>
