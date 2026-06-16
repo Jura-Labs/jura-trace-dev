@@ -19,6 +19,10 @@
   let sidecarReminderDismissed = $state(false);
   let mobileMenuOpen = $state(false);
   let currentPath = $state('/');
+  // Real app version for the footer, resolved from the Tauri runtime in
+  // onMount. Defaults to the current release so a browser-dev render and the
+  // pre-resolve frame are never wrong.
+  let appVersion = $state('1.0.0');
 
   // ── Webview zoom ──────────────────────────────────────────────────────────
   // Persists across launches via localStorage.  Steps 0.1 in range [0.8, 1.5].
@@ -89,6 +93,12 @@
     }
 
     currentPath = window.location.pathname;
+
+    try {
+      appVersion = await getVersion();
+    } catch {
+      // Browser dev mode — keep the default.
+    }
 
     // Managed deployments can set skip_setup_wizard=true in config.json to
     // suppress the wizard for all users on that machine. When the flag is set
@@ -463,7 +473,7 @@
         <div class="flex items-center gap-3">
           <LogoMark size={24} />
           <span class="brand-name text-xs text-text-light dark:text-text-dark">Jura Trace</span>
-          <span class="text-xs">v0.9.0</span>
+          <span class="text-xs">v{appVersion}</span>
         </div>
         <p class="text-xs text-center muted-help">Know What's Real</p>
         <div class="flex items-center gap-4 text-xs">
@@ -487,15 +497,6 @@
             class="underline underline-offset-2 hover:no-underline hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
           >
             Licences
-          </a>
-          <a
-            href="https://codeberg.org/jura-labs/jura-trace"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="underline underline-offset-2 hover:no-underline hover:text-lapis dark:hover:text-lapis dark:text-lapis-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-          >
-            Source
-            <span class="sr-only">(opens in new tab)</span>
           </a>
           <a
             href={DONATE_URL}

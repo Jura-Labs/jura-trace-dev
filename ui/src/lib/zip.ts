@@ -23,7 +23,7 @@ export async function exportCaseZip(
   meta: CaseExportMeta
 ): Promise<Blob> {
   const zip = new JSZip();
-  const version = meta.appVersion ?? '0.9.0';
+  const version = meta.appVersion ?? '1.0.0';
   const trustPercent = Math.round(result.overallTrust * 100);
   const trustLevel = getTrustLevel(result.overallTrust);
 

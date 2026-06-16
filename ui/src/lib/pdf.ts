@@ -165,7 +165,7 @@ async function transcodePngToJpeg(
 /** Generate a trust report PDF and return as a Blob. */
 export async function generateTrustReport(result: VerificationResult, meta: ReportMeta, ctx?: ReportContext, reportFormat: ReportFormat = 'standard'): Promise<Blob> {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
-  const version = meta.appVersion ?? '0.9.0';
+  const version = meta.appVersion ?? '1.0.0';
   let y = MARGIN;
 
   function addFooter() {
