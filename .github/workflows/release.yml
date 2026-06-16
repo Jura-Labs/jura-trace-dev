@@ -1622,6 +1622,15 @@ jobs:
             }
 
       - name: Publish release
+        # Only auto-publish when EVERY platform built in CI. macOS is built
+        # locally and uploaded after this run (its CI job fails at the known
+        # Phase 5 codesign step), so in normal operation this step is skipped
+        # and the release stays a DRAFT for manual publish once the macOS
+        # artefacts are attached. SHA256SUMS and manifest generation above
+        # still run regardless, so the draft is fully populated for Win/Linux.
+        # Without this guard the SHA256SUMS gating (needs.build can be failure)
+        # would publish a macOS-less release the moment CI finishes.
+        if: needs.build.result == 'success'
         # Uses RELEASE_PAT to flip the draft release to published on
         # juralabs/jura-trace (the public releases repo).
         uses: actions/github-script@v7
