@@ -486,7 +486,10 @@
     !isDegradedRun() &&
     trustLevel() !== 'high' &&
     !result.elaResult?.suspicious &&
-    !result.noiseResult?.suspicious &&
+    // noise (and jpeg-ghost, which is not checked here) are intentionally
+    // allowed: re-compression trips them, which is exactly the benign
+    // "Uncertain" case this note explains. The structural-manipulation
+    // detectors below still block the note when there are real editing signals.
     !result.copyMoveResult?.suspicious &&
     !result.shadowConsistencyResult?.suspicious &&
     !result.colourTemperatureResult?.suspicious &&

@@ -116,6 +116,20 @@
     (result.spliceBoundaryResult?.suspicious === true && result.segmentedElaResult?.suspicious === true)
   );
 
+  // Structural-manipulation signals only: hasManipulation minus the noise
+  // detector, which any re-compression (re-save, screenshot, messaging-app
+  // forward) trips. Used solely to gate the benign-uncertain note so it still
+  // shows on a re-saved genuine photo, while staying hidden whenever there is a
+  // real editing signal (ELA, copy-move, shadow, colour temperature, or a
+  // corroborated splice). Does NOT affect the verdict label.
+  const hasStructuralManipulation = $derived(
+    result.elaResult?.suspicious === true ||
+    result.copyMoveResult?.suspicious === true ||
+    result.shadowConsistencyResult?.suspicious === true ||
+    result.colourTemperatureResult?.suspicious === true ||
+    (result.spliceBoundaryResult?.suspicious === true && result.segmentedElaResult?.suspicious === true)
+  );
+
   const hasCriticalExif = $derived(
     result.exifAnalysis != null &&
     result.exifAnalysis.findings.some(
@@ -470,7 +484,7 @@
   {/if}
 
   <!-- ── Benign-uncertain explanation ─────────────────────────── -->
-  {#if verdictCategory() === 'inconclusive' && !hasManipulation && !isAiGenerated && !isDegradedRun()}
+  {#if verdictCategory() === 'inconclusive' && !hasStructuralManipulation && !isAiGenerated && !isDegradedRun()}
     <div class="px-6 pb-4 text-xs text-flint-dark dark:text-flint-light leading-relaxed">
       <strong class="font-medium text-text-light dark:text-quartz">"Uncertain" does not mean fake.</strong>
       Re-saving, exporting from editing or collection software, cropping, or sending a photo
