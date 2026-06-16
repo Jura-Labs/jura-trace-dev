@@ -204,3 +204,8 @@ docs/decisions/option-c-corpus-strategy.md
 docs/fairness/corpus-demographic-profile.md
 docs/TEST_CORPUS_BRIEFING.md
 docs/testing/real-world-test-plan.md
+
+# Onboarding sample pack — release asset, built by scripts/build-sample-pack.sh
+docs/sample-media/jura-trace-sample-images.zip
+docs/sample-media/jura-trace-sample-images/
+docs/sample-media/source/
