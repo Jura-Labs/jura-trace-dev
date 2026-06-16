@@ -1214,6 +1214,8 @@ jobs:
         uses: actions/github-script@v7
         env:
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+          RELEASE_TAG: ${{ needs.create-release.outputs.tag }}
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
         with:
           github-token: ${{ secrets.RELEASE_PAT }}
           script: |
@@ -1281,23 +1283,16 @@ jobs:
             const sumsPath = path.join(tmpDir, 'SHA256SUMS.txt');
             fs.writeFileSync(sumsPath, lines.join('\n') + '\n');
 
-            // Remove any pre-existing SHA256SUMS.txt asset (idempotent re-runs).
-            const existing = assets.find(a => a.name === 'SHA256SUMS.txt');
-            if (existing) {
-              await github.rest.repos.deleteReleaseAsset({
-                owner: 'juralabs',
-                repo: 'jura-trace',
-                asset_id: existing.id,
-              });
-            }
-
-            await github.rest.repos.uploadReleaseAsset({
-              owner: 'juralabs',
-              repo: 'jura-trace',
-              release_id: releaseId,
-              name: 'SHA256SUMS.txt',
-              data: fs.readFileSync(sumsPath),
-            });
+            // Upload via the gh CLI (GH_TOKEN = RELEASE_PAT). The octokit
+            // uploadReleaseAsset path logged success but did NOT attach the
+            // asset to the draft release (caught in the rc.32 smoke). gh
+            // release upload is the same proven path the installer assets use;
+            // --clobber makes it idempotent on re-runs (replaces the manual
+            // delete-then-upload above).
+            execSync(
+              `gh release upload "${process.env.RELEASE_TAG}" "${sumsPath}" --repo juralabs/jura-trace --clobber`,
+              { stdio: 'inherit' }
+            );
             console.log('Uploaded SHA256SUMS.txt');
 
       # Generate the Tauri auto-updater manifest and upload it to the release.
