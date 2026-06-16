@@ -40,4 +40,4 @@ This is usually correct behaviour, not a fault. Re-saving, screenshotting, cropp
 
 ## Reporting a problem
 
-Jura Trace sends no telemetry, so we only learn about issues you report. Use the in-app feedback option (it pre-fills the app version, platform, and a reason code, with no file contents), or open an issue on the public repository at https://codeberg.org/jura-labs/jura-trace. Include your platform, the app version (Settings tab), and the Service Status shown if the engine is offline.
+Jura Trace sends no telemetry, so we only learn about issues you report. Use the in-app feedback option (it pre-fills the app version, platform, and a reason code, with no file contents), or email feedback@juralabs.org directly. Include your platform, the app version (Settings tab), and the Service Status shown if the engine is offline.

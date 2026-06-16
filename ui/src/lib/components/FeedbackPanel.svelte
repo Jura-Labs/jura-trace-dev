@@ -328,8 +328,7 @@
           href="mailto:feedback@juralabs.org"
           class="text-lapis dark:text-lapis-light hover:text-quartz underline underline-offset-2 transition-colors duration-150
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-        >feedback@juralabs.org</a>
-        or into a GitHub issue.
+        >feedback@juralabs.org</a>.
       </p>
 
     </div>
