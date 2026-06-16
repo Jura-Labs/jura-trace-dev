@@ -92,31 +92,56 @@ const CACHE_TTL_SECONDS = 300;
 const USER_AGENT = "JuraTrace-Updater-Worker/1.0";
 
 /**
- * Mapping from Tauri platform identifier to the asset-name suffix the
+ * Mapping from Tauri platform identifier to the asset-name suffixes the
  * Jura Trace release workflow uses.
  *
- * The Tauri auto-updater expects platforms keyed as "darwin-aarch64",
- * "darwin-x86_64", "linux-x86_64", "windows-x86_64".
+ * Tauri v2 with createUpdaterArtifacts: true (NOT "v1Compatible") produces:
+ *   - macOS   : *_aarch64.app.tar.gz + *_aarch64.app.tar.gz.sig
+ *   - Linux   : *_amd64.AppImage (friendly: JuraTrace-<ver>-Linux-x86_64.AppImage)
+ *               + *_amd64.AppImage.sig (raw Tauri name, never renamed)
+ *   - Windows : *_x64_en-US.msi (friendly: JuraTrace-<ver>-Windows-x64.msi)
+ *               + *_x64_en-US.msi.sig (raw Tauri name, never renamed)
  *
- * The Jura Trace release workflow produces assets named:
- *   - Jura Trace_{version}_aarch64.app.tar.gz       (macOS Apple Silicon)
- *   - Jura Trace_{version}_x64.app.tar.gz           (macOS Intel, not yet built)
- *   - jura-trace_{version}_amd64.AppImage.tar.gz    (Linux)
- *   - Jura Trace_{version}_x64-setup.nsis.zip       (Windows, NSIS updater archive)
+ * NOTE: The v1Compatible format produced .AppImage.tar.gz and .nsis.zip
+ * archives. v2 signs the installer directly — no separate archive.
  *
- * Each platform asset has a corresponding .sig file for the minisign
- * signature.
+ * Because the release workflow renames the installer assets to friendly names
+ * (JuraTrace-<ver>-...) but uploads .sig files raw (Tauri's own name), the
+ * URL suffix and the sig suffix are different for Linux and Windows.
+ * We carry both in a structured config rather than a plain string.
  */
-const PLATFORM_ASSET_SUFFIXES: Record<string, string> = {
-  "darwin-aarch64": "aarch64.app.tar.gz",
-  "darwin-x86_64": "x64.app.tar.gz",
-  "linux-x86_64": "amd64.AppImage.tar.gz",
-  // Windows updater archive is the NSIS bundle (_x64-setup.nsis.zip), NOT the
-  // MSI — must match the suffix release.yml's manifest job writes, or the
-  // primary (juralabs.org) endpoint serves a Windows block pointing at an
-  // asset that does not exist. See release.yml platformMap.
-  "windows-x86_64": "x64-setup.nsis.zip",
+interface PlatformAssetConfig {
+  /** Suffix to find the downloadable installer on the release. */
+  urlSuffix: string;
+  /** Suffix to find the detached .sig file on the release (raw Tauri name). */
+  sigSuffix: string;
+}
+
+const PLATFORM_ASSET_CONFIG: Record<string, PlatformAssetConfig> = {
+  // macOS: Tauri names the updater archive "<productName>.app.tar.gz"
+  // (e.g. "Jura Trace.app.tar.gz"), no version/arch in the name, uploaded raw.
+  "darwin-aarch64": {
+    urlSuffix: ".app.tar.gz",
+    sigSuffix: ".app.tar.gz.sig",
+  },
+  // darwin-x86_64 omitted — Intel Mac users run the ARM build under Rosetta 2.
+  // Linux: installer is friendly-renamed; .sig is uploaded raw.
+  "linux-x86_64": {
+    urlSuffix: ".AppImage",
+    sigSuffix: "_amd64.AppImage.sig",
+  },
+  // Windows: MSI is friendly-renamed; .sig is uploaded raw.
+  // Must match the suffix release.yml's manifest job writes.
+  "windows-x86_64": {
+    urlSuffix: ".msi",
+    sigSuffix: ".msi.sig",
+  },
 };
+
+// Convenience lookup used by the per-platform route guard.
+const PLATFORM_ASSET_SUFFIXES: Record<string, string> = Object.fromEntries(
+  Object.entries(PLATFORM_ASSET_CONFIG).map(([k, v]) => [k, v.urlSuffix])
+);
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -313,14 +338,22 @@ async function buildPlatformBlock(release: GitHubRelease, platform: string): Pro
  * For the aggregated /latest.json endpoint we accept that signatures
  * are passed as URLs rather than inline contents; Tauri's updater
  * supports both forms.
+ *
+ * Uses PLATFORM_ASSET_CONFIG rather than a single suffix because the
+ * release workflow uploads the installer under a friendly name but the
+ * .sig under its original Tauri-produced name — so the URL suffix and
+ * the sig suffix differ for Linux and Windows.
  */
 function buildPlatformBlockSync(release: GitHubRelease, platform: string): TauriUpdatePlatform | null {
-  const suffix = PLATFORM_ASSET_SUFFIXES[platform];
-  const asset = release.assets.find((a) => a.name.endsWith(suffix));
+  const cfg = PLATFORM_ASSET_CONFIG[platform];
+  if (!cfg) return null;
+  const asset = release.assets.find((a) => a.name.toLowerCase().endsWith(cfg.urlSuffix.toLowerCase()));
   if (!asset) return null;
-  const sig = release.assets.find((a) => a.name === `${asset.name}.sig`);
+  // Locate the .sig by its own suffix — it may have a different base name than
+  // the installer asset when the installer was friendly-renamed on upload.
+  const sig = release.assets.find((a) => a.name.toLowerCase().endsWith(cfg.sigSuffix.toLowerCase()));
   if (!sig) {
-    console.warn(`No .sig found for ${asset.name}`);
+    console.warn(`No .sig found for ${platform} (expected suffix: ${cfg.sigSuffix})`);
     return null;
   }
   return { url: asset.browser_download_url, signature: sig.browser_download_url };

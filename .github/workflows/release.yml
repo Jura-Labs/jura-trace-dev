@@ -841,31 +841,35 @@ jobs:
           spctl --assess --verbose=2 --type install "$dmg" 2>&1 | tail -3
 
       # ── Empty-signature gate (macOS / Linux) ────────────────────────────
-      # Fails the build if any updater payload (.app.tar.gz on macOS;
-      # .AppImage.tar.gz on Linux) is missing its corresponding .sig file
-      # OR has a zero-byte .sig. This catches the failure mode where
-      # TAURI_SIGNING_PRIVATE_KEY is not configured in repo Secrets:
-      # tauri-action emits empty .sig files and the Tauri updater silently
-      # refuses to apply any update — an unsigned update would be a
-      # critical security gap on a public release.
+      # Fails the build if any updater payload is missing its .sig file
+      # or has a zero-byte .sig. Tauri v2 with createUpdaterArtifacts:true
+      # produces:
+      #   macOS  — *.app.tar.gz  + *.app.tar.gz.sig  (tar archive)
+      #   Linux  — *.AppImage    + *.AppImage.sig     (the AppImage itself,
+      #            NOT a separate .AppImage.tar.gz — that is the v1Compatible
+      #            format; v2 signs the AppImage directly)
+      # This catches the failure mode where TAURI_SIGNING_PRIVATE_KEY is not
+      # configured in repo Secrets: tauri-action emits empty .sig files and
+      # the Tauri updater silently refuses to apply any update.
       - name: Verify updater signatures (macOS and Linux)
         if: runner.os != 'Windows'
         shell: bash
         run: |
           bundle_dir="src-tauri/target/${{ matrix.target }}/release/bundle"
           sig_problems=0
-          while IFS= read -r tarball; do
-            sig="${tarball}.sig"
+          # macOS: *.app.tar.gz; Linux: *.AppImage (v2 format, not .tar.gz)
+          while IFS= read -r payload; do
+            sig="${payload}.sig"
             if [ ! -f "$sig" ]; then
-              echo "ERROR: missing .sig for ${tarball}"
+              echo "ERROR: missing .sig for ${payload}"
               sig_problems=$((sig_problems + 1))
             elif [ ! -s "$sig" ]; then
-              echo "ERROR: empty .sig for ${tarball} (zero bytes)"
+              echo "ERROR: empty .sig for ${payload} (zero bytes)"
               sig_problems=$((sig_problems + 1))
             else
               echo "OK: $(basename "${sig}") ($(wc -c < "${sig}") bytes)"
             fi
-          done < <(find "$bundle_dir" \( -name "*.app.tar.gz" -o -name "*.AppImage.tar.gz" \) -maxdepth 4 2>/dev/null)
+          done < <(find "$bundle_dir" \( -name "*.app.tar.gz" -o -name "*.AppImage" \) -maxdepth 4 2>/dev/null)
           if [ "$sig_problems" -gt 0 ]; then
             echo "FAIL: ${sig_problems} updater signature problem(s)."
             echo "Verify TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
@@ -875,14 +879,28 @@ jobs:
 
       # Upload macOS and Linux artefacts to juralabs/jura-trace via RELEASE_PAT.
       #
-      # Bundle output directories:
+      # Bundle output directories (Tauri v2, createUpdaterArtifacts: true):
       #   macOS: src-tauri/target/aarch64-apple-darwin/release/bundle/
       #     dmg/*.dmg
-      #     macos/*.app.tar.gz  and  *.app.tar.gz.sig
+      #     macos/*.app.tar.gz          ← updater archive (tar of the .app)
+      #     macos/*.app.tar.gz.sig      ← minisign updater signature
       #   Linux: src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/
-      #     appimage/*.AppImage  and  *.AppImage.tar.gz  and  *.AppImage.tar.gz.sig
-      #     deb/*.deb
-      #     rpm/*.rpm  (if built)
+      #     appimage/*.AppImage         ← user installer AND the updater target
+      #     appimage/*.AppImage.sig     ← minisign updater signature
+      #     deb/*.deb  /  deb/*.deb.sig
+      #     rpm/*.rpm  /  rpm/*.rpm.sig  (if built)
+      #
+      # NOTE: In Tauri v2 (createUpdaterArtifacts: true) the updater signs
+      # the AppImage directly — there is NO separate .AppImage.tar.gz.
+      # That archive format belongs to createUpdaterArtifacts: "v1Compatible".
+      #
+      # Naming policy:
+      #   Updater payloads (.app.tar.gz, .app.tar.gz.sig, .AppImage.sig,
+      #   .deb.sig, .rpm.sig) → uploaded RAW — the manifest job and the
+      #   Cloudflare worker locate them by their Tauri-produced suffix.
+      #   User-facing installers (.dmg, .AppImage, .deb) → copied to a
+      #   friendly JuraTrace-<ver>-<platform>.<ext> name before upload so
+      #   the release-body download links resolve.
       #
       # gh release upload --clobber is idempotent — safe on re-runs.
       - name: Upload release artefacts to jura-trace (macOS and Linux)
@@ -905,33 +923,28 @@ jobs:
           # e.g. tag="v1.0.0" → ver="1.0.0"
           ver="${tag#v}"
 
-          # Collect all installer and updater artefact types produced by Tauri.
+          # Collect all installer and updater artefact types produced by Tauri v2.
           # Uses a while-read loop instead of mapfile for macOS bash 3.2 compat.
-          #
-          # Naming policy:
-          #   Updater archives (.app.tar.gz, .AppImage.tar.gz, their .sig files)
-          #     → uploaded RAW (unchanged) — the updater manifest job and the
-          #       Cloudflare worker locate them by their raw Tauri suffix.
-          #   User-facing installers (.dmg, .AppImage, .deb)
-          #     → copied to a friendly JuraTrace-<ver>-<platform>.<ext> name
-          #       before upload so the release-body download links resolve.
-          count=0
           find "$bundle_dir" \
             \( \
               -name "*.dmg" \
               -o -name "*.app.tar.gz" \
               -o -name "*.app.tar.gz.sig" \
               -o -name "*.AppImage" \
-              -o -name "*.AppImage.tar.gz" \
-              -o -name "*.AppImage.tar.gz.sig" \
+              -o -name "*.AppImage.sig" \
               -o -name "*.deb" \
+              -o -name "*.deb.sig" \
               -o -name "*.rpm" \
+              -o -name "*.rpm.sig" \
             \) \
             -maxdepth 4 2>/dev/null | sort | while IFS= read -r f; do
             fname="$(basename "$f")"
             case "$fname" in
-              *.app.tar.gz|*.app.tar.gz.sig|*.AppImage.tar.gz|*.AppImage.tar.gz.sig)
-                # Updater archives: upload raw — manifest job matches by suffix.
+              *.app.tar.gz|*.app.tar.gz.sig|*.AppImage.sig|*.deb.sig|*.rpm.sig)
+                # Updater sig files and macOS updater archive: upload raw.
+                # Manifest job locates them by their Tauri-produced suffix.
+                # The AppImage.sig stays raw so the manifest job can match it
+                # against the friendly-named AppImage via asset-name lookup.
                 echo "Uploading (raw) $fname ..."
                 gh release upload "$tag" "$f" \
                   --repo juralabs/jura-trace \
@@ -967,19 +980,18 @@ jobs:
                   --clobber
                 rm -rf "$tmp_dir"
                 ;;
-              *)
-                # .rpm and any future types: upload raw.
+              *.rpm)
+                # .rpm: upload raw (no friendly rename policy yet).
                 echo "Uploading (raw) $fname ..."
                 gh release upload "$tag" "$f" \
                   --repo juralabs/jura-trace \
                   --clobber
                 ;;
             esac
-            count=$((count + 1))
           done
 
           # Verify at least one installer was found (re-run find for the check
-          # since the while loop runs in a subshell and cannot export $count).
+          # since the while loop runs in a subshell and cannot export a counter).
           found=$(find "$bundle_dir" \( -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" \) -maxdepth 4 2>/dev/null | head -1)
           if [ -z "$found" ]; then
             echo "ERROR: No release artefacts found under $bundle_dir"
@@ -1013,18 +1025,30 @@ jobs:
           args: --target ${{ matrix.target }}
 
       # ── Empty-signature gate (Windows) ──────────────────────────────────
-      # Same purpose as the macOS / Linux gate above — fails if the Tauri
-      # updater archive (.nsis.zip) lacks a non-empty minisign .sig file.
+      # Tauri v2 with createUpdaterArtifacts: true produces .sig files
+      # alongside the installers themselves — NOT a .nsis.zip archive.
+      # v2 format:
+      #   bundle/msi/Jura Trace_<ver>_x64_en-US.msi      + .msi.sig
+      #   bundle/nsis/Jura Trace_<ver>_x64-setup.exe     + -setup.exe.sig
+      # (The .nsis.zip format belongs to createUpdaterArtifacts: "v1Compatible".)
       # Authenticode signing (Azure step below) is a separate concern and
-      # does not affect the .sig file.
+      # does not affect the minisign .sig files.
       - name: Verify updater signatures (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $bundle = "src-tauri\target\${{ matrix.target }}\release\bundle"
           $problems = 0
-          $tarballs = Get-ChildItem -Path $bundle -Recurse -Filter "*.nsis.zip" -ErrorAction SilentlyContinue
-          foreach ($t in $tarballs) {
+          # Collect both MSI and NSIS exe installers — each should have a .sig
+          $installers = @(
+            Get-ChildItem -Path $bundle -Recurse -Filter "*.msi"       -ErrorAction SilentlyContinue
+            Get-ChildItem -Path $bundle -Recurse -Filter "*-setup.exe" -ErrorAction SilentlyContinue
+          ) | Where-Object { $_ -ne $null }
+          if ($installers.Count -eq 0) {
+            Write-Error "ERROR: No MSI or NSIS installer found under $bundle — build may have failed."
+            exit 1
+          }
+          foreach ($t in $installers) {
             $sig = "$($t.FullName).sig"
             if (-not (Test-Path $sig)) {
               Write-Error "ERROR: missing .sig for $($t.Name)"
@@ -1088,12 +1112,16 @@ jobs:
       # Upload the signed Windows artefacts to the draft release on
       # juralabs/jura-trace (the PUBLIC releases repo) via RELEASE_PAT.
       #
-      # tauri-action produces the following files for a Windows x64 build
-      # (names are version-dependent; glob patterns handle that):
+      # Tauri v2 (createUpdaterArtifacts: true) produces for a Windows x64 build:
       #   bundle/msi/Jura Trace_<ver>_x64_en-US.msi
+      #   bundle/msi/Jura Trace_<ver>_x64_en-US.msi.sig        (minisign updater sig)
       #   bundle/nsis/Jura Trace_<ver>_x64-setup.exe
-      #   bundle/nsis/Jura Trace_<ver>_x64-setup.nsis.zip        (updater archive)
-      #   bundle/nsis/Jura Trace_<ver>_x64-setup.nsis.zip.sig    (minisign — empty until TAURI_SIGNING_PRIVATE_KEY is set)
+      #   bundle/nsis/Jura Trace_<ver>_x64-setup.exe.sig       (minisign updater sig)
+      #
+      # NOTE: The v1Compatible format produced .nsis.zip / .nsis.zip.sig archives.
+      # In v2 format the .sig is a detached signature on the installer itself.
+      # The updater downloads the installer directly; the .sig is read inline by
+      # the manifest job to populate platforms.windows-x86_64.signature.
       #
       # gh release upload with --clobber silently replaces an asset that
       # already exists (idempotent re-runs after a partial failure).
@@ -1111,14 +1139,15 @@ jobs:
           $ver = $tag -replace '^v', ''
           $bundle = "src-tauri\target\${{ matrix.target }}\release\bundle"
 
-          # Collect signed installers and updater artefacts.
+          # Collect signed installers and their detached .sig files.
           # Separate globs keep the intent explicit.
-          $msiFiles    = Get-ChildItem "$bundle\msi\*.msi"            -ErrorAction SilentlyContinue
-          $setupExes   = Get-ChildItem "$bundle\nsis\*-setup.exe"     -ErrorAction SilentlyContinue
-          $nsisZips    = Get-ChildItem "$bundle\nsis\*.nsis.zip"      -ErrorAction SilentlyContinue
-          $nsisZipSigs = Get-ChildItem "$bundle\nsis\*.nsis.zip.sig"  -ErrorAction SilentlyContinue
+          # v2 format: .msi + .msi.sig, -setup.exe + -setup.exe.sig
+          $msiFiles    = Get-ChildItem "$bundle\msi\*.msi"           -ErrorAction SilentlyContinue
+          $msiSigs     = Get-ChildItem "$bundle\msi\*.msi.sig"       -ErrorAction SilentlyContinue
+          $setupExes   = Get-ChildItem "$bundle\nsis\*-setup.exe"    -ErrorAction SilentlyContinue
+          $setupSigs   = Get-ChildItem "$bundle\nsis\*-setup.exe.sig" -ErrorAction SilentlyContinue
 
-          $allFiles = @($msiFiles) + @($setupExes) + @($nsisZips) + @($nsisZipSigs) |
+          $allFiles = @($msiFiles) + @($msiSigs) + @($setupExes) + @($setupSigs) |
                       Where-Object { $_ -ne $null }
 
           if ($allFiles.Count -eq 0) {
@@ -1131,11 +1160,11 @@ jobs:
 
           foreach ($f in $allFiles) {
             # Naming policy:
-            #   .nsis.zip and .nsis.zip.sig  → upload raw (updater manifest
-            #     matches by suffix; renaming would break the manifest job).
-            #   .msi                          → friendly JuraTrace-<ver>-Windows-x64.msi
-            #   *-setup.exe                   → friendly JuraTrace-<ver>-Windows-x64-setup.exe
-            if ($f.Name -match '\.nsis\.zip(\.sig)?$') {
+            #   .msi.sig and -setup.exe.sig → upload raw (manifest job reads
+            #     them by suffix to populate platforms.windows-x86_64.signature).
+            #   .msi       → friendly JuraTrace-<ver>-Windows-x64.msi
+            #   -setup.exe → friendly JuraTrace-<ver>-Windows-x64-setup.exe
+            if ($f.Name -match '\.msi\.sig$' -or $f.Name -match '-setup\.exe\.sig$') {
               Write-Host "Uploading (raw) $($f.Name) ..."
               gh release upload $tag "$($f.FullName)" --repo juralabs/jura-trace --clobber
             } elseif ($f.Name -match '\.msi$') {
@@ -1163,6 +1192,13 @@ jobs:
     name: Publish Release
     needs: [create-release, build]
     runs-on: ubuntu-latest
+    # Run even when the build matrix has failures (e.g. the known macOS Phase 5
+    # codesign failure — macOS ships via local build and manual upload).
+    # The SHA256SUMS step fetches whatever assets ARE on the draft release;
+    # a partial release (Windows + Linux only) still needs SHA256SUMS.txt.
+    # Security is preserved: only assets actually present on the release are
+    # hashed — a missing platform produces a warning, not silence.
+    if: ${{ always() && needs.create-release.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'failure') }}
     # Protect production release publishing behind an environment approval gate.
     # Configure the "production" environment at:
     #   Settings > Environments > production > Required reviewers
@@ -1363,36 +1399,68 @@ jobs:
             // resolve to the public repo that users can access.
             const baseUrl = `https://github.com/juralabs/jura-trace/releases/download/${tag}`;
 
-            // Map each Tauri updater platform key to the expected asset suffix.
-            // tauri-action produces:
-            //   macOS    → <AppName>_<version>_aarch64.app.tar.gz
-            //   Linux    → <AppName>_<version>_amd64.AppImage.tar.gz
-            //   Windows  → <AppName>_<version>_x64-setup.nsis.zip
+            // Map each Tauri updater platform key to the expected asset suffixes.
             //
-            // The updater downloads the .tar.gz / .zip archive, not the installer.
-            // darwin-x86_64 omitted — Intel Mac users use Rosetta 2 (see Sprint 19).
+            // Tauri v2 (createUpdaterArtifacts: true) produces:
+            //   macOS   → <AppName>_<ver>_aarch64.app.tar.gz      (updater downloads this)
+            //             <AppName>_<ver>_aarch64.app.tar.gz.sig  (minisign)
+            //   Linux   → <AppName>_<ver>_amd64.AppImage          (updater downloads this)
+            //             <AppName>_<ver>_amd64.AppImage.sig      (minisign, raw Tauri name)
+            //             NOTE: in v2 format there is NO .AppImage.tar.gz.
+            //   Windows → <AppName>_<ver>_x64_en-US.msi           (updater downloads this)
+            //             <AppName>_<ver>_x64_en-US.msi.sig       (minisign)
+            //
+            // The upload step renames the user-facing installers (.dmg, .AppImage, .deb,
+            // .msi, -setup.exe) to friendly JuraTrace-<ver>-<platform>.<ext> names.
+            // The .sig files are uploaded RAW under their original Tauri names.
+            //
+            // To locate both the URL asset (possibly friendly-renamed) and the .sig asset
+            // (always raw), each platform entry carries:
+            //   urlSuffix — suffix to find the downloadable installer
+            //   sigSuffix — suffix to find the raw .sig on the release
+            //
+            // darwin-x86_64 omitted — Intel Mac users run under Rosetta 2.
             const platformMap = {
-              'darwin-aarch64': { suffix: '_aarch64.app.tar.gz' },
-              'linux-x86_64':   { suffix: '_amd64.AppImage.tar.gz' },
-              'windows-x86_64': { suffix: '_x64-setup.nsis.zip' },
+              'darwin-aarch64': {
+                // Tauri names the macOS updater archive "<productName>.app.tar.gz"
+                // (e.g. "Jura Trace.app.tar.gz") with no version or arch in the
+                // name, uploaded raw. Match the bare suffix, not "_aarch64...".
+                urlSuffix: '.app.tar.gz',
+                sigSuffix: '.app.tar.gz.sig',
+              },
+              'linux-x86_64': {
+                // The AppImage is uploaded as a friendly name but the .sig is raw.
+                // We use the friendly name's suffix for the URL and the raw Tauri
+                // suffix for the sig.
+                urlSuffix: '.AppImage',
+                sigSuffix: '_amd64.AppImage.sig',
+              },
+              'windows-x86_64': {
+                // Use the MSI as the updater target (preferred over the NSIS exe for
+                // enterprise environments; both carry valid .sig files).
+                urlSuffix: '.msi',
+                sigSuffix: '.msi.sig',
+              },
             };
 
             const platforms = {};
 
             for (const [platform, cfg] of Object.entries(platformMap)) {
-              // Find the matching asset by suffix (case-insensitive for safety).
+              // Find the downloadable asset by URL suffix (case-insensitive).
               const asset = assets.find(a =>
-                a.name.toLowerCase().endsWith(cfg.suffix.toLowerCase())
+                a.name.toLowerCase().endsWith(cfg.urlSuffix.toLowerCase())
               );
 
               if (!asset) {
-                core.warning(`No asset found for platform ${platform} (expected suffix: ${cfg.suffix})`);
+                core.warning(`No asset found for platform ${platform} (expected URL suffix: ${cfg.urlSuffix})`);
                 continue;
               }
 
-              // Look for a companion .sig file (minisign signature for signed builds).
-              // For unsigned builds this will be absent and signature stays "".
-              const sigAsset = assets.find(a => a.name === asset.name + '.sig');
+              // Find the .sig asset by its own suffix (raw Tauri name, not asset.name + '.sig',
+              // because the installer may have been friendly-renamed while the sig was not).
+              const sigAsset = assets.find(a =>
+                a.name.toLowerCase().endsWith(cfg.sigSuffix.toLowerCase())
+              );
               const signature = sigAsset ? (await (async () => {
                 const sigResp = await github.rest.repos.getReleaseAsset({
                   owner: 'juralabs',
@@ -1402,6 +1470,10 @@ jobs:
                 });
                 return Buffer.from(sigResp.data).toString('utf-8').trim();
               })()) : '';
+
+              if (!sigAsset) {
+                core.warning(`No .sig found for platform ${platform} (expected sig suffix: ${cfg.sigSuffix}) — signature will be empty string`);
+              }
 
               platforms[platform] = {
                 url: `${baseUrl}/${asset.name}`,
