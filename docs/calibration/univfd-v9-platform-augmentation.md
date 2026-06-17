@@ -199,7 +199,7 @@ the 97–99% band. closed-source commercial generator (B) also moves from 91.4% 
 **Two families regressed more than 2 pp**: `sdxl_turbo` (−8.9 pp) and
 `flux_dev` (−11.1 pp). Both are still above 88% recall, but the direction
 matters. The most likely explanation is that the augmentation re-weighted
-the decision boundary toward features that help diffusion-image research dataset / Civitai (older
+the decision boundary toward features that help diffusion-image research dataset / community-curated diffusion SFW subset (older
 SD-family) at a small cost to newer generators whose outputs have a
 distinctly different CLIP signature. This is a known trade-off in distilled
 linear probes trained on skewed class distributions.
