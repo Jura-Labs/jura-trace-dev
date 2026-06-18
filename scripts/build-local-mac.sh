@@ -131,8 +131,13 @@ fi
 if [[ -n "${APPLE_ID:-}" && -n "${APPLE_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]; then
   ok "Apple notarisation creds set in environment — DMG will be notarised + stapled."
   NOTARISE=1
-elif security find-generic-password -s "com.apple.gke.notary.tool" \
-        -a "$NOTARY_PROFILE" >/dev/null 2>&1; then
+elif xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
+  # NOTE: do NOT probe the keychain via `security find-generic-password -s
+  # com.apple.gke.notary.tool -a <profile>` — notarytool does not store the
+  # profile under an account attribute matching the profile name, so that
+  # probe returns exit 44 (item-not-found) and silently skips notarisation
+  # even when the profile is valid. `notarytool history` is the only
+  # authoritative check (it round-trips to Apple, ~2-5s).
   ok "Apple notarisation creds in keychain profile '$NOTARY_PROFILE' — DMG will be notarised + stapled."
   NOTARISE=1
   USE_KEYCHAIN_PROFILE=1
@@ -396,8 +401,8 @@ _RAW_DMG_BASENAME="$(basename "$DMG_PATH")"
 # suffix from the second "_" onwards → e.g. "1.0.0" or "0.9.0-rc.25".
 _VER="$(echo "$_RAW_DMG_BASENAME" | sed 's/^Jura Trace_//' | sed 's/_aarch64\.dmg$//')"
 FRIENDLY_DMG_PATH="$(dirname "$DMG_PATH")/JuraTrace-${_VER}-macOS-AppleSilicon.dmg"
-cp "$DMG_PATH" "$FRIENDLY_DMG_PATH"
-ok "Friendly DMG copy: $FRIENDLY_DMG_PATH"
+# Copy deferred to Phase 8 (after staple) so the friendly DMG carries the
+# notarisation ticket. Pre-staple copying shipped an unstapled DMG. 2026-06-18.
 
 # ── Phase 8 (optional): notarise + staple ─────────────────────────────
 if [[ "$NOTARISE" == "1" ]]; then
@@ -416,13 +421,32 @@ if [[ "$NOTARISE" == "1" ]]; then
   fi
   ok "Notarisation accepted."
 
-  log "Stapling notarisation ticket to DMG and .app"
+  log "Stapling notarisation ticket to DMG"
   xcrun stapler staple "$DMG_PATH"
-  xcrun stapler staple "$APP_PATH"
   xcrun stapler validate "$DMG_PATH"
-  xcrun stapler validate "$APP_PATH"
+  # The standalone .app may already be gone: `cargo tauri bundle --bundles
+  # updater` tars it into .app.tar.gz and removes the original. That is fine,
+  # the .app inside the tarball is signed and notarised-by-cdhash so an
+  # auto-update passes Gatekeeper via the online check. Staple it only if it
+  # still exists, and never fail the build over it (this was the spurious
+  # exit 66 on the v1.0.0 build).
+  if [[ -e "$APP_PATH" ]]; then
+    xcrun stapler staple "$APP_PATH" && xcrun stapler validate "$APP_PATH" \
+      || warn "Could not staple standalone .app (non-fatal; updater payload unaffected)."
+  else
+    warn ".app already consumed by updater bundling, skipping standalone .app staple (non-fatal)."
+  fi
+  # Copy the STAPLED raw DMG to the friendly name now, so the upload artefact
+  # carries the notarisation ticket.
+  cp "$DMG_PATH" "$FRIENDLY_DMG_PATH"
+  xcrun stapler validate "$FRIENDLY_DMG_PATH" \
+    || die "Friendly DMG copy is unexpectedly unstapled, aborting."
   spctl --assess --verbose=2 --type install "$DMG_PATH" 2>&1 | tail -3
-  ok "Stapled + Gatekeeper-validated."
+  ok "Stapled + Gatekeeper-validated. Friendly DMG: $FRIENDLY_DMG_PATH"
+else
+  # Not notarising, still produce the friendly-named copy for upload.
+  cp "$DMG_PATH" "$FRIENDLY_DMG_PATH"
+  ok "Friendly DMG copy (not notarised): $FRIENDLY_DMG_PATH"
 fi
 
 # ── Final summary ─────────────────────────────────────────────────────

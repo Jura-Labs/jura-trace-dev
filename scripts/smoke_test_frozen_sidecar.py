@@ -256,9 +256,26 @@ def main(argv: list[str]) -> int:
     )
 
     try:
-        health = wait_for_health(port, timeout=90.0)
+        # 240s: the frozen --onedir sidecar's cold start can exceed 90s on a
+        # developer machine where /health enumerates a running Ollama (model
+        # listing is a blocking round-trip) and CLIP ONNX weights load lazily.
+        # In a clean CI runner it binds in well under a minute, but the launch
+        # build runs locally (see CLAUDE.md), so the ceiling must tolerate the
+        # loaded-machine case.
+        health = wait_for_health(port, timeout=240.0)
         if health is None:
-            stderr = proc.stderr.read().decode("utf-8", errors="replace") if proc.stderr else ""
+            # Terminate the sidecar BEFORE reading its stderr. proc.stderr.read()
+            # blocks until EOF, and a sidecar that bound /health just after the
+            # deadline keeps running with stderr open — that previously hung the
+            # whole build indefinitely. communicate() after terminate() drains
+            # remaining output without deadlocking.
+            proc.terminate()
+            try:
+                _, stderr_b = proc.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                _, stderr_b = proc.communicate()
+            stderr = stderr_b.decode("utf-8", errors="replace") if stderr_b else ""
             sys.stderr.write(f"sidecar stderr (last 2000 bytes):\n{stderr[-2000:]}\n")
             return 1
 
