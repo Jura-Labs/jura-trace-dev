@@ -8,7 +8,7 @@ All processing happens locally on your machine. No data is uploaded to external 
 
 ## Status
 
-Pre-development (v0.1.0-dev)
+v1.0.0 (public release, June 2026)
 
 ## What It Does
 
@@ -16,12 +16,12 @@ Pre-development (v0.1.0-dev)
 - Auto-catalogue: AI-generated descriptions, tags, and metadata for bulk archives
 - C2PA signing: Embed provenance manifests proving origin and rights
 - Fingerprinting: Perceptual hashes that survive crop, resize, and recompression
-- Watermarking: Invisible watermarks for scrape detection
+- Watermarking *(planned)*: invisible watermarks for scrape detection
 
 **VERIFY** — Check content authenticity
 - Image forensics: Error Level Analysis, noise patterns, metadata anomalies
 - Deepfake detection: Local AI model scoring for synthetic media
-- Claim checking: "Is this claim credible?" with sourced answers
+- Claim checking *(planned)*: source-grounded credibility assessment
 - Provenance reading: Verify C2PA provenance manifests on any file
 
 ## Prerequisites

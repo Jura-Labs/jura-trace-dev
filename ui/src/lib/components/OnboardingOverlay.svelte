@@ -239,7 +239,7 @@
 
           <!-- Subtext -->
           <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mt-4">
-            Built by Jura Labs CIC. Free for non-commercial use.
+            Built by Jura Labs CIC. Free and open source (AGPL-3.0).
           </p>
         </div>
 

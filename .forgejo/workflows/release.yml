@@ -162,7 +162,7 @@ jobs:
           ---
 
           - **Privacy:** everything runs on your device. No telemetry, no accounts.
-          - **Licence:** [PolyForm Noncommercial 1.0.0](https://codeberg.org/jura-labs/jura-trace/src/branch/main/LICENSE) — free for non-commercial use.
+          - **Licence:** [AGPL-3.0-or-later](https://codeberg.org/jura-labs/jura-trace/src/branch/main/LICENSE), free and open source (commercial-licence path in COMMERCIAL.md).
           - **Security:** [SECURITY.md](https://codeberg.org/jura-labs/jura-trace/src/branch/main/SECURITY.md)
           - **Bugs:** [open an issue](https://codeberg.org/jura-labs/jura-trace/issues/new)
           - **General:** [hello@juralabs.org](mailto:hello@juralabs.org) • [juralabs.org](https://juralabs.org)
