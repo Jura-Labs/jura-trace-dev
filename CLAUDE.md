@@ -186,7 +186,7 @@ The public AGPL source lives at `codeberg.org/jura-labs/jura-trace` (the Codeber
 1. `git worktree add <dir> codeberg/main` (check out the clean public history).
 2. Lay the included source tree (from the release tag) over the worktree, applying the exclusions below. Do NOT copy the dev `.git`.
 3. Secret-scan the result (no hardcoded keys/tokens; `.env` absent; `src-tauri/binaries/*` are tiny stubs, not real binaries).
-4. Single clean commit ("Jura Trace vX.Y.Z public source release (AGPL-3.0-or-later)") + tag `vX.Y.Z`.
+4. Single clean commit ("Jura Trace vX.Y.Z public source release (AGPL-3.0-or-later)"). Create the tag ON the snapshot commit only: `git push codeberg HEAD:refs/tags/vX.Y.Z`. NEVER `git push codeberg vX.Y.Z` using the existing LOCAL release tag: that tag points into the private dev history, so pushing it uploads dev commit objects to Codeberg (reachable via the tag until deleted). If it happens, `git push codeberg :refs/tags/vX.Y.Z` then re-create on the snapshot commit, and request a Codeberg GC.
 5. Fast-forward push to `codeberg` (builds on the existing clean history, no force).
 6. Push the wiki separately to `git@codeberg.org:jura-labs/jura-trace.wiki.git` (pages from `../jura-labs-docs/codeberg-wiki-draft/`).
 7. Make the repo public in Codeberg settings if still private.

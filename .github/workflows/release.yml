@@ -481,6 +481,10 @@ jobs:
       # bundled inside the frozen binary — see docs/pyinstaller-spike-findings.md.
       # The Rust sidecar.rs sets JURA_MODELS_DIR at spawn time, pointing to the
       # models/ directory that ships alongside the app bundle.
+      # NOTE: the models/ directory IS bundled by Tauri via tauri.conf.json
+      # "resources": ["models/*"]. The .joblib and ONNX files are placed into
+      # src-tauri/models/ by the "Copy model files" and "Download CLIP ONNX"
+      # steps above before cargo tauri bundle runs.
       - name: Build frozen sidecar
         env:
           JURA_SIDECAR_ONEDIR: ${{ matrix.target == 'aarch64-apple-darwin' && '1' || '0' }}
@@ -557,6 +561,99 @@ jobs:
           cp models/univfd_probe.joblib src-tauri/models/ 2>/dev/null || true
           ls -la src-tauri/models/
         shell: bash
+
+      # ── Download CLIP ONNX models (Windows + Linux only) ───────────────────
+      # The CLIP/UnivFD ONNX models (~607 MB total) are too large to commit to
+      # the source repo. macOS builds them from the dev machine via
+      # scripts/build-local-mac.sh which reads from models/ directly.
+      #
+      # For Windows + Linux CI builds, the four model files are hosted as assets
+      # on a dedicated GitHub Release (tag: model-assets-clip-v1) in the public
+      # Jura-Labs/jura-trace repo. CI downloads them here, verifies SHA-256
+      # against the manifest committed at scripts/onnx-model-sha256.manifest,
+      # and places them in src-tauri/models/ before `cargo tauri bundle`.
+      #
+      # To update the ONNX models:
+      #   1. Re-export the models (scripts/export_clip_onnx.py).
+      #   2. Upload the four new files to a new release tag on jura-trace,
+      #      e.g. `model-assets-clip-v2`.
+      #   3. Update ONNX_ASSET_TAG below to the new tag.
+      #   4. Recompute SHA-256s: sha256sum models/clip-vit-b32-*.onnx*
+      #   5. Update scripts/onnx-model-sha256.manifest with the new hashes.
+      #   6. Commit steps 3-5 together in a single PR.
+      #
+      # The build FAILS if any file is missing or its SHA-256 does not match.
+      # Never set continue-on-error on this step — a mismatch means the models
+      # may have been tampered with or the wrong version was fetched.
+      #
+      # HUMAN ACTION REQUIRED before the first Windows/Linux CI run:
+      #   Upload the four ONNX files to Jura-Labs/jura-trace as a release:
+      #     gh release create model-assets-clip-v1 \
+      #       --repo Jura-Labs/jura-trace \
+      #       --title "CLIP ONNX model assets v1" \
+      #       --notes "CLIP ViT-B/32 ONNX models for CI sidecar builds. Not a user installer release." \
+      #       models/clip-vit-b32-text.onnx \
+      #       models/clip-vit-b32-text.onnx.data \
+      #       models/clip-vit-b32-vision.onnx \
+      #       models/clip-vit-b32-vision.onnx.data
+      #   Run from the repo root with RELEASE_PAT (repo scope on jura-trace) in env:
+      #     GITHUB_TOKEN=$RELEASE_PAT gh release create ...
+      - name: Download CLIP ONNX models (Windows + Linux)
+        if: matrix.target != 'aarch64-apple-darwin'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
+          # Bump this tag when new ONNX model files are uploaded to jura-trace.
+          # Also update scripts/onnx-model-sha256.manifest with the new hashes.
+          ONNX_ASSET_TAG: model-assets-clip-v1
+        run: |
+          set -euo pipefail
+
+          echo "Downloading CLIP ONNX models from Jura-Labs/jura-trace@${ONNX_ASSET_TAG} ..."
+
+          # Download all four model files from the dedicated release.
+          # gh release download --pattern is idiomatic; --dir avoids cwd clutter.
+          mkdir -p onnx-download
+          gh release download "${ONNX_ASSET_TAG}" \
+            --repo Jura-Labs/jura-trace \
+            --pattern "clip-vit-b32-text.onnx" \
+            --pattern "clip-vit-b32-text.onnx.data" \
+            --pattern "clip-vit-b32-vision.onnx" \
+            --pattern "clip-vit-b32-vision.onnx.data" \
+            --dir onnx-download
+
+          echo "Downloaded files:"
+          ls -lh onnx-download/
+
+          # Verify SHA-256 hashes against the committed manifest.
+          # sha256sum -c expects paths relative to the working directory;
+          # we temporarily cd so the manifest paths (models/...) align with
+          # where the files now sit.
+          # The manifest uses paths like "models/clip-vit-b32-text.onnx" so
+          # we create a temporary models/ alias for the check.
+          mkdir -p onnx-verify/models
+          cp onnx-download/clip-vit-b32-text.onnx      onnx-verify/models/
+          cp onnx-download/clip-vit-b32-text.onnx.data onnx-verify/models/
+          cp onnx-download/clip-vit-b32-vision.onnx      onnx-verify/models/
+          cp onnx-download/clip-vit-b32-vision.onnx.data onnx-verify/models/
+
+          echo "Verifying SHA-256 hashes against scripts/onnx-model-sha256.manifest ..."
+          # Strip comments from the manifest before piping to sha256sum -c.
+          grep -v '^\s*#' scripts/onnx-model-sha256.manifest | grep -v '^\s*$' > /tmp/onnx-hashes.txt
+          (cd onnx-verify && sha256sum -c /tmp/onnx-hashes.txt)
+          echo "SHA-256 verification PASSED."
+
+          # Place verified models into src-tauri/models/ alongside the joblibs.
+          cp onnx-verify/models/clip-vit-b32-text.onnx      src-tauri/models/
+          cp onnx-verify/models/clip-vit-b32-text.onnx.data src-tauri/models/
+          cp onnx-verify/models/clip-vit-b32-vision.onnx      src-tauri/models/
+          cp onnx-verify/models/clip-vit-b32-vision.onnx.data src-tauri/models/
+
+          echo "src-tauri/models/ contents after ONNX copy:"
+          ls -lh src-tauri/models/
+
+          # Clean up scratch directories.
+          rm -rf onnx-download onnx-verify
 
       # ── Windows: sign sidecar binary BEFORE Tauri bundles it ────────────
       # Windows Defender frequently quarantines unsigned PyInstaller binaries.

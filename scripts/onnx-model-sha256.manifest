@@ -1,0 +1,17 @@
+# CLIP ONNX model SHA-256 manifest
+# Generated from models/ on the dev machine (2026-06-19).
+# These files are NOT committed to the source repo (gitignored — too large).
+# They are uploaded once to a dedicated GitHub Release on Jura-Labs/jura-trace
+# (tag: model-assets-clip-v1) so CI can download + verify them.
+#
+# To verify locally:
+#   sha256sum -c scripts/onnx-model-sha256.manifest
+#   (run from the repo root; models must be present at models/)
+#
+# To update: re-export the ONNX models, recompute with sha256sum, update
+# this file and commit. Bump the ONNX_ASSET_TAG in release.yml to a new
+# release tag at the same time.
+8fc6da1c31984308b121752ad6f7af3331e84a2d03c8252a4d0d6d8bebc0b784  models/clip-vit-b32-text.onnx
+375209eed56b432e9d1219287e31b07478cfd1278e6ba2120c11a43e34c80d2d  models/clip-vit-b32-text.onnx.data
+56cd834dd7f537ad8e83dc4f3b6f8a271a6a17c9a7a87068b0d3026c5c8ca20f  models/clip-vit-b32-vision.onnx
+94bf189d196fe57d2bda60919c1da745b0cf5765cb6e877605497bf3b91f35c2  models/clip-vit-b32-vision.onnx.data

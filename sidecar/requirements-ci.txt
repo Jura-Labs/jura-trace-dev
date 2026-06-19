@@ -1,14 +1,16 @@
 # Jura Trace — CI / PyInstaller build baseline (fully-pinned mirror)
 #
 # This file is the fully-pinned equivalent of requirements.txt for use in CI
-# and PyInstaller builds. It mirrors the runtime baseline (requirements.txt)
-# with all transitive dependencies pinned explicitly to prevent version drift
-# from breaking the frozen binary between builds.
+# and PyInstaller builds. It must remain in sync with requirements.txt —
+# any package present in requirements.txt must appear here too, at the same
+# version. The recurrence guard at scripts/check_requirements_sync.py
+# enforces this in CI (wired into .github/workflows/ci.yml).
 #
 # Relationship to the requirements split:
-#   requirements.txt      — loose runtime pins (source of truth for versions)
+#   requirements.txt      — runtime baseline (source of truth for versions)
 #   requirements-build.txt — adds torch + open_clip for ONNX export + training
 #   requirements-ci.txt   — this file; fully-pinned mirror of requirements.txt
+#                           used for CI PyInstaller builds
 #
 # Heavy optional dependencies excluded here (and from requirements.txt):
 #   open-clip-torch (~2 GB PyTorch stack) — moved to requirements-build.txt
@@ -44,3 +46,13 @@ pillow-heif==1.2.0
 pillow-avif-plugin==1.5.5
 python-dotenv==1.1.0
 pydantic==2.11.3
+# ONNX runtime — required for CLIP/UnivFD AI detection (JTV-143, 3 May 2026).
+# Without this pin the sidecar binary has no onnxruntime and clip_detect is
+# always false on CI-built Windows and Linux installers. Pinned to match
+# requirements.txt exactly — bump both files together.
+onnxruntime==1.24.4
+# regex — PCRE-compatible pattern library required by clip_tokenizer.py
+# (imported as `import regex as re`). Previously a transitive dep via
+# open_clip_torch; that package is in requirements-build.txt not here, so
+# regex must be explicit to land in the frozen binary.
+regex==2025.10.23

@@ -197,3 +197,12 @@ jobs:
             exit 1
           fi
           echo "OK — no stray model backup files."
+
+      # ── requirements-ci.txt sync guard ──────────────────────────────────────
+      # Fails if any package present in sidecar/requirements.txt is absent from
+      # sidecar/requirements-ci.txt. Catches the class of drift that caused
+      # onnxruntime (and regex) to be missing from CI sidecar builds (JTV-143,
+      # 3 May 2026), making clip_detect silently false on Windows/Linux installs.
+      # The guard runs without installing any extra packages (stdlib only).
+      - name: Check requirements-ci.txt is in sync with requirements.txt
+        run: python3 scripts/check_requirements_sync.py

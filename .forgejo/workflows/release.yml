@@ -489,6 +489,101 @@ jobs:
           cp models/univfd_probe.joblib src-tauri/models/ 2>/dev/null || true
           ls -la src-tauri/models/
 
+      # ── Download CLIP ONNX models (Windows + Linux only) ───────────────────
+      # Same pattern as .github/workflows/release.yml — see that file for full
+      # rationale. macOS (self-hosted Mac Mini) reads models/ directly from the
+      # dev machine's local filesystem before the build script runs.
+      #
+      # On Forgejo/Codeberg: the gh CLI is not available, so we use the
+      # Forgejo REST API (which mirrors Gitea v1) to download release assets
+      # from codeberg.org/jura-labs/jura-trace. The ONNX asset release is
+      # mirrored there under the same tag (model-assets-clip-v1).
+      #
+      # HUMAN ACTION REQUIRED (mirrors GitHub step):
+      #   Upload the four ONNX files to codeberg.org/jura-labs/jura-trace as a
+      #   release (tag: model-assets-clip-v1) using the Codeberg web UI or API.
+      #   SHA-256 manifest: scripts/onnx-model-sha256.manifest
+      #
+      # If Codeberg is ever unavailable as a model host, replace the curl
+      # download URLs below with juralabs.org/model-assets/ (same files,
+      # served by Caddy) without changing any other step.
+      - name: Download CLIP ONNX models (Windows + Linux)
+        if: matrix.target != 'aarch64-apple-darwin'
+        shell: bash
+        env:
+          FORGEJO_TOKEN: ${{ gitea.token }}
+          ONNX_ASSET_TAG: model-assets-clip-v1
+        run: |
+          set -euo pipefail
+
+          echo "Downloading CLIP ONNX models from codeberg.org/jura-labs/jura-trace@${ONNX_ASSET_TAG} ..."
+
+          api_base="https://codeberg.org/api/v1/repos/jura-labs/jura-trace"
+          mkdir -p onnx-download
+
+          # Fetch the list of assets on the model release.
+          assets_json=$(curl -fsSL \
+            -H "Authorization: token ${FORGEJO_TOKEN}" \
+            "${api_base}/releases/tags/${ONNX_ASSET_TAG}")
+
+          # Extract release ID for the asset download URLs.
+          release_id=$(echo "$assets_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+
+          # Download each of the four ONNX files by name.
+          for fname in \
+            "clip-vit-b32-text.onnx" \
+            "clip-vit-b32-text.onnx.data" \
+            "clip-vit-b32-vision.onnx" \
+            "clip-vit-b32-vision.onnx.data"
+          do
+            asset_id=$(curl -fsSL \
+              -H "Authorization: token ${FORGEJO_TOKEN}" \
+              "${api_base}/releases/${release_id}/assets" \
+              | python3 -c "
+          import sys, json
+          assets = json.load(sys.stdin)
+          match = next((a for a in assets if a['name'] == '${fname}'), None)
+          if match is None:
+              print('MISSING', end='')
+          else:
+              print(match['id'], end='')
+          ")
+            if [ "$asset_id" = "MISSING" ]; then
+              echo "::error::Asset ${fname} not found on release ${ONNX_ASSET_TAG} at codeberg.org/jura-labs/jura-trace"
+              exit 1
+            fi
+            echo "Downloading ${fname} (asset id ${asset_id}) ..."
+            curl -fsSL \
+              -H "Authorization: token ${FORGEJO_TOKEN}" \
+              "${api_base}/releases/${release_id}/assets/${asset_id}" \
+              -o "onnx-download/${fname}"
+          done
+
+          echo "Downloaded files:"
+          ls -lh onnx-download/
+
+          # Verify SHA-256 hashes against the committed manifest.
+          mkdir -p onnx-verify/models
+          cp onnx-download/clip-vit-b32-text.onnx      onnx-verify/models/
+          cp onnx-download/clip-vit-b32-text.onnx.data onnx-verify/models/
+          cp onnx-download/clip-vit-b32-vision.onnx      onnx-verify/models/
+          cp onnx-download/clip-vit-b32-vision.onnx.data onnx-verify/models/
+
+          echo "Verifying SHA-256 hashes against scripts/onnx-model-sha256.manifest ..."
+          grep -v '^\s*#' scripts/onnx-model-sha256.manifest | grep -v '^\s*$' > /tmp/onnx-hashes.txt
+          (cd onnx-verify && sha256sum -c /tmp/onnx-hashes.txt)
+          echo "SHA-256 verification PASSED."
+
+          cp onnx-verify/models/clip-vit-b32-text.onnx      src-tauri/models/
+          cp onnx-verify/models/clip-vit-b32-text.onnx.data src-tauri/models/
+          cp onnx-verify/models/clip-vit-b32-vision.onnx      src-tauri/models/
+          cp onnx-verify/models/clip-vit-b32-vision.onnx.data src-tauri/models/
+
+          echo "src-tauri/models/ contents after ONNX copy:"
+          ls -lh src-tauri/models/
+
+          rm -rf onnx-download onnx-verify
+
       # ── Windows: sign sidecar BEFORE Tauri bundles it ──────────────────
       # azure/trusted-signing-action is fetched from GitHub Marketplace.
       # Codeberg fetches actions from GitHub by default — this works unless
