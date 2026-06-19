@@ -781,7 +781,13 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tauriScript: cargo tauri
-          args: --target ${{ matrix.target }}
+          # --bundles deb only. Since bundling the ~607 MB CLIP onnx, the RPM
+          # target hangs (rpmbuild xz-compresses the model weights for >88 min
+          # on a 2-core runner, blowing the 120-min job timeout), and AppImage
+          # squashfs is also slow. The .deb packs the onnx in ~35s and is the
+          # primary Debian/Ubuntu installer. RPM/AppImage-with-CLIP deferred to
+          # v1.0.1 (or a local no-timeout build). See onnx-ci-fix history.
+          args: --target ${{ matrix.target }} --bundles deb
 
       # ── macOS: per-file sign the nested PyInstaller --onedir tree ────────
       # Tauri's --deep does not reach Resources/sidecar-bundle/_internal/ in
