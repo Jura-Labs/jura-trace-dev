@@ -38,6 +38,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Resolve the release tag to a named step output so downstream jobs
+      # (publish-release: SHA256SUMS + update manifest) get a non-empty tag.
+      # On workflow_dispatch github.ref_name is the branch ("main"), so prefer
+      # the explicit inputs.tag; fall back to ref_name for tag-push runs.
+      - name: Resolve tag
+        id: resolve-tag
+        run: echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
       # Build the release body to a FILE, not an output variable.  Writing
       # via `${{ steps.x.outputs.y }}` round-trips the body through
       # GHA expression interpolation → env var → JS env → REST API JSON,
