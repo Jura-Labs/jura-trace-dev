@@ -41,6 +41,42 @@ cut to deb-only in commit `aa6f562` because "RPM hangs xz-compressing the
 very likely break the Windows and Linux CI builds outright, on a pipeline
 that is currently the subject of BL-CI-001 and has not run since April.
 
+## The finding that matters more than either bug
+
+`docs/watermark-robustness-report.json`, generated 21 March 2026 over 20
+images at medium strength with an 11-byte payload:
+
+| Degradation | Survived |
+|---|---|
+| Original PNG | 100% |
+| JPEG Q95 | 100% |
+| JPEG Q85 | 100% |
+| **JPEG Q70** | **0%** |
+| **JPEG Q60** | **0%** |
+| Resize 50% then back to 100% | 100% |
+| **Resize 75%** | **0%** |
+| **Crop 20%** | **0%** |
+| **Screenshot simulation** | **0%** |
+
+There is a cliff between Q85 and Q70, and everything below it is total
+failure, not degradation.
+
+**Read that against what the feature is for.** The stated value is a
+backstop for when a C2PA manifest is stripped: you can still recover proof
+that an asset was yours. The way an asset gets stripped in practice is that
+somebody downloads it, a platform recompresses it, somebody screenshots it,
+or somebody crops it. Those are the four columns reading 0%.
+
+So the algorithm works on lossless and lightly compressed copies, which is
+to say on files that mostly still carry their manifest anyway, and fails on
+exactly the population the feature exists to serve. That is not a bug to be
+fixed by better plumbing; it is the algorithm's operating envelope.
+
+This does not make it worthless. Tamper-evidence within a controlled
+archive workflow, where files stay lossless, is a real use. It does mean
+the feature cannot be described as scrape detection, and that a forensic
+user cannot rely on the absence of a watermark meaning anything at all.
+
 ## What the original decision was, and it was not arbitrary
 
 The same comment records that three agents (persona-testing,
@@ -71,16 +107,36 @@ The flag comment gives two routes and they are not equivalent.
 Route 2 is the better end state and the worse fit for a four-week release.
 Route 1 is the faster fit and leaves the bundle risk live until proved.
 
-Whichever is chosen, three things ride along and are not optional if the
-feature becomes visible:
+Whichever is chosen, these ride along if the feature becomes visible:
 
-- **JTV-206**, watermark IPC hardening: a `payload_hex` length cap and
-  removing the file-path echo. Raised urgent. A hidden feature's IPC
-  surface becomes a real attack surface the moment the UI is exposed.
-- **JTV-117**, rewrite the robustness claims with PSNR and SSIM figures and
-  explicit limits. A watermark that survives some transforms and not others
-  must say which, or it is the same class of overclaim as claims row 7.
-- **JTV-118**, the PNG-only output warning before embedding.
+- **JTV-117**, the robustness claims, which on the numbers above is the
+  whole job rather than a copy tweak. The UI has to state the envelope
+  plainly: survives lossless and light JPEG, does not survive Q70 or below,
+  cropping, resizing or screenshots.
+- **JTV-118**, the PNG-only output warning before embedding. `watermark.rs`
+  already forces PNG output because lossless is "required for survival",
+  which the table explains.
+- **A `payload_hex` length cap** in `embed_watermark_asset` before it
+  reaches the sidecar, which currently truncates silently at 64 bytes.
+- **Pin `blind_watermark`**, currently `"0.1"` unpinned
+  (`security-audit-2026-05-16.md`, NEW-LOW-1).
+
+**Correction to an earlier draft of this file:** the JTV-206 path-validation
+and path-echo items are already fixed, on 25 March 2026.
+`extract_watermark_from_path` no longer exists and the embed command no
+longer echoes paths (`lib.rs:2227-2230`). Only the payload cap and the
+unpinned crate remain from that group.
+
+## Effort
+
+Eight to twelve working days: three to four to vendor and patch
+`imwatermark`, or write the Rust extract, which is riskier; one to two to
+verify bundle size on all three platforms; two to re-run robustness and
+write honest caveats; two for the payload cap, the pin, the flag flip and
+the documentation.
+
+The plumbing is the easy part. The robustness table is the hard part,
+because no amount of engineering changes it.
 
 ## The cheaper alternative, stated plainly
 

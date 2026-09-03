@@ -26,6 +26,9 @@ version:
 | [BL-DEPS-002](BL-DEPS-002-frontend-advisories-one-ships.md) | Twelve frontend advisories, of which one reaches a user | Medium |
 | [BL-REL-001](BL-REL-001-stray-model-backup-in-the-bundle.md) | A stray classifier backup sits inside the bundled resources glob | Low |
 | [BL-UX-001](BL-UX-001-tool-object-object-in-the-c2pa-panel.md) | The C2PA panel shows "Tool: [object Object]" | Low to fix |
+| [BL-CLAIM-002](BL-CLAIM-002-the-app-makes-two-promises-the-release-did-not-keep.md) | Two promises shipped inside the app that the release did not keep | Medium |
+| [BL-DOC-001](BL-DOC-001-pdfs-already-half-work-and-the-help-page-denies-it.md) | PDFs already half-work by drag and drop, and the help page denies it | Medium |
+| [BL-WM-001](BL-WM-001-watermarking-is-two-bugs-and-a-bundle-problem.md) | What enabling watermarking actually requires, and the robustness cliff | Scope risk |
 
 The first four are one story. There is no working channel through which a
 newly disclosed vulnerability reaches anybody, and no working channel
