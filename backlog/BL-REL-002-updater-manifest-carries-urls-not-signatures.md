@@ -66,14 +66,37 @@ happened here: the v1.0.0 key checks out, as recorded below. This is a
 second, independent break of the same path in one release cycle, and both
 were found only by probing.
 
-**The manifest being served is not the one the workflow produces.**
-`.github/workflows/release.yml:1496-1580` builds the manifest with
-`owner: 'juralabs'` and `baseUrl` of
-`https://github.com/juralabs/jura-trace/...`, all lower case. The live
-manifest uses `Jura-Labs`. Either it was written by hand, or by the
-Cloudflare worker in front of `juralabs.org`, and in both cases the
-workflow's own logic is not what is in front of users. That workflow step
-is also `continue-on-error`, which is SR-26 in the security register.
+## Root cause, found 3 September 2026
+
+It is not the release workflow. The live endpoint is served by the
+Cloudflare worker in this repository,
+`infrastructure/cloudflare-worker-updater/src/index.ts`. The proof is the
+capitalisation: live URLs say `Jura-Labs`, which is GitHub API passthrough,
+while `release.yml:1507` hardcodes lowercase `juralabs`.
+
+The worker has two code paths. The per-platform one,
+`buildPlatformBlock` (lines 317 to 331), fetches the signature file and
+inlines its contents correctly. The aggregated one, which is what
+`/latest.json` uses, does not. `buildPlatformBlockSync`, line 359:
+
+```ts
+  return { url: asset.browser_download_url, signature: sig.browser_download_url };
+```
+
+And immediately above it, at lines 337 to 340, the reason:
+
+> For the aggregated /latest.json endpoint we accept that signatures
+> are passed as URLs rather than inline contents; Tauri's updater
+> supports both forms.
+
+**That comment is false, and it is the bug.** Tauri has never supported
+both forms, in v1 or v2. The plugin passes the string straight to
+minisign-verify and never dereferences it. Somebody wrote down a belief
+that was wrong, and the implementation followed the comment rather than the
+contract.
+
+A related falsehood sits in `release.yml` at around line 1644, which says
+clients "will succeed via the fallback endpoint". The fallback 404s.
 
 ## Who the fix reaches, and who needs telling instead
 
@@ -109,17 +132,20 @@ So the rc.25 key-loss failure has **not** recurred. The only thing wrong is
 the manifest, which is server-side and fixable without touching anybody's
 installation.
 
-Three groups, and they are still not in the same position:
+Three groups, revised after technical review on 3 September:
 
 | Group | Downloads | Does the manifest fix reach them? |
 |---|---|---|
-| macOS dmg, Windows msi | 31 + 70 = 101 | **Expected yes.** Key verified, endpoint verified, artefact is what the manifest points at. What remains untested is the update flow end to end, which is step 3 |
-| Windows setup exe (NSIS) | 23 | **Unknown.** The key is fine, but the manifest's `windows-x86_64` entry points at the `.msi`. Whether an NSIS install accepts an MSI as its update artefact needs checking before it is promised |
-| Linux deb | 21 | **No, and no fix changes that.** There is no `linux-x86_64` entry because the AppImage is no longer built, and Tauri's updater does not update a deb in place. The `.deb.sig` exists and is validly signed, which is beside the point |
+| macOS dmg, Windows msi | 31 + 70 = 101 | **Yes, but only when they press the button.** No client-side manifest cache; plugin-updater 2.10.0 fetches fresh per check and compares semver, so 1.0.1 > 1.0.0 passes. The worker edge cache is 5 minutes. **But there is no startup check**: `ui/src/lib/updater.ts` runs only from the Settings button and the menu item. A user who never opens that menu never receives anything |
+| Windows setup exe (NSIS) | 23 | **No, and worse than no.** The plugin detects the downloaded artefact's format and runs the matching installer without checking how the app was installed. The MSI's signature is valid, so the update "succeeds": msiexec lays down a parallel per-machine copy while the NSIS install and its shortcuts stay at 1.0.0. The user ends up with two installs and probably keeps using the old one |
+| Linux deb | 21 | **Possibly rescuable, contrary to what this file said earlier.** Tauri's plugin-updater added `.deb` and `.rpm` support around v2.6 in 2025, and the lock file pins 2.10.0, which postdates it. That is consistent with the build having emitted a `.deb.sig` at all. A `linux-x86_64` entry pointing at the deb, with sig suffix `_amd64.deb.sig`, may rescue all 21 without restoring the AppImage. Untested, and worth testing early because it is the difference between a notice to 21 people and a notice to none |
 
-So the notice is needed for **21 people at minimum**, and for 44 if the NSIS
-question resolves badly. It is no longer plausibly all 145. For the deb
-users it is the only channel that exists.
+**The reach question is therefore not settled and three of the answers
+changed on review.** The honest summary is that a manifest fix alone
+guarantees delivery to nobody, because nothing prompts a user to check.
+That argues for the re-download notice going to all 145 regardless of how
+the deb and NSIS questions resolve, and for treating a startup or periodic
+update check as part of this item rather than a separate improvement.
 
 Drafting the notice is Paul's call on wording and channel, and it touches
 `claims.md`, since it says in public that a shipped version could not
@@ -133,34 +159,51 @@ update. It should not go out before the fix is live and tested, so that
    with it. This step is closed; the remaining reach question is the NSIS
    one, which step 3 answers.
 
-1. **Find out what actually serves the endpoint.** Not the workflow. Check
-   the Cloudflare worker or whatever writes the file on `juralabs.org`
-   before changing anything, because a fix applied to `release.yml` may not
-   reach the served artefact at all.
+1. ~~**Find out what actually serves the endpoint.**~~ **Done.** It is
+   `infrastructure/cloudflare-worker-updater/src/index.ts`, above.
 
-2. **Inline the signature.** The value must be the exact contents of the
-   `.sig` file, trimmed. If `release.yml` is the path that is fixed, note
-   that its asset fetch through octokit at line 1568 is the same pattern
-   that failed for `SHA256SUMS` and was fixed in commit `bbfd3fc` by
-   switching to the `gh` CLI. That precedent is the likely fix here too:
-   octokit is returning the redirect URL rather than the asset body.
+2. **Make the aggregated path inline the signature**, as the per-platform
+   path at lines 317 to 331 already does, and delete the false comment at
+   337 to 340 so nobody restores the behaviour it justifies. Add the
+   `linux-x86_64` entry while in the file: `PLATFORM_ASSET_CONFIG` at lines
+   129 to 131 currently matches only `.AppImage`, which is why Linux
+   vanished silently when the build went deb-only in `aa6f562`.
 
-3. **Test the update before believing it.** Install v1.0.0 from the public
-   release, publish a v1.0.1 to a smoke manifest, and observe an actual
-   update completing. The manifest returning HTTP 200 is not evidence; it
-   returned 200 all along.
+2a. **Add a completeness assertion before the manifest goes live.** This is
+   the risk that produced the Linux gap and it is unaddressed. Both the
+   worker and the workflow fail *open*: when an asset or a `.sig` is
+   missing or misnamed they warn and drop that platform, and the result is
+   a manifest that looks healthy and silently tells a whole platform it is
+   up to date, forever, with no error anywhere. Given that macOS is built
+   locally and Windows in CI, and the assets are assembled by hand, one
+   misnamed `.sig` is all it takes. Assert that every expected platform key
+   is present and that every signature base64-decodes before serving.
+
+3. **Test the update before believing it.** Most of it can be checked
+   before any release: fix the worker, `curl` the manifest, and
+   minisign-verify the inline signature offline. Then use the existing
+   smoke path (`latest-smoke.json`, `release.yml:1490`) with a dev build
+   whose endpoint is overridden. No throwaway public version is needed.
+   Shipped clients cannot be repointed, so the first real proof is the live
+   manifest itself: stage it by publishing the assets and manifest, then
+   verify an update on a machine running the public 1.0.0, **before**
+   announcing anything. Test the deb and the NSIS cases explicitly; they
+   are the two that decide the size of the notice.
 
 4. **Attach `latest.json` to the release** so the declared fallback
    endpoint resolves.
 
-5. **Decide what Linux users get.** Either restore an AppImage build for
-   the updater target, or state plainly on the download page that the deb
-   does not self-update. Silence is the worst of the three.
+5. **Decide what Linux and NSIS users get.** For Linux, test the deb
+   updater path first; if it works, add the entry and nobody needs telling.
+   If it does not, say plainly on the download page that the deb does not
+   self-update. For NSIS, either drop that installer or serve per-installer
+   manifests, because one static `windows-x86_64` key cannot serve both
+   formats and the current arrangement produces a silent duplicate install.
 
-6. **Send the re-download notice**, once 1 to 5 are done and tested. Scope
-   it to whatever the step 3 test shows cannot be reached automatically:
-   21 people at minimum, 44 if the NSIS question resolves badly. Wording
-   and channel are Paul's.
+6. **Send the re-download notice**, once 1 to 5 are done and tested.
+   Because nothing prompts a user to check for updates, the working
+   assumption should be that it goes to all 145 and not only to whichever
+   groups the technical fix misses. Wording and channel are Paul's.
 
 **This item does not close at step 5.** A fixed manifest with nobody told
 is a repair that only future downloads benefit from.
