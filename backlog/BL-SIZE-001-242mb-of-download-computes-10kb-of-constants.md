@@ -83,14 +83,45 @@ result on each platform, and re-run the calibration corpus to confirm the
 verdicts are unchanged. If any platform diverges, ship the encoder for that
 platform only, or fall back to shipping it everywhere and note the finding.
 
+## Precompute, not "make it optional"
+
+A parallel review on the same day reached the same file and proposed making
+the text encoder an optional in-app download, or dropping it, at one and a
+half to two days. Worth being clear why precomputing is the better answer.
+
+That review is right that the text encoder is not load-bearing for the
+calibrated probe: UnivFD scores from vision embeddings only, and the text
+side feeds the auxiliary five-bar zero-shot readout in Expert View.
+
+But dropping the encoder removes that readout, and making it an optional
+download adds a downloader, progress UI, resume handling and offline
+messaging, which is the expensive part. **Precomputing keeps the readout
+exactly as it is, removes the same 242 MB, and adds no runtime machinery
+at all**, because the call site already caches. It should be well under a
+day, and the only real work is the cross-platform equality check above.
+
 ## Related, and worth measuring at the same time
 
-The PyInstaller sidecar bundle is 529 MB uncompressed
-(`sidecar/dist/jura-sidecar`), which is nearly as large as the models. It
-has not been audited for what it is actually carrying. Whether numpy,
-opencv, scipy and onnxruntime need to be present at those sizes is a
-separate question and probably a larger prize than this one, but it is also
-a much longer investigation. This item is the part that is provably free.
+**pyarrow, 114 MB.** The same review found pyarrow inside the PyInstaller
+bundle as a transitive dependency that does not appear in
+`sidecar/requirements.txt` at all, and judged it almost certainly
+excludable, at about half a day. If both land, roughly 356 MB comes out of
+a 1.15 GB uncompressed payload.
+
+**The sidecar bundle as a whole is 529 MB** uncompressed
+(`sidecar/dist/jura-sidecar`), nearly as large as the models: cv2 at 88 MB
+and onnxruntime at 63 MB are the next largest known components. It has
+never been audited properly. That is probably a bigger prize than this
+item and a much longer investigation. This item and pyarrow are the parts
+that are provably cheap.
+
+## Do not confuse this with quantisation
+
+Quantising the vision encoder is a different proposition and is correctly
+blocked. The FP32 ONNX port was gated at mean cosine similarity 1.000000
+with maximum drift 0.000163
+(`docs/calibration/univfd-v9-onnx-validation.md`). int8 or fp16 means a
+full recalibration, not a size optimisation.
 
 ## What not to do
 
