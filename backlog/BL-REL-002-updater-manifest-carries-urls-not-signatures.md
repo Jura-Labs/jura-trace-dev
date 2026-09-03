@@ -59,11 +59,12 @@ exe, 70 Windows msi). Those users are on a build from 18 June. Nothing in
 this backlog can reach them, including a security fix, without them
 noticing a new release by hand and reinstalling.
 
-**It has happened once already.** Per the brain, the rc.25 installers
-carried a Tauri updater public key that was subsequently lost, and testers
-had to install fresh for rc.26 onwards. This is the second time in one
-release cycle that the update path has been broken in a way nobody noticed
-until it was probed.
+**It has happened once already, differently.** Per the brain, the rc.25
+installers carried a Tauri updater public key that was subsequently lost,
+and testers had to install fresh for rc.26 onwards. That is not what
+happened here: the v1.0.0 key checks out, as recorded below. This is a
+second, independent break of the same path in one release cycle, and both
+were found only by probing.
 
 **The manifest being served is not the one the workflow produces.**
 `.github/workflows/release.yml:1496-1580` builds the manifest with
@@ -83,25 +84,42 @@ question to settle by testing, not by assuming, and the answer changes how
 loud the notice has to be.
 
 The manifest is fetched live at every update check, so a server-side
-correction is at least capable of reaching an installed client. Three
-groups, and they are not in the same position:
+correction is at least capable of reaching an installed client.
+
+**The signing key is verified, 3 September 2026.** This was the assumption
+that could have made the whole field unreachable, and it holds:
+
+- `JuraTrace-1.0.0-macOS-AppleSilicon.dmg` and
+  `JuraTrace-1.0.0-Linux-x86_64.deb` present on this machine hash to
+  `dbbc4836...` and `94aed07e...`, matching `SHA256SUMS.txt` on the public
+  release byte for byte. They are the shipped artefacts, not local rebuilds.
+- The executable inside the shipped `.app`,
+  `Contents/MacOS/jura-trace` (44.8 MB, 20 June 2026), embeds exactly one
+  minisign public key, and it is the expected one. It decodes to
+  `untrusted comment: minisign public key: 1AED7E4A127C6230`. No stale
+  second key is present.
+- All four shipped `.sig` files (`.app.tar.gz`, `.msi`, `-setup.exe`,
+  `.deb`) carry key ID `1AED7E4A127C6230` in their signature payloads,
+  matching that public key.
+- The shipped binary's updater endpoint is
+  `https://juralabs.org/api/updates/latest.json`, the one that is currently
+  serving the broken manifest.
+
+So the rc.25 key-loss failure has **not** recurred. The only thing wrong is
+the manifest, which is server-side and fixable without touching anybody's
+installation.
+
+Three groups, and they are still not in the same position:
 
 | Group | Downloads | Does the manifest fix reach them? |
 |---|---|---|
-| macOS dmg, Windows msi | 31 + 70 | **Probably yes, and it must be proved.** They check the live endpoint, and v1.0.0 was built from this tree, so it embeds updater public key `1AED7E4A127C6230`, which should match the key that signed the release assets |
-| Windows setup exe (NSIS) | 23 | **Unknown.** The manifest's `windows-x86_64` entry points at the `.msi`. Whether an NSIS install accepts an MSI as its update artefact needs checking before it is promised |
-| Linux deb | 21 | **No, and no fix changes that.** There is no `linux-x86_64` entry because the AppImage is no longer built, and Tauri's updater does not update a deb in place |
+| macOS dmg, Windows msi | 31 + 70 = 101 | **Expected yes.** Key verified, endpoint verified, artefact is what the manifest points at. What remains untested is the update flow end to end, which is step 3 |
+| Windows setup exe (NSIS) | 23 | **Unknown.** The key is fine, but the manifest's `windows-x86_64` entry points at the `.msi`. Whether an NSIS install accepts an MSI as its update artefact needs checking before it is promised |
+| Linux deb | 21 | **No, and no fix changes that.** There is no `linux-x86_64` entry because the AppImage is no longer built, and Tauri's updater does not update a deb in place. The `.deb.sig` exists and is validly signed, which is beside the point |
 
-So at least 21 people, and possibly all 145, can only be reached by being
-told. The re-download notice is not a courtesy: for the deb users it is the
-only channel that exists.
-
-The key assumption to test first is the public key. If v1.0.0 embeds a key
-that does not match the one the release assets were signed with, every group
-above moves to "no", and the notice becomes the entire remedy. The brain
-records that exactly this happened once already, at rc.25. Verify it against
-the shipped binary rather than against `tauri.conf.json` in the working
-tree, because the two are only the same if nothing was rebuilt in between.
+So the notice is needed for **21 people at minimum**, and for 44 if the NSIS
+question resolves badly. It is no longer plausibly all 145. For the deb
+users it is the only channel that exists.
 
 Drafting the notice is Paul's call on wording and channel, and it touches
 `claims.md`, since it says in public that a shipped version could not
@@ -110,8 +128,10 @@ update. It should not go out before the fix is live and tested, so that
 
 ## What would fix it
 
-0. **Confirm which groups the fix can reach**, per the table above, before
-   writing anything to users. The test in step 3 is what answers it.
+0. ~~**Confirm the signing key**~~ **Done, 3 September 2026.** The shipped
+   binary embeds `1AED7E4A127C6230` and every shipped signature was made
+   with it. This step is closed; the remaining reach question is the NSIS
+   one, which step 3 answers.
 
 1. **Find out what actually serves the endpoint.** Not the workflow. Check
    the Cloudflare worker or whatever writes the file on `juralabs.org`
@@ -138,9 +158,9 @@ update. It should not go out before the fix is live and tested, so that
    does not self-update. Silence is the worst of the three.
 
 6. **Send the re-download notice**, once 1 to 5 are done and tested. Scope
-   it to whatever the step 3 test shows cannot be reached automatically,
-   which is 21 people at minimum and 145 at worst. Wording and channel are
-   Paul's.
+   it to whatever the step 3 test shows cannot be reached automatically:
+   21 people at minimum, 44 if the NSIS question resolves badly. Wording
+   and channel are Paul's.
 
 **This item does not close at step 5.** A fixed manifest with nobody told
 is a repair that only future downloads benefit from.
