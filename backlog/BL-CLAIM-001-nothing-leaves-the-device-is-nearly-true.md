@@ -1,11 +1,13 @@
 # BL-CLAIM-001: "no data is uploaded to external servers" is nearly true, and nearly is not good enough
 
-**Status**: Open. Found 3 September 2026.
+**Status**: Open, and narrowed. Found 3 September 2026. On the same day,
+on this evidence, Paul set claims row 5 to `true`, moved row 7 to
+`conflict`, and closed SR-25. **Row 6 is what remains**, and it is closed
+by the README rewrite and SR-24 below.
 **Raised**: 3 September 2026
 **Severity**: High. This is the claim the product is bought on, it appears
 on the front page of the README, and it is carried in three published
-articles. Rows 5, 6 and 7 of the brain claims register are all marked
-`stale` against it.
+articles.
 
 ## What is wrong
 
@@ -93,10 +95,15 @@ The first half is not.
 3. **Correct `AGENTS.md:286`** to match, so the next session does not
    inherit the overstatement and repeat it in something published.
 
-4. **Propose the claims register updates to the brain inbox**: row 5 to
-   `true` with the stub evidence, row 6 to `true` once the README says the
-   above and SR-24 is closed, row 7 to a correction on the two pages that
-   carry it.
+4. ~~**Propose the claims register updates to the brain inbox**~~ **Done,
+   3 September 2026.** On the evidence above, Paul set claims row 5 to
+   `true`, moved row 7 to `conflict`, and closed SR-25 with the corrected
+   premise. The watermark overclaim is item 6 of a site-update bundle
+   awaiting him, so the two published pages are not corrected yet.
+
+   **Row 6 is the one still open**, and it is the one this file is mainly
+   about. It becomes `true` when the README says what is above and SR-24
+   is closed. Steps 1 to 3 are what close it.
 
 ## What not to do
 

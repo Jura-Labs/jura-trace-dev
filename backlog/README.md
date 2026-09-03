@@ -32,6 +32,15 @@ newly disclosed vulnerability reaches anybody, and no working channel
 through which a fix reaches a user. Reading them in the order above is the
 order they should be repaired in.
 
+## Two standing instructions from Paul, 3 September 2026
+
+- **This branch stays unmerged** until D1 to D3 in
+  `~/jura-brain/inbox/2026-09-03-trace-plane-triage.md` are answered.
+- **v1.0.1 is not cut** before BL-REL-002 has a scheduled fix. That item
+  also does not close on the code fix alone: it is paired with a
+  re-download notice, because at least 21 installs cannot be reached by any
+  updater repair.
+
 ## Where the rest of the backlog is, for now
 
 Plane's `JTV` project holds 248 work items, 156 of them open, none touched

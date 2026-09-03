@@ -74,7 +74,44 @@ Cloudflare worker in front of `juralabs.org`, and in both cases the
 workflow's own logic is not what is in front of users. That workflow step
 is also `continue-on-error`, which is SR-26 in the security register.
 
+## Who the fix reaches, and who needs telling instead
+
+**Paired dependency, recorded on Paul's instruction, 3 September 2026: this
+item does not close without a re-download notice going out. Fixing the
+manifest is half the work.** How much of the field the fix reaches is a
+question to settle by testing, not by assuming, and the answer changes how
+loud the notice has to be.
+
+The manifest is fetched live at every update check, so a server-side
+correction is at least capable of reaching an installed client. Three
+groups, and they are not in the same position:
+
+| Group | Downloads | Does the manifest fix reach them? |
+|---|---|---|
+| macOS dmg, Windows msi | 31 + 70 | **Probably yes, and it must be proved.** They check the live endpoint, and v1.0.0 was built from this tree, so it embeds updater public key `1AED7E4A127C6230`, which should match the key that signed the release assets |
+| Windows setup exe (NSIS) | 23 | **Unknown.** The manifest's `windows-x86_64` entry points at the `.msi`. Whether an NSIS install accepts an MSI as its update artefact needs checking before it is promised |
+| Linux deb | 21 | **No, and no fix changes that.** There is no `linux-x86_64` entry because the AppImage is no longer built, and Tauri's updater does not update a deb in place |
+
+So at least 21 people, and possibly all 145, can only be reached by being
+told. The re-download notice is not a courtesy: for the deb users it is the
+only channel that exists.
+
+The key assumption to test first is the public key. If v1.0.0 embeds a key
+that does not match the one the release assets were signed with, every group
+above moves to "no", and the notice becomes the entire remedy. The brain
+records that exactly this happened once already, at rc.25. Verify it against
+the shipped binary rather than against `tauri.conf.json` in the working
+tree, because the two are only the same if nothing was rebuilt in between.
+
+Drafting the notice is Paul's call on wording and channel, and it touches
+`claims.md`, since it says in public that a shipped version could not
+update. It should not go out before the fix is live and tested, so that
+"download this build" points at something that works.
+
 ## What would fix it
+
+0. **Confirm which groups the fix can reach**, per the table above, before
+   writing anything to users. The test in step 3 is what answers it.
 
 1. **Find out what actually serves the endpoint.** Not the workflow. Check
    the Cloudflare worker or whatever writes the file on `juralabs.org`
@@ -100,11 +137,21 @@ is also `continue-on-error`, which is SR-26 in the security register.
    the updater target, or state plainly on the download page that the deb
    does not self-update. Silence is the worst of the three.
 
+6. **Send the re-download notice**, once 1 to 5 are done and tested. Scope
+   it to whatever the step 3 test shows cannot be reached automatically,
+   which is 21 people at minimum and 145 at worst. Wording and channel are
+   Paul's.
+
+**This item does not close at step 5.** A fixed manifest with nobody told
+is a repair that only future downloads benefit from.
+
 ## What not to do
 
-Do not ship v1.0.1 until this is fixed and tested. A release that existing
-users cannot receive is not a release, and cutting one would put a second
-stranded version in the field.
+Do not ship v1.0.1 until this is fixed, tested, and scheduled. A release
+that existing users cannot receive is not a release, and cutting one would
+put a second stranded version in the field. Paul's instruction of 3
+September 2026 is explicit: v1.0.1 is not cut before this has a scheduled
+fix.
 
 Do not fix this by removing the updater. The alternative to a working
 updater is expecting people who verify other people's media to notice a
