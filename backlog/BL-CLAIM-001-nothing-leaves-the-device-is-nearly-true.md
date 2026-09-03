@@ -5,8 +5,9 @@ on this evidence, Paul set claims row 5 to `true`, moved row 7 to
 `conflict`, and closed SR-25. **Row 6 is what remains**, and it is closed
 by the README rewrite and SR-24 below.
 **Raised**: 3 September 2026
-**Severity**: High. This is the claim the product is bought on, it appears
-on the front page of the README, and it is carried in three published
+**Severity**: High, and the correction is now advised as immediate rather
+than scheduled. This is the claim the product is bought on, it appears on
+the front page of the README, and it is carried in three published
 articles.
 
 ## What is wrong
@@ -32,6 +33,16 @@ None of these uploads a user's file. Four of the five are things the user
 asked for. The claim is defensible in substance and wrong in wording, which
 is the worst combination, because it cannot be defended by pointing at the
 sentence.
+
+**One of them is closer to the line than the others.** Legal review on 3
+September made the point that the RFC3161 timestamp request sends a hash
+*derived from the user's content*. No file leaves the machine and the hash
+does not disclose the content, but "no data is uploaded" is then not merely
+imprecise, it is literally false on the product's core claim. The other
+four calls leak IP address and activity timing rather than content. That
+assessment reads the current sentence as a misleading action under the
+DMCC Act 2024 s.226, and advises the one-line correction as immediate
+rather than scheduled.
 
 Two things sharpen it.
 
@@ -91,6 +102,9 @@ The first half is not.
 2. **Bundle the Swagger assets locally.** This is JTV-209 in Plane and
    SR-24 in the register. It removes the one call that is not user-initiated
    and the one unpinned remote script, and it shortens the sentence above.
+   Legal review flags the unpinned `unpkg` load specifically: pin or vendor
+   it, do not leave a third party able to change what executes inside a
+   local authenticated surface.
 
 3. **Correct `AGENTS.md:286`** to match, so the next session does not
    inherit the overstatement and repeat it in something published.
