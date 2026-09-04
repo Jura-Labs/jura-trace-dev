@@ -1135,46 +1135,16 @@ jobs:
           tauriScript: cargo tauri
           args: --target ${{ matrix.target }}
 
-      # ── Empty-signature gate (Windows) ──────────────────────────────────
-      # Tauri v2 with createUpdaterArtifacts: true produces .sig files
-      # alongside the installers themselves — NOT a .nsis.zip archive.
-      # v2 format:
-      #   bundle/msi/Jura Trace_<ver>_x64_en-US.msi      + .msi.sig
-      #   bundle/nsis/Jura Trace_<ver>_x64-setup.exe     + -setup.exe.sig
-      # (The .nsis.zip format belongs to createUpdaterArtifacts: "v1Compatible".)
-      # Authenticode signing (Azure step below) is a separate concern and
-      # does not affect the minisign .sig files.
-      - name: Verify updater signatures (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $bundle = "src-tauri\target\${{ matrix.target }}\release\bundle"
-          $problems = 0
-          # Collect both MSI and NSIS exe installers — each should have a .sig
-          $installers = @(
-            Get-ChildItem -Path $bundle -Recurse -Filter "*.msi"       -ErrorAction SilentlyContinue
-            Get-ChildItem -Path $bundle -Recurse -Filter "*-setup.exe" -ErrorAction SilentlyContinue
-          ) | Where-Object { $_ -ne $null }
-          if ($installers.Count -eq 0) {
-            Write-Error "ERROR: No MSI or NSIS installer found under $bundle — build may have failed."
-            exit 1
-          }
-          foreach ($t in $installers) {
-            $sig = "$($t.FullName).sig"
-            if (-not (Test-Path $sig)) {
-              Write-Error "ERROR: missing .sig for $($t.Name)"
-              $problems++
-            } elseif ((Get-Item $sig).Length -eq 0) {
-              Write-Error "ERROR: empty .sig for $($t.Name) (zero bytes)"
-              $problems++
-            } else {
-              Write-Host "OK: $((Get-Item $sig).Name) ($((Get-Item $sig).Length) bytes)"
-            }
-          }
-          if ($problems -gt 0) {
-            Write-Error "FAIL: $problems updater signature problem(s). Verify TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD are set in repo Secrets."
-            exit 1
-          }
+      # ── Updater signatures: generated AFTER Azure signing ───────────────
+      # The empty-signature gate used to live HERE, before Azure Trusted
+      # Signing. That was wrong and it broke every Windows auto-update.
+      # tauri-action minisigns the MSI, this gate verified it, and then the
+      # Azure step below overwrote the MSI in place with its countersigned
+      # version. The .sig therefore covered bytes that no longer existed,
+      # and minisign verification failed on every client.
+      #
+      # The re-sign and the gate now run after Azure, further down, on the
+      # bytes that actually ship. See "Re-sign the updater payloads" below.
 
       # ── Windows: Azure Trusted Signing ───────────────────────────────────
       # Signs all .exe and .msi files produced by tauri-action in the Tauri
@@ -1219,6 +1189,84 @@ jobs:
           file-digest:           SHA256
           timestamp-rfc3161:     http://timestamp.acs.microsoft.com
           timestamp-digest:      SHA256
+
+      # ── Re-sign the updater payloads over the FINAL bytes ───────────────
+      # Azure Trusted Signing overwrites each installer in place, so any
+      # minisign signature produced before it is now stale. Regenerate the
+      # .sig files here, after the last mutation and before upload.
+      #
+      # This is the same lesson the sidecar signing already encodes further
+      # up this file: sign after the artefact is final, never before.
+      - name: Re-sign the updater payloads (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          $bundle = "src-tauri\target\${{ matrix.target }}\release\bundle"
+          $installers = @(
+            Get-ChildItem -Path $bundle -Recurse -Filter "*.msi"       -ErrorAction SilentlyContinue
+            Get-ChildItem -Path $bundle -Recurse -Filter "*-setup.exe" -ErrorAction SilentlyContinue
+          ) | Where-Object { $_ -ne $null }
+          if ($installers.Count -eq 0) {
+            Write-Error "ERROR: no installer found under $bundle to re-sign."
+            exit 1
+          }
+          foreach ($t in $installers) {
+            $sig = "$($t.FullName).sig"
+            # Remove the stale signature first, so a failure to regenerate
+            # cannot leave the old one in place looking plausible.
+            if (Test-Path $sig) { Remove-Item $sig -Force }
+            Write-Host "Signing $($t.Name) ..."
+            cargo tauri signer sign "$($t.FullName)"
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "ERROR: cargo tauri signer sign failed for $($t.Name)"
+              exit 1
+            }
+          }
+
+      # ── Empty-signature and freshness gate (Windows) ─────────────────────
+      # Runs LAST, on the bytes that ship. Checks each .sig exists, is
+      # non-empty, and is NEWER than the installer it signs. That last
+      # assertion is the one that encodes the bug: a signature older than
+      # its artefact cannot possibly describe it.
+      - name: Verify updater signatures (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bundle = "src-tauri\target\${{ matrix.target }}\release\bundle"
+          $problems = 0
+          $installers = @(
+            Get-ChildItem -Path $bundle -Recurse -Filter "*.msi"       -ErrorAction SilentlyContinue
+            Get-ChildItem -Path $bundle -Recurse -Filter "*-setup.exe" -ErrorAction SilentlyContinue
+          ) | Where-Object { $_ -ne $null }
+          if ($installers.Count -eq 0) {
+            Write-Error "ERROR: No MSI or NSIS installer found under $bundle — build may have failed."
+            exit 1
+          }
+          foreach ($t in $installers) {
+            $sigPath = "$($t.FullName).sig"
+            if (-not (Test-Path $sigPath)) {
+              Write-Error "ERROR: missing .sig for $($t.Name)"
+              $problems++
+              continue
+            }
+            $sig = Get-Item $sigPath
+            if ($sig.Length -eq 0) {
+              Write-Error "ERROR: empty .sig for $($t.Name) (zero bytes)"
+              $problems++
+            } elseif ($sig.LastWriteTimeUtc -lt $t.LastWriteTimeUtc) {
+              Write-Error "ERROR: .sig for $($t.Name) is OLDER than the installer. The artefact was modified after it was signed, so this signature cannot verify. This is what broke every Windows auto-update from 22 May 2026."
+              $problems++
+            } else {
+              Write-Host "OK: $($sig.Name) ($($sig.Length) bytes, signed after the installer)"
+            }
+          }
+          if ($problems -gt 0) {
+            Write-Error "FAIL: $problems updater signature problem(s)."
+            exit 1
+          }
 
       # Upload the signed Windows artefacts to the draft release on
       # juralabs/jura-trace (the PUBLIC releases repo) via RELEASE_PAT.
