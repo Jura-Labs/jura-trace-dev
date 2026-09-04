@@ -29,6 +29,9 @@ version:
 | [BL-CLAIM-002](BL-CLAIM-002-the-app-makes-two-promises-the-release-did-not-keep.md) | Two promises shipped inside the app that the release did not keep | Medium |
 | [BL-DOC-001](BL-DOC-001-pdfs-already-half-work-and-the-help-page-denies-it.md) | PDFs already half-work by drag and drop, and the help page denies it | Medium |
 | [BL-WM-001](BL-WM-001-watermarking-is-two-bugs-and-a-bundle-problem.md) | What enabling watermarking actually requires, and the robustness cliff | Scope risk |
+| [BL-DEPS-003](BL-DEPS-003-four-reachable-advisories-in-the-shipped-binary.md) | Four reachable advisories in the shipped product, found the first time anyone looked | High |
+| [BL-API-001](BL-API-001-the-headless-api-is-documented-and-does-not-exist.md) | The headless API is documented and does not exist; it gates the CLI | Medium |
+| [BL-SIZE-001](BL-SIZE-001-242mb-of-download-computes-10kb-of-constants.md) | 242 MB of every download computes 10 KB of constants | High for adoption |
 
 The first four are one story. There is no working channel through which a
 newly disclosed vulnerability reaches anybody, and no working channel
