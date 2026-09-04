@@ -74,6 +74,35 @@ jobs:
       - name: Build frontend (required by tauri::generate_context!)
         run: cd ui && npm ci && npm run build
 
+      # tauri.conf.json lists "sidecar-bundle/**/*" in bundle.resources. That
+      # directory is the PyInstaller --onedir output: 529 MB, gitignored, and
+      # absent from a fresh checkout. Tauri's build script treats a resource
+      # glob matching nothing as a hard error:
+      #
+      #   glob pattern sidecar-bundle/**/* path not found or didn't match any files
+      #
+      # so `cargo check` fails before compiling a single line of our code.
+      #
+      # This has been broken since 16 May 2026, when commit 72d8e42 (JTV-184)
+      # added that resource. CI last ran on 30 April, before it landed, so
+      # the Rust job has been incapable of passing for three and a half
+      # months and nothing said so. It surfaced on the first run after the
+      # gate was repaired.
+      #
+      # A placeholder is the right fix for THIS job. Nothing here bundles or
+      # ships: we type-check, lint and test. Building the real 529 MB sidecar
+      # to satisfy a glob would cost many minutes per run to produce an
+      # artefact the job then throws away. The release workflow builds the
+      # genuine bundle, and its own verification gate checks the contents.
+      - name: Placeholder for the sidecar bundle resource glob
+        run: |
+          mkdir -p src-tauri/sidecar-bundle
+          cat > src-tauri/sidecar-bundle/.ci-placeholder <<'EOF'
+          Placeholder so tauri.conf.json's "sidecar-bundle/**/*" resource glob
+          matches during CI type-checking. The real bundle is built by the
+          release workflow. See the comment in .github/workflows/ci.yml.
+          EOF
+
       - name: cargo check
         run: cd src-tauri && cargo check
 
