@@ -66,6 +66,68 @@ happened here: the v1.0.0 key checks out, as recorded below. This is a
 second, independent break of the same path in one release cycle, and both
 were found only by probing.
 
+## Two more faults found 4 September. The manifest fix alone is not enough.
+
+### Windows signatures are invalidated after they are verified
+
+`release.yml` does this, in this order:
+
+| Line | Step |
+|---|---|
+| 1118 | `tauri-action` builds the MSI **and minisigns it** |
+| 1147 | "Verify updater signatures (Windows)" checks the `.sig` is present |
+| 1208 | `azure/trusted-signing-action` **rewrites the MSI in place** |
+| 1241 | Upload the signed artefacts |
+
+The Azure step's own comment says it "countersigns each matched binary in
+place — the original files are overwritten with their signed versions".
+
+So the `.sig` is computed over the pre-Azure bytes and the uploaded MSI is
+the post-Azure bytes. They cannot match. **Every Windows auto-update fails
+minisign verification, and fixing the manifest does not change that.**
+
+The macOS and Linux path does not have this problem: it verifies at line
+965 and uploads at 1017 with no mutation in between. Only Windows inserts a
+re-signing step between verification and upload. The repository already
+knows this lesson elsewhere: the sidecar executable is deliberately signed
+*before* bundling, with a comment at line 670 explaining exactly why order
+matters.
+
+Dates from the `createUpdaterArtifacts` switch on 22 May.
+
+**Fix**: minisign the artefacts *after* Azure signing, or re-generate the
+`.sig` from the final uploaded bytes, and make the verification step check
+the bytes that actually ship. The gate must run last.
+
+### The UI turns endpoint failure into "You're up to date"
+
+`ui/src/lib/updater.ts:117`:
+
+```ts
+if (message.includes('No updates available') || message.includes('404')) {
+    return { state: 'up-to-date' };
+}
+```
+
+For a static-JSON updater a 404 is always an endpoint failure. Tauri
+signals "no update available" through the version comparison, not through
+a 404. So an unreachable or missing manifest renders to the user as a green
+"up to date".
+
+The docstring above it contradicts itself within four lines, first saying
+404 means "the endpoint is reachable and just has no newer version", then
+saying a 404 is "typically a temporary infrastructure issue".
+
+This matters more than it looks, because **the declared fallback endpoint
+returns 404 today** (see below). Any user who pressed Check for Updates
+during the June to September outage would have been told they were up to
+date. `ui/src/lib/updater.test.ts:90-99` asserts this behaviour, so the
+test suite certifies it.
+
+**Fix**: map 404 to an error state, not to up-to-date, and correct the
+docstring. Add an end-to-end case against a 404ing endpoint asserting the
+error state is shown.
+
 ## Root cause, found 3 September 2026
 
 It is not the release workflow. The live endpoint is served by the

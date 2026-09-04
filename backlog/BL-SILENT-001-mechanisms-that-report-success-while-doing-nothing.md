@@ -57,6 +57,51 @@ screamed from the first week.
 
 That is Cause B applied to the schedule itself.
 
+## Twelve more, found by hunting for the shape
+
+A systematic sweep on 4 September found the class is much wider than the
+five. The worst are written up separately; the rest are inventoried here so
+they are tracked rather than rediscovered.
+
+**Written up elsewhere.** Windows signatures invalidated after verification,
+and the updater UI mapping 404 to "up to date" (both added to BL-REL-002).
+The exported PDF asserting OCSP and CRL checks that never run
+(BL-CLAIM-003).
+
+**Still to file, ranked.**
+
+| # | What it claims | What it does | Since |
+|---|---|---|---|
+| 1 | A corrupt C2PA manifest is reported | `verify/pipeline.rs:836` uses `.ok().flatten()`, so a parse **error** becomes `None`, indistinguishable from "no manifest". Trust score shows "No provenance data" and the detector lists as run. For a provenance product, "failed to check" reads as "checked, unsigned" | 2 Mar |
+| 2 | The audit chain-of-custody check is load-bearing | `db.rs:1393` documents that NULL-hash rows return false; the code `continue`s past them, so nulling both hash columns on a tampered row passes the restore check at `lib.rs:3317`. Deleting trailing rows also passes. Separately, every production `log_action` and `insert_verification` call is `let _ =`, so entries may never be written at all | 23 Mar |
+| 3 | The AI-watermark detector checked the image | `deepfake.py:293-356` returns `[]` on ImportError, and `imwatermark` is deliberately absent from every runtime bundle. `watermarks: []` is indistinguishable from "checked, none found", and unlike the GBM and UnivFD paths there is no availability flag | 21 May |
+| 4 | Six GBM feature extractors measured the image | `deepfake.py:1568, 1597, 1627, 1656, 1691, 1726` return camera-plausible **constants** on exception, injecting "real camera" evidence and biasing toward authentic, unlogged. The Sprint-29 extractors get this right and return NaN | 20 Mar |
+| 5 | The frozen-sidecar smoke test passed | `scripts/smoke_test_frozen_sidecar.py:289-307` skips any capability reporting false, then prints "PASSED: all N mapped endpoints" where N is the dictionary size rather than the number probed. The all-capabilities-false failure it was written for passes | |
+| 6 | `latest.json` is published with the release | `release.yml:1312` runs `publish-release` on matrix **failure**, which is the normal macOS flow, so the primary endpoint can go live without `darwin-aarch64` and with SHA256SUMS missing the DMG the release body tells users to verify. The SCP step is skip-silent and `continue-on-error` | |
+| 7 | The macOS release channel has CI's guards | `scripts/build-local-mac.sh:246-248` copies models with `2>/dev/null \|\| warn` then reports ok against whatever stale files are already present, and has no empty-`.sig` gate where CI has one. This is the real release channel for macOS | |
+| 8 | The licence appendix is complete | `scripts/generate-licenses.sh:56-63` swallows failures across the Python ecosystem and prints "Done.", shipping a legally incomplete appendix | |
+
+Lower blast radius, noted: the FP-report modal fabricates `mock-fp-*`
+success on real database failures (`api.ts:520-532`, part of a wider
+pattern there of rendering backend errors as plausible empty data);
+re-sign ingredient preservation is `let _ =` at `c2pa.rs:599`, undoing the
+intent of the 22 May audit fix; watchlist error events vanish
+(`monitor_scheduler.rs:388-407`); no Playwright spec runs in any workflow,
+and the "nightly workflow" that `ci.yml:117` refers to does not exist;
+`db.rs:359` swallows migration errors.
+
+**Checked and clean**, which is worth recording so it is not re-hunted: the
+feature flags genuinely gate, the requirements sync guard is sound, the
+model SHA-256 pin verifies against both copies, `describe_image` and
+`claim_checker` report honest failures, and the signing gates in
+`release.sh` and the macOS build's Phase 5b and 6.5 fail loudly.
+
+**A third root cause**, on top of the two above: **verification ordered
+before the artefact is final**. That is the Windows signing fault and the
+`latest.json` publication fault, and it is not covered by cadence or by
+prove-it-ran assertions. The rule it implies is that a gate must run on the
+bytes that ship, last, after every mutation.
+
 ## The plan
 
 Ordered by defects prevented per unit of cost. Items 1 to 4 belong in the
