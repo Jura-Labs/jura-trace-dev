@@ -29,9 +29,24 @@ Reached through `c2pa` and `native-tls`, so it is in the shipped binary on
 the C2PA signing and verification paths. CVE-2026-41676, -41678, -41681,
 -41898 and -42327, all fixed in 0.10.80.
 
-**This is the cheapest fix in the audit and should be done first.** 0.10.80
-is semver-compatible with what is in the lock file, so it is one
-`cargo update -p openssl` and no manifest change.
+**Resolved: 2026-09-04, branch `fix/openssl-advisories`, commit 3ffc21d.**
+openssl 0.10.75 to 0.10.81, openssl-sys 0.9.111 to 0.9.117, **and
+openssl-src 300.5.5+3.5.5 to 300.6.1+3.6.3**. Lockfile only, all three
+semver-compatible. Verified with `cargo check --all-targets` and the full
+Rust suite: 568 lib tests plus 20 API integration tests, zero failures.
+
+**The audit's prescription was incomplete, and the gap is worth recording.**
+It said "one `cargo update -p openssl`". This build vendors OpenSSL rather
+than linking the system library, so the C library is statically compiled in
+through `openssl-src`. That command moves the Rust bindings and leaves
+`openssl-src` where it is, so the shipped binary would still have carried
+OpenSSL 3.5.5. Memory-safety issues in OpenSSL are usually in the C
+library, which means the bindings bump alone could have looked like a fix
+while changing nothing that mattered.
+
+The general lesson: when a crate wraps a vendored native library, check
+whether the `-src` crate moved too. `cargo update -p <crate>` will not do
+it for you.
 
 ### 2. Pillow 11.2.1, heap out-of-bounds writes
 
