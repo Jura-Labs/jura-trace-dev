@@ -1271,6 +1271,22 @@ fn get_network_mode(app_handle: tauri::AppHandle) -> Result<network_mode::Networ
     Ok(network_mode::get_network_mode(&data_dir))
 }
 
+/// Whether the active network mode is a safe fallback rather than the
+/// user's stored choice.
+///
+/// True when `network_mode.json` exists but cannot be read or parsed. In
+/// that case the app runs fully offline rather than guessing that outbound
+/// requests are wanted, and the user should be told: otherwise an Enhanced
+/// user loses online verification with no explanation.
+#[tauri::command]
+fn network_mode_is_degraded(app_handle: tauri::AppHandle) -> Result<bool, AppError> {
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(format!("Cannot resolve app data directory: {e}")))?;
+    Ok(network_mode::network_mode_is_degraded(&data_dir))
+}
+
 /// Persist a new network mode.
 ///
 /// `mode` must be `"standard"` or `"enhanced"` (camelCase as sent by the
@@ -4731,6 +4747,7 @@ pub fn run() {
             clear_conformant_cert,
             read_manifest_chain,
             get_network_mode,
+            network_mode_is_degraded,
             set_network_mode,
             fetch_weather_context,
             get_power_saver_mode,

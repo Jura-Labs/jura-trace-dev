@@ -62,8 +62,32 @@ fn config_path(data_dir: &Path) -> std::path::PathBuf {
 
 /// Read the current `NetworkMode` from `<data_dir>/network_mode.json`.
 ///
-/// Returns `NetworkMode::Enhanced` when the file is absent (first-run default)
-/// or when it cannot be parsed.  Never panics.
+/// Three cases, and they are deliberately not the same:
+///
+/// * **File absent** — first run, nobody has chosen. Returns `Enhanced`,
+///   the product default set on 2026-04-25 (see the module header). This is
+///   the only path that yields that default.
+/// * **File unreadable** — returns `Standard`, and warns.
+/// * **File unparseable** — returns `Standard`, and warns.
+///
+/// The last two used to return `Enhanced`, via `unwrap_or_default()`. That
+/// was a silent failure in the permissive direction: if the file exists then
+/// a user has chosen at some point, and when we cannot tell what they chose,
+/// guessing "make network calls" can reverse an explicit air-gapped opt-out
+/// without telling anybody.
+///
+/// The harm is asymmetric. A Standard user silently flipped to Enhanced
+/// leaks a DNS query, a TLS SNI and traffic timing, which for a field
+/// user under surveillance is unrecoverable once sent. An Enhanced user
+/// silently dropped to Standard gets a weaker trust assessment, which is
+/// visible in the verify UI and fixed by re-toggling a setting.
+///
+/// This also matches what the rest of the codebase already does: the C2PA
+/// read paths in `lib.rs` use `.map(|d| is_enhanced(&d)).unwrap_or(false)`,
+/// failing closed when the data directory cannot be resolved. Cases 2 and 3
+/// were the inconsistency, not this change.
+///
+/// Never panics.
 pub fn get_network_mode(data_dir: &Path) -> NetworkMode {
     let path = config_path(data_dir);
     if !path.exists() {
@@ -71,11 +95,46 @@ pub fn get_network_mode(data_dir: &Path) -> NetworkMode {
     }
     let raw = match std::fs::read_to_string(&path) {
         Ok(s) => s,
-        Err(_) => return NetworkMode::Enhanced,
+        Err(e) => {
+            log::warn!(
+                "network_mode.json exists but could not be read ({e}); \
+                 falling back to Standard (fully offline) rather than \
+                 guessing that outbound requests are wanted. \
+                 Re-select your preference in Settings > Network Access."
+            );
+            return NetworkMode::Standard;
+        }
     };
-    serde_json::from_str::<NetworkModeConfig>(&raw)
-        .map(|c| c.mode)
-        .unwrap_or_default()
+    match serde_json::from_str::<NetworkModeConfig>(&raw) {
+        Ok(c) => c.mode,
+        Err(e) => {
+            log::warn!(
+                "network_mode.json could not be parsed ({e}); \
+                 falling back to Standard (fully offline) rather than \
+                 guessing that outbound requests are wanted. \
+                 Re-select your preference in Settings > Network Access."
+            );
+            NetworkMode::Standard
+        }
+    }
+}
+
+/// True when a `network_mode.json` exists but cannot be read or parsed, so
+/// the mode in force is the safe fallback rather than the user's choice.
+///
+/// Exposed so the UI can show a one-time notice telling the user their
+/// preference could not be read and the app is running fully offline.
+/// Without that, failing closed is silent in the other direction: an
+/// Enhanced user would lose online verification and never learn why.
+pub fn network_mode_is_degraded(data_dir: &Path) -> bool {
+    let path = config_path(data_dir);
+    if !path.exists() {
+        return false;
+    }
+    match std::fs::read_to_string(&path) {
+        Err(_) => true,
+        Ok(raw) => serde_json::from_str::<NetworkModeConfig>(&raw).is_err(),
+    }
 }
 
 /// Persist `mode` to `<data_dir>/network_mode.json`.
@@ -159,13 +218,68 @@ mod tests {
     }
 
     #[test]
-    fn corrupted_file_defaults_to_enhanced() {
+    fn corrupted_file_fails_closed_to_standard() {
         let dir = tmp();
-        // Write garbage so parse fails — falls back to the typed Default
-        // (Enhanced) via unwrap_or_default().
+        // A file that exists means a choice was made. If we cannot parse it
+        // we do not know what that choice was, and guessing "make network
+        // calls" can silently reverse an air-gapped user's opt-out.
         std::fs::write(dir.path().join("network_mode.json"), b"not json").unwrap();
+        assert_eq!(get_network_mode(dir.path()), NetworkMode::Standard);
+        assert!(!is_enhanced(dir.path()));
+        assert!(network_mode_is_degraded(dir.path()));
+    }
+
+    #[test]
+    fn valid_file_is_not_degraded() {
+        let dir = tmp();
+        set_network_mode(dir.path(), NetworkMode::Standard).unwrap();
+        assert!(!network_mode_is_degraded(dir.path()));
+        assert_eq!(get_network_mode(dir.path()), NetworkMode::Standard);
+
+        set_network_mode(dir.path(), NetworkMode::Enhanced).unwrap();
+        assert!(!network_mode_is_degraded(dir.path()));
         assert_eq!(get_network_mode(dir.path()), NetworkMode::Enhanced);
-        assert!(is_enhanced(dir.path()));
+    }
+
+    #[test]
+    fn absent_file_is_the_product_default_and_not_degraded() {
+        let dir = tmp();
+        // The only path that yields Enhanced without an explicit choice.
+        // This is the 2026-04-25 decision and the change above does not
+        // touch it.
+        assert_eq!(get_network_mode(dir.path()), NetworkMode::Enhanced);
+        assert!(!network_mode_is_degraded(dir.path()));
+    }
+
+    #[test]
+    fn valid_json_with_the_wrong_shape_fails_closed() {
+        let dir = tmp();
+        // Parses as JSON, but not as NetworkModeConfig. A partially written
+        // or hand-edited file lands here rather than in the read-error path.
+        std::fs::write(dir.path().join("network_mode.json"), br#"{"mode":"turbo"}"#).unwrap();
+        assert_eq!(get_network_mode(dir.path()), NetworkMode::Standard);
+        assert!(network_mode_is_degraded(dir.path()));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_file_fails_closed() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tmp();
+        let path = dir.path().join("network_mode.json");
+        set_network_mode(dir.path(), NetworkMode::Enhanced).unwrap();
+        // Make it unreadable so read_to_string errors rather than parse.
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+        let mode = get_network_mode(dir.path());
+        let degraded = network_mode_is_degraded(dir.path());
+
+        // Restore before asserting so a failure cannot leave an
+        // undeletable temp directory behind.
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+        assert_eq!(mode, NetworkMode::Standard);
+        assert!(degraded);
     }
 
     #[test]
