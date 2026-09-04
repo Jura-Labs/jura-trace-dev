@@ -1,0 +1,159 @@
+# BL-SILENT-001: mechanisms that report success while doing nothing
+
+**Status**: Open. Raised 4 September 2026, after five defects of one shape
+were found in a single day.
+**Severity**: High as a class, even though each instance is now fixed.
+Patching five instances does not stop the sixth.
+
+## The class
+
+Five defects, unrelated by subsystem, identical in shape. In every case a
+mechanism reported success, or appeared to be running, while doing nothing.
+
+| # | What it claimed | What it did | Undetected for |
+|---|---|---|---|
+| 1 | Update manifest served correctly, HTTP 200, valid JSON | Put each `.sig` **URL** in the field where the signature belongs, so every update was rejected | 18 Jun to 4 Sep, 145 users |
+| 2 | Rust CI job | Could not compile at all: a resource glob pointing at gitignored build output | 16 May to 4 Sep |
+| 3 | Weekly supply-chain scan, appearing in Actions every Monday | Exited on a flag the scanner does not define, wrote no SARIF; `continue-on-error` made a missing report read as a clean one | 6 Jul to 4 Sep |
+| 4 | CI guard "prevents regression" of stray model files | Searched the wrong directory with a glob that cannot match the real filename | since it was written |
+| 5 | Test suite named `check-for-updates` | Documents in its own header that it cannot reach the updater | throughout |
+
+Three more of the same shape found the same week: `cargo install --locked
+cargo-audit || true` swallowing install failures; `pip-audit` running
+before `pytest` so a vulnerability finding skipped 435 tests; and
+`health.py` computing an `ffmpeg_available` probe, discarding it, and
+carrying a comment claiming the capability "is still reported truthfully".
+
+## Two root causes, not five
+
+**Cause A: effective CI cadence was zero.** `ci.yml` triggered only on
+`pull_request`, and a solo developer committing straight to `main` means it
+never ran. Defects 2 and 3 are both invisible only because of this.
+
+**Cause B: success was defined as "the step exited 0", not "the expected
+artefact exists and is valid".** Defects 1, 3 and 4 all pass that weaker
+test. So does a scanner that scans nothing and a guard that matches
+nothing.
+
+Close those two properties and most of the class closes with them.
+
+## A correction to the obvious fix, from this repo's own evidence
+
+The natural prescription is a scheduled run plus a deadman check, on the
+reasoning that GitHub disables cron workflows after 60 days of repository
+inactivity, so the schedule itself can lie by omission.
+
+**That is not what happened here.** The OSV cron fired every single Monday
+from 22 June to 31 August, which is 73 days after the last commit on 19
+June. It was never disabled. It ran faithfully, ten times, and scanned
+nothing on every one of them.
+
+So the deadman check is still worth having, but for a better reason than
+the one usually given, and with a different assertion. **Check for a recent
+*successful* run, not a recent run.** There were zero successful OSV runs
+in that window and eleven scheduled ones. A freshness check on runs would
+have said everything was fine; a freshness check on *successes* would have
+screamed from the first week.
+
+That is Cause B applied to the schedule itself.
+
+## The plan
+
+Ordered by defects prevented per unit of cost. Items 1 to 4 belong in the
+v1.1.0 window, and total roughly two days.
+
+### 1. Trigger and cadence
+
+`push: branches: [main]` is already added on `fix/ci-gate`. Add a weekly
+`schedule` alongside it. At roughly 20 minutes a run at 1× on ubuntu, and
+about twenty pushes plus four crons a month, that is around 500 charged
+minutes against 3,000 included. This alone surfaces a defect like number 2
+within a week of introduction instead of four months.
+
+Then the deadman, per the correction above: assert the last **successful**
+`ci.yml` run is under eight days old. The natural home is the brain's
+`verify` skill, which already probes live systems read-only through
+`bin/status-check.sh` and `bin/sr-verify.sh` and files nothing when nothing
+changed. Zero CI cost. **Note that `bin/` is outside the Trace instance's
+write scope**, so this is a request to Paul or the brain session, not
+something this repo can land alone.
+
+### 2. Guard self-tests
+
+Every guard gets a planted failing fixture, and CI runs the guard against
+the fixture expecting **red** before running it against the repository
+expecting green. A `scripts/ci/fixtures/bad/` directory with a stray file
+the hygiene guard should catch, and a wrapper that fails the job if the
+guard *passes* on it.
+
+This is the mutation test the QA plan asked for, automated at near-zero
+cost and running inside every green build rather than as a separate red
+job. A glob that cannot match anything then fails on day one, which is
+exactly defect 4.
+
+### 3. Prove-it-ran assertions
+
+- **cargo-audit**: `|| true` already removed on `fix/ci-gate`. Add
+  `--json` output and assert the dependency count is greater than zero, so
+  an audit that inspected nothing cannot pass.
+- **pip-audit**: same shape, `-f json -o` then assert it enumerated
+  packages.
+- **Manifest generation**: beyond the completeness assertion already
+  landed, assert the served `latest.json` carries exactly the expected
+  platform keys, that every signature passes `looksLikeSignature`, and that
+  none contains `://`.
+- **OSV**: the SARIF non-empty assertion has landed. Remove
+  `continue-on-error` from the scan step itself and keep it only on the
+  upload, with a comment saying why.
+
+### 4. Scanner canaries
+
+A pinned, known-vulnerable fixture lockfile, and a weekly assertion that
+OSV and pip-audit each report at least one finding against it. This catches
+the residue of defect 3 that the SARIF assertion does not: a scanner that
+runs, produces a well-formed report, and detects nothing.
+
+### 5. Extract the manifest generator, after v1.1.0
+
+Defect 1 lived in inline `github-script` inside `release.yml`, a file only
+exercisable by a 72-minute release run. Move it to
+`scripts/release/generate-update-manifest.mjs` with unit tests, including
+negative fixtures for the sig-URL-in-signature case and a missing platform.
+Then the failure that stranded 145 users is caught by a twenty-second test
+rather than on release day. Fold this into BL-TEST-001 if that work touches
+the file anyway.
+
+### 6. Cadence for the expensive builds
+
+Nightly Windows is unaffordable: thirty runs at 144 charged minutes is
+4,320 a month on its own. Split by what is platform-dependent. The manifest
+and updater logic is not, so run BL-TEST-001's Linux updater end-to-end
+**weekly**, and the Windows installer end-to-end **monthly and on every
+tag**. Total added spend across the whole plan is roughly 800 to 900
+minutes a month, comfortably inside the allowance.
+
+### 7. The comment problem
+
+Defect 1 was caused by a false comment that the implementation followed.
+Defect 4's comment claimed it "prevents regression". Defect 5's comment
+honestly disclaimed its own coverage and nobody read it.
+
+Two rules, both review discipline rather than tooling. A comment claiming a
+guarantee must name the assertion that enforces it, which items 2 and 3
+make possible. And a disclaimer like defect 5's must carry a ticket ID
+rather than being prose, because prose gaps are not tracked and tickets
+are.
+
+## What not to do
+
+- **Nightly builds.** Budget-breaking, and weekly would have caught
+  everything here.
+- **A scheduled deliberately-failing job.** A routine red run trains alarm
+  fatigue. Fixtures inside green runs prove the same thing silently.
+- **Branch protection and mandatory pull requests.** Solo developer;
+  self-approved PRs are ceremony. Push-to-main triggers give the coverage
+  without the ritual.
+- **Attestation frameworks or policy engines.** Wrong scale entirely.
+  `actionlint` in CI is proportionate; anything heavier is not.
+- **Building tooling for the `continue-on-error` policy.** There are two
+  instances. A grep and a comment rule suffice.

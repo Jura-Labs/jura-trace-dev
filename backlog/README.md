@@ -31,6 +31,7 @@ version:
 | [BL-WM-001](BL-WM-001-watermarking-is-two-bugs-and-a-bundle-problem.md) | What enabling watermarking actually requires, and the robustness cliff | Scope risk |
 | [BL-DEPS-003](BL-DEPS-003-four-reachable-advisories-in-the-shipped-binary.md) | Four reachable advisories in the shipped product, found the first time anyone looked | High |
 | [BL-TEST-001](BL-TEST-001-nothing-tests-the-installed-product.md) | Nothing tests the installed product; this workflow IS the BL-REL-002 release gate | High, v1.1.0 floor |
+| [BL-SILENT-001](BL-SILENT-001-mechanisms-that-report-success-while-doing-nothing.md) | The class behind five defects: mechanisms reporting success while doing nothing | High as a class |
 | [BL-API-001](BL-API-001-the-headless-api-is-documented-and-does-not-exist.md) | The headless API is documented and does not exist; it gates the CLI | Medium |
 | [BL-SIZE-001](BL-SIZE-001-242mb-of-download-computes-10kb-of-constants.md) | 242 MB of every download computes 10 KB of constants | High for adoption |
 
