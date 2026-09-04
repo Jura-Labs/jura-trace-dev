@@ -90,9 +90,20 @@ jobs:
       # Companion to pip-audit in the python job and the cross-ecosystem
       # OSV-Scanner workflow. Defence in depth: native scanners often pick
       # up advisories that haven't yet landed in OSV.dev and vice versa.
+      #
+      # The `|| true` that used to sit on the install line was worse than
+      # useless: it swallowed an install failure, and then `cargo audit` on
+      # the next line failed anyway with an unhelpful "no such command".
+      # A failure here should say what actually failed.
+      #
+      # Note the cost: `cargo install` builds cargo-audit from source on
+      # every run, which is minutes of billable time for a tool that does
+      # not change. If build minutes get tight, install a prebuilt binary
+      # instead. Left as-is for now to avoid adding a third-party action to
+      # the supply chain this workflow exists to watch.
       - name: cargo-audit
         run: |
-          cargo install --locked cargo-audit || true
+          cargo install --locked cargo-audit
           cd src-tauri && cargo audit
 
   # ── Frontend: svelte-check + vitest ─────────────────────────────────────────
@@ -176,9 +187,14 @@ jobs:
             pip install -r sidecar/requirements.txt
           fi
 
-      # Audit installed packages for known CVEs.
+      # Audit installed packages for known CVEs. Audits the environment the
+      # step above just built, so it sees exactly what the sidecar runs.
+      #
+      # PINNED, for the same reason ruff is: an unpinned linter or auditor
+      # can turn the build red with no change to this repository, and that
+      # is precisely how the Python job died in April.
       - name: pip-audit
-        run: pip install pip-audit && pip-audit
+        run: pip install pip-audit==2.10.1 && pip-audit
 
       - name: Run pytest
         run: cd sidecar && python -m pytest tests/ -v
