@@ -122,14 +122,22 @@ updates:
       # weekly bump. Patches still come through.
       - dependency-name: fastapi
         update-types: ["version-update:semver-minor"]
-      # Pillow is held until the decode-drift test passes. Every forensic
-      # feature starts from PIL-decoded pixels and the detector thresholds
-      # are calibrated against the current decoder, so a bump here can move
-      # verdicts. Pillow 11.3 and later also ship native AVIF, which can
-      # take precedence over the pinned pillow-avif-plugin. That is a
-      # decoder swap rather than drift, and it has a different fix.
-      - dependency-name: pillow
-        update-types: ["version-update:semver-major"]
+      # Pillow is NOT ignored, and an earlier version of this file got that
+      # wrong. It was held here pending a decode-drift test, on the reasoning
+      # that every forensic feature starts from PIL-decoded pixels and the
+      # detector thresholds are calibrated against the current decoder.
+      #
+      # The 4 September supply-chain audit inverted that. Pillow 11.2.1
+      # carries heap out-of-bounds writes reachable from Image.paste() and
+      # crop() (CVE-2026-59199) and from ImageCms (CVE-2026-59205), in code
+      # paths content_type.py and clip_detector.py run on files supplied by
+      # whoever the user is investigating. The fixes exist only in 12.x.
+      #
+      # Dependabot ignore rules suppress security updates as well as version
+      # updates, so leaving the rule here would have muted the alert for the
+      # most reachable vulnerability in the sidecar. The drift test still
+      # runs, but it now decides whether to RECALIBRATE, not whether to
+      # take the fix.
 
   # ── GitHub Actions ──────────────────────────────────────────────────────
   # This ecosystem was saturated too. Grouping matters most here, because
