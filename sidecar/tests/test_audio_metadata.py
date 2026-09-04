@@ -20,10 +20,19 @@ def _make_test_audio() -> bytes:
     """Create a minimal test audio file using ffmpeg (1s sine wave)."""
     result = subprocess.run(
         [
-            "ffmpeg", "-y", "-f", "lavfi", "-i",
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
             "sine=frequency=440:duration=1",
-            "-c:a", "libmp3lame", "-b:a", "128k",
-            "-f", "mp3", "pipe:1",
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "128k",
+            "-f",
+            "mp3",
+            "pipe:1",
         ],
         capture_output=True,
         timeout=30,

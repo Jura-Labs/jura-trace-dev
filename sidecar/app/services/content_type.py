@@ -54,22 +54,65 @@ from app.models.content_type import ContentTypeResult
 # (portrait/landscape) by checking (w, h) and (h, w) against the set.
 _SCREEN_RESOLUTIONS: set[tuple[int, int]] = {
     # Desktop / laptop monitors
-    (1280, 720), (1366, 768), (1440, 900), (1536, 864), (1600, 900),
-    (1680, 1050), (1920, 1080), (1920, 1200), (2048, 1152), (2048, 1280),
-    (2304, 1440), (2560, 1440), (2560, 1600), (2880, 1800), (3024, 1964),
-    (3072, 1920), (3200, 1800), (3440, 1440), (3456, 2234), (3840, 2160),
-    (3840, 2400), (5120, 2160), (5120, 2880), (6016, 3384), (6144, 3456),
+    (1280, 720),
+    (1366, 768),
+    (1440, 900),
+    (1536, 864),
+    (1600, 900),
+    (1680, 1050),
+    (1920, 1080),
+    (1920, 1200),
+    (2048, 1152),
+    (2048, 1280),
+    (2304, 1440),
+    (2560, 1440),
+    (2560, 1600),
+    (2880, 1800),
+    (3024, 1964),
+    (3072, 1920),
+    (3200, 1800),
+    (3440, 1440),
+    (3456, 2234),
+    (3840, 2160),
+    (3840, 2400),
+    (5120, 2160),
+    (5120, 2880),
+    (6016, 3384),
+    (6144, 3456),
     # iPhone logical and native
-    (750, 1334), (828, 1792), (1080, 1920), (1125, 2436), (1170, 2532),
-    (1179, 2556), (1242, 2208), (1242, 2688), (1284, 2778), (1290, 2796),
+    (750, 1334),
+    (828, 1792),
+    (1080, 1920),
+    (1125, 2436),
+    (1170, 2532),
+    (1179, 2556),
+    (1242, 2208),
+    (1242, 2688),
+    (1284, 2778),
+    (1290, 2796),
     (1320, 2868),
     # Android flagships
-    (1080, 2340), (1080, 2400), (1440, 2560), (1440, 2960), (1440, 3088),
-    (1440, 3120), (1440, 3200), (1440, 3216), (1080, 2280),
+    (1080, 2340),
+    (1080, 2400),
+    (1440, 2560),
+    (1440, 2960),
+    (1440, 3088),
+    (1440, 3120),
+    (1440, 3200),
+    (1440, 3216),
+    (1080, 2280),
     # iPad
-    (1620, 2160), (1640, 2360), (1668, 2224), (1668, 2388), (2048, 2732),
+    (1620, 2160),
+    (1640, 2360),
+    (1668, 2224),
+    (1668, 2388),
+    (2048, 2732),
     # Common cropped/half sizes
-    (640, 1136), (375, 812), (390, 844), (393, 852), (430, 932),
+    (640, 1136),
+    (375, 812),
+    (390, 844),
+    (393, 852),
+    (430, 932),
 }
 
 
@@ -77,17 +120,36 @@ _SCREEN_RESOLUTIONS: set[tuple[int, int]] = {
 # or XMP CreatorTool fields. Their presence — combined with no camera Make/
 # Model — is a strong artwork signal.
 _ART_SOFTWARE_FINGERPRINTS: tuple[str, ...] = (
-    "photoshop", "procreate", "krita", "affinity photo", "affinity designer",
-    "gimp", "clip studio", "illustrator", "corel painter", "sketchbook",
-    "paint tool sai", "medibang", "autodesk sketchbook", "figma", "sketch",
+    "photoshop",
+    "procreate",
+    "krita",
+    "affinity photo",
+    "affinity designer",
+    "gimp",
+    "clip studio",
+    "illustrator",
+    "corel painter",
+    "sketchbook",
+    "paint tool sai",
+    "medibang",
+    "autodesk sketchbook",
+    "figma",
+    "sketch",
 )
 
 
 # Screenshot-tool software fingerprints. Seen in PNG tEXt / iTXt chunks or
 # EXIF Software field.
 _SCREENSHOT_SOFTWARE_FINGERPRINTS: tuple[str, ...] = (
-    "screenshot", "snipping tool", "snipaste", "shottr", "cleanshot",
-    "lightshot", "greenshot", "sharex", "gyazo",
+    "screenshot",
+    "snipping tool",
+    "snipaste",
+    "shottr",
+    "cleanshot",
+    "lightshot",
+    "greenshot",
+    "sharex",
+    "gyazo",
 )
 
 
@@ -347,7 +409,11 @@ def classify_content(image_bytes: bytes) -> ContentTypeResult:
         ss_score += 0.10
     if axis_edge_ratio > 0.15:
         ss_score += 0.15
-    if icc in ("display p3", "srgb iec61966-2.1") and not has_camera_make_model and is_png:
+    if (
+        icc in ("display p3", "srgb iec61966-2.1")
+        and not has_camera_make_model
+        and is_png
+    ):
         ss_score += 0.10
     ss_score = min(ss_score, 1.0)
 
@@ -371,7 +437,12 @@ def classify_content(image_bytes: bytes) -> ContentTypeResult:
         art_score += 0.55
     if not has_camera_make_model and sat_var > 4000 and megapixels > 0.3:
         art_score += 0.15
-    if is_png and not has_camera_make_model and unique_colours > 10_000 and axis_edge_ratio < 0.05:
+    if (
+        is_png
+        and not has_camera_make_model
+        and unique_colours > 10_000
+        and axis_edge_ratio < 0.05
+    ):
         art_score += 0.10
     art_score = min(art_score, 1.0)
 
@@ -428,7 +499,9 @@ def classify_content(image_bytes: bytes) -> ContentTypeResult:
         if screenshot_software:
             reasoning_parts.append("screenshot tool software fingerprint present")
         if megapixels >= 0.5 and unique_colours < 1000:
-            reasoning_parts.append(f"only {unique_colours} unique colours in {megapixels:.1f} MP")
+            reasoning_parts.append(
+                f"only {unique_colours} unique colours in {megapixels:.1f} MP"
+            )
         if axis_edge_ratio > 0.15:
             reasoning_parts.append(f"axis-aligned edges {axis_edge_ratio:.0%}")
         if not has_camera_make_model:
@@ -439,16 +512,24 @@ def classify_content(image_bytes: bytes) -> ContentTypeResult:
             reasoning_parts.append("paper aspect ratio")
     elif top_category == "artwork":
         if art_software:
-            reasoning_parts.append(f"digital-art software fingerprint ({exif.get('software','')})")
+            reasoning_parts.append(
+                f"digital-art software fingerprint ({exif.get('software', '')})"
+            )
         if sat_var > 4000:
             reasoning_parts.append(f"high saturation variance ({sat_var:.0f})")
     else:  # photograph
         if has_camera_make_model:
-            reasoning_parts.append(f"camera EXIF {exif.get('make','')} {exif.get('model','')}")
+            reasoning_parts.append(
+                f"camera EXIF {exif.get('make', '')} {exif.get('model', '')}"
+            )
         else:
             reasoning_parts.append("no dispositive screenshot/document/artwork signals")
 
-    reasoning = f"{top_category}: " + "; ".join(reasoning_parts) if reasoning_parts else top_category
+    reasoning = (
+        f"{top_category}: " + "; ".join(reasoning_parts)
+        if reasoning_parts
+        else top_category
+    )
 
     return ContentTypeResult(
         category=top_category,  # type: ignore[arg-type]

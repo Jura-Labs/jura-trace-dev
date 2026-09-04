@@ -24,10 +24,21 @@ def _make_test_audio() -> bytes:
     """Create a minimal test WAV file using ffmpeg (1s sine wave)."""
     result = subprocess.run(
         [
-            "ffmpeg", "-y", "-f", "lavfi", "-i",
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
             "sine=frequency=440:duration=1",
-            "-c:a", "pcm_s16le", "-ar", "16000", "-ac", "1",
-            "-f", "wav", "pipe:1",
+            "-c:a",
+            "pcm_s16le",
+            "-ar",
+            "16000",
+            "-ac",
+            "1",
+            "-f",
+            "wav",
+            "pipe:1",
         ],
         capture_output=True,
         timeout=30,
@@ -38,9 +49,7 @@ def _make_test_audio() -> bytes:
 
 
 class TestTranscription:
-    @pytest.mark.skipif(
-        not _WHISPER_AVAILABLE, reason="faster-whisper not installed"
-    )
+    @pytest.mark.skipif(not _WHISPER_AVAILABLE, reason="faster-whisper not installed")
     @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg not installed")
     def test_returns_valid_response(self):
         """A valid audio file should produce a successful transcription result."""
@@ -57,7 +66,8 @@ class TestTranscription:
     def test_handles_missing_whisper(self):
         """When faster-whisper is not importable, return graceful failure."""
         with patch(
-            "app.services.transcription._WHISPER_AVAILABLE", False,
+            "app.services.transcription._WHISPER_AVAILABLE",
+            False,
         ):
             result = perform_transcription(b"fake audio data")
             assert result["success"] is False

@@ -6,6 +6,7 @@ Re-runs noise, ELA, and frequency analysis on a user-selected
 rectangular region, enabling comparison between suspicious and
 reference regions within the same image.
 """
+
 import base64
 import io
 import logging

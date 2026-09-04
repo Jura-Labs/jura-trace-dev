@@ -79,7 +79,9 @@ async def describe_image(
     """
     # ── Availability check ─────────────────────────────────────────────────────
     if not await _check_ollama_available(ollama_base_url):
-        logger.debug("Ollama unavailable at %s — skipping image description", ollama_base_url)
+        logger.debug(
+            "Ollama unavailable at %s — skipping image description", ollama_base_url
+        )
         return ImageDescribeResponse(
             description=None,
             model_used=model,
@@ -144,7 +146,9 @@ async def describe_image(
         )
 
     except httpx.TimeoutException:
-        logger.warning("Ollama timed out while generating image description (model=%s)", model)
+        logger.warning(
+            "Ollama timed out while generating image description (model=%s)", model
+        )
         return ImageDescribeResponse(
             description=None,
             model_used=model,
@@ -197,7 +201,9 @@ async def extract_text_from_image(
     """
     # ── Availability check ─────────────────────────────────────────────────────
     if not await _check_ollama_available(ollama_base_url):
-        logger.debug("Ollama unavailable at %s — skipping text extraction", ollama_base_url)
+        logger.debug(
+            "Ollama unavailable at %s — skipping text extraction", ollama_base_url
+        )
         return ImageDescribeResponse(
             description=None,
             model_used=model,
@@ -312,8 +318,6 @@ async def _check_model_available(ollama_base_url: str, model: str) -> bool:
             data = resp.json()
             models = data.get("models", [])
             base_model = model.split(":")[0]
-            return any(
-                m.get("name", "").split(":")[0] == base_model for m in models
-            )
+            return any(m.get("name", "").split(":")[0] == base_model for m in models)
     except Exception:
         return False

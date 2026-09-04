@@ -38,11 +38,16 @@ from app.services.jpeg_ghost import perform_jpeg_ghost_detection
 
 # MIME type mapping
 MIME_MAP = {
-    ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-    ".png": "image/png", ".webp": "image/webp",
-    ".avif": "image/avif", ".heic": "image/heic",
-    ".tiff": "image/tiff", ".tif": "image/tiff",
-    ".bmp": "image/bmp", ".gif": "image/gif",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".avif": "image/avif",
+    ".heic": "image/heic",
+    ".tiff": "image/tiff",
+    ".tif": "image/tiff",
+    ".bmp": "image/bmp",
+    ".gif": "image/gif",
 }
 
 EXPECTED_VERDICTS = {
@@ -126,6 +131,7 @@ def evaluate_image(path: Path, category: str) -> dict:
     # CLIP (if available)
     try:
         from app.services.clip_detector import perform_clip_detection
+
         clip = perform_clip_detection(data)
         result["clip_score"] = clip.score
         result["clip_verdict"] = clip.verdict_level
@@ -151,9 +157,16 @@ def evaluate_image(path: Path, category: str) -> dict:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate test corpus against detection pipeline")
-    parser.add_argument("corpus_dir", help="Directory containing real/, ai_generated/, manipulated/ subdirs")
-    parser.add_argument("--output", "-o", default="corpus_results.csv", help="Output CSV path")
+    parser = argparse.ArgumentParser(
+        description="Evaluate test corpus against detection pipeline"
+    )
+    parser.add_argument(
+        "corpus_dir",
+        help="Directory containing real/, ai_generated/, manipulated/ subdirs",
+    )
+    parser.add_argument(
+        "--output", "-o", default="corpus_results.csv", help="Output CSV path"
+    )
     args = parser.parse_args()
 
     corpus = Path(args.corpus_dir)
@@ -162,7 +175,17 @@ def main():
         sys.exit(1)
 
     results = []
-    image_exts = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".heic", ".tiff", ".tif", ".bmp"}
+    image_exts = {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp",
+        ".avif",
+        ".heic",
+        ".tiff",
+        ".tif",
+        ".bmp",
+    }
 
     for category in ("real", "ai_generated", "manipulated"):
         cat_dir = corpus / category
@@ -184,7 +207,9 @@ def main():
             correct = result.get("correct", "?")
             mark = "OK" if correct else "FAIL" if correct is False else "?"
 
-            print(f"  [{mark:4s}] {img_path.name:50s} score={score:.4f} verdict={verdict:13s} ({elapsed:.1f}s)")
+            print(
+                f"  [{mark:4s}] {img_path.name:50s} score={score:.4f} verdict={verdict:13s} ({elapsed:.1f}s)"
+            )
             results.append(result)
 
     # Write CSV
@@ -212,24 +237,38 @@ def main():
     if real:
         fp = sum(1 for r in real if r.get("false_positive"))
         inc = sum(1 for r in real if r.get("deepfake_verdict") == "inconclusive")
-        print(f"Real photos:      {len(real)} total, {fp} false positives ({100*fp/len(real):.1f}% FPR), {inc} inconclusive")
+        print(
+            f"Real photos:      {len(real)} total, {fp} false positives ({100 * fp / len(real):.1f}% FPR), {inc} inconclusive"
+        )
 
     if ai:
         fn = sum(1 for r in ai if r.get("false_negative"))
         det = sum(1 for r in ai if r.get("deepfake_verdict") == "synthetic")
         inc = sum(1 for r in ai if r.get("deepfake_verdict") == "inconclusive")
-        print(f"AI-generated:     {len(ai)} total, {fn} false negatives ({100*fn/len(ai):.1f}% FNR), {det} detected, {inc} inconclusive")
+        print(
+            f"AI-generated:     {len(ai)} total, {fn} false negatives ({100 * fn / len(ai):.1f}% FNR), {det} detected, {inc} inconclusive"
+        )
 
     if manip:
         correct = sum(1 for r in manip if r.get("correct"))
-        print(f"Manipulated:      {len(manip)} total, {correct} correctly flagged ({100*correct/len(manip):.1f}%)")
+        print(
+            f"Manipulated:      {len(manip)} total, {correct} correctly flagged ({100 * correct / len(manip):.1f}%)"
+        )
 
     # Watermark stats. Only the SD/SDXL subset is reported; a corpus-wide
     # count was computed here and never printed.
-    sd_images = [r for r in ai if "sd" in r["filename"].lower() or "flux" in r["filename"].lower() or "sdxl" in r["filename"].lower()]
+    sd_images = [
+        r
+        for r in ai
+        if "sd" in r["filename"].lower()
+        or "flux" in r["filename"].lower()
+        or "sdxl" in r["filename"].lower()
+    ]
     if sd_images:
         wm_sd = [r for r in sd_images if r.get("watermark_detected")]
-        print(f"SD/SDXL watermark: {len(wm_sd)}/{len(sd_images)} detected ({100*len(wm_sd)/len(sd_images):.0f}%)")
+        print(
+            f"SD/SDXL watermark: {len(wm_sd)}/{len(sd_images)} detected ({100 * len(wm_sd) / len(sd_images):.0f}%)"
+        )
 
 
 if __name__ == "__main__":

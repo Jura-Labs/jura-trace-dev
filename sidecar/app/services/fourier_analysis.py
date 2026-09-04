@@ -50,7 +50,9 @@ def analyse_fourier(image_bytes: bytes) -> dict[str, Any]:
     ow, oh = img.size
     if ow > _MAX_DIM or oh > _MAX_DIM:
         scale = _MAX_DIM / max(ow, oh)
-        img = img.resize((max(1, int(ow * scale)), max(1, int(oh * scale))), Image.LANCZOS)
+        img = img.resize(
+            (max(1, int(ow * scale)), max(1, int(oh * scale))), Image.LANCZOS
+        )
 
     arr = np.array(img, dtype=np.float64)
     h, w = arr.shape
@@ -78,7 +80,7 @@ def analyse_fourier(image_bytes: bytes) -> dict[str, Any]:
     cy, cx = h // 2, w // 2
     mask_radius = max(3, min(h, w) // 20)
     y_grid, x_grid = np.ogrid[:h, :w]
-    dc_mask = (y_grid - cy) ** 2 + (x_grid - cx) ** 2 <= mask_radius ** 2
+    dc_mask = (y_grid - cy) ** 2 + (x_grid - cx) ** 2 <= mask_radius**2
     magnitude_masked = magnitude.copy()
     magnitude_masked[dc_mask] = 0.0
 

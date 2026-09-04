@@ -45,6 +45,7 @@ def _make_test_image_with_seed(seed: int) -> bytes:
 def _make_b64_frame(seed: int) -> str:
     """Create a base64-encoded test frame with a specific seed."""
     import base64
+
     return base64.b64encode(_make_test_image_with_seed(seed)).decode("utf-8")
 
 
@@ -59,12 +60,17 @@ def _get_b64_frame(seed: int) -> str:
     return _PRECOMPUTED_FRAMES[seed]
 
 
-def _make_mock_frames_response(count: int = 6, duration: float = 10.0) -> VideoFramesResponse:
+def _make_mock_frames_response(
+    count: int = 6, duration: float = 10.0
+) -> VideoFramesResponse:
     """Create a mock VideoFramesResponse with distinct base64 test frames."""
     import base64
+
     # Use different seeds so frames are distinct and survive deduplication
-    frames = [base64.b64encode(_make_test_image_with_seed(seed)).decode("utf-8")
-              for seed in range(count)]
+    frames = [
+        base64.b64encode(_make_test_image_with_seed(seed)).decode("utf-8")
+        for seed in range(count)
+    ]
     return VideoFramesResponse(
         frames=frames,
         count=count,
@@ -241,7 +247,9 @@ class TestDeepfakeWithFeatures:
 
         for key in ("noise_std", "spectral_decay_beta", "glcm_contrast_mean"):
             val = features[key]
-            assert isinstance(val, (int, float)), f"{key} should be numeric, got {type(val)}"
+            assert isinstance(val, (int, float)), (
+                f"{key} should be numeric, got {type(val)}"
+            )
 
 
 class TestDeduplicateFrames:
@@ -250,16 +258,19 @@ class TestDeduplicateFrames:
     def test_import(self):
         """deduplicate_frames is importable."""
         from app.services.video_deepfake import deduplicate_frames
+
         assert callable(deduplicate_frames)
 
     def test_empty_list(self):
         """Empty input returns empty output."""
         from app.services.video_deepfake import deduplicate_frames
+
         assert deduplicate_frames([]) == []
 
     def test_single_frame(self):
         """Single frame is always kept."""
         from app.services.video_deepfake import deduplicate_frames
+
         frames = [_make_b64_frame(1)]
         result = deduplicate_frames(frames)
         assert len(result) == 1
@@ -267,6 +278,7 @@ class TestDeduplicateFrames:
     def test_all_unique_frames_kept(self):
         """Distinct frames are all kept."""
         from app.services.video_deepfake import deduplicate_frames
+
         frames = [_make_b64_frame(seed) for seed in range(6)]
         result = deduplicate_frames(frames)
         assert len(result) == 6
@@ -274,6 +286,7 @@ class TestDeduplicateFrames:
     def test_identical_frames_deduplicated(self):
         """Identical frames are reduced to one."""
         from app.services.video_deepfake import deduplicate_frames
+
         frame = _make_b64_frame(42)
         frames = [frame] * 8
         result = deduplicate_frames(frames)
@@ -282,6 +295,7 @@ class TestDeduplicateFrames:
     def test_adjacent_duplicates_removed(self):
         """Adjacent duplicate pairs are collapsed."""
         from app.services.video_deepfake import deduplicate_frames
+
         a = _make_b64_frame(1)
         b = _make_b64_frame(2)
         c = _make_b64_frame(3)
@@ -297,6 +311,7 @@ class TestDeduplicateFrames:
         buffer (size >= 4) catches them.
         """
         from app.services.video_deepfake import deduplicate_frames
+
         # Create 4 distinct frames (cached so repeats are identical)
         f1 = _get_b64_frame(10)
         f2 = _get_b64_frame(20)
@@ -314,6 +329,7 @@ class TestDeduplicateFrames:
         A frame identical to one kept 3+ positions ago will NOT be caught.
         """
         from app.services.video_deepfake import deduplicate_frames
+
         # Create 4 distinct frames + repeat of frame 1
         f1 = _get_b64_frame(10)
         f2 = _get_b64_frame(20)
@@ -329,6 +345,7 @@ class TestDeduplicateFrames:
     def test_buffer_size_catches_recent_duplicates(self):
         """With buffer_size=2, recent duplicates are still caught."""
         from app.services.video_deepfake import deduplicate_frames
+
         f1 = _get_b64_frame(10)
         f2 = _get_b64_frame(20)
         # f2 repeated immediately after — buffer has [f1, f2], so f2 is caught
@@ -339,6 +356,7 @@ class TestDeduplicateFrames:
     def test_default_buffer_size(self):
         """Default buffer_size=5 catches duplicates within 5-frame window."""
         from app.services.video_deepfake import deduplicate_frames
+
         # 5 distinct frames, then repeat frame 1 — buffer holds all 5
         frames = [_get_b64_frame(i) for i in range(5)]
         frames.append(_get_b64_frame(0))  # repeat of first
@@ -348,6 +366,7 @@ class TestDeduplicateFrames:
     def test_threshold_controls_sensitivity(self):
         """Lower threshold deduplicates more aggressively."""
         from app.services.video_deepfake import deduplicate_frames
+
         frames = [_make_b64_frame(seed) for seed in range(4)]
         # With threshold=1.0, nothing should be considered similar (must be > 1.0)
         result_high = deduplicate_frames(frames, threshold=1.0)
@@ -360,12 +379,15 @@ class TestDeduplicateFrames:
         """Deduplication of 40 frames with buffer_size=5 completes quickly."""
         import time
         from app.services.video_deepfake import deduplicate_frames
+
         # Use 3 unique seeds cycling over 40 frames — buffer_size=5 catches all repeats
         frames = [_get_b64_frame(i % 3) for i in range(40)]
         start = time.monotonic()
         result = deduplicate_frames(frames, buffer_size=5)
         elapsed_ms = (time.monotonic() - start) * 1000
         # Must complete in < 50ms
-        assert elapsed_ms < 50, f"Deduplication took {elapsed_ms:.1f}ms, expected < 50ms"
+        assert elapsed_ms < 50, (
+            f"Deduplication took {elapsed_ms:.1f}ms, expected < 50ms"
+        )
         # Only 3 unique frames should survive (3 seeds, buffer holds all 3)
         assert len(result) == 3

@@ -144,7 +144,10 @@ class TestSegmentedEla:
         assert result["score"] == 0.0
         assert not result["suspicious"]
         assert result["total_regions"] == 0
-        assert "not applicable" in result["summary"].lower() or "could not" in result["summary"].lower()
+        assert (
+            "not applicable" in result["summary"].lower()
+            or "could not" in result["summary"].lower()
+        )
 
     def test_heic_ftyp_brand_returns_neutral(self):
         """HEIC ftyp brand must also return neutral (belt-and-braces)."""

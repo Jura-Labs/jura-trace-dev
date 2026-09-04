@@ -12,10 +12,13 @@ import pytest
 
 # JTV-138 (2026-05-02) — audio deepfake dropped from v1.0; restored alongside
 # AASIST retraining under JTV-110/JTV-113 in v1.1.
-pytestmark = pytest.mark.skip(reason="JTV-138 v1.0 drop — re-enable under JTV-110/JTV-113")
+pytestmark = pytest.mark.skip(
+    reason="JTV-138 v1.0 drop — re-enable under JTV-110/JTV-113"
+)
 
 
 # ── Test helpers ──────────────────────────────────────────────────────────────
+
 
 def _make_sine_wave_wav(
     duration_seconds: float = 1.5,
@@ -55,6 +58,7 @@ def _write_tmp_wav(content: bytes, suffix: str = ".wav") -> str:
 
 
 # ── Service-level unit tests ──────────────────────────────────────────────────
+
 
 class TestExtractMfccFeatures:
     """MFCC feature extraction — scipy/librosa path."""
@@ -186,6 +190,7 @@ class TestScoreAudioDeepfake:
 
 
 # ── API endpoint tests ────────────────────────────────────────────────────────
+
 
 class TestAudioDeepfakeEndpoint:
     """FastAPI endpoint POST /forensics/audio/deepfake."""

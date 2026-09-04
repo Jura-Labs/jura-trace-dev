@@ -45,7 +45,7 @@ def _make_screenshot(
 
     # Add a few "text" lines (alternating bright/dark rows)
     for y in range(100, 380, 20):
-        arr[y, 340:340 + np.random.randint(200, 500)] = (200, 200, 210)
+        arr[y, 340 : 340 + np.random.randint(200, 500)] = (200, 200, 210)
 
     img = Image.fromarray(arr)
     buf = io.BytesIO()
@@ -78,6 +78,7 @@ def _make_photo_jpeg(size: tuple[int, int] = (4032, 3024)) -> bytes:
     img = Image.fromarray(arr)
     # Add minimal EXIF data
     from PIL.ExifTags import Base as ExifBase
+
     exif = img.getexif()
     exif[ExifBase.Make] = "Canon"
     exif[ExifBase.Model] = "EOS R5"
@@ -164,7 +165,9 @@ class TestScreenshotDetection:
 
     def test_photograph_not_screenshot(self):
         """A JPEG photo with EXIF should not be detected as a screenshot."""
-        is_ss, confidence, signals = is_likely_screenshot(_make_photo_jpeg(size=(800, 600)))
+        is_ss, confidence, signals = is_likely_screenshot(
+            _make_photo_jpeg(size=(800, 600))
+        )
         assert is_ss is False
         assert confidence < 0.40
         assert signals["png_format"] == 0.0
@@ -229,8 +232,13 @@ class TestScreenshotDetection:
         """The signal dict should contain all expected keys."""
         _, _, signals = is_likely_screenshot(_make_screenshot())
         expected_keys = {
-            "png_format", "no_exif", "low_noise", "solid_regions",
-            "screen_resolution", "sharp_edges", "limited_palette",
+            "png_format",
+            "no_exif",
+            "low_noise",
+            "solid_regions",
+            "screen_resolution",
+            "sharp_edges",
+            "limited_palette",
         }
         assert set(signals.keys()) == expected_keys
 
@@ -261,9 +269,7 @@ class TestScreenshotBypassIntegration:
         this test — the semantic guarantee is score, verdict_level,
         suspicious, and summary, not the exact numeric value.
         """
-        result = perform_deepfake_detection(
-            _make_screenshot(), mime_type="image/png"
-        )
+        result = perform_deepfake_detection(_make_screenshot(), mime_type="image/png")
         assert result.score <= 0.20
         assert result.verdict_level == "authentic"
         assert result.suspicious is False
@@ -291,9 +297,7 @@ class TestScreenshotBypassIntegration:
 
     def test_screenshot_result_has_valid_structure(self):
         """The screenshot bypass result should have all required fields."""
-        result = perform_deepfake_detection(
-            _make_screenshot(), mime_type="image/png"
-        )
+        result = perform_deepfake_detection(_make_screenshot(), mime_type="image/png")
         assert isinstance(result.score, float)
         assert isinstance(result.suspicious, bool)
         assert result.confidence in ("high", "medium", "low")

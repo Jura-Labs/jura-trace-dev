@@ -19,7 +19,6 @@ Two endpoints are provided:
   v1.0.x re-add (JTV-139).
 """
 
-
 import httpx
 from fastapi import APIRouter, Request, Response
 
@@ -103,12 +102,17 @@ async def health(request: Request) -> HealthResponse:
         version=request.app.version,
         service="jura-trace-sidecar",
         capabilities=CapabilitiesResponse(
-            ela=True, noise=True, copy_move=True, deepfake=True,
+            ela=True,
+            noise=True,
+            copy_move=True,
+            deepfake=True,
             # watermark deferred to v1.1 (V1_SHOW_WATERMARK=false in frontend).
             # invisible-watermark removed from CI bundle 2026-05-21 to keep
             # the JTV-184 onedir size envelope safe. Surface stays false so
             # callers (CLI, Tauri command, REST API) reflect the bundle state.
-            watermark=False, clip_detect=clip_available, rag=rag_available,
+            watermark=False,
+            clip_detect=clip_available,
+            rag=rag_available,
             # JTV-138 v1.0 drop — these stay False until JTV-139 re-add.
             video_metadata=False,
             audio_metadata=False,

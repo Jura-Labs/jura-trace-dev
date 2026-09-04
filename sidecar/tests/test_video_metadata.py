@@ -20,10 +20,20 @@ def _make_test_video() -> bytes:
     """Create a minimal test video using ffmpeg (1s, 320x240, silent)."""
     result = subprocess.run(
         [
-            "ffmpeg", "-y", "-f", "lavfi", "-i",
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
             "color=c=blue:s=320x240:d=1:r=25",
-            "-c:v", "libx264", "-t", "1",
-            "-f", "mp4", "-movflags", "+frag_keyframe+empty_moov",
+            "-c:v",
+            "libx264",
+            "-t",
+            "1",
+            "-f",
+            "mp4",
+            "-movflags",
+            "+frag_keyframe+empty_moov",
             "pipe:1",
         ],
         capture_output=True,

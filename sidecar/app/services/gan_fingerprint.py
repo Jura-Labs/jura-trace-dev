@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _radial_profile(magnitude: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Compute the azimuthally-averaged radial profile of a 2D spectrum.
 
@@ -68,7 +69,9 @@ def _fit_one_over_f(radii: np.ndarray, profile: np.ndarray) -> np.ndarray:
     return np.exp(fitted_log)
 
 
-def _build_radial_map(shape: tuple[int, int], values: np.ndarray, max_r: int) -> np.ndarray:
+def _build_radial_map(
+    shape: tuple[int, int], values: np.ndarray, max_r: int
+) -> np.ndarray:
     """Expand a 1-D radial profile back into a 2-D image of given *shape*."""
     h, w = shape
     cy, cx = h // 2, w // 2
@@ -80,8 +83,9 @@ def _build_radial_map(shape: tuple[int, int], values: np.ndarray, max_r: int) ->
     return out
 
 
-def _detect_peaks(residual: np.ndarray, sigma_threshold: float = 3.0,
-                  neighbourhood: int = 11) -> list[dict]:
+def _detect_peaks(
+    residual: np.ndarray, sigma_threshold: float = 3.0, neighbourhood: int = 11
+) -> list[dict]:
     """Find local maxima in *residual* that exceed *sigma_threshold* standard
     deviations above the mean.
 
@@ -102,13 +106,18 @@ def _detect_peaks(residual: np.ndarray, sigma_threshold: float = 3.0,
     for y, x in zip(ys, xs):
         dx = x - cx
         dy = y - cy
-        freq = math.sqrt(dx ** 2 + dy ** 2)
+        freq = math.sqrt(dx**2 + dy**2)
         angle = math.degrees(math.atan2(dy, dx))
         mag = float(residual[y, x])
-        peaks.append({"frequency": round(freq, 2),
-                       "magnitude": round(mag, 4),
-                       "angle": round(angle, 2),
-                       "_x": int(x), "_y": int(y)})
+        peaks.append(
+            {
+                "frequency": round(freq, 2),
+                "magnitude": round(mag, 4),
+                "angle": round(angle, 2),
+                "_x": int(x),
+                "_y": int(y),
+            }
+        )
 
     # Sort by magnitude descending, keep top 10
     peaks.sort(key=lambda p: p["magnitude"], reverse=True)
@@ -146,9 +155,8 @@ def _check_checkerboard_pattern(peaks: list[dict], w: int, h: int) -> bool:
     for p in peaks:
         px, py = p["_x"], p["_y"]
         # Near corners of the spectrum
-        near_corner = (
-            (abs(px - 0) < margin or abs(px - w) < margin)
-            and (abs(py - 0) < margin or abs(py - h) < margin)
+        near_corner = (abs(px - 0) < margin or abs(px - w) < margin) and (
+            abs(py - 0) < margin or abs(py - h) < margin
         )
         # Near edges (Nyquist) — halfway between centre and edge
         near_nyquist = p["frequency"] > min(cx, cy) * 0.7
@@ -168,6 +176,7 @@ def _encode_png_base64(img_array: np.ndarray) -> str:
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
+
 
 def visualise_gan_fingerprint(image_bytes: bytes) -> dict:
     """Analyse an image for GAN spectral fingerprints.
@@ -232,9 +241,13 @@ def visualise_gan_fingerprint(image_bytes: bytes) -> dict:
     has_periodic = len(peaks) >= 4
 
     if has_periodic:
-        notes.append(f"Detected {len(peaks)} anomalous spectral peaks above 3-sigma threshold.")
+        notes.append(
+            f"Detected {len(peaks)} anomalous spectral peaks above 3-sigma threshold."
+        )
     else:
-        notes.append("No significant periodic artefacts detected in the frequency domain.")
+        notes.append(
+            "No significant periodic artefacts detected in the frequency domain."
+        )
 
     # ------------------------------------------------------------------
     # 5. Check for ring patterns (StyleGAN2) or checkerboard (ProGAN)
@@ -245,13 +258,19 @@ def visualise_gan_fingerprint(image_bytes: bytes) -> dict:
     model_attribution: str | None = None
     if is_ring and is_checkerboard:
         model_attribution = "StyleGAN3"
-        notes.append("Ring and checkerboard patterns detected — consistent with StyleGAN3.")
+        notes.append(
+            "Ring and checkerboard patterns detected — consistent with StyleGAN3."
+        )
     elif is_ring:
         model_attribution = "StyleGAN2"
-        notes.append("Ring pattern detected in spectral peaks — consistent with StyleGAN2 upsampling.")
+        notes.append(
+            "Ring pattern detected in spectral peaks — consistent with StyleGAN2 upsampling."
+        )
     elif is_checkerboard:
         model_attribution = "ProGAN"
-        notes.append("Checkerboard pattern detected — consistent with ProGAN transposed convolution.")
+        notes.append(
+            "Checkerboard pattern detected — consistent with ProGAN transposed convolution."
+        )
     else:
         notes.append("No characteristic GAN model spectral signature identified.")
 
@@ -284,9 +303,7 @@ def visualise_gan_fingerprint(image_bytes: bytes) -> dict:
     # 7. Render residual spectrum (HOT colourmap)
     # ------------------------------------------------------------------
     res_norm = (
-        (residual - residual.min())
-        / (residual.max() - residual.min() + 1e-8)
-        * 255
+        (residual - residual.min()) / (residual.max() - residual.min() + 1e-8) * 255
     ).astype(np.uint8)
     residual_coloured = cv2.applyColorMap(res_norm, cv2.COLORMAP_HOT)
     residual_rgb = cv2.cvtColor(residual_coloured, cv2.COLOR_BGR2RGB)

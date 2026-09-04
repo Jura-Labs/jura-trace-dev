@@ -148,7 +148,9 @@ class TestTimeout:
 
         assert result.success is False
         assert result.description is None
-        assert "timed out" in result.message.lower() or "timeout" in result.message.lower()
+        assert (
+            "timed out" in result.message.lower() or "timeout" in result.message.lower()
+        )
 
 
 # ── Positive path ─────────────────────────────────────────────────────────────
@@ -192,9 +194,7 @@ class TestPositivePath:
 
     @pytest.mark.asyncio
     async def test_description_stripped_of_whitespace(self):
-        mock_resp = self._make_mock_response(
-            {"response": "  A simple test image.  \n"}
-        )
+        mock_resp = self._make_mock_response({"response": "  A simple test image.  \n"})
         mock_post = AsyncMock(return_value=mock_resp)
 
         with (

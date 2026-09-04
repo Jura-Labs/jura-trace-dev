@@ -45,9 +45,7 @@ def perform_splice_boundary(image_bytes: bytes) -> dict:
     edges = cv2.Canny(grey, 50, 150)
 
     # Find contours from edges
-    contours, _ = cv2.findContours(
-        edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
-    )
+    contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
     # Filter to significant contours (>50px arc length)
     min_length = 50
@@ -77,17 +75,19 @@ def perform_splice_boundary(image_bytes: bytes) -> dict:
 
         if signals >= 2:  # Two-of-three criterion
             confidence = signals / 3.0
-            boundaries.append({
-                "x": int(x),
-                "y": int(y),
-                "width": int(cw),
-                "height": int(ch),
-                "jpeg_grid_aligned": jpeg_aligned,
-                "noise_asymmetric": noise_asym,
-                "feathering_detected": feathered,
-                "signals_triggered": signals,
-                "confidence": round(confidence, 2),
-            })
+            boundaries.append(
+                {
+                    "x": int(x),
+                    "y": int(y),
+                    "width": int(cw),
+                    "height": int(ch),
+                    "jpeg_grid_aligned": jpeg_aligned,
+                    "noise_asymmetric": noise_asym,
+                    "feathering_detected": feathered,
+                    "signals_triggered": signals,
+                    "confidence": round(confidence, 2),
+                }
+            )
 
     suspicious_count = len(boundaries)
     total_checked = len(significant_contours[:100])
@@ -163,9 +163,7 @@ def _check_noise_asymmetry(
 
     # Split into inner and outer by dilating/eroding
     inner_mask = np.zeros_like(mask)
-    cv2.drawContours(
-        inner_mask, [contour], 0, 255, thickness=-1
-    )  # Fill inside
+    cv2.drawContours(inner_mask, [contour], 0, 255, thickness=-1)  # Fill inside
     outer_mask = mask & ~inner_mask
     inner_strip = mask & inner_mask
 
@@ -185,9 +183,7 @@ def _check_noise_asymmetry(
     return bool(ratio > 2.0)
 
 
-def _check_feathering(
-    grey: np.ndarray, contour: np.ndarray, h: int, w: int
-) -> bool:
+def _check_feathering(grey: np.ndarray, contour: np.ndarray, h: int, w: int) -> bool:
     """Detect unnatural feathering/blur profile at the boundary."""
     # Sample gradient magnitude along the contour
     points = contour.reshape(-1, 2)
@@ -233,9 +229,7 @@ def _generate_boundary_heatmap(
     # Draw suspicious boundaries in red
     for b in boundaries:
         x, y, bw, bh = b["x"], b["y"], b["width"], b["height"]
-        colour = (
-            (0, 0, 220) if b["signals_triggered"] >= 3 else (0, 100, 220)
-        )
+        colour = (0, 0, 220) if b["signals_triggered"] >= 3 else (0, 100, 220)
         cv2.rectangle(vis, (x, y), (x + bw, y + bh), colour, 2)
 
     _, buf = cv2.imencode(".png", vis)

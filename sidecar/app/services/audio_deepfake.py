@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 # ── Model directory ────────────────────────────────────────────────────────────
 
+
 def _resolve_models_dir() -> str:
     """Resolve the models directory (dev and frozen/PyInstaller contexts)."""
     env_dir = os.environ.get("JURA_MODELS_DIR")
@@ -46,13 +47,18 @@ _STAGE2_PROBE_FILENAME = "audio_deepfake_stage2.joblib"
 
 # Integrity hashes — verified before joblib.load() to prevent pickle RCE
 # via a substituted model file. Update these when retraining.
-_STAGE1_PROBE_SHA256 = "2f8e4a8a461096940f83a66c564dea06db7b576fd29b4022d183a5b5f0b9ef1e"
-_STAGE2_PROBE_SHA256 = "5200893734571220efabd379671749c1833e34084f59fbc43ccc9698e0b264c8"
+_STAGE1_PROBE_SHA256 = (
+    "2f8e4a8a461096940f83a66c564dea06db7b576fd29b4022d183a5b5f0b9ef1e"
+)
+_STAGE2_PROBE_SHA256 = (
+    "5200893734571220efabd379671749c1833e34084f59fbc43ccc9698e0b264c8"
+)
 
 
 def _verify_probe_hash(path: str, expected_sha: str) -> bool:
     """Verify a model file's SHA-256 matches the expected hash."""
     import hashlib
+
     h = hashlib.sha256()
     try:
         with open(path, "rb") as f:
@@ -61,13 +67,16 @@ def _verify_probe_hash(path: str, expected_sha: str) -> bool:
         if h.hexdigest() != expected_sha:
             logger.error(
                 "Audio probe integrity check FAILED for %s: expected %s, got %s",
-                path, expected_sha[:16], h.hexdigest()[:16],
+                path,
+                expected_sha[:16],
+                h.hexdigest()[:16],
             )
             return False
         return True
     except OSError as exc:
         logger.error("Cannot read audio probe %s: %s", path, exc)
         return False
+
 
 # ── Singleton Wav2Vec2 state ───────────────────────────────────────────────────
 
@@ -82,7 +91,9 @@ _TARGET_SR = 16_000
 _N_MFCC = 40
 
 
-def extract_mfcc_features(audio_path: str, sr: int = _TARGET_SR, n_mfcc: int = _N_MFCC) -> np.ndarray | None:
+def extract_mfcc_features(
+    audio_path: str, sr: int = _TARGET_SR, n_mfcc: int = _N_MFCC
+) -> np.ndarray | None:
     """Extract MFCC feature vector from an audio file.
 
     Loads audio via librosa (preferred) or falls back to
@@ -107,30 +118,34 @@ def extract_mfcc_features(audio_path: str, sr: int = _TARGET_SR, n_mfcc: int = _
 
     duration = len(audio) / sr
     if duration < _MIN_DURATION_SECONDS:
-        logger.debug("MFCC: audio too short (%.3f s < %.1f s)", duration, _MIN_DURATION_SECONDS)
+        logger.debug(
+            "MFCC: audio too short (%.3f s < %.1f s)", duration, _MIN_DURATION_SECONDS
+        )
         return None
 
     try:
         import librosa  # type: ignore[import-untyped]
 
-        mfccs = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=n_mfcc)   # (n_mfcc, T)
-        deltas = librosa.feature.delta(mfccs)                            # (n_mfcc, T)
+        mfccs = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=n_mfcc)  # (n_mfcc, T)
+        deltas = librosa.feature.delta(mfccs)  # (n_mfcc, T)
     except ImportError:
         # librosa not available — fall back to a simple DCT-based MFCC via scipy
         mfccs, deltas = _compute_mfcc_scipy_fallback(audio, sr, n_mfcc)
         if mfccs is None:
             return None
 
-    mfcc_mean = np.mean(mfccs, axis=1)   # (n_mfcc,)
-    mfcc_std  = np.std(mfccs, axis=1)    # (n_mfcc,)
-    delta_mean = np.mean(deltas, axis=1) # (n_mfcc,)
-    delta_std  = np.std(deltas, axis=1)  # (n_mfcc,)
+    mfcc_mean = np.mean(mfccs, axis=1)  # (n_mfcc,)
+    mfcc_std = np.std(mfccs, axis=1)  # (n_mfcc,)
+    delta_mean = np.mean(deltas, axis=1)  # (n_mfcc,)
+    delta_std = np.std(deltas, axis=1)  # (n_mfcc,)
 
     features = np.concatenate([mfcc_mean, mfcc_std, delta_mean, delta_std])  # (160,)
     return features.astype(np.float32)
 
 
-def extract_wav2vec2_embedding(audio_path: str, sr: int = _TARGET_SR) -> np.ndarray | None:
+def extract_wav2vec2_embedding(
+    audio_path: str, sr: int = _TARGET_SR
+) -> np.ndarray | None:
     """Extract a Wav2Vec2-Base embedding from an audio file.
 
     Lazy-loads ``facebook/wav2vec2-base`` (~360 MB) on first call and
@@ -151,7 +166,9 @@ def extract_wav2vec2_embedding(audio_path: str, sr: int = _TARGET_SR) -> np.ndar
             import torch  # type: ignore[import-untyped]
 
             logger.info("Wav2Vec2: loading facebook/wav2vec2-base …")
-            _wav2vec2_processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
+            _wav2vec2_processor = Wav2Vec2Processor.from_pretrained(
+                "facebook/wav2vec2-base"
+            )
             _wav2vec2_model = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base")
             _wav2vec2_model.eval()
             logger.info("Wav2Vec2: model loaded")
@@ -177,7 +194,7 @@ def extract_wav2vec2_embedding(audio_path: str, sr: int = _TARGET_SR) -> np.ndar
             outputs = _wav2vec2_model(**inputs)
 
         # Mean-pool over time axis of last hidden state → (768,)
-        hidden = outputs.last_hidden_state.squeeze(0)   # (T, 768)
+        hidden = outputs.last_hidden_state.squeeze(0)  # (T, 768)
         embedding = hidden.mean(dim=0).numpy().astype(np.float32)  # (768,)
         return embedding
     except Exception as exc:
@@ -191,8 +208,8 @@ _STAGE1_WEIGHT = 0.3
 _STAGE2_WEIGHT = 0.7
 
 # Verdict thresholds
-_THRESHOLD_SYNTHETIC  = 0.65
-_THRESHOLD_AUTHENTIC  = 0.35
+_THRESHOLD_SYNTHETIC = 0.65
+_THRESHOLD_AUTHENTIC = 0.35
 
 
 def score_audio_deepfake(
@@ -220,8 +237,12 @@ def score_audio_deepfake(
     """
     t0 = time.perf_counter()
 
-    stage1_probe_path = mfcc_probe_path or os.path.join(MODELS_DIR, _STAGE1_PROBE_FILENAME)
-    stage2_probe_path = wav2vec2_probe_path or os.path.join(MODELS_DIR, _STAGE2_PROBE_FILENAME)
+    stage1_probe_path = mfcc_probe_path or os.path.join(
+        MODELS_DIR, _STAGE1_PROBE_FILENAME
+    )
+    stage2_probe_path = wav2vec2_probe_path or os.path.join(
+        MODELS_DIR, _STAGE2_PROBE_FILENAME
+    )
 
     stage1_available = os.path.isfile(stage1_probe_path)
     stage2_available = os.path.isfile(stage2_probe_path)
@@ -267,6 +288,7 @@ def score_audio_deepfake(
             mfcc_ok = True
             try:
                 import joblib  # type: ignore[import-untyped]
+
                 probe1 = joblib.load(stage1_probe_path)
                 prob = probe1.predict_proba(mfcc_vec.reshape(1, -1))[0]
                 # Class 1 = synthetic
@@ -285,6 +307,7 @@ def score_audio_deepfake(
             wav2vec2_ok = True
             try:
                 import joblib  # type: ignore[import-untyped]
+
                 probe2 = joblib.load(stage2_probe_path)
                 prob = probe2.predict_proba(emb.reshape(1, -1))[0]
                 stage2_score = float(prob[1] if len(prob) > 1 else prob[0])
@@ -322,7 +345,10 @@ def score_audio_deepfake(
 
 # ── Private helpers ────────────────────────────────────────────────────────────
 
-def _load_audio(audio_path: str, target_sr: int = _TARGET_SR) -> tuple[np.ndarray | None, int]:
+
+def _load_audio(
+    audio_path: str, target_sr: int = _TARGET_SR
+) -> tuple[np.ndarray | None, int]:
     """Load audio file as a mono float32 numpy array at target_sr.
 
     Tries librosa first (handles MP3/FLAC/OGG/M4A/etc.), then falls back
@@ -333,6 +359,7 @@ def _load_audio(audio_path: str, target_sr: int = _TARGET_SR) -> tuple[np.ndarra
     """
     try:
         import librosa  # type: ignore[import-untyped]
+
         audio, _ = librosa.load(audio_path, sr=target_sr, mono=True)
         return audio.astype(np.float32), target_sr
     except ImportError:
@@ -354,37 +381,49 @@ def _load_audio(audio_path: str, target_sr: int = _TARGET_SR) -> tuple[np.ndarra
                 tmp_path = tmp.name
             subprocess.run(
                 [
-                    ffmpeg_bin, "-y", "-i", audio_path,
-                    "-ac", "1",                    # mono
-                    "-ar", str(target_sr),          # target sample rate
-                    "-sample_fmt", "s16",           # 16-bit PCM
-                    "-f", "wav",                    # WAV output
+                    ffmpeg_bin,
+                    "-y",
+                    "-i",
+                    audio_path,
+                    "-ac",
+                    "1",  # mono
+                    "-ar",
+                    str(target_sr),  # target sample rate
+                    "-sample_fmt",
+                    "s16",  # 16-bit PCM
+                    "-f",
+                    "wav",  # WAV output
                     tmp_path,
                 ],
-                capture_output=True, timeout=30, check=True,
+                capture_output=True,
+                timeout=30,
+                check=True,
             )
             from scipy.io import wavfile as _wavfile  # type: ignore[import-untyped]
+
             _, data = _wavfile.read(tmp_path)
             if data.ndim > 1:
                 data = data.mean(axis=1)
-            data = data.astype(np.float32) / (2 ** 15)
+            data = data.astype(np.float32) / (2**15)
             return data, target_sr
         except Exception:
             raise
         finally:
             import os
+
             if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
 
     # Last resort: scipy.io.wavfile direct read (WAV only)
     try:
         from scipy.io import wavfile as _wavfile  # type: ignore[import-untyped]
+
         native_sr, data = _wavfile.read(audio_path)
         if data.ndim > 1:
             data = data.mean(axis=1)
         data = data.astype(np.float32)
         if data.max() > 1.0:
-            data = data / (2 ** 15)
+            data = data / (2**15)
         if native_sr != target_sr:
             new_length = int(len(data) * target_sr / native_sr)
             data = np.interp(
@@ -407,12 +446,14 @@ def _compute_mfcc_scipy_fallback(
     """
     try:
         from scipy.signal import spectrogram  # type: ignore[import-untyped]
-        from scipy.fftpack import dct         # type: ignore[import-untyped]
+        from scipy.fftpack import dct  # type: ignore[import-untyped]
 
         frame_size = int(sr * 0.025)  # 25 ms
-        hop_size   = int(sr * 0.010)  # 10 ms
+        hop_size = int(sr * 0.010)  # 10 ms
 
-        _, _, spec = spectrogram(audio, fs=sr, nperseg=frame_size, noverlap=frame_size - hop_size)
+        _, _, spec = spectrogram(
+            audio, fs=sr, nperseg=frame_size, noverlap=frame_size - hop_size
+        )
         log_spec = np.log(np.maximum(spec, 1e-10))
         mfccs = dct(log_spec, axis=0, norm="ortho")[:n_mfcc, :]
 

@@ -78,7 +78,7 @@ def _make_photo_png_no_exif(size: tuple[int, int] = (2400, 1600)) -> bytes:
     region_w = w // 8
     for x0 in range(0, w, region_w):
         tint = rng.integers(-30, 30, 3)
-        base[:, x0:x0 + region_w] += tint
+        base[:, x0 : x0 + region_w] += tint
     noise = rng.normal(0, 12, (h, w, 3))
     arr = np.clip(base + noise, 0, 255).astype(np.uint8)
     img = Image.fromarray(arr)
@@ -93,8 +93,14 @@ def _make_low_colour_large_png(size: tuple[int, int] = (1920, 1200)) -> bytes:
     arr = np.full((h, w, 3), (32, 34, 44), dtype=np.uint8)
     # Add a handful of distinct panels with unique colours
     palette = [
-        (44, 46, 58), (56, 58, 72), (80, 82, 96), (110, 112, 130),
-        (200, 200, 210), (240, 240, 245), (60, 80, 140), (140, 60, 80),
+        (44, 46, 58),
+        (56, 58, 72),
+        (80, 82, 96),
+        (110, 112, 130),
+        (200, 200, 210),
+        (240, 240, 245),
+        (60, 80, 140),
+        (140, 60, 80),
     ]
     for i, c in enumerate(palette):
         y0 = (i * h) // len(palette)
@@ -111,8 +117,8 @@ def _make_macos_screenshot_png(size: tuple[int, int] = (2880, 1800)) -> bytes:
     w, h = size
     # Keep the canvas small visually but at the logical resolution
     arr = np.full((h, w, 3), (245, 245, 245), dtype=np.uint8)
-    arr[:80, :] = (235, 235, 235)           # menu bar
-    arr[80, :] = (200, 200, 200)            # 1 px divider
+    arr[:80, :] = (235, 235, 235)  # menu bar
+    arr[80, :] = (200, 200, 200)  # 1 px divider
     arr[100:700, 100:2000] = (255, 255, 255)  # content window
 
     # Minimal Display P3 ICC profile — we embed a well-known short profile
@@ -136,7 +142,7 @@ def _make_document_scan(size: tuple[int, int] = (2480, 3508)) -> bytes:
     for y in range(200, h - 200, 40):
         for x in range(200, w - 200, 30):
             if (x // 30) % 3:
-                arr[y:y + 4, x:x + 22] = 15
+                arr[y : y + 4, x : x + 22] = 15
     img = Image.fromarray(arr)
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=88)
@@ -250,14 +256,28 @@ class TestPerformance:
         t0 = time.perf_counter()
         r = classify_content(img)
         elapsed_ms = (time.perf_counter() - t0) * 1000
-        assert r.category in {"photograph", "screenshot", "document", "artwork", "unknown"}
-        assert elapsed_ms < 500, f"Classification took {elapsed_ms:.0f} ms (>500 ms budget)"
+        assert r.category in {
+            "photograph",
+            "screenshot",
+            "document",
+            "artwork",
+            "unknown",
+        }
+        assert elapsed_ms < 500, (
+            f"Classification took {elapsed_ms:.0f} ms (>500 ms budget)"
+        )
 
 
 class TestResultSchema:
     def test_result_fields_present_and_typed(self):
         r = classify_content(_make_photo_jpeg_with_exif((800, 600)))
-        assert r.category in {"photograph", "screenshot", "document", "artwork", "unknown"}
+        assert r.category in {
+            "photograph",
+            "screenshot",
+            "document",
+            "artwork",
+            "unknown",
+        }
         assert 0.0 <= r.confidence <= 1.0
         assert isinstance(r.ai_detection_suitable, bool)
         assert isinstance(r.signals, dict)

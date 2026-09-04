@@ -64,7 +64,9 @@ class TestNoiseAnalysis:
         """An image with a spliced high-noise region should flag anomalies."""
         result = perform_noise_analysis(_make_spliced_image())
         # The spliced region should create variance outliers
-        assert result.anomalous_blocks >= 0  # May or may not trigger depending on threshold
+        assert (
+            result.anomalous_blocks >= 0
+        )  # May or may not trigger depending on threshold
         assert result.total_blocks > 0
 
     def test_small_image_handled(self):

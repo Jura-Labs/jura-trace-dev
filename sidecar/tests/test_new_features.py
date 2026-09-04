@@ -25,6 +25,7 @@ from app.services.deepfake import (
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _grey_to_bgr(arr: np.ndarray) -> np.ndarray:
     """Stack a 2-D greyscale array into a 3-channel BGR array."""
     return np.stack([arr, arr, arr], axis=2).astype(np.uint8)
@@ -116,6 +117,7 @@ def _make_isotropic_grey(size: int = 256) -> np.ndarray:
 
 # ── Feature 1: noise_lf_hf_ratio ─────────────────────────────────────────────
 
+
 class TestNoiseLfHfRatio:
     def test_returns_expected_key(self):
         grey = _make_camera_grey()
@@ -140,7 +142,9 @@ class TestNoiseLfHfRatio:
         assert math.isfinite(ratio_ai)
         # Require at least a 3x separation so the feature is meaningfully
         # discriminative, not just numerically noisy
-        ratio_of_ratios = max(ratio_camera, ratio_ai) / (min(ratio_camera, ratio_ai) + 1e-10)
+        ratio_of_ratios = max(ratio_camera, ratio_ai) / (
+            min(ratio_camera, ratio_ai) + 1e-10
+        )
         assert ratio_of_ratios > 3.0, (
             f"Feature insufficiently discriminative: "
             f"camera={ratio_camera:.4f}, ai={ratio_ai:.4f}"
@@ -168,6 +172,7 @@ class TestNoiseLfHfRatio:
 
 # ── Feature 2: demosaic_inter_channel_coherence ───────────────────────────────
 
+
 class TestDemosaicInterChannelCoherence:
     def test_returns_expected_key(self):
         bgr = _make_bayer_bgr()
@@ -177,7 +182,9 @@ class TestDemosaicInterChannelCoherence:
     def test_bayer_pattern_coherence_above_threshold(self):
         """A Bayer-patterned image should yield coherence > 0.5."""
         bgr = _make_bayer_bgr()
-        coherence = _extract_demosaic_inter_channel_coherence(bgr)["demosaic_inter_channel_coherence"]
+        coherence = _extract_demosaic_inter_channel_coherence(bgr)[
+            "demosaic_inter_channel_coherence"
+        ]
         assert coherence > 0.5, (
             f"Bayer pattern coherence {coherence:.3f} expected > 0.5"
         )
@@ -196,7 +203,9 @@ class TestDemosaicInterChannelCoherence:
         verifies the function returns a finite value in the expected range.
         """
         bgr = _make_random_bgr()
-        coherence = _extract_demosaic_inter_channel_coherence(bgr)["demosaic_inter_channel_coherence"]
+        coherence = _extract_demosaic_inter_channel_coherence(bgr)[
+            "demosaic_inter_channel_coherence"
+        ]
         assert math.isfinite(coherence), (
             f"Random noise coherence {coherence} should be finite"
         )
@@ -207,7 +216,9 @@ class TestDemosaicInterChannelCoherence:
     def test_value_in_range(self):
         """Pearson correlation is bounded [-1, 1] so coherence should be too."""
         bgr = _make_bayer_bgr()
-        coherence = _extract_demosaic_inter_channel_coherence(bgr)["demosaic_inter_channel_coherence"]
+        coherence = _extract_demosaic_inter_channel_coherence(bgr)[
+            "demosaic_inter_channel_coherence"
+        ]
         assert -1.0 <= coherence <= 1.0
 
     def test_small_image_returns_nan(self):
@@ -223,6 +234,7 @@ class TestDemosaicInterChannelCoherence:
 
 
 # ── Features 3–4: noise_anisotropy_mean / noise_anisotropy_std ───────────────
+
 
 class TestNoiseAnisotropy:
     def test_returns_expected_keys(self):
@@ -276,6 +288,7 @@ class TestNoiseAnisotropy:
 
 # ── FEATURE_NAMES alignment ───────────────────────────────────────────────────
 
+
 class TestFeatureNamesAlignment:
     def test_feature_count_is_84(self):
         """FEATURE_NAMES should now contain exactly 84 features."""
@@ -327,7 +340,13 @@ class TestFeatureNamesAlignment:
         img = Image.new("RGB", (128, 128), (100, 120, 80))
         buf = io.BytesIO()
         img.save(buf, format="PNG")
-        features, _ = extract_features_for_training(buf.getvalue(), mime_type="image/png")
-        for key in ["noise_lf_hf_ratio", "demosaic_inter_channel_coherence",
-                    "noise_anisotropy_mean", "noise_anisotropy_std"]:
+        features, _ = extract_features_for_training(
+            buf.getvalue(), mime_type="image/png"
+        )
+        for key in [
+            "noise_lf_hf_ratio",
+            "demosaic_inter_channel_coherence",
+            "noise_anisotropy_mean",
+            "noise_anisotropy_std",
+        ]:
             assert key in features, f"Missing feature key: {key}"

@@ -76,7 +76,9 @@ class TestSplitIntoPassages:
         assert "proper paragraph" in result[0]
 
     def test_single_paragraph_returned_as_list(self):
-        text = "A single paragraph that is long enough to pass the minimum length filter."
+        text = (
+            "A single paragraph that is long enough to pass the minimum length filter."
+        )
         result = _split_into_passages(text)
         assert isinstance(result, list)
         assert len(result) == 1
@@ -168,7 +170,9 @@ class TestRetrieve:
         assert len(results) > 0
 
     def test_retrieve_returns_list_type(self, tmp_path):
-        content = "This passage is about image forensics and error level analysis technique."
+        content = (
+            "This passage is about image forensics and error level analysis technique."
+        )
         retriever = _make_kb(tmp_path, {"test.txt": content})
         result = retriever.retrieve("image forensics")
         assert isinstance(result, list)
@@ -193,15 +197,22 @@ class TestRetrieve:
             Error Level Analysis re-compresses a JPEG image and measures the
             difference. Regions at a different compression quality show elevated
             error levels, which may indicate splicing from a different source.""")
-        retriever = _make_kb(tmp_path, {
-            "c2pa.txt": c2pa_passage,
-            "ela.txt": ela_passage,
-        })
+        retriever = _make_kb(
+            tmp_path,
+            {
+                "c2pa.txt": c2pa_passage,
+                "ela.txt": ela_passage,
+            },
+        )
         results = retriever.retrieve("C2PA provenance cryptographic signing")
         assert len(results) > 0
         # The C2PA passage should be present given the query focuses on C2PA
         combined = " ".join(results).lower()
-        assert "c2pa" in combined or "provenance" in combined or "cryptographic" in combined
+        assert (
+            "c2pa" in combined
+            or "provenance" in combined
+            or "cryptographic" in combined
+        )
 
     def test_retrieve_scores_relevant_passage_higher(self, tmp_path):
         """A query about deepfakes should rank the deepfake passage above an unrelated one."""
@@ -213,11 +224,16 @@ class TestRetrieve:
             The capital of France is Paris. The Eiffel Tower was built for the
             1889 World Fair. It stands 330 metres tall and was the world's tallest
             structure for over forty years after its completion.""")
-        retriever = _make_kb(tmp_path, {
-            "deepfake.txt": deepfake_passage,
-            "unrelated.txt": unrelated_passage,
-        })
-        results = retriever.retrieve("deepfake face swap neural network detection", top_k=2)
+        retriever = _make_kb(
+            tmp_path,
+            {
+                "deepfake.txt": deepfake_passage,
+                "unrelated.txt": unrelated_passage,
+            },
+        )
+        results = retriever.retrieve(
+            "deepfake face swap neural network detection", top_k=2
+        )
         assert len(results) >= 1
         # The deepfake passage should appear in results
         assert any("deepfake" in r.lower() or "face" in r.lower() for r in results)
@@ -236,25 +252,36 @@ class TestRetrieve:
     def test_retrieve_with_real_kb_c2pa_query(self):
         """Real KB: a C2PA query should surface C2PA-related passages."""
         retriever = KnowledgeRetriever()
-        results = retriever.retrieve("C2PA Content Credentials manifest signing", top_k=3)
+        results = retriever.retrieve(
+            "C2PA Content Credentials manifest signing", top_k=3
+        )
         assert len(results) > 0
         combined = " ".join(results).lower()
-        assert "c2pa" in combined or "content credentials" in combined or "manifest" in combined
+        assert (
+            "c2pa" in combined
+            or "content credentials" in combined
+            or "manifest" in combined
+        )
 
     def test_retrieve_with_real_kb_forensics_query(self):
         """Real KB: a forensics query should surface forensic technique passages."""
         retriever = KnowledgeRetriever()
-        results = retriever.retrieve("ELA error level analysis JPEG compression forensics", top_k=3)
+        results = retriever.retrieve(
+            "ELA error level analysis JPEG compression forensics", top_k=3
+        )
         assert len(results) > 0
         combined = " ".join(results).lower()
         assert any(
-            kw in combined for kw in ("ela", "error level", "jpeg", "forensic", "compression")
+            kw in combined
+            for kw in ("ela", "error level", "jpeg", "forensic", "compression")
         )
 
     def test_retrieve_with_real_kb_misinformation_query(self):
         """Real KB: a misinformation query should surface relevant passages."""
         retriever = KnowledgeRetriever()
-        results = retriever.retrieve("out of context image misleading caption misinformation", top_k=3)
+        results = retriever.retrieve(
+            "out of context image misleading caption misinformation", top_k=3
+        )
         assert len(results) > 0
 
     def test_retrieve_passage_strings_are_non_empty(self, tmp_path):
@@ -265,7 +292,9 @@ class TestRetrieve:
 
     def test_lazy_loading_does_not_reload(self, tmp_path):
         """is_available() and retrieve() should not reload the index on repeated calls."""
-        content = "A passage about image provenance and content authenticity verification."
+        content = (
+            "A passage about image provenance and content authenticity verification."
+        )
         retriever = _make_kb(tmp_path, {"test.txt": content})
         assert retriever.is_available() is True
         first_count = retriever.passage_count

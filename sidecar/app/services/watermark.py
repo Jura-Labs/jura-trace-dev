@@ -45,9 +45,7 @@ def perform_watermark_embed(
 
     h, w = img.shape[:2]
     if h < 256 or w < 256:
-        return _error_result(
-            f"Image too small ({w}x{h}). Minimum 256x256 required."
-        )
+        return _error_result(f"Image too small ({w}x{h}). Minimum 256x256 required.")
 
     # Validate strength parameter
     if strength not in ("low", "medium", "high"):
@@ -76,9 +74,7 @@ def perform_watermark_embed(
             "strength": strength,
             "payload_length": len(payload_bytes),
             "success": True,
-            "message": (
-                f"Watermark embedded successfully ({w}x{h}, {method})"
-            ),
+            "message": (f"Watermark embedded successfully ({w}x{h}, {method})"),
         }
     except Exception as e:
         return _error_result(f"Watermark embedding failed: {e}")
@@ -142,9 +138,7 @@ def perform_watermark_extract(
             "has_watermark": has_watermark,
             "confidence": confidence,
             "success": True,
-            "message": (
-                f"Watermark {'found' if has_watermark else 'not detected'}"
-            ),
+            "message": (f"Watermark {'found' if has_watermark else 'not detected'}"),
         }
     except Exception as e:
         return _extract_error(f"Watermark extraction failed: {e}")
@@ -168,9 +162,7 @@ def _assess_watermark_confidence(
         return False, 0.0
 
     # Count printable ASCII characters (letters, digits, spaces, punctuation).
-    printable_count = sum(
-        1 for ch in decoded_str if ch.isprintable() and ord(ch) < 128
-    )
+    printable_count = sum(1 for ch in decoded_str if ch.isprintable() and ord(ch) < 128)
     printable_ratio = printable_count / max(len(decoded_str), 1)
 
     # Count Unicode replacement characters (U+FFFD) — indicates broken UTF-8.

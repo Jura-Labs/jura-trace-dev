@@ -140,9 +140,7 @@ class TestWatermarkRoundtrip:
         assert embed_result["success"] is True
 
         # Decode the watermarked image back to bytes
-        watermarked_bytes = base64.b64decode(
-            embed_result["watermarked_image_base64"]
-        )
+        watermarked_bytes = base64.b64decode(embed_result["watermarked_image_base64"])
 
         # Extract
         extract_result = perform_watermark_extract(
@@ -159,14 +157,10 @@ class TestWatermarkRoundtrip:
         payload = "Hi"
         payload_len = len(payload.encode("utf-8"))
 
-        embed_result = perform_watermark_embed(
-            _make_colour_image(), payload
-        )
+        embed_result = perform_watermark_embed(_make_colour_image(), payload)
         assert embed_result["success"] is True
 
-        watermarked_bytes = base64.b64decode(
-            embed_result["watermarked_image_base64"]
-        )
+        watermarked_bytes = base64.b64decode(embed_result["watermarked_image_base64"])
 
         extract_result = perform_watermark_extract(
             watermarked_bytes, payload_length=payload_len

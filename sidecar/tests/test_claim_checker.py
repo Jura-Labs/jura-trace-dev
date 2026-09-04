@@ -149,7 +149,9 @@ class TestParseVerdict:
 
     def test_confidence_higher_for_long_explanation(self):
         short_raw = "SUPPORTED Yes."
-        long_raw = "SUPPORTED The evidence for this claim is robust and well-documented."
+        long_raw = (
+            "SUPPORTED The evidence for this claim is robust and well-documented."
+        )
         _, _, conf_short = _parse_verdict(short_raw)
         _, _, conf_long = _parse_verdict(long_raw)
         assert conf_long >= conf_short
@@ -162,22 +164,49 @@ class TestAggregateVerdicts:
     """Tests for _aggregate_verdicts — list[str] → overall verdict string."""
 
     def test_all_supported_returns_supported(self):
-        assert _aggregate_verdicts(["consistent_with_kb", "consistent_with_kb", "consistent_with_kb"]) == "consistent_with_kb"
+        assert (
+            _aggregate_verdicts(
+                ["consistent_with_kb", "consistent_with_kb", "consistent_with_kb"]
+            )
+            == "consistent_with_kb"
+        )
 
     def test_any_disputed_returns_disputed(self):
-        assert _aggregate_verdicts(["consistent_with_kb", "inconsistent_with_kb", "insufficient_context_in_kb"]) == "inconsistent_with_kb"
+        assert (
+            _aggregate_verdicts(
+                [
+                    "consistent_with_kb",
+                    "inconsistent_with_kb",
+                    "insufficient_context_in_kb",
+                ]
+            )
+            == "inconsistent_with_kb"
+        )
 
     def test_disputed_overrides_supported(self):
-        assert _aggregate_verdicts(["consistent_with_kb", "inconsistent_with_kb"]) == "inconsistent_with_kb"
+        assert (
+            _aggregate_verdicts(["consistent_with_kb", "inconsistent_with_kb"])
+            == "inconsistent_with_kb"
+        )
 
     def test_mix_of_supported_and_unverified_returns_mixed(self):
-        assert _aggregate_verdicts(["consistent_with_kb", "insufficient_context_in_kb"]) == "mixed_kb_match"
+        assert (
+            _aggregate_verdicts(["consistent_with_kb", "insufficient_context_in_kb"])
+            == "mixed_kb_match"
+        )
 
     def test_all_unverified_returns_unverified(self):
-        assert _aggregate_verdicts(["insufficient_context_in_kb", "insufficient_context_in_kb"]) == "insufficient_context_in_kb"
+        assert (
+            _aggregate_verdicts(
+                ["insufficient_context_in_kb", "insufficient_context_in_kb"]
+            )
+            == "insufficient_context_in_kb"
+        )
 
     def test_any_unavailable_returns_unavailable(self):
-        assert _aggregate_verdicts(["consistent_with_kb", "unavailable"]) == "unavailable"
+        assert (
+            _aggregate_verdicts(["consistent_with_kb", "unavailable"]) == "unavailable"
+        )
 
     def test_empty_list_returns_unverified(self):
         assert _aggregate_verdicts([]) == "insufficient_context_in_kb"
@@ -189,11 +218,17 @@ class TestAggregateVerdicts:
         assert _aggregate_verdicts(["inconsistent_with_kb"]) == "inconsistent_with_kb"
 
     def test_single_unverified(self):
-        assert _aggregate_verdicts(["insufficient_context_in_kb"]) == "insufficient_context_in_kb"
+        assert (
+            _aggregate_verdicts(["insufficient_context_in_kb"])
+            == "insufficient_context_in_kb"
+        )
 
     def test_unavailable_dominates_disputed(self):
         # unavailable is checked first
-        assert _aggregate_verdicts(["inconsistent_with_kb", "unavailable"]) == "unavailable"
+        assert (
+            _aggregate_verdicts(["inconsistent_with_kb", "unavailable"])
+            == "unavailable"
+        )
 
 
 # ── Summary building ───────────────────────────────────────────────────────────
@@ -202,7 +237,9 @@ class TestAggregateVerdicts:
 class TestBuildSummary:
     """Tests for _build_summary — human-readable summary string."""
 
-    def _make_verdict(self, verdict: str, claim: str = "Test claim text here.") -> ClaimVerdict:
+    def _make_verdict(
+        self, verdict: str, claim: str = "Test claim text here."
+    ) -> ClaimVerdict:
         return ClaimVerdict(
             claim=claim,
             verdict=verdict,
@@ -216,7 +253,10 @@ class TestBuildSummary:
         assert "Ollama" in summary
 
     def test_supported_summary_includes_count(self):
-        claims = [self._make_verdict("consistent_with_kb"), self._make_verdict("consistent_with_kb")]
+        claims = [
+            self._make_verdict("consistent_with_kb"),
+            self._make_verdict("consistent_with_kb"),
+        ]
         summary = _build_summary("consistent_with_kb", claims)
         assert "2" in summary
 
@@ -226,7 +266,10 @@ class TestBuildSummary:
         assert isinstance(summary, str) and summary
 
     def test_mixed_summary_mentions_mixed(self):
-        claims = [self._make_verdict("consistent_with_kb"), self._make_verdict("insufficient_context_in_kb")]
+        claims = [
+            self._make_verdict("consistent_with_kb"),
+            self._make_verdict("insufficient_context_in_kb"),
+        ]
         summary = _build_summary("mixed_kb_match", claims)
         # Summary framing intentionally avoids machine-readable tokens in
         # user-facing prose — it must convey "some matched, some didn't" in
@@ -445,7 +488,9 @@ class TestPositivePath:
         mock_client.get = AsyncMock(side_effect=fake_get)
         mock_client.post = AsyncMock(side_effect=fake_post)
 
-        text = "The image shows London.\nThe photo was taken in summer.\nThe sky is clear."
+        text = (
+            "The image shows London.\nThe photo was taken in summer.\nThe sky is clear."
+        )
 
         with patch("httpx.AsyncClient", return_value=mock_client):
             result = await check_claims(text, model="qwen2.5:7b-instruct")
@@ -500,11 +545,20 @@ class TestPositivePath:
         # Validate via Pydantic (will raise if schema is wrong)
         validated = ClaimCheckResponse.model_validate(result.model_dump())
         assert validated.overall_verdict in (
-            "consistent_with_kb", "inconsistent_with_kb", "insufficient_context_in_kb", "mixed_kb_match", "unavailable"
+            "consistent_with_kb",
+            "inconsistent_with_kb",
+            "insufficient_context_in_kb",
+            "mixed_kb_match",
+            "unavailable",
         )
         for claim in validated.claims:
             assert 0.0 <= claim.confidence <= 1.0
-            assert claim.verdict in ("consistent_with_kb", "inconsistent_with_kb", "insufficient_context_in_kb", "unavailable")
+            assert claim.verdict in (
+                "consistent_with_kb",
+                "inconsistent_with_kb",
+                "insufficient_context_in_kb",
+                "unavailable",
+            )
 
 
 # ── API endpoint tests ─────────────────────────────────────────────────────────
@@ -522,7 +576,9 @@ class TestClaimCheckEndpoint:
             return_value=False,
         ):
             transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/forensics/claim-check",
                     params={"claims_text": "The photograph was taken in 2020."},
@@ -537,7 +593,9 @@ class TestClaimCheckEndpoint:
             return_value=False,
         ):
             transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/forensics/claim-check",
                     params={"claims_text": "This image shows a real event."},
@@ -557,7 +615,9 @@ class TestClaimCheckEndpoint:
             return_value=False,
         ):
             transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/forensics/claim-check",
                     params={"claims_text": "This is a real photograph."},
@@ -580,7 +640,9 @@ class TestClaimCheckEndpoint:
             return_value=False,
         ):
             transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/forensics/claim-check",
                     params={
@@ -598,7 +660,9 @@ class TestClaimCheckEndpoint:
             return_value=False,
         ):
             transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/forensics/claim-check",
                     params={"claims_text": "The image shows a document."},
@@ -628,7 +692,9 @@ class TestHealthRagFlag:
 
         with patch("httpx.AsyncClient", return_value=mock_client):
             transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get("/health")
 
         data = resp.json()
@@ -648,8 +714,12 @@ class TestHealthRagFlag:
 
         with patch("httpx.AsyncClient", return_value=mock_client):
             transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get("/health")
 
         data = resp.json()
-        assert data["capabilities"]["rag"] is False  # JTV-RAG-DEFER: hardcoded false since 2026-05-17 deferral
+        assert (
+            data["capabilities"]["rag"] is False
+        )  # JTV-RAG-DEFER: hardcoded false since 2026-05-17 deferral
