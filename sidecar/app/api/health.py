@@ -92,7 +92,11 @@ async def health(request: Request) -> HealthResponse:
 
     return HealthResponse(
         status="ok",
-        version="0.9.0",
+        # Read from the FastAPI app rather than a literal. This drifted once:
+        # main.py was bumped to 1.0.0 for the June release and this stayed at
+        # "0.9.0", so every shipped sidecar reported the wrong version to the
+        # desktop app, the REST API and the Setup Wizard.
+        version=request.app.version,
         service="jura-trace-sidecar",
         capabilities=CapabilitiesResponse(
             ela=True, noise=True, copy_move=True, deepfake=True,
