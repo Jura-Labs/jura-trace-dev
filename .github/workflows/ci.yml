@@ -212,19 +212,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Broadened 4 September 2026. As written, this guard would not have
+      # caught the real stray file, on two counts:
+      #
+      #   1. It searched `models/` only. The directory that is bundled into
+      #      the application is `src-tauri/models/`, which it never looked at.
+      #   2. The glob `*.bak` requires the name to END in ".bak". The actual
+      #      file is `deepfake_classifier.joblib.bak-1.7.2`, so even pointed
+      #      at the right directory it would have passed.
+      #
+      # Both verified by running the original find against the live tree.
+      #
+      # NOTE ON WHAT THIS CAN AND CANNOT DO. CI only ever sees tracked
+      # files, and that stray is untracked, so no CI guard can catch it. It
+      # ships because macOS releases are built locally from the working
+      # tree. The guard that matters for the bundle is the pre-flight check
+      # in scripts/build-local-mac.sh; this one stops a stray being
+      # committed, which is the narrower thing it was written for.
       - name: Forbid model backup files
         run: |
           set -e
-          matches=$(find models -type f \( -name '*.backup' -o -name '*.bak' -o -name '*.joblib.old' \) 2>/dev/null || true)
+          matches=$(find models src-tauri/models -type f \
+            \( -name '*.bak*' -o -name '*.backup*' -o -name '*.old' \
+               -o -name '*.orig' -o -name '*~' \) 2>/dev/null || true)
           if [ -n "$matches" ]; then
-            echo "ERROR: model backup files found in models/ — these are unverified and must not be committed."
+            echo "ERROR: stray model files found. These carry no SHA-256 integrity"
+            echo "check and must not be committed: a file sitting beside the"
+            echo "production model can be renamed to shadow it."
             echo "Offending files:"
             echo "$matches"
             echo ""
             echo "Remove them with: git rm <path>"
             exit 1
           fi
-          echo "OK — no stray model backup files."
+          echo "OK — no stray model files in models/ or src-tauri/models/."
 
       # ── requirements-ci.txt sync guard ──────────────────────────────────────
       # Fails if any package present in sidecar/requirements.txt is absent from
