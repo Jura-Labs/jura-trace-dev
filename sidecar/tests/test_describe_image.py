@@ -25,8 +25,6 @@ from PIL import Image
 
 from app.models.schemas import ImageDescribeResponse
 from app.services.describe_image import (
-    _check_model_available,
-    _check_ollama_available,
     describe_image,
 )
 from main import app

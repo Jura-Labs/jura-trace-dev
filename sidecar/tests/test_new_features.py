@@ -11,7 +11,6 @@ import math
 
 import cv2
 import numpy as np
-import pytest
 from PIL import Image
 
 from app.services.deepfake import (

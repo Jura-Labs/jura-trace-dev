@@ -8,8 +8,7 @@ import io
 import time
 
 import numpy as np
-import pytest
-from PIL import Image, PngImagePlugin
+from PIL import Image
 from PIL.ExifTags import Base as ExifBase
 
 from app.services.content_type import classify_content

@@ -3,6 +3,11 @@ name: CI
 on:
   pull_request:
     branches: [main]
+  # Work that lands directly on main must be tested too. Without this, the
+  # gate only watches the path nobody used for the June v1.0.0 release: all
+  # eleven of those commits went straight to main and CI never saw them.
+  push:
+    branches: [main]
   workflow_dispatch:  # manual trigger from Actions tab when needed
 
 # Cancel redundant workflow runs on the same branch/PR to save CI minutes.
@@ -145,8 +150,15 @@ jobs:
 
       # Install ruff separately (fast, no heavy deps) so lint runs even if
       # the full sidecar dependency install fails.
+      #
+      # PINNED. This was `pip install ruff`, unpinned, and a ruff release
+      # that tightened a rule turned the build red with no change to this
+      # repository. That is what has kept the Python job failing since 30
+      # April 2026: 35 of the 67 findings were E402, a rule about import
+      # placement. The code did not break, the tool moved. Bump this
+      # deliberately, with the findings fixed in the same commit.
       - name: Install ruff
-        run: pip install ruff
+        run: pip install ruff==0.14.2
 
       - name: Lint
         run: cd sidecar && ruff check .

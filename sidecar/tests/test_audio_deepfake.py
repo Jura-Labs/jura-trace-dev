@@ -2,21 +2,17 @@
 
 """Tests for the audio deepfake detection service (Sprint 35 skeleton)."""
 
+import io
+import os
+import tempfile
+import wave
+
+import numpy as np
 import pytest
 
 # JTV-138 (2026-05-02) — audio deepfake dropped from v1.0; restored alongside
 # AASIST retraining under JTV-110/JTV-113 in v1.1.
 pytestmark = pytest.mark.skip(reason="JTV-138 v1.0 drop — re-enable under JTV-110/JTV-113")
-
-import io
-import os
-import struct
-import tempfile
-import wave
-from pathlib import Path
-
-import numpy as np
-import pytest
 
 
 # ── Test helpers ──────────────────────────────────────────────────────────────

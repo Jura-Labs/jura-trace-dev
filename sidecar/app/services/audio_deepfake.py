@@ -19,7 +19,6 @@ import logging
 import os
 import time
 import tempfile
-from pathlib import Path
 
 import numpy as np
 
@@ -346,7 +345,6 @@ def _load_audio(audio_path: str, target_sr: int = _TARGET_SR) -> tuple[np.ndarra
     # decode — without adding librosa as a dependency.
     import shutil
     import subprocess
-    import tempfile
 
     ffmpeg_bin = shutil.which("ffmpeg")
     if ffmpeg_bin:

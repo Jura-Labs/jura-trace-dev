@@ -6,7 +6,6 @@ import io
 
 import cv2
 import numpy as np
-import pytest
 from PIL import Image
 
 from app.services.colour_temperature import (

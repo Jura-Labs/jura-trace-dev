@@ -3,11 +3,8 @@
 """Tests for the screenshot pre-classifier in the deepfake detection pipeline."""
 
 import io
-import struct
-import zlib
 
 import numpy as np
-import pytest
 from PIL import Image
 
 from app.services.deepfake import (
@@ -107,7 +104,6 @@ def _make_ai_generated_png(size: tuple[int, int] = (1024, 1024)) -> bytes:
         colour = rng.integers(30, 255, 3).astype(np.float64)
         yy, xx = np.ogrid[:h, :w]
         dist = np.sqrt((xx - cx) ** 2 + (yy - cy) ** 2)
-        mask = dist < r
         blend = np.clip(1.0 - dist / r, 0, 1)
         for c in range(3):
             arr[:, :, c] += blend * colour[c]

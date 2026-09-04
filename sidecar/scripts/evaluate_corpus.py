@@ -22,8 +22,6 @@ Each image filename should follow the convention:
 
 import argparse
 import csv
-import json
-import os
 import sys
 import time
 from pathlib import Path
@@ -226,8 +224,8 @@ def main():
         correct = sum(1 for r in manip if r.get("correct"))
         print(f"Manipulated:      {len(manip)} total, {correct} correctly flagged ({100*correct/len(manip):.1f}%)")
 
-    # Watermark stats
-    wm = [r for r in ai if r.get("watermark_detected")]
+    # Watermark stats. Only the SD/SDXL subset is reported; a corpus-wide
+    # count was computed here and never printed.
     sd_images = [r for r in ai if "sd" in r["filename"].lower() or "flux" in r["filename"].lower() or "sdxl" in r["filename"].lower()]
     if sd_images:
         wm_sd = [r for r in sd_images if r.get("watermark_detected")]

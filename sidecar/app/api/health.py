@@ -19,7 +19,6 @@ Two endpoints are provided:
   v1.0.x re-add (JTV-139).
 """
 
-import shutil
 
 import httpx
 from fastapi import APIRouter, Request, Response
@@ -82,13 +81,18 @@ async def health(request: Request) -> HealthResponse:
     # claims card and the REST API does not advertise the feature.
     rag_available = False
 
-    # FFmpeg availability gates the (currently disabled) video/audio paths.
-    # JTV-138 (2026-05-02): the Rust pipeline gates the video/audio sidecar
-    # parallel groups to false, so even when ffprobe is on PATH these
-    # endpoints are unreachable for v1.0. The capability is still reported
-    # truthfully (does ffprobe exist on this machine?) so the frontend's
-    # Setup Wizard / Settings UX can preview readiness for v1.0.x re-add.
-    ffmpeg_available = shutil.which("ffprobe") is not None
+    # JTV-138 (2026-05-02): the Rust pipeline gates the video and audio
+    # sidecar groups off, so even where ffprobe is on PATH those endpoints
+    # are unreachable. video_metadata and audio_metadata below are therefore
+    # reported False unconditionally.
+    #
+    # There is NO ffmpeg capability on the wire. An `ffmpeg_available` probe
+    # was computed here and discarded, under a comment claiming the
+    # capability "is still reported truthfully" so the Setup Wizard could
+    # preview readiness. It never was: CapabilitiesResponse has no such
+    # field. The dead probe is removed rather than left to imply otherwise.
+    # Adding the field is a JTV-139 decision, since it changes the API
+    # contract and the frontend, and is not a lint fix.
 
     return HealthResponse(
         status="ok",

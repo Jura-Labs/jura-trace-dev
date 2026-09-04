@@ -20,7 +20,6 @@ import io
 import logging
 import math
 import os
-import sys
 
 import cv2
 import numpy as np

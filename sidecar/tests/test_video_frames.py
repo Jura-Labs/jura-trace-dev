@@ -2,11 +2,6 @@
 
 """Tests for the video frame extraction service."""
 
-import pytest
-
-# JTV-138 (2026-05-02) — video frame extraction dropped from v1.0.
-pytestmark = pytest.mark.skip(reason="JTV-138 v1.0 drop — re-enable under JTV-139")
-
 import shutil
 import subprocess
 from unittest.mock import patch
@@ -14,6 +9,9 @@ from unittest.mock import patch
 import pytest
 
 from app.services.video_frames import perform_frame_extraction
+
+# JTV-138 (2026-05-02) — video frame extraction dropped from v1.0.
+pytestmark = pytest.mark.skip(reason="JTV-138 v1.0 drop — re-enable under JTV-139")
 
 HAS_FFMPEG = shutil.which("ffprobe") is not None
 

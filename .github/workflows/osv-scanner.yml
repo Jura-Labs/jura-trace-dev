@@ -37,20 +37,53 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # `--skip-git` was a v1 flag and osv-scanner v2's `scan source`
+      # subcommand does not define it. The scanner exited on "flag provided
+      # but not defined: -skip-git", printed its usage text, and wrote no
+      # SARIF — so this workflow scanned NOTHING from at least 6 July to 4
+      # September 2026 while appearing in the Actions list every Monday.
+      # The `continue-on-error` below is what made that quiet: it is kept,
+      # so a real advisory does not block a merge, but the assertion after
+      # it now distinguishes "found nothing" from "did not run".
       - name: Run OSV-Scanner
         uses: google/osv-scanner-action/osv-scanner-action@v2.0.0
         with:
           scan-args: |-
             --recursive
-            --skip-git
             --format=sarif
             --output=osv-results.sarif
             ./
         continue-on-error: true
 
+      # An absent SARIF has been reading as a clean result for two months.
+      # Fail loudly instead. This is the check that would have caught the
+      # flag change the day it broke.
+      - name: Assert the scan actually produced results
+        run: |
+          if [ ! -s osv-results.sarif ]; then
+            echo "::error::OSV-Scanner produced no SARIF file. The scan did not run."
+            echo "A missing report is not a clean report. Check the scanner step's log"
+            echo "above for a usage dump, which means an invalid flag was passed."
+            exit 1
+          fi
+          echo "SARIF written: $(wc -c < osv-results.sarif) bytes."
+
+      # jura-archive is private, so code scanning upload needs GitHub
+      # Advanced Security. Where that is unavailable this step fails and the
+      # results would be lost, so the SARIF is also kept as a build artefact
+      # and can be read from there.
       - name: Upload SARIF to code-scanning
         if: always()
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: osv-results.sarif
           category: osv-scanner
+
+      - name: Keep the SARIF as an artefact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osv-results
+          path: osv-results.sarif
+          if-no-files-found: warn

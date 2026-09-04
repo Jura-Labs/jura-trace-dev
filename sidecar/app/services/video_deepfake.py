@@ -16,7 +16,6 @@ import numpy as np
 from PIL import Image
 
 from app.models.schemas import (
-    DeepfakeSignal,
     FrameDeepfakeResult,
     VideoDeepfakeResponse,
 )

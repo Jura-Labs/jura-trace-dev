@@ -2,27 +2,24 @@
 
 """Tests for the video deepfake analysis service."""
 
-import pytest
-
-# JTV-138 (2026-05-02) — video deepfake dropped from v1.0. Re-enable under
-# JTV-139 (Phase A Sprint 21 v1.0.x re-add) once Global Majority device
-# coverage and per-generator calibration are published.
-pytestmark = pytest.mark.skip(reason="JTV-138 v1.0 drop — re-enable under JTV-139")
-
 import io
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import numpy as np
 import pytest
 from PIL import Image
 
 from app.models.schemas import (
-    DeepfakeSignal,
     FrameDeepfakeResult,
     VideoDeepfakeResponse,
     VideoFramesResponse,
 )
 from app.services.video_deepfake import perform_video_deepfake_analysis
+
+# JTV-138 (2026-05-02) — video deepfake dropped from v1.0. Re-enable under
+# JTV-139 (Phase A Sprint 21 v1.0.x re-add) once Global Majority device
+# coverage and per-generator calibration are published.
+pytestmark = pytest.mark.skip(reason="JTV-138 v1.0 drop — re-enable under JTV-139")
 
 
 def _make_test_image() -> bytes:

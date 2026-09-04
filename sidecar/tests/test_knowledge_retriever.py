@@ -29,7 +29,6 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
-import pytest
 
 from app.services.knowledge_retriever import (
     KnowledgeRetriever,
