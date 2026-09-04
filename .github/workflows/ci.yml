@@ -187,6 +187,22 @@ jobs:
             pip install -r sidecar/requirements.txt
           fi
 
+      # Tests run BEFORE the audit, deliberately.
+      #
+      # The first working run of this job, on PR #27, put pip-audit first
+      # and it failed on sixteen Pillow advisories. That is pip-audit doing
+      # its job, but the consequence was that pytest was skipped, so the
+      # 435 sidecar tests reported nothing. With a two-month advisory
+      # backlog to clear, that ordering would have kept the test suite dark
+      # for as long as any advisory existed, which is exactly the failure
+      # this whole branch is repairing.
+      #
+      # Both signals matter and neither should hide the other. Tests first
+      # means a vulnerability finding never costs us the test result; the
+      # job still goes red on advisories, so nothing is weakened.
+      - name: Run pytest
+        run: cd sidecar && python -m pytest tests/ -v
+
       # Audit installed packages for known CVEs. Audits the environment the
       # step above just built, so it sees exactly what the sidecar runs.
       #
@@ -195,9 +211,6 @@ jobs:
       # is precisely how the Python job died in April.
       - name: pip-audit
         run: pip install pip-audit==2.10.1 && pip-audit
-
-      - name: Run pytest
-        run: cd sidecar && python -m pytest tests/ -v
 
   # ── Repo hygiene: fail build if stray model backup files are committed ─────
   # Rationale: unverified .joblib backups in models/ are a supply-chain risk —
