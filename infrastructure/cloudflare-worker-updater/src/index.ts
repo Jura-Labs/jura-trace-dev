@@ -197,7 +197,20 @@ async function handleLatestManifest(env: Env, ctx: ExecutionContext): Promise<Re
     return jsonError(502, "Upstream unavailable", "Could not fetch the latest release from GitHub.");
   }
 
-  const manifest = buildManifest(release);
+  let manifest: TauriUpdateManifest;
+  try {
+    manifest = await buildManifest(release);
+  } catch (err) {
+    // A manifest we cannot assemble correctly must not be served or cached.
+    // An error here is visible; a silently incomplete manifest is not.
+    console.error(`Manifest assembly failed for ${release.tag_name}: ${err}`);
+    return jsonError(
+      503,
+      "Manifest unavailable",
+      "The update manifest could not be assembled. This has been logged.",
+    );
+  }
+
   const response = jsonResponse(200, manifest, { "Cache-Control": `public, max-age=${CACHE_TTL_SECONDS}` });
 
   // Write to edge cache (fire-and-forget).
@@ -288,18 +301,54 @@ async function fetchLatestRelease(env: Env): Promise<GitHubRelease | null> {
 }
 
 /**
- * Build the full Tauri-format aggregated manifest from a GitHub release.
- * Platforms without a matching asset are omitted (so a release that
- * only built macOS does not appear in the Windows or Linux response).
+ * Build the full Tauri-format aggregated manifest from a GitHub release,
+ * with each platform's minisign signature fetched and inlined.
+ *
+ * Platforms without a matching asset are omitted, so a release that only
+ * built macOS does not appear in the Windows or Linux response. Every
+ * omission is logged, and a manifest with no platforms at all throws
+ * rather than being served: see the note on failing closed below.
  */
-function buildManifest(release: GitHubRelease): TauriUpdateManifest {
+async function buildManifest(release: GitHubRelease): Promise<TauriUpdateManifest> {
+  const names = Object.keys(PLATFORM_ASSET_CONFIG);
+
+  // Fetch every platform's signature concurrently. Three small files.
+  const blocks = await Promise.all(
+    names.map((platform) => buildPlatformBlock(release, platform)),
+  );
+
   const platforms: Record<string, TauriUpdatePlatform> = {};
-  for (const platform of Object.keys(PLATFORM_ASSET_SUFFIXES)) {
-    const block = buildPlatformBlockSync(release, platform);
+  const dropped: string[] = [];
+
+  names.forEach((platform, i) => {
+    const block = blocks[i];
     if (block) {
       platforms[platform] = block;
+    } else {
+      dropped.push(platform);
     }
+  });
+
+  // Fail closed, not open. Dropping a platform silently is what stranded
+  // Linux: the manifest looked healthy and told a whole platform it was up
+  // to date, indefinitely, with no error anywhere. A platform legitimately
+  // absent from a release (a macOS-only build, say) still leaves the others
+  // serviceable, so this warns rather than throws — but it must be visible
+  // in the logs, and an empty platform map is always a fault.
+  if (dropped.length > 0) {
+    console.warn(
+      `Manifest for ${release.tag_name} omits ${dropped.join(", ")}: ` +
+        `no matching installer asset, or its .sig could not be read. ` +
+        `Clients on those platforms will see no update.`,
+    );
   }
+  if (Object.keys(platforms).length === 0) {
+    throw new Error(
+      `Refusing to serve an empty manifest for ${release.tag_name}. ` +
+        `No platform yielded both an installer and a readable signature.`,
+    );
+  }
+
   return {
     version: release.tag_name.replace(/^v/, ""),
     notes: release.body || release.name || `Release ${release.tag_name}`,
@@ -309,42 +358,77 @@ function buildManifest(release: GitHubRelease): TauriUpdateManifest {
 }
 
 /**
- * Async wrapper around buildPlatformBlockSync that also fetches the
+ * A minisign signature file is a two-line document: an "untrusted comment"
+ * line, then a base64 payload. Tauri base64-encodes the whole file, so what
+ * we inline is a single base64 blob.
+ *
+ * This exists because the field it guards held a URL in production from the
+ * v1.0.0 release on 18 June 2026 until 4 September, which made every update
+ * fail signature verification. Cheap to check, and it encodes the bug so it
+ * cannot come back quietly.
+ */
+function looksLikeSignature(value: string): boolean {
+  if (!value) return false;
+  if (/^https?:\/\//i.test(value)) return false;
+  if (/\s/.test(value)) return false;
+  return /^[A-Za-z0-9+/=]+$/.test(value) && value.length > 64;
+}
+
+/**
+ * Async wrapper around locatePlatformAssets that also fetches the
  * minisign signature contents inline (the .sig file is small, typically
  * <500 bytes). The Tauri auto-updater wants the signature inline in the
  * manifest, not just as a URL.
  */
 async function buildPlatformBlock(release: GitHubRelease, platform: string): Promise<TauriUpdatePlatform | null> {
-  const sync = buildPlatformBlockSync(release, platform);
-  if (!sync) return null;
+  const assets = locatePlatformAssets(release, platform);
+  if (!assets) return null;
 
-  // Replace the signature URL with the actual signature contents.
-  const sigResp = await fetch(sync.signature, {
+  const sigResp = await fetch(assets.signatureUrl, {
     headers: { "User-Agent": USER_AGENT },
   });
   if (!sigResp.ok) {
-    console.error(`Signature fetch failed for ${platform}: ${sigResp.status}`);
+    console.error(
+      `Signature fetch failed for ${platform}: ${sigResp.status} from ${assets.signatureUrl}`,
+    );
     return null;
   }
-  const sigText = (await sigResp.text()).trim();
-  return { url: sync.url, signature: sigText };
+
+  const signature = (await sigResp.text()).trim();
+  if (!looksLikeSignature(signature)) {
+    console.error(
+      `Signature for ${platform} does not look like a minisign blob ` +
+        `(${signature.length} chars, starts "${signature.slice(0, 24)}"). Refusing to serve it.`,
+    );
+    return null;
+  }
+
+  return { url: assets.installerUrl, signature };
+}
+
+/** Two URLs on a release: the installer, and its detached signature file. */
+interface PlatformAssetUrls {
+  installerUrl: string;
+  signatureUrl: string;
 }
 
 /**
- * Synchronous variant returns the .sig URL rather than the contents,
- * used by buildManifest when assembling the aggregated response. The
- * caller is responsible for fetching the actual signature contents.
+ * Find the installer and the .sig file for a platform on a GitHub release.
  *
- * For the aggregated /latest.json endpoint we accept that signatures
- * are passed as URLs rather than inline contents; Tauri's updater
- * supports both forms.
+ * This returns URLs only, and deliberately does NOT return a
+ * TauriUpdatePlatform. It used to, under the name buildPlatformBlockSync,
+ * with the .sig URL sitting in the `signature` field — which is a manifest
+ * block that looks correct, type-checks, and is wrong. That shape is how
+ * the URL reached production and stayed there from 18 June to 4 September
+ * 2026, failing every update. Callers must fetch the signature contents;
+ * buildPlatformBlock does.
  *
  * Uses PLATFORM_ASSET_CONFIG rather than a single suffix because the
  * release workflow uploads the installer under a friendly name but the
- * .sig under its original Tauri-produced name — so the URL suffix and
- * the sig suffix differ for Linux and Windows.
+ * .sig under its original Tauri-produced name, so the two suffixes differ
+ * for Linux and Windows.
  */
-function buildPlatformBlockSync(release: GitHubRelease, platform: string): TauriUpdatePlatform | null {
+function locatePlatformAssets(release: GitHubRelease, platform: string): PlatformAssetUrls | null {
   const cfg = PLATFORM_ASSET_CONFIG[platform];
   if (!cfg) return null;
   const asset = release.assets.find((a) => a.name.toLowerCase().endsWith(cfg.urlSuffix.toLowerCase()));
@@ -356,7 +440,7 @@ function buildPlatformBlockSync(release: GitHubRelease, platform: string): Tauri
     console.warn(`No .sig found for ${platform} (expected suffix: ${cfg.sigSuffix})`);
     return null;
   }
-  return { url: asset.browser_download_url, signature: sig.browser_download_url };
+  return { installerUrl: asset.browser_download_url, signatureUrl: sig.browser_download_url };
 }
 
 function jsonResponse(status: number, body: unknown, extraHeaders: Record<string, string> = {}): Response {
