@@ -18,11 +18,11 @@
 #   requirements-ci.txt   — fully-pinned mirror of the runtime baseline for CI
 
 # API framework
-fastapi==0.115.12
+fastapi==0.141.1
 uvicorn[standard]==0.34.0
 httpx==0.28.1
-pydantic-settings==2.13.1
-python-multipart==0.0.20
+pydantic-settings==2.15.0
+python-multipart==0.0.32
 
 # Image forensics
 Pillow==12.3.0
@@ -35,12 +35,12 @@ opencv-python-headless==4.11.0.86
 # bundles will silently fail to open .heic/.heif files. The sidecar calls
 # pillow_heif.register_heif_opener() at startup; if the import fails we
 # log CRITICAL and continue (HEIC verification will fail, other formats OK).
-pillow-heif==1.2.0
+pillow-heif==1.6.0
 
 # AVIF support — added rc.31 (2026-06-09) after a known-fake test image in AVIF
 # format passed the trust algorithm at 77% because six detectors returned HTTP
 # 400 'cannot identify image file' and four returned score=0 ('clean'),
-# inflating the composite. pillow-heif 1.2.0 does not include AVIF; this plugin
+# inflating the composite. pillow-heif 1.6.0 does not include AVIF; this plugin
 # adds an AVIF reader to PIL via a separate AvifImagePlugin auto-registered on
 # import. macOS sips/Preview have native AVIF but PyInstaller bundles ship a
 # self-contained Python interpreter, so AVIF must come from a pip package.
@@ -80,7 +80,7 @@ regex==2025.10.23
 # faster-whisper>=1.0.0
 
 # Utilities
-python-dotenv==1.1.0
+python-dotenv==1.2.3
 pydantic==2.11.3
 
 # Testing
