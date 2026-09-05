@@ -61,9 +61,34 @@ offline one, and the failure direction here is backwards.
 3. **Invert the `network_mode` fallback** so an unreadable config yields
    Standard, not Enhanced.
 4. **Decide what "Enhanced" should mean**, if anything, while c2pa-rs 0.79
-   cannot do revocation. Either rename it to what it does — the weather
-   lookup and remote manifest fetch are real — or hide it until the c2pa
-   bump (SR-34) makes the claim true.
+   cannot do revocation. Either rename it to what it does or hide it until
+   the c2pa bump (SR-34) makes the claim true.
+
+   **Correction, 5 September.** An earlier draft of this item said "the
+   weather lookup and remote manifest fetch are real". Only the weather
+   lookup is. `src-tauri/Cargo.toml:63` builds c2pa with
+   `features = ["file_io"]`, so remote manifest fetching is not compiled
+   in. Enhanced gates exactly two outbound calls, the historical weather
+   lookup (`lib.rs:1175`) and the Watched Locations scheduler
+   (`monitor_scheduler.rs:177`), and neither touches C2PA. Watched
+   Locations is flag-hidden in v1.0, so for nearly every user the setting
+   changes nothing observable.
+
+   **The C2PA path is byte-identical in both modes**, confirmed at
+   `c2pa.rs:1565`: `let mode_str = if enhanced { "enhanced" } else
+   { "standard" };`. The flag reaches `extract_manifest_info` as a label
+   and nothing else.
+
+   Worth quoting the existing doc comment at `c2pa.rs:74`, because it
+   states the defect precisely without meaning to: the field exists so the
+   UI and PDF "can accurately report whether online checks were
+   **attempted**". The PDF reports that they **happened**. The whole fault
+   sits in the gap between those two words.
+
+   Filed for decision as D7 and D8 in
+   `~/jura-brain/inbox/2026-09-05-trace-four-decisions.md`, with proposed
+   replacement wording drafted so a legal pass has something concrete to
+   react to.
 5. **Add a row to the brain's `claims.md`** covering the exported report's
    assertions, since it is a published claim surface that the register does
    not currently track at all.
