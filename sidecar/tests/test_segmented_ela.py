@@ -4,9 +4,7 @@
 
 import io
 
-import cv2
 import numpy as np
-import pytest
 from PIL import Image
 
 from app.services.segmented_ela import (
@@ -146,7 +144,10 @@ class TestSegmentedEla:
         assert result["score"] == 0.0
         assert not result["suspicious"]
         assert result["total_regions"] == 0
-        assert "not applicable" in result["summary"].lower() or "could not" in result["summary"].lower()
+        assert (
+            "not applicable" in result["summary"].lower()
+            or "could not" in result["summary"].lower()
+        )
 
     def test_heic_ftyp_brand_returns_neutral(self):
         """HEIC ftyp brand must also return neutral (belt-and-braces)."""
@@ -161,9 +162,6 @@ class TestSegmentedEla:
         to the OpenCV ELA path (root cause of Finding 2)."""
         # Craft bytes that cv2.imdecode can partially handle but PIL cannot
         # open as JPEG. Use raw noise that is not a valid image format.
-        import numpy as np
-        rng = np.random.default_rng(7)
-        noise = rng.integers(0, 256, 512, dtype=np.uint8).tobytes()
         # cv2.imdecode will return None (handled by the existing guard),
         # so the real test here is the PIL path for something that looks like
         # it might be an image container but isn't.

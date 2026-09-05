@@ -2,11 +2,6 @@
 
 """Tests for the video metadata extraction service."""
 
-import pytest
-
-# JTV-138 (2026-05-02) — FFprobe video metadata dropped from v1.0.
-pytestmark = pytest.mark.skip(reason="JTV-138 v1.0 drop — re-enable under JTV-139")
-
 import shutil
 import subprocess
 from unittest.mock import patch
@@ -15,6 +10,9 @@ import pytest
 
 from app.services.video_metadata import perform_video_metadata
 
+# JTV-138 (2026-05-02) — FFprobe video metadata dropped from v1.0.
+pytestmark = pytest.mark.skip(reason="JTV-138 v1.0 drop — re-enable under JTV-139")
+
 HAS_FFMPEG = shutil.which("ffprobe") is not None
 
 
@@ -22,10 +20,20 @@ def _make_test_video() -> bytes:
     """Create a minimal test video using ffmpeg (1s, 320x240, silent)."""
     result = subprocess.run(
         [
-            "ffmpeg", "-y", "-f", "lavfi", "-i",
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
             "color=c=blue:s=320x240:d=1:r=25",
-            "-c:v", "libx264", "-t", "1",
-            "-f", "mp4", "-movflags", "+frag_keyframe+empty_moov",
+            "-c:v",
+            "libx264",
+            "-t",
+            "1",
+            "-f",
+            "mp4",
+            "-movflags",
+            "+frag_keyframe+empty_moov",
             "pipe:1",
         ],
         capture_output=True,

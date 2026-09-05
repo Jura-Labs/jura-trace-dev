@@ -60,6 +60,7 @@ def perform_jpeg_ghost_detection(image_bytes: bytes) -> JpegGhostResponse:
     Raises:
         ValueError: If image cannot be decoded.
     """
+
     # JPEG Ghost analysis relies on detecting JPEG quantisation residuals from
     # double-compression. Non-JPEG codecs have no DCT quantisation history, so
     # the analysis produces uncalibrated noise scores. Return a neutral result
@@ -84,17 +85,21 @@ def perform_jpeg_ghost_detection(image_bytes: bytes) -> JpegGhostResponse:
             summary=f"JPEG ghost analysis is not applicable for {fmt} images",
         )
 
-    if image_bytes[:4] == b'\x89PNG':
+    if image_bytes[:4] == b"\x89PNG":
         return _non_jpeg_neutral("PNG")
-    if len(image_bytes) >= 12 and image_bytes[:4] == b'RIFF' and image_bytes[8:12] == b'WEBP':
+    if (
+        len(image_bytes) >= 12
+        and image_bytes[:4] == b"RIFF"
+        and image_bytes[8:12] == b"WEBP"
+    ):
         return _non_jpeg_neutral("WebP")
-    if image_bytes[:4] in (b'II\x2a\x00', b'MM\x00\x2a'):
+    if image_bytes[:4] in (b"II\x2a\x00", b"MM\x00\x2a"):
         return _non_jpeg_neutral("TIFF")
-    if len(image_bytes) >= 12 and image_bytes[4:8] == b'ftyp':
+    if len(image_bytes) >= 12 and image_bytes[4:8] == b"ftyp":
         return _non_jpeg_neutral("AVIF/HEIC")
-    if image_bytes[:2] == b'BM':
+    if image_bytes[:2] == b"BM":
         return _non_jpeg_neutral("BMP")
-    if image_bytes[:4] in (b'GIF8', ):
+    if image_bytes[:4] in (b"GIF8",):
         return _non_jpeg_neutral("GIF")
 
     try:
@@ -138,7 +143,9 @@ def perform_jpeg_ghost_detection(image_bytes: bytes) -> JpegGhostResponse:
             for bx in range(blocks_x):
                 y0 = by * BLOCK_SIZE
                 x0 = bx * BLOCK_SIZE
-                block_diffs[qi, by, bx] = diff[y0:y0 + BLOCK_SIZE, x0:x0 + BLOCK_SIZE].mean()
+                block_diffs[qi, by, bx] = diff[
+                    y0 : y0 + BLOCK_SIZE, x0 : x0 + BLOCK_SIZE
+                ].mean()
 
     # ── Step 2: Per-block ghost quality (quality that minimises diff) ─
     ghost_quality_indices = np.argmin(block_diffs, axis=0)  # (blocks_y, blocks_x)
@@ -156,7 +163,10 @@ def perform_jpeg_ghost_detection(image_bytes: bytes) -> JpegGhostResponse:
     quality_variance = float(np.var(flat_qualities))
 
     # Blocks deviating from mode by more than threshold
-    deviating_mask = np.abs(ghost_qualities.astype(np.float64) - mode_quality) > QUALITY_DEVIATION_THRESHOLD
+    deviating_mask = (
+        np.abs(ghost_qualities.astype(np.float64) - mode_quality)
+        > QUALITY_DEVIATION_THRESHOLD
+    )
     deviating_blocks = int(deviating_mask.sum())
 
     # ── Step 4: Score ─────────────────────────────────────────────────

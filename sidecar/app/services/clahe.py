@@ -6,6 +6,7 @@ Applies per-channel CLAHE to reveal hidden detail in shadows, highlights,
 and low-contrast regions. Useful for exposing hidden text, watermarks,
 and steganographic content.
 """
+
 import base64
 import io
 import logging
@@ -48,8 +49,8 @@ def perform_clahe(image_bytes: bytes, clip_limit: float = 2.0) -> dict:
     # Encode as PNG
     pil_img = Image.fromarray(result_rgb)
     buf = io.BytesIO()
-    pil_img.save(buf, format='PNG')
-    enhanced_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+    pil_img.save(buf, format="PNG")
+    enhanced_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
 
     return {
         "enhanced_image_base64": enhanced_b64,

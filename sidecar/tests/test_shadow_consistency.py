@@ -6,7 +6,6 @@ import io
 
 import cv2
 import numpy as np
-import pytest
 from PIL import Image
 
 from app.services.shadow_consistency import (
@@ -21,9 +20,7 @@ def _make_gradient_jpeg(
     """Create a JPEG with a uniform horizontal gradient (consistent lighting)."""
     w, h = size
     # Horizontal gradient — bright on left, dark on right
-    gradient = np.tile(
-        np.linspace(255, 0, w, dtype=np.uint8), (h, 1)
-    )
+    gradient = np.tile(np.linspace(255, 0, w, dtype=np.uint8), (h, 1))
     img = np.stack([gradient, gradient, gradient], axis=-1)
     _, buf = cv2.imencode(".jpg", img)
     return buf.tobytes()

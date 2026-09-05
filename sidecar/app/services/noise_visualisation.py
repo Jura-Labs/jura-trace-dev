@@ -7,6 +7,7 @@ internally, plus a block-wise variance heatmap. These visualisations
 help trained analysts identify spliced regions with inconsistent noise
 characteristics.
 """
+
 import base64
 import io
 import logging
@@ -51,8 +52,8 @@ def perform_noise_visualisation(image_bytes: bytes) -> dict:
     # Encode noise residual as PNG
     noise_pil = Image.fromarray(noise_vis)
     buf = io.BytesIO()
-    noise_pil.save(buf, format='PNG')
-    noise_residual_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+    noise_pil.save(buf, format="PNG")
+    noise_residual_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
 
     # Block-wise variance heatmap (32x32 blocks)
     block_size = 32
@@ -63,7 +64,10 @@ def perform_noise_visualisation(image_bytes: bytes) -> dict:
 
     for r in range(rows):
         for c in range(cols):
-            block = noise[r*block_size:(r+1)*block_size, c*block_size:(c+1)*block_size]
+            block = noise[
+                r * block_size : (r + 1) * block_size,
+                c * block_size : (c + 1) * block_size,
+            ]
             variance_map[r, c] = np.var(block)
 
     # Normalise and colourmap
@@ -73,14 +77,16 @@ def perform_noise_visualisation(image_bytes: bytes) -> dict:
         variance_norm = np.zeros_like(variance_map, dtype=np.uint8)
 
     # Resize to original dimensions
-    variance_resized = cv2.resize(variance_norm, (w, h), interpolation=cv2.INTER_NEAREST)
+    variance_resized = cv2.resize(
+        variance_norm, (w, h), interpolation=cv2.INTER_NEAREST
+    )
     variance_coloured = cv2.applyColorMap(variance_resized, cv2.COLORMAP_JET)
     variance_rgb = cv2.cvtColor(variance_coloured, cv2.COLOR_BGR2RGB)
 
     variance_pil = Image.fromarray(variance_rgb)
     buf2 = io.BytesIO()
-    variance_pil.save(buf2, format='PNG')
-    variance_heatmap_b64 = base64.b64encode(buf2.getvalue()).decode('utf-8')
+    variance_pil.save(buf2, format="PNG")
+    variance_heatmap_b64 = base64.b64encode(buf2.getvalue()).decode("utf-8")
 
     return {
         "noise_residual_base64": noise_residual_b64,

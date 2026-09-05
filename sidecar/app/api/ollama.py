@@ -45,7 +45,9 @@ async def pull_model(body: PullRequest):
     With stream=false, blocks until complete and returns the final status.
     """
     target = f"{settings.ollama_base_url}/api/pull"
-    logger.info("Proxying model pull for %r to %s (stream=%s)", body.name, target, body.stream)
+    logger.info(
+        "Proxying model pull for %r to %s (stream=%s)", body.name, target, body.stream
+    )
 
     if body.stream:
         return StreamingResponse(
@@ -62,15 +64,21 @@ async def pull_model(body: PullRequest):
         async with httpx.AsyncClient(timeout=_PULL_TIMEOUT_SECONDS) as client:
             resp = await client.post(target, json={"name": body.name, "stream": False})
     except httpx.ConnectError:
-        return JSONResponse(status_code=502, content={
-            "error": "ollama_unreachable",
-            "message": f"Could not connect to Ollama at {settings.ollama_base_url}.",
-        })
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": "ollama_unreachable",
+                "message": f"Could not connect to Ollama at {settings.ollama_base_url}.",
+            },
+        )
     except httpx.TimeoutException:
-        return JSONResponse(status_code=504, content={
-            "error": "pull_timeout",
-            "message": f"Model pull timed out after {int(_PULL_TIMEOUT_SECONDS // 60)} minutes.",
-        })
+        return JSONResponse(
+            status_code=504,
+            content={
+                "error": "pull_timeout",
+                "message": f"Model pull timed out after {int(_PULL_TIMEOUT_SECONDS // 60)} minutes.",
+            },
+        )
 
     try:
         body_json = resp.json()

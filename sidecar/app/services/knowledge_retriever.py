@@ -173,10 +173,10 @@ class KnowledgeRetriever:
         # a fractional max_df (e.g. 0.95) would raise ValueError when the corpus
         # is smaller than ~20 passages (0.95 * n < 1 < min_df).
         vectorizer = TfidfVectorizer(
-            ngram_range=(1, 2),       # unigrams and bigrams for better phrase matching
-            min_df=1,                 # keep terms that appear in at least 1 passage
-            max_df=1.0,               # no ceiling — preserve all terms in small corpus
-            sublinear_tf=True,        # apply log normalisation to term frequencies
+            ngram_range=(1, 2),  # unigrams and bigrams for better phrase matching
+            min_df=1,  # keep terms that appear in at least 1 passage
+            max_df=1.0,  # no ceiling — preserve all terms in small corpus
+            sublinear_tf=True,  # apply log normalisation to term frequencies
             strip_accents="unicode",
             lowercase=True,
         )

@@ -6,6 +6,7 @@ Visualises the 8x8 block grid alignment and boundary artefacts.
 Regions spliced from a differently-compressed JPEG show misaligned
 grids or different boundary artefact levels.
 """
+
 import base64
 import io
 import logging

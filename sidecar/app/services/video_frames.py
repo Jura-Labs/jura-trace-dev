@@ -18,7 +18,8 @@ from app.models.schemas import VideoFramesResponse
 
 
 def perform_frame_extraction(
-    video_bytes: bytes, count: int = 6,
+    video_bytes: bytes,
+    count: int = 6,
 ) -> VideoFramesResponse:
     """
     Extract N evenly-spaced frames from a video as JPEG base64 strings.
@@ -46,9 +47,7 @@ def perform_frame_extraction(
             return _error_result("Video has zero or negative duration")
 
         # Calculate evenly-spaced timestamps
-        timestamps = [
-            duration * i / (count + 1) for i in range(1, count + 1)
-        ]
+        timestamps = [duration * i / (count + 1) for i in range(1, count + 1)]
 
         frames: list[str] = []
         for ts in timestamps:
@@ -81,8 +80,13 @@ def _get_duration(file_path: str) -> float | None:
     """Get video duration in seconds via ffprobe."""
     result = subprocess.run(
         [
-            "ffprobe", "-v", "quiet", "-print_format", "json",
-            "-show_format", file_path,
+            "ffprobe",
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
+            "-show_format",
+            file_path,
         ],
         capture_output=True,
         text=True,
@@ -102,9 +106,20 @@ def _extract_frame_at(file_path: str, timestamp: float) -> str | None:
     """Extract a single frame at the given timestamp as a base64 JPEG string."""
     result = subprocess.run(
         [
-            "ffmpeg", "-ss", str(timestamp), "-i", file_path,
-            "-vframes", "1", "-f", "image2", "-c:v", "mjpeg",
-            "-q:v", "2", "pipe:1",
+            "ffmpeg",
+            "-ss",
+            str(timestamp),
+            "-i",
+            file_path,
+            "-vframes",
+            "1",
+            "-f",
+            "image2",
+            "-c:v",
+            "mjpeg",
+            "-q:v",
+            "2",
+            "pipe:1",
         ],
         capture_output=True,
         timeout=30,

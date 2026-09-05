@@ -3,6 +3,11 @@ name: CI
 on:
   pull_request:
     branches: [main]
+  # Work that lands directly on main must be tested too. Without this, the
+  # gate only watches the path nobody used for the June v1.0.0 release: all
+  # eleven of those commits went straight to main and CI never saw them.
+  push:
+    branches: [main]
   workflow_dispatch:  # manual trigger from Actions tab when needed
 
 # Cancel redundant workflow runs on the same branch/PR to save CI minutes.
@@ -69,6 +74,35 @@ jobs:
       - name: Build frontend (required by tauri::generate_context!)
         run: cd ui && npm ci && npm run build
 
+      # tauri.conf.json lists "sidecar-bundle/**/*" in bundle.resources. That
+      # directory is the PyInstaller --onedir output: 529 MB, gitignored, and
+      # absent from a fresh checkout. Tauri's build script treats a resource
+      # glob matching nothing as a hard error:
+      #
+      #   glob pattern sidecar-bundle/**/* path not found or didn't match any files
+      #
+      # so `cargo check` fails before compiling a single line of our code.
+      #
+      # This has been broken since 16 May 2026, when commit 72d8e42 (JTV-184)
+      # added that resource. CI last ran on 30 April, before it landed, so
+      # the Rust job has been incapable of passing for three and a half
+      # months and nothing said so. It surfaced on the first run after the
+      # gate was repaired.
+      #
+      # A placeholder is the right fix for THIS job. Nothing here bundles or
+      # ships: we type-check, lint and test. Building the real 529 MB sidecar
+      # to satisfy a glob would cost many minutes per run to produce an
+      # artefact the job then throws away. The release workflow builds the
+      # genuine bundle, and its own verification gate checks the contents.
+      - name: Placeholder for the sidecar bundle resource glob
+        run: |
+          mkdir -p src-tauri/sidecar-bundle
+          cat > src-tauri/sidecar-bundle/.ci-placeholder <<'EOF'
+          Placeholder so tauri.conf.json's "sidecar-bundle/**/*" resource glob
+          matches during CI type-checking. The real bundle is built by the
+          release workflow. See the comment in .github/workflows/ci.yml.
+          EOF
+
       - name: cargo check
         run: cd src-tauri && cargo check
 
@@ -85,9 +119,20 @@ jobs:
       # Companion to pip-audit in the python job and the cross-ecosystem
       # OSV-Scanner workflow. Defence in depth: native scanners often pick
       # up advisories that haven't yet landed in OSV.dev and vice versa.
+      #
+      # The `|| true` that used to sit on the install line was worse than
+      # useless: it swallowed an install failure, and then `cargo audit` on
+      # the next line failed anyway with an unhelpful "no such command".
+      # A failure here should say what actually failed.
+      #
+      # Note the cost: `cargo install` builds cargo-audit from source on
+      # every run, which is minutes of billable time for a tool that does
+      # not change. If build minutes get tight, install a prebuilt binary
+      # instead. Left as-is for now to avoid adding a third-party action to
+      # the supply chain this workflow exists to watch.
       - name: cargo-audit
         run: |
-          cargo install --locked cargo-audit || true
+          cargo install --locked cargo-audit
           cd src-tauri && cargo audit
 
   # ── Frontend: svelte-check + vitest ─────────────────────────────────────────
@@ -145,8 +190,15 @@ jobs:
 
       # Install ruff separately (fast, no heavy deps) so lint runs even if
       # the full sidecar dependency install fails.
+      #
+      # PINNED. This was `pip install ruff`, unpinned, and a ruff release
+      # that tightened a rule turned the build red with no change to this
+      # repository. That is what has kept the Python job failing since 30
+      # April 2026: 35 of the 67 findings were E402, a rule about import
+      # placement. The code did not break, the tool moved. Bump this
+      # deliberately, with the findings fixed in the same commit.
       - name: Install ruff
-        run: pip install ruff
+        run: pip install ruff==0.14.2
 
       - name: Lint
         run: cd sidecar && ruff check .
@@ -164,12 +216,30 @@ jobs:
             pip install -r sidecar/requirements.txt
           fi
 
-      # Audit installed packages for known CVEs.
-      - name: pip-audit
-        run: pip install pip-audit && pip-audit
-
+      # Tests run BEFORE the audit, deliberately.
+      #
+      # The first working run of this job, on PR #27, put pip-audit first
+      # and it failed on sixteen Pillow advisories. That is pip-audit doing
+      # its job, but the consequence was that pytest was skipped, so the
+      # 435 sidecar tests reported nothing. With a two-month advisory
+      # backlog to clear, that ordering would have kept the test suite dark
+      # for as long as any advisory existed, which is exactly the failure
+      # this whole branch is repairing.
+      #
+      # Both signals matter and neither should hide the other. Tests first
+      # means a vulnerability finding never costs us the test result; the
+      # job still goes red on advisories, so nothing is weakened.
       - name: Run pytest
         run: cd sidecar && python -m pytest tests/ -v
+
+      # Audit installed packages for known CVEs. Audits the environment the
+      # step above just built, so it sees exactly what the sidecar runs.
+      #
+      # PINNED, for the same reason ruff is: an unpinned linter or auditor
+      # can turn the build red with no change to this repository, and that
+      # is precisely how the Python job died in April.
+      - name: pip-audit
+        run: pip install pip-audit==2.10.1 && pip-audit
 
   # ── Repo hygiene: fail build if stray model backup files are committed ─────
   # Rationale: unverified .joblib backups in models/ are a supply-chain risk —
@@ -184,19 +254,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Broadened 4 September 2026. As written, this guard would not have
+      # caught the real stray file, on two counts:
+      #
+      #   1. It searched `models/` only. The directory that is bundled into
+      #      the application is `src-tauri/models/`, which it never looked at.
+      #   2. The glob `*.bak` requires the name to END in ".bak". The actual
+      #      file is `deepfake_classifier.joblib.bak-1.7.2`, so even pointed
+      #      at the right directory it would have passed.
+      #
+      # Both verified by running the original find against the live tree.
+      #
+      # NOTE ON WHAT THIS CAN AND CANNOT DO. CI only ever sees tracked
+      # files, and that stray is untracked, so no CI guard can catch it. It
+      # ships because macOS releases are built locally from the working
+      # tree. The guard that matters for the bundle is the pre-flight check
+      # in scripts/build-local-mac.sh; this one stops a stray being
+      # committed, which is the narrower thing it was written for.
       - name: Forbid model backup files
         run: |
           set -e
-          matches=$(find models -type f \( -name '*.backup' -o -name '*.bak' -o -name '*.joblib.old' \) 2>/dev/null || true)
+          matches=$(find models src-tauri/models -type f \
+            \( -name '*.bak*' -o -name '*.backup*' -o -name '*.old' \
+               -o -name '*.orig' -o -name '*~' \) 2>/dev/null || true)
           if [ -n "$matches" ]; then
-            echo "ERROR: model backup files found in models/ — these are unverified and must not be committed."
+            echo "ERROR: stray model files found. These carry no SHA-256 integrity"
+            echo "check and must not be committed: a file sitting beside the"
+            echo "production model can be renamed to shadow it."
             echo "Offending files:"
             echo "$matches"
             echo ""
             echo "Remove them with: git rm <path>"
             exit 1
           fi
-          echo "OK — no stray model backup files."
+          echo "OK — no stray model files in models/ or src-tauri/models/."
 
       # ── requirements-ci.txt sync guard ──────────────────────────────────────
       # Fails if any package present in sidecar/requirements.txt is absent from

@@ -63,7 +63,9 @@ class TestPerformEla:
         result_90 = perform_ela(data, quality=90)
         result_50 = perform_ela(data, quality=50)
         # Lower quality recompression should generally show more difference
-        assert result_50.mean_difference >= result_90.mean_difference or True  # May vary
+        assert (
+            result_50.mean_difference >= result_90.mean_difference or True
+        )  # May vary
 
     def test_response_fields_present(self):
         """All response fields should be populated."""

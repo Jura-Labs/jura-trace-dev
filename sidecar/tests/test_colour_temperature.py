@@ -6,7 +6,6 @@ import io
 
 import cv2
 import numpy as np
-import pytest
 from PIL import Image
 
 from app.services.colour_temperature import (
@@ -82,16 +81,14 @@ class TestColourTemperature:
         """Test the cluster detection helper with known patterns."""
         # No anomalies — no cluster
         regions_clean = [
-            {"anomalous": False, "width": 64, "height": 64}
-            for _ in range(16)
+            {"anomalous": False, "width": 64, "height": 64} for _ in range(16)
         ]
         assert not _check_colour_clusters(regions_clean, 4, 4, 256, 256)
 
         # Four adjacent anomalous regions (top-left 2x2 block)
         # In 4x4 grid: indices 0,1,4,5 are (0,0),(0,1),(1,0),(1,1)
         regions_cluster = [
-            {"anomalous": False, "width": 64, "height": 64}
-            for _ in range(16)
+            {"anomalous": False, "width": 64, "height": 64} for _ in range(16)
         ]
         regions_cluster[0]["anomalous"] = True
         regions_cluster[1]["anomalous"] = True

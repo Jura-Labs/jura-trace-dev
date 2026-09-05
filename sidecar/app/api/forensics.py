@@ -30,7 +30,9 @@ from app.models.schemas import (
     WatermarkExtractResponse,
 )
 from app.services.describe_image import describe_image as _describe_image
-from app.services.describe_image import extract_text_from_image as _extract_text_from_image
+from app.services.describe_image import (
+    extract_text_from_image as _extract_text_from_image,
+)
 from app.services.claim_checker import check_claims as _check_claims
 from app.services.clip_detector import (
     get_last_used_ts,
@@ -51,6 +53,7 @@ from app.services.noise_visualisation import perform_noise_visualisation
 from app.services.clahe import perform_clahe
 from app.services.frequency_visualisation import perform_frequency_visualisation
 from app.services.jpeg_grid import perform_jpeg_grid_visualisation
+
 # JTV-138 (2026-05-02): audio/video routes and their service imports were
 # removed for v1.0 (audio_metadata, transcription, video_deepfake,
 # video_frames, video_metadata, audio_deepfake, enf_analysis). The Rust
@@ -83,7 +86,7 @@ def _has_camera_exif(image_bytes: bytes) -> bool:
         if not exif:
             return False
         # Check for camera-specific EXIF tags
-        MAKE = 0x010F   # Camera manufacturer
+        MAKE = 0x010F  # Camera manufacturer
         MODEL = 0x0110  # Camera model
         return MAKE in exif or MODEL in exif
     except Exception:
@@ -112,8 +115,8 @@ async def _read_and_validate(file: UploadFile) -> bytes:
 # client submitting a multi-gigabyte file via the /video/* or /audio/*
 # endpoints, which historically bypassed the image-specific _read_and_validate
 # helper.
-_MAX_VIDEO_SIZE: int = 500 * 1024 * 1024   # 500 MB
-_MAX_AUDIO_SIZE: int = 100 * 1024 * 1024   # 100 MB
+_MAX_VIDEO_SIZE: int = 500 * 1024 * 1024  # 500 MB
+_MAX_AUDIO_SIZE: int = 100 * 1024 * 1024  # 100 MB
 
 
 async def _read_media(file: UploadFile, max_size: int, media_label: str) -> bytes:
@@ -240,9 +243,9 @@ async def detect_deepfake(
 
     # Auto-detect mime type from file content if not specified or default
     if mime_type == "image/jpeg":
-        if image_bytes[:4] == b'\x89PNG':
+        if image_bytes[:4] == b"\x89PNG":
             mime_type = "image/png"
-        elif image_bytes[:4] == b'RIFF' and image_bytes[8:12] == b'WEBP':
+        elif image_bytes[:4] == b"RIFF" and image_bytes[8:12] == b"WEBP":
             mime_type = "image/webp"
         elif file.content_type and file.content_type != "application/octet-stream":
             mime_type = file.content_type
@@ -419,7 +422,10 @@ async def detect_clip(
 @router.post("/claim-check", response_model=ClaimCheckResponse)
 async def claim_check(
     claims_text: str = Query(..., description="Text containing claims to verify"),
-    context: str = Query(default="", description="Optional context (EXIF description, C2PA assertions, etc.)"),
+    context: str = Query(
+        default="",
+        description="Optional context (EXIF description, C2PA assertions, etc.)",
+    ),
 ) -> ClaimCheckResponse:
     """
     Verify claims associated with an image using a local Ollama LLM.

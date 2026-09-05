@@ -83,16 +83,18 @@ def perform_colour_temperature(image_bytes: bytes) -> dict:
             # Threshold: 14.0 LAB units (significant colour shift)
             anomalous = deviation > 14.0
 
-            regions.append({
-                "x": int(x1),
-                "y": int(y1),
-                "width": int(x2 - x1),
-                "height": int(y2 - y1),
-                "mean_a": round(mean_a, 2),
-                "mean_b": round(mean_b, 2),
-                "deviation_from_global": round(deviation, 2),
-                "anomalous": anomalous,
-            })
+            regions.append(
+                {
+                    "x": int(x1),
+                    "y": int(y1),
+                    "width": int(x2 - x1),
+                    "height": int(y2 - y1),
+                    "mean_a": round(mean_a, 2),
+                    "mean_b": round(mean_b, 2),
+                    "deviation_from_global": round(deviation, 2),
+                    "anomalous": anomalous,
+                }
+            )
 
     anomalous_count = sum(1 for r in regions if r["anomalous"])
 
@@ -114,9 +116,7 @@ def perform_colour_temperature(image_bytes: bytes) -> dict:
 
     summary = f"Global colour: A={global_a:.1f}, B={global_b:.1f}. "
     if anomalous_count > 0:
-        summary += (
-            f"{anomalous_count}/{len(regions)} regions deviate >20 LAB units"
-        )
+        summary += f"{anomalous_count}/{len(regions)} regions deviate >20 LAB units"
         if has_significant_cluster:
             summary += " with significant spatial clustering"
         if suspicious:
@@ -125,9 +125,7 @@ def perform_colour_temperature(image_bytes: bytes) -> dict:
                 "from compositing"
             )
     else:
-        summary += (
-            f"All {len(regions)} regions within normal colour temperature range"
-        )
+        summary += f"All {len(regions)} regions within normal colour temperature range"
 
     return {
         "heatmap_base64": heatmap,
@@ -189,9 +187,7 @@ def _generate_colour_heatmap(
     deviation = np.sqrt(dev_a**2 + dev_b**2)
 
     # Normalise to 0-255
-    max_dev = (
-        np.percentile(deviation, 99) if np.max(deviation) > 0 else 1.0
-    )
+    max_dev = np.percentile(deviation, 99) if np.max(deviation) > 0 else 1.0
     normalised = np.clip(deviation / max_dev * 255, 0, 255).astype(np.uint8)
     heatmap = cv2.applyColorMap(normalised, cv2.COLORMAP_JET)
     _, buf = cv2.imencode(".png", heatmap)

@@ -135,8 +135,12 @@ def _verdict_thresholds() -> VerdictThresholds:
 
 # CLIP normalisation constants (identical to OpenCLIP / OpenAI CLIP).
 # Mean and std are applied per-channel after dividing pixel values by 255.
-_CLIP_MEAN = np.array([0.48145466, 0.4578275, 0.40821073], dtype=np.float32).reshape(3, 1, 1)
-_CLIP_STD = np.array([0.26862954, 0.26130258, 0.27577711], dtype=np.float32).reshape(3, 1, 1)
+_CLIP_MEAN = np.array([0.48145466, 0.4578275, 0.40821073], dtype=np.float32).reshape(
+    3, 1, 1
+)
+_CLIP_STD = np.array([0.26862954, 0.26130258, 0.27577711], dtype=np.float32).reshape(
+    3, 1, 1
+)
 _CLIP_INPUT_SIZE = 224
 
 
@@ -271,7 +275,12 @@ def _load_univfd_probe():
         else:
             probe_path = os.path.normpath(
                 os.path.join(
-                    os.path.dirname(__file__), "..", "..", "..", "models", "univfd_probe.joblib",
+                    os.path.dirname(__file__),
+                    "..",
+                    "..",
+                    "..",
+                    "models",
+                    "univfd_probe.joblib",
                 )
             )
 
@@ -290,7 +299,9 @@ def _load_univfd_probe():
                 _univfd_probe = joblib.load(probe_path)
                 logger.info("UnivFD probe loaded from %s", probe_path)
         else:
-            logger.info("UnivFD probe not found at %s — using zero-shot only", probe_path)
+            logger.info(
+                "UnivFD probe not found at %s — using zero-shot only", probe_path
+            )
     except Exception:
         logger.exception("Failed to load UnivFD probe")
         _univfd_probe = None

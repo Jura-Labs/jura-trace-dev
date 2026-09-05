@@ -54,10 +54,10 @@ def bytes_to_unicode():
     )
     cs = bs[:]
     n = 0
-    for b in range(2 ** 8):
+    for b in range(2**8):
         if b not in bs:
             bs.append(b)
-            cs.append(2 ** 8 + n)
+            cs.append(2**8 + n)
             n += 1
     cs = [chr(n) for n in cs]
     return dict(zip(bs, cs))
@@ -91,7 +91,9 @@ class SimpleTokenizer:
     is supplied at call time).
     """
 
-    def __init__(self, bpe_path: str | None = None, context_length: int = DEFAULT_CONTEXT_LENGTH):
+    def __init__(
+        self, bpe_path: str | None = None, context_length: int = DEFAULT_CONTEXT_LENGTH
+    ):
         if bpe_path is None:
             bpe_path = _default_bpe_path()
         self.byte_encoder = bytes_to_unicode()
@@ -159,10 +161,14 @@ class SimpleTokenizer:
         text = whitespace_clean(basic_clean(text)).lower()
         for token in re.findall(self.pat, text):
             token = "".join(self.byte_encoder[b] for b in token.encode("utf-8"))
-            bpe_tokens.extend(self.encoder[bpe_token] for bpe_token in self.bpe(token).split(" "))
+            bpe_tokens.extend(
+                self.encoder[bpe_token] for bpe_token in self.bpe(token).split(" ")
+            )
         return bpe_tokens
 
-    def __call__(self, texts: Union[str, List[str]], context_length: int | None = None) -> np.ndarray:
+    def __call__(
+        self, texts: Union[str, List[str]], context_length: int | None = None
+    ) -> np.ndarray:
         """Tokenise text(s) and return a numpy int32 array padded to context_length.
 
         Mirrors the open_clip SimpleTokenizer.__call__ contract but emits numpy
@@ -196,6 +202,8 @@ def get_tokenizer() -> SimpleTokenizer:
     return _singleton
 
 
-def tokenize(texts: Union[str, List[str]], context_length: int = DEFAULT_CONTEXT_LENGTH) -> np.ndarray:
+def tokenize(
+    texts: Union[str, List[str]], context_length: int = DEFAULT_CONTEXT_LENGTH
+) -> np.ndarray:
     """Convenience helper — tokenise via the cached singleton."""
     return get_tokenizer()(texts, context_length=context_length)

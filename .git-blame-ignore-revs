@@ -1,0 +1,18 @@
+# Commits that changed formatting only, and which `git blame` should skip.
+#
+# Nothing in here changed behaviour. Listing them keeps blame pointing at
+# whoever last wrote the line, rather than at the sweep that reindented it.
+#
+# Enable locally, once:
+#
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# GitHub applies this file automatically in its blame view. Add a commit
+# here ONLY if it is purely mechanical, and only if it is isolated in a
+# commit of its own.
+
+# style(sidecar): apply ruff format across the package (4 September 2026).
+# 60 of 81 files. Unblocked ci.yml's `ruff format --check` step, which had
+# never been reached because the Lint step above it failed from 30 April.
+# Sidecar suite identical either side: 381 passed, 54 skipped, 0 failed.
+deac309e692a85a128549a738c65a6bdadd27e74

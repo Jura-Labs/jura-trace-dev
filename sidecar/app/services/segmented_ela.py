@@ -54,8 +54,18 @@ def perform_segmented_ela(image_bytes: bytes, quality: int = 90) -> dict:
     # AVIF/HEIC magic bytes are also checked explicitly as a belt-and-braces
     # guard for environments where PIL might gain AVIF support in future.
     _AVIF_MAGIC = b"ftyp"  # bytes 4-8 of AVIF/HEIF container
-    _HEIC_BRANDS = {b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis",
-                    b"hevm", b"hevs", b"mif1", b"msf1"}
+    _HEIC_BRANDS = {
+        b"heic",
+        b"heix",
+        b"hevc",
+        b"hevx",
+        b"heim",
+        b"heis",
+        b"hevm",
+        b"hevs",
+        b"mif1",
+        b"msf1",
+    }
     if len(image_bytes) >= 12 and image_bytes[4:8] == _AVIF_MAGIC:
         brand = image_bytes[8:12].lower()
         if brand in _HEIC_BRANDS or b"avif" in image_bytes[8:12].lower():
@@ -79,9 +89,7 @@ def perform_segmented_ela(image_bytes: bytes, quality: int = 90) -> dict:
     # Recompress at target quality
     encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
     _, encoded = cv2.imencode(".jpg", img, encode_param)
-    recompressed = cv2.imdecode(
-        np.frombuffer(encoded, np.uint8), cv2.IMREAD_COLOR
-    )
+    recompressed = cv2.imdecode(np.frombuffer(encoded, np.uint8), cv2.IMREAD_COLOR)
 
     # Compute absolute difference
     diff = cv2.absdiff(img, recompressed).astype(np.float64)
@@ -108,21 +116,21 @@ def perform_segmented_ela(image_bytes: bytes, quality: int = 90) -> dict:
             cell_score = float(np.mean(cell_diff))
             ela_scores.append(cell_score)
 
-            regions.append({
-                "x": int(x1),
-                "y": int(y1),
-                "width": int(x2 - x1),
-                "height": int(y2 - y1),
-                "ela_score": round(cell_score, 4),
-                "anomalous": False,  # Set below
-            })
+            regions.append(
+                {
+                    "x": int(x1),
+                    "y": int(y1),
+                    "width": int(x2 - x1),
+                    "height": int(y2 - y1),
+                    "ela_score": round(cell_score, 4),
+                    "anomalous": False,  # Set below
+                }
+            )
 
     # Statistical anomaly detection — 2-sigma
     mean_score = np.mean(ela_scores)
     std_score = np.std(ela_scores)
-    threshold = (
-        mean_score + 2.0 * std_score if std_score > 0 else mean_score + 1.0
-    )
+    threshold = mean_score + 2.0 * std_score if std_score > 0 else mean_score + 1.0
 
     for i, region in enumerate(regions):
         region["anomalous"] = bool(ela_scores[i] > threshold)
@@ -148,9 +156,7 @@ def perform_segmented_ela(image_bytes: bytes, quality: int = 90) -> dict:
     # Generate heatmap
     heatmap = _generate_ela_heatmap(diff, h, w)
 
-    summary = (
-        f"{anomalous_count}/{len(regions)} regions show anomalous ELA levels"
-    )
+    summary = f"{anomalous_count}/{len(regions)} regions show anomalous ELA levels"
     if has_cluster:
         summary += " with spatial clustering"
     if suspicious:
@@ -170,9 +176,7 @@ def perform_segmented_ela(image_bytes: bytes, quality: int = 90) -> dict:
     }
 
 
-def _check_anomalous_clusters(
-    regions: list[dict], rows: int, cols: int
-) -> bool:
+def _check_anomalous_clusters(regions: list[dict], rows: int, cols: int) -> bool:
     """Check if anomalous cells form clusters of 3+."""
     grid = np.zeros((rows, cols), dtype=bool)
     for i, r in enumerate(regions):

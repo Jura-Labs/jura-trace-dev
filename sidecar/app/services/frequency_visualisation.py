@@ -5,6 +5,7 @@
 Displays 2D FFT magnitude spectrum, annotated with known artefact
 frequencies (JPEG 8x8 grid, GAN upsampling checkerboard patterns).
 """
+
 import base64
 import io
 import logging
@@ -43,9 +44,7 @@ def perform_frequency_visualisation(image_bytes: bytes) -> dict:
 
     # Normalise to 0-255
     mag_norm = (
-        (magnitude - magnitude.min())
-        / (magnitude.max() - magnitude.min() + 1e-8)
-        * 255
+        (magnitude - magnitude.min()) / (magnitude.max() - magnitude.min() + 1e-8) * 255
     ).astype(np.uint8)
 
     # Apply colourmap for better visualisation
@@ -101,9 +100,7 @@ def perform_frequency_visualisation(image_bytes: bytes) -> dict:
     dct_map = np.zeros((max(rows8, 1), max(cols8, 1)), dtype=np.float32)
     for r in range(rows8):
         for c in range(cols8):
-            block = img[r * 8 : (r + 1) * 8, c * 8 : (c + 1) * 8].astype(
-                np.float32
-            )
+            block = img[r * 8 : (r + 1) * 8, c * 8 : (c + 1) * 8].astype(np.float32)
             dct_block = cv2.dct(block)
             # Sum of AC coefficients (exclude DC at [0,0])
             dct_map[r, c] = np.sum(np.abs(dct_block)) - abs(dct_block[0, 0])

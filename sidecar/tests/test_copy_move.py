@@ -63,9 +63,7 @@ def _make_sift_detectable_copy_move() -> bytes:
     y_coords = np.arange(120)
     xx, yy = np.meshgrid(x_coords, y_coords)
     pattern = (
-        np.sin(xx * 0.3) * 60
-        + np.cos(yy * 0.3) * 60
-        + np.sin((xx + yy) * 0.2) * 40
+        np.sin(xx * 0.3) * 60 + np.cos(yy * 0.3) * 60 + np.sin((xx + yy) * 0.2) * 40
     ).astype(np.int16)
     for c in range(3):
         channel = arr[50:170, 50:170, c].astype(np.int16) + pattern
@@ -97,9 +95,7 @@ def _make_rotated_copy_move_image(angle_deg: float = 15.0) -> bytes:
     y_coords = np.arange(120)
     xx, yy = np.meshgrid(x_coords, y_coords)
     pattern = (
-        np.sin(xx * 0.3) * 60
-        + np.cos(yy * 0.3) * 60
-        + np.sin((xx + yy) * 0.2) * 40
+        np.sin(xx * 0.3) * 60 + np.cos(yy * 0.3) * 60 + np.sin((xx + yy) * 0.2) * 40
     ).astype(np.int16)
     for c in range(3):
         channel = arr[50:170, 50:170, c].astype(np.int16) + pattern
@@ -164,7 +160,9 @@ class TestCopyMoveDetection:
         so RANSAC must find an affine transform consistent with both. The
         SIFT detector should still accumulate enough inlier pairs to fire.
         """
-        result = perform_copy_move_detection(_make_rotated_copy_move_image(angle_deg=15.0))
+        result = perform_copy_move_detection(
+            _make_rotated_copy_move_image(angle_deg=15.0)
+        )
         # The rotation-invariant case is harder than the exact copy; we require
         # at least one matched pair and a non-trivial score.
         # If SIFT finds matched pairs, score should be non-zero.

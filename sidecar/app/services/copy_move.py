@@ -134,9 +134,7 @@ def perform_copy_move_detection(
     good_pairs: list[tuple[cv2.KeyPoint, cv2.KeyPoint]] = []
     for match_group in raw_matches:
         # Collect the two best non-self matches
-        candidates = [
-            m for m in match_group if m.queryIdx != m.trainIdx
-        ]
+        candidates = [m for m in match_group if m.queryIdx != m.trainIdx]
         if len(candidates) < 2:
             continue
 
@@ -245,7 +243,8 @@ def _verify_geometric_consistency(
         dst_pts = np.float32([kp2.pt for _, kp2 in remaining]).reshape(-1, 1, 2)
 
         _, inlier_mask = cv2.estimateAffinePartial2D(
-            src_pts, dst_pts,
+            src_pts,
+            dst_pts,
             method=cv2.RANSAC,
             ransacReprojThreshold=5.0,
         )
