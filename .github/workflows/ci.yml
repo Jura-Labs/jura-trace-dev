@@ -158,10 +158,49 @@ jobs:
         run: cd ui && npx svelte-kit sync && npx svelte-check
 
       # Vitest unit tests (vitest run = single-pass, non-interactive).
-      # Playwright e2e tests are skipped here — they require a running dev
-      # server and are better suited to a dedicated nightly workflow.
       - name: Run unit tests
         run: cd ui && npm test -- --run
+
+      # ── Playwright e2e ────────────────────────────────────────────────────
+      #
+      # This used to say the e2e suite was "better suited to a dedicated
+      # nightly workflow". That workflow was never written: the repository
+      # has ci.yml, osv-scanner.yml and release.yml and nothing else. So 314
+      # e2e assertions across 11 spec files ran nowhere at all, while the
+      # pull-request template asked contributors to confirm they passed.
+      #
+      # They are cheap. The suite completes in under thirty seconds against a
+      # plain Vite server, with no Rust build and no sidecar, which makes this
+      # the least expensive coverage in the repository by a wide margin.
+      #
+      # --with-deps installs the system libraries the browser needs on a bare
+      # runner; without it the launch fails with "Executable doesn't exist"
+      # and every test reports as failed for a reason unrelated to the code.
+      - name: Install Playwright browser
+        run: cd ui && npx playwright install --with-deps chromium
+
+      # The nine visual-regression tests (eighteen across the two projects)
+      # are deselected rather than ignored, so they show as not-run instead
+      # of silently passing.
+      #
+      # Every committed baseline is a *-darwin.png, because they were all
+      # generated on a Mac. Playwright puts the platform in the snapshot
+      # filename, so on an Ubuntu runner it looks for *-linux.png, finds
+      # nothing, and fails. Deselecting is honest about that; passing
+      # --ignore-snapshots would make the assertions succeed without
+      # comparing anything, which is the failure mode this workflow exists to
+      # prevent. Generating and committing Linux baselines is the fix and is
+      # tracked in BL-TEST-003.
+      - name: Run e2e tests (296 of 314; visual baselines are macOS-only)
+        run: cd ui && npx playwright test --grep-invert "visual:"
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: ui/playwright-report/
+          retention-days: 7
 
   # ── Python: lint, format, pytest ─────────────────────────────────────────────
   python:

@@ -81,8 +81,16 @@ cd sidecar && python -m pytest tests/ -v
 # Run Vitest component unit tests (15 tests)
 cd ui && npm test
 
-# Run Playwright e2e tests (148 tests)
+# Run Playwright e2e tests (314 tests: 157 specs x 2 projects)
+# The browser binary is NOT installed by `npm ci` and is not in the repo.
+# Without this first step every test fails with "Executable doesn't exist",
+# which looks like a catastrophic regression and is not one.
+cd ui && npx playwright install chromium   # once per machine
 cd ui && npx playwright test
+
+# The 18 visual-regression baselines are macOS-only (*-darwin.png), so CI
+# runs `--grep-invert "visual:"` and the pixel comparisons only happen on a
+# Mac. See BL-TEST-003.
 
 # Run SvelteKit type check
 cd ui && npx svelte-check
@@ -271,7 +279,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 - Composite border detector: 21 candidates flagged on full corpus, HTML preview pending user review.
 - **JPEG Ghost 0.5× weight calibration closed 2026-04-07** — Option 3 (synthetic CC-BY generator) executed; weight retained at 0.5, no code change. CASIA v2 **rejected 2026-04-11** as non-commercial-licensed and unusable for Jura Trace (commercial product); a commercial-cleared splice benchmark remains an open future need per `docs/calibration/s28-jpeg-ghost-weight.md` Section 6.
 
-**Test counts**: 492 Rust lib tests + 15 Rust API integration, 418 Python sidecar (47 sidecar deepfake), 148 Playwright e2e (10 spec files including dedicated integrity-card / ai-card / provenance-card suites with 9 visual baselines), 15 Vitest component unit tests via @testing-library/svelte + happy-dom, 458 SvelteKit files with 0 svelte-check errors, clippy + fmt clean. Pre-commit hook now runs `cargo fmt`, `cargo check --all-targets`, `cargo clippy --all-targets -- -D warnings`, `svelte-check`, and `npm test` (vitest) — hardened across two commits: `0912b14` (Sprint 30 test-fixture regressions) and `6d2161a` (vitest gate added 2026-04-28).
+**Test counts** (verified 2026-09-05; the previous figures had drifted on every line): 568 Rust lib tests + 20 Rust API integration, 425 Python sidecar (354 pass / 71 skip in a clean venv), 314 Playwright e2e across 11 spec files and 2 browser projects (18 visual baselines, macOS-only), 182 Vitest unit tests via @testing-library/svelte + happy-dom, 0 svelte-check errors, clippy + fmt clean. Pre-commit hook now runs `cargo fmt`, `cargo check --all-targets`, `cargo clippy --all-targets -- -D warnings`, `svelte-check`, and `npm test` (vitest) — hardened across two commits: `0912b14` (Sprint 30 test-fixture regressions) and `6d2161a` (vitest gate added 2026-04-28).
 
 ## Backlog
 
