@@ -19,6 +19,9 @@
   let sidecarReminderDismissed = $state(false);
   let mobileMenuOpen = $state(false);
   let currentPath = $state('/');
+  // Automatic update check (T1.2). Holds the version when one is found, so
+  // the banner below can name it; null means nothing to show.
+  let updateAvailableVersion = $state<string | null>(null);
   // Real app version for the footer, resolved from the Tauri runtime in
   // onMount. Defaults to the current release so a browser-dev render and the
   // pre-resolve frame are never wrong.
@@ -100,6 +103,33 @@
       // Browser dev mode — keep the default.
     }
 
+    // Automatic update check (T1.2). Deliberately not awaited: it must never
+    // delay the first paint, and nothing below depends on its result.
+    //
+    // Before this existed the only route to an update was a menu item behind
+    // Help, and the evidence is that nobody ever used it: zero requests to
+    // /api/updates in 24 hours of Cloudflare data, and zero downloads of the
+    // macOS updater archive in the 79 days since release. A correct manifest
+    // reaches nobody if nothing asks for it.
+    //
+    // This path reports; it never installs. See runStartupUpdateCheck.
+    void (async () => {
+      try {
+        const { runStartupUpdateCheck, makeStartupCheckDeps } = await import('$lib/updater');
+        const outcome = await runStartupUpdateCheck(await makeStartupCheckDeps());
+        if (outcome.kind === 'available' && !isUpdateNoticeDismissed(outcome.version)) {
+          updateAvailableVersion = outcome.version;
+        } else if (outcome.kind === 'failed') {
+          // Logged, not surfaced. An unprompted check that failed is not
+          // something to interrupt someone with; the Settings page reports
+          // failures properly when a person actually asks.
+          console.warn('[updater] startup check failed:', outcome.message);
+        }
+      } catch (err) {
+        console.warn('[updater] startup check could not run:', err);
+      }
+    })();
+
     // Managed deployments can set skip_setup_wizard=true in config.json to
     // suppress the wizard for all users on that machine. When the flag is set
     // we also write the localStorage key so subsequent mounts are fast and do
@@ -180,21 +210,21 @@
         }),
       );
 
-      // menu:check-updates — navigate to Settings then trigger the updater
+      // menu:check-updates — navigate to Settings and let it run the check
+      //
+      // This used to call checkForUpdate here with a no-op status handler,
+      // on the reasoning that "Settings page owns the status UI". It does,
+      // but it was not being given anything to render: the call ran a second,
+      // parallel state machine whose transitions went into an empty function.
+      // Since checkForUpdate downloads and installs as soon as it finds a
+      // version, choosing Check for Updates could start an 800 MB download
+      // and an app restart with no progress shown anywhere.
+      //
+      // Settings now runs the check itself, through its own state variable,
+      // so the person who asked can see what is happening.
       menuUnlisteners.push(
         await listen('menu:check-updates', async () => {
-          await goto('/settings');
-          // Dynamically import to keep the updater out of the initial bundle.
-          try {
-            const { checkForUpdate, makeTauriDeps } = await import('$lib/updater');
-            const deps = await makeTauriDeps();
-            // No-op status handler here — Settings page owns the status UI.
-            // This call triggers the underlying check; Settings will render
-            // the result on its next mount / via its own poll on re-mount.
-            await checkForUpdate(() => {}, deps);
-          } catch {
-            // Non-fatal: Settings page will show its own update UI.
-          }
+          await goto('/settings?check=1');
         }),
       );
 
@@ -249,6 +279,37 @@
   function handleSidecarDontRemind() {
     localStorage.setItem('jura-sidecar-reminder-dismissed', 'true');
     showSidecarReminder = false;
+  }
+
+  // ── Update notice (T1.2) ──────────────────────────────────────────────────
+  // Dismissal is keyed to the version, so declining 1.1.0 does not also
+  // suppress the notice for 1.2.0. A blanket "don't remind me" would silently
+  // opt a user out of every future security update, which is not a choice
+  // worth offering by accident.
+  const UPDATE_DISMISSED_KEY = 'jura.updater.dismissedVersion';
+
+  function isUpdateNoticeDismissed(version: string): boolean {
+    try {
+      return localStorage.getItem(UPDATE_DISMISSED_KEY) === version;
+    } catch {
+      return false;
+    }
+  }
+
+  function handleUpdateDismiss() {
+    try {
+      if (updateAvailableVersion !== null) {
+        localStorage.setItem(UPDATE_DISMISSED_KEY, updateAvailableVersion);
+      }
+    } catch {
+      // Storage unavailable; the notice simply reappears next launch.
+    }
+    updateAvailableVersion = null;
+  }
+
+  async function handleUpdateView() {
+    updateAvailableVersion = null;
+    await goto('/settings');
   }
 
   function applyTheme(dark: boolean) {
@@ -421,6 +482,43 @@
   >
     {@render children()}
   </main>
+
+  <!-- Update available banner (T1.2) -->
+  {#if updateAvailableVersion}
+    <div
+      class="sticky bottom-0 z-30 border-t border-lapis/30 bg-lapis/10 dark:bg-lapis/5"
+      role="status"
+      aria-live="polite"
+    >
+      <div class="max-w-4xl mx-auto px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-text-light dark:text-quartz">
+            Version {updateAvailableVersion} is available
+          </p>
+          <p class="text-xs muted-help mt-0.5">
+            You are running version {appVersion}. Updates are installed from Settings, so
+            nothing is downloaded until you choose to.
+          </p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button
+            onclick={handleUpdateView}
+            class="px-4 py-2 min-h-[44px] rounded text-xs font-medium bg-lapis text-white hover:bg-lapis-dark transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+          >
+            View update
+          </button>
+          <button
+            onclick={handleUpdateDismiss}
+            class="px-4 py-2 min-h-[44px] rounded text-xs font-medium border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light hover:text-text-light dark:hover:text-quartz transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+          >
+            Not now
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   <!-- Sidecar offline reminder banner -->
   {#if showSidecarReminder}
