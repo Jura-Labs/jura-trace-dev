@@ -113,14 +113,55 @@ predicted `tauri-build` would need a separate deliberate bump; it moved on
 its own with the lockfile update, so that prediction was wrong in a
 harmless direction.
 
-**One thing Paul should look at rather than wave through.** This bump adds
-28 crates and removes 7, including a full HTML parser, a CSS parser and
-selector engine, dbus, and objc2 bindings for core-location and
-user-notifications. Linking a binding is not calling an API, and nothing in
-this codebase requests location or posts notifications. But a local-first
-privacy product growing a location binding through a transitive dependency
-is the kind of thing that should be noticed on the way in rather than
-discovered by somebody reading our dependency tree back to us.
+**The crate-growth question, raised 5 September and resolved the same day.**
+The bump appeared to add 28 crates including a full HTML parser, a CSS
+parser and selector engine, dbus, and objc2 bindings for core-location and
+user-notifications. For a local-first privacy product, a location binding
+arriving through a transitive dependency is worth stopping for.
+
+**It does not ship, and neither does most of the rest.** The lockfile adds
+26 crates and removes 5. Checked against the actual dependency tree for
+each of the three shipping targets, with proc-macro edges excluded so the
+result reflects what is linked rather than what is compiled:
+
+| Added crate | macOS | Windows | Linux |
+|---|---|---|---|
+| `phf`, `phf_shared` | ships | ships | ships |
+| `dbus`, `libdbus-sys` | no | no | ships |
+| the other 22 | no | no | no |
+
+- **The objc2 location and notification bindings are absent from every
+  shipping target.** They arrive under `objc2-ui-kit`, and UIKit is iOS.
+  This project has no iOS target, so they are never compiled at all. No
+  location capability enters the product.
+- **The HTML and CSS stack is build-time only.** `html5ever`,
+  `markup5ever`, `cssparser`, `selectors`, `dom_query`, `string_cache`,
+  `tendril`, `web_atoms`, `servo_arc` and friends reach us through
+  `tauri-macros`, a proc-macro crate. Tauri's codegen parses `index.html`
+  at compile time to do its asset and CSP work. None of it is linked into
+  the binary.
+- **What actually ships is four crates.** `phf` and `phf_shared` are
+  compile-time perfect hash maps used by `tauri-utils`, on all three
+  platforms. `dbus` and `libdbus-sys` are Linux only, via `tao`, and are
+  standard desktop-session integration.
+
+The one line worth carrying forward is the Linux D-Bus dependency, and it
+is worth carrying forward only so nobody is surprised by it later: the
+Linux build now talks to the session bus. That is local IPC for desktop
+integration, not network egress, so it does not disturb BL-CLAIM-001, but
+it is a new external surface on one platform and belongs in that item's
+evidence rather than being discovered later.
+
+**Method note, because the first two attempts at this were wrong.**
+`cargo tree -i <crate>` with no `--target` answers for the host only and
+reported these crates absent; with `--target all` it reports the union
+across platforms we do not build, which is where "28 crates" came from.
+Per-crate queries also fail on ambiguous versions, and a check that reads
+"the phrase *nothing to print* is missing" as "the crate is present" turns
+that failure into a false positive. That is cause D in BL-SILENT-001, and
+it happened twice here. The reliable method is to dump the whole tree once
+per real target with `--edges normal,no-proc-macro` and grep it, so there
+is no per-query failure mode to misread.
 
 ### 5. pillow-heif 1.2.0, added 2026-09-05
 
@@ -191,13 +232,17 @@ python-dotenv. Of those, only pillow-heif (now item 5) and python-multipart
 touch untrusted input; the rest are development and tooling surface.
 
 **`pip-audit` therefore stays red after both of this week's dependency PRs,
-and that needs a decision rather than a habit.** A check that is
+and that needed a decision rather than a habit.** A check that is
 permanently red teaches everyone to scroll past it, which is the same
 failure as a check that is permanently green for the wrong reason
-(BL-SILENT-001). Two honest options: fix the remaining 23 before the
-release, or scope the gate to fail only on findings that reach shipped code
-and report the rest without failing. Paul's call, but it should not simply
-sit red for two months.
+(BL-SILENT-001).
+
+**Decided 5 September 2026 by Paul: fix the remaining 23 before the
+release**, rather than scoping the gate to shipped-code reachability. The
+gate stays as strict as it is and the backlog moves to meet it, so a green
+`pip-audit` will mean the dependency set is clean rather than that the
+question was narrowed until it went quiet. Tracked as item 7 in the order
+of work.
 
 ## Not an advisory, but the worst pin in the repository
 
@@ -233,7 +278,9 @@ worker has no runtime dependencies at all.
    awaiting merge.
 6. **pillow-heif to 1.3.0** with the drift harness re-run over the HEIC
    subset. New item 5; half a day; belongs in this release.
-7. Decide what `pip-audit` should gate on, so the check stops being
-   permanently red. See "What the first run actually looked like".
+7. **Clear the remaining 23 `pip-audit` findings before the release.**
+   Paul's decision, 5 September: fix them rather than narrow the gate, so
+   the check ends up genuinely green instead of scoped until it is quiet.
+   starlette and python-multipart are the substantial half.
 8. lopdf to 0.42, with time budgeted for the API break.
 9. November: c2pa, quick-xml, python-multipart, starlette.
