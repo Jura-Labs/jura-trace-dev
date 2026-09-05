@@ -1673,6 +1673,63 @@ jobs:
             core.setOutput('wrote_manifest', 'true');
             core.setOutput('manifest_name', manifestName);
             core.setOutput('manifest_path', tmpPath);
+            core.setOutput('platform_keys', Object.keys(platforms).sort().join(','));
+
+      # ── Completeness gate before the manifest reaches the live endpoint ──
+      # A manifest missing a platform does not fail. It tells every client on
+      # that platform, indefinitely and with no error anywhere, that they are
+      # up to date. That is how Linux disappeared for eleven weeks.
+      #
+      # This job deliberately runs when the build matrix has failures, because
+      # the macOS job fails by design and macOS ships by local build and
+      # manual upload. The consequence nobody guarded: an incomplete manifest
+      # could be pushed to juralabs.org, which is the PRIMARY updater
+      # endpoint, before the DMG was uploaded.
+      #
+      # The GitHub release asset is fine to write early, since the release is
+      # still a draft and the flip to published is already guarded on build
+      # success further down. The live endpoint is not.
+      #
+      # If this fails: upload the macOS DMG to the draft release, then re-run
+      # this job. It is idempotent.
+      - name: Assert the manifest covers every platform before going live
+        if: steps.manifest.outputs.wrote_manifest == 'true'
+        shell: bash
+        env:
+          PLATFORM_KEYS: ${{ steps.manifest.outputs.platform_keys }}
+          MANIFEST_PATH: ${{ steps.manifest.outputs.manifest_path }}
+        run: |
+          set -euo pipefail
+          EXPECTED="darwin-aarch64,linux-x86_64,windows-x86_64"
+          echo "Manifest platforms: ${PLATFORM_KEYS:-<none>}"
+          echo "Expected:           ${EXPECTED}"
+
+          missing=""
+          for want in darwin-aarch64 linux-x86_64 windows-x86_64; do
+            case ",${PLATFORM_KEYS}," in
+              *",${want},"*) ;;
+              *) missing="${missing} ${want}" ;;
+            esac
+          done
+
+          if [ -n "${missing}" ]; then
+            echo "::error::Manifest is missing:${missing}"
+            echo "Clients on those platforms would be told they are up to date, forever,"
+            echo "with no error shown to them and none recorded here."
+            echo ""
+            echo "This is expected when the macOS DMG has not been uploaded yet."
+            echo "Upload it to the draft release, then re-run this job."
+            exit 1
+          fi
+
+          # Signatures must be inline minisign blobs, never URLs. A URL here
+          # returns HTTP 200 with well-formed JSON and fails every update,
+          # which is exactly what shipped from 18 June to 4 September 2026.
+          if jq -e '[.platforms[].signature] | map(select(test("^https?://"))) | length > 0' "${MANIFEST_PATH}" >/dev/null; then
+            echo "::error::A signature field contains a URL rather than the signature itself."
+            exit 1
+          fi
+          echo "OK: all three platforms present, all signatures inline."
 
       # ── JTV-146: push the manifest to juralabs.org ───────────────────────
       # Tauri's dual-endpoint config (JTV-147) lists juralabs.org first and
@@ -1688,10 +1745,20 @@ jobs:
       #     (typical during the JTV-146 / JTV-147 migration window before
       #     the deploy user is provisioned on the Hetzner VPS).
       #
-      # Failure in this step does NOT fail the workflow (continue-on-error)
-      # because the GitHub Releases manifest is already up — Tauri clients
-      # will succeed via the fallback endpoint.  A failed SCP shows up as a
-      # warning in the workflow run; re-run the workflow to retry.
+      # Corrected 4 September 2026. This comment used to say failure here
+      # does not fail the workflow, "because the GitHub Releases manifest is
+      # already up, so Tauri clients will succeed via the fallback endpoint".
+      # Both halves were wrong.
+      #
+      # The fallback endpoint returns 404 in production: no latest.json asset
+      # has ever been attached to a release, so there is no fallback to
+      # succeed via. And a failed push does not leave clients without a
+      # manifest, it leaves them with the PREVIOUS one, which pins every
+      # existing user to the old version while the run reports success.
+      #
+      # A false comment is what caused the signature-URL bug two hundred
+      # lines up. This one justified a continue-on-error that has now been
+      # removed.
       #
       # Required Secrets when active:
       #   JURALABS_DEPLOY_KEY      — SSH private key for the deploy user on
@@ -1708,9 +1775,13 @@ jobs:
       #
       # See docs/strategy/auto-updater-juralabs-config.md for full details
       # including the Caddyfile snippet (VPS-side, not in this repo).
+      # NOT continue-on-error. It was, and that is the fail-open pattern
+      # again: a silent push failure leaves the PREVIOUS manifest live on the
+      # primary endpoint, which pins every existing user to the old version
+      # indefinitely while the run shows green. A push that fails should stop
+      # the release, because the alternative is worse than a failed release.
       - name: Push update manifest to juralabs.org
         if: steps.manifest.outputs.wrote_manifest == 'true' && env.HAS_DEPLOY_KEY == 'true'
-        continue-on-error: true
         env:
           HAS_DEPLOY_KEY: ${{ secrets.JURALABS_DEPLOY_KEY != '' && 'true' || 'false' }}
           JURALABS_DEPLOY_KEY: ${{ secrets.JURALABS_DEPLOY_KEY }}
@@ -1766,14 +1837,48 @@ jobs:
             echo "(Manifest will become visible after the 5-minute Caddy max-age TTL expires.)"
           fi
 
-          echo "Smoke test: GET https://juralabs.org/api/updates/${MANIFEST_NAME}"
-          # Best-effort smoke test — uses Cloudflare's edge.  -f exits 22 on
-          # 4xx/5xx so a missing-Caddy-config scenario surfaces clearly.
-          curl -fsSL "https://juralabs.org/api/updates/${MANIFEST_NAME}" \
-            | jq -r '.version + " — " + (.platforms | keys | join(", "))' || {
-              echo "Smoke test failed — manifest may need a Cloudflare TTL pass before becoming visible."
-              echo "(Direct origin fetch via Hetzner IP would confirm the file landed correctly.)"
-            }
+          # Verify what the endpoint actually serves, rather than assuming the
+          # scp worked. This is the "prove it ran" rule: the push exiting 0
+          # says bytes moved, not that the right manifest is live.
+          #
+          # Retries because the edge cache may take a moment even after a
+          # purge. Fails the job if the live manifest never reflects this
+          # release: a stale manifest on the primary endpoint is the failure
+          # that strands users, so it must not pass quietly.
+          echo "Verifying https://juralabs.org/api/updates/${MANIFEST_NAME}"
+          EXPECTED_VERSION="$(jq -r .version "${MANIFEST_PATH}")"
+          live=""
+          for attempt in 1 2 3 4 5 6; do
+            live="$(curl -fsSL "https://juralabs.org/api/updates/${MANIFEST_NAME}" || true)"
+            if [ -n "${live}" ] && [ "$(printf '%s' "${live}" | jq -r .version)" = "${EXPECTED_VERSION}" ]; then
+              echo "Live manifest is ${EXPECTED_VERSION}: $(printf '%s' "${live}" | jq -r '.platforms | keys | join(", ")')"
+              break
+            fi
+            echo "Attempt ${attempt}: live manifest not yet ${EXPECTED_VERSION}, waiting 15s ..."
+            live=""
+            sleep 15
+          done
+
+          if [ -z "${live}" ]; then
+            echo "::error::The live endpoint is not serving ${EXPECTED_VERSION} after six attempts."
+            echo "Existing users would keep receiving the previous manifest, so they would"
+            echo "silently stay on the old version. Check the VPS path, the Caddy config"
+            echo "and the Cloudflare cache before treating this release as delivered."
+            exit 1
+          fi
+
+          # The live manifest must also carry every platform and inline
+          # signatures. The gate earlier checked the file we generated; this
+          # checks what the world can actually fetch.
+          printf '%s' "${live}" | jq -e '(.platforms | keys | sort) == ["darwin-aarch64","linux-x86_64","windows-x86_64"]' >/dev/null || {
+            echo "::error::Live manifest does not carry all three platforms."
+            exit 1
+          }
+          printf '%s' "${live}" | jq -e '[.platforms[].signature] | map(select(test("^https?://"))) | length == 0' >/dev/null || {
+            echo "::error::Live manifest has a URL in a signature field."
+            exit 1
+          }
+          echo "OK: live manifest verified."
 
       - name: Publish release
         # Only auto-publish when EVERY platform built in CI. macOS is built
