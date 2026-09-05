@@ -87,15 +87,43 @@ describe('checkForUpdate — up to date', () => {
     expect(transitions[transitions.length - 1]).toEqual({ state: 'up-to-date' });
   });
 
-  it('maps "404" in error message to up-to-date', async () => {
+  // This test previously asserted that a 404 maps to up-to-date, which
+  // certified the bug rather than catching it. A 404 means the manifest was
+  // never fetched, so the honest answer is that we do not know whether an
+  // update exists. Telling the user they are current is the one answer that
+  // is definitely wrong.
+  it('reports a 404 as an error, never as up-to-date', async () => {
     const deps = makeDeps({
       checkPlugin: vi.fn(async () => {
         throw new Error('Request failed with status 404');
       }),
     });
     const transitions = await run(deps);
+    const final = transitions[transitions.length - 1];
 
-    expect(transitions[transitions.length - 1]).toEqual({ state: 'up-to-date' });
+    expect(final.state).toBe('error');
+    expect(final).not.toEqual({ state: 'up-to-date' });
+    if (final.state === 'error') {
+      expect(final.message).toMatch(/could not reach the update service/i);
+    }
+  });
+
+  // The declared fallback endpoint returns 404 in production, and the
+  // manifest itself was broken for eleven weeks. Both surface here.
+  it('reports an unreachable update service as an error', async () => {
+    for (const raw of [
+      'Could not fetch a valid release JSON from the remote',
+      'Failed to fetch',
+      'Network request failed',
+    ]) {
+      const deps = makeDeps({
+        checkPlugin: vi.fn(async () => {
+          throw new Error(raw);
+        }),
+      });
+      const transitions = await run(deps);
+      expect(transitions[transitions.length - 1].state).toBe('error');
+    }
   });
 });
 
@@ -215,7 +243,7 @@ describe('classifyError — channel-unavailable normalisation', () => {
     const last = transitions[transitions.length - 1];
     expect(last.state).toBe('error');
     if (last.state === 'error') {
-      expect(last.message).toContain('Update channel temporarily unavailable');
+      expect(last.message).toContain('Could not reach the update service');
       expect(last.message).toContain('juralabs.org/download.');
       expect(last.message).not.toContain('JSON');
     }
@@ -225,7 +253,7 @@ describe('classifyError — channel-unavailable normalisation', () => {
     const result = classifyError('Failed to fetch');
     expect(result.state).toBe('error');
     if (result.state === 'error') {
-      expect(result.message).toContain('Update channel temporarily unavailable');
+      expect(result.message).toContain('Could not reach the update service');
     }
   });
 
@@ -233,13 +261,16 @@ describe('classifyError — channel-unavailable normalisation', () => {
     const result = classifyError('Network request failed: connection reset');
     expect(result.state).toBe('error');
     if (result.state === 'error') {
-      expect(result.message).toContain('Update channel temporarily unavailable');
+      expect(result.message).toContain('Could not reach the update service');
     }
   });
 
-  it('preserves "404" and "No updates available" up-to-date mapping', () => {
-    expect(classifyError('Request failed with status 404').state).toBe('up-to-date');
+  it('maps only "No updates available" to up-to-date, never a 404', () => {
+    // "No updates available" is the plugin telling us it fetched a manifest
+    // and compared versions. A 404 is the manifest never arriving. Only the
+    // first is evidence that the user is current.
     expect(classifyError('No updates available from endpoint').state).toBe('up-to-date');
+    expect(classifyError('Request failed with status 404').state).toBe('error');
   });
 
   it('falls through to raw error for unknown messages', () => {
