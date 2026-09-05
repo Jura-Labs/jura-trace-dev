@@ -24,7 +24,10 @@ before `pytest` so a vulnerability finding skipped 435 tests; and
 `health.py` computing an `ffmpeg_available` probe, discarding it, and
 carrying a comment claiming the capability "is still reported truthfully".
 
-## Two root causes, not five
+## Four root causes, not five
+
+Two of these were visible from the original five defects. The third and
+fourth were added as later work found them, and both sections say when.
 
 **Cause A: effective CI cadence was zero.** `ci.yml` triggered only on
 `pull_request`, and a solo developer committing straight to `main` means it
@@ -35,7 +38,8 @@ artefact exists and is valid".** Defects 1, 3 and 4 all pass that weaker
 test. So does a scanner that scans nothing and a guard that matches
 nothing.
 
-Close those two properties and most of the class closes with them.
+Close those two properties and most of the class closes with them. Causes C
+and D below are narrower but not covered by closing A and B.
 
 ## A correction to the obvious fix, from this repo's own evidence
 
@@ -96,11 +100,45 @@ model SHA-256 pin verifies against both copies, `describe_image` and
 `claim_checker` report honest failures, and the signing gates in
 `release.sh` and the macOS build's Phase 5b and 6.5 fail loudly.
 
-**A third root cause**, on top of the two above: **verification ordered
-before the artefact is final**. That is the Windows signing fault and the
-`latest.json` publication fault, and it is not covered by cadence or by
-prove-it-ran assertions. The rule it implies is that a gate must run on the
-bytes that ship, last, after every mutation.
+## Cause C, added 4 September 2026: verification ordered before the artefact is final
+
+Drawn from the sweep above rather than from the original five. That is the
+Windows signing fault and the `latest.json` publication fault, and it is not
+covered by cadence or by prove-it-ran assertions. The rule it implies is
+that a gate must run on the bytes that ship, last, after every mutation.
+
+## Cause D, added 5 September 2026: absence of an error string read as success
+
+Found in this session's own tooling, which is why it is written down rather
+than quietly fixed.
+
+A shell check was written to de-risk the merge queue by testing whether the
+three branches that all rewrite `release.yml` conflict with each other. It
+reported all three pairs clean. They were clean, but the check had not
+established that: `set -- $pair` does not word-split in zsh, so
+`git merge-tree` received one malformed argument, failed, printed nothing to
+stdout, and the `grep -q '^<<<<<<<'` that followed found no conflict marker
+in empty output and therefore reported no conflict.
+
+The pattern is `cmd | grep -q BADNESS || echo fine`, and it returns "fine"
+for both of the two very different situations where BADNESS is absent
+because the thing is good, and where BADNESS is absent because the command
+never ran. It is the same shape as the `>/dev/null 2>&1` that hides the
+macOS codesign failure and surfaces only "sort: Broken pipe", already
+recorded as a known trap in this repository.
+
+The rule this implies, and it applies to CI steps as much as to a throwaway
+loop: **a check that greps for failure must first assert that the command
+that produces the output actually succeeded.** Exit status first, pattern
+second. In practice that means `set -o pipefail`, capturing output to a
+variable and testing the command's own status before inspecting it, rather
+than piping straight into `grep`.
+
+Worth a specific note for anyone writing these checks on this machine: the
+default shell here is zsh, which does not word-split unquoted parameter
+expansions the way bash does. A snippet that is correct in bash can be
+silently wrong when pasted into a zsh session, and it fails in the
+direction of looking fine.
 
 ## The plan
 
