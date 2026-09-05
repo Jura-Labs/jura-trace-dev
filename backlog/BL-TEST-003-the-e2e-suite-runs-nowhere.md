@@ -64,6 +64,47 @@ done this sooner: the suite finishes in **under thirty seconds** against a
 plain Vite server, with no Rust build and no sidecar. Against the Rust
 job's forty-five minutes, this is the cheapest coverage in the repository.
 
+## A fifth cause, found when CI ran it for the first time
+
+The first CI run of the newly wired job failed with:
+
+```
+Error: Timed out waiting 60000ms from config.webServer.
+```
+
+That message names the timeout and nothing else. The actual cause was in
+`ui/package.json`:
+
+```
+"predev": "cargo run --manifest-path=../src-tauri/Cargo.toml --bin gen-detectors -- .."
+```
+
+npm runs `predev` automatically, so `npm run dev` — the webServer command —
+**compiled the Rust tree** before Vite ever started. On a Frontend runner
+with no cargo cache the timeout expired while cargo was still building
+`serde_derive`.
+
+This is also what happened locally earlier the same day, where the
+`[WebServer]` log showed tauri crates compiling under a command that reads
+as `vite dev`. Both failures were the same cause and neither error message
+mentioned it.
+
+Fixed by running `npx vite dev` directly, which skips the lifecycle hook.
+Nothing is lost, because the file `predev` generates,
+`src/lib/generated/expectedDetectors.ts`, is committed.
+
+**Note what the bypass gives up, because it should not be given up
+permanently.** `predev` regenerates that file on every dev start, which
+catches drift between the Rust detector lineup and the frontend's
+expectations — the exact class of drift this repository keeps finding. Note
+also that `prebuild` guards on the file existing while `predev` does not,
+so the two hooks disagree about whether regeneration is mandatory.
+
+Skipping it for e2e is right; skipping it everywhere would not be. The
+proper drift check is a CI comparison of the committed file against
+`gen-detectors` output, and it belongs in the Rust job, which already has a
+warm cargo cache and pays the compile cost anyway. That is a follow-up.
+
 ## What is still open
 
 **Generate and commit Linux baselines**, so the 18 visual tests run in CI
