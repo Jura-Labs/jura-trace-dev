@@ -118,13 +118,40 @@ dist/
 *_DRAFT.md
 SESSION_*.md
 
-# ===== Claude Code state (internal consultation material) =====
+# ===== Claude Code state =====
 # Untracked 2026-06-11 pre-launch: agent memories, agent definitions and
 # local settings contain internal strategy, audit notes and developer
-# machine paths. They stay on disk for tooling but never in the public
-# repo (doc-hygiene rule, memory project_repo_doc_hygiene). The pattern
-# matches .claude/ at any depth (root, src-tauri/, sidecar/).
-.claude/
+# machine paths.
+#
+# AMENDED 2026-09-05 on Paul's instruction. `.claude/agents/` is now
+# TRACKED. Those 18 briefings govern how specialist agents behave on a
+# security-sensitive product, and on 5 September several were found
+# materially wrong: four gave licence advice for PolyForm Noncommercial,
+# retired in May, and one instructed the agent to query a Plane board
+# archived in September. Being untracked, they had no version history, no
+# review trail and no backup, which is why nobody noticed.
+#
+# >>> THIS REPOSITORY IS PRIVATE (Jura-Labs/jura-archive) AND THE
+# >>> BRIEFINGS MUST NOT REACH A PUBLIC SOURCE PUBLICATION.
+#
+# W37-1 publishes source into a public repo. Strip `.claude/` from that
+# publication. The briefings contain persona research, superseded tier
+# pricing, funding-application material, and a list of which capabilities
+# are built but flag-hidden, which is a map of dark code. That is exactly
+# the internal-consultation material the doc-hygiene rule keeps out of the
+# AGPL repo (memory project_repo_doc_hygiene).
+#
+# Everything else under .claude/ stays untracked: worktrees (22 MB of git
+# state), agent-memory (churns constantly), and settings.local.json
+# (developer machine paths).
+# Root .claude: ignore everything except the agent briefings.
+/.claude/*
+!/.claude/agents/
+# Nested .claude directories stay fully untracked.
+src-tauri/.claude/
+sidecar/.claude/
+ui/.claude/
+scripts/.claude/
 
 # ===== Sidecar PyInstaller intermediates =====
 sidecar/build/
