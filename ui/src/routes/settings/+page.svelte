@@ -361,6 +361,14 @@
     appVersion  = await getVersion();
     sidecarHealth = await checkSidecarHealth();
 
+    // Arriving from the Check for Updates menu item, which navigates here
+    // with ?check=1 rather than running its own parallel check. Running it
+    // here means the status this page already renders is the status of the
+    // check the person actually asked for.
+    if (new URLSearchParams(window.location.search).get('check') === '1') {
+      void checkForUpdate();
+    }
+
     // JTV-184 Phase 1 — initial snapshot + subscribe to transitions.
     // The initial snapshot covers the case where the sidecar reached
     // Ready before this page mounted (the event fired earlier and was
