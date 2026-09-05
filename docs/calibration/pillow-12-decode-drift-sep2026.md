@@ -115,3 +115,91 @@ to the session scratchpad rather than committed, since they depend on a
 corpus that is not in the repository. Both are short and the method above
 is sufficient to rewrite them. Selection uses seed 20260904 against the
 Samsung USB corpus.
+
+---
+
+# Addendum, 5 September 2026: pillow-heif 1.2.0 to 1.6.0
+
+## Why this needed the same treatment
+
+`pillow-heif` carries PYSEC-2026-2258, fixed in 1.3.0. It surfaced only
+once `pip-audit` began reporting again, and it sits on the same untrusted
+input path as the Pillow bump above: it decodes HEIC, which means it runs
+on the file being investigated. It was deliberately kept out of the Pillow
+change so that the evidence there stayed attached to a single variable.
+
+The specific hazard is decoder precedence, the same shape as the AVIF
+question above but pointing the other way. If a newer `pillow-heif` began
+registering an AVIF opener, it could displace the pinned
+`pillow-avif-plugin` and silently change how every AVIF file is decoded.
+
+## Method
+
+Identical harness, identical 84 golden images, identical probes. The
+baseline this time is not Pillow 11: it is the environment established
+above, Pillow 12.3.0 with `pillow-heif` 1.2.0, which is what ships after
+the main change. The candidate differs only in `pillow-heif` 1.6.0.
+`numpy`, `scikit-learn`, `Pillow` and `pillow-avif-plugin` were held by
+explicit constraint and verified unchanged afterwards.
+
+## Result: no drift, and no precedence change
+
+| Comparison | Identical |
+|---|---|
+| Decoded RGB buffer, SHA-256 | 84 / 84 |
+| CLIP model input array | 84 / 84 |
+| Greyscale conversion | 84 / 84 |
+| Resize, all four filters | 84 / 84 |
+
+The precedence question was answered directly rather than inferred.
+`pillow_heif` 1.6.0 still has no `register_avif_opener` attribute, and with
+the sidecar's own startup registration order in place, PIL maps `.avif` to
+`AVIF` and `.heic` to `HEIF`. Per-file, every HEIC decoded through
+`HeifImageFile` and every AVIF through `AvifImageFile`, exactly as before.
+The rationale in `requirements.txt` for keeping `pillow-avif-plugin` as a
+separate dependency therefore still holds at 1.6.0.
+
+## The wider upgrade this came with
+
+The same change clears the rest of the `pip-audit` backlog, which required
+moving FastAPI so that starlette could cross its 1.0 boundary:
+
+| Package | From | To | Advisories cleared |
+|---|---|---|---|
+| starlette | 0.46.2 | 1.6.0 | 8 |
+| python-multipart | 0.0.20 | 0.0.32 | 6 |
+| fastapi | 0.115.12 | 0.141.1 | none directly; unpins starlette |
+| pillow-heif | 1.2.0 | 1.6.0 | 1 |
+| click | 8.3.1 | 8.5.0 | 1 |
+| idna | 3.11 | 3.19 | 1 |
+| pydantic-settings | 2.13.1 | 2.15.0 | 1 |
+| pygments | 2.19.2 | 2.21.0 | 1 |
+| pytest | 9.0.2 | 9.1.1 | 1 |
+| python-dotenv | 1.1.0 | 1.2.3 | 1 |
+
+The starlette major turned out to be low risk for a reason worth recording:
+**the sidecar imports nothing from starlette directly.** Its own source
+uses twelve FastAPI symbols, all long-stable public API, so FastAPI's
+facade absorbs the break. The only visible change is a deprecation warning
+that `starlette.testclient` now prefers `httpx2`, which affects tests
+rather than the product.
+
+`pydantic` stayed at 2.11.3 and every model-critical pin (`numpy`,
+`scikit-learn`, `scikit-image`, `scipy`, `onnxruntime`,
+`opencv-python-headless`, `Pillow`, `pillow-avif-plugin`, `imagehash`,
+`regex`) is byte-for-byte unchanged, so the production weights and their
+pinned SHA-256s are untouched.
+
+## Verification
+
+From a clean virtual environment built with `--require-hashes` against the
+updated lock: **354 passed, 71 skipped, zero failures**, identical to the
+baseline; `ruff check` and `ruff format --check` clean across 81 files; and
+`pip-audit` reports **no known vulnerabilities**, down from 23.
+
+One methodological note carried over from the same day's work: an earlier
+run of this suite reported nine failures, which were not regressions. The
+run had `JURA_SIDECAR_KEY` exported, so the empty-key test bypass in
+`main.py` did not apply and the tests, which send no auth header, received
+401 instead of the expected status. The suite must be run with that
+variable unset.
