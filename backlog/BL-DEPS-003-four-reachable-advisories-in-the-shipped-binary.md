@@ -215,6 +215,53 @@ green one would mean the scanner broke again**, which is what the
 SARIF-size assertion added in BL-CI-002 exists to catch. Nobody should read
 the first run as bad news, and nobody should read a quiet one as good.
 
+## cargo-audit cannot see the advisories this item was written about
+
+Found 5 September, when PR #28 landed the openssl and tauri bumps and
+cargo-audit's output did not change by a single line.
+
+It reports **14 vulnerabilities and 26 allowed warnings on the branch, and
+exactly the same 14 on main**, where openssl 0.10.75 and tauri 2.10.2 were
+both still present. Neither crate appears in its output in either place.
+
+The reason is structural, not a misconfiguration. `cargo audit` reads only
+the RustSec advisory database. These advisories live in GHSA and **have no
+RUSTSEC identifier at all**. Queried against OSV, openssl 0.10.75 returns
+eight entries (CVE-2026-41676, -41677, -41678, -41681, -41898, -45784 among
+them) and tauri 2.10.2 returns one (CVE-2026-42184), and every one is
+GHSA-only.
+
+So the five headline findings in this item were never within cargo-audit's
+reach. **OSV-Scanner is the check that covers them**, and it does scan
+`Cargo.lock`; it has been producing SARIF again since the `--skip-git` fix
+in BL-CI-002. Which means the two months when OSV silently scanned nothing
+were two months with **no effective advisory coverage of the Rust
+dependency tree at all**, because the other Rust check structurally could
+not have caught these. That is worse than BL-CI-002 recorded at the time.
+
+The 14 cargo-audit does report are genuinely RustSec-tracked and are
+triaged above: lopdf and quick-xml are scheduled, rsa and rustls-webpki and
+tar are accepted with reasons, and quinn-proto, h2 and crossbeam-epoch join
+the accepted set pending review.
+
+**What this changes about how the checks should be read.** "cargo-audit is
+clean" does not mean "the Rust dependencies are clean"; it means "nothing
+RustSec has written up is outstanding". The two are far apart, and the gap
+is invisible from the output. The same asymmetry does not apply to
+`pip-audit`, which queries PyPI's advisory data via OSV and did report the
+Pillow findings.
+
+Two consequences worth acting on rather than just noting:
+
+1. **OSV-Scanner is now load-bearing for Rust and should be treated that
+   way.** Its SARIF-absence assertion (BL-CI-002) is the only thing
+   standing between us and a repeat.
+2. **Consider whether cargo-audit earns its place.** It costs minutes of
+   billable time building from source on every run, per the note at
+   `ci.yml:128-132`, to check a strict subset of what OSV already covers.
+   Either keep it and label it accurately in the workflow, so nobody reads
+   it as full Rust coverage, or drop it and let OSV be the Rust gate.
+
 ## What the first run actually looked like
 
 `pip-audit` reported for the first time on 5 September 2026, on the first
