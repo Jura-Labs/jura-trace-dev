@@ -106,18 +106,31 @@ export async function checkForUpdate(
 /**
  * Map raw plugin-updater errors to user-facing UpdateStatus values.
  *
- * The Tauri plugin emits raw strings that are not safe to surface verbatim:
- * "No updates available" / "404" mean the endpoint is reachable and just
- * has no newer version; "Could not fetch a valid release JSON from the
- * remote" means the endpoint returned 404 or invalid JSON (typically a
- * temporary infrastructure issue). Both branches return a friendly status
- * rather than the raw plugin string.
+ * The Tauri plugin emits raw strings that are not safe to surface verbatim,
+ * so they are mapped to friendly statuses here.
+ *
+ * A 404 is NOT "up to date". This function used to treat it as one, and the
+ * previous version of this comment asserted that a 404 "means the endpoint
+ * is reachable and just has no newer version" — while two lines further on
+ * describing a 404 as an infrastructure problem. Both cannot be true, and
+ * the second one is right.
+ *
+ * With the static-JSON updater, "no update available" is decided by
+ * comparing versions in a manifest that was successfully fetched. A 404
+ * means the manifest was not fetched at all. Reporting that as up-to-date
+ * tells the user the opposite of what happened.
+ *
+ * This is not hypothetical. The declared fallback endpoint returns 404
+ * today, and the update manifest was broken from 18 June to 4 September
+ * 2026. Anyone who pressed Check for Updates in that window was shown a
+ * green "up to date" by this function.
  */
 export function classifyError(message: string): UpdateStatus {
-  if (message.includes('No updates available') || message.includes('404')) {
+  if (message.includes('No updates available')) {
     return { state: 'up-to-date' };
   }
   if (
+    message.includes('404') ||
     message.includes('Could not fetch a valid release JSON') ||
     message.includes('Failed to fetch') ||
     message.includes('Network request failed')
@@ -125,7 +138,7 @@ export function classifyError(message: string): UpdateStatus {
     return {
       state: 'error',
       message:
-        'Update channel temporarily unavailable. Please try again later. If the problem persists, download the latest installer from juralabs.org/download.',
+        'Could not reach the update service, so we cannot tell whether an update is available. Please try again later. If the problem persists, download the latest installer from juralabs.org/download.',
     };
   }
   return { state: 'error', message };
