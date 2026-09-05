@@ -1,5 +1,10 @@
 <script lang="ts">
   import { V1_SHOW_READ_TEXT, V1_SHOW_AI_DESCRIPTION, V1_SHOW_WATERMARK } from '$lib/featureFlags';
+  import {
+    SUPPORTED_EXTENSIONS,
+    SUPPORTED_FORMATS_LABEL,
+    isSupportedFile,
+  } from '$lib/supportedFormats';
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
   import {
@@ -1412,6 +1417,17 @@
     return () => window.removeEventListener('keydown', handleEsc);
   });
 
+  // ── Supported formats ─────────────────────────────────────────────
+  // The rule lives in $lib/supportedFormats so the picker, both drop paths
+  // and the unit tests all read one definition. See that file for why.
+  function rejectUnsupported(name: string) {
+    errorType = 'format';
+    error =
+      `"${name}" is not a format Jura Trace v1.0 can verify. ` +
+      `Supported formats are ${SUPPORTED_FORMATS_LABEL}. ` +
+      'Video, audio and PDF return in a later release.';
+  }
+
   // ── Drag and drop ─────────────────────────────────────────────────
   function handleDragOver(e: DragEvent) { e.preventDefault(); dragOver = true; }
   function handleDragLeave() { dragOver = false; }
@@ -1424,6 +1440,10 @@
     const file = files[0];
     const path = (file as any).path || file.name;
     if (path === file.name && inTauri) return;
+    if (!isSupportedFile(file.name)) {
+      rejectUnsupported(file.name);
+      return;
+    }
     await runFileVerification(path, file.name);
   }
 
@@ -1442,6 +1462,12 @@
           if (paths?.length > 0) {
             const p = paths[0];
             const n = p.split('/').pop() || p.split('\\').pop() || p;
+            // Same gate as the picker and the browser drop handler. This is
+            // the path that actually fires in the desktop app.
+            if (!isSupportedFile(n)) {
+              rejectUnsupported(n);
+              return;
+            }
             runFileVerification(p, n);
           }
         }
@@ -1459,7 +1485,9 @@
           // v1.0 = images only. MP4/MOV dropped per JTV-138 (video deepfake
           // returns in v1.0.x). PDF dropped 2026-05-11 — document-format
           // forensics are deferred to v1.1+; v1.0 focuses on image verification.
-          { name: 'Supported Files', extensions: ['jpg','jpeg','png','tiff','tif','webp','avif','heic','heif'] },
+          // Reads SUPPORTED_EXTENSIONS so the picker and the drop handlers
+          // cannot drift apart again.
+          { name: 'Supported Files', extensions: [...SUPPORTED_EXTENSIONS] },
         ],
       });
       if (selected && typeof selected === 'string') {
