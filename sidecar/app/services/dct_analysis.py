@@ -64,7 +64,9 @@ def analyse_dct(image_bytes: bytes) -> dict[str, Any]:
             dct_block = dctn(block, type=2, norm="ortho")
             dc_values[i, j] = dct_block[0, 0]
             # AC energy = sum of squares of all non-DC coefficients.
-            ac_energy[i, j] = float(np.sum(dct_block[1:, :] ** 2) + np.sum(dct_block[0, 1:] ** 2))
+            ac_energy[i, j] = float(
+                np.sum(dct_block[1:, :] ** 2) + np.sum(dct_block[0, 1:] ** 2)
+            )
 
     # ── Heatmap ────────────────────────────────────────────────────────────
     # Normalise AC energy to [0, 255] and resize to full image dimensions.

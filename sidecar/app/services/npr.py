@@ -53,9 +53,9 @@ _ANALYSIS_SIZE = 512
 #   - hf_energy_ratio: fraction of difference-map energy at high spatial freqs.
 #     Real photos: higher HF ratio (> 0.08).  AI: lower (< 0.04, smooth).
 
-_VAR_RATIO_LOW = 0.4    # Below this → AI indicator (low variance in diffs)
-_HV_CORR_HIGH = 0.50    # Above this → AI indicator (grid-like H-V coupling)
-_HF_RATIO_LOW = 0.04    # Below this → AI indicator (smooth freq content)
+_VAR_RATIO_LOW = 0.4  # Below this → AI indicator (low variance in diffs)
+_HV_CORR_HIGH = 0.50  # Above this → AI indicator (grid-like H-V coupling)
+_HF_RATIO_LOW = 0.04  # Below this → AI indicator (smooth freq content)
 
 
 def perform_npr_analysis(image_bytes: bytes) -> NprResponse:
@@ -86,10 +86,10 @@ def perform_npr_analysis(image_bytes: bytes) -> NprResponse:
 
     # ── Step 1: Compute directional difference maps ───────────────────────
     # Each map has the same spatial dimensions as the clipped image region.
-    diff_h = grey[:, 1:] - grey[:, :-1]          # horizontal: right − left
-    diff_v = grey[1:, :] - grey[:-1, :]          # vertical:   down  − up
-    diff_dr = grey[1:, 1:] - grey[:-1, :-1]      # diagonal right (TL→BR)
-    diff_dl = grey[1:, :-1] - grey[:-1, 1:]      # diagonal left  (TR→BL)
+    diff_h = grey[:, 1:] - grey[:, :-1]  # horizontal: right − left
+    diff_v = grey[1:, :] - grey[:-1, :]  # vertical:   down  − up
+    diff_dr = grey[1:, 1:] - grey[:-1, :-1]  # diagonal right (TL→BR)
+    diff_dl = grey[1:, :-1] - grey[:-1, 1:]  # diagonal left  (TR→BL)
 
     diff_maps = [diff_h, diff_v, diff_dr, diff_dl]
     diff_names = ["horizontal", "vertical", "diagonal_right", "diagonal_left"]
@@ -128,18 +128,18 @@ def perform_npr_analysis(image_bytes: bytes) -> NprResponse:
     # Weights reflect empirical discriminability (HV corr is most reliable).
     signal_weight_low_var = 0.30
     signal_weight_hv_corr = 0.45
-    signal_weight_low_hf  = 0.25
+    signal_weight_low_hf = 0.25
 
     # Each signal fires [0, 1] — use a soft activation rather than binary
     # thresholding so borderline images are not harshly classified.
     activation_low_var = _soft_threshold_below(diff_variance_ratio, _VAR_RATIO_LOW)
     activation_hv_corr = _soft_threshold_above(hv_correlation, _HV_CORR_HIGH)
-    activation_low_hf  = _soft_threshold_below(hf_energy_ratio, _HF_RATIO_LOW)
+    activation_low_hf = _soft_threshold_below(hf_energy_ratio, _HF_RATIO_LOW)
 
     raw = (
         signal_weight_low_var * activation_low_var
         + signal_weight_hv_corr * activation_hv_corr
-        + signal_weight_low_hf  * activation_low_hf
+        + signal_weight_low_hf * activation_low_hf
     )
     # Map raw [0, 1] through a sigmoid centred at 0.5 with k=6 to get a
     # smooth, bounded score.  Mid-range activations map to ~0.5; clear
@@ -164,9 +164,7 @@ def perform_npr_analysis(image_bytes: bytes) -> NprResponse:
             f"{': ' + ', '.join(triggered) if triggered else ''})"
         )
     elif score > 0.4:
-        summary = (
-            f"Mixed NPR indicators ({len(triggered)} of 3 signals triggered)"
-        )
+        summary = f"Mixed NPR indicators ({len(triggered)} of 3 signals triggered)"
     else:
         summary = "NPR analysis consistent with camera-sensor origin"
 
@@ -226,12 +224,16 @@ def _compute_hf_energy_ratio(diff_map: np.ndarray) -> float:
     return hf_energy
 
 
-def _soft_threshold_above(value: float, threshold: float, steepness: float = 8.0) -> float:
+def _soft_threshold_above(
+    value: float, threshold: float, steepness: float = 8.0
+) -> float:
     """Sigmoid activation that rises toward 1.0 as value exceeds threshold."""
     return float(1.0 / (1.0 + math.exp(-steepness * (value - threshold))))
 
 
-def _soft_threshold_below(value: float, threshold: float, steepness: float = 8.0) -> float:
+def _soft_threshold_below(
+    value: float, threshold: float, steepness: float = 8.0
+) -> float:
     """Sigmoid activation that rises toward 1.0 as value falls below threshold."""
     return float(1.0 / (1.0 + math.exp(steepness * (value - threshold))))
 
@@ -253,15 +255,16 @@ def _generate_heatmap(
     min_rows = min(diff_h.shape[0], diff_v.shape[0])
     min_cols = min(diff_h.shape[1], diff_v.shape[1])
     magnitude = np.sqrt(
-        diff_h[:min_rows, :min_cols] ** 2
-        + diff_v[:min_rows, :min_cols] ** 2
+        diff_h[:min_rows, :min_cols] ** 2 + diff_v[:min_rows, :min_cols] ** 2
     )
 
     # Normalise to [0, 255]
     mag_min = magnitude.min()
     mag_max = magnitude.max()
     if mag_max > mag_min:
-        normalised = ((magnitude - mag_min) / (mag_max - mag_min) * 255).astype(np.uint8)
+        normalised = ((magnitude - mag_min) / (mag_max - mag_min) * 255).astype(
+            np.uint8
+        )
     else:
         normalised = np.zeros_like(magnitude, dtype=np.uint8)
 

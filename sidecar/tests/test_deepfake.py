@@ -288,7 +288,10 @@ class TestVerdictThresholds:
         result = perform_deepfake_detection(_make_noisy_photo())
         assert result.verdict_thresholds is not None
         assert result.verdict_thresholds.synthetic_min > 0.0
-        assert result.verdict_thresholds.authentic_max < result.verdict_thresholds.synthetic_min
+        assert (
+            result.verdict_thresholds.authentic_max
+            < result.verdict_thresholds.synthetic_min
+        )
 
     def test_verdict_thresholds_match_module_constants(self):
         """Wire values must equal the module source-of-truth constants."""
@@ -297,6 +300,7 @@ class TestVerdictThresholds:
             MODEL_VERSION,
             SYNTHETIC_THRESHOLD,
         )
+
         result = perform_deepfake_detection(_make_noisy_photo())
         assert result.verdict_thresholds.synthetic_min == SYNTHETIC_THRESHOLD
         assert result.verdict_thresholds.authentic_max == AUTHENTIC_THRESHOLD
@@ -347,6 +351,7 @@ def _make_avif_like_image(size: tuple[int, int] = (256, 256)) -> bytes:
     arr = np.clip(arr.astype(np.int16) + noise, 0, 255).astype(np.uint8)
     # Apply slight Gaussian blur (simulates in-loop filtering)
     from PIL import ImageFilter
+
     img = Image.fromarray(arr)
     img = img.filter(ImageFilter.GaussianBlur(radius=0.8))
     buf = io.BytesIO()
@@ -376,6 +381,7 @@ def _make_webp_like_image(size: tuple[int, int] = (256, 256)) -> bytes:
     img = Image.fromarray(arr)
     # Mild blur to reduce HF (simulates WebP lossy)
     from PIL import ImageFilter
+
     img = img.filter(ImageFilter.GaussianBlur(radius=0.6))
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -474,7 +480,11 @@ def _make_foggy_scene(size: tuple[int, int] = (256, 256)) -> bytes:
     for i in range(h):
         for j in range(w):
             v = base + int(20 * np.sin(i / h * 1.5)) + int(rng.normal(0, 3))
-            arr[i, j] = [max(0, min(255, v)), max(0, min(255, v - 5)), max(0, min(255, v + 5))]
+            arr[i, j] = [
+                max(0, min(255, v)),
+                max(0, min(255, v - 5)),
+                max(0, min(255, v + 5)),
+            ]
     img = Image.fromarray(arr)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -488,11 +498,15 @@ class TestSceneComplexity:
         """A foggy scene should have low complexity."""
         pil = Image.open(io.BytesIO(_make_foggy_scene())).convert("RGB")
         import cv2
+
         img_bgr = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
         grey = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2GRAY)
         from app.services.deepfake import (
-            _extract_color_features, _extract_edge_features, _extract_texture_features,
+            _extract_color_features,
+            _extract_edge_features,
+            _extract_texture_features,
         )
+
         features: dict[str, float] = {}
         features.update(_extract_color_features(img_bgr))
         features.update(_extract_edge_features(grey))
@@ -506,8 +520,11 @@ class TestSceneComplexity:
         pil_noisy = Image.open(io.BytesIO(_make_noisy_photo())).convert("RGB")
         import cv2
         from app.services.deepfake import (
-            _extract_color_features, _extract_edge_features, _extract_texture_features,
+            _extract_color_features,
+            _extract_edge_features,
+            _extract_texture_features,
         )
+
         def get_complexity(pil_img):
             img_bgr = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
             grey = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2GRAY)
@@ -516,9 +533,12 @@ class TestSceneComplexity:
             f.update(_extract_edge_features(grey))
             f.update(_extract_texture_features(grey))
             return _compute_scene_complexity(f)
+
         fog_c = get_complexity(pil_fog)
         noisy_c = get_complexity(pil_noisy)
-        assert noisy_c > fog_c, f"Noisy ({noisy_c}) should be more complex than fog ({fog_c})"
+        assert noisy_c > fog_c, (
+            f"Noisy ({noisy_c}) should be more complex than fog ({fog_c})"
+        )
 
 
 class TestRealPhotoRegression:
@@ -540,6 +560,7 @@ class TestRealPhotoRegression:
     def _skip_if_photos_missing(self):
         """Skip these tests if the Photos Library is not available."""
         import os
+
         if not all(os.path.exists(p) for p in self.REAL_PHOTOS):
             pytest.skip("Apple Photos Library not available on this machine")
 
@@ -548,7 +569,9 @@ class TestRealPhotoRegression:
         for path in self.REAL_PHOTOS:
             with open(path, "rb") as f:
                 data = f.read()
-            result = perform_deepfake_detection(data, mime_type="image/jpeg", has_camera_exif=True)
+            result = perform_deepfake_detection(
+                data, mime_type="image/jpeg", has_camera_exif=True
+            )
             assert result.verdict_level != "synthetic", (
                 f"{path.split('/')[-1]}: score={result.score:.4f} verdict={result.verdict_level}"
             )
@@ -558,7 +581,9 @@ class TestRealPhotoRegression:
         for path in self.REAL_PHOTOS:
             with open(path, "rb") as f:
                 data = f.read()
-            result = perform_deepfake_detection(data, mime_type="image/jpeg", has_camera_exif=True)
+            result = perform_deepfake_detection(
+                data, mime_type="image/jpeg", has_camera_exif=True
+            )
             assert result.score < 0.5, (
                 f"{path.split('/')[-1]}: score={result.score:.4f} — real photo should be < 0.5"
             )

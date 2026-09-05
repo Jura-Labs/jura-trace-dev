@@ -43,10 +43,10 @@ def is_whisper_available() -> bool:
 
 _VIDEO_SIGNATURES: list[tuple[bytes, bytes | None, int]] = [
     # (prefix, secondary, secondary_offset)
-    (b"\x00\x00\x00", b"ftyp", 4),       # MP4 / MOV / M4A (ISO BMFF)
-    (b"\x1a\x45\xdf\xa3", None, 0),       # WebM / MKV (EBML)
-    (b"\x00\x00\x01\xba", None, 0),       # MPEG-PS
-    (b"\x00\x00\x01\xb3", None, 0),       # MPEG-1/2 video
+    (b"\x00\x00\x00", b"ftyp", 4),  # MP4 / MOV / M4A (ISO BMFF)
+    (b"\x1a\x45\xdf\xa3", None, 0),  # WebM / MKV (EBML)
+    (b"\x00\x00\x01\xba", None, 0),  # MPEG-PS
+    (b"\x00\x00\x01\xb3", None, 0),  # MPEG-1/2 video
 ]
 
 
@@ -55,10 +55,10 @@ def _is_video(data: bytes) -> bool:
     if len(data) < 12:
         return False
     for prefix, secondary, offset in _VIDEO_SIGNATURES:
-        if data[:len(prefix)] == prefix:
+        if data[: len(prefix)] == prefix:
             if secondary is None:
                 return True
-            if data[offset:offset + len(secondary)] == secondary:
+            if data[offset : offset + len(secondary)] == secondary:
                 return True
     return False
 
@@ -66,6 +66,7 @@ def _is_video(data: bytes) -> bool:
 # ---------------------------------------------------------------------------
 # Audio extraction from video
 # ---------------------------------------------------------------------------
+
 
 def _extract_audio_from_video(video_bytes: bytes) -> bytes | None:
     """Extract audio track from video bytes as WAV via FFmpeg.
@@ -83,11 +84,17 @@ def _extract_audio_from_video(video_bytes: bytes) -> bytes | None:
 
         result = subprocess.run(
             [
-                "ffmpeg", "-y", "-i", tmp_video,
-                "-vn",                       # drop video
-                "-acodec", "pcm_s16le",      # 16-bit PCM
-                "-ar", "16000",              # 16 kHz (Whisper native)
-                "-ac", "1",                  # mono
+                "ffmpeg",
+                "-y",
+                "-i",
+                tmp_video,
+                "-vn",  # drop video
+                "-acodec",
+                "pcm_s16le",  # 16-bit PCM
+                "-ar",
+                "16000",  # 16 kHz (Whisper native)
+                "-ac",
+                "1",  # mono
                 tmp_audio,
             ],
             capture_output=True,
@@ -121,6 +128,7 @@ def _extract_audio_from_video(video_bytes: bytes) -> bytes | None:
 # Whisper model loader
 # ---------------------------------------------------------------------------
 
+
 def _get_model(model_size: str) -> Any:
     """Load (or retrieve cached) faster-whisper model.
 
@@ -138,7 +146,9 @@ def _get_model(model_size: str) -> Any:
 
         logger.info("Loading Whisper model '%s' (CPU, int8)...", model_size)
         _model_cache[model_size] = WhisperModel(
-            model_size, device="cpu", compute_type="int8",
+            model_size,
+            device="cpu",
+            compute_type="int8",
         )
         logger.info("Whisper model '%s' loaded.", model_size)
 
@@ -148,6 +158,7 @@ def _get_model(model_size: str) -> Any:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def perform_transcription(
     media_bytes: bytes,
@@ -183,8 +194,7 @@ def perform_transcription(
         extracted = _extract_audio_from_video(media_bytes)
         if extracted is None:
             return _error_result(
-                "Could not extract audio from video. "
-                "Ensure FFmpeg is installed."
+                "Could not extract audio from video. Ensure FFmpeg is installed."
             )
         audio_bytes = extracted
 
@@ -207,11 +217,13 @@ def perform_transcription(
         full_text_parts = []
 
         for seg in segments_iter:
-            segments.append({
-                "start": round(seg.start, 3),
-                "end": round(seg.end, 3),
-                "text": seg.text.strip(),
-            })
+            segments.append(
+                {
+                    "start": round(seg.start, 3),
+                    "end": round(seg.end, 3),
+                    "text": seg.text.strip(),
+                }
+            )
             full_text_parts.append(seg.text.strip())
 
         full_text = " ".join(full_text_parts)

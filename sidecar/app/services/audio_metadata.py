@@ -34,8 +34,14 @@ def perform_audio_metadata(audio_bytes: bytes) -> AudioMetadataResponse:
 
         result = subprocess.run(
             [
-                "ffprobe", "-v", "quiet", "-print_format", "json",
-                "-show_format", "-show_streams", tmp_path,
+                "ffprobe",
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
+                "-show_format",
+                "-show_streams",
+                tmp_path,
             ],
             capture_output=True,
             text=True,
@@ -63,9 +69,7 @@ def perform_audio_metadata(audio_bytes: bytes) -> AudioMetadataResponse:
             else None
         )
         channels = (
-            int(audio_stream["channels"])
-            if audio_stream.get("channels")
-            else None
+            int(audio_stream["channels"]) if audio_stream.get("channels") else None
         )
 
         return AudioMetadataResponse(

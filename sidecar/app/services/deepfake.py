@@ -20,7 +20,6 @@ import io
 import logging
 import math
 import os
-import sys
 
 import cv2
 import numpy as np
@@ -266,6 +265,7 @@ def _load_classifier():
     _classifier_loaded = True
     try:
         import joblib
+
         model_path = os.path.join(MODELS_DIR, "deepfake_classifier.joblib")
         if os.path.exists(model_path):
             if not _check_file_sha256(model_path, _DEEPFAKE_CLASSIFIER_SHA256):
@@ -279,14 +279,60 @@ def _load_classifier():
         _classifier = None
     return _classifier
 
+
 # Minimum image dimension for watermark decode
 _WATERMARK_MIN_SIZE = 256
 
 # Known SDXL 48-bit watermark pattern (from Stability AI detect.py)
 _SDXL_PATTERN = [
-    1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0,
-    1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1,
-    1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    0,
 ]
 
 
@@ -320,12 +366,14 @@ def detect_sd_watermark(image_bytes: bytes) -> list[WatermarkDetection]:
         decoded_str = wm_bytes.decode("utf-8", errors="ignore").rstrip("\x00")
 
         if decoded_str == "StableDiffusionV1":
-            detections.append(WatermarkDetection(
-                type="stable_diffusion_v1",
-                detected=True,
-                confidence=1.0,
-                details="Exact Stable Diffusion v1 watermark decoded: 'StableDiffusionV1'",
-            ))
+            detections.append(
+                WatermarkDetection(
+                    type="stable_diffusion_v1",
+                    detected=True,
+                    confidence=1.0,
+                    details="Exact Stable Diffusion v1 watermark decoded: 'StableDiffusionV1'",
+                )
+            )
     except Exception:
         pass
 
@@ -337,19 +385,23 @@ def detect_sd_watermark(image_bytes: bytes) -> list[WatermarkDetection]:
         matching = sum(1 for a, b in zip(bits_list, _SDXL_PATTERN) if a == b)
 
         if matching >= 40:
-            detections.append(WatermarkDetection(
-                type="sdxl",
-                detected=True,
-                confidence=round(matching / 48.0, 3),
-                details=f"SDXL/Flux watermark detected: {matching}/48 bits match (very likely)",
-            ))
+            detections.append(
+                WatermarkDetection(
+                    type="sdxl",
+                    detected=True,
+                    confidence=round(matching / 48.0, 3),
+                    details=f"SDXL/Flux watermark detected: {matching}/48 bits match (very likely)",
+                )
+            )
         elif matching >= 35:
-            detections.append(WatermarkDetection(
-                type="sdxl",
-                detected=True,
-                confidence=round(matching / 48.0, 3),
-                details=f"SDXL/Flux watermark partially detected: {matching}/48 bits match (possible)",
-            ))
+            detections.append(
+                WatermarkDetection(
+                    type="sdxl",
+                    detected=True,
+                    confidence=round(matching / 48.0, 3),
+                    details=f"SDXL/Flux watermark partially detected: {matching}/48 bits match (possible)",
+                )
+            )
     except Exception:
         pass
 
@@ -361,19 +413,42 @@ def detect_sd_watermark(image_bytes: bytes) -> list[WatermarkDetection]:
 # Common display resolutions (width, height). Both orientations are checked.
 _SCREEN_RESOLUTIONS: set[tuple[int, int]] = {
     # Desktop 16:9
-    (1920, 1080), (2560, 1440), (3840, 2160), (1366, 768), (1600, 900),
-    (1536, 864), (1280, 720), (1280, 800),
+    (1920, 1080),
+    (2560, 1440),
+    (3840, 2160),
+    (1366, 768),
+    (1600, 900),
+    (1536, 864),
+    (1280, 720),
+    (1280, 800),
     # macOS Retina / non-Retina
-    (1440, 900), (2880, 1800), (1680, 1050), (3360, 2100),
-    (2560, 1600), (3024, 1964), (2880, 1920),
+    (1440, 900),
+    (2880, 1800),
+    (1680, 1050),
+    (3360, 2100),
+    (2560, 1600),
+    (3024, 1964),
+    (2880, 1920),
     # Ultrawide
-    (3440, 1440), (2560, 1080),
+    (3440, 1440),
+    (2560, 1080),
     # Phone (portrait)
-    (750, 1334), (1170, 2532), (1284, 2778), (1080, 2400),
-    (1080, 1920), (1440, 2560), (1440, 3200), (1080, 2340),
-    (828, 1792), (1125, 2436), (1242, 2688),
+    (750, 1334),
+    (1170, 2532),
+    (1284, 2778),
+    (1080, 2400),
+    (1080, 1920),
+    (1440, 2560),
+    (1440, 3200),
+    (1080, 2340),
+    (828, 1792),
+    (1125, 2436),
+    (1242, 2688),
     # Tablets
-    (2048, 2732), (2360, 1640), (2388, 1668), (2732, 2048),
+    (2048, 2732),
+    (2360, 1640),
+    (2388, 1668),
+    (2732, 2048),
 }
 
 
@@ -441,8 +516,9 @@ def is_likely_screenshot(image_bytes: bytes) -> tuple[bool, float, dict[str, flo
         total_blocks = 0
         for by in range(n_rows):
             for bx in range(n_cols):
-                block = grey[by * block_h:(by + 1) * block_h,
-                             bx * block_w:(bx + 1) * block_w]
+                block = grey[
+                    by * block_h : (by + 1) * block_h, bx * block_w : (bx + 1) * block_w
+                ]
                 if np.std(block) < 3.0:
                     uniform_blocks += 1
                 total_blocks += 1
@@ -497,7 +573,11 @@ def is_likely_screenshot(image_bytes: bytes) -> tuple[bool, float, dict[str, flo
     # ── 7. Colour channel uniqueness ─────────────────────────────────
     # Screenshots use limited colour palettes compared to photos.
     # Subsample for speed.
-    sample = arr[::4, ::4].reshape(-1, 3) if arr.shape[0] > 8 and arr.shape[1] > 8 else arr.reshape(-1, 3)
+    sample = (
+        arr[::4, ::4].reshape(-1, 3)
+        if arr.shape[0] > 8 and arr.shape[1] > 8
+        else arr.reshape(-1, 3)
+    )
     unique_colours = len(np.unique(sample, axis=0))
     total_pixels = len(sample)
     colour_ratio = unique_colours / total_pixels if total_pixels > 0 else 1.0
@@ -581,28 +661,48 @@ def _verdict_thresholds() -> VerdictThresholds:
 
 CODEC_THRESHOLDS: dict[str, dict[str, float]] = {
     "raw": {
-        "noise_std": 1.5, "hf_energy": 0.0005, "noise_cv": 1.0,
-        "lbp_cv": 0.08, "sharp_cv": 0.5, "patch_spec_cv": 0.8,
+        "noise_std": 1.5,
+        "hf_energy": 0.0005,
+        "noise_cv": 1.0,
+        "lbp_cv": 0.08,
+        "sharp_cv": 0.5,
+        "patch_spec_cv": 0.8,
         "glcm_energy": 0.06,
     },
     "jpeg": {
-        "noise_std": 0.5, "hf_energy": 0.00003, "noise_cv": 0.3,
-        "lbp_cv": 0.04, "sharp_cv": 0.2, "patch_spec_cv": 0.4,
+        "noise_std": 0.5,
+        "hf_energy": 0.00003,
+        "noise_cv": 0.3,
+        "lbp_cv": 0.04,
+        "sharp_cv": 0.2,
+        "patch_spec_cv": 0.4,
         "glcm_energy": 0.04,
     },
     "modern_lossy": {
-        "noise_std": 0.8, "hf_energy": 0.0001, "noise_cv": 0.5,
-        "lbp_cv": 0.05, "sharp_cv": 0.3, "patch_spec_cv": 0.6,
+        "noise_std": 0.8,
+        "hf_energy": 0.0001,
+        "noise_cv": 0.5,
+        "lbp_cv": 0.05,
+        "sharp_cv": 0.3,
+        "patch_spec_cv": 0.6,
         "glcm_energy": 0.06,
     },
     "heavy_jpeg": {
-        "noise_std": 0.8, "hf_energy": 0.0001, "noise_cv": 0.8,
-        "lbp_cv": 0.06, "sharp_cv": 0.4, "patch_spec_cv": 0.7,
+        "noise_std": 0.8,
+        "hf_energy": 0.0001,
+        "noise_cv": 0.8,
+        "lbp_cv": 0.06,
+        "sharp_cv": 0.4,
+        "patch_spec_cv": 0.7,
         "glcm_energy": 0.05,
     },
     "lossless": {
-        "noise_std": 2.5, "hf_energy": 0.001, "noise_cv": 0.7,
-        "lbp_cv": 0.06, "sharp_cv": 0.4, "patch_spec_cv": 0.6,
+        "noise_std": 2.5,
+        "hf_energy": 0.001,
+        "noise_cv": 0.7,
+        "lbp_cv": 0.06,
+        "sharp_cv": 0.4,
+        "patch_spec_cv": 0.6,
         "glcm_energy": 0.05,
     },
 }
@@ -613,8 +713,13 @@ def _classify_codec(mime_type: str) -> str:
     mime_lower = mime_type.lower()
     if mime_lower in ("image/avif", "image/webp", "image/heic", "image/heif"):
         return "modern_lossy"
-    if mime_lower in ("image/tiff", "image/x-adobe-dng", "image/x-canon-cr2",
-                      "image/x-nikon-nef", "image/bmp"):
+    if mime_lower in (
+        "image/tiff",
+        "image/x-adobe-dng",
+        "image/x-canon-cr2",
+        "image/x-nikon-nef",
+        "image/bmp",
+    ):
         return "raw"
     if mime_lower in ("image/png", "image/gif"):
         return "lossless"
@@ -639,7 +744,11 @@ def perform_deepfake_detection_with_features(
         ``spectral_decay_beta``, and ``glcm_contrast_mean`` keys.
     """
     return _perform_deepfake_detection_impl(
-        image_bytes, analysis_size, mime_type, has_camera_exif, univfd_score,
+        image_bytes,
+        analysis_size,
+        mime_type,
+        has_camera_exif,
+        univfd_score,
         camera_authenticity_bonus,
     )
 
@@ -672,7 +781,11 @@ def perform_deepfake_detection(
         ValueError: If image cannot be decoded.
     """
     response, _features = _perform_deepfake_detection_impl(
-        image_bytes, analysis_size, mime_type, has_camera_exif, univfd_score,
+        image_bytes,
+        analysis_size,
+        mime_type,
+        has_camera_exif,
+        univfd_score,
         camera_authenticity_bonus,
     )
     return response
@@ -721,7 +834,7 @@ def _perform_deepfake_detection_impl(
             signals=[],
             heatmap_base64="",
             summary=f"Image too small for reliable analysis ({orig_w}x{orig_h}). "
-                    f"Minimum 128x128 required for forensic detection.",
+            f"Minimum 128x128 required for forensic detection.",
             watermarks=[],
             verdict_thresholds=_verdict_thresholds(),
         ), small_image_features
@@ -730,7 +843,9 @@ def _perform_deepfake_detection_impl(
     # Screenshots (UI renders) share features with AI images — no EXIF,
     # PNG format, uniform noise, high LBP uniformity — causing false
     # positives. Gate high-confidence screenshots away from the ensemble.
-    screenshot_flag, screenshot_conf, screenshot_signals = is_likely_screenshot(image_bytes)
+    screenshot_flag, screenshot_conf, screenshot_signals = is_likely_screenshot(
+        image_bytes
+    )
     if screenshot_flag and screenshot_conf > 0.70:
         # Before bypassing, check for AI-specific signals that override
         # the screenshot classification. AI-generated PNGs can look like
@@ -753,7 +868,7 @@ def _perform_deepfake_detection_impl(
         _local_stds = []
         for _by in range(min(16, _h // _bh)):
             for _bx in range(min(16, _w // _bw)):
-                _block = _grey[_by * _bh:(_by + 1) * _bh, _bx * _bw:(_bx + 1) * _bw]
+                _block = _grey[_by * _bh : (_by + 1) * _bh, _bx * _bw : (_bx + 1) * _bw]
                 _local_stds.append(float(np.std(_block)))
         _nonzero_stds = [s for s in _local_stds if s > 1.0]
         _texture_complexity = float(np.mean(_nonzero_stds)) if _nonzero_stds else 0.0
@@ -772,7 +887,11 @@ def _perform_deepfake_detection_impl(
         # Check 3: Colour diversity in non-uniform regions
         # AI images have rich colour variation even in "uniform" areas.
         # Screenshots have exact repeated colours (flat UI fills).
-        _sample = img_array[::4, ::4].reshape(-1, 3) if img_array.shape[0] > 8 and img_array.shape[1] > 8 else img_array.reshape(-1, 3)
+        _sample = (
+            img_array[::4, ::4].reshape(-1, 3)
+            if img_array.shape[0] > 8 and img_array.shape[1] > 8
+            else img_array.reshape(-1, 3)
+        )
         _unique_ratio = len(np.unique(_sample, axis=0)) / max(len(_sample), 1)
 
         # Override conditions: AI-like texture in a "screenshot"
@@ -799,14 +918,17 @@ def _perform_deepfake_detection_impl(
             logger.info(
                 "Screenshot override: texture_complexity=%.1f (>8), colour_diversity=%.2f (>0.15). "
                 "Image has AI-like colour richness despite screenshot-like features.",
-                _texture_complexity, _unique_ratio,
+                _texture_complexity,
+                _unique_ratio,
             )
 
         if not override_screenshot:
             logger.info(
                 "Screenshot pre-classifier triggered (confidence=%.2f, "
                 "texture=%.1f, signals=%s). Bypassing deepfake ensemble.",
-                screenshot_conf, _texture_complexity, screenshot_signals,
+                screenshot_conf,
+                _texture_complexity,
+                screenshot_signals,
             )
             # Generate a minimal heatmap from the decoded image for UI consistency
             img_resized = _resize(img_array, analysis_size)
@@ -903,7 +1025,9 @@ def _perform_deepfake_detection_impl(
 
     # Score via heuristic ensemble with codec-aware thresholds
     heuristic_score, signals = _heuristic_score(
-        features, codec_class, has_camera_exif=has_camera_exif,
+        features,
+        codec_class,
+        has_camera_exif=has_camera_exif,
     )
 
     # ── Classifier blending ────────────────────────────────────────────
@@ -914,6 +1038,7 @@ def _perform_deepfake_detection_impl(
         try:
             vec = extract_feature_vector(features)
             import numpy as _np
+
             vec_clean = [0.0 if _np.isnan(v) else v for v in vec]
             # Backwards-compatibility: GBM v4 was trained on 80 features.
             # If the model's expected input width is smaller than the current
@@ -943,7 +1068,8 @@ def _perform_deepfake_detection_impl(
             if codec_class != "jpeg" and classifier_score < 0.3:
                 logger.info(
                     "GBM v4 score %.4f floored to 0.30 (codec_class=%s)",
-                    classifier_score, codec_class,
+                    classifier_score,
+                    codec_class,
                 )
                 classifier_score = 0.3
         except Exception:
@@ -956,6 +1082,7 @@ def _perform_deepfake_detection_impl(
     if not univfd_available:
         try:
             from app.services.clip_detector import perform_clip_detection
+
             clip_result = perform_clip_detection(image_bytes)
             if clip_result.univfd_available and clip_result.univfd_score is not None:
                 univfd_score = clip_result.univfd_score
@@ -1072,8 +1199,7 @@ def _perform_deepfake_detection_impl(
             )
     elif score > 0.35:
         summary = (
-            f"Mixed indicators "
-            f"({triggered_count} of {len(signals)} signals triggered)"
+            f"Mixed indicators ({triggered_count} of {len(signals)} signals triggered)"
         )
     else:
         summary = (
@@ -1110,7 +1236,9 @@ def _perform_deepfake_detection_impl(
         heatmap_base64=heatmap_base64,
         summary=summary,
         watermarks=watermarks,
-        classifier_score=round(classifier_score, 4) if classifier_score is not None else None,
+        classifier_score=round(classifier_score, 4)
+        if classifier_score is not None
+        else None,
         classifier_available=classifier_available,
         univfd_score=round(univfd_score, 4) if univfd_score is not None else None,
         univfd_available=univfd_available,
@@ -1267,7 +1395,9 @@ def _extract_color_features(img_bgr: np.ndarray) -> dict[str, float]:
         hist = cv2.calcHist([img_bgr], [i], None, [256], [0, 256]).flatten()
         hist_norm = hist / (hist.sum() + 1e-10)
         hist_pos = hist_norm[hist_norm > 0]
-        features[f"color_{ch}_entropy"] = float(-np.sum(hist_pos * np.log2(hist_pos + 1e-10)))
+        features[f"color_{ch}_entropy"] = float(
+            -np.sum(hist_pos * np.log2(hist_pos + 1e-10))
+        )
 
     # Inter-channel correlations (handle constant channels gracefully)
     b, g, r = [img_bgr[:, :, i].flatten().astype(np.float64) for i in range(3)]
@@ -1331,7 +1461,14 @@ def _extract_texture_features(grey: np.ndarray) -> dict[str, float]:
     grey_q = (grey // 4).astype(np.uint8)
     distances = [1, 3]
     angles = [0, np.pi / 4, np.pi / 2, 3 * np.pi / 4]
-    glcm = graycomatrix(grey_q, distances=distances, angles=angles, levels=64, symmetric=True, normed=True)
+    glcm = graycomatrix(
+        grey_q,
+        distances=distances,
+        angles=angles,
+        levels=64,
+        symmetric=True,
+        normed=True,
+    )
 
     for prop in ("contrast", "homogeneity", "energy", "correlation"):
         vals = graycoprops(glcm, prop)
@@ -1348,7 +1485,13 @@ def _extract_jpeg_features(grey: np.ndarray) -> dict[str, float]:
     w8 = (w // 8) * 8
 
     if h8 < 8 or w8 < 8:
-        return {"dct_benford_div": 0.0, "dct_ac_mean": 0.0, "dct_ac_std": 0.0, "dct_ac_kurtosis": 0.0, "blocking_strength": 1.0}
+        return {
+            "dct_benford_div": 0.0,
+            "dct_ac_mean": 0.0,
+            "dct_ac_std": 0.0,
+            "dct_ac_kurtosis": 0.0,
+            "blocking_strength": 1.0,
+        }
 
     img = grey[:h8, :w8].astype(np.float64)
 
@@ -1366,12 +1509,18 @@ def _extract_jpeg_features(grey: np.ndarray) -> dict[str, float]:
     nonzero = np.abs(ac_matrix)
     nonzero = nonzero[nonzero >= 1.0]
     if len(nonzero) > 100:
-        first_digits = (nonzero / (10 ** np.floor(np.log10(nonzero + 1e-10)))).astype(int)
+        first_digits = (nonzero / (10 ** np.floor(np.log10(nonzero + 1e-10)))).astype(
+            int
+        )
         first_digits = first_digits[(first_digits >= 1) & (first_digits <= 9)]
         if len(first_digits) > 0:
             digit_hist = np.histogram(first_digits, bins=range(1, 11), density=True)[0]
             benford_expected = np.log10(1 + 1 / np.arange(1, 10))
-            benford_div = float(np.sum((digit_hist - benford_expected) ** 2 / (benford_expected + 1e-10)))
+            benford_div = float(
+                np.sum(
+                    (digit_hist - benford_expected) ** 2 / (benford_expected + 1e-10)
+                )
+            )
         else:
             benford_div = 0.0
     else:
@@ -1424,7 +1573,9 @@ def _extract_edge_features(grey: np.ndarray) -> dict[str, float]:
     }
 
     # Edge direction histogram
-    dir_hist, _ = np.histogram(direction.flatten(), bins=36, range=(-np.pi, np.pi), density=True)
+    dir_hist, _ = np.histogram(
+        direction.flatten(), bins=36, range=(-np.pi, np.pi), density=True
+    )
     dir_pos = dir_hist[dir_hist > 0]
     features["edge_dir_entropy"] = float(-np.sum(dir_pos * np.log2(dir_pos + 1e-10)))
     features["edge_dir_uniformity"] = float(np.sum(dir_hist**2))
@@ -1555,7 +1706,9 @@ def _extract_noise_autocorrelation(grey: np.ndarray) -> dict[str, float]:
         autocorr = np.zeros(max_lag)
         autocorr[0] = 1.0
         for lag in range(1, max_lag):
-            autocorr[lag] = np.mean(noise_centered[:, :w - lag] * noise_centered[:, lag:]) / var
+            autocorr[lag] = (
+                np.mean(noise_centered[:, : w - lag] * noise_centered[:, lag:]) / var
+            )
         valid = autocorr[1:] > 0.01
         lags = np.arange(1, max_lag)
         if valid.sum() >= 3:
@@ -1575,7 +1728,10 @@ def _extract_cross_channel_noise(img_bgr: np.ndarray) -> dict[str, float]:
     """
     try:
         if img_bgr.ndim < 3 or img_bgr.shape[2] < 3:
-            return {"cross_channel_noise_corr_mean": 0.3, "cross_channel_noise_corr_max": 0.3}
+            return {
+                "cross_channel_noise_corr_mean": 0.3,
+                "cross_channel_noise_corr_max": 0.3,
+            }
         noises = []
         for i in range(3):
             ch = img_bgr[:, :, i].astype(np.float64)
@@ -1594,7 +1750,10 @@ def _extract_cross_channel_noise(img_bgr: np.ndarray) -> dict[str, float]:
             "cross_channel_noise_corr_max": float(np.max(correlations)),
         }
     except Exception:
-        return {"cross_channel_noise_corr_mean": 0.3, "cross_channel_noise_corr_max": 0.3}
+        return {
+            "cross_channel_noise_corr_mean": 0.3,
+            "cross_channel_noise_corr_max": 0.3,
+        }
 
 
 def _extract_bitplane_regularity(grey: np.ndarray) -> dict[str, float]:
@@ -1606,7 +1765,9 @@ def _extract_bitplane_regularity(grey: np.ndarray) -> dict[str, float]:
         lsb = (grey & 1).astype(np.float64)
         h_changes = np.sum(lsb[:, :-1] != lsb[:, 1:])
         v_changes = np.sum(lsb[:-1, :] != lsb[1:, :])
-        total_pairs = lsb.shape[0] * (lsb.shape[1] - 1) + (lsb.shape[0] - 1) * lsb.shape[1]
+        total_pairs = (
+            lsb.shape[0] * (lsb.shape[1] - 1) + (lsb.shape[0] - 1) * lsb.shape[1]
+        )
         lsb_complexity = (h_changes + v_changes) / (total_pairs + 1e-10)
         lsb_randomness = float(lsb_complexity / 0.5)
         # Block entropy
@@ -1614,10 +1775,14 @@ def _extract_bitplane_regularity(grey: np.ndarray) -> dict[str, float]:
         entropies = []
         for i in range(0, grey.shape[0] - block_size, block_size):
             for j in range(0, grey.shape[1] - block_size, block_size):
-                block = lsb[i:i + block_size, j:j + block_size].flatten()
+                block = lsb[i : i + block_size, j : j + block_size].flatten()
                 p1 = np.mean(block)
                 p0 = 1.0 - p1
-                ent = -(p0 * np.log2(p0 + 1e-10) + p1 * np.log2(p1 + 1e-10)) if p0 > 0 and p1 > 0 else 0.0
+                ent = (
+                    -(p0 * np.log2(p0 + 1e-10) + p1 * np.log2(p1 + 1e-10))
+                    if p0 > 0 and p1 > 0
+                    else 0.0
+                )
                 entropies.append(ent)
         return {
             "lsb_randomness": lsb_randomness,
@@ -1648,7 +1813,10 @@ def _extract_vae_grid_artefacts(grey: np.ndarray) -> dict[str, float]:
                 for dx in range(-2, 3):
                     yi, xi = np.clip(fy + dy, 0, h - 1), np.clip(fx + dx, 0, w - 1)
                     grid_energy += power[yi, xi]
-                    yi_m, xi_m = np.clip(2 * cy - fy + dy, 0, h - 1), np.clip(2 * cx - fx + dx, 0, w - 1)
+                    yi_m, xi_m = (
+                        np.clip(2 * cy - fy + dy, 0, h - 1),
+                        np.clip(2 * cx - fx + dx, 0, w - 1),
+                    )
                     grid_energy += power[yi_m, xi_m]
         total_energy = power.sum() + 1e-10
         return {"vae_grid_energy_ratio": float(grid_energy / total_energy)}
@@ -1671,10 +1839,10 @@ def _extract_ca_absence(img_bgr: np.ndarray) -> dict[str, float]:
             ch = img_bgr[:, :, i].astype(np.float64)
             gx = cv2.Sobel(ch, cv2.CV_64F, 1, 0, ksize=3)
             gy = cv2.Sobel(ch, cv2.CV_64F, 0, 1, ksize=3)
-            edges.append(np.sqrt(gx ** 2 + gy ** 2))
+            edges.append(np.sqrt(gx**2 + gy**2))
         y_coords, x_coords = np.mgrid[:h, :w]
         radius = np.sqrt((x_coords - cx) ** 2 + (y_coords - cy) ** 2)
-        max_r = np.sqrt(cx ** 2 + cy ** 2)
+        max_r = np.sqrt(cx**2 + cy**2)
         ca_by_radius = []
         for band in range(4):
             r_min, r_max = band * max_r / 4, (band + 1) * max_r / 4
@@ -1682,9 +1850,13 @@ def _extract_ca_absence(img_bgr: np.ndarray) -> dict[str, float]:
             if mask.sum() < 100:
                 continue
             mean_edge = (np.mean(edges[2][mask]) + np.mean(edges[0][mask])) / 2 + 1e-10
-            ca_by_radius.append(float(np.mean(np.abs(edges[2][mask] - edges[0][mask])) / mean_edge))
+            ca_by_radius.append(
+                float(np.mean(np.abs(edges[2][mask] - edges[0][mask])) / mean_edge)
+            )
         if len(ca_by_radius) >= 3:
-            slope, _ = np.polyfit(np.arange(len(ca_by_radius), dtype=np.float64), ca_by_radius, 1)
+            slope, _ = np.polyfit(
+                np.arange(len(ca_by_radius), dtype=np.float64), ca_by_radius, 1
+            )
             return {"ca_radial_trend": float(slope)}
         return {"ca_radial_trend": 0.0}
     except Exception:
@@ -1710,8 +1882,16 @@ def _extract_demosaicing_traces(img_bgr: np.ndarray) -> dict[str, float]:
             h, w = power.shape
             cy, cx = h // 2, w // 2
             median_power = np.median(power)
-            for py, px in [(cy, 0), (cy, w - 1), (0, cx), (h - 1, cx),
-                           (0, 0), (0, w - 1), (h - 1, 0), (h - 1, w - 1)]:
+            for py, px in [
+                (cy, 0),
+                (cy, w - 1),
+                (0, cx),
+                (h - 1, cx),
+                (0, 0),
+                (0, w - 1),
+                (h - 1, 0),
+                (h - 1, w - 1),
+            ]:
                 y_lo, y_hi = max(py - 2, 0), min(py + 3, h)
                 x_lo, x_hi = max(px - 2, 0), min(px + 3, w)
                 local_max = power[y_lo:y_hi, x_lo:x_hi].max()
@@ -1856,7 +2036,10 @@ def _extract_noise_anisotropy(grey: np.ndarray) -> dict[str, float]:
     try:
         h, w = grey.shape[:2]
         if h < 64 or w < 64:
-            return {"noise_anisotropy_mean": float("nan"), "noise_anisotropy_std": float("nan")}
+            return {
+                "noise_anisotropy_mean": float("nan"),
+                "noise_anisotropy_std": float("nan"),
+            }
 
         luma = grey.astype(np.float32)
         denoised = cv2.bilateralFilter(
@@ -1884,14 +2067,20 @@ def _extract_noise_anisotropy(grey: np.ndarray) -> dict[str, float]:
                 aniso_values.append(log_ratio)
 
         if len(aniso_values) < 2:
-            return {"noise_anisotropy_mean": float("nan"), "noise_anisotropy_std": float("nan")}
+            return {
+                "noise_anisotropy_mean": float("nan"),
+                "noise_anisotropy_std": float("nan"),
+            }
 
         return {
             "noise_anisotropy_mean": float(np.mean(aniso_values)),
             "noise_anisotropy_std": float(np.std(aniso_values)),
         }
     except Exception:
-        return {"noise_anisotropy_mean": float("nan"), "noise_anisotropy_std": float("nan")}
+        return {
+            "noise_anisotropy_mean": float("nan"),
+            "noise_anisotropy_std": float("nan"),
+        }
 
 
 def _extract_saturation_luminance(img_bgr: np.ndarray) -> dict[str, float]:
@@ -1913,7 +2102,11 @@ def _extract_saturation_luminance(img_bgr: np.ndarray) -> dict[str, float]:
         shadow_sat = np.mean(bin_means[:2]) if any(bin_means[:2]) else 0.0
         highlight_sat = np.mean(bin_means[-2:]) if any(bin_means[-2:]) else 0.0
         mid_sat = np.mean(bin_means[3:7]) if any(bin_means[3:7]) else 1.0
-        return {"sat_lum_extreme_ratio": float((shadow_sat + highlight_sat) / 2 / (mid_sat + 1e-10))}
+        return {
+            "sat_lum_extreme_ratio": float(
+                (shadow_sat + highlight_sat) / 2 / (mid_sat + 1e-10)
+            )
+        }
     except Exception:
         return {"sat_lum_extreme_ratio": 0.2}
 
@@ -2194,9 +2387,13 @@ def _heuristic_score(
     # lossless images where compression doesn't inflate tau.
     tau = features.get("noise_autocorr_tau", 1.0)
     tau_thresh = 5.0 if codec_class in ("lossless", "raw") else 50.0
-    _add("noise_autocorr_tau", 2.5, tau > tau_thresh,
-         f"Slow noise autocorrelation decay (tau={tau:.1f}), characteristic of AI generation",
-         f"Fast noise autocorrelation decay (tau={tau:.1f}), consistent with camera sensor")
+    _add(
+        "noise_autocorr_tau",
+        2.5,
+        tau > tau_thresh,
+        f"Slow noise autocorrelation decay (tau={tau:.1f}), characteristic of AI generation",
+        f"Fast noise autocorrelation decay (tau={tau:.1f}), consistent with camera sensor",
+    )
 
     # --- Signal 16: Cross-channel noise correlation ---
     # Real camera JPEGs show 0.84-0.94 correlation due to JPEG compression and
@@ -2206,39 +2403,59 @@ def _heuristic_score(
     # Real camera JPEGs (including Google Photos recompression and older cameras)
     # show 0.84-0.99 cross-channel correlation. Only flag > 0.997 for lossy.
     cc_thresh = 0.70 if codec_class in ("lossless", "raw") else 0.997
-    _add("cross_channel_noise_corr", 2.5, cc_corr > cc_thresh,
-         f"Highly correlated noise across channels ({cc_corr:.3f}), shared generative process",
-         f"Independent noise across channels ({cc_corr:.3f}), consistent with camera sensor")
+    _add(
+        "cross_channel_noise_corr",
+        2.5,
+        cc_corr > cc_thresh,
+        f"Highly correlated noise across channels ({cc_corr:.3f}), shared generative process",
+        f"Independent noise across channels ({cc_corr:.3f}), consistent with camera sensor",
+    )
 
     # --- Signal 17: Bit-plane regularity (lossless only) ---
     if codec_class == "lossless":
         lsb_rand = features.get("lsb_randomness", 1.0)
-        _add("bitplane_regularity", 2.0, lsb_rand < 0.92,
-             f"Structured LSB pattern (randomness={lsb_rand:.3f}), computed pixel values",
-             f"Random LSB pattern (randomness={lsb_rand:.3f}), consistent with sensor noise")
+        _add(
+            "bitplane_regularity",
+            2.0,
+            lsb_rand < 0.92,
+            f"Structured LSB pattern (randomness={lsb_rand:.3f}), computed pixel values",
+            f"Random LSB pattern (randomness={lsb_rand:.3f}), consistent with sensor noise",
+        )
 
     # --- Signal 18: VAE grid artefacts ---
     vae_w = 1.5 if codec_class == "lossless" else 0.5
     vae_grid = features.get("vae_grid_energy_ratio", 0.0)
-    _add("vae_grid_artefacts", vae_w, vae_grid > 0.002,
-         f"Periodic VAE decoder grid detected (ratio={vae_grid:.5f})",
-         f"No periodic grid structure (ratio={vae_grid:.5f})")
+    _add(
+        "vae_grid_artefacts",
+        vae_w,
+        vae_grid > 0.002,
+        f"Periodic VAE decoder grid detected (ratio={vae_grid:.5f})",
+        f"No periodic grid structure (ratio={vae_grid:.5f})",
+    )
 
     # --- Signal 19: Chromatic aberration absence ---
     # Use absolute value: real lenses produce both positive and negative CA trends
     # depending on lens design. Only flag when |trend| is essentially zero.
     ca_trend = features.get("ca_radial_trend", 0.01)
-    _add("ca_absence", 1.5, abs(ca_trend) < 0.003,
-         f"No radial chromatic aberration (trend={ca_trend:.5f}), inconsistent with optics",
-         f"Radial chromatic aberration present (trend={ca_trend:.5f}), consistent with lens")
+    _add(
+        "ca_absence",
+        1.5,
+        abs(ca_trend) < 0.003,
+        f"No radial chromatic aberration (trend={ca_trend:.5f}), inconsistent with optics",
+        f"Radial chromatic aberration present (trend={ca_trend:.5f}), consistent with lens",
+    )
 
     # --- Signal 20: Demosaicing traces (lossless only) ---
     if codec_class == "lossless":
         dem_peaks = features.get("demosaic_peak_count", 8.0)
         dem_strength = features.get("demosaic_peak_strength", 100.0)
-        _add("demosaicing_traces", 2.0, dem_peaks < 3 and dem_strength < 25,
-             f"No Bayer demosaicing traces ({dem_peaks:.0f} peaks), not from camera sensor",
-             f"Bayer demosaicing traces present ({dem_peaks:.0f} peaks), consistent with sensor")
+        _add(
+            "demosaicing_traces",
+            2.0,
+            dem_peaks < 3 and dem_strength < 25,
+            f"No Bayer demosaicing traces ({dem_peaks:.0f} peaks), not from camera sensor",
+            f"Bayer demosaicing traces present ({dem_peaks:.0f} peaks), consistent with sensor",
+        )
 
     # --- Signal 21: Saturation-luminance anomaly ---
     # Real camera photos show ratios of 0.5-1.5 due to lens flare, white balance,
@@ -2247,16 +2464,24 @@ def _heuristic_score(
     # Real camera photos (including older cameras, Google Photos recompression)
     # show ratios of 0.5-1.6. Only flag > 2.0 for genuine AI artefacts.
     sat_ratio = features.get("sat_lum_extreme_ratio", 0.2)
-    _add("sat_lum_anomaly", 1.5, sat_ratio > 2.0,
-         f"Anomalous saturation in extremes (ratio={sat_ratio:.3f}), violates colour physics",
-         f"Normal saturation-luminance curve (ratio={sat_ratio:.3f})")
+    _add(
+        "sat_lum_anomaly",
+        1.5,
+        sat_ratio > 2.0,
+        f"Anomalous saturation in extremes (ratio={sat_ratio:.3f}), violates colour physics",
+        f"Normal saturation-luminance curve (ratio={sat_ratio:.3f})",
+    )
 
     # ── Scene complexity adaptation ────────────────────────────────────
     # Low-complexity scenes (fog, snow, overcast) naturally have uniform
     # texture and sharpness. Halve those signal weights to avoid FPs.
     scene_complexity = _compute_scene_complexity(features)
     if scene_complexity < 0.3:
-        scene_affected = {"texture_consistency", "patch_spectral_variance", "sharpness_consistency"}
+        scene_affected = {
+            "texture_consistency",
+            "patch_spectral_variance",
+            "sharpness_consistency",
+        }
         for s in signals:
             if s.name in scene_affected:
                 s.weight *= 0.5
@@ -2264,11 +2489,23 @@ def _heuristic_score(
     # ── Anti-correlation penalty ─────────────────────────────────────
     # When texture/sharpness signals trigger but noise/frequency signals
     # do NOT, this pattern indicates a scene characteristic, not AI.
-    texture_names = {"texture_consistency", "patch_spectral_variance", "sharpness_consistency"}
-    noise_freq_names = {"noise_residual", "noise_smoothed_kurtosis", "prnu_asymmetry",
-                        "noise_consistency", "frequency_energy", "spectral_decay"}
+    texture_names = {
+        "texture_consistency",
+        "patch_spectral_variance",
+        "sharpness_consistency",
+    }
+    noise_freq_names = {
+        "noise_residual",
+        "noise_smoothed_kurtosis",
+        "prnu_asymmetry",
+        "noise_consistency",
+        "frequency_energy",
+        "spectral_decay",
+    }
     texture_triggered = any(s.triggered for s in signals if s.name in texture_names)
-    noise_freq_triggered = any(s.triggered for s in signals if s.name in noise_freq_names)
+    noise_freq_triggered = any(
+        s.triggered for s in signals if s.name in noise_freq_names
+    )
 
     # Sigmoid activation: ratio of triggered weight → score via sigmoid
     total_weight = sum(s.weight for s in signals)
@@ -2301,7 +2538,9 @@ def _generate_spectrum_heatmap(grey: np.ndarray) -> str:
     mag_min = magnitude.min()
     mag_max = magnitude.max()
     if mag_max > mag_min:
-        normalised = ((magnitude - mag_min) / (mag_max - mag_min) * 255).astype(np.uint8)
+        normalised = ((magnitude - mag_min) / (mag_max - mag_min) * 255).astype(
+            np.uint8
+        )
     else:
         normalised = np.zeros_like(magnitude, dtype=np.uint8)
 

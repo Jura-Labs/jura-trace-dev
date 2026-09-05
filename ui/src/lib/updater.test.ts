@@ -9,7 +9,17 @@
  * Run with: cd ui && npm test
  */
 import { describe, expect, it, vi } from 'vitest';
-import { checkForUpdate, classifyError, type UpdateStatus, type UpdaterDeps } from './updater';
+import {
+  checkForUpdate,
+  classifyError,
+  makeStartupCheckDeps,
+  runStartupUpdateCheck,
+  shouldCheckNow,
+  STARTUP_CHECK_INTERVAL_MS,
+  type StartupCheckDeps,
+  type UpdateStatus,
+  type UpdaterDeps,
+} from './updater';
 
 // Minimal fake update object returned by the plugin.
 function makeFakeUpdate(
@@ -87,15 +97,43 @@ describe('checkForUpdate — up to date', () => {
     expect(transitions[transitions.length - 1]).toEqual({ state: 'up-to-date' });
   });
 
-  it('maps "404" in error message to up-to-date', async () => {
+  // This test previously asserted that a 404 maps to up-to-date, which
+  // certified the bug rather than catching it. A 404 means the manifest was
+  // never fetched, so the honest answer is that we do not know whether an
+  // update exists. Telling the user they are current is the one answer that
+  // is definitely wrong.
+  it('reports a 404 as an error, never as up-to-date', async () => {
     const deps = makeDeps({
       checkPlugin: vi.fn(async () => {
         throw new Error('Request failed with status 404');
       }),
     });
     const transitions = await run(deps);
+    const final = transitions[transitions.length - 1];
 
-    expect(transitions[transitions.length - 1]).toEqual({ state: 'up-to-date' });
+    expect(final.state).toBe('error');
+    expect(final).not.toEqual({ state: 'up-to-date' });
+    if (final.state === 'error') {
+      expect(final.message).toMatch(/could not reach the update service/i);
+    }
+  });
+
+  // The declared fallback endpoint returns 404 in production, and the
+  // manifest itself was broken for eleven weeks. Both surface here.
+  it('reports an unreachable update service as an error', async () => {
+    for (const raw of [
+      'Could not fetch a valid release JSON from the remote',
+      'Failed to fetch',
+      'Network request failed',
+    ]) {
+      const deps = makeDeps({
+        checkPlugin: vi.fn(async () => {
+          throw new Error(raw);
+        }),
+      });
+      const transitions = await run(deps);
+      expect(transitions[transitions.length - 1].state).toBe('error');
+    }
   });
 });
 
@@ -215,7 +253,7 @@ describe('classifyError — channel-unavailable normalisation', () => {
     const last = transitions[transitions.length - 1];
     expect(last.state).toBe('error');
     if (last.state === 'error') {
-      expect(last.message).toContain('Update channel temporarily unavailable');
+      expect(last.message).toContain('Could not reach the update service');
       expect(last.message).toContain('juralabs.org/download.');
       expect(last.message).not.toContain('JSON');
     }
@@ -225,7 +263,7 @@ describe('classifyError — channel-unavailable normalisation', () => {
     const result = classifyError('Failed to fetch');
     expect(result.state).toBe('error');
     if (result.state === 'error') {
-      expect(result.message).toContain('Update channel temporarily unavailable');
+      expect(result.message).toContain('Could not reach the update service');
     }
   });
 
@@ -233,13 +271,16 @@ describe('classifyError — channel-unavailable normalisation', () => {
     const result = classifyError('Network request failed: connection reset');
     expect(result.state).toBe('error');
     if (result.state === 'error') {
-      expect(result.message).toContain('Update channel temporarily unavailable');
+      expect(result.message).toContain('Could not reach the update service');
     }
   });
 
-  it('preserves "404" and "No updates available" up-to-date mapping', () => {
-    expect(classifyError('Request failed with status 404').state).toBe('up-to-date');
+  it('maps only "No updates available" to up-to-date, never a 404', () => {
+    // "No updates available" is the plugin telling us it fetched a manifest
+    // and compared versions. A 404 is the manifest never arriving. Only the
+    // first is evidence that the user is current.
     expect(classifyError('No updates available from endpoint').state).toBe('up-to-date');
+    expect(classifyError('Request failed with status 404').state).toBe('error');
   });
 
   it('falls through to raw error for unknown messages', () => {
@@ -272,5 +313,154 @@ describe('checkForUpdate — copy contract', () => {
       // No emoji
       expect(errorState.message).not.toMatch(/[^\x00-\x7F]/);
     }
+  });
+});
+
+// ── Automatic startup check (T1.2) ─────────────────────────────────────────
+
+function makeStartupDeps(over: Partial<StartupCheckDeps> = {}): StartupCheckDeps {
+  return {
+    isTauri: () => true,
+    getNetworkMode: async () => 'enhanced',
+    checkPlugin: async () => null,
+    now: () => 1_000_000_000,
+    readLastCheck: () => null,
+    writeLastCheck: () => {},
+    ...over,
+  };
+}
+
+describe('shouldCheckNow', () => {
+  it('allows a check when there is no recorded previous check', () => {
+    expect(shouldCheckNow(1000, null)).toBe(true);
+  });
+
+  it('allows a check when the recorded value is not a finite number', () => {
+    expect(shouldCheckNow(1000, NaN)).toBe(true);
+  });
+
+  it('blocks a check inside the interval', () => {
+    const now = 1_000_000_000;
+    expect(shouldCheckNow(now, now - 60_000)).toBe(false);
+  });
+
+  it('allows a check exactly on the interval boundary', () => {
+    const now = 1_000_000_000;
+    expect(shouldCheckNow(now, now - STARTUP_CHECK_INTERVAL_MS)).toBe(true);
+  });
+
+  it('treats a future timestamp as stale rather than blocking indefinitely', () => {
+    const now = 1_000_000_000;
+    // A clock change must not lock the user out of update checks until the
+    // real time catches up with the bogus stored value.
+    expect(shouldCheckNow(now, now + STARTUP_CHECK_INTERVAL_MS * 10)).toBe(true);
+  });
+});
+
+describe('runStartupUpdateCheck', () => {
+  it('skips outside the desktop app', async () => {
+    const checkPlugin = vi.fn();
+    const r = await runStartupUpdateCheck(makeStartupDeps({ isTauri: () => false, checkPlugin }));
+    expect(r).toEqual({ kind: 'skipped', reason: 'not-desktop' });
+    expect(checkPlugin).not.toHaveBeenCalled();
+  });
+
+  it('makes NO outbound call in Standard (offline) mode', async () => {
+    const checkPlugin = vi.fn();
+    const r = await runStartupUpdateCheck(
+      makeStartupDeps({ getNetworkMode: async () => 'standard', checkPlugin }),
+    );
+    expect(r).toEqual({ kind: 'skipped', reason: 'offline-mode' });
+    // The point of the gate: a user who chose local-only operation gets no
+    // silent network traffic at launch.
+    expect(checkPlugin).not.toHaveBeenCalled();
+  });
+
+  it('skips when a check already ran inside the interval', async () => {
+    const checkPlugin = vi.fn();
+    const now = 1_000_000_000;
+    const r = await runStartupUpdateCheck(
+      makeStartupDeps({ now: () => now, readLastCheck: () => now - 1000, checkPlugin }),
+    );
+    expect(r).toEqual({ kind: 'skipped', reason: 'throttled' });
+    expect(checkPlugin).not.toHaveBeenCalled();
+  });
+
+  it('reports an available update with its version', async () => {
+    const r = await runStartupUpdateCheck(
+      makeStartupDeps({ checkPlugin: async () => ({ version: '1.1.0' }) }),
+    );
+    expect(r).toEqual({ kind: 'available', version: '1.1.0' });
+  });
+
+  it('reports up-to-date when the plugin returns no update', async () => {
+    const r = await runStartupUpdateCheck(makeStartupDeps({ checkPlugin: async () => null }));
+    expect(r).toEqual({ kind: 'up-to-date' });
+  });
+
+  it('records the check timestamp only after the request completes', async () => {
+    const writeLastCheck = vi.fn();
+    const now = 42;
+    await runStartupUpdateCheck(
+      makeStartupDeps({ now: () => now, writeLastCheck, checkPlugin: async () => null }),
+    );
+    expect(writeLastCheck).toHaveBeenCalledWith(now);
+  });
+
+  it('does NOT record a timestamp when the check fails, so it retries next launch', async () => {
+    const writeLastCheck = vi.fn();
+    const r = await runStartupUpdateCheck(
+      makeStartupDeps({
+        writeLastCheck,
+        checkPlugin: async () => {
+          throw new Error('Network request failed');
+        },
+      }),
+    );
+    expect(r.kind).toBe('failed');
+    expect(writeLastCheck).not.toHaveBeenCalled();
+  });
+
+  it('reports a 404 as a failure, never as up-to-date', async () => {
+    const r = await runStartupUpdateCheck(
+      makeStartupDeps({
+        checkPlugin: async () => {
+          throw new Error('Request failed with status 404');
+        },
+      }),
+    );
+    // The whole point of BL-REL-002's fourth fault: a missing manifest is not
+    // evidence that the user is current.
+    expect(r.kind).toBe('failed');
+  });
+
+  it('treats the plugin’s explicit no-update error as up-to-date', async () => {
+    const r = await runStartupUpdateCheck(
+      makeStartupDeps({
+        checkPlugin: async () => {
+          throw new Error('No updates available');
+        },
+      }),
+    );
+    expect(r).toEqual({ kind: 'up-to-date' });
+  });
+
+  it('cannot install: the dependency interface exposes no way to do so', async () => {
+    // Structural guarantee rather than a behavioural one. StartupCheckDeps
+    // has no `backup` and the object returned by checkPlugin carries only a
+    // version, so there is no downloadAndInstall to call even by mistake.
+    const update = await makeStartupDeps({
+      checkPlugin: async () => ({ version: '1.1.0' }),
+    }).checkPlugin();
+    expect(update).not.toBeNull();
+    expect(Object.keys(update ?? {})).toEqual(['version']);
+    expect('downloadAndInstall' in (update ?? {})).toBe(false);
+
+    const deps = makeStartupDeps();
+    expect('backup' in deps).toBe(false);
+  });
+
+  it('exports a real dependency factory', () => {
+    expect(typeof makeStartupCheckDeps).toBe('function');
   });
 });

@@ -29,10 +29,10 @@ def test_pillow_heif_register_opener_succeeds():
 
     from PIL import Image
 
-    assert "HEIF" in Image.registered_extensions().get(".heic", "HEIF") or \
-        ".heic" in Image.registered_extensions(), (
-            "pillow-heif did not register the .heic extension with PIL"
-        )
+    assert (
+        "HEIF" in Image.registered_extensions().get(".heic", "HEIF")
+        or ".heic" in Image.registered_extensions()
+    ), "pillow-heif did not register the .heic extension with PIL"
 
 
 @pytest.mark.asyncio
@@ -53,6 +53,7 @@ async def test_lifespan_logs_critical_when_pillow_heif_missing(
     monkeypatch.setattr(builtins, "__import__", fake_import)
 
     import main as sidecar_main
+
     importlib.reload(sidecar_main)
 
     caplog.set_level(logging.CRITICAL, logger=sidecar_main.logger.name)
@@ -61,7 +62,8 @@ async def test_lifespan_logs_critical_when_pillow_heif_missing(
         pass
 
     critical_messages = [
-        r.message for r in caplog.records
+        r.message
+        for r in caplog.records
         if r.levelno == logging.CRITICAL and "pillow-heif" in r.message
     ]
     assert critical_messages, (

@@ -176,7 +176,13 @@ class TestClipDetectorWithModel:
         from app.services.clip_detector import perform_clip_detection
 
         result = perform_clip_detection(_make_noisy_photo())
-        expected_keys = {"photograph", "real_scene", "ai_generated", "synthetic", "manipulated"}
+        expected_keys = {
+            "photograph",
+            "real_scene",
+            "ai_generated",
+            "synthetic",
+            "manipulated",
+        }
         assert set(result.class_probabilities.keys()) == expected_keys
 
     def test_class_probabilities_sum_near_one(self):
@@ -223,7 +229,10 @@ class TestClipDetectorWithModel:
 
         result = perform_clip_detection(_make_noisy_photo())
         assert result.verdict_thresholds is not None
-        assert result.verdict_thresholds.synthetic_min > result.verdict_thresholds.authentic_max
+        assert (
+            result.verdict_thresholds.synthetic_min
+            > result.verdict_thresholds.authentic_max
+        )
         assert result.verdict_thresholds.model_version.startswith("univfd-probe-")
         # Threshold basis must reference the AUC figure for the trained probe.
         assert "AUC" in result.verdict_thresholds.threshold_basis

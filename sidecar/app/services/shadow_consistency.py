@@ -52,9 +52,7 @@ def perform_shadow_consistency(image_bytes: bytes) -> dict:
 
     # Segment into foreground components using Otsu threshold
     grey_u8 = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, binary = cv2.threshold(
-        grey_u8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
-    )
+    _, binary = cv2.threshold(grey_u8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
     # Find connected components
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
@@ -90,24 +88,24 @@ def perform_shadow_consistency(image_bytes: bytes) -> dict:
 
         inconsistent = deviation > 80.0
 
-        regions.append({
-            "x": x,
-            "y": y,
-            "width": rw,
-            "height": rh,
-            "area": int(area),
-            "gradient_angle_mean": round(region_direction, 2),
-            "deviation_from_global": round(deviation, 2),
-            "inconsistent": inconsistent,
-        })
+        regions.append(
+            {
+                "x": x,
+                "y": y,
+                "width": rw,
+                "height": rh,
+                "area": int(area),
+                "gradient_angle_mean": round(region_direction, 2),
+                "deviation_from_global": round(deviation, 2),
+                "inconsistent": inconsistent,
+            }
+        )
 
     inconsistent_count = sum(1 for r in regions if r["inconsistent"])
     total = len(regions)
 
     if total < 3:
-        return _neutral_result(
-            "Insufficient foreground components for shadow analysis"
-        )
+        return _neutral_result("Insufficient foreground components for shadow analysis")
 
     score = (
         min(inconsistent_count / max(total, 1) * 0.6, 1.0)
@@ -142,9 +140,7 @@ def perform_shadow_consistency(image_bytes: bytes) -> dict:
     }
 
 
-def _weighted_circular_mean(
-    angles: np.ndarray, weights: np.ndarray
-) -> float:
+def _weighted_circular_mean(angles: np.ndarray, weights: np.ndarray) -> float:
     """Compute magnitude-weighted circular mean of angles in degrees."""
     rad = np.radians(angles)
     w = weights / (np.sum(weights) + 1e-10)
@@ -166,9 +162,9 @@ def _generate_shadow_heatmap(
     # Normalise angle to 0-180 for HSV hue
     hue = ((angle + 180) / 360 * 179).astype(np.uint8)
     sat = np.full_like(hue, 255)
-    val = np.clip(
-        magnitude / (np.max(magnitude) + 1e-10) * 255, 0, 255
-    ).astype(np.uint8)
+    val = np.clip(magnitude / (np.max(magnitude) + 1e-10) * 255, 0, 255).astype(
+        np.uint8
+    )
 
     hsv = np.stack([hue, sat, val], axis=-1)
     bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)

@@ -16,6 +16,7 @@ def _make_jpeg(size: tuple[int, int] = (128, 128)) -> bytes:
     img = Image.new("RGB", size, (100, 150, 200))
     # Add some variation so noise is non-trivial
     from PIL import ImageDraw
+
     draw = ImageDraw.Draw(img)
     draw.rectangle([20, 20, 60, 60], fill=(255, 0, 0))
     draw.rectangle([70, 70, 110, 110], fill=(0, 0, 255))
@@ -50,7 +51,9 @@ class TestPerformNoiseVisualisation:
     def test_variance_heatmap_is_valid_png(self):
         """Variance heatmap should be a decodable PNG image."""
         result = perform_noise_visualisation(_make_jpeg())
-        img = Image.open(io.BytesIO(base64.b64decode(result["variance_heatmap_base64"])))
+        img = Image.open(
+            io.BytesIO(base64.b64decode(result["variance_heatmap_base64"]))
+        )
         assert img.format == "PNG"
 
     def test_noise_std_is_non_negative_float(self):

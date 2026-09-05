@@ -140,6 +140,7 @@ def _build_methodology(model: str) -> str:
         )
     return _METHODOLOGY_NO_KB
 
+
 # ── Claim splitting ───────────────────────────────────────────────────────────
 
 
@@ -253,7 +254,7 @@ def _parse_verdict(raw: str) -> tuple[str, str, float]:
     # Strip markdown fence delimiters (``` lines) but keep the content inside.
     # Some models wrap their response in a code block; we want the text within.
     cleaned = re.sub(r"^```[^\n]*\n?", "", raw.strip())  # opening fence
-    cleaned = re.sub(r"\n?```$", "", cleaned)             # closing fence
+    cleaned = re.sub(r"\n?```$", "", cleaned)  # closing fence
     cleaned = re.sub(r"^[:\s]+", "", cleaned).strip()
 
     # Accept both new and legacy tokens. New vocabulary first so it wins on
@@ -288,9 +289,7 @@ def _parse_verdict(raw: str) -> tuple[str, str, float]:
         explanation = explanation[:297] + "..."
 
     if not explanation:
-        explanation = (
-            f"Model returned {raw_token} without further explanation."
-        )
+        explanation = f"Model returned {raw_token} without further explanation."
 
     if status in (CONSISTENT, INCONSISTENT):
         confidence = 0.75 if len(explanation) >= 20 else 0.55
@@ -386,9 +385,7 @@ def _build_summary(overall: str, claims: list[ClaimVerdict]) -> str:
         ),
     }
     base = overall_labels.get(overall, f"Overall status: {overall}.")
-    return (
-        f"Analysed {n} claim{'s' if n != 1 else ''}. {count_str}. {base}"
-    )
+    return f"Analysed {n} claim{'s' if n != 1 else ''}. {count_str}. {base}"
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -499,9 +496,7 @@ async def check_claims(
         # outputs and defamation exposure. See the model card at
         # /help/model-cards#kb-retrieval.
         if not passages:
-            logger.debug(
-                "No knowledge base passages retrieved for claim: %.80s", claim
-            )
+            logger.debug("No knowledge base passages retrieved for claim: %.80s", claim)
             assessed.append(
                 ClaimVerdict(
                     claim=claim,

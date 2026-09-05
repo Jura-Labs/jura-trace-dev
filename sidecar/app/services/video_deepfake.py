@@ -16,7 +16,6 @@ import numpy as np
 from PIL import Image
 
 from app.models.schemas import (
-    DeepfakeSignal,
     FrameDeepfakeResult,
     VideoDeepfakeResponse,
 )
@@ -118,7 +117,10 @@ def deduplicate_frames(
 
     logger.debug(
         "Frame deduplication: %d -> %d frames (buffer_size=%d, threshold=%.2f)",
-        len(frames_b64), len(kept_b64), buffer_size, threshold,
+        len(frames_b64),
+        len(kept_b64),
+        buffer_size,
+        threshold,
     )
     return kept_b64
 
@@ -146,7 +148,9 @@ def _make_frame_thumbnail(jpeg_bytes: bytes) -> str | None:
                     (FRAME_THUMBNAIL_WIDTH_PX, new_h), Image.Resampling.LANCZOS
                 )
             buf = io.BytesIO()
-            img.save(buf, format="JPEG", quality=FRAME_THUMBNAIL_JPEG_QUALITY, optimize=True)
+            img.save(
+                buf, format="JPEG", quality=FRAME_THUMBNAIL_JPEG_QUALITY, optimize=True
+            )
             return base64.b64encode(buf.getvalue()).decode("ascii")
     except Exception as exc:
         logger.debug("Frame thumbnail generation failed: %s", exc)
@@ -203,7 +207,8 @@ def perform_video_deepfake_analysis(
     if len(deduped_frames) < len(raw_frames):
         logger.info(
             "Deduplicated %d -> %d frames",
-            len(raw_frames), len(deduped_frames),
+            len(raw_frames),
+            len(deduped_frames),
         )
 
     # Step 2: Run deepfake detection on each frame
@@ -216,7 +221,8 @@ def perform_video_deepfake_analysis(
         try:
             frame_bytes = base64.b64decode(frame_b64)
             response, features = perform_deepfake_detection_with_features(
-                frame_bytes, mime_type="image/jpeg",
+                frame_bytes,
+                mime_type="image/jpeg",
             )
             # Compute approximate timestamp
             timestamp = duration * (i + 1) / (num_frames + 1) if duration > 0 else 0.0
@@ -226,30 +232,34 @@ def perform_video_deepfake_analysis(
             # string so the v2 UI renders the "F{n}" text label.
             thumbnail_b64 = _make_frame_thumbnail(frame_bytes) or ""
 
-            frame_results.append(FrameDeepfakeResult(
-                frame_index=i,
-                timestamp=round(timestamp, 2),
-                score=response.score,
-                suspicious=response.suspicious,
-                verdict_level=response.verdict_level,
-                signals=response.signals,
-                classifier_score=response.classifier_score,
-                classifier_available=response.classifier_available,
-                heatmap_base64="",  # Omit per-frame heatmaps to reduce payload
-                frame_image_base64=thumbnail_b64,
-            ))
+            frame_results.append(
+                FrameDeepfakeResult(
+                    frame_index=i,
+                    timestamp=round(timestamp, 2),
+                    score=response.score,
+                    suspicious=response.suspicious,
+                    verdict_level=response.verdict_level,
+                    signals=response.signals,
+                    classifier_score=response.classifier_score,
+                    classifier_available=response.classifier_available,
+                    heatmap_base64="",  # Omit per-frame heatmaps to reduce payload
+                    frame_image_base64=thumbnail_b64,
+                )
+            )
             feature_dicts.append(features)
         except Exception as exc:
             logger.warning("Frame %d deepfake analysis failed: %s", i, exc)
             # Include a failed frame result with neutral score
-            frame_results.append(FrameDeepfakeResult(
-                frame_index=i,
-                timestamp=0.0,
-                score=0.5,
-                suspicious=False,
-                verdict_level="inconclusive",
-                signals=[],
-            ))
+            frame_results.append(
+                FrameDeepfakeResult(
+                    frame_index=i,
+                    timestamp=0.0,
+                    score=0.5,
+                    suspicious=False,
+                    verdict_level="inconclusive",
+                    signals=[],
+                )
+            )
 
     if not frame_results:
         return VideoDeepfakeResponse(
@@ -280,7 +290,8 @@ def perform_video_deepfake_analysis(
 
         # Temporal inconsistency score: mean of normalised drifts
         drifts = [
-            d for d in [temporal_noise_drift, temporal_spectral_drift, temporal_lbp_drift]
+            d
+            for d in [temporal_noise_drift, temporal_spectral_drift, temporal_lbp_drift]
             if d is not None
         ]
         temporal_score = float(np.mean(drifts)) if drifts else 0.0
@@ -328,9 +339,15 @@ def perform_video_deepfake_analysis(
         frames_analysed=len(frame_results),
         frames_requested=count,
         temporal_available=temporal_available,
-        temporal_noise_drift=round(temporal_noise_drift, 4) if temporal_noise_drift is not None else None,
-        temporal_spectral_drift=round(temporal_spectral_drift, 4) if temporal_spectral_drift is not None else None,
-        temporal_lbp_drift=round(temporal_lbp_drift, 4) if temporal_lbp_drift is not None else None,
+        temporal_noise_drift=round(temporal_noise_drift, 4)
+        if temporal_noise_drift is not None
+        else None,
+        temporal_spectral_drift=round(temporal_spectral_drift, 4)
+        if temporal_spectral_drift is not None
+        else None,
+        temporal_lbp_drift=round(temporal_lbp_drift, 4)
+        if temporal_lbp_drift is not None
+        else None,
         mode=mode,
         duration=duration,
         success=True,
@@ -351,7 +368,9 @@ def _compute_drift(
     values = []
     for fd in feature_dicts:
         v = fd.get(key)
-        if v is not None and not (isinstance(v, float) and (np.isnan(v) or np.isinf(v))):
+        if v is not None and not (
+            isinstance(v, float) and (np.isnan(v) or np.isinf(v))
+        ):
             values.append(v)
 
     if len(values) < 2:

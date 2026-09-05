@@ -2,11 +2,6 @@
 
 """Tests for the audio metadata extraction service."""
 
-import pytest
-
-# JTV-138 (2026-05-02) — FFprobe audio metadata dropped from v1.0.
-pytestmark = pytest.mark.skip(reason="JTV-138 v1.0 drop — re-enable under JTV-139")
-
 import shutil
 import subprocess
 from unittest.mock import patch
@@ -15,6 +10,9 @@ import pytest
 
 from app.services.audio_metadata import perform_audio_metadata
 
+# JTV-138 (2026-05-02) — FFprobe audio metadata dropped from v1.0.
+pytestmark = pytest.mark.skip(reason="JTV-138 v1.0 drop — re-enable under JTV-139")
+
 HAS_FFMPEG = shutil.which("ffprobe") is not None
 
 
@@ -22,10 +20,19 @@ def _make_test_audio() -> bytes:
     """Create a minimal test audio file using ffmpeg (1s sine wave)."""
     result = subprocess.run(
         [
-            "ffmpeg", "-y", "-f", "lavfi", "-i",
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
             "sine=frequency=440:duration=1",
-            "-c:a", "libmp3lame", "-b:a", "128k",
-            "-f", "mp3", "pipe:1",
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "128k",
+            "-f",
+            "mp3",
+            "pipe:1",
         ],
         capture_output=True,
         timeout=30,

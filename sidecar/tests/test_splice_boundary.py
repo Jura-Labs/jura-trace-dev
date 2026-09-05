@@ -6,7 +6,6 @@ import io
 
 import cv2
 import numpy as np
-import pytest
 from PIL import Image
 
 from app.services.splice_boundary import (
@@ -39,9 +38,7 @@ def _make_sharp_insert_jpeg() -> bytes:
     insert = np.full((80, 80, 3), [30, 200, 30], dtype=np.uint8)
     # Add noise to the insert at a different level
     noise = np.random.randint(-20, 20, insert.shape, dtype=np.int16)
-    insert = np.clip(insert.astype(np.int16) + noise, 0, 255).astype(
-        np.uint8
-    )
+    insert = np.clip(insert.astype(np.int16) + noise, 0, 255).astype(np.uint8)
 
     # Paste at a grid-aligned position (multiple of 8)
     bg[64:144, 64:144] = insert
@@ -83,22 +80,44 @@ class TestSpliceBoundary:
         """Test the JPEG grid alignment helper."""
         # Create a contour aligned with 8x8 grid
         # Points at x=0,8,16,24 and y=0,8,16,24
-        aligned_points = np.array([
-            [[0, 0]], [[8, 0]], [[16, 0]], [[24, 0]],
-            [[24, 8]], [[24, 16]], [[24, 24]],
-            [[16, 24]], [[8, 24]], [[0, 24]],
-            [[0, 16]], [[0, 8]],
-        ], dtype=np.int32)
+        aligned_points = np.array(
+            [
+                [[0, 0]],
+                [[8, 0]],
+                [[16, 0]],
+                [[24, 0]],
+                [[24, 8]],
+                [[24, 16]],
+                [[24, 24]],
+                [[16, 24]],
+                [[8, 24]],
+                [[0, 24]],
+                [[0, 16]],
+                [[0, 8]],
+            ],
+            dtype=np.int32,
+        )
         assert _check_jpeg_grid_alignment(aligned_points)
 
         # Create a contour NOT aligned with grid
         # Points at odd positions
-        unaligned_points = np.array([
-            [[3, 5]], [[11, 5]], [[19, 5]], [[27, 5]],
-            [[27, 13]], [[27, 21]], [[27, 29]],
-            [[19, 29]], [[11, 29]], [[3, 29]],
-            [[3, 21]], [[3, 13]],
-        ], dtype=np.int32)
+        unaligned_points = np.array(
+            [
+                [[3, 5]],
+                [[11, 5]],
+                [[19, 5]],
+                [[27, 5]],
+                [[27, 13]],
+                [[27, 21]],
+                [[27, 29]],
+                [[19, 29]],
+                [[11, 29]],
+                [[3, 29]],
+                [[3, 21]],
+                [[3, 13]],
+            ],
+            dtype=np.int32,
+        )
         assert not _check_jpeg_grid_alignment(unaligned_points)
 
     def test_noise_asymmetry_check(self):
@@ -112,9 +131,7 @@ class TestSpliceBoundary:
         img[:, 128:] = np.random.randint(50, 200, (256, 128), dtype=np.uint8)
 
         # Vertical contour at x=128
-        contour = np.array([
-            [[128, y]] for y in range(20, 236)
-        ], dtype=np.int32)
+        contour = np.array([[[128, y]] for y in range(20, 236)], dtype=np.int32)
 
         result = _check_noise_asymmetry(img, contour, 256, 256)
         assert isinstance(result, bool)

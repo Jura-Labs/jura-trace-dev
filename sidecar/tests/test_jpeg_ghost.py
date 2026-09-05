@@ -29,7 +29,9 @@ def _make_noisy_photo(size: tuple[int, int] = (256, 256)) -> bytes:
     return buf.getvalue()
 
 
-def _make_jpeg_at_quality(size: tuple[int, int] = (256, 256), quality: int = 85) -> bytes:
+def _make_jpeg_at_quality(
+    size: tuple[int, int] = (256, 256), quality: int = 85
+) -> bytes:
     """Create a noisy image, save as JPEG at a specific quality, return JPEG bytes."""
     rng = np.random.default_rng(99)
     arr = rng.integers(30, 220, (*size[::-1], 3), dtype=np.uint8)

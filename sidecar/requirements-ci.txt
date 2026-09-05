@@ -20,17 +20,17 @@
 # All excluded packages are lazy-loaded at runtime and degrade gracefully.
 # Transitive dependencies are pinned explicitly to prevent version drift
 # from breaking the frozen PyInstaller binary.
-fastapi==0.115.12
+fastapi==0.141.1
 uvicorn[standard]==0.34.0
 httpx==0.28.1
-pydantic-settings==2.13.1
-python-multipart==0.0.20
-starlette==0.46.2
+pydantic-settings==2.15.0
+python-multipart==0.0.32
+starlette==1.6.0
 h11==0.16.0
 anyio==4.12.1
 sniffio==1.3.1
 certifi==2026.2.25
-Pillow==11.2.1
+Pillow==12.3.0
 imagehash==4.3.2
 numpy==2.2.4
 opencv-python-headless==4.11.0.86
@@ -41,10 +41,10 @@ scipy==1.17.1
 # for rationale. Watermark feature gated behind V1_SHOW_WATERMARK=false in
 # frontend; backend code stays in tree for v1.1 unhide. Library remains in
 # requirements.txt for dev testing.
-pillow-heif==1.2.0
+pillow-heif==1.6.0
 # AVIF support added rc.31 (2026-06-09) — see requirements.txt for rationale.
 pillow-avif-plugin==1.5.5
-python-dotenv==1.1.0
+python-dotenv==1.2.3
 pydantic==2.11.3
 # ONNX runtime — required for CLIP/UnivFD AI detection (JTV-143, 3 May 2026).
 # Without this pin the sidecar binary has no onnxruntime and clip_detect is

@@ -34,8 +34,14 @@ def perform_video_metadata(video_bytes: bytes) -> VideoMetadataResponse:
 
         result = subprocess.run(
             [
-                "ffprobe", "-v", "quiet", "-print_format", "json",
-                "-show_format", "-show_streams", tmp_path,
+                "ffprobe",
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
+                "-show_format",
+                "-show_streams",
+                tmp_path,
             ],
             capture_output=True,
             text=True,
@@ -74,7 +80,9 @@ def perform_video_metadata(video_bytes: bytes) -> VideoMetadataResponse:
             codec=codec,
             width=width,
             height=height,
-            fps=_parse_fps(video_stream.get("r_frame_rate", "0/1")) if video_stream else None,
+            fps=_parse_fps(video_stream.get("r_frame_rate", "0/1"))
+            if video_stream
+            else None,
             has_audio=audio_stream is not None,
             audio_codec=audio_stream.get("codec_name") if audio_stream else None,
             bitrate=int(fmt["bit_rate"]) if fmt.get("bit_rate") else None,

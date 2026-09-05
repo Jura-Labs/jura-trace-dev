@@ -193,9 +193,7 @@ app.middleware("http")(verify_api_key)
 
 app.include_router(health.router, tags=["health"])
 app.include_router(forensics.router, prefix="/forensics", tags=["forensics"])
-app.include_router(
-    content_type.router, prefix="/forensics", tags=["content-type"]
-)
+app.include_router(content_type.router, prefix="/forensics", tags=["content-type"])
 # Ollama proxy — unauthenticated (called during setup wizard before API keys exist).
 # The auth middleware already exempts paths that don't start with /forensics, so
 # no special exemption is needed here.

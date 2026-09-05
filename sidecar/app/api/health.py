@@ -19,8 +19,6 @@ Two endpoints are provided:
   v1.0.x re-add (JTV-139).
 """
 
-import shutil
-
 import httpx
 from fastapi import APIRouter, Request, Response
 
@@ -82,25 +80,39 @@ async def health(request: Request) -> HealthResponse:
     # claims card and the REST API does not advertise the feature.
     rag_available = False
 
-    # FFmpeg availability gates the (currently disabled) video/audio paths.
-    # JTV-138 (2026-05-02): the Rust pipeline gates the video/audio sidecar
-    # parallel groups to false, so even when ffprobe is on PATH these
-    # endpoints are unreachable for v1.0. The capability is still reported
-    # truthfully (does ffprobe exist on this machine?) so the frontend's
-    # Setup Wizard / Settings UX can preview readiness for v1.0.x re-add.
-    ffmpeg_available = shutil.which("ffprobe") is not None
+    # JTV-138 (2026-05-02): the Rust pipeline gates the video and audio
+    # sidecar groups off, so even where ffprobe is on PATH those endpoints
+    # are unreachable. video_metadata and audio_metadata below are therefore
+    # reported False unconditionally.
+    #
+    # There is NO ffmpeg capability on the wire. An `ffmpeg_available` probe
+    # was computed here and discarded, under a comment claiming the
+    # capability "is still reported truthfully" so the Setup Wizard could
+    # preview readiness. It never was: CapabilitiesResponse has no such
+    # field. The dead probe is removed rather than left to imply otherwise.
+    # Adding the field is a JTV-139 decision, since it changes the API
+    # contract and the frontend, and is not a lint fix.
 
     return HealthResponse(
         status="ok",
-        version="0.9.0",
+        # Read from the FastAPI app rather than a literal. This drifted once:
+        # main.py was bumped to 1.0.0 for the June release and this stayed at
+        # "0.9.0", so every shipped sidecar reported the wrong version to the
+        # desktop app, the REST API and the Setup Wizard.
+        version=request.app.version,
         service="jura-trace-sidecar",
         capabilities=CapabilitiesResponse(
-            ela=True, noise=True, copy_move=True, deepfake=True,
+            ela=True,
+            noise=True,
+            copy_move=True,
+            deepfake=True,
             # watermark deferred to v1.1 (V1_SHOW_WATERMARK=false in frontend).
             # invisible-watermark removed from CI bundle 2026-05-21 to keep
             # the JTV-184 onedir size envelope safe. Surface stays false so
             # callers (CLI, Tauri command, REST API) reflect the bundle state.
-            watermark=False, clip_detect=clip_available, rag=rag_available,
+            watermark=False,
+            clip_detect=clip_available,
+            rag=rag_available,
             # JTV-138 v1.0 drop — these stay False until JTV-139 re-add.
             video_metadata=False,
             audio_metadata=False,
