@@ -1697,6 +1697,50 @@ jobs:
       #
       # If this fails: upload the macOS DMG to the draft release, then re-run
       # this job. It is idempotent.
+      # Attach the manifest to the GitHub release, so the fallback endpoint
+      # declared in tauri.conf.json actually exists.
+      #
+      # tauri.conf.json lists two endpoints and tries them in order:
+      #   1. https://juralabs.org/api/updates/latest.json
+      #   2. https://github.com/.../releases/latest/download/latest.json
+      #
+      # Endpoint 2 returned 404 from launch until 6 September 2026, because no
+      # latest.json was ever attached to a release. There was no fallback,
+      # only the appearance of one.
+      #
+      # That became load-bearing when the installer test found endpoint 1
+      # returns 403 to datacentre clients: Cloudflare Bot Fight Mode is
+      # enabled zone-wide on juralabs.org. Anyone egressing through a
+      # corporate proxy, a SASE provider or a commercial VPN was blocked from
+      # the primary endpoint and had nothing to fall back to. For a product
+      # used by journalists on VPNs and institutions behind proxies, that is
+      # not a fringe population. See BL-REL-004.
+      #
+      # Uploaded BEFORE the completeness assertion below, deliberately. The
+      # release is still a draft here, so an incomplete manifest reaching the
+      # release asset is not yet reaching users, and the assertion still stops
+      # the publish. Uploading after it would mean a failed assertion leaves
+      # the fallback stale at the PREVIOUS release's manifest, which is the
+      # fail-open shape this file has been cleared of elsewhere.
+      - name: Attach the update manifest to the release
+        if: steps.manifest.outputs.wrote_manifest == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          RELEASE_TAG: ${{ needs.create-release.outputs.tag }}
+          MANIFEST_NAME: ${{ steps.manifest.outputs.manifest_name }}
+          MANIFEST_PATH: ${{ steps.manifest.outputs.manifest_path }}
+        run: |
+          set -euo pipefail
+          # gh names the asset after the file, and the runner-local path is a
+          # temp name, so copy to the canonical name first.
+          dest="$(dirname "$MANIFEST_PATH")/${MANIFEST_NAME}"
+          cp "$MANIFEST_PATH" "$dest"
+          gh release upload "$RELEASE_TAG" "$dest" \
+            --repo juralabs/jura-trace --clobber
+          echo "Attached ${MANIFEST_NAME} to ${RELEASE_TAG}."
+          echo "The fallback endpoint now resolves for clients that cannot reach juralabs.org."
+
       - name: Assert the manifest covers every platform before going live
         if: steps.manifest.outputs.wrote_manifest == 'true'
         shell: bash
