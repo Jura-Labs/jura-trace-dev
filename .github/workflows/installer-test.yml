@@ -254,3 +254,215 @@ jobs:
           path: artefacts/
           retention-days: 14
           if-no-files-found: warn
+
+  windows:
+    name: Windows (MSI + NSIS)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Resolve the tag under test
+        id: tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          tag="${INPUT_TAG:-${EVENT_TAG:-}}"
+          if [ -z "$tag" ]; then
+            tag=$(gh release view --repo Jura-Labs/jura-trace --json tagName --jq .tagName)
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download the Windows installers
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dl
+          for asset in "JuraTrace-${VERSION}-Windows-x64.msi" "JuraTrace-${VERSION}-Windows-x64-setup.exe"; do
+            if ! gh release download "$TAG" --repo Jura-Labs/jura-trace --pattern "$asset" --dir dl; then
+              echo "::error::$asset is not attached to $TAG."
+              gh release view "$TAG" --repo Jura-Labs/jura-trace --json assets --jq '.assets[].name' | sed 's/^/  /'
+              exit 1
+            fi
+          done
+          ls -lh dl/
+
+      # ── NSIS first, deliberately ──────────────────────────────────────────
+      # The order matters and is the whole point of the assertion below. A
+      # user who installed with the NSIS setup.exe is the one the updater can
+      # strand: it detects the downloaded artefact's format and runs the
+      # matching installer without checking how the app was installed.
+      - name: Install with the NSIS installer (/S)
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          $exe = "dl/JuraTrace-$env:VERSION-Windows-x64-setup.exe"
+          Write-Host "installing $exe silently"
+          $p = Start-Process -FilePath $exe -ArgumentList "/S" -Wait -PassThru
+          Write-Host "exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { throw "NSIS install failed with $($p.ExitCode)" }
+
+      - name: Record where NSIS installed it
+        id: nsis
+        shell: pwsh
+        run: |
+          $found = Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles","${env:ProgramFiles(x86)}" `
+            -Filter "*.exe" -Recurse -Depth 3 -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like "*ura*race*" -or $_.Name -eq "jura-trace.exe" } |
+            Select-Object -ExpandProperty FullName -Unique
+          if (-not $found) { throw "No installed executable found after the NSIS install." }
+          Write-Host "NSIS install location(s):"
+          $found | ForEach-Object { Write-Host "  $_" }
+          New-Item -ItemType Directory -Force -Path artefacts | Out-Null
+          $found | Set-Content artefacts/nsis-paths.txt
+          "paths<<EOF" >> $env:GITHUB_OUTPUT
+          $found -join "`n" >> $env:GITHUB_OUTPUT
+          "EOF" >> $env:GITHUB_OUTPUT
+
+      # ── Now the MSI, which is what the updater would serve ────────────────
+      - name: Install with the MSI (/qn), as an update would
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          $msi = Resolve-Path "dl/JuraTrace-$env:VERSION-Windows-x64.msi"
+          Write-Host "installing $msi silently"
+          $p = Start-Process msiexec.exe -ArgumentList "/i","`"$msi`"","/qn","/norestart","/l*v","artefacts\msi-install.log" -Wait -PassThru
+          Write-Host "exit code: $($p.ExitCode)"
+          # 0 = success, 3010 = success, reboot required
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "MSI install failed with $($p.ExitCode)" }
+
+      - name: Record install locations after the MSI
+        shell: pwsh
+        run: |
+          $after = Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles","${env:ProgramFiles(x86)}" `
+            -Filter "*.exe" -Recurse -Depth 3 -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like "*ura*race*" -or $_.Name -eq "jura-trace.exe" } |
+            Select-Object -ExpandProperty FullName -Unique
+          $after | Set-Content artefacts/after-msi-paths.txt
+          Write-Host "install location(s) after MSI:"
+          $after | ForEach-Object { Write-Host "  $_" }
+
+      - name: Launch the installed app and probe it
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          $exe = (Get-Content artefacts/after-msi-paths.txt | Select-Object -First 1)
+          Write-Host "launching $exe"
+          Start-Process -FilePath $exe
+          $health = $null
+          foreach ($i in 1..60) {
+            try {
+              $health = Invoke-RestMethod -Uri "http://127.0.0.1:8300/api/v1/health" -TimeoutSec 3
+              Write-Host "health responded after ~${i}s"
+              break
+            } catch { Start-Sleep -Seconds 1 }
+          }
+          if (-not $health) { throw "The installed app did not answer /api/v1/health within 60s." }
+          $health | ConvertTo-Json | Set-Content artefacts/health.json
+          Write-Host "status            : $($health.status)"
+          Write-Host "version (running) : $($health.version)"
+          Write-Host "sidecar available : $($health.sidecarAvailable)"
+          $core = $env:VERSION.Split("-")[0]
+          if ($health.status -ne "ok") { throw "health status is '$($health.status)', expected 'ok'." }
+          if ($health.version -ne $core) { throw "The running app reports '$($health.version)' but the tag is '$core'." }
+          Write-Host "OK: the installed app runs and agrees with the tag."
+
+      - name: Stop the app
+        if: always()
+        shell: pwsh
+        run: |
+          Get-Process | Where-Object { $_.ProcessName -like "*ura*race*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+          exit 0
+
+      # ── The assertion that is expected to fail ────────────────────────────
+      #
+      # BL-TEST-001, and Paul was explicit on 4 September: DO NOT SOFTEN THIS
+      # TO MAKE THE WORKFLOW GREEN.
+      #
+      # An MSI-offered update must not create a parallel install alongside an
+      # NSIS one. On current evidence it does, leaving the user's shortcuts
+      # pointing at the old per-user copy while a second per-machine copy sits
+      # elsewhere, updated and unused.
+      #
+      # It runs LAST on purpose. Everything above it — install, launch, health
+      # probe — still executes and reports, so this job keeps catching other
+      # faults while this one stands. It is deliberately NOT continue-on-error:
+      # that would leave the job green with a red step buried inside it, which
+      # is the softening this comment exists to forbid.
+      #
+      # A red job naming a real defect is the correct state, and is more useful
+      # than a green suite adjusted until it agrees with the bug. When the
+      # underlying problem is fixed, by dropping NSIS or by serving
+      # per-installer manifests, this turns green on its own and means
+      # something.
+      - name: An MSI-offered update must not create a parallel install
+        id: parallel
+        shell: pwsh
+        run: |
+          $before = Get-Content artefacts/nsis-paths.txt
+          $after  = Get-Content artefacts/after-msi-paths.txt
+          Write-Host "after NSIS  : $($before.Count) location(s)"
+          $before | ForEach-Object { Write-Host "  $_" }
+          Write-Host "after MSI   : $($after.Count) location(s)"
+          $after | ForEach-Object { Write-Host "  $_" }
+
+          $extra = $after | Where-Object { $before -notcontains $_ }
+          if ($extra) {
+            Write-Host "::error::The MSI created a parallel install. A user who installed with setup.exe keeps shortcuts pointing at the original copy, which the update did not touch."
+            $extra | ForEach-Object { Write-Host "::error::  parallel install at $_" }
+            Write-Host ""
+            Write-Host "This is EXPECTED to fail until the underlying problem is fixed."
+            Write-Host "See BL-TEST-001. Do not soften it to get a green run."
+            exit 1
+          }
+          Write-Host "OK: no parallel install. If this is the first pass, the underlying fix has landed."
+
+      - name: Summary
+        if: always()
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          PARALLEL: ${{ steps.parallel.outcome }}
+        run: |
+          {
+            echo "## Windows installer test — $TAG"
+            echo ""
+            echo "NSIS silent install, then an MSI install standing in for what the"
+            echo "updater would serve, then a health probe of the installed app."
+            echo ""
+            if [ "$PARALLEL" = "failure" ]; then
+              echo "**Parallel-install assertion: FAILED, and that is the expected result.**"
+              echo ""
+              echo "The MSI created an install alongside the NSIS one. A user who"
+              echo "installed with setup.exe and accepts an update keeps shortcuts"
+              echo "pointing at the original copy, while the updated copy sits"
+              echo "elsewhere, unused."
+              echo ""
+              echo "Do not soften this assertion. It turns green when the underlying"
+              echo "problem is fixed, and means something when it does. BL-TEST-001."
+            else
+              echo "**Parallel-install assertion: passed.** If this is the first pass,"
+              echo "the underlying fix has landed and BL-TEST-001 should record it."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artefacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-installer-test
+          path: artefacts/
+          retention-days: 14
+          if-no-files-found: warn
