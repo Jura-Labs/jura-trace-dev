@@ -36,7 +36,7 @@ jobs:
     env:
       RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # Resolve the release tag to a named step output so downstream jobs
       # (publish-release: SHA256SUMS + update manifest) get a non-empty tag.
@@ -156,7 +156,7 @@ jobs:
         #
         # Reads the body from a file via fs.readFileSync — bypasses the
         # GHA expression / env var escape pipeline that mangled rc.24.
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           RELEASE_BODY_FILE: ${{ steps.changelog.outputs.body_file }}
         with:
@@ -261,7 +261,7 @@ jobs:
     timeout-minutes: 120
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # ── Self-hosted macOS runner: writable tool cache ───────────────────
       # GHA's setup-* actions default to RUNNER_TOOL_CACHE=/Users/runner/hostedtoolcache,
@@ -370,7 +370,7 @@ jobs:
       # ── Rust toolchain ───────────────────────────────────────────────────
       # Pin to the same Rust version as rust-version in Cargo.toml (1.88).
       - name: Install Rust 1.88
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable @ 2026-09
         with:
           toolchain: "1.88"
           targets: ${{ matrix.target }}
@@ -382,7 +382,7 @@ jobs:
       # by the macOS-only step below that targets the isolated path.
       - name: Cache Cargo (cloud runners)
         if: runner.environment == 'github-hosted'
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/.cargo/bin/
@@ -395,7 +395,7 @@ jobs:
 
       - name: Cache Cargo (self-hosted macOS)
         if: runner.environment != 'github-hosted' && runner.os == 'macOS'
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/actions-runner/.cargo-home/bin/
@@ -419,7 +419,7 @@ jobs:
       # See `docs/development-workflow.md` for the runner setup contract.
       - name: Setup Python 3.12 (cloud runners only)
         if: runner.environment == 'github-hosted'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
 
@@ -445,7 +445,7 @@ jobs:
       # PyInstaller outputs depend on the Python bytecode and linked dylibs,
       # which can vary between runners — a stale cache causes silent breakage.
       - name: Cache pip
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/pip
           key: pip-pyinstaller-${{ matrix.target }}-${{ hashFiles('sidecar/requirements.lock') }}
@@ -669,7 +669,7 @@ jobs:
       # means the binary inside the installed app is trusted by Defender.
       - name: Sign sidecar binary with Azure Trusted Signing
         if: runner.os == 'Windows'
-        uses: azure/trusted-signing-action@v0.5.0
+        uses: azure/trusted-signing-action@07c81171dd46a04e1b9f382b6c693815828bbbf7 # v0.5.0
         with:
           azure-tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           azure-client-id:       ${{ secrets.AZURE_CLIENT_ID }}
@@ -690,7 +690,7 @@ jobs:
       # off to tauri-action. The beforeBuildCommand in tauri.conf.json
       # (`cd ui && npm run build`) handles the Vite build step at tauri build time.
       - name: Setup Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 20
           cache: npm
@@ -757,7 +757,7 @@ jobs:
       # notarisation step below.
       - name: Build release artefacts (macOS — sign .app only)
         if: matrix.target == 'aarch64-apple-darwin'
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_CERTIFICATE:          ${{ secrets.APPLE_CERTIFICATE }}
@@ -774,7 +774,7 @@ jobs:
       # ── Linux: unchanged single-shot tauri-action build ──────────────────
       - name: Build release artefacts (Linux)
         if: matrix.target == 'x86_64-unknown-linux-gnu'
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -1115,7 +1115,7 @@ jobs:
       # Signing and upload are handled by the two steps that follow.
       - name: Build release artefacts (Windows, unsigned)
         if: runner.os == 'Windows'
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # ── Windows Authenticode signing ──────────────────────────────────
@@ -1175,7 +1175,7 @@ jobs:
       # Setting depth 4 provides a safe margin if sub-directories are added.
       - name: Sign Windows binaries with Azure Trusted Signing
         if: runner.os == 'Windows'
-        uses: azure/trusted-signing-action@v0.5.0
+        uses: azure/trusted-signing-action@07c81171dd46a04e1b9f382b6c693815828bbbf7 # v0.5.0
         with:
           azure-tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           azure-client-id:       ${{ secrets.AZURE_CLIENT_ID }}
@@ -1370,7 +1370,7 @@ jobs:
       # while the release is still a draft, before we flip it to published.
       - name: Generate and upload SHA-256 checksums
         # Uses RELEASE_PAT to read and write assets on juralabs/jura-trace.
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
           RELEASE_TAG: ${{ needs.create-release.outputs.tag }}
@@ -1495,7 +1495,7 @@ jobs:
         #                     manifest generation entirely
         #   manifest_name   — "latest.json" or "latest-beta.json"
         #   manifest_path   — runner-local path of the manifest file
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
         with:
@@ -1892,7 +1892,7 @@ jobs:
         if: needs.build.result == 'success'
         # Uses RELEASE_PAT to flip the draft release to published on
         # juralabs/jura-trace (the public releases repo).
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
         with:

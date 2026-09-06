@@ -35,7 +35,7 @@ jobs:
     name: Scan lockfiles
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # `--skip-git` was a v1 flag and osv-scanner v2's `scan source`
       # subcommand does not define it. The scanner exited on "flag provided
@@ -46,7 +46,7 @@ jobs:
       # so a real advisory does not block a merge, but the assertion after
       # it now distinguishes "found nothing" from "did not run".
       - name: Run OSV-Scanner
-        uses: google/osv-scanner-action/osv-scanner-action@v2.0.0
+        uses: google/osv-scanner-action/osv-scanner-action@98b584ee2ed2da3935ccce10e06739d54cdcd20b # v2.0.0
         with:
           scan-args: |-
             --recursive
@@ -75,14 +75,14 @@ jobs:
       - name: Upload SARIF to code-scanning
         if: always()
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@6f5948dfacef28e207b48d0905cf90c03365536d # v3
         with:
           sarif_file: osv-results.sarif
           category: osv-scanner
 
       - name: Keep the SARIF as an artefact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: osv-results
           path: osv-results.sarif
