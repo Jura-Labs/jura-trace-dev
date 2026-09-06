@@ -149,10 +149,21 @@ jobs:
         run: |
           set -euo pipefail
           pkg=$(cat /tmp/pkgname)
-          binary=$(dpkg -L "$pkg" | grep -E '/usr/bin/' | head -1)
+          # Match the application binary by name, not "the first executable".
+          #
+          # This package installs three: gen-detectors (a 459 KB build-time
+          # tool), jura-sidecar, and jura-trace. dpkg lists them
+          # alphabetically, so `head -1` picks gen-detectors, and the job
+          # would then fail with "the installed app did not answer
+          # /api/v1/health" — an error naming the wrong thing entirely.
+          #
+          # Found by running this against the real v1.0.0 .deb before
+          # trusting it, which is the whole argument of BL-TEST-001.
+          binary=$(dpkg -L "$pkg" | grep -xE "/usr/bin/${pkg}" | head -1)
           if [ -z "$binary" ]; then
-            echo "::error::No executable found in package '$pkg'."
-            dpkg -L "$pkg" | sed 's/^/  /'
+            echo "::error::No executable named '$pkg' found in package '$pkg'."
+            echo "Executables the package does install:"
+            dpkg -L "$pkg" | grep '/usr/bin/' | sed 's/^/  /'
             exit 1
           fi
           echo "launching $binary"
