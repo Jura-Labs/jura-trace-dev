@@ -1,6 +1,19 @@
 # BL-REL-003: the release page advertises a Linux AppImage that was never built
 
-**Status**: Open. Found 5 September 2026, while scoping F3.
+**Status**: Faults 1 and 2's recurrence closed 6 September 2026. Linux
+auto-update remains blocked on building the AppImage.
+
+- Fault 1 (the live 404) — **fixed by Paul, 6 September.** The v1.0.0 row
+  now reads "Planned for a future release. Use the DEB package below."
+  Verified: every file the published body links is an uploaded asset.
+- Recurrence — **fixed**, branch
+  `fix/release-notes-advertise-only-what-exists`. The template no longer
+  composes a row for a bundle that is not built, and a gate before Publish
+  fails the release if any linked file was not uploaded.
+- Fault 2 (Linux cannot auto-update) — **still open.** Blocked on the
+  approved AppImage build; see "What to do, in order" step 3.
+
+**Originally raised**: 5 September 2026, while scoping F3.
 **Severity**: High for Linux users, and it is live right now on the public
 download page. Two distinct faults share one cause.
 **Raised**: 5 September 2026
