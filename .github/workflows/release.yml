@@ -85,7 +85,13 @@ jobs:
           dmg_name="JuraTrace-${ver}-macOS-AppleSilicon.dmg"
           msi_name="JuraTrace-${ver}-Windows-x64.msi"
           exe_name="JuraTrace-${ver}-Windows-x64-setup.exe"
-          appimage_name="JuraTrace-${ver}-Linux-x86_64.AppImage"
+          # No appimage_name. The Linux build is --bundles deb only (see the
+          # note at the tauri-action step): RPM hangs xz-compressing the 607 MB
+          # CLIP onnx and AppImage squashfs is likewise slow on a 2-core runner.
+          # This template used to compose an AppImage row unconditionally, so
+          # every v1.0.0 visitor since 18 June was offered a download that 404s,
+          # listed above the .deb that exists. BL-REL-003. Restore the row in the
+          # same commit that restores the bundle, never before.
           deb_name="JuraTrace-${ver}-Linux-x86_64.deb"
 
           # Write the full body via heredoc — no shell interpolation
@@ -106,7 +112,6 @@ jobs:
           | **Mac** (Apple Silicon — M1/M2/M3/M4) | **[${dmg_name}](${base}/${dmg_name})** | Apple Developer ID (notarised) |
           | **Windows** (64-bit) — *recommended* | **[${msi_name}](${base}/${msi_name})** | Azure Trusted Signing |
           | **Windows** (64-bit) — *NSIS installer* | **[${exe_name}](${base}/${exe_name})** | Azure Trusted Signing |
-          | **Linux** (x86\_64) — *AppImage* | **[${appimage_name}](${base}/${appimage_name})** | Self-signed (AGPL source build) |
           | **Linux** (x86\_64) — *DEB package* | **[${deb_name}](${base}/${deb_name})** | Self-signed (AGPL source build) — install with \`sudo apt install ./<file>\` |
 
           **Verify your download:** grab **[SHA256SUMS.txt](${base}/SHA256SUMS.txt)** and run \`shasum -a 256 -c SHA256SUMS.txt\` (macOS / Linux) or \`certutil -hashfile <filename> SHA256\` (Windows).
@@ -1879,6 +1884,53 @@ jobs:
             exit 1
           }
           echo "OK: live manifest verified."
+
+      # Every download link in the release body must resolve to an asset that
+      # was actually uploaded.
+      #
+      # The body is composed in create-release, which runs BEFORE any artefact
+      # exists, so it cannot list what the build produced — it states an
+      # intention and nothing has ever checked that the intention was met. That
+      # is how v1.0.0 came to advertise a Linux AppImage, listed above the .deb,
+      # that the pipeline stopped building when Linux went --bundles deb only.
+      # Every Linux visitor since 18 June was offered a 404 (BL-REL-003).
+      #
+      # Runs before Publish rather than after, so a mismatch leaves the release
+      # a draft instead of going public and being corrected afterwards.
+      - name: Every link in the release body is an uploaded asset
+        env:
+          RELEASE_TAG: ${{ needs.create-release.outputs.tag }}
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+        run: |
+          set -euo pipefail
+          body=$(gh release view "$RELEASE_TAG" --repo juralabs/jura-trace --json body --jq .body)
+          assets=$(gh release view "$RELEASE_TAG" --repo juralabs/jura-trace --json assets --jq '.assets[].name')
+
+          # Filenames referenced by a releases/download/ URL in the body.
+          linked=$(printf '%s' "$body" \
+            | grep -oE 'releases/download/[^/]+/[A-Za-z0-9._-]+' \
+            | sed 's|.*/||' | sort -u || true)
+
+          if [ -z "$linked" ]; then
+            echo "::error::No download links found in the release body. The table did not render."
+            exit 1
+          fi
+
+          missing=""
+          for f in $linked; do
+            printf '%s\n' "$assets" | grep -qxF "$f" || missing="$missing $f"
+          done
+
+          if [ -n "$missing" ]; then
+            echo "::error::Release body links files that were never uploaded:$missing"
+            echo "Uploaded assets are:"
+            printf '%s\n' "$assets" | sed 's/^/  /'
+            echo ""
+            echo "Either the build stopped producing them, or the notes template is stale."
+            echo "Do not publish. See BL-REL-003."
+            exit 1
+          fi
+          echo "OK: all $(printf '%s\n' "$linked" | wc -l | tr -d ' ') linked file(s) are uploaded assets."
 
       - name: Publish release
         # Only auto-publish when EVERY platform built in CI. macOS is built
