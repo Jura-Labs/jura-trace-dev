@@ -85,13 +85,12 @@ jobs:
           dmg_name="JuraTrace-${ver}-macOS-AppleSilicon.dmg"
           msi_name="JuraTrace-${ver}-Windows-x64.msi"
           exe_name="JuraTrace-${ver}-Windows-x64-setup.exe"
-          # No appimage_name. The Linux build is --bundles deb only (see the
-          # note at the tauri-action step): RPM hangs xz-compressing the 607 MB
-          # CLIP onnx and AppImage squashfs is likewise slow on a 2-core runner.
-          # This template used to compose an AppImage row unconditionally, so
-          # every v1.0.0 visitor since 18 June was offered a download that 404s,
-          # listed above the .deb that exists. BL-REL-003. Restore the row in the
-          # same commit that restores the bundle, never before.
+          # Restored 6 September 2026, in the same commit that puts appimage
+          # back into --bundles, which is the condition the removal note set.
+          # It is safe to link again because the pre-publish gate now asserts
+          # every link in the body is an uploaded asset, so if the AppImage
+          # build fails this row cannot reach users advertising a 404.
+          appimage_name="JuraTrace-${ver}-Linux-x86_64.AppImage"
           deb_name="JuraTrace-${ver}-Linux-x86_64.deb"
 
           # Write the full body via heredoc — no shell interpolation
@@ -112,6 +111,7 @@ jobs:
           | **Mac** (Apple Silicon — M1/M2/M3/M4) | **[${dmg_name}](${base}/${dmg_name})** | Apple Developer ID (notarised) |
           | **Windows** (64-bit) — *recommended* | **[${msi_name}](${base}/${msi_name})** | Azure Trusted Signing |
           | **Windows** (64-bit) — *NSIS installer* | **[${exe_name}](${base}/${exe_name})** | Azure Trusted Signing |
+          | **Linux** (x86\_64) — *AppImage* | **[${appimage_name}](${base}/${appimage_name})** | Self-signed (AGPL source build) |
           | **Linux** (x86\_64) — *DEB package* | **[${deb_name}](${base}/${deb_name})** | Self-signed (AGPL source build) — install with \`sudo apt install ./<file>\` |
 
           **Verify your download:** grab **[SHA256SUMS.txt](${base}/SHA256SUMS.txt)** and run \`shasum -a 256 -c SHA256SUMS.txt\` (macOS / Linux) or \`certutil -hashfile <filename> SHA256\` (Windows).
@@ -263,7 +263,10 @@ jobs:
     # than macOS; 120 minutes avoids timeout failures on cold Linux builds.
     # If builds are consistently hitting 90+ minutes, add sccache (see
     # docs/development-workflow.md M2 for the sccache configuration pattern).
-    timeout-minutes: 120
+    # Raised from 120 on 6 September 2026 to give the AppImage squashfs pass
+    # over the ~607 MB CLIP onnx room it has never been measured needing.
+    # Windows and macOS are unaffected; they finish far inside either number.
+    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -786,13 +789,29 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tauriScript: cargo tauri
-          # --bundles deb only. Since bundling the ~607 MB CLIP onnx, the RPM
-          # target hangs (rpmbuild xz-compresses the model weights for >88 min
-          # on a 2-core runner, blowing the 120-min job timeout), and AppImage
-          # squashfs is also slow. The .deb packs the onnx in ~35s and is the
-          # primary Debian/Ubuntu installer. RPM/AppImage-with-CLIP deferred to
-          # v1.0.1 (or a local no-timeout build). See onnx-ci-fix history.
-          args: --target ${{ matrix.target }} --bundles deb
+          # deb + appimage. RPM stays out: rpmbuild xz-compresses the ~607 MB
+          # CLIP onnx for over 88 minutes on a 2-core runner, which is what blew
+          # the original 120-minute budget.
+          #
+          # AppImage is back in as of 6 September 2026, because without it Linux
+          # cannot auto-update AT ALL. Tauri's Linux updater installs AppImages
+          # and cannot install a .deb, so while the pipeline built deb only the
+          # updater worker looked for an AppImage that never existed, silently
+          # dropped the platform from every manifest, and every Linux user was
+          # told they were up to date indefinitely. BL-REL-003 fault 2.
+          #
+          # It is now required rather than optional: the manifest completeness
+          # gate expects darwin-aarch64,linux-x86_64,windows-x86_64, so a
+          # release without an AppImage stops at that gate rather than
+          # publishing a manifest that quietly omits a platform.
+          #
+          # The time cost is the honest unknown. The .deb packs the onnx in
+          # about 35 seconds; nobody has measured squashfs over the same
+          # payload, and Tauri exposes no compression control (its AppImage env
+          # vars cover signing only). The job budget is raised to give it room.
+          # If it still overruns, the job fails loudly and the release stays a
+          # draft, which is the correct direction to fail.
+          args: --target ${{ matrix.target }} --bundles deb,appimage
 
       # ── macOS: per-file sign the nested PyInstaller --onedir tree ────────
       # Tauri's --deep does not reach Resources/sidecar-bundle/_internal/ in
