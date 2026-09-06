@@ -1,0 +1,256 @@
+name: Installer test
+
+# BL-TEST-001. Every other test in this repository runs before the product
+# exists: against the crate, against Python modules, against components, or
+# against the SvelteKit dev server in a browser. Nothing installs an
+# installer, launches the installed binary, or checks that what a user
+# downloads works.
+#
+# Three defects shipped in v1.0.0 and survived for months because of that. The
+# updater manifest carried signature-file URLs so every update was rejected;
+# Linux vanished from the manifest when the AppImage build was dropped; and
+# the sidecar reported version 0.9.0 while the app declared 1.0.0.
+#
+# This workflow is the beginning of the answer, not the whole of it. What it
+# covers today is stated plainly in the job summary rather than implied by a
+# green tick.
+#
+# ── Cost ───────────────────────────────────────────────────────────────────
+# Deliberately NOT on push or pull_request. Windows bills at 2x on a private
+# repository, and a release build there already costs 144 charged minutes. So
+# this runs on a published release and on demand, and it installs a
+# pre-built artefact rather than building anything.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to test (e.g. v1.0.0). Defaults to the latest release."
+        required: false
+        type: string
+
+concurrency:
+  group: installer-test-${{ github.event.inputs.tag || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux-deb:
+    name: Linux (deb)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # The installers live in the PUBLIC releases repo, not this one. A PAT
+      # is not needed to read them, but gh requires a token to be present.
+      - name: Resolve the tag under test
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          tag="${INPUT_TAG:-${EVENT_TAG:-}}"
+          if [ -z "$tag" ]; then
+            tag=$(gh release view --repo Jura-Labs/jura-trace --json tagName --jq .tagName)
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "Testing $tag"
+
+      - name: Download the .deb from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          asset="JuraTrace-${VERSION}-Linux-x86_64.deb"
+          mkdir -p dl
+          # An absent asset is a finding, not an infrastructure problem: it is
+          # exactly how Linux silently vanished from the update manifest.
+          if ! gh release download "$TAG" --repo Jura-Labs/jura-trace --pattern "$asset" --dir dl; then
+            echo "::error::$asset is not attached to $TAG."
+            echo "Assets actually present:"
+            gh release view "$TAG" --repo Jura-Labs/jura-trace --json assets --jq '.assets[].name' | sed 's/^/  /'
+            exit 1
+          fi
+          ls -lh "dl/$asset"
+
+      # Read the version the package DECLARES before installing it. This is
+      # the assertion that catches a build labelled with the wrong version,
+      # which is the class of fault that let the sidecar ship as 0.9.0 while
+      # the app called itself 1.0.0.
+      - name: The package version matches the tag
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          deb="dl/JuraTrace-${VERSION}-Linux-x86_64.deb"
+          declared=$(dpkg-deb -f "$deb" Version)
+          echo "tag says      : $VERSION"
+          echo "package says  : $declared"
+          # Tauri strips any -rc.N suffix from the deb version, so compare on
+          # the numeric core rather than demanding an exact string match.
+          core="${VERSION%%-*}"
+          if [ "${declared%%-*}" != "$core" ]; then
+            echo "::error::Package version '$declared' does not match tag '$VERSION'."
+            exit 1
+          fi
+          echo "OK"
+
+      - name: Install Tauri runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-0 \
+            libgtk-3-0 \
+            libayatana-appindicator3-1 \
+            librsvg2-2 \
+            xvfb \
+            imagemagick \
+            curl
+
+      - name: Install the package
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          deb="./dl/JuraTrace-${VERSION}-Linux-x86_64.deb"
+          # Read the package name from the .deb rather than assuming Tauri's
+          # derivation from productName. If the name ever changes, this
+          # follows it instead of failing in a way that looks like a broken
+          # install.
+          pkg=$(dpkg-deb -f "$deb" Package)
+          echo "package name: $pkg"
+          echo "$pkg" > /tmp/pkgname
+          sudo apt-get install -y "$deb"
+          echo "── installed files ──"
+          dpkg -L "$pkg" | grep -E 'bin/|\.desktop$' | sed 's/^/  /'
+          echo "── dpkg version ──"
+          dpkg -s "$pkg" | grep '^Version:'
+
+      # Launch the installed binary, not a build output. The REST API on
+      # 127.0.0.1:8300 starts by default (the `api` feature is in
+      # Cargo.toml's default set) and GET /api/v1/health is the one
+      # unauthenticated endpoint, so it can answer three questions at once:
+      # did the binary start, does the Rust core run, and what version does
+      # the RUNNING app believe it is.
+      - name: Launch the installed app and probe it
+        id: probe
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          pkg=$(cat /tmp/pkgname)
+          binary=$(dpkg -L "$pkg" | grep -E '/usr/bin/' | head -1)
+          if [ -z "$binary" ]; then
+            echo "::error::No executable found in package '$pkg'."
+            dpkg -L "$pkg" | sed 's/^/  /'
+            exit 1
+          fi
+          echo "launching $binary"
+
+          mkdir -p artefacts
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x900x24" \
+            "$binary" > artefacts/app-stdout.log 2> artefacts/app-stderr.log &
+          echo $! > /tmp/app.pid
+
+          # Poll rather than sleep. A fixed sleep is the timing-dependent
+          # pattern BL-TEST-002 was written about.
+          health=""
+          for i in $(seq 1 60); do
+            if health=$(curl -fsS --max-time 3 http://127.0.0.1:8300/api/v1/health 2>/dev/null); then
+              echo "health responded after ~${i}s"
+              break
+            fi
+            sleep 1
+          done
+
+          if [ -z "$health" ]; then
+            echo "::error::The installed app did not answer /api/v1/health within 60s."
+            echo "── stderr ──"; tail -40 artefacts/app-stderr.log || true
+            echo "── stdout ──"; tail -40 artefacts/app-stdout.log || true
+            exit 1
+          fi
+
+          echo "$health" | tee artefacts/health.json
+          echo ""
+
+          reported=$(printf '%s' "$health" | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')
+          status=$(printf '%s' "$health" | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])')
+          # Strict key, no fallback. HealthResponse is serde camelCase, and a
+          # tolerant lookup would silently absorb a schema rename that ought
+          # to be a visible break.
+          sidecar=$(printf '%s' "$health" | python3 -c 'import json,sys; print(json.load(sys.stdin)["sidecarAvailable"])')
+
+          echo "status              : $status"
+          echo "version (running)   : $reported"
+          echo "version (tag)       : ${VERSION%%-*}"
+          echo "sidecar available   : $sidecar"
+          echo "sidecar=$sidecar" >> "$GITHUB_OUTPUT"
+
+          [ "$status" = "ok" ] || { echo "::error::health status is '$status', expected 'ok'."; exit 1; }
+
+          if [ "$reported" != "${VERSION%%-*}" ]; then
+            echo "::error::The running app reports version '$reported' but the tag is '${VERSION%%-*}'."
+            exit 1
+          fi
+          echo "OK: the installed app runs and agrees with the tag."
+
+      # A screenshot is not an assertion, and is not treated as one. It is for
+      # a human to glance at, which is how the C2PA panel's "Tool: [object
+      # Object]" would have been caught.
+      - name: Screenshot the running app
+        if: always()
+        continue-on-error: true
+        run: |
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1280x900x24 >/dev/null 2>&1 &
+          sleep 2
+          import -window root artefacts/screen.png 2>/dev/null || \
+            echo "screenshot unavailable (headless capture is best-effort)"
+
+      - name: Stop the app
+        if: always()
+        run: |
+          [ -f /tmp/app.pid ] && kill "$(cat /tmp/app.pid)" 2>/dev/null || true
+          [ -f /tmp/pkgname ] && pkill -f "$(cat /tmp/pkgname)" 2>/dev/null || true
+          exit 0
+
+      - name: Summary
+        if: always()
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          SIDECAR: ${{ steps.probe.outputs.sidecar }}
+        run: |
+          {
+            echo "## Linux installer test — $TAG"
+            echo ""
+            echo "**Proved:** the .deb downloads, declares the tag's version, installs,"
+            echo "launches, and the running app answers /api/v1/health with a version"
+            echo "matching the tag."
+            echo ""
+            echo "Sidecar available at probe time: \`${SIDECAR:-unknown}\`. This is"
+            echo "reported, not asserted: the sidecar starts asynchronously and a"
+            echo "cold runner is not evidence about a user's machine."
+            echo ""
+            echo "**Not proved by this job:** that the UI renders, that a verification"
+            echo "runs, or that an update applies. Those are the smoke flow and the"
+            echo "updater leg, which are still to be built. See BL-TEST-001."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artefacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-installer-test
+          path: artefacts/
+          retention-days: 14
+          if-no-files-found: warn
