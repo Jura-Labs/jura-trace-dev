@@ -1368,10 +1368,17 @@ export async function clearConformantCert(): Promise<void> {
 /**
  * Returns the current network access mode for this installation.
  *
- * - `standard` (default): fully local, no outbound network connections.
- *   Certificate revocation checks are skipped.
- * - `enhanced`: enables online verification features including OCSP/CRL
- *   revocation checks and remote Content Credentials retrieval.
+ * - `standard`: fully local, no outbound network connections.
+ * - `enhanced` (the shipped default since 2026-04-25): enables optional online
+ *   features, currently the historical weather lookup and the Watched
+ *   Locations scheduler.
+ *
+ * The mode does NOT change C2PA verification, which is byte-identical either
+ * way: `c2pa.rs` reduces the flag to a recorded label, c2pa-rs 0.79 does not
+ * expose revocation checking, and the crate is built with
+ * `features = ["file_io"]` so remote manifest fetching is not compiled in.
+ * This comment previously claimed OCSP/CRL revocation checks and remote
+ * Content Credentials retrieval; neither has ever happened. See BL-CLAIM-003.
  *
  * Defaults to 'standard' when the command is unavailable (browser context).
  */

@@ -673,13 +673,36 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
           ? 'Valid'
           : C2PA_STATUS_INVALID
     );
-    // Verification mode sits next to Status — related concept, not buried after assertions.
+    // What was actually checked, stated separately from which network mode was
+    // selected, because the two are independent and used to be conflated.
+    //
+    // This row previously read "Enhanced (OCSP/CRL + remote manifest fetch)".
+    // No such check happens. c2pa.rs reduces the enhanced flag to a label
+    // string, its own comment records that c2pa-rs 0.79 does not expose
+    // revocation checking at the Reader level, and the crate is compiled with
+    // features = ["file_io"] so remote manifest fetching is not built in
+    // either. C2PA verification is byte-identical in both modes.
+    //
+    // That mattered more here than anywhere else in the product. A PDF is
+    // saved, emailed, attached to case notes and handed to third parties, so
+    // every report exported in Enhanced mode since April is a standing
+    // artefact asserting a check that never ran. Screen text is corrected by
+    // the next release; these cannot be recalled.
+    //
+    // BL-CLAIM-003. Wording approved by Paul 2026-09-06, decision D7(a).
+    // Deliberately not deleted: a forensic report should say what was and was
+    // not checked, and removing the line would leave the reader to assume.
+    wrappedRow(
+      'Provenance checks performed',
+      'Signing certificate chain validated against the C2PA trust list held on ' +
+        'this device. Certificate revocation status was not checked.'
+    );
     if (m.verificationMode) {
       wrappedRow(
-        'Verification mode',
-        m.verificationMode === 'enhanced'
-          ? 'Enhanced (OCSP/CRL + remote manifest fetch)'
-          : 'Standard (offline, local trust anchors only)'
+        'Network mode at time of verification',
+        (m.verificationMode === 'enhanced' ? 'Enhanced. ' : 'Standard (offline). ') +
+          'This setting controls optional online features such as historical ' +
+          'weather lookup. It does not change how content credentials are verified.'
       );
     }
     // C2PA UX Rec v1.4 Table 5 consumer-friendly labels.
