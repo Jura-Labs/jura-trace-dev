@@ -466,3 +466,130 @@ jobs:
           path: artefacts/
           retention-days: 14
           if-no-files-found: warn
+
+  updater-contract:
+    name: Updater manifest contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # This is the leg that guards BL-REL-002. It checks the LIVE endpoint an
+      # installed app actually polls, not a fixture, because the defect that
+      # stranded 145 users was only visible from the client's side of the wire.
+      #
+      # What it proves and what it does not, stated here rather than implied:
+      # a well-formed, correctly signed manifest pointing at assets that exist.
+      # It does NOT prove an update applies. That needs a previous version
+      # installed and the endpoint redirected, and on Linux it is currently
+      # impossible at all, because Tauri's Linux updater installs AppImages and
+      # the pipeline builds --bundles deb only. See BL-REL-003 fault 2.
+      - name: Check the live update manifest
+        run: |
+          set -euo pipefail
+          mkdir -p artefacts
+          curl -fsS --max-time 20 https://juralabs.org/api/updates/latest.json \
+            -o artefacts/latest.json || {
+              echo "::error::The live update endpoint did not return a manifest."
+              exit 1
+            }
+          echo "── manifest ──"
+          python3 -m json.tool artefacts/latest.json | head -40
+
+          python3 - <<'CHECK'
+          import base64, json, pathlib, sys, urllib.request
+
+          manifest = json.loads(pathlib.Path("artefacts/latest.json").read_text())
+          conf = json.loads(pathlib.Path("src-tauri/tauri.conf.json").read_text())
+
+          def key_id(blob_b64: str) -> str:
+              """minisign key id from a base64-wrapped minisign file."""
+              inner = base64.b64decode(blob_b64).decode()
+              raw = base64.b64decode(inner.splitlines()[1])
+              return raw[2:10][::-1].hex().upper()
+
+          app_key = key_id(conf["plugins"]["updater"]["pubkey"])
+          print(f"app public key id: {app_key}")
+
+          platforms = manifest.get("platforms") or {}
+          if not platforms:
+              print("::error::Manifest declares no platforms at all. Every client reads this as 'up to date', forever.")
+              sys.exit(1)
+
+          failures = []
+          for name, block in sorted(platforms.items()):
+              sig = block.get("signature", "")
+              url = block.get("url", "")
+              print(f"\n{name}")
+              print(f"  url: {url}")
+
+              # 1. The defect that stranded 145 users: a URL where the inline
+              #    minisign blob belongs. Tauri rejects every such update.
+              if sig.startswith("http://") or sig.startswith("https://"):
+                  print("  ::error::signature field contains a URL, not a signature")
+                  failures.append(f"{name}: signature is a URL")
+                  continue
+              if not sig or len(sig) < 64:
+                  print("  ::error::signature field is empty or too short to be a minisign blob")
+                  failures.append(f"{name}: signature missing")
+                  continue
+
+              # 2. Signed by the key this app actually trusts. Catches a key
+              #    rotation that reaches the signer but not the binary, which
+              #    is how rc.25 installers ended up unable to update at all.
+              try:
+                  sk = key_id(sig)
+              except Exception as e:
+                  print(f"  ::error::signature is not a decodable minisign file: {e}")
+                  failures.append(f"{name}: undecodable signature")
+                  continue
+              match = sk == app_key
+              print(f"  signature key id: {sk} {'(matches)' if match else '(MISMATCH)'}")
+              if not match:
+                  failures.append(f"{name}: signed by {sk}, app trusts {app_key}")
+
+              # 3. The asset exists. An absent one is how Linux silently
+              #    vanished from the manifest.
+              try:
+                  req = urllib.request.Request(url, method="HEAD")
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      print(f"  asset: HTTP {r.status}")
+              except Exception as e:
+                  print(f"  ::error::asset URL does not resolve: {e}")
+                  failures.append(f"{name}: url unreachable")
+
+          print("\n── result ──")
+          if failures:
+              for f in failures:
+                  print(f"::error::{f}")
+              sys.exit(1)
+          print(f"OK: {len(platforms)} platform(s), all inline-signed by {app_key}, all assets reachable.")
+          CHECK
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Updater manifest contract"
+            echo ""
+            echo "Checks the live endpoint an installed app actually polls."
+            echo ""
+            echo "**Asserts:** the manifest declares at least one platform; no"
+            echo "signature field contains a URL where the inline minisign blob"
+            echo "belongs; every signature is signed by the key the app trusts;"
+            echo "and every asset URL resolves."
+            echo ""
+            echo "**Does not assert that an update applies.** That needs a previous"
+            echo "version installed and the endpoint redirected. On Linux it is"
+            echo "currently impossible: Tauri's Linux updater installs AppImages"
+            echo "and the pipeline builds deb only (BL-REL-003 fault 2)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artefacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: updater-contract
+          path: artefacts/
+          retention-days: 14
+          if-no-files-found: warn
