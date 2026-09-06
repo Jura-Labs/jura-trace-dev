@@ -33,3 +33,36 @@ enabled = true
 # Optional vars (non-secret) can be set via `[vars]`:
 [vars]
 GITHUB_REPO = "juralabs/jura-trace"
+
+# ── Update-check counts (loop L4, approved 2026-09-06) ──────────────────────
+#
+# Counts how many update checks arrive per day, per route. Nothing about the
+# device is recorded: no IP, no user agent, no header, no identifier. Two
+# installs are indistinguishable, and one install checking twice is
+# indistinguishable from two checking once.
+#
+# This is the first field signal Trace has ever had. Cloudflare's free plan
+# keeps request-level analytics for one day, which is why the count has to be
+# written by the worker rather than read back from analytics later.
+#
+# The binding is OPTIONAL in the code. Until the namespace exists and the
+# block below is uncommented, the worker runs exactly as before and counting
+# is skipped. Nothing fails for want of a counter.
+#
+# To enable:
+#   wrangler kv namespace create UPDATE_COUNTS
+#   # paste the returned id below, uncomment, then:
+#   wrangler deploy
+#
+# To read:
+#   wrangler kv key list --binding UPDATE_COUNTS
+#   wrangler kv key get  --binding UPDATE_COUNTS "checks:2026-09-06:latest"
+#
+# Keys are checks:<YYYY-MM-DD>:<bucket>, where bucket is "latest" for the
+# aggregated endpoint every v1.0.0 install polls, or "<platform>" and
+# "<platform>:<version>" for the per-platform route. Keys expire after 100
+# days.
+#
+# [[kv_namespaces]]
+# binding = "UPDATE_COUNTS"
+# id = "<id from wrangler kv namespace create>"

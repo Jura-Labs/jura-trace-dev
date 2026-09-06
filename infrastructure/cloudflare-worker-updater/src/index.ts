@@ -57,6 +57,75 @@ interface Env {
   GITHUB_TOKEN: string;
   /** Optional override for the GitHub repo (defaults to juralabs/jura-trace). */
   GITHUB_REPO?: string;
+  /**
+   * Optional KV namespace for update-check counts (loop L4, approved
+   * 2026-09-06).
+   *
+   * Optional on purpose. If the binding is absent the worker behaves exactly
+   * as it did before: counting is skipped and nothing fails. The updater has
+   * already failed 145 people once, and a counter is not worth a second
+   * outage.
+   */
+  UPDATE_COUNTS?: KVNamespace;
+}
+
+// ── Update-check counting (loop L4) ────────────────────────────────────────
+//
+// Trace collects nothing from the device and this does not change that. What
+// is counted here is a request the worker already receives, reduced to a
+// number: how many update checks arrived, on what day, against which route.
+//
+// Explicitly NOT recorded: IP address, user agent, any header, any identifier
+// of any kind. Two installs are indistinguishable, and one install checking
+// twice is indistinguishable from two installs checking once. That is the
+// intended precision. The number answers "is anyone running this" and nothing
+// finer.
+//
+// Why the worker and not analytics: Cloudflare's free plan retains
+// request-level analytics for one day, a limit hit by hand on 5 September
+// while trying to answer exactly this question. A durable count has to be
+// written by something that outlives the request.
+
+/** UTC day key, so the boundary does not move with British summer time. */
+function dayKey(now: Date): string {
+  return now.toISOString().slice(0, 10);
+}
+
+/**
+ * Record one update check.
+ *
+ * Never awaited by the request path and never allowed to throw: a failure to
+ * count must not become a failure to update. Runs through ctx.waitUntil so it
+ * settles after the response has gone.
+ *
+ * Read the counts back with:
+ *   wrangler kv key list  --binding UPDATE_COUNTS
+ *   wrangler kv key get   --binding UPDATE_COUNTS "checks:2026-09-06:latest"
+ *
+ * KV is eventually consistent and this is a read-modify-write, so simultaneous
+ * checks can lose an increment. At a few hundred a day that is a rounding
+ * error, and the figure is meant to be directional rather than forensic. If it
+ * ever needs to be exact, move to Durable Objects or Analytics Engine; do not
+ * add locking here.
+ */
+function countCheck(env: Env, ctx: ExecutionContext, bucket: string): void {
+  const kv = env.UPDATE_COUNTS;
+  if (!kv) return;
+
+  ctx.waitUntil(
+    (async () => {
+      try {
+        const key = `checks:${dayKey(new Date())}:${bucket}`;
+        const current = await kv.get(key);
+        const next = (current === null ? 0 : parseInt(current, 10) || 0) + 1;
+        // 100-day retention: long enough to see a release land and a trend
+        // form, short enough that the namespace does not grow without bound.
+        await kv.put(key, String(next), { expirationTtl: 100 * 24 * 60 * 60 });
+      } catch (err) {
+        console.error(`update-check counting failed (non-fatal): ${err}`);
+      }
+    })(),
+  );
 }
 
 interface GitHubAsset {
@@ -164,7 +233,21 @@ export default {
 
     const path = url.pathname;
 
+    // Counting happens here, before dispatch, and deliberately not inside the
+    // handlers. handleLatestManifest returns early from the edge cache, so a
+    // counter placed inside it would miss every cache hit and report a number
+    // silently lower than the truth — the same shape of quiet wrongness this
+    // worker was fixed for in BL-REL-002.
+    //
+    // HEAD is counted alongside GET. A HEAD is still an install asking whether
+    // there is an update.
+
     if (path === "/api/updates/latest.json") {
+      // Every v1.0.0 install has this URL baked into its binary, so this
+      // bucket is the closest thing to a count of the original 145 that
+      // exists. New installs will appear here too until the endpoint format
+      // changes, which is a separate decision.
+      countCheck(env, ctx, "latest");
       return handleLatestManifest(env, ctx);
     }
 
@@ -172,6 +255,12 @@ export default {
     if (perPlatformMatch) {
       const platform = perPlatformMatch[1];
       const currentVersion = perPlatformMatch[2];
+      // Platform is taken from the path the client asked for, not inferred
+      // from anything about the client. The version is what the install says
+      // it is running, which is what makes the re-download notice measurable:
+      // installs still reporting 1.0.0 have not taken it.
+      countCheck(env, ctx, platform);
+      countCheck(env, ctx, `${platform}:${currentVersion}`);
       return handlePerPlatform(env, ctx, platform, currentVersion);
     }
 
