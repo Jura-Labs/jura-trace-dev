@@ -8,7 +8,7 @@
    * Auto-hides once NetworkMode === 'enhanced'.
    *
    * Rationale: the Standard default preserves the local-first USP, but
-   * full C2PA validation (OCSP revocation checks, remote manifest fetch,
+   * optional online features (historical weather lookup for GPS-tagged images,
    * §15.9 audit items) needs network access. This banner surfaces the
    * choice contextually without forcing a wizard detour.
    */
@@ -76,12 +76,12 @@
 
     <div class="flex-1 min-w-0">
       <p class="text-sm text-obsidian dark:text-quartz leading-relaxed">
-        <strong class="font-semibold">Enable Enhanced mode for full Content Credentials validation?</strong>
+        <strong class="font-semibold">Enable Enhanced mode for optional online features?</strong>
       </p>
       <p class="text-xs muted-help leading-relaxed mt-1 max-w-prose">
-        Jura Trace runs fully offline by default. Enhanced mode adds online certificate
-        revocation checks (OCSP/CRL) and remote Content Credentials retrieval — recommended
-        for real-world content verification and standards-conformant validation.
+        Jura Trace runs fully offline by default. Enhanced mode adds optional online
+        features such as historical weather lookup for GPS-tagged images. It does not
+        change how Content Credentials are verified, which is identical in both modes.
       </p>
 
       <div class="flex flex-wrap items-center gap-2 mt-3">

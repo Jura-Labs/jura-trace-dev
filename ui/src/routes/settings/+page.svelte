@@ -1072,7 +1072,7 @@
 
   // ── Network Access Mode ──────────────────────────────────────────────────
   // Controls whether Jura Trace makes outbound network connections during
-  // verification. Standard = fully local (default). Enhanced = OCSP/CRL checks
+  // verification. Standard = fully local (default). Enhanced = optional online features
   // and remote Content Credentials retrieval during verification.
 
   let networkMode = $state<NetworkMode>('standard');
@@ -1139,7 +1139,7 @@
         ok: true,
         message: mode === 'standard'
           ? 'Network mode set to Standard. No outbound connections will be made.'
-          : 'Network mode set to Enhanced. Online verification features are now active.',
+          : 'Network mode set to Enhanced. Optional online features are now available. Content Credential verification is unchanged.',
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -3162,7 +3162,7 @@
 
         <h3 class="text-sm font-semibold text-text-light dark:text-quartz mb-1 pr-14">Standard</h3>
         <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-          Fully local, with no outbound network connections. Certificate revocation checks are skipped. Recommended for air-gapped environments.
+          Fully local, with no outbound network connections. Recommended for air-gapped environments. Content Credentials are verified identically in both modes.
         </p>
 
         {#if networkMode !== 'standard'}
@@ -3208,7 +3208,7 @@
 
         <h3 class="text-sm font-semibold text-text-light dark:text-quartz mb-1 pr-14">Enhanced</h3>
         <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-          Enables online verification features including certificate revocation checks (OCSP/CRL) and remote Content Credentials retrieval. Network calls are made only during verification.
+          Enables optional online features such as historical weather lookup for GPS-tagged images. It does not change how Content Credentials are verified: the signing certificate chain is checked against the trust list held on this device in both modes, and certificate revocation status is not checked in either.
         </p>
 
         {#if networkMode !== 'enhanced'}
