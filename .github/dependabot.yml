@@ -1,52 +1,160 @@
+# Dependabot configuration.
+#
+# Rewritten 4 September 2026, after all four active ecosystems were found
+# sitting at exactly five open pull requests, which is the default
+# `open-pull-requests-limit`. Saturated in every ecosystem means Dependabot
+# could not open a pull request for anything new, INCLUDING a security
+# advisory, until a human cleared the queue. Nobody had for five months.
+#
+# Two changes address that, and they are not the same change:
+#
+#   * `groups` is the fix. Twenty separate pull requests become roughly six,
+#     because routine minor and patch bumps arrive together instead of one
+#     per package. Fewer, larger, cheaper to review, and each costs one CI
+#     run rather than five.
+#
+#   * `open-pull-requests-limit` is the backstop. Raising it without
+#     grouping would only mean drowning more slowly.
+#
+# The `ignore` entries are deliberate and temporary. Each holds a version
+# bump that is a product decision rather than a maintenance chore, so it
+# cannot silently re-occupy a slot. Remove the entry when its decision is
+# made; do not leave them to rot.
+
 version: 2
 
 updates:
-  # Rust (Cargo)
+  # ── Rust (Cargo) ────────────────────────────────────────────────────────
   - package-ecosystem: cargo
     directory: /src-tauri
     schedule:
       interval: weekly
       day: monday
+    open-pull-requests-limit: 10
     labels:
       - dependencies
       - rust
+    commit-message:
+      prefix: deps
+    groups:
+      cargo-minor-patch:
+        update-types:
+          - minor
+          - patch
 
-  # Node — root (if any root-level package.json)
+  # ── Node, repository root ───────────────────────────────────────────────
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
       day: monday
+    open-pull-requests-limit: 10
     labels:
       - dependencies
       - npm
+    commit-message:
+      prefix: deps
+    groups:
+      npm-root-minor-patch:
+        update-types:
+          - minor
+          - patch
 
-  # Node — SvelteKit frontend
+  # ── Node, SvelteKit frontend ────────────────────────────────────────────
   - package-ecosystem: npm
     directory: /ui
     schedule:
       interval: weekly
       day: monday
+    open-pull-requests-limit: 10
     labels:
       - dependencies
       - npm
+    commit-message:
+      prefix: deps
+    groups:
+      ui-minor-patch:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Majors deferred as decisions, not chores. None of these four reaches
+      # a user: they are build and test tooling. Each needs its own ticket
+      # and its own timebox, and none should hold a Dependabot slot while it
+      # waits.
+      #
+      # tailwindcss 4 replaces the config file with CSS-native config: a UI
+      # migration with no advisory behind it.
+      #
+      # vite 8, vitest 4 and vite-plugin-svelte 7 share a dependency graph
+      # and move together or not at all. vitest 4 is the documented fix for
+      # the one critical advisory in the frontend chain, so this ignore is
+      # the entry most worth removing soon.
+      - dependency-name: tailwindcss
+        update-types: ["version-update:semver-major"]
+      - dependency-name: vite
+        update-types: ["version-update:semver-major"]
+      - dependency-name: vitest
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@sveltejs/vite-plugin-svelte"
+        update-types: ["version-update:semver-major"]
 
-  # Python — ML sidecar
+  # ── Python, ML sidecar ──────────────────────────────────────────────────
   - package-ecosystem: pip
     directory: /sidecar
     schedule:
       interval: weekly
       day: monday
+    open-pull-requests-limit: 10
     labels:
       - dependencies
       - python
+    commit-message:
+      prefix: deps
+    groups:
+      pip-patch:
+        update-types:
+          - patch
+    ignore:
+      # FastAPI is pre-1.0, so its minors carry the breaking changes a major
+      # would elsewhere. Twenty minors behind deserves a deliberate
+      # regression pass, scheduled for the November release, rather than a
+      # weekly bump. Patches still come through.
+      - dependency-name: fastapi
+        update-types: ["version-update:semver-minor"]
+      # Pillow is NOT ignored, and an earlier version of this file got that
+      # wrong. It was held here pending a decode-drift test, on the reasoning
+      # that every forensic feature starts from PIL-decoded pixels and the
+      # detector thresholds are calibrated against the current decoder.
+      #
+      # The 4 September supply-chain audit inverted that. Pillow 11.2.1
+      # carries heap out-of-bounds writes reachable from Image.paste() and
+      # crop() (CVE-2026-59199) and from ImageCms (CVE-2026-59205), in code
+      # paths content_type.py and clip_detector.py run on files supplied by
+      # whoever the user is investigating. The fixes exist only in 12.x.
+      #
+      # Dependabot ignore rules suppress security updates as well as version
+      # updates, so leaving the rule here would have muted the alert for the
+      # most reachable vulnerability in the sidecar. The drift test still
+      # runs, but it now decides whether to RECALIBRATE, not whether to
+      # take the fix.
 
-  # GitHub Actions
+  # ── GitHub Actions ──────────────────────────────────────────────────────
+  # This ecosystem was saturated too. Grouping matters most here, because
+  # action bumps are near-identical in risk and reviewing five separate pull
+  # requests for them is pure overhead.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
       day: monday
+    open-pull-requests-limit: 10
     labels:
       - dependencies
       - ci
+    commit-message:
+      prefix: ci
+    groups:
+      github-actions:
+        patterns:
+          - "*"
