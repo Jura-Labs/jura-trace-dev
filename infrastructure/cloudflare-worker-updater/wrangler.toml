@@ -63,6 +63,6 @@ GITHUB_REPO = "juralabs/jura-trace"
 # "<platform>:<version>" for the per-platform route. Keys expire after 100
 # days.
 #
-# [[kv_namespaces]]
-# binding = "UPDATE_COUNTS"
-# id = "<id from wrangler kv namespace create>"
+[[kv_namespaces]]
+binding = "UPDATE_COUNTS"
+id = "2e2715a22c0b4c32866222cbf21a4cce"
