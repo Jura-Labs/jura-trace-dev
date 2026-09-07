@@ -69,7 +69,14 @@ jobs:
       - name: Download the previous version's MSI and signature
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          # RELEASE_PAT, not github.token. The installers live on
+          # Jura-Labs/jura-trace, and the previous version used for this test
+          # is normally a smoke build, which is a DRAFT release. Draft
+          # releases are invisible to a token without write access on that
+          # repo, and github.token is scoped to jura-archive, so the download
+          # would fail with "release not found" — a message that reads like a
+          # missing artefact rather than a permissions problem.
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
           PREV: ${{ github.event.inputs.previous_tag }}
         run: |
           set -euo pipefail
