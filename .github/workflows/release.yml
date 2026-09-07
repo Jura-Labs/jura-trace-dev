@@ -1751,10 +1751,20 @@ jobs:
           MANIFEST_PATH: ${{ steps.manifest.outputs.manifest_path }}
         run: |
           set -euo pipefail
-          # gh names the asset after the file, and the runner-local path is a
-          # temp name, so copy to the canonical name first.
+          # gh names the asset after the file on disk, so the upload has to use
+          # a path whose basename is the canonical manifest name.
+          #
+          # The first version of this step assumed manifest_path was a temp
+          # name and copied unconditionally. It is not: the manifest job
+          # already writes /tmp/<manifest_name>, so the copy was a file onto
+          # itself, which cp refuses, and set -e killed the step. That is how
+          # this failed on its first real execution in the 7 September smoke
+          # run — a fault no CI job could have surfaced, because CI never runs
+          # this workflow.
           dest="$(dirname "$MANIFEST_PATH")/${MANIFEST_NAME}"
-          cp "$MANIFEST_PATH" "$dest"
+          if [ "$dest" != "$MANIFEST_PATH" ]; then
+            cp "$MANIFEST_PATH" "$dest"
+          fi
           gh release upload "$RELEASE_TAG" "$dest" \
             --repo juralabs/jura-trace --clobber
           echo "Attached ${MANIFEST_NAME} to ${RELEASE_TAG}."
