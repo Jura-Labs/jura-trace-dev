@@ -46,6 +46,62 @@ jobs:
         id: resolve-tag
         run: echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
 
+      # The tag and the code must agree about what version this is.
+      #
+      # Tauri names every artefact from tauri.conf.json's version, and the
+      # upload step then friendly-renames using the TAG. So a tag cut without
+      # bumping the version produces installers whose FILENAME claims one
+      # version while their CONTENTS declare another: the .deb's Version
+      # field, the app's own /api/v1/health response, and the raw .sig names
+      # all keep the old number.
+      #
+      # Observed in the 7 September smoke run, where the artefacts were named
+      # 1.1.0-rc.0-smoke-20260907 and the signatures were still
+      # Jura.Trace_1.0.0_amd64.AppImage.sig. Nothing in the pipeline noticed.
+      # That is the same family as the sidecar shipping as 0.9.0 while the app
+      # called itself 1.0.0 (BL-TEST-001).
+      #
+      # This is a GATE, not an auto-bump. Silently rewriting the version
+      # during a release would hide exactly the mistake worth catching, and a
+      # version bump should be a deliberate commit that gets reviewed.
+      #
+      # Compares the numeric core only (X.Y.Z), so pre-release suffixes on the
+      # tag — rc, beta, the -smoke-YYYYMMDD pattern — do not need to be
+      # mirrored in the manifests.
+      - name: The tag agrees with the declared version
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          tag_core="${RELEASE_TAG#v}"; tag_core="${tag_core%%-*}"
+
+          conf=$(python3 -c "import json;print(json.load(open('src-tauri/tauri.conf.json'))['version'])")
+          cargo=$(grep -m1 '^version' src-tauri/Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+          pkg=$(python3 -c "import json;print(json.load(open('ui/package.json')).get('version',''))")
+
+          echo "tag              : ${RELEASE_TAG}  (core ${tag_core})"
+          echo "tauri.conf.json  : ${conf}"
+          echo "Cargo.toml       : ${cargo}"
+          echo "ui/package.json  : ${pkg}"
+
+          fail=0
+          for pair in "tauri.conf.json:${conf}" "Cargo.toml:${cargo}" "ui/package.json:${pkg}"; do
+            name="${pair%%:*}"; val="${pair#*:}"; core="${val%%-*}"
+            if [ "$core" != "$tag_core" ]; then
+              echo "::error::${name} declares ${val}, but the tag is ${RELEASE_TAG} (core ${tag_core})."
+              fail=1
+            fi
+          done
+
+          if [ "$fail" -ne 0 ]; then
+            echo ""
+            echo "Bump the version in all three files to ${tag_core}, commit, and re-tag."
+            echo "Do not work around this by changing the tag: the artefacts would"
+            echo "still carry the old version inside them."
+            exit 1
+          fi
+          echo "OK: the tag and the code agree."
+
       # Build the release body to a FILE, not an output variable.  Writing
       # via `${{ steps.x.outputs.y }}` round-trips the body through
       # GHA expression interpolation → env var → JS env → REST API JSON,
