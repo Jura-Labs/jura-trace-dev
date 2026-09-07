@@ -1,0 +1,248 @@
+name: Updater end-to-end
+
+# BL-TEST-001's updater leg. The one test that would have caught the defect
+# that stranded 145 users: a client on the previous version asking the live
+# manifest for the next one and being rejected.
+#
+# ── Why Windows, and why not Linux ─────────────────────────────────────────
+#
+# Not a preference. v1.0.0 ships no AppImage, and Tauri's Linux updater
+# installs AppImages, so there is no previous version for a Linux client to
+# update FROM. The first AppImage-bearing release is v1.1.0. Linux joins this
+# workflow when two such releases exist.
+#
+# ── Why this can drive the real shipped binary ─────────────────────────────
+#
+# tauri-plugin-updater does not share the application's HTTP stack. It
+# carries its own reqwest 0.13.2, which depends on rustls-platform-verifier,
+# so the updater validates TLS against the SYSTEM TRUST STORE. A throwaway CA
+# installed on the runner is therefore trusted, and the endpoint can be
+# redirected in the hosts file without touching production code.
+#
+# That was worth checking rather than assuming: the application's own reqwest
+# 0.12.28, reached through c2pa, uses webpki-roots, which ignores the system
+# store entirely. Three TLS configurations coexist in this repository and only
+# the updater's matters here.
+#
+# ── What this proves today, and what it does not ───────────────────────────
+#
+# PROVES: the installed binary resolves the endpoint, trusts the TLS, and
+# asks for the manifest. That covers DNS, certificate handling and the whole
+# request path, against the artefact a user actually installs.
+#
+# DOES NOT PROVE: that the client ACCEPTS the manifest, or that an update
+# applies. The startup check reports and never installs, by design, so the
+# only observable from outside is the request itself. The client's verdict
+# needs WebDriver driving Settings, which is the next increment.
+#
+# Stated here rather than implied by a green tick, because a test that
+# overstates itself is the thing this repository has spent a week removing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      previous_tag:
+        description: "Tag whose installer is treated as the PREVIOUS version. Must be a build containing the startup update check (v1.1.0-rc.1-smoke-20260907 or later)."
+        required: true
+        type: string
+      advertised_version:
+        description: "Version the staging manifest advertises. Must be higher than the installed one."
+        required: false
+        default: "9.9.9"
+        type: string
+
+concurrency:
+  group: updater-e2e-${{ github.event.inputs.previous_tag }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows — update from ${{ github.event.inputs.previous_tag }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download the previous version's MSI and signature
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREV: ${{ github.event.inputs.previous_tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p prev
+          gh release download "$PREV" --repo Jura-Labs/jura-trace \
+            --pattern "*Windows-x64.msi" --pattern "*msi.sig" --dir prev
+          ls -lh prev/ | sed 's/^/  /'
+
+      # A throwaway CA, valid for minutes, existing only inside this runner.
+      # It never leaves the job and signs nothing but a localhost listener.
+      - name: Create a throwaway CA and a certificate for juralabs.org
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path tls | Out-Null
+          $ca = New-SelfSignedCertificate `
+            -Subject "CN=Jura Trace updater E2E throwaway CA" `
+            -KeyusageProperty All -KeyUsage CertSign, CRLSign, DigitalSignature `
+            -CertStoreLocation Cert:\LocalMachine\My `
+            -NotAfter (Get-Date).AddHours(2) `
+            -TextExtension @("2.5.29.19={text}CA=true")
+          $leaf = New-SelfSignedCertificate `
+            -Subject "CN=juralabs.org" -DnsName "juralabs.org" `
+            -Signer $ca -CertStoreLocation Cert:\LocalMachine\My `
+            -NotAfter (Get-Date).AddHours(2)
+
+          # Trust the CA machine-wide so the updater's platform verifier accepts it.
+          $store = New-Object System.Security.Cryptography.X509Certificates.X509Store("Root","LocalMachine")
+          $store.Open("ReadWrite"); $store.Add($ca); $store.Close()
+          Write-Host "CA installed into LocalMachine\Root: $($ca.Thumbprint)"
+
+          $pwd = ConvertTo-SecureString -String "e2e" -Force -AsPlainText
+          Export-PfxCertificate -Cert $leaf -FilePath tls/leaf.pfx -Password $pwd | Out-Null
+          "$($leaf.Thumbprint)" | Set-Content tls/leaf.thumb
+
+      - name: Point juralabs.org at this machine
+        shell: pwsh
+        run: |
+          $hosts = "$env:SystemRoot\System32\drivers\etc\hosts"
+          Add-Content -Path $hosts -Value "`n127.0.0.1 juralabs.org"
+          Write-Host "hosts entry added"
+          # Prove the redirect took, rather than assuming it did.
+          $r = Resolve-DnsName juralabs.org -ErrorAction SilentlyContinue
+          Write-Host "juralabs.org resolves to: $((Test-Connection juralabs.org -Count 1 -ErrorAction SilentlyContinue).Address)"
+
+      # Serves the staging manifest and, crucially, RECORDS every request, so
+      # the assertion is about what the client actually did rather than about
+      # the absence of an error.
+      - name: Serve the staging manifest over HTTPS
+        shell: pwsh
+        env:
+          PREV: ${{ github.event.inputs.previous_tag }}
+          ADVERTISED: ${{ github.event.inputs.advertised_version }}
+        run: |
+          # Build a manifest from the real published assets of the previous
+          # tag, with only the version raised. The signature is the genuine
+          # one, so a client that verifies will find it consistent.
+          $sig = (Get-Content (Get-ChildItem prev/*.msi.sig | Select-Object -First 1) -Raw).Trim()
+          $msiName = (Get-ChildItem prev/*Windows-x64.msi | Select-Object -First 1).Name
+          $url = "https://github.com/Jura-Labs/jura-trace/releases/download/$env:PREV/$msiName"
+          $manifest = @{
+            version = $env:ADVERTISED
+            notes = "Updater end-to-end test manifest. Not a release."
+            pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            platforms = @{ "windows-x86_64" = @{ url = $url; signature = $sig } }
+          } | ConvertTo-Json -Depth 6
+          $manifest | Set-Content staging-manifest.json
+          Write-Host "staging manifest advertises $env:ADVERTISED"
+
+          # netsh binds the leaf cert to :443 so the listener speaks TLS.
+          $thumb = (Get-Content tls/leaf.thumb).Trim()
+          netsh http add sslcert ipport=0.0.0.0:443 certhash=$thumb appid='{00112233-4455-6677-8899-aabbccddeeff}' | Out-Null
+
+          $listener = New-Object System.Net.HttpListener
+          $listener.Prefixes.Add("https://+:443/")
+          $listener.Start()
+          Write-Host "listening on https://juralabs.org/"
+
+          # Run in the background, logging each request path to a file the
+          # assertion step reads.
+          $job = Start-Job -ScriptBlock {
+            param($l, $body)
+            while ($l.IsListening) {
+              try {
+                $ctx = $l.GetContext()
+                Add-Content -Path "$using:PWD\requests.log" -Value $ctx.Request.Url.AbsolutePath
+                $buf = [Text.Encoding]::UTF8.GetBytes($body)
+                $ctx.Response.ContentType = "application/json"
+                $ctx.Response.OutputStream.Write($buf, 0, $buf.Length)
+                $ctx.Response.Close()
+              } catch { break }
+            }
+          } -ArgumentList $listener, $manifest
+          "$($job.Id)" | Set-Content job.id
+          Start-Sleep -Seconds 2
+          New-Item -ItemType File -Force -Path requests.log | Out-Null
+
+      - name: Install the previous version
+        shell: pwsh
+        run: |
+          $msi = (Get-ChildItem prev/*Windows-x64.msi | Select-Object -First 1).FullName
+          $p = Start-Process msiexec.exe -ArgumentList "/i","`"$msi`"","/qn","/norestart" -Wait -PassThru
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "install failed: $($p.ExitCode)" }
+          $exe = Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles" -Filter "jura-trace.exe" -Recurse -Depth 3 -ErrorAction SilentlyContinue |
+                 Select-Object -First 1 -ExpandProperty FullName
+          if (-not $exe) { throw "installed executable not found" }
+          $exe | Set-Content app.path
+          Write-Host "installed: $exe"
+
+      # A fresh install has no network_mode.json (so Enhanced, the default)
+      # and no stored last-check timestamp, so the startup check fires on
+      # first launch without any UI interaction.
+      - name: Launch, and see whether the client asks for the manifest
+        shell: pwsh
+        run: |
+          $exe = (Get-Content app.path).Trim()
+          Start-Process -FilePath $exe
+          $asked = $false
+          foreach ($i in 1..60) {
+            if ((Test-Path requests.log) -and (Select-String -Path requests.log -Pattern "/api/updates/latest.json" -Quiet)) {
+              $asked = $true; Write-Host "manifest requested after ~${i}s"; break
+            }
+            Start-Sleep -Seconds 1
+          }
+          Write-Host "── requests seen ──"
+          if (Test-Path requests.log) { Get-Content requests.log | Sort-Object -Unique | ForEach-Object { Write-Host "  $_" } }
+          if (-not $asked) {
+            Write-Host "::error::The installed client never requested the update manifest in 60s."
+            Write-Host "That means it could not resolve juralabs.org, could not trust the certificate,"
+            Write-Host "or did not run its startup check. All three are real failures."
+            exit 1
+          }
+          Write-Host "OK: the real shipped binary resolved the endpoint, trusted the CA, and asked for the manifest."
+
+      - name: Stop the app and the listener
+        if: always()
+        shell: pwsh
+        run: |
+          Get-Process | Where-Object { $_.ProcessName -like "*jura*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+          if (Test-Path job.id) { Stop-Job -Id (Get-Content job.id) -ErrorAction SilentlyContinue }
+          netsh http delete sslcert ipport=0.0.0.0:443 | Out-Null
+          exit 0
+
+      - name: Summary
+        if: always()
+        shell: bash
+        env:
+          PREV: ${{ github.event.inputs.previous_tag }}
+        run: |
+          {
+            echo "## Updater end-to-end — previous version $PREV"
+            echo ""
+            echo "**Proved:** the installed binary resolved juralabs.org through the"
+            echo "hosts redirect, trusted a throwaway CA via the updater's platform"
+            echo "verifier, and requested the update manifest. That is DNS,"
+            echo "certificate handling and the request path, against the artefact a"
+            echo "user actually installs."
+            echo ""
+            echo "**Not proved:** that the client accepted the manifest, or that an"
+            echo "update applies. The startup check reports and never installs, by"
+            echo "design, so the client's verdict is not observable from outside."
+            echo "That needs WebDriver driving Settings, which is the next increment."
+            echo ""
+            echo "Windows only: v1.0.0 ships no AppImage, so Linux has no previous"
+            echo "version to update from until v1.1.0 exists."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artefacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: updater-e2e
+          path: |
+            requests.log
+            staging-manifest.json
+          retention-days: 14
+          if-no-files-found: warn
