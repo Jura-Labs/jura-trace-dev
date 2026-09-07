@@ -126,3 +126,26 @@ asked the live manifest for the new one.
 Do not let macOS silently fall out of scope because it is manual. Write the
 five-minute smoke down as a checklist in `docs/release/`, so it is a step
 somebody performs rather than a habit somebody remembers.
+
+## Caveat on the parallel-install pass, 7 September
+
+The NSIS assertion has been passing: both installers landed in
+`LOCALAPPDATA`, so no split appeared. That result is now qualified.
+
+In the updater E2E run of 7 September the MSI was installed **on its own**,
+with no NSIS install present, and it went to `C:\Program Files\Jura Trace`
+— **per-machine**. In the installer test NSIS runs first, and there both
+end up per-user.
+
+The likeliest reading is that the MSI detects the existing per-user install
+and upgrades it in place, rather than the MSI being per-user by nature. If
+so, the assertion is passing on a path the stranded users did not
+necessarily take, and a machine where the MSI lands first, or where the
+NSIS install is not detected, could still produce the split this test is
+meant to catch.
+
+The pass was honest and is not being withdrawn. But it is narrower than it
+reads, and the fix should not be considered proved by it. Establish which
+of the two readings is true before treating the parallel-install risk as
+closed — installing the MSI first on a clean machine and then NSIS would
+settle it.
