@@ -2113,7 +2113,18 @@ jobs:
         # still run regardless, so the draft is fully populated for Win/Linux.
         # Without this guard the SHA256SUMS gating (needs.build can be failure)
         # would publish a macOS-less release the moment CI finishes.
-        if: needs.build.result == 'success'
+        #
+        # The `platforms` clause is the second half, and it is not redundant.
+        # `needs.build.result == 'success'` means "every job that RAN
+        # succeeded" — not "every platform was built". Under a `linux-only`
+        # or `windows-only` dispatch the matrix has one entry, so a green
+        # single-platform build satisfies it and this step would publish a
+        # release missing two platforms. The completeness gate above does
+        # currently catch that case, and it fired on 7 September. But a
+        # publish should be blocked by saying what it requires, not by
+        # depending on a different assertion happening to fail first.
+        # Partial dispatches are for diagnostics; they leave a draft.
+        if: needs.build.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.platforms == 'all')
         # Uses RELEASE_PAT to flip the draft release to published on
         # juralabs/jura-trace (the public releases repo).
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
