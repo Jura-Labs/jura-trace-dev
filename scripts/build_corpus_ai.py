@@ -7,7 +7,7 @@ Downloads AI-generated images from freely available sources to expand
 the training corpus beyond the local images.
 
 Current strategy:
-1. Use local images from /Users/paulgriffiths/Desktop/Fake Images AI/ (19 images)
+1. Use local images from $JURA_AI_CORPUS (19 images)
 2. Optionally download from HuggingFace datasets API
 
 Usage:
@@ -25,7 +25,10 @@ from pathlib import Path
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tiff", ".tif", ".webp"}
 
 # Local AI images source
-LOCAL_AI_SOURCE = "/Users/paulgriffiths/Desktop/Fake Images AI"
+LOCAL_AI_SOURCE = os.environ.get(
+    "JURA_AI_CORPUS",
+    os.path.join(os.path.dirname(__file__), "..", "corpus", "ai-generated"),
+)
 
 
 def copy_local_images(source: str, dest: Path) -> int:
