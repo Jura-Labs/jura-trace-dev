@@ -778,7 +778,7 @@ jobs:
       - name: Install Tauri CLI
         run: |
           cargo install cargo-binstall --locked --version "~1.10"
-          cargo binstall tauri-cli --version "^2" --no-confirm
+          cargo binstall tauri-cli --version "2.11.4" --no-confirm
 
       # ── Tauri: build and upload release artefacts ────────────────────────
       # tauri-apps/tauri-action@v0 is the Tauri v2-compatible release of the action.
@@ -867,7 +867,50 @@ jobs:
           # vars cover signing only). The job budget is raised to give it room.
           # If it still overruns, the job fails loudly and the release stays a
           # draft, which is the correct direction to fail.
-          args: --target ${{ matrix.target }} --bundles deb,appimage
+          # -v is load-bearing, not decoration. tauri-bundler runs linuxdeploy
+          # through output_ok(), which logs its stderr at log::debug! only and
+          # then DISCARDS the captured buffer, raising a bare
+          # "failed to run linuxdeploy". At default verbosity you get that line
+          # and nothing else, which is exactly what the 7 September failure
+          # produced. -v flips the logger to debug and streams linuxdeploy's
+          # stderr into the CI log. BL-REL-005.
+          args: -v --target ${{ matrix.target }} --bundles deb,appimage
+
+      # If the Linux bundle fails, capture the state that would explain it.
+      #
+      # The 7 September failure gave one line — "failed to run linuxdeploy" —
+      # and nothing to act on, so diagnosing it cost a second 24-minute run
+      # that produced the same line. This step makes the next occurrence
+      # self-explaining.
+      #
+      # Disk is the leading hypothesis. The AppImage bundler builds a SECOND
+      # full deb-style staging tree at bundle/appimage_deb/, another complete
+      # copy of the ~607 MB model and ~192 MB sidecar, on top of the AppDir
+      # copy and the deb bundler's own staging: roughly +4.5 GB during the
+      # bundle phase. The 36 GB free figure was measured at cleanup time, not
+      # at bundling time, so it does not settle the question.
+      #
+      # An OOM kill would also present as a bare non-zero exit with no stderr,
+      # which is why dmesg is here.
+      - name: Forensics if the Linux bundle failed
+        if: failure() && matrix.target == 'x86_64-unknown-linux-gnu'
+        continue-on-error: true
+        run: |
+          echo "── disk ──"
+          df -h / || true
+          echo "── memory ──"
+          free -m || true
+          echo "── OOM kills ──"
+          sudo dmesg 2>/dev/null | grep -iE "oom|killed process" | tail -20 || echo "  none found"
+          echo "── bundle staging ──"
+          for d in appimage appimage_deb deb; do
+            p="src-tauri/target/${{ matrix.target }}/release/bundle/$d"
+            echo "  $p:"
+            du -sh "$p" 2>/dev/null | sed 's/^/    /' || echo "    (absent)"
+            ls -la "$p" 2>/dev/null | head -10 | sed 's/^/    /' || true
+          done
+          echo "── largest paths under target ──"
+          du -sh src-tauri/target/*/release/bundle/* 2>/dev/null | sort -h | tail -10 || true
 
       # ── macOS: per-file sign the nested PyInstaller --onedir tree ────────
       # Tauri's --deep does not reach Resources/sidecar-bundle/_internal/ in
