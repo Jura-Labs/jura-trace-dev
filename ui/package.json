@@ -1,6 +1,6 @@
 {
   "name": "jura-trace-ui",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "scripts": {
     "predev": "cargo run --manifest-path=../src-tauri/Cargo.toml --bin gen-detectors -- ..",
