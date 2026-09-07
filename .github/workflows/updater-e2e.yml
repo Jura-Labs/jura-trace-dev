@@ -121,18 +121,34 @@ jobs:
           $r = Resolve-DnsName juralabs.org -ErrorAction SilentlyContinue
           Write-Host "juralabs.org resolves to: $((Test-Connection juralabs.org -Count 1 -ErrorAction SilentlyContinue).Address)"
 
-      # Serves the staging manifest and, crucially, RECORDS every request, so
-      # the assertion is about what the client actually did rather than about
-      # the absence of an error.
-      - name: Serve the staging manifest over HTTPS
+      # Serve, install, launch and observe in ONE step, deliberately.
+      #
+      # The first version of this split them across three, and the listener
+      # could not survive: every GitHub Actions `run:` block is its own
+      # process, so the HttpListener created in a "serve" step is destroyed
+      # when that step exits. Start-Job did not help either — it also runs in
+      # a separate process, and a live HttpListener cannot be marshalled
+      # across a process boundary; the job receives a deserialised property
+      # bag with no working GetContext().
+      #
+      # The 7 September run failed exactly this way. Everything reported
+      # success — CA installed, "listening on https://juralabs.org/", MSI
+      # installed, hosts redirect confirmed resolving to 127.0.0.1 — and then
+      # zero requests arrived, because by then nothing was listening. The app
+      # was almost certainly refused a connection.
+      #
+      # Keeping it in one process makes the listener's lifetime the step's
+      # lifetime, which is the only arrangement where "no requests seen" means
+      # what it claims to mean.
+      - name: Serve the manifest, launch the app, and observe
         shell: pwsh
         env:
           PREV: ${{ github.event.inputs.previous_tag }}
           ADVERTISED: ${{ github.event.inputs.advertised_version }}
         run: |
-          # Build a manifest from the real published assets of the previous
-          # tag, with only the version raised. The signature is the genuine
-          # one, so a client that verifies will find it consistent.
+          $ErrorActionPreference = "Stop"
+
+          # ── staging manifest, built from the previous tag's real assets ──
           $sig = (Get-Content (Get-ChildItem prev/*.msi.sig | Select-Object -First 1) -Raw).Trim()
           $msiName = (Get-ChildItem prev/*Windows-x64.msi | Select-Object -First 1).Name
           $url = "https://github.com/Jura-Labs/jura-trace/releases/download/$env:PREV/$msiName"
@@ -145,66 +161,52 @@ jobs:
           $manifest | Set-Content staging-manifest.json
           Write-Host "staging manifest advertises $env:ADVERTISED"
 
-          # netsh binds the leaf cert to :443 so the listener speaks TLS.
+          # ── bind the leaf cert and start listening, in THIS process ──
           $thumb = (Get-Content tls/leaf.thumb).Trim()
           netsh http add sslcert ipport=0.0.0.0:443 certhash=$thumb appid='{00112233-4455-6677-8899-aabbccddeeff}' | Out-Null
-
           $listener = New-Object System.Net.HttpListener
           $listener.Prefixes.Add("https://+:443/")
           $listener.Start()
-          Write-Host "listening on https://juralabs.org/"
+          Write-Host "listening on https://juralabs.org/ (in-process)"
 
-          # Run in the background, logging each request path to a file the
-          # assertion step reads.
-          $job = Start-Job -ScriptBlock {
-            param($l, $body)
-            while ($l.IsListening) {
-              try {
-                $ctx = $l.GetContext()
-                Add-Content -Path "$using:PWD\requests.log" -Value $ctx.Request.Url.AbsolutePath
-                $buf = [Text.Encoding]::UTF8.GetBytes($body)
-                $ctx.Response.ContentType = "application/json"
-                $ctx.Response.OutputStream.Write($buf, 0, $buf.Length)
-                $ctx.Response.Close()
-              } catch { break }
-            }
-          } -ArgumentList $listener, $manifest
-          "$($job.Id)" | Set-Content job.id
-          Start-Sleep -Seconds 2
-          New-Item -ItemType File -Force -Path requests.log | Out-Null
-
-      - name: Install the previous version
-        shell: pwsh
-        run: |
+          # ── install and launch the previous version ──
           $msi = (Get-ChildItem prev/*Windows-x64.msi | Select-Object -First 1).FullName
           $p = Start-Process msiexec.exe -ArgumentList "/i","`"$msi`"","/qn","/norestart" -Wait -PassThru
           if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "install failed: $($p.ExitCode)" }
-          $exe = Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles" -Filter "jura-trace.exe" -Recurse -Depth 3 -ErrorAction SilentlyContinue |
+          $exe = Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles" -Filter "jura-trace.exe" -Recurse -Depth 4 -ErrorAction SilentlyContinue |
                  Select-Object -First 1 -ExpandProperty FullName
           if (-not $exe) { throw "installed executable not found" }
-          $exe | Set-Content app.path
           Write-Host "installed: $exe"
-
-      # A fresh install has no network_mode.json (so Enhanced, the default)
-      # and no stored last-check timestamp, so the startup check fires on
-      # first launch without any UI interaction.
-      - name: Launch, and see whether the client asks for the manifest
-        shell: pwsh
-        run: |
-          $exe = (Get-Content app.path).Trim()
           Start-Process -FilePath $exe
+
+          # ── serve asynchronously and watch for the manifest request ──
+          $seen = New-Object System.Collections.Generic.List[string]
           $asked = $false
-          foreach ($i in 1..60) {
-            if ((Test-Path requests.log) -and (Select-String -Path requests.log -Pattern "/api/updates/latest.json" -Quiet)) {
-              $asked = $true; Write-Host "manifest requested after ~${i}s"; break
+          $deadline = (Get-Date).AddSeconds(90)
+          $ctxTask = $listener.GetContextAsync()
+          while ((Get-Date) -lt $deadline) {
+            if ($ctxTask.Wait(1000)) {
+              $ctx = $ctxTask.Result
+              $path = $ctx.Request.Url.AbsolutePath
+              $seen.Add($path)
+              Write-Host "  request: $path"
+              $buf = [Text.Encoding]::UTF8.GetBytes($manifest)
+              $ctx.Response.ContentType = "application/json"
+              $ctx.Response.OutputStream.Write($buf, 0, $buf.Length)
+              $ctx.Response.Close()
+              if ($path -eq "/api/updates/latest.json") { $asked = $true; break }
+              $ctxTask = $listener.GetContextAsync()
             }
-            Start-Sleep -Seconds 1
           }
+          $seen | Set-Content requests.log
+          $listener.Stop()
+
           Write-Host "── requests seen ──"
-          if (Test-Path requests.log) { Get-Content requests.log | Sort-Object -Unique | ForEach-Object { Write-Host "  $_" } }
+          if ($seen.Count -eq 0) { Write-Host "  (none)" } else { $seen | ForEach-Object { Write-Host "  $_" } }
+
           if (-not $asked) {
-            Write-Host "::error::The installed client never requested the update manifest in 60s."
-            Write-Host "That means it could not resolve juralabs.org, could not trust the certificate,"
+            Write-Host "::error::The installed client never requested the update manifest within 90s."
+            Write-Host "Either it could not resolve juralabs.org, could not trust the certificate,"
             Write-Host "or did not run its startup check. All three are real failures."
             exit 1
           }
