@@ -262,6 +262,35 @@ update. It should not go out before the fix is live and tested, so that
    manifests, because one static `windows-x86_64` key cannot serve both
    formats and the current arrangement produces a silent duplicate install.
 
+### Step 3 has its first real client-side evidence, 7 September 2026
+
+Until now every check on this item was made from outside the product:
+`curl` the manifest, decode the base64, compare key IDs. All necessary, and
+none of it proves a shipped binary does anything.
+
+The updater end-to-end workflow ran on 7 September (run 34143290758). The
+real Windows MSI was installed on a clean runner, `juralabs.org` was
+pointed at the machine, and the installed binary asked, unprompted:
+
+```
+  request: /api/updates/latest.json
+```
+
+That is the first evidence that a shipped Jura Trace client reaches the
+update endpoint at all. It also proves the TLS half incidentally: the CA
+existed only in `LocalMachine\Root`, so `rustls-platform-verifier` is
+genuinely consulting the OS trust store, which had been an assumption.
+
+**What it does not prove, and step 3 is not yet closed.** The test stops at
+the request. It does not show the client accepting the manifest, verifying
+the minisign signature, downloading the MSI, or applying the update —
+those need WebDriver to drive the UI past the check. Nor does it touch the
+deb or the NSIS case, which step 5 says decide the size of the notice.
+
+So: the endpoint is reached, and the two failure modes that would have been
+invisible from outside (DNS and TLS) are eliminated. The remainder of step
+3 stands.
+
 6. **Send the re-download notice**, once 1 to 5 are done and tested.
    Because nothing prompts a user to check for updates, the working
    assumption should be that it goes to all 145 and not only to whichever
