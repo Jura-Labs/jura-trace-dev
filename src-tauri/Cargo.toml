@@ -79,7 +79,7 @@ time = { version = "0.3", features = ["std"] }
 image_hasher = "3.1"
 
 # HTTP client for Python ML sidecar (Phase 2)
-reqwest = { version = "0.12", features = ["blocking", "multipart", "json"] }
+reqwest = { version = "0.13", features = ["blocking", "multipart", "json"] }
 url = "2"
 
 # Temp files for URL verification
@@ -107,7 +107,7 @@ tokio = { version = "1", features = ["net", "rt", "macros", "sync"], optional = 
 [dev-dependencies]
 # Integration test helpers (API wrapper tests)
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.12", features = ["json", "multipart"] }
+reqwest = { version = "0.13", features = ["json", "multipart"] }
 
 [features]
 default = ["custom-protocol", "api"]
