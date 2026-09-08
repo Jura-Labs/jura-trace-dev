@@ -106,7 +106,7 @@ az resource create \
 Once identity validation is approved:
 1. Trusted Signing → Certificate profiles → Create
 2. Profile type: "Public Trust"
-3. Name: `juralabs-release`
+3. Name: `juralabs-public-trust`
 4. CN value will be set automatically from your validated identity
 
 #### 5. Create an Azure AD app registration for CI
@@ -114,7 +114,7 @@ Once identity validation is approved:
 ```bash
 # Create service principal for GitHub Actions
 az ad sp create-for-rbac \
-  --name "jura-trace-ci" \
+  --name "jura-trace-signing-ci" \
   --role "Trusted Signing Certificate Profile Signer" \
   --scopes "/subscriptions/<SUB_ID>/resourceGroups/jura-signing/providers/Microsoft.CodeSigning/codeSigningAccounts/juralabs-signing"
 ```
@@ -136,7 +136,7 @@ This outputs:
 | `AZURE_CLIENT_SECRET` | `password` from step 5 | Service principal output |
 | `AZURE_TENANT_ID` | `tenant` from step 5 | Service principal output |
 | `AZURE_SIGNING_ACCOUNT` | `juralabs-signing` | The name you chose in step 2 |
-| `AZURE_CERT_PROFILE` | `juralabs-release` | The name you chose in step 4 |
+| `AZURE_CERT_PROFILE` | `juralabs-public-trust` | The name you chose in step 4 |
 | `AZURE_SIGNING_ENDPOINT` | `https://weu.codesigning.azure.net` | Based on your region. **The secret is named `AZURE_SIGNING_ENDPOINT`, not `AZURE_ENDPOINT`** — `release.yml:741` reads the former, and a secret under the wrong name is invisible to the workflow rather than an error. |
 
 #### 6b. Rotating the client secret, or wiring up a second repository
@@ -149,7 +149,7 @@ Certificate Profile Signer* role, which is the part that is tedious to
 recreate.
 
 ```bash
-az ad sp list --display-name jura-trace-ci --query "[].appId" -o tsv
+az ad sp list --display-name jura-trace-signing-ci --query "[].appId" -o tsv
 az account show --query tenantId -o tsv
 az ad app credential reset --id <appId> --append --end-date 2028-09-08
 ```
