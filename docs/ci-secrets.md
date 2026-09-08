@@ -135,10 +135,32 @@ This outputs:
 | `AZURE_CLIENT_ID` | `appId` from step 5 | Service principal output |
 | `AZURE_CLIENT_SECRET` | `password` from step 5 | Service principal output |
 | `AZURE_TENANT_ID` | `tenant` from step 5 | Service principal output |
-| `AZURE_SUBSCRIPTION_ID` | Your Azure subscription ID | Azure Portal → Subscriptions |
 | `AZURE_SIGNING_ACCOUNT` | `juralabs-signing` | The name you chose in step 2 |
 | `AZURE_CERT_PROFILE` | `juralabs-release` | The name you chose in step 4 |
-| `AZURE_ENDPOINT` | `https://weu.codesigning.azure.net` | Based on your region |
+| `AZURE_SIGNING_ENDPOINT` | `https://weu.codesigning.azure.net` | Based on your region. **The secret is named `AZURE_SIGNING_ENDPOINT`, not `AZURE_ENDPOINT`** — `release.yml:741` reads the former, and a secret under the wrong name is invisible to the workflow rather than an error. |
+
+#### 6b. Rotating the client secret, or wiring up a second repository
+
+The client secret cannot be read back from Azure any more than from GitHub.
+To give another repository access, or to replace an expiring secret, mint an
+additional one against the **existing** service principal rather than making
+a new principal — the existing one already holds the *Trusted Signing
+Certificate Profile Signer* role, which is the part that is tedious to
+recreate.
+
+```bash
+az ad sp list --display-name jura-trace-ci --query "[].appId" -o tsv
+az account show --query tenantId -o tsv
+az ad app credential reset --id <appId> --append --end-date 2028-09-08
+```
+
+`--append` is load-bearing. **Without it, `credential reset` deletes every
+existing credential on the app**, which breaks signing in any repository
+still using the old secret. There is no `--years` flag; expiry is set with
+`--end-date`.
+
+Leave the previous secret in place until the new repository has completed a
+signed release, then delete the old entry under Certificates & secrets.
 
 #### 7. Update release workflow
 
@@ -153,7 +175,7 @@ Add this step in `.github/workflows/release.yml` for the Windows build, after th
     azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
     azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
     azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-    endpoint: ${{ secrets.AZURE_ENDPOINT }}
+    endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
     trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
     certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE }}
     files-folder: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/
@@ -222,10 +244,9 @@ When both certificates arrive:
 | `AZURE_CLIENT_ID` | Windows signing | |
 | `AZURE_CLIENT_SECRET` | Windows signing | |
 | `AZURE_TENANT_ID` | Windows signing | |
-| `AZURE_SUBSCRIPTION_ID` | Windows signing | |
 | `AZURE_SIGNING_ACCOUNT` | Windows signing | |
 | `AZURE_CERT_PROFILE` | Windows signing | |
-| `AZURE_ENDPOINT` | Windows signing | |
+| `AZURE_SIGNING_ENDPOINT` | Windows signing | |
 | `TAURI_SIGNING_PRIVATE_KEY` | Auto-updater | |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Auto-updater | |
 | **Total** | | **15 secrets** |
