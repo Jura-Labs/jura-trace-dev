@@ -27,7 +27,7 @@ python-multipart==0.0.32
 # Image forensics
 Pillow==12.3.0
 imagehash==4.3.2
-numpy==2.2.4
+numpy==2.5.2
 opencv-python-headless==4.11.0.86
 
 # HEIC/HEIF support — required for iPhone photos on Linux production builds.
