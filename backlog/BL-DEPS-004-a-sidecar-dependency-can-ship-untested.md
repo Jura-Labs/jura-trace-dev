@@ -1,6 +1,6 @@
 # BL-DEPS-004: a sidecar dependency can ship without CI having tested it
 
-**Status**: Open. Found 8 September 2026, reading the pip half of the
+**Status**: Open, guard in place. Option (b) shipped in #36 the same day this was filed and passes on `main`. Options (a), (c) and (d) are not done, and the macOS build script still pins nothing. See "Update, 8 September 2026" at the foot of this file. Found 8 September 2026, reading the pip half of the
 Dependabot queue against `ci.yml`.
 **Severity**: High. Not because any bump is known to have moved a detector
 score, but because the check that would tell us is wired so that it cannot.
@@ -267,3 +267,73 @@ It is also where BL-DEPS-001 stopped one step short. That item triaged the
 queue by risk and said Pillow needs a calibration re-run before acceptance,
 which is right, but it assumed the gate would at least build and test the
 proposed version. For the sidecar, it does not.
+
+## Update, 8 September 2026
+
+This item was filed in #35 (`3ca2896f`, 21:44 UTC) and its option (b)
+merged in #36 (`bb81abee`, 21:44 UTC) in the same minute. Reconciled
+against `origin/main` at `d0ca411d`.
+
+### (b) is done
+
+`scripts/check_requirements_sync.py` now loads every `==` pin from
+`requirements.txt`, `requirements-ci.txt` and `requirements.lock`, skipping
+the lock's `--hash` continuation lines, and fails when a package pinned in
+two or more files carries two versions. The docstring at
+`check_requirements_sync.py:28-40` replaces the false parenthetical quoted
+above with the reason it was false. Specifiers other than `==` stay
+name-checked only. Run on `main` on 8 September:
+
+```
+OK: all 17 non-test packages from requirements.txt are present in requirements-ci.txt.
+OK: 53 pinned package(s) agree on version across 3 manifest(s).
+INFO: 5 package(s) in requirements-ci.txt are transitive pins not in requirements.txt (this is expected):
+  anyio certifi h11 sniffio starlette
+```
+
+Exit 0. It runs in the Repo hygiene job (`ci.yml:403-404`), which is one of
+the five required status checks on `main`. The consequence predicted above
+is now in force: every Dependabot pip pull request is red on that job until
+its lock is regenerated. The `sniffio` observation above is answered by
+the INFO line; it is a deliberate transitive pin, not drift.
+
+BL-SILENT-001's "checked and clean" entry for this guard was corrected in
+#35, as this item asked.
+
+### The five held bumps were tested, then deferred
+
+The drift test this item said each bump needed was run on 8 September and
+written up in `docs/calibration/numerical-stack-drift-sep2026.md` (#37,
+`3f66df5c`): 84 golden images, six environments, five probes. numpy 2.5.2,
+scipy 1.18.1, opencv-python-headless 5.0.0.93 and pillow-avif-plugin 1.6.0
+changed no detector output. scikit-learn 1.9.0 is **blocked**: the shipped
+`deepfake_classifier.joblib` raises `ModuleNotFoundError: No module named
+'_loss'` on unpickle, and with the bare `except` that then existed in
+`_load_classifier` the classifier would have been silently disabled. #38
+(`c718ca25`) makes that loader log the traceback, with two tests. Paul's
+decision, 8 September: all five deferred to after the v1.1.0 release on
+13 November 2026; Dependabot #1, #4, #5, #9 and #10 closed by hand rather
+than added to `ignore`, so their security updates stay live
+(`.github/dependabot.yml:112-148`).
+
+### What remains
+
+- **(a)** Not done, and per the text above should not be done on its own.
+  `ci.yml:287-293` still installs `requirements.lock`.
+- **(c)** Not investigated. Whether Dependabot regenerates a pip-compile
+  lock named `requirements.lock`, or would if it were renamed
+  `requirements-lock.txt`, is unconfirmed. Until it is, every sidecar bump
+  is the manual four-file operation in (d).
+- **(d)** Is the standing rule by this file's authority only. Nothing in
+  `AGENTS.md` yet says a sidecar bump must regenerate the lock and record
+  drift evidence; `AGENTS.md:304` still describes `requirements-ci.txt` as
+  "the file CI actually uses", which is true of `release.yml` and false of
+  `ci.yml`.
+- **The macOS channel.** `scripts/build-local-mac.sh` is unchanged: it
+  freezes the sidecar at line 169 against the developer's ambient Python
+  and contains no `pip install`, no virtualenv and no reference to any
+  requirements file. The guard proves the three manifests agree with each
+  other; nothing proves the macOS build used any of them.
+- **The tests still assert bounds.** The conditional assertions at
+  `sidecar/tests/test_deepfake.py:243-254` and `:266-272` are as described;
+  the golden-value work stays out of this item by its own rule.
