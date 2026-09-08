@@ -30,6 +30,7 @@ version:
 | [BL-DOC-001](BL-DOC-001-pdfs-already-half-work-and-the-help-page-denies-it.md) | PDFs already half-work by drag and drop, and the help page denies it | Medium |
 | [BL-WM-001](BL-WM-001-watermarking-is-two-bugs-and-a-bundle-problem.md) | What enabling watermarking actually requires, and the robustness cliff | Scope risk |
 | [BL-DEPS-003](BL-DEPS-003-four-reachable-advisories-in-the-shipped-binary.md) | Four reachable advisories in the shipped product, found the first time anyone looked | High |
+| [BL-DEPS-004](BL-DEPS-004-a-sidecar-dependency-can-ship-untested.md) | CI tests the locked version while the release ships the bumped one, and the sync guard compares names only | High |
 | [BL-TEST-001](BL-TEST-001-nothing-tests-the-installed-product.md) | Nothing tests the installed product; this workflow IS the BL-REL-002 release gate | High, v1.1.0 floor |
 | [BL-SILENT-001](BL-SILENT-001-mechanisms-that-report-success-while-doing-nothing.md) | The class behind five defects: mechanisms reporting success while doing nothing | High as a class |
 | [BL-CLAIM-003](BL-CLAIM-003-the-pdf-report-asserts-checks-that-never-ran.md) | The exported forensic report asserts OCSP/CRL checks that never run | High, legal |
