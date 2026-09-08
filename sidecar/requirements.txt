@@ -51,7 +51,7 @@ scikit-learn==1.8.0
 
 # Deepfake detection (texture, frequency, JPEG analysis)
 scikit-image==0.26.0
-scipy==1.17.1
+scipy==1.18.1
 
 # ONNX runtime — explicit pin required: production CLIP detection runs via
 # onnxruntime (JTV-143, 3 May 2026). Without this pin onnxruntime would only
