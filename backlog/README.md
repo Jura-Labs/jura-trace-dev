@@ -16,31 +16,49 @@ version:
 
 ## Open items
 
-| Item | What it is | Severity |
-|---|---|---|
-| [BL-REL-002](BL-REL-002-updater-manifest-carries-urls-not-signatures.md) | The updater manifest holds URLs where signatures belong, so no v1.0.0 install can update | Highest |
-| [BL-CI-001](BL-CI-001-test-gate-has-not-run-since-april.md) | The test gate has not run since 30 April and only fires on pull requests | High |
-| [BL-CI-002](BL-CI-002-osv-scanner-has-scanned-nothing-since-july.md) | The weekly supply-chain scan has scanned nothing since July | High |
-| [BL-DEPS-001](BL-DEPS-001-dependabot-queue-is-saturated.md) | All four dependency ecosystems are at the five-PR cap, so nothing new can be reported | High |
-| [BL-CLAIM-001](BL-CLAIM-001-nothing-leaves-the-device-is-nearly-true.md) | "No data is uploaded to external servers" is nearly true, and nearly is not good enough | High |
-| [BL-DEPS-002](BL-DEPS-002-frontend-advisories-one-ships.md) | Twelve frontend advisories, of which one reaches a user | Medium |
-| [BL-REL-001](BL-REL-001-stray-model-backup-in-the-bundle.md) | A stray classifier backup sits inside the bundled resources glob | Low |
-| [BL-UX-001](BL-UX-001-tool-object-object-in-the-c2pa-panel.md) | The C2PA panel shows "Tool: [object Object]" | Low to fix |
-| [BL-CLAIM-002](BL-CLAIM-002-the-app-makes-two-promises-the-release-did-not-keep.md) | Two promises shipped inside the app that the release did not keep | Medium |
-| [BL-DOC-001](BL-DOC-001-pdfs-already-half-work-and-the-help-page-denies-it.md) | PDFs already half-work by drag and drop, and the help page denies it | Medium |
-| [BL-WM-001](BL-WM-001-watermarking-is-two-bugs-and-a-bundle-problem.md) | What enabling watermarking actually requires, and the robustness cliff | Scope risk |
-| [BL-DEPS-003](BL-DEPS-003-four-reachable-advisories-in-the-shipped-binary.md) | Four reachable advisories in the shipped product, found the first time anyone looked | High |
-| [BL-DEPS-004](BL-DEPS-004-a-sidecar-dependency-can-ship-untested.md) | CI tests the locked version while the release ships the bumped one, and the sync guard compares names only | High |
-| [BL-TEST-001](BL-TEST-001-nothing-tests-the-installed-product.md) | Nothing tests the installed product; this workflow IS the BL-REL-002 release gate | High, v1.1.0 floor |
-| [BL-SILENT-001](BL-SILENT-001-mechanisms-that-report-success-while-doing-nothing.md) | The class behind five defects: mechanisms reporting success while doing nothing | High as a class |
-| [BL-CLAIM-003](BL-CLAIM-003-the-pdf-report-asserts-checks-that-never-ran.md) | The exported forensic report asserts OCSP/CRL checks that never run | High, legal |
-| [BL-API-001](BL-API-001-the-headless-api-is-documented-and-does-not-exist.md) | The headless API is documented and does not exist; it gates the CLI | Medium |
-| [BL-SIZE-001](BL-SIZE-001-242mb-of-download-computes-10kb-of-constants.md) | 242 MB of every download computes 10 KB of constants | High for adoption |
+Statuses reconciled 8 September 2026 against `origin/main` at `d0ca411d`,
+after the fourteen merges of that day. Each item's own file carries a dated
+"Update, 8 September 2026" section with the evidence.
 
-The first four are one story. There is no working channel through which a
-newly disclosed vulnerability reaches anybody, and no working channel
-through which a fix reaches a user. Reading them in the order above is the
-order they should be repaired in.
+| Item | What it is | Status | Severity |
+|---|---|---|---|
+| [BL-REL-002](BL-REL-002-updater-manifest-carries-urls-not-signatures.md) | The updater manifest held URLs where signatures belong; the live manifest is now correct, the fallback resolves, and the re-download notice and the live update on a real v1.0.0 install remain | Open, largely resolved server-side | Highest |
+| [BL-DEPS-001](BL-DEPS-001-dependabot-queue-is-saturated.md) | The Dependabot queue was at the cap in every ecosystem; cap raised, queue moving, 18 open across pip and cargo and actions; steps 4 to 6 remain. Security updates were never subject to the cap | Open, largely resolved | High |
+| [BL-CLAIM-001](BL-CLAIM-001-nothing-leaves-the-device-is-nearly-true.md) | "No data is uploaded to external servers" is nearly true, and nearly is not good enough | Open, narrowed | High |
+| [BL-DEPS-002](BL-DEPS-002-frontend-advisories-one-ships.md) | Ten frontend advisories (was twelve), none of which reaches a user | Open, partly resolved | Medium |
+| [BL-REL-001](BL-REL-001-stray-model-backup-in-the-bundle.md) | A stray classifier backup sits inside the bundled resources glob | Open | Low |
+| [BL-UX-001](BL-UX-001-tool-object-object-in-the-c2pa-panel.md) | The C2PA panel shows "Tool: [object Object]" | Open | Low to fix |
+| [BL-CLAIM-002](BL-CLAIM-002-the-app-makes-two-promises-the-release-did-not-keep.md) | Two promises shipped inside the app that the release did not keep | Open | Medium |
+| [BL-DOC-001](BL-DOC-001-pdfs-already-half-work-and-the-help-page-denies-it.md) | PDFs already half-work by drag and drop, and the help page denies it | Open | Medium |
+| [BL-WM-001](BL-WM-001-watermarking-is-two-bugs-and-a-bundle-problem.md) | What enabling watermarking actually requires, and the robustness cliff | Open | Scope risk |
+| [BL-DEPS-003](BL-DEPS-003-four-reachable-advisories-in-the-shipped-binary.md) | Five reachable advisories in the shipped product; every one is fixed on `main`, `cargo audit` and `pip-audit` report zero, and nothing reaches a user until v1.1.0 ships | Open, largely resolved (fixed in tree, not for users) | High |
+| [BL-DEPS-004](BL-DEPS-004-a-sidecar-dependency-can-ship-untested.md) | CI tests the locked version while the release ships the bumped one; the sync guard now compares versions, the other three options and the macOS script remain | Open, guard in place | High |
+| [BL-REL-003](BL-REL-003-the-release-page-advertises-a-linux-appimage-that-was-never-built.md) | The release page advertised a Linux AppImage that was never built; recurrence closed, Linux auto-update still blocked on the AppImage | Open, partly resolved | Medium |
+| [BL-TEST-001](BL-TEST-001-nothing-tests-the-installed-product.md) | Nothing tests the installed product; this workflow IS the BL-REL-002 release gate | Open | High, v1.1.0 floor |
+| [BL-TEST-003](BL-TEST-003-the-e2e-suite-runs-nowhere.md) | 314 end-to-end tests ran nowhere; 296 now run in CI, the 18 visual tests run only on a Mac | Open, partly resolved | Medium |
+| [BL-SILENT-001](BL-SILENT-001-mechanisms-that-report-success-while-doing-nothing.md) | The class behind five defects: mechanisms reporting success while doing nothing. Two more instances fixed 8 September | Open | High as a class |
+| [BL-CLAIM-003](BL-CLAIM-003-the-pdf-report-asserts-checks-that-never-ran.md) | The exported forensic report asserts OCSP/CRL checks that never run | Open | High, legal |
+| [BL-API-001](BL-API-001-the-headless-api-is-documented-and-does-not-exist.md) | The headless API is documented and does not exist; it gates the CLI | Open | Medium |
+| [BL-SIZE-001](BL-SIZE-001-242mb-of-download-computes-10kb-of-constants.md) | 242 MB of every download computes 10 KB of constants | Open | High for adoption |
+
+## Closed items
+
+Kept in the table because the history is the point. Each file carries its
+`Resolved:` line.
+
+| Item | What it was | Closed |
+|---|---|---|
+| [BL-CI-001](BL-CI-001-test-gate-has-not-run-since-april.md) | The test gate had not run since 30 April and only fired on pull requests. Push trigger, pinned ruff, lint cleared, `cargo test` and `pytest` green on every push to `main`; four further CI gaps closed in #34 | 8 September 2026 |
+| [BL-CI-002](BL-CI-002-osv-scanner-has-scanned-nothing-since-july.md) | The weekly supply-chain scan had scanned nothing since July. `--skip-git` removed, SARIF asserted present, upload working; 1,451 packages across seven lockfiles scanned on every push | 8 September 2026 |
+| [BL-TEST-002](BL-TEST-002-timing-dependent-tests-fail-under-load.md) | Two timing-dependent Rust integration tests failed under runner load. Both replaced with signal-based waits (#30, #33) | 8 September 2026 |
+
+The first four items as originally listed (BL-REL-002, BL-CI-001, BL-CI-002,
+BL-DEPS-001) were one story: no working channel through which a newly
+disclosed vulnerability reached anybody, and none through which a fix
+reached a user. On 8 September the two CI channels are closed as fixed, the
+Dependabot channel is moving, and the updater channel is fixed on the server
+and unproven on a real install. Reading them in that order is still the
+order to repair what remains.
 
 ## Two standing instructions from Paul, 3 September 2026
 
@@ -62,5 +80,7 @@ retires for Trace as it has for ROOTED, is with Paul at
 `~/jura-brain/inbox/2026-09-03-trace-plane-triage.md`. Nothing in Plane has
 been or will be deleted.
 
-Until that is decided, the eight items above are the ones found by reading
-the code and the live systems on 3 September 2026, not by mining Plane.
+Until that is decided, the items above are the ones found by reading the
+code and the live systems from 3 September 2026 onwards, not by mining
+Plane. (This paragraph said "the eight items" when the directory held
+eight; it holds twenty-one as of 8 September.)
