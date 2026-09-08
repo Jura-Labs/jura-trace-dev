@@ -44,7 +44,7 @@ pillow-heif==1.6.0
 # adds an AVIF reader to PIL via a separate AvifImagePlugin auto-registered on
 # import. macOS sips/Preview have native AVIF but PyInstaller bundles ship a
 # self-contained Python interpreter, so AVIF must come from a pip package.
-pillow-avif-plugin==1.5.5
+pillow-avif-plugin==1.6.0
 
 # Copy-move detection clustering
 scikit-learn==1.8.0

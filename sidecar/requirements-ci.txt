@@ -43,7 +43,7 @@ scipy==1.17.1
 # requirements.txt for dev testing.
 pillow-heif==1.6.0
 # AVIF support added rc.31 (2026-06-09) — see requirements.txt for rationale.
-pillow-avif-plugin==1.5.5
+pillow-avif-plugin==1.6.0
 python-dotenv==1.2.3
 pydantic==2.11.3
 # ONNX runtime — required for CLIP/UnivFD AI detection (JTV-143, 3 May 2026).
