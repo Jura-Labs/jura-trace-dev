@@ -55,4 +55,4 @@ onnxruntime==1.24.4
 # (imported as `import regex as re`). Previously a transitive dep via
 # open_clip_torch; that package is in requirements-build.txt not here, so
 # regex must be explicit to land in the frozen binary.
-regex==2025.10.23
+regex==2026.9.3
