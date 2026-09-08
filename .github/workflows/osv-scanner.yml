@@ -16,8 +16,11 @@
 name: OSV-Scanner
 
 on:
+  # Not filtered to `branches: [main]`, for the same reason as ci.yml: a pull
+  # request against any other base would otherwise get no scan, and a missing
+  # scan reads as a clean one. That is the failure this workflow already had
+  # once, from a different cause, and the assertion below exists because of it.
   pull_request:
-    branches: [main]
   push:
     branches: [main]
   schedule:

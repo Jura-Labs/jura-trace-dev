@@ -1,8 +1,12 @@
 name: CI
 
 on:
+  # Deliberately NOT filtered to `branches: [main]`. That filter meant a pull
+  # request opened against any other base got no CI at all, and an absent run
+  # reads as "not yet verified" rather than as a failure, which is the more
+  # dangerous of the two. Found 8 September 2026 when a stacked PR (#29, based
+  # on #28) sat with no checks until one was dispatched by hand.
   pull_request:
-    branches: [main]
   # Work that lands directly on main must be tested too. Without this, the
   # gate only watches the path nobody used for the June v1.0.0 release: all
   # eleven of those commits went straight to main and CI never saw them.
@@ -10,10 +14,24 @@ on:
     branches: [main]
   workflow_dispatch:  # manual trigger from Actions tab when needed
 
-# Cancel redundant workflow runs on the same branch/PR to save CI minutes.
+# Cancel redundant runs on the same branch or PR to save CI minutes, but never
+# on main.
+#
+# Cancelling is right for a branch someone is still pushing to, where only the
+# newest commit matters. It is wrong for main, where every commit is a state
+# the project was actually in and each one needs its own verdict. On
+# 8 September 2026 four merges landed within fourteen minutes and each new run
+# cancelled the one before it, so main went from the repository cutover to that
+# evening without a single completed CI run. Three of those cancellations even
+# showed a red X against `cargo test`, which was the cancellation rather than a
+# failure, so the setting also manufactured false evidence of breakage.
+#
+# The push trigger above exists precisely so main is never unverified. Leaving
+# cancel-in-progress on for main quietly reopened that hole whenever merges
+# arrived in a burst, which is what a release day looks like.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # ── Rust: check, clippy, fmt, test ──────────────────────────────────────────
