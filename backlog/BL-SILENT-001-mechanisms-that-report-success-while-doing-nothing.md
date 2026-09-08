@@ -94,9 +94,17 @@ intent of the 22 May audit fix; watchlist error events vanish
 and the "nightly workflow" that `ci.yml:117` refers to does not exist;
 `db.rs:359` swallows migration errors.
 
+**Correction, 8 September 2026.** The requirements sync guard was listed
+below as checked and clean. That was right about the drift it was written
+for, a package name present in one manifest and missing from another, and
+wrong about versions. `scripts/check_requirements_sync.py:28` says it
+compares names only, and it never opens `requirements.lock` at all, so it
+passes a change that makes CI test one version while the release ships
+another. That is Cause B of this very item. See BL-DEPS-004.
+
 **Checked and clean**, which is worth recording so it is not re-hunted: the
-feature flags genuinely gate, the requirements sync guard is sound, the
-model SHA-256 pin verifies against both copies, `describe_image` and
+feature flags genuinely gate, the model SHA-256 pin verifies against both
+copies, `describe_image` and
 `claim_checker` report honest failures, and the signing gates in
 `release.sh` and the macOS build's Phase 5b and 6.5 fail loudly.
 
