@@ -1,7 +1,8 @@
 # BL-TEST-002: timing-dependent tests fail when nothing is wrong
 
-**Status**: Open. Found 5 September 2026, on the first day CI had run in
-four months.
+**Status**: Closed 8 September 2026. Both test changes landed. See
+"Resolution" at the foot of this file. Found 5 September 2026, on the first
+day CI had run in four months.
 **Severity**: Medium as a defect, High as a habit. A gate that fails at
 random teaches people to re-run it without reading it, which costs exactly
 what BL-SILENT-001 costs, from the opposite direction.
@@ -112,3 +113,42 @@ installer and updater workflows whose assertions are deliberately red at
 the start. Distinguishing "red because it is telling the truth" from "red
 because the runner was busy" needs to be easy, and it is easiest if the
 second category does not exist.
+
+## Resolution, 8 September 2026
+
+Both changes are in. The prediction in this file held in the meantime: on
+8 September `lock_free_during_verify` failed CI again, on PR #28, a branch
+that changed only `Cargo.toml`, `Cargo.lock` and a new `audit.toml` and
+touched no code the test exercises. A rerun of the identical commit passed.
+
+**`tests/api_integration.rs:999`, the 50 ms checkpoint.** Fixed in PR #30.
+The assertion now samples until the worker signals completion instead of at
+one instant, so it no longer assumes *when* the lock is free, only that it
+becomes free while the pipeline is still running. The old long-held-lock
+code cannot satisfy that whenever it is sampled, so the regression this
+test exists to catch still fails it. A `samples > 0` assertion catches the
+degenerate case where the pipeline finishes before sampling starts, so the
+test cannot pass vacuously.
+
+That fix went one step beyond what this file prescribed, and the extra step
+is the more interesting half. Polling removes the assumption about *when*,
+but it does not widen the window being sampled. The test pointed at
+`build_sync_state()`, whose sidecar port has nothing listening on it, so
+`sidecar_up` was false and every detector group was skipped. The free
+window the test looks for **is** the detector phase, so skipping detectors
+collapsed it to the gap between the snapshot drop and the final DB write at
+`verify/pipeline.rs:1644`. The test now runs against a reachable stub
+sidecar, as `verifies_are_serialised` already did, which makes that window
+hundreds of milliseconds wide and the observation deterministic rather than
+merely retried.
+
+**`tests/api_integration.rs:99`, the 20 ms server start.** Fixed in PR #33.
+Replaced with a readiness poll against `/api/v1/health`, which needs no
+auth. A TCP connect would not have been signal enough: the listener is
+bound before `axum::serve` is spawned, so the kernel accepts connections
+whether or not the router is running. This one had never failed, which is
+why it was worth doing now rather than after it did. Every test in the file
+goes through that helper, so it would have presented as a connection error
+rather than a timing problem.
+
+Nothing was fixed by lengthening a sleep.

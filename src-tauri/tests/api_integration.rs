@@ -95,10 +95,35 @@ async fn start_test_server(state: Arc<Mutex<AppState>>, listener: TcpListener) -
             .expect("server error");
     });
 
-    // Give the server a moment to accept connections.
-    tokio::time::sleep(Duration::from_millis(20)).await;
+    // Wait until the server actually answers, rather than assuming it will
+    // have started within a fixed delay.
+    //
+    // A TCP connect would not be signal enough: the listener is bound before
+    // `axum::serve` is spawned, so the kernel accepts connections whether or
+    // not the router is running yet. `/api/v1/health` needs no auth (see
+    // `test_health_no_auth`), so a success from it is the first moment the
+    // server is genuinely usable.
+    //
+    // This replaces a fixed 20 ms sleep. See `backlog/BL-TEST-002`: a
+    // duration is an assumption about the runner, and CI runs on a shared
+    // 2-vCPU VM where scheduling jitter makes that assumption occasionally
+    // false. Every test in this file goes through here, so when that
+    // assumption broke it would have surfaced as a connection error rather
+    // than as a timing problem. Polling costs nothing in the normal case,
+    // because it succeeds on the first attempt.
+    let base_url = format!("http://127.0.0.1:{port}");
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        match reqwest::get(format!("{base_url}/api/v1/health")).await {
+            Ok(response) if response.status().is_success() => break,
+            _ if std::time::Instant::now() >= deadline => {
+                panic!("test server did not answer /api/v1/health within 10s")
+            }
+            _ => tokio::time::sleep(Duration::from_millis(5)).await,
+        }
+    }
 
-    format!("http://127.0.0.1:{port}")
+    base_url
 }
 
 /// Insert a bootstrap key directly into the database and return its raw key.
