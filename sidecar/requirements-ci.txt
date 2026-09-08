@@ -34,7 +34,7 @@ Pillow==12.3.0
 imagehash==4.3.2
 numpy==2.2.4
 opencv-python-headless==4.11.0.86
-scikit-learn==1.8.0
+scikit-learn==1.9.0
 scikit-image==0.26.0
 scipy==1.17.1
 # invisible-watermark removed from CI bundle 2026-05-21 — see jura-sidecar.spec
