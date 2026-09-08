@@ -1,8 +1,12 @@
 name: CI
 
 on:
+  # Deliberately NOT filtered to `branches: [main]`. That filter meant a pull
+  # request opened against any other base got no CI at all, and an absent run
+  # reads as "not yet verified" rather than as a failure, which is the more
+  # dangerous of the two. Found 8 September 2026 when a stacked PR (#29, based
+  # on #28) sat with no checks until one was dispatched by hand.
   pull_request:
-    branches: [main]
   # Work that lands directly on main must be tested too. Without this, the
   # gate only watches the path nobody used for the June v1.0.0 release: all
   # eleven of those commits went straight to main and CI never saw them.
@@ -10,10 +14,24 @@ on:
     branches: [main]
   workflow_dispatch:  # manual trigger from Actions tab when needed
 
-# Cancel redundant workflow runs on the same branch/PR to save CI minutes.
+# Cancel redundant runs on the same branch or PR to save CI minutes, but never
+# on main.
+#
+# Cancelling is right for a branch someone is still pushing to, where only the
+# newest commit matters. It is wrong for main, where every commit is a state
+# the project was actually in and each one needs its own verdict. On
+# 8 September 2026 four merges landed within fourteen minutes and each new run
+# cancelled the one before it, so main went from the repository cutover to that
+# evening without a single completed CI run. Three of those cancellations even
+# showed a red X against `cargo test`, which was the cancellation rather than a
+# failure, so the setting also manufactured false evidence of breakage.
+#
+# The push trigger above exists precisely so main is never unverified. Leaving
+# cancel-in-progress on for main quietly reopened that hole whenever merges
+# arrived in a burst, which is what a release day looks like.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # ── Rust: check, clippy, fmt, test ──────────────────────────────────────────
@@ -125,14 +143,33 @@ jobs:
       # the next line failed anyway with an unhelpful "no such command".
       # A failure here should say what actually failed.
       #
-      # Note the cost: `cargo install` builds cargo-audit from source on
-      # every run, which is minutes of billable time for a tool that does
-      # not change. If build minutes get tight, install a prebuilt binary
-      # instead. Left as-is for now to avoid adding a third-party action to
-      # the supply chain this workflow exists to watch.
+      # The install is skipped when the Cache Cargo step above has already
+      # restored a cargo-audit binary into ~/.cargo/bin. That is not only a
+      # cost saving (building it from source is about fifteen minutes of
+      # billable time for a tool that does not change), it is a correctness
+      # fix. `cargo install` refuses to overwrite an existing binary and
+      # exits 101 with "binary `cargo-audit` already exists in destination".
+      # On 8 September 2026 that put a red X on the cargo-audit step of
+      # every open pull request and on main, with no advisory involved at
+      # all, and it read exactly like a new vulnerability landing. The
+      # mechanism: the cache key hashes Cargo.lock, so any lockfile change
+      # misses the key, the restore-keys prefix falls back to the previous
+      # cache, and that cache carries the binary the previous run built.
+      # It would have recurred on every lockfile change after any green run.
+      #
+      # The version is printed so the log says which cargo-audit produced
+      # the verdict. The advisory database is fetched fresh on every run
+      # regardless of the binary's age, so a cached tool does not mean a
+      # stale scan. Still no third-party install action: the supply chain
+      # this workflow exists to watch stays as short as it was.
       - name: cargo-audit
         run: |
-          cargo install --locked cargo-audit
+          if command -v cargo-audit >/dev/null 2>&1; then
+            echo "cargo-audit restored from cache: $(cargo audit --version)"
+          else
+            cargo install --locked cargo-audit
+            echo "cargo-audit built from source: $(cargo audit --version)"
+          fi
           cd src-tauri && cargo audit
 
   # ── Frontend: svelte-check + vitest ─────────────────────────────────────────

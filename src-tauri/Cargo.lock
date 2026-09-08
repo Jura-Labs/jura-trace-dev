@@ -3822,7 +3822,7 @@ name = "jura-trace"
 version = "1.1.0"
 dependencies = [
  "axum 0.8.8",
- "base64 0.22.1",
+ "base64 0.23.1",
  "bitvec",
  "blind_watermark",
  "c2pa",
