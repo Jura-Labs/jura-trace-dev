@@ -143,14 +143,33 @@ jobs:
       # the next line failed anyway with an unhelpful "no such command".
       # A failure here should say what actually failed.
       #
-      # Note the cost: `cargo install` builds cargo-audit from source on
-      # every run, which is minutes of billable time for a tool that does
-      # not change. If build minutes get tight, install a prebuilt binary
-      # instead. Left as-is for now to avoid adding a third-party action to
-      # the supply chain this workflow exists to watch.
+      # The install is skipped when the Cache Cargo step above has already
+      # restored a cargo-audit binary into ~/.cargo/bin. That is not only a
+      # cost saving (building it from source is about fifteen minutes of
+      # billable time for a tool that does not change), it is a correctness
+      # fix. `cargo install` refuses to overwrite an existing binary and
+      # exits 101 with "binary `cargo-audit` already exists in destination".
+      # On 8 September 2026 that put a red X on the cargo-audit step of
+      # every open pull request and on main, with no advisory involved at
+      # all, and it read exactly like a new vulnerability landing. The
+      # mechanism: the cache key hashes Cargo.lock, so any lockfile change
+      # misses the key, the restore-keys prefix falls back to the previous
+      # cache, and that cache carries the binary the previous run built.
+      # It would have recurred on every lockfile change after any green run.
+      #
+      # The version is printed so the log says which cargo-audit produced
+      # the verdict. The advisory database is fetched fresh on every run
+      # regardless of the binary's age, so a cached tool does not mean a
+      # stale scan. Still no third-party install action: the supply chain
+      # this workflow exists to watch stays as short as it was.
       - name: cargo-audit
         run: |
-          cargo install --locked cargo-audit
+          if command -v cargo-audit >/dev/null 2>&1; then
+            echo "cargo-audit restored from cache: $(cargo audit --version)"
+          else
+            cargo install --locked cargo-audit
+            echo "cargo-audit built from source: $(cargo audit --version)"
+          fi
           cd src-tauri && cargo audit
 
   # ── Frontend: svelte-check + vitest ─────────────────────────────────────────
