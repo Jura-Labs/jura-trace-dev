@@ -54,7 +54,7 @@ env_logger = "0.11"
 infer = "0.16"
 
 # EXIF metadata extraction
-kamadak-exif = "0.5"
+kamadak-exif = "0.6"
 
 # Image processing (dimensions, basic info)
 image = "0.25"
