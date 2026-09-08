@@ -45,7 +45,7 @@ pillow-heif==1.6.0
 # AVIF support added rc.31 (2026-06-09) — see requirements.txt for rationale.
 pillow-avif-plugin==1.5.5
 python-dotenv==1.2.3
-pydantic==2.11.3
+pydantic==2.13.5
 # ONNX runtime — required for CLIP/UnivFD AI detection (JTV-143, 3 May 2026).
 # Without this pin the sidecar binary has no onnxruntime and clip_detect is
 # always false on CI-built Windows and Linux installers. Pinned to match
