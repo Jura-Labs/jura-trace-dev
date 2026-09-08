@@ -50,7 +50,7 @@ pydantic==2.11.3
 # Without this pin the sidecar binary has no onnxruntime and clip_detect is
 # always false on CI-built Windows and Linux installers. Pinned to match
 # requirements.txt exactly — bump both files together.
-onnxruntime==1.24.4
+onnxruntime==1.29.0
 # regex — PCRE-compatible pattern library required by clip_tokenizer.py
 # (imported as `import regex as re`). Previously a transitive dep via
 # open_clip_torch; that package is in requirements-build.txt not here, so
