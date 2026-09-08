@@ -86,7 +86,7 @@ url = "2"
 tempfile = "3"
 
 # Base64 decoding for heatmap file extraction
-base64 = "0.22"
+base64 = "0.23"
 
 # PDF internal provenance parsing (Feature 4)
 lopdf = "0.42"
