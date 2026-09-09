@@ -1,6 +1,6 @@
 # BL-REL-002: the updater manifest carries URLs where signatures belong, so no v1.0.0 install can update
 
-**Status**: Open. Found 3 September 2026.
+**Status**: Open, largely resolved on the server side; the re-download notice and the live update on a real v1.0.0 install remain. The live manifest carries inline signatures (verified 8 September) and the fallback endpoint resolves (attached 6 September), so the sections below that describe URLs in the `signature` field and a 404 fallback are history, not the present. See "Update, 8 September 2026" at the foot of this file. Found 3 September 2026.
 **Raised**: 3 September 2026
 **Severity**: **Highest open item.** Every v1.0.0 installation in the field
 has a non-functional update path. There is no channel through which any fix
@@ -310,3 +310,102 @@ fix.
 Do not fix this by removing the updater. The alternative to a working
 updater is expecting people who verify other people's media to notice a
 GitHub release by themselves.
+
+## Update, 8 September 2026
+
+Reconciled against the live endpoints and `origin/main` at `d0ca411d`. Pull
+request numbers in the body of this file above are `jura-archive` numbers
+(#31, #65, #67, #78); the `jura-trace-dev` repository created on
+8 September numbers from 1 again.
+
+### The live manifest, fetched 8 September 2026 at 22:22 UTC
+
+`curl -sS -D - https://juralabs.org/api/updates/latest.json`:
+
+```
+HTTP/2 200
+date: Tue, 08 Sep 2026 22:22:08 GMT
+content-type: application/json; charset=utf-8
+content-length: 25703
+cache-control: public, max-age=14400
+cf-cache-status: HIT
+age: 169
+last-modified: Tue, 08 Sep 2026 22:19:19 GMT
+server: cloudflare
+```
+
+Body: `version` 1.0.0, `pub_date` 2026-06-18T07:32:56Z, two platforms.
+
+| Platform | `url` | `signature` |
+|---|---|---|
+| `darwin-aarch64` | `.../v1.0.0/Jura.Trace.app.tar.gz` | 408 characters, base64, begins `dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBm`, decodes to `untrusted comment: signature from ...`. Not a URL |
+| `windows-x86_64` | `.../v1.0.0/JuraTrace-1.0.0-Windows-x64.msi` | 420 characters, same shape. Not a URL |
+
+No `linux-x86_64` entry.
+
+So the defect in the title is fixed in production. The worker source that
+does it is `infrastructure/cloudflare-worker-updater/src/index.ts`
+(`3cedd6ce`, 4 September, merged in jura-archive PR #31 on 5 September):
+`buildPlatformBlockSync` no longer exists, `locatePlatformAssets`
+(`index.ts:520-532`) returns URLs only and cannot produce a manifest block,
+`buildPlatformBlock` (`index.ts:472-495`) fetches the `.sig` contents, and
+`looksLikeSignature` (`index.ts:459-464`) refuses anything that starts with
+`http`, contains whitespace, or is not base64 of more than 64 characters.
+The false comment quoted in "Root cause" above is gone. The live output
+proves the deployed worker is that code or equivalent; the repository
+holds no deployment record, so the deploy date itself is not verifiable
+from here.
+
+**One discrepancy worth keeping.** "Who the fix reaches" above says the
+worker edge cache is 5 minutes, and `index.ts:160` does set
+`CACHE_TTL_SECONDS = 300`. The live response carries `max-age=14400` (four
+hours), `cf-cache-status: HIT`, and `last-modified` and `accept-ranges`
+headers the worker never sets. Either a Cloudflare cache rule on the zone
+overrides the worker's header, or the route is served from something other
+than this worker's `jsonResponse`. It does not change the fix, but it
+changes the propagation figure from five minutes to up to four hours, and
+it should be settled in the Cloudflare dashboard before the notice quotes a
+time.
+
+### The fallback endpoint
+
+"There is no fallback" above is no longer true.
+`https://github.com/Jura-Labs/jura-trace/releases/latest/download/latest.json`
+now returns 302 to `.../download/v1.0.0/latest.json` and then 200 with a
+25,703-byte body identical in shape to the worker's: version 1.0.0, both
+signatures inline (408 and 420 characters), no Linux entry. The asset
+`latest.json` was attached to the v1.0.0 release at 2026-09-06T21:21:45Z by
+`83dfab73` (jura-archive PR #67, "attach the update manifest, so the
+declared fallback exists"). Step 4 is done and was not recorded here until
+now.
+
+### Which steps this proves, and which it does not
+
+| Step | State on 8 September |
+|---|---|
+| 0, 1 | Done, as already recorded |
+| 2, inline the signature | **Done and live.** Proven by the curl above |
+| 2a, completeness assertion | Partly. The signature-shape check is in (`index.ts:459-464`, `:487-493`) and a platform that fails it is dropped with an error log rather than served. The manifest still fails open on a missing platform: `PLATFORM_ASSET_CONFIG` (`index.ts:189-200`) matches `.AppImage` for Linux, no AppImage exists, so Linux is silently absent, exactly as before |
+| 3, test before believing | Partly. The offline half (curl, decode, key ID) is done. jura-archive run 34143290758 on 7 September showed the real Windows MSI reaching `/api/updates/latest.json`. **The live leg, a pristine public v1.0.0 install on macOS and on Windows updating unprompted, has not been run** and cannot be until v1.1.0 assets exist. It is the manual gate's item 2 in `docs/release/v1.1.0-plan.md`, and this item stays open on it |
+| 4, attach `latest.json` | **Done**, 6 September, above |
+| 5, Linux and NSIS | Open. No Linux entry in either manifest; the deb path is untested; the NSIS duplicate-install question is unanswered |
+| 6, the notice | Open. Paul's wording and channel |
+
+The Windows signing-order fault ("Two more faults found 4 September") is
+fixed in tree by `2e4fe4f5` (jura-archive PR #31). No release has been
+built with it, so every Windows `.sig` currently on the v1.0.0 release is
+still the pre-Azure one, and the live manifest's `windows-x86_64` block,
+correct in form, still cannot verify against the MSI it points at. The
+macOS block has no such problem. That is the strongest reason the live leg
+is the gate and not the curl.
+
+The UI's 404-as-up-to-date mapping is fixed by `5a36da72` and a startup
+update check added by `13907406` (both jura-archive PR #31 and #32,
+5 September); neither reaches a user until v1.1.0 ships.
+
+### What this means for the status
+
+Every server-side fix this item asked for is live. Nothing a user has
+installed has changed, no v1.0.0 client has been observed completing an
+update, and the notice has not gone out. Per Paul's instruction of
+3 September, recorded above, the item does not close on the code fix.

@@ -60,7 +60,7 @@ kamadak-exif = "0.5"
 image = "0.25"
 
 # C2PA provenance manifests (Phase 1, Weeks 7-8)
-c2pa = { version = "0.79", features = ["file_io"] }
+c2pa = { version = "0.90", features = ["file_io"] }
 
 # Certificate generation for C2PA signing.
 # x509-parser feature enables CertificateParams::from_ca_cert_pem, required for
@@ -86,10 +86,10 @@ url = "2"
 tempfile = "3"
 
 # Base64 decoding for heatmap file extraction
-base64 = "0.22"
+base64 = "0.23"
 
 # PDF internal provenance parsing (Feature 4)
-lopdf = "0.34"
+lopdf = "0.42"
 
 # Frequency-domain invisible watermarking (DWT-DCT-SVD, Phase 3)
 blind_watermark = "0.1"

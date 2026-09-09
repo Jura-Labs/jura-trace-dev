@@ -94,9 +94,17 @@ intent of the 22 May audit fix; watchlist error events vanish
 and the "nightly workflow" that `ci.yml:117` refers to does not exist;
 `db.rs:359` swallows migration errors.
 
+**Correction, 8 September 2026.** The requirements sync guard was listed
+below as checked and clean. That was right about the drift it was written
+for, a package name present in one manifest and missing from another, and
+wrong about versions. `scripts/check_requirements_sync.py:28` says it
+compares names only, and it never opens `requirements.lock` at all, so it
+passes a change that makes CI test one version while the release ships
+another. That is Cause B of this very item. See BL-DEPS-004.
+
 **Checked and clean**, which is worth recording so it is not re-hunted: the
-feature flags genuinely gate, the requirements sync guard is sound, the
-model SHA-256 pin verifies against both copies, `describe_image` and
+feature flags genuinely gate, the model SHA-256 pin verifies against both
+copies, `describe_image` and
 `claim_checker` report honest failures, and the signing gates in
 `release.sh` and the macOS build's Phase 5b and 6.5 fail loudly.
 
@@ -240,3 +248,56 @@ are.
   `actionlint` in CI is proportionate; anything heavier is not.
 - **Building tooling for the `continue-on-error` policy.** There are two
   instances. A grep and a comment rule suffice.
+
+## Update, 8 September 2026
+
+Three more entries for the class, none of which changes the causes or the
+plan above. Pull request numbers are `Jura-Labs/jura-trace-dev` numbers.
+
+**Another instance fixed: the classifier loader's bare `except`.**
+`sidecar/app/services/deepfake.py:255`, `_load_classifier`, caught every
+exception from `joblib.load` and returned `None`, and the caller fell back
+to the heuristic score. Every verdict was still produced, so the only
+evidence of a disabled classifier in production would have been a shift in
+the verdict distribution. It surfaced on 8 September because the
+numerical-stack drift test (#37) showed scikit-learn 1.9.0 cannot unpickle
+the shipped GBM at all (`ModuleNotFoundError: No module named '_loss'`) and
+the loader said nothing. #38 (`c718ca25`) replaces the bare `except` with
+`logger.exception(...)` at `deepfake.py:278-295`, once per process, with
+two tests in `sidecar/tests/test_deepfake.py`
+(`test_unpickle_failure_returns_none_and_logs_exception`,
+`test_failure_is_logged_once_not_per_image`). Cause B, in the shape of
+"degrade gracefully and say nothing". Worth adding to the ranked table as a
+sibling of item 3 (the watermark detector's `[]` on ImportError) and item 4
+(the constant-returning extractors); it is the same file and the same
+instinct.
+
+**A mirror instance fixed: cancelled CI runs manufacturing failure.**
+`ci.yml` had `cancel-in-progress: true` for every ref including `main`.
+When four merges landed within fourteen minutes on 8 September, each run
+cancelled the one before it, and three of the cancelled runs showed a red X
+against `cargo test` that was the cancellation, not a test result (jobs API:
+`conclusion: cancelled` on job and step). That is BL-TEST-002's direction,
+a signal reporting failure while nothing was wrong, produced by the same
+gate this item is about. #34 (`bd534866`) sets
+`cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}`
+(`ci.yml:34`). One residual, recorded in BL-CI-001 for the plan: GitHub
+still cancels the older *pending* run in a concurrency group when a third
+run arrives, so two `main` runs (`9a177fd5`, `3ca2896f`) were cancelled
+with zero jobs after #34 merged. A per-commit group on `main` closes it.
+
+**"What not to do" has been partly overtaken.** The list above says no
+branch protection. Branch protection on `main` went live on 8 September
+with required status checks Rust, Frontend, Python, Repo hygiene and Scan
+lockfiles, no required reviews, `strict: false` and `enforce_admins: false`
+(`gh api repos/Jura-Labs/jura-trace-dev/branches/main/protection`). That
+is the half of branch protection the paragraph was not arguing against:
+no review ceremony, and an administrator can still push. It does add one
+thing the push trigger alone did not, which is that a merge cannot land
+while the gate is red. The advice stands as written for mandatory reviews.
+
+For the plan: item 3's OSV line ("remove `continue-on-error` from the scan
+step") is not done, `osv-scanner.yml:59` still carries it, and its
+cargo-audit and pip-audit count assertions are not done either. BL-CI-001
+and BL-CI-002 closed on 8 September on their own fix sections; those three
+assertions remain here.
