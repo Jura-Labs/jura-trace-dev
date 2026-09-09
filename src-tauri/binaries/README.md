@@ -22,9 +22,9 @@ keeps it out of your diff (see the root `.gitignore`).
 
 `scripts/build-local-mac.sh` recompiles the launcher from source on every
 build and proves the tracked file is that source compiled, using
-`scripts/macho-equal.py`, which compares the two with the linker's random
-`LC_UUID` and its ad-hoc signature masked and every other byte required to
-match. The build stops if they differ. It never overwrites the tracked file.
+`scripts/macho-equal.py`, which strips the linker's ad-hoc signature from
+temporary copies of both, masks the random `LC_UUID`, and requires every
+other byte to match. The build stops if they differ. It never overwrites the tracked file.
 
 Byte-identical output is not available from Apple's linker: every link gets a
 fresh random UUID, `-reproducible` does not change that, and `-no_uuid` yields
