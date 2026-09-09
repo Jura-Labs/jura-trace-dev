@@ -356,16 +356,38 @@ proves the deployed worker is that code or equivalent; the repository
 holds no deployment record, so the deploy date itself is not verifiable
 from here.
 
-**One discrepancy worth keeping.** "Who the fix reaches" above says the
-worker edge cache is 5 minutes, and `index.ts:160` does set
-`CACHE_TTL_SECONDS = 300`. The live response carries `max-age=14400` (four
-hours), `cf-cache-status: HIT`, and `last-modified` and `accept-ranges`
-headers the worker never sets. Either a Cloudflare cache rule on the zone
-overrides the worker's header, or the route is served from something other
-than this worker's `jsonResponse`. It does not change the fix, but it
-changes the propagation figure from five minutes to up to four hours, and
-it should be settled in the Cloudflare dashboard before the notice quotes a
-time.
+**One discrepancy, now measured rather than inferred.** "Who the fix
+reaches" above says the worker edge cache is 5 minutes, and `index.ts:160`
+does set `CACHE_TTL_SECONDS = 300`. The live response carries
+`max-age=14400`, `cf-cache-status: HIT`, and `last-modified` and
+`accept-ranges` headers the worker never sets. An earlier version of this
+paragraph, written on 8 September, concluded from those headers that
+propagation could take up to four hours. That was wrong, and it was
+withdrawn on 9 September after the edge TTL was measured.
+
+The measurement: the URL was fetched once a minute for nine minutes. `age`
+climbed 27, 87, 147, 207, 267 on one cached copy, the edge then refetched
+from the worker at about 330 seconds after the fill, and a fresh copy
+started at age 60 with a new `last-modified`. **The edge honours the
+worker's `max-age=300`.** Two probes settle where the headers come from:
+the worker-only per-platform route and a cache-busted `latest.json` both
+answer with the worker's own `max-age=300` and no `cf-cache-status`, so the
+worker is bound and running and the annotations are added by the cache
+layer in front of it. The zone was read on 9 September: it has no Cache
+Rules at all (the `http_request_cache_settings` phase has no entrypoint
+ruleset), `cache_level` is the default `aggressive`, one Page Rule exists
+and it is the `/downloads*` redirect, and **`browser_cache_ttl` is 14400**.
+That single zone setting is what rewrites the header on the way out.
+
+So the propagation figure of five minutes stands. The rewritten header is
+cosmetic for the updater, because `tauri-plugin-updater` ignores
+`Cache-Control` and fetches per check; it affects only a person fetching
+the URL in a browser, who would be shown a copy up to four hours old. Two
+things follow. Set the zone's Browser Cache TTL to "Respect Existing
+Headers" (API value `0`), so the header says what the edge does. And on
+release day, purge the exact URL after the v1.1.0 manifest goes live, which
+removes even the five minutes; that step is now item 0 of the plan's manual
+gate. Neither changes the worker, which is correct as written.
 
 ### The fallback endpoint
 
