@@ -239,3 +239,6 @@ docs/testing/real-world-test-plan.md
 docs/sample-media/jura-trace-sample-images.zip
 docs/sample-media/jura-trace-sample-images/
 docs/sample-media/source/
+
+# Written by scripts/updater-staging/stage.sh prepare; records where the stage root is.
+scripts/updater-staging/.stage-root
