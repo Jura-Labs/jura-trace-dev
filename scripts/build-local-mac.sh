@@ -493,10 +493,14 @@ if [[ $mis_signed -gt 0 ]]; then
 This is the rc.29-class notarisation failure mode. Phase 0.5 (source signing) or Phase 5a \
 (in-.app signing) is not effective; investigate cargo tauri bundle behaviour."
 fi
-deep_err=$(codesign --verify --deep --strict --verbose=2 "$VERIFY_APP" 2>&1 >/dev/null | grep -vE '^--(prepared|validated):' || true)
-if [[ -n "$deep_err" ]]; then
-  warn "codesign --verify --deep --strict on the archive's .app reported:"
-  printf '  %s\n' "$deep_err" >&2
+# Judge by the exit status, not by whether codesign printed anything: with
+# --verbose it reports "valid on disk" and "satisfies its Designated
+# Requirement" on stderr when it SUCCEEDS, and the first version of this
+# check read those as a failure and refused a good build (9 September 2026).
+deep_out=$(codesign --verify --deep --strict --verbose=2 "$VERIFY_APP" 2>&1); deep_rc=$?
+if [[ $deep_rc -ne 0 ]]; then
+  warn "codesign --verify --deep --strict on the archive's .app failed (exit $deep_rc):"
+  printf '%s\n' "$deep_out" | grep -vE '^--(prepared|validated):' | sed 's/^/  /' >&2
   die "The .app inside the updater archive does not pass deep verification. \
 The DMG may still be fine; the archive is what the auto-updater installs, so this blocks release."
 fi
