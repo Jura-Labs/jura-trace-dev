@@ -42,7 +42,20 @@ else
 fi
 BUNDLE_DIR="$CARGO_TARGET_BASE/${TARGET}/release/bundle"
 
-SIDECAR_DIST="sidecar/dist/jura-sidecar"
+# The sidecar's PyInstaller output (529 MB) and its staged copy for Tauri
+# (another 529 MB) live under the Cargo target base, which is the external
+# SSD when CARGO_TARGET_DIR points there, and not in the working tree.
+# Moved 9 September 2026: with both in-tree, every build wrote a gigabyte
+# to the internal disk, the next hourly Time Machine local snapshot pinned
+# it, and the disk (97.9% used) ran out of headroom for the build after
+# next. The Tauri resource glob "sidecar-bundle/**/*" requires the staging
+# directory to sit at src-tauri/sidecar-bundle, so that path is a symlink to
+# the real directory on the SSD; Phase 5a proves the bundler followed it by
+# requiring sidecar-bundle inside the built .app.
+SIDECAR_DIST_ROOT="$CARGO_TARGET_BASE/sidecar-dist"
+SIDECAR_DIST="$SIDECAR_DIST_ROOT/jura-sidecar"
+SIDECAR_WORK="$CARGO_TARGET_BASE/sidecar-build"
+SIDECAR_STAGING_REAL="$CARGO_TARGET_BASE/sidecar-bundle"
 SIDECAR_STAGING="src-tauri/sidecar-bundle"
 SIGNING_IDENTITY="Developer ID Application: Jura Labs CIC (Y82C4P9L7F)"
 TEAM_ID="Y82C4P9L7F"
@@ -154,9 +167,12 @@ fi
 log "Cleaning previous build artefacts"
 log "(Cargo target base: $CARGO_TARGET_BASE)"
 rm -rf "$BUNDLE_DIR"
-rm -rf "$SIDECAR_STAGING"
-rm -rf "$SIDECAR_DIST"
-rm -rf sidecar/build
+# The staging path is a symlink; remove the link and the directory behind it.
+rm -rf "$SIDECAR_STAGING_REAL"
+rm -f "$SIDECAR_STAGING"
+[[ -e "$SIDECAR_STAGING" ]] && rm -rf "$SIDECAR_STAGING"   # a real directory left by an older build
+rm -rf "$SIDECAR_DIST_ROOT" "$SIDECAR_WORK"
+rm -rf sidecar/build sidecar/dist                          # in-tree leftovers from before the move
 ok "Cleaned."
 
 # ── Frontend build ────────────────────────────────────────────────────
@@ -171,7 +187,8 @@ ok "Frontend built to ui/build/"
 
 # ── Sidecar build (PyInstaller --onedir) ──────────────────────────────
 log "Building Python sidecar (PyInstaller --onedir, may take 5-10 min)"
-(cd sidecar && JURA_SIDECAR_ONEDIR=1 python3 -m PyInstaller jura-sidecar.spec --noconfirm)
+(cd sidecar && JURA_SIDECAR_ONEDIR=1 python3 -m PyInstaller jura-sidecar.spec --noconfirm \
+   --distpath "$SIDECAR_DIST_ROOT" --workpath "$SIDECAR_WORK")
 [[ -x "$SIDECAR_DIST/jura-sidecar" ]] || die "Sidecar bootloader missing after PyInstaller."
 [[ -d "$SIDECAR_DIST/_internal" ]] || die "Sidecar _internal/ missing after PyInstaller."
 ok "Sidecar built ($(du -sh "$SIDECAR_DIST" | cut -f1))"
@@ -189,7 +206,9 @@ ok "All bundled /forensics endpoints respond without bundle-import failures."
 
 # ── Stage sidecar-bundle into src-tauri/ ──────────────────────────────
 log "Staging sidecar-bundle for Tauri resources"
-mkdir -p "$SIDECAR_STAGING"
+mkdir -p "$SIDECAR_STAGING_REAL"
+ln -sfn "$SIDECAR_STAGING_REAL" "$SIDECAR_STAGING"
+[[ -d "$SIDECAR_STAGING/" ]] || die "$SIDECAR_STAGING does not resolve to $SIDECAR_STAGING_REAL."
 cp -R "$SIDECAR_DIST"/. "$SIDECAR_STAGING"/
 # ── Phase 0.4: the sidecar launcher is compiled from source, and must match ──
 # Contents/MacOS/jura-sidecar is a small Mach-O built from
@@ -222,7 +241,7 @@ fi
 rm -rf "$LAUNCHER_TMP"
 chmod +x "$LAUNCHER_BIN"
 ok "Sidecar launcher matches its source ($(stat -f %z "$LAUNCHER_BIN") bytes, Mach-O arm64)."
-ok "Staged to $SIDECAR_STAGING ($(du -sh "$SIDECAR_STAGING" | cut -f1))"
+ok "Staged to $SIDECAR_STAGING -> $SIDECAR_STAGING_REAL ($(du -sh "$SIDECAR_STAGING/" | cut -f1))"
 
 # ── Phase 0.5: per-file sign nested Mach-O binaries in SOURCE ─────────
 # CRITICAL FIX (2026-06-07, post-rc.29 notarisation failure): cargo tauri
@@ -264,7 +283,7 @@ done < <(
   # .dylib, and any other Mach-O object that PyInstaller may include
   # in future dependency updates. Sort by path length descending so
   # deepest files sign first (parents seal after children).
-  find "$SIDECAR_STAGING" -type f \
+  find "$SIDECAR_STAGING/" -type f \
     \( -name "*.so" -o -name "*.dylib" -o ! -name "*.*" \) \
     -exec sh -c 'file -b "$1" 2>/dev/null | grep -q "Mach-O" && echo "$1"' _ {} \; 2>/dev/null \
   | awk '{print length($0), $0}' | sort -rn | cut -d' ' -f2-

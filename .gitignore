@@ -209,7 +209,10 @@ models/univfd_v11_split.json
 # JTV-184 Phase 5 — onedir bundle for the PyInstaller sidecar.
 # Populated at build time (manually for local cargo tauri build, by CI for
 # release) from sidecar/dist/jura-sidecar/. ~520 MB; CI rebuilds per platform.
-src-tauri/sidecar-bundle/
+# No trailing slash: since 9 September 2026 this is a symlink to the SSD
+# (see scripts/build-local-mac.sh), and a slash-suffixed rule ignores only
+# real directories.
+src-tauri/sidecar-bundle
 
 # JTV-186 (18 May 2026): internal-consultation docs that drifted into the
 # AGPL repo and were moved out to ../jura-labs-docs/ on 2026-05-18 (see
