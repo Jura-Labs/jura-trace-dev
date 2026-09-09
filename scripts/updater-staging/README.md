@@ -43,7 +43,7 @@ sudo scripts/updater-staging/stage.sh serve   # hosts entry + port 443; Ctrl-C t
 With `serve` running, in another terminal:
 
 ```bash
-open "/Volumes/MAC SSD/dev/cargo-target/updater-staging/v1.0.0/Jura Trace.app"
+open "$HOME/Applications/jura-trace-updater-staging/Jura Trace.app"
 ```
 
 Watch the `serve` log. Within about a minute of launch the startup check
@@ -55,7 +55,7 @@ minisign signature against its built-in key, installs, and relaunches as
 
 ```bash
 /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" \
-  "/Volumes/MAC SSD/dev/cargo-target/updater-staging/v1.0.0/Jura Trace.app/Contents/Info.plist"
+  "$HOME/Applications/jura-trace-updater-staging/Jura Trace.app/Contents/Info.plist"
 curl -s http://127.0.0.1:8300/api/v1/health
 ```
 
@@ -73,17 +73,25 @@ scripts/updater-staging/stage.sh status       # everything should read absent / 
 
 ## What it does not touch
 
-Nothing is written to `/Applications`. The throwaway v1.0.0 lives under the
-stage root on the SSD, and the updater replaces that copy in place. The only
-two things changed outside the stage root are the hosts entry and the
-keychain trust, both undone by the commands above and both visible in
-`status`. Confirm the hosts entry is gone before any real update check, or
+Nothing is written to `/Applications`. The throwaway v1.0.0 lives in
+`~/Applications/jura-trace-updater-staging/` on the boot volume, and the
+updater replaces that copy in place. It has to be on the boot volume: the
+updater moves the running bundle aside with a rename into a temp directory
+there, and a bundle on another volume fails with "Cross-device link (os
+error 18)". That is exactly what the first real run hit on 9 September 2026
+with the throwaway on the SSD; the DMG still lives under the stage root.
+The only things changed outside the stage root are that folder, the hosts
+entry and the keychain trust, the last two undone by the commands above and
+all visible in `status`. Confirm the hosts entry is gone before any real update check, or
 you will be testing against yourself indefinitely.
 
 ## Overrides, for testing the helper itself
 
 `STAGE_PORT` (default 443), `HOSTS_FILE` (default `/etc/hosts`) and
-`STAGE_ROOT` (default `$CARGO_TARGET_DIR/updater-staging`). Running
+`STAGE_ROOT` (default `$CARGO_TARGET_DIR/updater-staging`, remembered by
+`prepare` in a gitignored marker so `sudo`, which drops the variable, still
+finds it) and `JURA_STAGE_APP_DIR` (default
+`~/Applications/jura-trace-updater-staging`). Running
 `STAGE_PORT=8443 HOSTS_FILE=/tmp/hosts.copy stage.sh serve` exercises
 everything except the two privileged steps, and is how the helper was
 checked before its first real run on 9 September 2026.
