@@ -360,9 +360,29 @@ while IFS= read -r f; do
 done < <(find "$SIDECAR_ROOT" -type f \( -name "*.dylib" -o -name "*.so" \) | head -5)
 [[ $mis_signed -eq 0 ]] || die "$mis_signed of $checked sampled files mis-signed."
 
-# ── Phase 6: regenerate DMG + updater payload from re-signed .app ─────
-log "Phase 6: cargo tauri bundle --bundles dmg,updater (uses re-signed .app)"
-(cd src-tauri && cargo tauri bundle --bundles dmg,updater --target "$TARGET")
+# ── Phase 6: regenerate .app, updater payload and DMG ─────────────────
+# `--bundles app,dmg`, and the reason is a defect that shipped silently.
+#
+# This step used to run `--bundles dmg,updater`. On macOS `updater` is not
+# a bundle target: the updater artefacts (.app.tar.gz and its minisign
+# .sig) are produced as a by-product of the `app` target. Tauri said so in
+# the log of every build, as a Warn line ("no updater-enabled targets were
+# built. Please enable one of these targets: app, appimage, msi, nsis"),
+# and nothing read it. The archive that ended up in bundle/macos/ was the
+# one Phase 1 made, from the .app as it stood BEFORE Phase 5a's per-file
+# signing and before this phase re-signed the sidecar launcher. On
+# 9 September 2026 that archive was opened by hand: Contents/MacOS/
+# jura-sidecar inside it was not signed at all, while the same file inside
+# the DMG was. The archive is what tauri-plugin-updater installs, so the
+# DMG was releasable and the update was not, and Phase 6.5 as then
+# written could not tell (it scanned a directory this phase removes).
+#
+# With `app` in the list, Tauri rebuilds the .app, signs the launcher,
+# gen-detectors, jura-trace and the bundle, writes a fresh archive and
+# .sig from that signed state, and then builds the DMG from it. Phase 6.5
+# opens the archive and proves it.
+log "Phase 6: cargo tauri bundle --bundles app,dmg (re-signs, then archives, then DMG)"
+(cd src-tauri && cargo tauri bundle --bundles app,dmg --target "$TARGET")
 
 DMG_PATH=$(find "$BUNDLE_DIR/dmg" -maxdepth 1 -name "*.dmg" | head -1)
 [[ -n "$DMG_PATH" ]] || die "No DMG found after Phase 6 regenerate."
@@ -424,8 +444,12 @@ if [[ $mis_signed -gt 0 ]]; then
 This is the rc.29-class notarisation failure mode. Phase 0.5 (source signing) or Phase 5a \
 (in-.app signing) is not effective; investigate cargo tauri bundle behaviour."
 fi
-if ! codesign --verify --deep --strict "$VERIFY_APP" 2>/dev/null; then
-  die "codesign --verify --deep --strict failed on the .app inside the updater archive."
+deep_err=$(codesign --verify --deep --strict --verbose=2 "$VERIFY_APP" 2>&1 >/dev/null | grep -vE '^--(prepared|validated):' || true)
+if [[ -n "$deep_err" ]]; then
+  warn "codesign --verify --deep --strict on the archive's .app reported:"
+  printf '  %s\n' "$deep_err" >&2
+  die "The .app inside the updater archive does not pass deep verification. \
+The DMG may still be fine; the archive is what the auto-updater installs, so this blocks release."
 fi
 rm -rf "$VERIFY_TMP"; trap - EXIT
 ok "All $checked nested Mach-O binaries in the updater archive signed by Team=$TEAM_ID; deep verify passed."
