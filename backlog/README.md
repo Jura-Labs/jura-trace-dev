@@ -26,7 +26,6 @@ after the fourteen merges of that day. Each item's own file carries a dated
 | [BL-DEPS-001](BL-DEPS-001-dependabot-queue-is-saturated.md) | The Dependabot queue was at the cap in every ecosystem; cap raised, queue moving, 18 open across pip and cargo and actions; steps 4 to 6 remain. Security updates were never subject to the cap | Open, largely resolved | High |
 | [BL-CLAIM-001](BL-CLAIM-001-nothing-leaves-the-device-is-nearly-true.md) | "No data is uploaded to external servers" is nearly true, and nearly is not good enough | Open, narrowed | High |
 | [BL-DEPS-002](BL-DEPS-002-frontend-advisories-one-ships.md) | Ten frontend advisories (was twelve), none of which reaches a user | Open, partly resolved | Medium |
-| [BL-REL-001](BL-REL-001-stray-model-backup-in-the-bundle.md) | A stray classifier backup sits inside the bundled resources glob | Open | Low |
 | [BL-UX-001](BL-UX-001-tool-object-object-in-the-c2pa-panel.md) | The C2PA panel shows "Tool: [object Object]" | Open | Low to fix |
 | [BL-CLAIM-002](BL-CLAIM-002-the-app-makes-two-promises-the-release-did-not-keep.md) | Two promises shipped inside the app that the release did not keep | Open | Medium |
 | [BL-DOC-001](BL-DOC-001-pdfs-already-half-work-and-the-help-page-denies-it.md) | PDFs already half-work by drag and drop, and the help page denies it | Open | Medium |
@@ -48,6 +47,7 @@ Kept in the table because the history is the point. Each file carries its
 
 | Item | What it was | Closed |
 |---|---|---|
+| [BL-REL-001](BL-REL-001-stray-model-backup-in-the-bundle.md) | A stray classifier backup sat inside the bundled resources glob and shipped in the first local v1.1.0 build. Moved out; the build script now refuses to bundle with any stray model file present, using CI's own pattern | 9 September 2026 |
 | [BL-CI-001](BL-CI-001-test-gate-has-not-run-since-april.md) | The test gate had not run since 30 April and only fired on pull requests. Push trigger, pinned ruff, lint cleared, `cargo test` and `pytest` green on every push to `main`; four further CI gaps closed in #34 | 8 September 2026 |
 | [BL-CI-002](BL-CI-002-osv-scanner-has-scanned-nothing-since-july.md) | The weekly supply-chain scan had scanned nothing since July. `--skip-git` removed, SARIF asserted present, upload working; 1,451 packages across seven lockfiles scanned on every push | 8 September 2026 |
 | [BL-TEST-002](BL-TEST-002-timing-dependent-tests-fail-under-load.md) | Two timing-dependent Rust integration tests failed under runner load. Both replaced with signal-based waits (#30, #33) | 8 September 2026 |
