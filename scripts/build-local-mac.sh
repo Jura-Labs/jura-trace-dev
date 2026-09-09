@@ -161,7 +161,12 @@ ok "Cleaned."
 
 # ── Frontend build ────────────────────────────────────────────────────
 log "Building SvelteKit frontend"
-(cd ui && npm install --silent && npm run build --silent)
+# `npm ci`, not `npm install`. The 9 September 2026 build rewrote
+# ui/package-lock.json (85 lines, optional platform packages pruned for this
+# arch) and left the working tree dirty. `npm ci` installs exactly what the
+# lockfile says and refuses to modify it, which is what a release build
+# should do and what ci.yml already does.
+(cd ui && npm ci --silent && npm run build --silent)
 ok "Frontend built to ui/build/"
 
 # ── Sidecar build (PyInstaller --onedir) ──────────────────────────────
@@ -246,6 +251,26 @@ mkdir -p src-tauri/models
 cp models/deepfake_classifier.joblib src-tauri/models/ 2>/dev/null || warn "deepfake_classifier.joblib not found in models/ — verify external USB mount."
 cp models/univfd_probe.joblib src-tauri/models/ 2>/dev/null || warn "univfd_probe.joblib not found in models/ — verify external USB mount."
 ok "Model files: $(ls src-tauri/models/ | tr '\n' ' ')"
+
+# ── Pre-bundle assertion: no stray model files may ship ───────────────
+# tauri.conf.json bundles src-tauri/models/ wholesale, and this script
+# builds from the working tree, so an untracked file sitting in that
+# directory ships to users. CI cannot see it: its Repo hygiene job only
+# ever sees tracked files, and the file this exists for
+# (deepfake_classifier.joblib.bak-1.7.2) is gitignored. It shipped in the
+# local v1.1.0 build of 9 September 2026 and was found inside the DMG by
+# hand. BL-REL-001. The pattern is the one ci.yml uses, so the two guards
+# agree on what "stray" means.
+log "Asserting no stray model files in models/ or src-tauri/models/"
+stray_models=$(find models src-tauri/models -type f \
+  \( -name '*.bak*' -o -name '*.backup*' -o -name '*.old' \
+     -o -name '*.orig' -o -name '*~' \) 2>/dev/null || true)
+if [[ -n "$stray_models" ]]; then
+  warn "Stray model files would be bundled into the .app:"
+  printf '  %s\n' $stray_models >&2
+  die "Refusing to build. Move them out of the bundled directory first (BL-REL-001)."
+fi
+ok "No stray model files."
 
 # ── Cargo macro-cache invalidation ────────────────────────────────────
 # tauri::generate_context! embeds the contents of ui/build/ at compile
@@ -343,43 +368,67 @@ DMG_PATH=$(find "$BUNDLE_DIR/dmg" -maxdepth 1 -name "*.dmg" | head -1)
 [[ -n "$DMG_PATH" ]] || die "No DMG found after Phase 6 regenerate."
 ok "DMG built: $DMG_PATH ($(du -sh "$DMG_PATH" | cut -f1))"
 
-# ── Phase 6.5: verify final .app has properly-signed nested binaries ──
-# Build-time gate that catches yesterday's failure mode (rc.29: Phase 6
-# regenerated unsigned nested files from source, .app passed top-level
-# verify but notarisation rejected with "binary is not signed with a
-# valid Developer ID certificate" on 600+ nested .so/.dylib).
+# ── Phase 6.5: verify the updater archive's .app has signed nested binaries ──
+# Build-time gate that catches the rc.29 failure mode (Phase 6 regenerated
+# unsigned nested files from source; the .app passed top-level verify but
+# notarisation rejected 600+ nested .so/.dylib).
 #
-# Sample the .app's nested Mach-O binaries and confirm every signature
-# bears TeamIdentifier=Y82C4P9L7F. If any nested binary is unsigned or
-# mis-signed, fail the build BEFORE Phase 7 / Phase 8 so the operator
-# sees the problem at build time, not as a 25-minute notarisation
-# rejection later.
-log "Phase 6.5: verify final .app nested signing"
+# Rewritten 9 September 2026 after it was found to have never checked
+# anything. It scanned "$APP_PATH/Contents/Resources/sidecar-bundle", but
+# Phase 6's `cargo tauri bundle --bundles dmg,updater` removes that .app
+# once it has packaged it, so `find` ran against a missing directory with
+# stderr silenced, counted zero files, and the gate reported
+# "All 0 nested Mach-O binaries in final .app signed". A gate that passes
+# on an empty set is the BL-SILENT-001 pattern, in the release script.
+#
+# Two changes. It now inspects the updater archive, which is the artefact
+# the release exists to deliver, by extracting it to a temp dir on the
+# same disk and scanning that .app. And it refuses to pass unless it has
+# checked at least one binary and confirmed the bundled version.
+log "Phase 6.5: verify nested signing inside the updater archive"
 
-POST6_SIDECAR_ROOT="$APP_PATH/Contents/Resources/sidecar-bundle"
+UPDATER_TGZ_CHECK=$(find "$BUNDLE_DIR/macos" -maxdepth 1 -name "*.app.tar.gz" | head -1)
+[[ -n "$UPDATER_TGZ_CHECK" ]] || die "No updater .app.tar.gz found after Phase 6; nothing to verify."
+VERIFY_TMP=$(mktemp -d "$CARGO_TARGET_BASE/verify-XXXXXX")
+trap 'rm -rf "$VERIFY_TMP"' EXIT
+tar -xzf "$UPDATER_TGZ_CHECK" -C "$VERIFY_TMP"
+VERIFY_APP=$(find "$VERIFY_TMP" -maxdepth 1 -name "*.app" -type d | head -1)
+[[ -n "$VERIFY_APP" ]] || die "The updater archive contains no .app at its top level."
+
+bundled_ver=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$VERIFY_APP/Contents/Info.plist" 2>/dev/null || true)
+declared_ver=$(grep -m1 '"version"' src-tauri/tauri.conf.json | sed -E 's/.*"version": *"([^"]+)".*/\1/')
+[[ "$bundled_ver" == "$declared_ver" ]] || die "Bundled version '$bundled_ver' does not match tauri.conf.json '$declared_ver'."
+ok "Updater archive carries $VERIFY_APP at version $bundled_ver."
+
 mis_signed=0
 checked=0
-# Verify every Mach-O in the final .app. Same content-based detection
-# as Phase 0.5.
 while IFS= read -r f; do
   checked=$((checked + 1))
   ident=$(codesign --display --verbose=2 "$f" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2}' | head -1)
   if [[ "$ident" != "$TEAM_ID" ]]; then
     mis_signed=$((mis_signed + 1))
-    warn "POST-BUNDLE MIS-SIGNED: $f Team='${ident:-NONE}'"
+    warn "POST-BUNDLE MIS-SIGNED: ${f#$VERIFY_TMP/} Team='${ident:-NONE}'"
   fi
 done < <(
-  find "$POST6_SIDECAR_ROOT" -type f \
+  find "$VERIFY_APP" -type f \
     \( -name "*.so" -o -name "*.dylib" -o ! -name "*.*" \) \
-    -exec sh -c 'file -b "$1" 2>/dev/null | grep -q "Mach-O" && echo "$1"' _ {} \; 2>/dev/null
+    -exec sh -c 'file -b "$1" 2>/dev/null | grep -q "Mach-O" && echo "$1"' _ {} \;
 )
 
+if [[ $checked -eq 0 ]]; then
+  die "Phase 6.5 found no Mach-O binaries to check inside the updater archive. \
+That is not a pass; the scan path is wrong or the archive is empty."
+fi
 if [[ $mis_signed -gt 0 ]]; then
-  die "$mis_signed of $checked nested Mach-O binaries in the final .app are mis-signed. \
+  die "$mis_signed of $checked nested Mach-O binaries in the updater archive are mis-signed. \
 This is the rc.29-class notarisation failure mode. Phase 0.5 (source signing) or Phase 5a \
 (in-.app signing) is not effective; investigate cargo tauri bundle behaviour."
 fi
-ok "All $checked nested Mach-O binaries in final .app signed by Team=$TEAM_ID."
+if ! codesign --verify --deep --strict "$VERIFY_APP" 2>/dev/null; then
+  die "codesign --verify --deep --strict failed on the .app inside the updater archive."
+fi
+rm -rf "$VERIFY_TMP"; trap - EXIT
+ok "All $checked nested Mach-O binaries in the updater archive signed by Team=$TEAM_ID; deep verify passed."
 
 # ── Phase 7: codesign the DMG itself ──────────────────────────────────
 log "Phase 7: codesign the DMG"
