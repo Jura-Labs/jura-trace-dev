@@ -1,59 +1,69 @@
-# Sidecar Binaries
+# Sidecar binaries
 
-This directory holds the frozen Python ML sidecar binary produced by PyInstaller.
-Tauri bundles and launches the binary automatically in production builds.
+Tauri's `externalBin` entry in `tauri.conf.json` is `binaries/jura-sidecar`.
+At bundle time Tauri looks for a file in this directory named for the
+compilation target, and places it at `Contents/MacOS/jura-sidecar` (macOS)
+or the equivalent, and signs it as part of the app.
 
-## Binary naming
+| Target | File | What it is |
+|---|---|---|
+| macOS Apple Silicon | `jura-sidecar-aarch64-apple-darwin` | **A compiled launcher**, built from `../sidecar-launcher/jura-sidecar-launcher.c`. Execs the real PyInstaller `--onedir` bootloader at `Contents/Resources/sidecar-bundle/jura-sidecar`, where its `_internal/` tree lives beside it. See the source for why it is a Mach-O binary and not a script. |
+| macOS Intel | `jura-sidecar-x86_64-apple-darwin` | placeholder; no Intel release is built |
+| Windows x64 | `jura-sidecar-x86_64-pc-windows-msvc.exe` | placeholder; the release workflow replaces it with the PyInstaller `--onefile` output |
+| Linux x64 | `jura-sidecar-x86_64-unknown-linux-gnu` | placeholder; the release workflow replaces it with the PyInstaller `--onefile` output |
 
-Tauri v2 requires platform-specific suffixes on sidecar binaries. The `externalBin`
-entry in `tauri.conf.json` is `"binaries/jura-sidecar"` — Tauri maps this to the
-following filenames at bundle time, based on the current compilation target:
+All four files are tracked, so that `cargo tauri dev`, `cargo check` and CI
+have something at the path Tauri requires. The two Windows and Linux
+placeholders are overwritten in CI and the real artefacts are never
+committed; if you rebuild one locally, `git update-index --skip-worktree`
+keeps it out of your diff (see the root `.gitignore`).
 
-| Platform        | Expected filename                                 |
-|-----------------|---------------------------------------------------|
-| macOS ARM       | `jura-sidecar-aarch64-apple-darwin`               |
-| macOS Intel     | `jura-sidecar-x86_64-apple-darwin`                |
-| Windows x86-64  | `jura-sidecar-x86_64-pc-windows-msvc.exe`         |
-| Linux x86-64    | `jura-sidecar-x86_64-unknown-linux-gnu`           |
+## The macOS launcher
 
-To find the exact triple for the machine you are building on:
+`scripts/build-local-mac.sh` recompiles the launcher from source on every
+build and proves the tracked file is that source compiled, using
+`scripts/macho-equal.py`, which compares the two with the linker's random
+`LC_UUID` and its ad-hoc signature masked and every other byte required to
+match. The build stops if they differ. It never overwrites the tracked file.
+
+Byte-identical output is not available from Apple's linker: every link gets a
+fresh random UUID, `-reproducible` does not change that, and `-no_uuid` yields
+a binary `dyld` refuses to load. That is why the comparison is masked rather
+than exact.
+
+To rebuild it by hand after changing the source:
 
 ```bash
-rustc -vV | grep host
+cc -O2 -Wall -Wextra -Werror -arch arm64 -mmacosx-version-min=13.0 \
+   -o src-tauri/binaries/jura-sidecar-aarch64-apple-darwin \
+   src-tauri/sidecar-launcher/jura-sidecar-launcher.c
+# Then prove a second compile is the same code as the file you just committed:
+cc -O2 -Wall -Wextra -Werror -arch arm64 -mmacosx-version-min=13.0 \
+   -o /tmp/launcher-check src-tauri/sidecar-launcher/jura-sidecar-launcher.c
+python3 scripts/macho-equal.py /tmp/launcher-check src-tauri/binaries/jura-sidecar-aarch64-apple-darwin
 ```
 
-## Adding the binary for a release build
+Commit the source and the binary together. Do not codesign the tracked
+file; the linker's ad-hoc signature is enough for it to run, and Tauri signs
+the copy it places inside the `.app` with the Developer ID identity.
 
-1. Build the PyInstaller bundle from `sidecar/`:
+## Why it is a Mach-O binary and not a script
 
-   ```bash
-   cd sidecar
-   pyinstaller jura-sidecar.spec
-   ```
+Until 9 September 2026 the launcher was a 38-line shell script. A script's
+code signature is stored in extended attributes. The DMG carries those, so
+the DMG passed every check; the updater archive is a tar, Tauri's tar writer
+drops extended attributes, and the client-side updater extracts with the
+same library. The launcher reached a user's Mac unsigned and Gatekeeper
+assessed the updated app as "rejected, no usable signature". A Mach-O binary
+carries its signature inside the file. See BL-REL-002 and the build script's
+Phase 6.5 for the gate that now proves it on every build.
 
-2. Copy the output binary into this directory with the correct platform suffix:
+## Development
 
-   ```bash
-   # Example for macOS ARM:
-   cp dist/jura-sidecar \
-       src-tauri/binaries/jura-sidecar-aarch64-apple-darwin
-   chmod +x src-tauri/binaries/jura-sidecar-aarch64-apple-darwin
-   ```
-
-3. Run `cargo tauri build` as normal.
-
-## Development workflow
-
-In development (`cargo tauri dev`) the Rust `run()` function attempts to spawn the
-binary but falls back gracefully when it is absent. Start the sidecar manually
-instead:
+In development (`cargo tauri dev`) `spawn_sidecar` returns early and this
+directory is not used. Run the sidecar directly:
 
 ```bash
 cd sidecar
 uvicorn main:app --host 127.0.0.1 --port 8200 --reload
 ```
-
-## `.gitignore`
-
-The binary files in this directory are excluded from version control by the root
-`.gitignore` (they are built artefacts). Only this README is tracked.

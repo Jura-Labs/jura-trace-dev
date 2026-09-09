@@ -191,7 +191,37 @@ ok "All bundled /forensics endpoints respond without bundle-import failures."
 log "Staging sidecar-bundle for Tauri resources"
 mkdir -p "$SIDECAR_STAGING"
 cp -R "$SIDECAR_DIST"/. "$SIDECAR_STAGING"/
-chmod +x src-tauri/binaries/jura-sidecar-aarch64-apple-darwin 2>/dev/null || true
+# ── Phase 0.4: the sidecar launcher is compiled from source, and must match ──
+# Contents/MacOS/jura-sidecar is a small Mach-O built from
+# src-tauri/sidecar-launcher/jura-sidecar-launcher.c. It is tracked in git so
+# Tauri has a file at the externalBin path for dev, check and CI. This phase
+# recompiles it from source and proves the tracked file is that source
+# compiled, so the two cannot drift without the build saying so. It never
+# overwrites the tracked file, so the working tree stays clean.
+#
+# Byte-identity is not available: Apple's linker assigns a random LC_UUID on
+# every link (ld-1267; -reproducible, SOURCE_DATE_EPOCH and ZERO_AR_DATE do
+# not change it) and -no_uuid produces a binary dyld refuses to load. So the
+# comparison is made by scripts/macho-equal.py with the UUID payload and the
+# linker's ad-hoc signature masked; every other byte must match. Tauri
+# replaces that ad-hoc signature with the Developer ID one when it bundles.
+#
+# The launcher was a shell script until 9 September 2026. See the C source
+# for why a script cannot ship signed through the updater.
+log "Phase 0.4: compile the sidecar launcher and check it matches the tracked binary"
+LAUNCHER_SRC="src-tauri/sidecar-launcher/jura-sidecar-launcher.c"
+LAUNCHER_BIN="src-tauri/binaries/jura-sidecar-aarch64-apple-darwin"
+LAUNCHER_TMP=$(mktemp -d)
+cc -O2 -Wall -Wextra -Werror -arch arm64 -mmacosx-version-min=13.0 \
+   -o "$LAUNCHER_TMP/launcher" "$LAUNCHER_SRC" || { rm -rf "$LAUNCHER_TMP"; die "The sidecar launcher failed to compile."; }
+if ! python3 scripts/macho-equal.py "$LAUNCHER_TMP/launcher" "$LAUNCHER_BIN"; then
+  rm -rf "$LAUNCHER_TMP"
+  die "$LAUNCHER_BIN is not $LAUNCHER_SRC compiled. \
+Rebuild it with the recipe in src-tauri/binaries/README.md and commit both."
+fi
+rm -rf "$LAUNCHER_TMP"
+chmod +x "$LAUNCHER_BIN"
+ok "Sidecar launcher matches its source ($(stat -f %z "$LAUNCHER_BIN") bytes, Mach-O arm64)."
 ok "Staged to $SIDECAR_STAGING ($(du -sh "$SIDECAR_STAGING" | cut -f1))"
 
 # ── Phase 0.5: per-file sign nested Mach-O binaries in SOURCE ─────────

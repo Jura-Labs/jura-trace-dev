@@ -540,8 +540,9 @@ jobs:
       #     COLLECT block (--onedir output: a directory containing the
       #     bootloader + an _internal/ tree of dylibs). Cold start ~39s vs
       #     ~90-200s for --onefile. The committed launcher stub at
-      #     src-tauri/binaries/jura-sidecar-aarch64-apple-darwin (a 38-line
-      #     shell script) execs the bundled bootloader at runtime.
+      #     src-tauri/binaries/jura-sidecar-aarch64-apple-darwin (a compiled
+      #     Mach-O launcher built from src-tauri/sidecar-launcher/; it was a shell
+      #     script until 9 September 2026, see that source for why) execs the bundled bootloader at runtime.
       #
       #   Windows / Linux — onefile mode (unchanged):
       #     spec defaults to EXE-only (no COLLECT) producing a single
