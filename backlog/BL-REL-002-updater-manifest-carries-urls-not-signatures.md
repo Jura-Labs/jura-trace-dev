@@ -389,6 +389,14 @@ release day, purge the exact URL after the v1.1.0 manifest goes live, which
 removes even the five minutes; that step is now item 0 of the plan's manual
 gate. Neither changes the worker, which is correct as written.
 
+**Done, 9 September 2026.** Paul set Browser Cache TTL to Respect Existing
+Headers in the dashboard; the API read shows `browser_cache_ttl` `0`,
+modified 07:36:26 UTC. Verified at 07:39 UTC: a GET returned the worker's
+own `cache-control: public, max-age=300`, and the next request was
+`cf-cache-status: HIT`, `age: 0`, `max-age=300`. The header now says what
+the edge does. The discrepancy this section describes is closed; the
+purge step in the release plan stands.
+
 ### The fallback endpoint
 
 "There is no fallback" above is no longer true.
