@@ -148,6 +148,52 @@ expansions the way bash does. A snippet that is correct in bash can be
 silently wrong when pasted into a zsh session, and it fails in the
 direction of looking fine.
 
+## Three more, 9 September 2026, found by verifying a build by hand
+
+The local v1.1.0 macOS build succeeded and printed a green tick at every
+phase. Opening its artefacts by hand rather than reading the ticks found the
+DMG sound and the updater archive not, and the script unable to tell. All
+three were fixed in PR #49; they are recorded here because each is an
+instance of a cause already on this list.
+
+**The release gate that never checked anything (Cause C, and the empty
+set).** Phase 6.5 of `scripts/build-local-mac.sh` was written after rc.29
+to catch mis-signed nested binaries before notarisation. It scanned
+`$APP_PATH/Contents/Resources/sidecar-bundle`. Phase 6 removes that `.app`
+once it has packaged it, so `find` ran against a missing directory with
+stderr silenced, counted zero files, and the gate printed
+"All 0 nested Mach-O binaries in final .app signed". Two faults in one
+line. It was not verifying the bytes that ship, which is Cause C; and it
+had no floor, so an empty scan read as a clean scan, which is the
+prove-it-ran gap of section 3 below in its purest form. It now extracts
+the updater archive, the artefact the release exists to deliver, and dies
+if it checked nothing.
+
+**The warning nobody read (Cause C again, by way of section 7).** Phase 6
+ran `cargo tauri bundle --bundles dmg,updater`. On macOS `updater` is not a
+bundle target; the archive is a by-product of `app`. Tauri said so in every
+build, as a Warn line: "no updater-enabled targets were built. Please
+enable one of these targets: app, appimage, msi, nsis." The archive on
+disk was the one Phase 1 wrote, before any of the later signing, and the
+comment above the phase said the opposite. A gate downstream of an ignored
+warning is verifying the wrong artefact by construction.
+
+**The gate that failed a good build (Cause D, mirrored).** The rewritten
+Phase 6.5 first read any stderr from `codesign --verify --deep --strict
+--verbose=2` as failure. With `--verbose`, codesign prints "valid on disk"
+and "satisfies its Designated Requirement" on success, so the gate refused
+a build whose archive was, by independent check, valid. Cause D is the
+absence of an error string read as success; this is the presence of a
+non-error string read as failure, and the rule is the same one: **exit
+status first, output second.** A gate that fails good builds trains the
+same reflex as one that passes bad ones, which is to stop reading it.
+
+Two smaller things from the same day belong with Cause D's note on zsh.
+`cc $CFLAGS` with an unquoted variable passed one argument to the compiler
+under zsh and produced an "invalid integral value" error, and a `for` loop
+over test variants counted "0 failures" because its `cd` had failed and
+nothing ran. Both looked like results. Neither was.
+
 ## The plan
 
 Ordered by defects prevented per unit of cost. Items 1 to 4 belong in the

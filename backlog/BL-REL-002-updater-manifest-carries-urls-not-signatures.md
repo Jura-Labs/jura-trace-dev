@@ -439,3 +439,34 @@ Every server-side fix this item asked for is live. Nothing a user has
 installed has changed, no v1.0.0 client has been observed completing an
 update, and the notice has not gone out. Per Paul's instruction of
 3 September, recorded above, the item does not close on the code fix.
+
+## Update, 9 September 2026: the updater archive now ships a signed launcher
+
+A defect this item did not know about, found by opening the local v1.1.0
+build's artefacts by hand. `Contents/MacOS/jura-sidecar` was a shell script
+whose code signature lived in extended attributes. The DMG carries them, so
+the DMG passed every check. The updater archive is a tar, Tauri's tar
+writer drops extended attributes, and `tauri-plugin-updater` extracts with
+the same library, so the launcher reached the extracted app "not signed at
+all" and Gatekeeper assessed it as `rejected, source=no usable signature`
+where the DMG's copy assessed as `Unnotarized Developer ID`. Re-signing that
+one file made the archived app pass deep verification; it was the only
+defect. Separately, Phase 6 of the build script had never produced an
+updater archive at all (`updater` is not a macOS bundle target), so the
+archive on disk was Phase 1's, made before the re-signing.
+
+Fixed in PR #49. The launcher is now a compiled Mach-O whose signature is
+inside the file, Phase 6 builds the `app` target so the archive is written
+from the signed state, and Phase 6.5 extracts the archive on every build and
+runs `codesign --verify --deep --strict` on it. The proving rebuild's archive
+reports 617 nested binaries signed, deep verification valid, and Gatekeeper
+`Unnotarized Developer ID`.
+
+Two consequences for this item. First, the v1.0.0 archive published in June
+was built by the same script and very likely has the same defect; that does
+not matter for updating *from* v1.0.0, because the client extracts the new
+archive, and nobody has ever updated from it. Second, the live leg is still
+the gate. Nothing above has been observed on a v1.0.0 client; it has been
+observed on the artefact such a client would receive, which is necessary
+and not sufficient. The status line stands.
+
