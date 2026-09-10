@@ -67,7 +67,7 @@ c2pa = { version = "0.90", features = ["file_io"] }
 # x509-parser feature enables CertificateParams::from_ca_cert_pem, required for
 # conformant cert import metadata extraction. x509-parser is already compiled as
 # a transitive dependency of c2pa; enabling this feature adds no new crate.
-rcgen = { version = "0.13", features = ["x509-parser"] }
+rcgen = { version = "0.14", features = ["x509-parser"] }
 # Direct X.509 parsing for issuer DN extraction — rcgen's CertificateParams
 # exposes the subject distinguished name but not the issuer, so we read the
 # issuer RDN SEQUENCE directly via x509-parser. Already compiled as a
