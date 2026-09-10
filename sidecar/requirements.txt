@@ -84,6 +84,6 @@ python-dotenv==1.2.3
 pydantic==2.11.3
 
 # Testing
-pytest>=8.0
+pytest>=9.1.1
 pytest-asyncio>=0.24
 httpx  # also used for async test client
