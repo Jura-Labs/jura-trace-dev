@@ -1,6 +1,9 @@
 # BL-CLAIM-002: the shipped app makes two promises the release did not keep
 
-**Status**: Open. Found 3 September 2026.
+**Status**: Promise 1 corrected 10 September 2026, before v1.1.0. Promise 2
+(the model-card metadata file) is still open. See "Update, 10 September
+2026" at the foot of this file.
+Found 3 September 2026.
 **Raised**: 3 September 2026
 **Severity**: Medium, and rising with time. Both statements are inside the
 application on 145 machines, both were true as intentions when written, and
@@ -99,3 +102,34 @@ Do not attach the metadata without reading it first. The June sweep moved
 four documents out of this repository for naming corpora and generators.
 Publishing a JSON that re-exposes what that sweep removed would undo a
 deliberate decision by accident.
+
+
+## Update, 10 September 2026: promise 1 corrected, and eleven more like it
+
+The v1.1.0 checkpoint review flagged the Article 50 sentence as copy that
+would ship inside v1.1.0 still promising a release that does not exist.
+Corrected in `ui/src/routes/help/compliance/+page.svelte:370`, following
+step 3 above: since the export does not ship in v1.1.0, the sentence stops
+naming a version and a month. It now reads that the export is under
+evaluation for a future release, that Article 50 began to bind on 2 August
+2026, and that Jura Trace does not provide the export today. That is the
+same softening the 8 June sweep applied to every other forward commitment,
+and the reason this one was exempt, a real date in the future, expired five
+weeks ago.
+
+Hunting for the same shape found eleven more instances of a version number
+frozen into copy that outlives it: five on the Verify page and the format
+support page (flagged by the checkpoint), and six more in the settings
+page, the help index, the settings, verify and methodology help pages, and
+two source comments. Each said "Jura Trace v1.0" where it meant the
+product, so each would have shipped inside v1.1.0 telling the user they
+were running v1.0.
+
+All twelve are fixed by removing the version, not by bumping it. A version
+number in prose has to be maintained on every release by someone who
+remembers, which is the mechanism that produced this defect; prose that
+does not name a version cannot go stale. Where a statement is genuinely
+about one release, the release notes are the place for it.
+
+Promise 2, the per-generator recall metadata JSON referenced by the model
+cards but never attached to a release, is untouched and still open.

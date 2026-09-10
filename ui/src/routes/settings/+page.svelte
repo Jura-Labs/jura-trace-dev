@@ -2207,7 +2207,7 @@
       <ContextualHelpLink href="/help/settings#your-plan" label="Learn about licence plans and features" />
     </div>
     <p class="text-xs muted-help mb-4">
-      Jura Trace v1.0 is free for everyone under AGPL-3.0-or-later. The asset-locked
+      Jura Trace is free for everyone under AGPL-3.0-or-later. The asset-locked
       Community Interest Company structure guarantees a free Community release in perpetuity.
     </p>
 
