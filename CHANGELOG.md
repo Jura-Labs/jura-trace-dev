@@ -169,9 +169,6 @@ settings and your saved work are kept.
   as plain text. The manifests most likely to do this are those written by
   other conformant C2PA tools. Only that line of the display is affected,
   not the verification behind it.
-- **The compliance help page still names a v1.0.1 release, in early August
-  2026, for an audit-log export.** There was no such release and no such
-  export. The sentence is out of date and is corrected in the next release.
 - **The documentation page for the local REST API loads its interface from
   a third-party CDN.** Your files and everything Jura Trace does with them
   stay on your device. This one developer-facing page, opened in a browser
