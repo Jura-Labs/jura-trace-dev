@@ -776,10 +776,31 @@ jobs:
       #      chain vector flagged in docs/strategy/auto-updater-security-review.md.
       #   2. Use cargo-binstall to pull the prebuilt tauri-cli binary
       #      (~10s) — faster than compiling tauri-cli from source.
+      #   3. Both installs are skipped when the cargo cache has already
+      #      restored the binary. `cargo install` refuses to overwrite an
+      #      existing binary and exits 101 with "binary `cargo-binstall`
+      #      already exists in destination". That is what failed the Linux
+      #      leg of the v1.1.0 tag build on 10 September 2026, with nothing
+      #      wrong with the code and a red X that read like a build break.
+      #      It is the same defect ci.yml hit on 8 September with
+      #      cargo-audit, and it is fixed the same way here: ask whether the
+      #      tool is present rather than assuming it is not. `--force` would
+      #      also work but would rebuild a tool that does not change, which
+      #      is the cost the cache exists to avoid.
       - name: Install Tauri CLI
         run: |
-          cargo install cargo-binstall --locked --version "~1.10"
-          cargo binstall tauri-cli --version "2.11.4" --no-confirm
+          if command -v cargo-binstall >/dev/null 2>&1; then
+            echo "cargo-binstall restored from cache: $(cargo binstall -V)"
+          else
+            cargo install cargo-binstall --locked --version "~1.10"
+            echo "cargo-binstall built from source: $(cargo binstall -V)"
+          fi
+          if cargo tauri --version >/dev/null 2>&1; then
+            echo "tauri-cli restored from cache: $(cargo tauri --version)"
+          else
+            cargo binstall tauri-cli --version "2.11.4" --no-confirm
+            echo "tauri-cli installed: $(cargo tauri --version)"
+          fi
 
       # ── Tauri: build and upload release artefacts ────────────────────────
       # tauri-apps/tauri-action@v0 is the Tauri v2-compatible release of the action.
