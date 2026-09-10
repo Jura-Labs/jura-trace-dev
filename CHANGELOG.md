@@ -6,9 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## v1.1.0: auto-update works
-
-**Release date: to be filled in before the tag is cut.**
+## 11 September 2026: v1.1.0, auto-update works
 
 Jura Trace v1.0.0 was published in June 2026, and until now no update has
 ever reached anyone who installed it. The update path looked as though it
