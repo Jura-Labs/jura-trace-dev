@@ -7,7 +7,8 @@ Jura Trace is published under AGPL-3.0-or-later with a parallel commercial-licen
 ## How to contribute
 
 - **Bug reports:** open an issue on the canonical repository.
-- **Feature ideas:** open a discussion or issue first, before writing code, so we can align on whether the feature fits the roadmap and the local-first principle. See `docs/backlog.md` for the current public roadmap.
+- **Feature ideas:** open a discussion or issue first, before writing code, so we can align on whether the feature fits the roadmap and the local-first principle. See the `backlog/` directory for the current roadmap: one file per item,
+stating what is wrong, the evidence, and what would fix it.
 - **Pull requests:** small, focused, with tests where appropriate. Match existing code style. Keep architectural changes in a separate PR from feature changes.
 - **Documentation:** PRs welcome on user guides, methodology documents, and translation contributions.
 

@@ -396,7 +396,9 @@ Two products sharing a common detection engine:
 - Python sidecar stays — rewriting 21 ML services in Rust rejected (110-160 pts risk)
 - Tauri desktop shell stays — the product ships in April/May 2026
 - Two separate APIs: local desktop (API key) + hosted consumer (JWT/Redis) — decided at June gate
-- Team tier retained — £79/seat/mo fills the £199→£6K gap
+- Team tier retained (SUPERSEDED — see the 9 May 2026 tier decision: v1.0 ships
+  Community-only, free under AGPL, with no published prices. The £79/seat/mo
+  figure below is a March 2026 artefact kept for context, not a live price.)
 - Consumer tiers (Free/Personal/Family/Creator) scoped under Jura Check, not Jura Trace
 - 14 personas total: 10 existing B2B + 4 new consumer (Ravi, Sarah M, Jordan, Priya)
 

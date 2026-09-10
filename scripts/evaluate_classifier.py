@@ -100,7 +100,10 @@ def main():
     parser.add_argument(
         "--ai",
         type=str,
-        default="/Users/paulgriffiths/Desktop/Fake Images AI",
+        default=os.environ.get(
+            "JURA_AI_CORPUS",
+            os.path.join(os.path.dirname(__file__), "..", "corpus", "ai-generated"),
+        ),
         help="Path to AI corpus (for re-evaluation)",
     )
     parser.add_argument(
