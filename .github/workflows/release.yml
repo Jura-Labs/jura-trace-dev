@@ -234,13 +234,30 @@ jobs:
             // release on jura-trace already exists; reuse it instead of
             // failing with HTTP 422.  Only the body is refreshed — everything
             // else is left as-is so previously-uploaded assets survive.
-            try {
-              const { data: existing } = await github.rest.repos.getReleaseByTag({
-                owner: 'juralabs',
-                repo: 'jura-trace',
-                tag,
-              });
-              console.log(`Reusing existing release ${existing.id} for tag ${tag}`);
+            // `getReleaseByTag` does NOT return draft releases: GitHub resolves
+            // that endpoint through the published tag, and a draft has no
+            // published tag yet. So the reuse path below never fired for the
+            // case it was written for, a re-dispatch against a draft, and the
+            // 404 fell through to `createRelease`, producing a SECOND draft
+            // for the same tag.
+            //
+            // That happened on 10 September 2026 re-dispatching the Linux leg
+            // of v1.1.0. The new draft was empty, so the checksum and manifest
+            // steps listed its zero assets, wrote an empty SHA256SUMS.txt and a
+            // manifest with no platforms at all, and uploaded both by tag over
+            // the good ones on the real draft. A manifest with no platforms
+            // tells every user on every platform that they are up to date,
+            // for ever, which is the exact failure BL-REL-002 exists for.
+            //
+            // `listReleases` includes drafts, so match on tag_name there.
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: 'juralabs',
+              repo: 'jura-trace',
+              per_page: 100,
+            });
+            const existing = releases.find(r => r.tag_name === tag);
+            if (existing) {
+              console.log(`Reusing existing release ${existing.id} for tag ${tag} (draft: ${existing.draft})`);
               await github.rest.repos.updateRelease({
                 owner: 'juralabs',
                 repo: 'jura-trace',
@@ -248,8 +265,6 @@ jobs:
                 body,
               });
               return existing.id;
-            } catch (e) {
-              if (e.status !== 404) throw e;
             }
             const { data } = await github.rest.repos.createRelease({
               owner: 'juralabs',
@@ -1545,8 +1560,19 @@ jobs:
               installerExts.some(ext => a.name.endsWith(ext))
             );
 
+            // An empty set here is never legitimate on a release run, and a
+            // warning is not enough. On 10 September 2026 this step warned,
+            // wrote a one-byte SHA256SUMS.txt, and uploaded it over a good
+            // one, because a duplicate empty draft had been created for the
+            // tag. A checksum file that lists nothing is worse than no
+            // checksum file: it looks like a checksum file.
             if (toHash.length === 0) {
-              core.warning('No installer artefacts found on the release — SHA256SUMS.txt will be empty.');
+              core.setFailed(
+                `No installer artefacts found on release ${releaseId} for tag ${process.env.RELEASE_TAG}. ` +
+                'Refusing to write an empty SHA256SUMS.txt over a good one. ' +
+                'Check that the release id above is the draft the build uploaded to.'
+              );
+              return;
             }
 
             // Download each artefact into a temporary directory and hash it.
@@ -1696,7 +1722,21 @@ jobs:
             const version = tag.replace(/^v/, '');           // e.g. "0.9.0" or "1.0.0-beta.1"
             // baseUrl points to juralabs/jura-trace so auto-update download URLs
             // resolve to the public repo that users can access.
-            const baseUrl = `https://github.com/juralabs/jura-trace/releases/download/${tag}`;
+            // The organisation is `Jura-Labs`. `juralabs` was its name before a
+            // rename, and github.com still 301s from the old name, which is why
+            // this went unnoticed: the manifest the fallback endpoint serves
+            // carries URLs that work only for as long as GitHub honours that
+            // redirect, and it stops the day anyone registers the old name.
+            // The live manifest built by the Cloudflare worker uses the
+            // canonical name already, so only the fallback was affected.
+            // Found 10 September 2026 while repairing the v1.1.0 draft.
+            //
+            // The API calls in this file still address `owner: 'juralabs'`,
+            // which the REST API resolves through the same rename. Those are
+            // authenticated calls that fail loudly if they ever stop
+            // resolving, so they are left for a separate sweep rather than
+            // changed in a release-day fix.
+            const baseUrl = `https://github.com/Jura-Labs/jura-trace/releases/download/${tag}`;
 
             // Map each Tauri updater platform key to the expected asset suffixes.
             //
@@ -1782,6 +1822,21 @@ jobs:
 
             // Produce the manifest.  "notes" is populated from the release body
             // (which the create-release job already set from CHANGELOG.md).
+            // A manifest with no platforms is well-formed JSON that answers
+            // HTTP 200 and tells every client on every platform that it is up
+            // to date, for ever, with no error anywhere. That is the defect
+            // BL-REL-002 exists for, and on 10 September 2026 this step wrote
+            // exactly that file and uploaded it over a good one, because the
+            // release it was reading had no assets. Refuse instead.
+            if (Object.keys(platforms).length === 0) {
+              core.setFailed(
+                `No platform entries could be built for ${manifestName} from release ${releaseId}. ` +
+                'Refusing to upload a manifest with no platforms: it would tell every client ' +
+                'it is up to date rather than fail visibly.'
+              );
+              return;
+            }
+
             const manifest = {
               version: `v${version}`,
               notes:   release.body || `Jura Trace ${tag}`,
