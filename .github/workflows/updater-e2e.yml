@@ -30,10 +30,11 @@ name: Updater end-to-end
 # client asked for the manifest and said nothing about what the client made
 # of the answer, which is the half that failed in production.
 #
-# The verdict is now read out of the running app's own DOM. The installed
-# binary is launched with WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS set to
-# --remote-debugging-port=9222, and the step then speaks the Chrome DevTools
-# Protocol to the WebView2 instance and evaluates document.body.textContent.
+# The verdict is now read out of the running app's own DOM. A machine-wide
+# WebView2 policy adds --remote-debugging-port=9222 to the browser arguments
+# of the app about to be launched, and the step then speaks the Chrome
+# DevTools Protocol to that WebView2 instance and evaluates
+# document.body.textContent.
 # The startup update check writes its result into the page: when the plugin
 # returns an update, ui/src/routes/+layout.svelte renders a banner reading
 # "Version <n> is available". Nothing else in the product can put the
@@ -55,9 +56,15 @@ name: Updater end-to-end
 #      runner and an msedgedriver whose version matches the installed
 #      WebView2 runtime. The debugging port is the same mechanism
 #      msedgedriver itself uses on a WebView2 host app, reached directly.
-#      WebView2 appends the environment variable's arguments to the ones wry
-#      sets in code rather than discarding them, which is why this works
-#      against an unmodified shipped binary.
+#      WebView2 appends the policy's arguments to the ones wry sets in code
+#      rather than discarding them, which is why this works against an
+#      unmodified shipped binary.
+#
+# The port has to be opened by HKLM policy rather than by the usual
+# WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS environment variable, because steps
+# on a GitHub Actions Windows runner are elevated and WebView2 ignores every
+# WEBVIEW2_* and HKCU override for a High Integrity host. That was found by
+# running it: see the note above the launch below.
 #
 # The assertion matches the shipped copy, "Version 9.9.9 is available",
 # because the app under test is the PREVIOUS tag's installer. A data-testid
@@ -301,11 +308,38 @@ jobs:
           if (-not $exe) { throw "installed executable not found" }
           Write-Host "installed: $exe"
 
-          # WebView2 appends these to the arguments wry sets in code, so an
-          # unmodified shipped binary opens a debugging port on 127.0.0.1.
-          # This is the only thing done differently to a user's launch, and it
-          # changes nothing the updater path touches.
-          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222 --remote-allow-origins=*"
+          # Open a debugging port on 127.0.0.1 in the app's WebView2, by policy
+          # rather than by environment variable.
+          #
+          # The environment variable is the usual way and it does not work
+          # here. A GitHub Actions Windows runner executes steps elevated, and
+          # WebView2 ignores every WEBVIEW2_* environment override, and every
+          # HKCU policy override, when the host process is High Integrity. Run
+          # 34485684324 proved it from the inside: the client asked for the
+          # manifest, so the app and its WebView2 were plainly running, and the
+          # port never answered. HKLM policy overrides are honoured for
+          # elevated hosts, and WebView2 appends them to the arguments wry sets
+          # in code rather than replacing them, so an unmodified shipped binary
+          # opens the port.
+          #
+          # The value name is matched against the app user model id, then the
+          # executable name, then the wildcard. Both of the last two are set,
+          # because the runner is thrown away and being certain matters more
+          # than being narrow. The variable is left set as well, for the day
+          # this runs somewhere unelevated.
+          $isElevated = ([Security.Principal.WindowsPrincipal]::new(
+            [Security.Principal.WindowsIdentity]::GetCurrent())
+          ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          Write-Host "this step is running elevated: $isElevated"
+
+          $browserArgs = "--remote-debugging-port=9222 --remote-allow-origins=*"
+          $policyKey = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments"
+          New-Item -Path $policyKey -Force | Out-Null
+          New-ItemProperty -Path $policyKey -Name "jura-trace.exe" -Value $browserArgs -PropertyType String -Force | Out-Null
+          New-ItemProperty -Path $policyKey -Name "*" -Value $browserArgs -PropertyType String -Force | Out-Null
+          Write-Host "WebView2 policy set: $((Get-ItemProperty -Path $policyKey).'jura-trace.exe')"
+          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $browserArgs
+
           Start-Process -FilePath $exe
 
           # ── serve, and question the client, until it answers or time runs out ──
@@ -397,9 +431,13 @@ jobs:
 
           if (-not $cdpUp) {
             Write-Host "::error::The WebView2 debugging port never answered, so the client's verdict could not be read."
-            Write-Host "This is a failure of the TEST, not evidence about the client. Most likely the"
-            Write-Host "installed build does not honour WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS, or the app"
-            Write-Host "did not open a window. Do not read this as an absent verdict."
+            Write-Host "This is a failure of the TEST, not evidence about the client. Either the HKLM"
+            Write-Host "policy that opens the port did not take, or the app opened no window at all."
+            Write-Host "Do not read this as an absent verdict."
+            Write-Host "── listeners on 9222 ──"
+            Get-NetTCPConnection -LocalPort 9222 -ErrorAction SilentlyContinue | Format-Table -AutoSize | Out-String | Write-Host
+            Write-Host "── webview processes ──"
+            Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Select-Object Id, ProcessName | Format-Table -AutoSize | Out-String | Write-Host
             exit 1
           }
 
