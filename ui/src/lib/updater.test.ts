@@ -47,6 +47,7 @@ function makeDeps(overrides: Partial<UpdaterDeps> = {}): UpdaterDeps {
     isTauri: () => true,
     checkPlugin: vi.fn(async () => null),
     backup: vi.fn(async () => ({ snapshotPath: '/tmp/backup.db', sha256: 'abc123def456' })),
+    relaunch: vi.fn(async () => undefined),
     ...overrides,
   };
 }
@@ -166,6 +167,61 @@ describe('checkForUpdate — successful install', () => {
     const transitions = await run(deps);
 
     expect(transitions[transitions.length - 1]).toEqual({ state: 'installing' });
+  });
+});
+
+// BL-REL-004: "Installing, restarting shortly..." was shown while nothing
+// restarted the app. The first update ever applied to a real install
+// (9 September 2026) sat on that spinner until the user quit by hand.
+describe('checkForUpdate — relaunch after install', () => {
+  it('calls relaunch exactly once, after downloadAndInstall has resolved', async () => {
+    const order: string[] = [];
+    const update = {
+      version: '1.1.0',
+      downloadAndInstall: vi.fn(async () => {
+        order.push('install');
+      }),
+    };
+    const relaunch = vi.fn(async () => {
+      order.push('relaunch');
+    });
+    const deps = makeDeps({ checkPlugin: vi.fn(async () => update), relaunch });
+    const transitions = await run(deps);
+
+    expect(relaunch).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(['install', 'relaunch']);
+    expect(transitions[transitions.length - 1]).toEqual({ state: 'installing' });
+  });
+
+  it('does not relaunch when the install throws', async () => {
+    const update = makeFakeUpdate('0.9.1', 'throw');
+    const relaunch = vi.fn(async () => undefined);
+    const deps = makeDeps({ checkPlugin: vi.fn(async () => update), relaunch });
+    await run(deps);
+
+    expect(relaunch).not.toHaveBeenCalled();
+  });
+
+  it('does not relaunch when there is nothing to install', async () => {
+    const relaunch = vi.fn(async () => undefined);
+    const deps = makeDeps({ checkPlugin: vi.fn(async () => null), relaunch });
+    await run(deps);
+
+    expect(relaunch).not.toHaveBeenCalled();
+  });
+
+  it('tells the user to quit and reopen when relaunch fails', async () => {
+    const update = makeFakeUpdate('0.9.1');
+    const relaunch = vi.fn(async () => {
+      throw new Error('plugin:process|restart not allowed');
+    });
+    const deps = makeDeps({ checkPlugin: vi.fn(async () => update), relaunch });
+    const transitions = await run(deps);
+
+    expect(transitions[transitions.length - 1]).toEqual({
+      state: 'error',
+      message: 'The update is installed. Quit Jura Trace and open it again to finish.',
+    });
   });
 });
 

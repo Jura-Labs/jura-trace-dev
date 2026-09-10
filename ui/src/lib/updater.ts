@@ -31,6 +31,17 @@ export interface UpdaterDeps {
     ) => Promise<void>;
   } | null>;
   backup: () => Promise<{ snapshotPath: string; sha256: string }>;
+  /**
+   * Restart the application so the freshly installed bundle runs.
+   *
+   * The updater plugin installs and returns; on macOS it renames the new
+   * bundle into place and touches it, nothing more. Until 9 September 2026
+   * nothing called this, so the button read "Installing, restarting
+   * shortly..." while the old binary kept running from a temp directory
+   * the plugin had already deleted (BL-REL-004). The promise the copy makes
+   * is kept here.
+   */
+  relaunch: () => Promise<void>;
 }
 
 /**
@@ -39,11 +50,13 @@ export interface UpdaterDeps {
  */
 export async function makeTauriDeps(): Promise<UpdaterDeps> {
   const { check } = await import('@tauri-apps/plugin-updater');
+  const { relaunch } = await import('@tauri-apps/plugin-process');
   const { autoBackupBeforeUpdate } = await import('$lib/api');
   return {
     isTauri: () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window,
     checkPlugin: check,
     backup: autoBackupBeforeUpdate,
+    relaunch,
   };
 }
 
@@ -97,6 +110,20 @@ export async function checkForUpdate(
     });
 
     onStatus({ state: 'installing' });
+
+    // The install is on disk; the running process is still the old one.
+    // relaunch() exits this process and starts the new bundle. If it fails,
+    // the user is told what to do rather than left with a spinner.
+    try {
+      await deps.relaunch();
+    } catch (relaunchErr) {
+      const detail = relaunchErr instanceof Error ? relaunchErr.message : String(relaunchErr);
+      console.warn('[updater] relaunch after install failed:', detail);
+      onStatus({
+        state: 'error',
+        message: 'The update is installed. Quit Jura Trace and open it again to finish.',
+      });
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     onStatus(classifyError(message));

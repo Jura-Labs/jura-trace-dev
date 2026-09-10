@@ -458,6 +458,7 @@
           isTauri: () => false as boolean,
           checkPlugin: async () => null as null,
           backup: async () => ({ snapshotPath: '', sha256: '' }),
+          relaunch: async () => undefined,
         };
     await runCheckForUpdate((s) => { updateStatus = s; }, deps);
   }
