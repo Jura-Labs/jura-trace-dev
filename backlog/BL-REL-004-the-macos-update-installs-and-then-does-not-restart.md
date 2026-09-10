@@ -1,8 +1,10 @@
 # BL-REL-004: the macOS update installs, says "restarting shortly", and never restarts
 
-**Status**: Open. Found on the first staging-leg run, 9 September 2026.
-Fault 1 needs a decision before the v1.1.0 build is final. Fault 2 is a
-backlog item for later.
+**Status**: Fault 1 fixed in tree (PR #53, option (a), Paul's decision
+9 September 2026) and proven on the staging leg 10 September: a running
+1.1.0 installed a relabelled 1.1.1 and relaunched itself unattended. The
+release notes still owe v1.0.0 users the quit-and-reopen sentence, because
+their update runs v1.0.0's code. Fault 2 remains open for a later release.
 **Severity**: Fault 1 High: it is what every v1.0.0 user on macOS will see
 when they take the v1.1.0 update. Fault 2 Low: it needs the app to be
 installed on a volume other than the boot volume.
@@ -108,8 +110,13 @@ file upstream when there is time.
    release notes and to the website's update copy, because v1.0.0 users
    will hit it regardless.
 3. After the rebuild, re-run `stage.sh serve` against the new archive.
-   Under (a) the pass condition becomes: health answers 1.1.0 with no
-   manual quit.
+   The pass condition is not "1.0.0 updates with no manual quit": the
+   relaunch code runs in the *updating* app, and 1.0.0 has none. It is:
+   install the new build as the throwaway, relabel the staged manifest one
+   patch higher over the same signed archive, and the running 1.1.0 must
+   come back by itself with a new pid and its executable inside the
+   bundle. **Done, 10 September 2026, 08:28:15: pid 28116 became 28254,
+   health 1.1.0, sidecar true, notarised, no temp directories left.**
 4. Fault 2: add the friendly error to `classifyError` in a later release;
    open an upstream issue against tauri-plugin-updater.
 
