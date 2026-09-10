@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
- * Single source of truth for the file formats Jura Trace v1.0 will verify.
+ * Single source of truth for the file formats Jura Trace will verify.
  *
  * Read by the Verify page's file picker AND by both drag-and-drop paths.
  * It lives here, outside the component, so those three cannot drift apart

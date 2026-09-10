@@ -27,7 +27,7 @@ after the fourteen merges of that day. Each item's own file carries a dated
 | [BL-CLAIM-001](BL-CLAIM-001-nothing-leaves-the-device-is-nearly-true.md) | "No data is uploaded to external servers" is nearly true, and nearly is not good enough | Open, narrowed | High |
 | [BL-DEPS-002](BL-DEPS-002-frontend-advisories-one-ships.md) | Ten frontend advisories (was twelve), none of which reaches a user | Open, partly resolved | Medium |
 | [BL-UX-001](BL-UX-001-tool-object-object-in-the-c2pa-panel.md) | The C2PA panel shows "Tool: [object Object]" | Open | Low to fix |
-| [BL-CLAIM-002](BL-CLAIM-002-the-app-makes-two-promises-the-release-did-not-keep.md) | Two promises shipped inside the app that the release did not keep | Open | Medium |
+| [BL-CLAIM-002](BL-CLAIM-002-the-app-makes-two-promises-the-release-did-not-keep.md) | Two promises shipped inside the app that the release did not keep. The Article 50 sentence and eleven frozen "v1.0" strings corrected 10 September, before v1.1.0; the model-card metadata file is still open | Open, partly resolved | Medium |
 | [BL-DOC-001](BL-DOC-001-pdfs-already-half-work-and-the-help-page-denies-it.md) | PDFs already half-work by drag and drop, and the help page denies it | Open | Medium |
 | [BL-WM-001](BL-WM-001-watermarking-is-two-bugs-and-a-bundle-problem.md) | What enabling watermarking actually requires, and the robustness cliff | Open | Scope risk |
 | [BL-DEPS-003](BL-DEPS-003-four-reachable-advisories-in-the-shipped-binary.md) | Five reachable advisories in the shipped product; every one is fixed on `main`, `cargo audit` and `pip-audit` report zero, and nothing reaches a user until v1.1.0 ships | Open, largely resolved (fixed in tree, not for users) | High |

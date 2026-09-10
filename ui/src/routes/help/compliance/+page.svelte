@@ -367,7 +367,7 @@
       Organisations using verification reports in automated decision-making should assess their
       obligations under Article 14 (human oversight). Jura Trace supports human oversight
       through the visual inspection checklist and signal agreement dashboard on the Verify page.
-      An EU AI Act Article 50 audit-log export is planned for the v1.0.1 release (~early August 2026, as Article 50 binds 2 August 2026).
+      An EU AI Act Article 50 audit-log export is under evaluation for a future release. Article 50 began to bind on 2 August 2026, and Jura Trace does not provide that export today.
     </p>
 
     <!-- Online Safety Act 2023 -->

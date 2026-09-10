@@ -512,7 +512,7 @@
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
-    Jura Trace v1.0 ships as a single Community release, free for everyone under the
+    Jura Trace ships as a single Community release, free for everyone under the
     AGPL-3.0-or-later licence. Bespoke Custom Engineering is available for institutions
     that need integration, training, or compliance support.
   </p>

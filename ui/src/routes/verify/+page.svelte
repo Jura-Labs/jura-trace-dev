@@ -1191,7 +1191,7 @@
     const lower = message.toLowerCase();
     if (lower.includes('unsupported') || lower.includes('format') || lower.includes('mime')) {
       errorType = 'format';
-      error = 'Unsupported file format. Jura Trace v1.0 supports JPEG, PNG, TIFF, WebP, HEIC and AVIF. Video and PDF return in a later release.';
+      error = 'Unsupported file format. Jura Trace supports JPEG, PNG, TIFF, WebP, HEIC and AVIF. Video and PDF are not supported yet.';
     } else if (lower.includes('sidecar') || lower.includes('connection refused')) {
       errorType = 'sidecar';
       error = 'The Analysis Engine is not running. Core checks are still available.';
@@ -1423,9 +1423,9 @@
   function rejectUnsupported(name: string) {
     errorType = 'format';
     error =
-      `"${name}" is not a format Jura Trace v1.0 can verify. ` +
+      `"${name}" is not a format Jura Trace can verify. ` +
       `Supported formats are ${SUPPORTED_FORMATS_LABEL}. ` +
-      'Video, audio and PDF return in a later release.';
+      'Video, audio and PDF are not supported yet.';
   }
 
   // ── Drag and drop ─────────────────────────────────────────────────
