@@ -98,3 +98,27 @@ the download page, which is the first thing a new user sees and the only
 page most of the 145 will ever have read. It is also the most concrete kind
 of false claim: not a nuance about what a detector does, but a link that
 does not resolve.
+
+## Update, 10 September 2026: the AppImage builds, on this repository
+
+Release workflow run 34470287893 on `jura-trace-dev`, dispatched Linux-only
+with tag `v1.1.0-rc.2-smoke-20260910` and no tag pushed. The version gate,
+the draft creation and the Linux build all passed. The draft on
+`Jura-Labs/jura-trace` carries `JuraTrace-1.1.0-rc.2-smoke-20260910-Linux-x86_64.AppImage`
+(853 MB), the `.deb` (777 MB), both minisign `.sig` files, `SHA256SUMS.txt`
+and `latest-smoke.json`, whose `linux-x86_64` entry has the friendly AppImage
+name as its URL and a minisign signature, not a URL, in the signature field.
+First AppImage ever built for Jura Trace, with the replaced `RELEASE_PAT`,
+on the repository releases will come from. The workflow had been disabled
+since 8 September as the guard for the tag migration; it is enabled again,
+so a `v*` tag push now fires a full release.
+
+The Publish job then failed at the manifest completeness assertion,
+"missing darwin-aarch64 windows-x86_64". That is BL-REL-002's gate F2 doing
+its job on a one-platform run; the workflow's own comment says partial
+dispatches are for diagnostics and leave a draft. Not a defect.
+
+Fault 2 therefore moves from "blocked on the AppImage" to "waiting for
+v1.1.0". Linux auto-update needs an AppImage-bearing release to update
+from, so the first Linux update a user can take is v1.1.0 to v1.1.1, and
+the updater end-to-end workflow gains its Linux job at that point.
