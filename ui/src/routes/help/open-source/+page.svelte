@@ -9,7 +9,7 @@
   //
   // Sanctuary theme. British spelling. No emojis. WCAG 2.2 AA.
 
-  const sourceUrl = 'https://github.com/Jura-Labs/jura-trace';
+  const sourceUrl = 'https://github.com/Jura-Labs/jura-trace-dev';
 
   // Curated attribution inventory mirrored from THIRD-PARTY-LICENSES.txt.
   const layers = [
@@ -131,7 +131,7 @@
           target="_blank"
           rel="noopener noreferrer"
           class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded break-all"
-          >github.com/Jura-Labs/jura-trace</a
+          >github.com/Jura-Labs/jura-trace-dev</a
         >.
       </p>
     </div>
