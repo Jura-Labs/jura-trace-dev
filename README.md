@@ -54,7 +54,7 @@ cd src-tauri && cargo tauri dev  # Terminal 2
 
 A commercial licence is available for use cases that cannot operate under the AGPL — for example, integration into closed-source products, internal modified deployments, or cases requiring contractual indemnification. See [`COMMERCIAL.md`](COMMERCIAL.md) for the process, or email `licensing@juralabs.org`.
 
-**AI training restriction:** use of this source code as training data for ML/AI systems requires separate written permission. See [`TRAINING.md`](TRAINING.md).
+**AI training restriction:** use of this source code as training data for ML/AI systems requires separate written permission. See [`TRAINING.md`](TRAINING.md). The copyright notice, this restriction and the commercial-licensing terms live in [`NOTICE`](NOTICE); `LICENSE` is the unmodified AGPL-3.0 text.
 
 Copyright © 2025-2026 Paul Griffiths, published by Jura Labs CIC under perpetual royalty-free licence.
 

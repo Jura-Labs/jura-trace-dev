@@ -2,7 +2,7 @@
 
 **Use of Jura Trace source code, in whole or in part, as training data for machine learning models or AI systems is not permitted under this licence without separate written permission from the copyright holder.**
 
-This restriction is incorporated into the licensing position by reference and is also stated in the LICENSE file header.
+This restriction is incorporated into the licensing position by reference and is also stated in the NOTICE file beside LICENSE.
 
 ## Why this restriction exists
 
