@@ -734,7 +734,7 @@ jobs:
       # means the binary inside the installed app is trusted by Defender.
       - name: Sign sidecar binary with Azure Trusted Signing
         if: runner.os == 'Windows'
-        uses: azure/trusted-signing-action@07c81171dd46a04e1b9f382b6c693815828bbbf7 # v0.5.0
+        uses: azure/trusted-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
           azure-tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           azure-client-id:       ${{ secrets.AZURE_CLIENT_ID }}
@@ -843,7 +843,7 @@ jobs:
       # notarisation step below.
       - name: Build release artefacts (macOS — sign .app only)
         if: matrix.target == 'aarch64-apple-darwin'
-        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_CERTIFICATE:          ${{ secrets.APPLE_CERTIFICATE }}
@@ -860,7 +860,7 @@ jobs:
       # ── Linux: unchanged single-shot tauri-action build ──────────────────
       - name: Build release artefacts (Linux)
         if: matrix.target == 'x86_64-unknown-linux-gnu'
-        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -1260,7 +1260,7 @@ jobs:
       # Signing and upload are handled by the two steps that follow.
       - name: Build release artefacts (Windows, unsigned)
         if: runner.os == 'Windows'
-        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # ── Windows Authenticode signing ──────────────────────────────────
@@ -1320,7 +1320,7 @@ jobs:
       # Setting depth 4 provides a safe margin if sub-directories are added.
       - name: Sign Windows binaries with Azure Trusted Signing
         if: runner.os == 'Windows'
-        uses: azure/trusted-signing-action@07c81171dd46a04e1b9f382b6c693815828bbbf7 # v0.5.0
+        uses: azure/trusted-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
           azure-tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           azure-client-id:       ${{ secrets.AZURE_CLIENT_ID }}
