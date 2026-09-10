@@ -1722,7 +1722,21 @@ jobs:
             const version = tag.replace(/^v/, '');           // e.g. "0.9.0" or "1.0.0-beta.1"
             // baseUrl points to juralabs/jura-trace so auto-update download URLs
             // resolve to the public repo that users can access.
-            const baseUrl = `https://github.com/juralabs/jura-trace/releases/download/${tag}`;
+            // The organisation is `Jura-Labs`. `juralabs` was its name before a
+            // rename, and github.com still 301s from the old name, which is why
+            // this went unnoticed: the manifest the fallback endpoint serves
+            // carries URLs that work only for as long as GitHub honours that
+            // redirect, and it stops the day anyone registers the old name.
+            // The live manifest built by the Cloudflare worker uses the
+            // canonical name already, so only the fallback was affected.
+            // Found 10 September 2026 while repairing the v1.1.0 draft.
+            //
+            // The API calls in this file still address `owner: 'juralabs'`,
+            // which the REST API resolves through the same rename. Those are
+            // authenticated calls that fail loudly if they ever stop
+            // resolving, so they are left for a separate sweep rather than
+            // changed in a release-day fix.
+            const baseUrl = `https://github.com/Jura-Labs/jura-trace/releases/download/${tag}`;
 
             // Map each Tauri updater platform key to the expected asset suffixes.
             //
