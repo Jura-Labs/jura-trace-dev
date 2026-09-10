@@ -6,6 +6,189 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## 11 September 2026: v1.1.0, auto-update works
+
+Jura Trace v1.0.0 was published in June 2026, and until now no update has
+ever reached anyone who installed it. The update path looked as though it
+worked and did not. The manifest the app fetched carried a link where a
+signature belonged, Windows update packages were signed before they were
+countersigned and so failed verification, Linux was dropped from the
+manifest without any error, and nothing inside the app ever asked whether an
+update existed. This release repairs that path, proves it against a real
+v1.0.0 installation, and carries the security and dependency work that had
+been waiting on the main branch since June.
+
+The forensic detectors and the models behind them are unchanged from
+v1.0.0. Content Credentials verification is stricter in one respect, which
+is described under Security and dependencies below.
+
+### Action for anyone already running v1.0.0
+
+**When the update finishes installing, quit Jura Trace and open it again.**
+Your copy will download and install v1.1.0 correctly, but v1.0.0's own code
+does not restart the app afterwards, so the button stays on "Installing,
+restarting shortly..." with nothing happening behind it. The new version is
+already on disk at that point, and reopening the app is the only step left.
+From v1.1.0 onwards the app restarts itself, so this is the last release
+that asks for it.
+
+If the update fails rather than stalls, download the installer again from
+juralabs.org/downloads/ and install it over the existing copy. Your
+settings and your saved work are kept.
+
+### Auto-update
+
+- Jura Trace checks for a new version when it starts, at most once a day.
+  It does not download or install anything on its own: it tells you a
+  version is available and waits for you. In Standard network mode, which
+  keeps the app entirely offline, no check is made at all.
+- Check for Updates in the menu used to begin an install immediately, with
+  the progress reported into nothing. It now opens Settings, where the
+  check runs with its status visible.
+- The update manifest carries the signature itself, for each platform,
+  rather than a link pointing at one. No update could pass signature
+  verification before this.
+- Windows update packages are signed after Azure Trusted Signing has
+  countersigned the installer rather than before, so the signature covers
+  the bytes that are actually shipped. Every Windows automatic update since
+  May 2026 failed verification for this reason.
+- A manifest that is missing a platform, or that carries something other
+  than a signature in the signature field, now stops the release rather
+  than being published. A missing platform used to tell everyone on it that
+  they were up to date, indefinitely and with no error anywhere. That is
+  how Linux received nothing for eleven weeks.
+- The fallback update address that the app has always declared, on the
+  GitHub release itself, now exists. It previously returned 404.
+- Once an update has installed, the app restarts itself. If the restart
+  fails, it says so and tells you to quit and reopen, rather than showing a
+  spinner that never ends.
+- Update checks are counted at the server as a daily total per route. No
+  address, no request header, no identifier and nothing from your device is
+  recorded, and one installation cannot be told apart from another. The
+  count answers whether anyone is running the software, and nothing finer.
+
+### Linux
+
+- The AppImage is built and published again, alongside the .deb. It had
+  been listed on the release page since June without ever having been
+  built, so the link returned 404 for every Linux visitor who took it.
+- The release page is now built from what was actually uploaded, and a
+  check before publication fails the release if any file it links is
+  missing.
+- Linux automatic updates need a release containing an AppImage to update
+  from, so v1.1.0 is the starting point rather than the first update. The
+  first Linux update that can be taken automatically is v1.1.0 to the
+  release after it.
+
+### Security and dependencies
+
+- Every advisory that was reachable in the shipped v1.0.0 binary is
+  resolved. `cargo audit` and `pip-audit` both report no known
+  vulnerabilities on this release. Among the packages moved: openssl,
+  Pillow to 12.3.0, lopdf to 0.42, pillow-heif, quick-xml, Tauri, and the
+  c2pa crate to 0.90.
+- One advisory is accepted rather than fixed, and the reasons are recorded
+  in the repository at `src-tauri/.cargo/audit.toml`. It concerns the `rsa`
+  crate, which every current release of c2pa depends on and for which no
+  fixed version exists.
+- Content Credentials verification runs on c2pa 0.90. That version enforces
+  a C2PA 2.x rule the previous one did not, that a recorded creation action
+  must state the type of its source, so a small number of older manifests
+  that used to validate will now report a malformed action. The C2PA
+  conformance test vectors were run on both versions, and two internal test
+  fixtures signed in April 2026 by a pre-audit build were regenerated. The
+  conformance evidence bundle submitted for the Validator listing is
+  unchanged.
+- Files dragged onto the Verify page are now limited to the formats the
+  file picker accepts. Dropping a PDF used to run the full analysis
+  pipeline through a route the help page said did not exist, and reached a
+  PDF parser with a known crash on deeply nested documents.
+- If the saved network-mode setting cannot be read or understood, Jura
+  Trace falls back to Standard, which makes no network calls, rather than
+  to Enhanced. A damaged settings file could previously reverse a
+  deliberate choice to stay offline without saying anything, and the app
+  now tells you when the setting is unreadable.
+
+### What the product says about itself
+
+- The exported PDF report no longer states that certificate revocation was
+  checked. It now records two things separately: which provenance checks
+  were performed (the signing certificate chain is validated against the
+  C2PA trust list held on the device, and revocation status is not checked)
+  and which network mode was selected at the time. Every report exported in
+  Enhanced mode since April asserted a check that does not run.
+- Enhanced mode is described by what it actually controls, the optional
+  historical weather lookup and the Watched Locations scheduler. It does
+  not change how Content Credentials are verified. The banner that asked
+  users to enable Enhanced mode for revocation checking is gone, and the
+  Standard mode description no longer implies that the other mode performs
+  them.
+
+### Source and licence
+
+- The source is published at github.com/Jura-Labs/jura-trace-dev, and the
+  Open Source page inside the app links there. The Codeberg mirror is
+  retired. Only a release can change that link inside copies that are
+  already installed, which is why it is in this one.
+- LICENSE now holds the AGPL-3.0 text and nothing else, so licence
+  detectors recognise the project as AGPL instead of reporting no licence
+  at all. The copyright notice, the commercial-licensing route and the AI
+  training statement move to NOTICE, unchanged in substance. The request
+  that this code is not used as training data without written permission
+  stands, and is now stated as a request rather than as a term added to the
+  licence.
+
+### Testing and release process
+
+- The test suite runs on every push to the main branch, not only on pull
+  requests. It had not run since April.
+- The end-to-end browser tests, which previously ran in no workflow at all,
+  now run in continuous integration.
+- The weekly supply-chain scan produces a report again, and fails when it
+  produces none. An invalid option had left it scanning nothing since July.
+- A new workflow installs the built Windows and Linux packages on a clean
+  machine, launches them, and confirms the installed product asks the
+  update service for a manifest. Until now nothing tested the installed
+  product, only the source it was built from.
+- Every GitHub Action used by the build is pinned to a specific commit, and
+  the build fails if one is not.
+- Dependency update pull requests are no longer capped at five per
+  ecosystem, a cap that had been hiding newly published advisories.
+
+### Known limitations
+
+- **An installation kept off the startup disk cannot update itself.** On
+  macOS, a copy of Jura Trace on an external drive, a second volume or a
+  network share reports "Cross-device link (os error 18)" and the update
+  stops there. Move the app to the Applications folder on the startup disk,
+  or install the new version by hand.
+- **The first Linux automatic update is the one after this release**, for
+  the reason given under Linux above.
+- **The Content Credentials panel can show "Tool: [object Object]"** where
+  a manifest records its software agent as a structured value rather than
+  as plain text. The manifests most likely to do this are those written by
+  other conformant C2PA tools. Only that line of the display is affected,
+  not the verification behind it.
+- **The compliance help page still names a v1.0.1 release, in early August
+  2026, for an audit-log export.** There was no such release and no such
+  export. The sentence is out of date and is corrected in the next release.
+- **The documentation page for the local REST API loads its interface from
+  a third-party CDN.** Your files and everything Jura Trace does with them
+  stay on your device. This one developer-facing page, opened in a browser
+  against localhost, is the exception, and the assets are being brought
+  into the app.
+- The Verification Record Export, and read-only Content Credentials for PDF
+  documents, are not in this release.
+
+### Platforms
+
+- **macOS**: Apple Silicon, macOS 13.0 or later. Signed with an Apple
+  Developer ID certificate and notarised by Apple.
+- **Windows**: 64-bit. MSI and NSIS installers, both signed with Azure
+  Trusted Signing.
+- **Linux**: x86_64. A .deb package and an AppImage, both self-signed from
+  the AGPL source build.
+
 ## 8 June 2026 — rc.30 cut: pre-launch documentation hardening, copyright sweep, build-script verification gate, Tauri updater URL fix
 
 Six commits across three calendar days (6–8 June) preparing rc.30 for the v1.0 launch on Monday 22 June 2026. Closes the post-rc.29 punch list: build-script architecture bug that caused rc.29's first notarisation to be rejected, Tauri updater URL typo that broke the auto-updater fallback, copyright-sensitive training-data attribution in user-facing documentation, the v10 retrain decision, and 31 of 46 findings from the 8 June documentation deep review.
