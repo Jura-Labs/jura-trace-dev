@@ -24,19 +24,73 @@ name: Updater end-to-end
 # store entirely. Three TLS configurations coexist in this repository and only
 # the updater's matters here.
 #
+# ── How the client's verdict is read, and why this way ─────────────────────
+#
+# Until 10 September 2026 this workflow stopped at the request. It proved the
+# client asked for the manifest and said nothing about what the client made
+# of the answer, which is the half that failed in production.
+#
+# The verdict is now read out of the running app's own DOM. The installed
+# binary is launched with WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS set to
+# --remote-debugging-port=9222, and the step then speaks the Chrome DevTools
+# Protocol to the WebView2 instance and evaluates document.body.textContent.
+# The startup update check writes its result into the page: when the plugin
+# returns an update, ui/src/routes/+layout.svelte renders a banner reading
+# "Version <n> is available". Nothing else in the product can put the
+# advertised version into that sentence, so the string is the verdict.
+#
+# Three reasons this route rather than tauri-driver plus msedgedriver, which
+# is the other documented option and was the increment named here before.
+#
+#   1. It observes the STARTUP check, which reports and never installs. The
+#      Settings button is the other path to a verdict, and pressing it starts
+#      a download and an install of the advertised build immediately, which
+#      on a runner means fetching an 800 MB MSI to prove a version comparison.
+#      The startup check gives the same verdict and mutates nothing.
+#   2. The app is still launched by this step, so the HttpListener and the
+#      observation stay in one process, for the reason given below. Under
+#      tauri-driver the driver owns the launch, which would have meant
+#      rearranging the part of this workflow that was hardest to get right.
+#   3. It adds no toolchain. tauri-driver needs a cargo install on the
+#      runner and an msedgedriver whose version matches the installed
+#      WebView2 runtime. The debugging port is the same mechanism
+#      msedgedriver itself uses on a WebView2 host app, reached directly.
+#      WebView2 appends the environment variable's arguments to the ones wry
+#      sets in code rather than discarding them, which is why this works
+#      against an unmodified shipped binary.
+#
+# The assertion matches the shipped copy, "Version 9.9.9 is available",
+# because the app under test is the PREVIOUS tag's installer. A data-testid
+# added to the layout today would not appear in a build until the release
+# after next, so it would not help this test now. The consequence is that
+# rewording that banner turns this workflow red. That is the safe direction,
+# and it is recorded here so the next person knows why rather than softening
+# the assertion.
+#
 # ── What this proves today, and what it does not ───────────────────────────
 #
-# PROVES: the installed binary resolves the endpoint, trusts the TLS, and
-# asks for the manifest. That covers DNS, certificate handling and the whole
-# request path, against the artefact a user actually installs.
+# PROVES: the installed binary resolves the endpoint, trusts the TLS, asks
+# for the manifest, and then ACCEPTS it. It parses the JSON, compares the
+# advertised version against its own, decides an update is available, and
+# says so in its own interface, naming the advertised version. That covers
+# DNS, certificate handling, the request path and the client's verdict,
+# against the artefact a user actually installs.
 #
-# DOES NOT PROVE: that the client ACCEPTS the manifest, or that an update
-# applies. The startup check reports and never installs, by design, so the
-# only observable from outside is the request itself. The client's verdict
-# needs WebDriver driving Settings, which is the next increment.
+# DOES NOT PROVE: that an update applies. Nothing here downloads the
+# advertised build, verifies its minisign signature, runs the installer, or
+# checks what the running version is afterwards. The Windows signing-order
+# fault in BL-REL-002 lives entirely in that untested half, and so does the
+# NSIS parallel-install question. Nor does it prove anything about macOS or
+# Linux, or about the Settings button, which takes a different path through
+# ui/src/lib/updater.ts and installs what it finds.
 #
 # Stated here rather than implied by a green tick, because a test that
 # overstates itself is the thing this repository has spent a week removing.
+#
+# Every failure below names which of the three things went wrong: the client
+# never asked, the client could not be observed, or the client asked and
+# returned no verdict. They are not the same finding, and a run that could
+# not observe anything must never read as a run that observed a verdict.
 
 on:
   workflow_dispatch:
@@ -139,8 +193,10 @@ jobs:
       #
       # Keeping it in one process makes the listener's lifetime the step's
       # lifetime, which is the only arrangement where "no requests seen" means
-      # what it claims to mean.
-      - name: Serve the manifest, launch the app, and observe
+      # what it claims to mean. The verdict probe was put in the same step for
+      # the same reason: the manifest has to keep being servable while the
+      # client is being questioned about it.
+      - name: Serve the manifest, launch the app, and read the client's verdict
         shell: pwsh
         env:
           PREV: ${{ github.event.inputs.previous_tag }}
@@ -161,6 +217,73 @@ jobs:
           $manifest | Set-Content staging-manifest.json
           Write-Host "staging manifest advertises $env:ADVERTISED"
 
+          # ── talking to the running app over the DevTools protocol ──
+          #
+          # Two helpers. Get-CdpTargets lists the WebView2 pages, and returns
+          # $null rather than throwing while the app is still starting, so the
+          # caller can poll. Invoke-CdpEvaluate opens a websocket, evaluates
+          # one expression, and closes. A fresh socket per probe costs a few
+          # milliseconds and removes any question of stale state.
+          function Get-CdpTargets {
+            try {
+              return Invoke-RestMethod -Uri "http://127.0.0.1:9222/json/list" -TimeoutSec 3
+            } catch {
+              return $null
+            }
+          }
+
+          function Invoke-CdpEvaluate {
+            param([string]$WsUrl, [string]$Expression)
+            $ws = New-Object System.Net.WebSockets.ClientWebSocket
+            try {
+              $cts = [System.Threading.CancellationTokenSource]::new([TimeSpan]::FromSeconds(10))
+              $ws.ConnectAsync([Uri]$WsUrl, $cts.Token).GetAwaiter().GetResult()
+              $req = @{
+                id = 1
+                method = "Runtime.evaluate"
+                params = @{ expression = $Expression; returnByValue = $true; awaitPromise = $false }
+              } | ConvertTo-Json -Depth 6 -Compress
+              $out = [ArraySegment[byte]]::new([Text.Encoding]::UTF8.GetBytes($req))
+              $ws.SendAsync($out, [System.Net.WebSockets.WebSocketMessageType]::Text, $true, $cts.Token).GetAwaiter().GetResult()
+
+              $buf = New-Object byte[] 65536
+              # The target may push protocol events we did not ask for, so read
+              # until the reply carrying our id arrives or the budget runs out.
+              for ($i = 0; $i -lt 40; $i++) {
+                $sb = New-Object System.Text.StringBuilder
+                do {
+                  $seg = [ArraySegment[byte]]::new($buf)
+                  $res = $ws.ReceiveAsync($seg, $cts.Token).GetAwaiter().GetResult()
+                  [void]$sb.Append([Text.Encoding]::UTF8.GetString($buf, 0, $res.Count))
+                } while (-not $res.EndOfMessage)
+                $msg = $sb.ToString() | ConvertFrom-Json
+                if ($msg.id -eq 1) { return $msg }
+              }
+              return $null
+            } catch {
+              return $null
+            } finally {
+              try { $ws.Dispose() } catch { }
+            }
+          }
+
+          # The probe. textContent rather than innerText, so a banner sitting
+          # behind the first-run onboarding overlay is still read; innerText
+          # would drop anything the layout engine considers hidden. The last
+          # startup-check timestamp comes back too: it is written only after
+          # the plugin's check resolves, so it separates "the check threw" from
+          # "the check completed and said something other than available".
+          $probeJs = @(
+            'JSON.stringify({',
+            '  url: location.href,',
+            '  ready: document.readyState,',
+            '  text: (document.body ? document.body.textContent : "").replace(/\s+/g, " ").trim().slice(0, 60000),',
+            '  lastCheck: (function () {',
+            '    try { return localStorage.getItem("jura.updater.lastCheckMs"); } catch (e) { return "unreadable"; }',
+            '  })()',
+            '})'
+          ) -join "`n"
+
           # ── bind the leaf cert and start listening, in THIS process ──
           $thumb = (Get-Content tls/leaf.thumb).Trim()
           netsh http add sslcert ipport=0.0.0.0:443 certhash=$thumb appid='{00112233-4455-6677-8899-aabbccddeeff}' | Out-Null
@@ -177,15 +300,29 @@ jobs:
                  Select-Object -First 1 -ExpandProperty FullName
           if (-not $exe) { throw "installed executable not found" }
           Write-Host "installed: $exe"
+
+          # WebView2 appends these to the arguments wry sets in code, so an
+          # unmodified shipped binary opens a debugging port on 127.0.0.1.
+          # This is the only thing done differently to a user's launch, and it
+          # changes nothing the updater path touches.
+          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222 --remote-allow-origins=*"
           Start-Process -FilePath $exe
 
-          # ── serve asynchronously and watch for the manifest request ──
+          # ── serve, and question the client, until it answers or time runs out ──
           $seen = New-Object System.Collections.Generic.List[string]
-          $asked = $false
-          $deadline = (Get-Date).AddSeconds(90)
+          $asked = $false          # the client requested the manifest
+          $cdpUp = $false          # the debugging port answered
+          $domRead = $false        # a page returned a non-empty document
+          $verdict = $null         # the sentence naming the advertised version
+          $lastProbe = $null       # whatever the last successful probe returned
+          $pattern = "Version " + [regex]::Escape($env:ADVERTISED) + " is available"
+
+          $deadline = (Get-Date).AddSeconds(240)
+          $nextProbe = (Get-Date).AddSeconds(5)
           $ctxTask = $listener.GetContextAsync()
+
           while ((Get-Date) -lt $deadline) {
-            if ($ctxTask.Wait(1000)) {
+            if ($ctxTask.Wait(500)) {
               $ctx = $ctxTask.Result
               $path = $ctx.Request.Url.AbsolutePath
               $seen.Add($path)
@@ -194,30 +331,106 @@ jobs:
               $ctx.Response.ContentType = "application/json"
               $ctx.Response.OutputStream.Write($buf, 0, $buf.Length)
               $ctx.Response.Close()
-              if ($path -eq "/api/updates/latest.json") { $asked = $true; break }
+              if ($path -eq "/api/updates/latest.json") { $asked = $true }
+              # Deliberately no break. The manifest must stay servable: the
+              # client may retry, and the verdict has not been read yet.
               $ctxTask = $listener.GetContextAsync()
             }
+
+            if ((Get-Date) -ge $nextProbe) {
+              $nextProbe = (Get-Date).AddSeconds(3)
+              $targets = Get-CdpTargets
+              if ($targets) {
+                $cdpUp = $true
+                foreach ($t in @($targets | Where-Object { $_.type -eq "page" -and $_.webSocketDebuggerUrl })) {
+                  $reply = Invoke-CdpEvaluate -WsUrl $t.webSocketDebuggerUrl -Expression $probeJs
+                  if (-not $reply -or -not $reply.result -or -not $reply.result.result) { continue }
+                  $raw = $reply.result.result.value
+                  if (-not $raw) { continue }
+                  $probe = $raw | ConvertFrom-Json
+                  if ($probe.text -and $probe.text.Length -gt 0) {
+                    $domRead = $true
+                    $lastProbe = $probe
+                    if ($probe.text -match $pattern) { $verdict = $Matches[0] }
+                  }
+                }
+              }
+            }
+
+            if ($verdict) { break }
           }
+
           $seen | Set-Content requests.log
           $listener.Stop()
 
           Write-Host "── requests seen ──"
           if ($seen.Count -eq 0) { Write-Host "  (none)" } else { $seen | ForEach-Object { Write-Host "  $_" } }
 
+          # Whatever happened, write down what was observed, so a failure is
+          # diagnosable from the artefacts rather than from a rerun.
+          $record = [ordered]@{
+            advertised = $env:ADVERTISED
+            requested_manifest = $asked
+            debug_port_answered = $cdpUp
+            dom_read = $domRead
+            verdict = $verdict
+            page_url = $(if ($lastProbe) { $lastProbe.url } else { $null })
+            document_ready = $(if ($lastProbe) { $lastProbe.ready } else { $null })
+            last_startup_check_ms = $(if ($lastProbe) { $lastProbe.lastCheck } else { $null })
+            document_text_excerpt = $(if ($lastProbe) { $lastProbe.text.Substring(0, [Math]::Min(4000, $lastProbe.text.Length)) } else { $null })
+          }
+          $record | ConvertTo-Json -Depth 4 | Set-Content verdict.log
+
+          # ── three distinct failures, never collapsed into one ──
+          #
+          # A run that could not look at the app must not read like a run that
+          # looked and found nothing. That conflation is BL-SILENT-001's shape,
+          # and it is the reason each branch below says something different.
+
           if (-not $asked) {
-            Write-Host "::error::The installed client never requested the update manifest within 90s."
+            Write-Host "::error::The installed client never requested the update manifest within the window."
             Write-Host "Either it could not resolve juralabs.org, could not trust the certificate,"
             Write-Host "or did not run its startup check. All three are real failures."
             exit 1
           }
           Write-Host "OK: the real shipped binary resolved the endpoint, trusted the CA, and asked for the manifest."
 
+          if (-not $cdpUp) {
+            Write-Host "::error::The WebView2 debugging port never answered, so the client's verdict could not be read."
+            Write-Host "This is a failure of the TEST, not evidence about the client. Most likely the"
+            Write-Host "installed build does not honour WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS, or the app"
+            Write-Host "did not open a window. Do not read this as an absent verdict."
+            exit 1
+          }
+
+          if (-not $domRead) {
+            Write-Host "::error::The debugging port answered but no page returned a document, so nothing was observed."
+            Write-Host "This is a failure of the TEST, not evidence about the client."
+            exit 1
+          }
+
+          if (-not $verdict) {
+            Write-Host "::error::The client fetched the manifest and never said an update was available."
+            Write-Host "The app's own interface was read and does not contain '$pattern'."
+            Write-Host "That is the defect this test exists to catch: the manifest was served and rejected,"
+            Write-Host "or the version comparison did not go the way the manifest asked for."
+            Write-Host "Last startup-check timestamp in the app: $($record.last_startup_check_ms)"
+            Write-Host "A timestamp means the check completed and returned no update; its absence means the"
+            Write-Host "check threw before recording anything, which is the manifest being refused."
+            Write-Host "── what the app was showing ──"
+            Write-Host $record.document_text_excerpt
+            exit 1
+          }
+
+          Write-Host "OK: the client accepted the manifest and rendered its verdict: `"$verdict`""
+          "$verdict" | Set-Content observed-verdict.txt
+
       - name: Stop the app and the listener
         if: always()
         shell: pwsh
         run: |
-          Get-Process | Where-Object { $_.ProcessName -like "*jura*" } | Stop-Process -Force -ErrorAction SilentlyContinue
-          if (Test-Path job.id) { Stop-Job -Id (Get-Content job.id) -ErrorAction SilentlyContinue }
+          Get-Process | Where-Object { $_.ProcessName -like "*jura*" -or $_.ProcessName -eq "msedgewebview2" } |
+            Stop-Process -Force -ErrorAction SilentlyContinue
           netsh http delete sslcert ipport=0.0.0.0:443 | Out-Null
           exit 0
 
@@ -226,20 +439,27 @@ jobs:
         shell: bash
         env:
           PREV: ${{ github.event.inputs.previous_tag }}
+          ADVERTISED: ${{ github.event.inputs.advertised_version }}
         run: |
           {
             echo "## Updater end-to-end — previous version $PREV"
             echo ""
             echo "**Proved:** the installed binary resolved juralabs.org through the"
             echo "hosts redirect, trusted a throwaway CA via the updater's platform"
-            echo "verifier, and requested the update manifest. That is DNS,"
-            echo "certificate handling and the request path, against the artefact a"
-            echo "user actually installs."
+            echo "verifier, requested the update manifest, accepted it, and told the"
+            echo "user in its own interface that version $ADVERTISED is available."
+            echo "That is DNS, certificate handling, the request path and the"
+            echo "client's verdict, against the artefact a user actually installs."
+            echo "The verdict was read out of the running app's DOM over the"
+            echo "WebView2 debugging port, from the startup check, which reports"
+            echo "and never installs."
             echo ""
-            echo "**Not proved:** that the client accepted the manifest, or that an"
-            echo "update applies. The startup check reports and never installs, by"
-            echo "design, so the client's verdict is not observable from outside."
-            echo "That needs WebDriver driving Settings, which is the next increment."
+            echo "**Not proved:** that an update applies. Nothing here downloads the"
+            echo "advertised build, verifies its minisign signature, runs the"
+            echo "installer, or checks the version afterwards. The Windows"
+            echo "signing-order fault and the NSIS parallel-install question both"
+            echo "live in that untested half. Nor is the Settings button exercised;"
+            echo "it takes a different path and installs what it finds."
             echo ""
             echo "Windows only: v1.0.0 ships no AppImage, so Linux has no previous"
             echo "version to update from until v1.1.0 exists."
@@ -253,5 +473,7 @@ jobs:
           path: |
             requests.log
             staging-manifest.json
+            verdict.log
+            observed-verdict.txt
           retention-days: 14
           if-no-files-found: warn
