@@ -17,16 +17,19 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ================================================================================
-AI TRAINING RESTRICTION
+AI TRAINING: THE COPYRIGHT HOLDER'S POSITION
 ================================================================================
 
-Use of this source code, in whole or in part, as training data for machine
-learning models or AI systems is not permitted under this licence without
-separate written permission from the copyright holder.
+The licence is the GNU Affero General Public License, version 3 or later,
+as written in LICENSE, with no additional terms. What follows is a request
+and a statement of position, not a condition of the licence.
 
-See TRAINING.md in the repository root for the full position and the process
-for requesting written permission. This restriction is incorporated into the
-licensing position by reference and is intended as a legal record.
+The copyright holder asks that this source code not be used, in whole or in
+part, as training data for machine learning models or AI systems without
+first obtaining written permission. See TRAINING.md in the repository root
+for why, and for how to ask. That file is a public record of the position,
+kept so that anyone who trains on this code cannot later claim not to have
+known it.
 
 ================================================================================
 COMMERCIAL LICENSING
