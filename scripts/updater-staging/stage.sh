@@ -51,12 +51,30 @@ PORT="${STAGE_PORT:-443}"
 HOSTS_FILE="${HOSTS_FILE:-/etc/hosts}"
 MARK="# jura-trace updater staging leg (scripts/updater-staging/stage.sh)"
 TARGET="aarch64-apple-darwin"
+# Where things are. `prepare` records the stage root it used in a marker
+# file beside this script, and every other subcommand reads it back when the
+# environment does not say. That is what makes `sudo stage.sh serve` work:
+# sudo resets the environment, so CARGO_TARGET_DIR is gone and, without the
+# marker, serve looked under src-tauri/target and said "Not prepared" to a
+# fully prepared SSD (9 September 2026). The marker is gitignored.
+MARKER="$REPO_ROOT/scripts/updater-staging/.stage-root"
 if [[ -n "${CARGO_TARGET_DIR:-}" ]]; then BASE="$CARGO_TARGET_DIR"; else BASE="$REPO_ROOT/src-tauri/target"; fi
+if [[ -z "${STAGE_ROOT:-}" && -z "${CARGO_TARGET_DIR:-}" && -s "$MARKER" ]]; then
+  STAGE_ROOT="$(cat "$MARKER")"
+  BASE="$(dirname "$STAGE_ROOT")"
+fi
 BUNDLE_MACOS="$BASE/$TARGET/release/bundle/macos"
 STAGE_ROOT="${STAGE_ROOT:-$BASE/updater-staging}"
 TLS_DIR="$STAGE_ROOT/tls"
 WWW_DIR="$STAGE_ROOT/www"
-OLD_DIR="$STAGE_ROOT/v1.0.0"
+# The throwaway install lives on the boot volume, never under STAGE_ROOT. The
+# updater moves the running bundle aside with rename(2) into a temp dir on the
+# boot volume; when the app sits on another volume that fails with
+# "Cross-device link (os error 18)". An installed app lives in /Applications,
+# so the boot volume is what we are simulating anyway. The DMG stays in the
+# stage root.
+OLD_DIR="${JURA_STAGE_APP_DIR:-$HOME/Applications/jura-trace-updater-staging}"
+DMG_DIR="$STAGE_ROOT/v1.0.0"
 PUBLIC_REPO="Jura-Labs/jura-trace"
 PUBLIC_TAG="v1.0.0"
 
@@ -70,7 +88,8 @@ need_macos() { [[ "$(uname -s)" == "Darwin" ]] || die "macOS only."; }
 # ── prepare ───────────────────────────────────────────────────────────
 cmd_prepare() {
   need_macos
-  mkdir -p "$TLS_DIR" "$WWW_DIR/api/updates" "$WWW_DIR/staging" "$OLD_DIR"
+  mkdir -p "$TLS_DIR" "$WWW_DIR/api/updates" "$WWW_DIR/staging" "$OLD_DIR" "$DMG_DIR"
+  printf '%s\n' "$STAGE_ROOT" > "$MARKER"
 
   log "Local v1.1.0 build artefacts"
   local tgz="$BUNDLE_MACOS/Jura Trace.app.tar.gz" sig="$BUNDLE_MACOS/Jura Trace.app.tar.gz.sig"
@@ -81,11 +100,11 @@ cmd_prepare() {
 
   log "Pristine public $PUBLIC_TAG"
   if [[ ! -d "$OLD_DIR/Jura Trace.app" ]]; then
-    local dmg; dmg=$(ls "$OLD_DIR"/*.dmg 2>/dev/null | head -1 || true)
+    local dmg; dmg=$(ls "$DMG_DIR"/*.dmg 2>/dev/null | head -1 || true)
     if [[ -z "$dmg" ]]; then
-      gh release download "$PUBLIC_TAG" --repo "$PUBLIC_REPO" --pattern '*.dmg' --dir "$OLD_DIR" \
+      gh release download "$PUBLIC_TAG" --repo "$PUBLIC_REPO" --pattern '*.dmg' --dir "$DMG_DIR" \
         || die "Could not download the $PUBLIC_TAG DMG from $PUBLIC_REPO."
-      dmg=$(ls "$OLD_DIR"/*.dmg | head -1)
+      dmg=$(ls "$DMG_DIR"/*.dmg | head -1)
     fi
     ok "DMG: $(basename "$dmg") ($(du -h "$dmg" | cut -f1))"
     local mp; mp=$(hdiutil attach -readonly -nobrowse -noverify "$dmg" | awk -F'\t' '/\/Volumes\//{print $NF}' | tail -1)
