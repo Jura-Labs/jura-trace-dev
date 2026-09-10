@@ -1,22 +1,22 @@
-# AI Training Restriction
+# AI Training: the copyright holder's position
 
-**Use of Jura Trace source code, in whole or in part, as training data for machine learning models or AI systems is not permitted under this licence without separate written permission from the copyright holder.**
+**The copyright holder asks that Jura Trace source code, in whole or in part, not be used as training data for machine learning models or AI systems without first obtaining written permission.**
 
-This restriction is incorporated into the licensing position by reference and is also stated in the LICENSE file header.
+This is a request and a public statement of position. It is not a condition of the licence. Jura Trace is licensed under the GNU Affero General Public License, version 3 or later, as written in LICENSE and with no additional terms; section 7 of that licence would let a recipient remove any such term, so none is imposed. The position is also stated in the NOTICE file beside LICENSE. It was restated in these terms on 10 September 2026; until then this file and the LICENSE header described it as a restriction under the licence.
 
-## Why this restriction exists
+## Why this position is held
 
 Jura Trace is a forensic verification tool. The detection logic IS the product. Embedding that detection logic into the training corpus of a foundation model would actively undermine the tool's purpose — a generative model that has internalised the logic of a deepfake detector is, by construction, better positioned to evade that detector.
 
-This restriction therefore protects:
+This position therefore protects:
 
 1. The integrity of the detection methodology
 2. The credibility of forensic claims made by users of the tool
 3. The interests of journalists, human rights workers, and legal professionals whose work depends on the tool
 
-## Scope of the restriction
+## Scope of the request
 
-The restriction **applies to**:
+The request **applies to**:
 
 - Pre-training of foundation models
 - Continued pre-training, fine-tuning, or instruction tuning of any AI/ML system
@@ -25,7 +25,7 @@ The restriction **applies to**:
 - Code-completion model training where source code is treated as training data rather than as user context
 - Synthetic-data generation pipelines that take this codebase as input
 
-The restriction **does not apply to**:
+The request **does not apply to**:
 
 - Reading the source code for human study and learning
 - Running automated linters, type-checkers, security scanners, or CI tools
@@ -50,4 +50,4 @@ A `robots.txt` file at the repository root and at juralabs.org disallows known A
 
 ## Documentary record
 
-This file constitutes a clear public statement of the copyright holder's position on AI training use. It is referenced from the LICENSE file header. It is intended as a legal record for any future enforcement action and creates the necessary documentary basis for removing plausible deniability from bad-faith actors.
+This file is a clear public statement of the copyright holder's position on AI training use. It is referenced from NOTICE. It is kept as a record so that anyone who trains on this code cannot later claim not to have known the position; it does not add a term to the AGPL.
