@@ -149,3 +149,24 @@ reads, and the fix should not be considered proved by it. Establish which
 of the two readings is true before treating the parallel-install risk as
 closed — installing the MSI first on a clean machine and then NSIS would
 settle it.
+
+## Update, 10 September 2026: the updater leg ran green on jura-trace-dev
+
+Run 34455331642, dispatched against `v1.1.0-rc.1-smoke-20260907`: the real
+smoke MSI installed on `windows-latest`, launched, and thirteen seconds later
+requested `/api/updates/latest.json` through the throwaway CA and the hosts
+redirect. First run of this workflow on the repository that now matters;
+its only earlier green was on jura-archive, 7 September.
+
+Two dispatches before it failed at the download step with "release not
+found". `RELEASE_PAT` is an organisation secret shared with this repo, and
+its token could not see the draft smoke release on `Jura-Labs/jura-trace`,
+which needs write access there. Paul replaced the token. The same secret is
+what `release.yml` publishes with, so this was worth finding in September
+rather than on release day.
+
+Still true, and stated by the workflow itself: this proves the request
+path, not the client's verdict. The macOS staging leg proved the verdict
+and the install by hand on 9 and 10 September (BL-REL-004). The Windows
+verdict needs WebDriver driving Settings, and Linux joins when two
+AppImage-bearing releases exist.
