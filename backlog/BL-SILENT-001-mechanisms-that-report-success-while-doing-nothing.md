@@ -347,3 +347,55 @@ step") is not done, `osv-scanner.yml:59` still carries it, and its
 cargo-audit and pip-audit count assertions are not done either. BL-CI-001
 and BL-CI-002 closed on 8 September on their own fix sections; those three
 assertions remain here.
+
+## Update, 10 September 2026: the pre-commit hook was never a gate
+
+The clearest instance yet, and it was in the tooling meant to catch the
+others. `.githooks/pre-commit` runs five checks. Four of them are shaped
+
+```sh
+(cd ui && npx svelte-check --threshold error 2>&1 | tail -1) || {
+    echo "ERROR: svelte-check found errors."
+    exit 1
+}
+```
+
+A shell pipeline exits with the status of its last command. That command is
+`tail`, which succeeds on any input, so `cargo check --all-targets`,
+`cargo clippy -D warnings`, `svelte-check` and `vitest` could all fail and
+the hook would print "Pre-commit: all checks passed" and let the commit
+through. Only `cargo fmt --check`, the one check not piped anywhere, ever
+blocked anything. The file has been in this shape since it was written, so
+every commit made through it was unverified by four of its five checks.
+
+Found while an agent drafting the v1.1.0 changelog noticed the hook print
+`1 ERRORS` from a mid-run svelte-check line and report a pass in the same
+breath. Reproduced in one line:
+
+```sh
+sh -c 'set -e; (false 2>&1 | tail -1) || { echo "guard fires"; exit 1; }; echo "all checks passed"'
+# prints: all checks passed
+```
+
+Fixed by `set -o pipefail`, which needs bash rather than `/bin/sh`, so the
+shebang changes too. Proven both ways rather than argued: a deliberately
+broken TypeScript file under `ui/src/lib/` makes the hook exit 1 with
+"ERROR: svelte-check found errors", and the same hook on a clean tree exits
+0. The comment block at the top of the file carries the one-line
+reproduction so the next person does not have to rediscover it.
+
+Two things this does not fix, both listed here rather than assumed away:
+
+- CI is unaffected. `ci.yml` runs each tool as its own step with no pipe, so
+  the assertions that actually protect `main` were always real. The hook was
+  a local convenience that lied; the remote gate did not.
+- It says nothing about how long the hook has been passing over real
+  failures, because a hook that does not fail leaves no record. The tree is
+  clean today (`svelte-check` reports 580 files, 0 errors; clippy and the
+  vitest suite pass), so nothing appears to have slipped through, but that
+  is an observation about now, not a reconstruction of the past.
+
+This is cause A in the list above, a guard whose success condition is not
+the thing it claims to check, and it argues for guard self-tests (plan item
+2) in the one place the plan did not think to look: the guards' own
+plumbing.
