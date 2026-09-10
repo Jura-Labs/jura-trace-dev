@@ -98,6 +98,17 @@ name: Updater end-to-end
 # never asked, the client could not be observed, or the client asked and
 # returned no verdict. They are not the same finding, and a run that could
 # not observe anything must never read as a run that observed a verdict.
+#
+# ── The assertion has been shown to fail ───────────────────────────────────
+#
+# A green test nobody has seen go red proves nothing about itself. Run
+# 34486719261, dispatched with advertised_version 1.0.0 against an installed
+# 1.1.0, is the mutation check: the client asked for the manifest, the DOM
+# was read in full, no banner appeared because there was nothing to
+# announce, and the workflow failed on the verdict branch. The startup check
+# timestamp was present in that run, which is the log telling the reader the
+# check completed and found nothing rather than throwing. Rerun that dispatch
+# after any change to the observation code, and expect red.
 
 on:
   workflow_dispatch:
@@ -349,6 +360,7 @@ jobs:
           $domRead = $false        # a page returned a non-empty document
           $verdict = $null         # the sentence naming the advertised version
           $lastProbe = $null       # whatever the last successful probe returned
+          $phrase = "Version $env:ADVERTISED is available"
           $pattern = "Version " + [regex]::Escape($env:ADVERTISED) + " is available"
 
           $deadline = (Get-Date).AddSeconds(240)
@@ -449,7 +461,7 @@ jobs:
 
           if (-not $verdict) {
             Write-Host "::error::The client fetched the manifest and never said an update was available."
-            Write-Host "The app's own interface was read and does not contain '$pattern'."
+            Write-Host "The app's own interface was read and does not contain `"$phrase`"."
             Write-Host "That is the defect this test exists to catch: the manifest was served and rejected,"
             Write-Host "or the version comparison did not go the way the manifest asked for."
             Write-Host "Last startup-check timestamp in the app: $($record.last_startup_check_ms)"
