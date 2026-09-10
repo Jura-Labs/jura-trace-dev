@@ -957,9 +957,31 @@ jobs:
             echo "::error::sidecar-bundle not in .app — tauri.conf.json resources glob may be wrong"
             exit 1
           fi
+          # The identity must actually be in the keychain before we sign ~600
+          # files one at a time. If it is not, every codesign below fails for
+          # the same reason and the loop dies on the first one; saying so here
+          # is cheaper than reading it off a single failed file.
+          if ! security find-identity -v -p codesigning | grep -qF "$APPLE_SIGNING_IDENTITY"; then
+            echo "::error::Signing identity not present in the keychain: $APPLE_SIGNING_IDENTITY"
+            echo "Identities available to this runner:"
+            security find-identity -v -p codesigning || true
+            exit 1
+          fi
+
           count=0
           while IFS= read -r f; do
-            codesign --force --sign "$APPLE_SIGNING_IDENTITY" --options runtime --timestamp "$f" >/dev/null 2>&1
+            # stderr was previously sent to /dev/null, which under
+            # `set -euo pipefail` made this step fail with no message at all —
+            # the job named the tool that failed and nothing about why. That is
+            # the defect class this repository has spent a week removing, and it
+            # was sitting in the step that has blocked macOS CI since Phase 5
+            # was written. Keep the output.
+            if ! err=$(codesign --force --sign "$APPLE_SIGNING_IDENTITY" \
+                         --options runtime --timestamp "$f" 2>&1); then
+              echo "::error::codesign failed on $f after $count file(s)"
+              echo "$err"
+              exit 1
+            fi
             count=$((count + 1))
           done < <(find "$sidecar_root" -type f \( -name "*.so" -o -name "*.dylib" \) | sort -r)
           echo "Per-file signed $count nested .so/.dylib files."
