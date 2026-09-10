@@ -59,7 +59,13 @@ TARGET="aarch64-apple-darwin"
 # fully prepared SSD (9 September 2026). The marker is gitignored.
 MARKER="$REPO_ROOT/scripts/updater-staging/.stage-root"
 if [[ -n "${CARGO_TARGET_DIR:-}" ]]; then BASE="$CARGO_TARGET_DIR"; else BASE="$REPO_ROOT/src-tauri/target"; fi
-if [[ -z "${STAGE_ROOT:-}" && -z "${CARGO_TARGET_DIR:-}" && -s "$MARKER" ]]; then
+# The marker written by prepare wins whenever the environment does not point
+# at a prepared stage root. Two real cases, 9 and 10 September 2026: sudo
+# drops CARGO_TARGET_DIR entirely, and Paul's interactive shell exports a
+# different CARGO_TARGET_DIR from the one the build and prepare ran under, so
+# untrust looked in a directory that had never been prepared and reported
+# "No CA file". An explicit STAGE_ROOT still overrides everything.
+if [[ -z "${STAGE_ROOT:-}" && -s "$MARKER" && ! -d "$BASE/updater-staging/tls" ]]; then
   STAGE_ROOT="$(cat "$MARKER")"
   BASE="$(dirname "$STAGE_ROOT")"
 fi
