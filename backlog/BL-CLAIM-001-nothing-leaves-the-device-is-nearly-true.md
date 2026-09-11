@@ -127,3 +127,33 @@ has to be stated accurately.
 
 Do not fix the README and leave the articles and services page. Rows 6 and 7
 name three published pages. The correction is not done until they match.
+
+## Update, 11 September 2026: row 5 is cheaper to close than the plan assumes
+
+Row 5 of the table above is the Swagger page's unpinned fetch of
+`https://unpkg.com/swagger-ui-dist/...` from
+`src-tauri/src/api/mod.rs:278` and `:282`. "What would fix it" step 2 says
+to bundle the assets locally, and `docs/release/v1.2.0-plan.md:105` prices
+that at half a day as item A2.
+
+Reading the API surface on 11 September found something that changes the
+shape of the fix rather than the priority. **The crate whose entire purpose
+is to serve those assets from inside the binary is already compiled into
+every build and is never referenced.** `src-tauri/Cargo.toml:104` declares
+`utoipa-swagger-ui`, `:116` puts it in the `api` feature and `:114` puts
+`api` in `default`, and `grep -rn "utoipa_swagger_ui\|SwaggerUi" src-tauri/src/`
+returns nothing. The page at `src-tauri/src/api/mod.rs:271-302` is a hand
+written string literal that reaches the CDN instead.
+
+So there are three options where the plan assumed one, and the third is the
+smallest. Delete `swagger_ui_html`, `swagger_ui_redirect` and their two
+routes, and the outbound call goes away entirely rather than being pinned,
+an unauthenticated route disappears from a port that is always listening,
+and a dependency that pulls `zip`, `rust-embed` and a second major version
+of axum (`Cargo.lock:385`, `axum 0.7.9`, whose only dependent is that
+crate) comes out of the build with it. `GET /openapi.json` is unaffected,
+because it is produced by the other utoipa crate, which is genuinely used.
+
+Written up as **BL-API-004**, which holds the dependency evidence. The
+decision belongs to this item, because it is this item's row 5 that the
+fix closes. Whoever takes A2 should read both.
