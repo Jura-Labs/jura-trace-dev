@@ -441,3 +441,79 @@ This is cause A in the list above, a guard whose success condition is not
 the thing it claims to check, and it argues for guard self-tests (plan item
 2) in the one place the plan did not think to look: the guards' own
 plumbing.
+
+## Update, 11 September 2026: four more, found while planning v1.2.0
+
+Reading the API surface, the sidecar and `release.yml` for the v1.2.0
+headless API and size designs turned up four more instances. Each is filed
+separately and recorded here, because this file is the argument for the
+guards and it gets stronger with each instance. None of them changes the
+causes or the plan.
+
+**The API server announces a port it has not bound (Cause B).**
+`src-tauri/src/api/mod.rs:150` logs "API server listening on http://{addr}"
+two lines before `:152` attempts the bind, and `:155-159` logs a warning
+and returns `Ok(())` on failure. The caller at `src-tauri/src/lib.rs:4675`
+reacts only to `Err`, so a second instance of the application, or anything
+else holding 8300, yields an application with no API, no error anywhere,
+and a log line asserting the opposite of what happened. The doc comment at
+`:135-138` documents the swallow as the contract. This is Cause B exactly:
+success defined as the function returning rather than as the listener
+existing. Filed as **BL-API-002**.
+
+**A security test that cannot fail (Cause B, in a test).**
+`sidecar/tests/test_api_auth.py:90-101` is the only test of the
+empty-key path. It asserts `response.status_code != 401`. Under pytest the
+request takes the `PYTEST_CURRENT_TEST` bypass at `sidecar/main.py:172` and
+returns 422; outside pytest the same request returns 503
+(`sidecar/main.py:174-178`). Both satisfy the assertion, which was checked
+by running it both ways rather than by reading it. So the test passes
+whichever behaviour is in force, and nothing asserts the 503 a real caller
+receives. It belongs with the plan's item 2, guard self-tests: a test whose
+assertion is satisfied by every reachable outcome is a guard that cannot
+fire. Filed as **BL-SIDECAR-001**, finding 4.
+
+**The publish gate is made of a failure (item 6 of the ranked list, and
+Cause C).** `.github/workflows/release.yml:2204` reduces on a tag push to
+`needs.build.result == 'success'`, and the comment at `:2185-2188` states
+that the reason releases stay drafts is that the macOS CI job fails at its
+known Phase 5 signing step. A property produced by a failure is not a
+guard, and repairing the failure changes the release process without
+anybody deciding to. The half of ranked item 6 about `latest.json` reaching
+the live endpoint incomplete was closed by the assertions of 7 to 10
+September; this half was not. Filed as **BL-REL-006**.
+
+Two things found alongside it are Cause C in its plainest form and are
+worth naming here rather than only in that item. The macOS and Linux
+updater-signature gate at `release.yml:1125-1149` checks only that each
+`.sig` exists and is non-empty. The Windows gate at `:1389-1393` adds the
+assertion that the signature is **newer** than the artefact it signs, and
+its own comment says that assertion "is the one that encodes the bug". It
+was never mirrored to the platform where the archive is known not to be
+regenerated. And `release.yml:1053-1063` runs
+`cargo tauri bundle --bundles dmg,updater` on macOS, which is the same
+command, on the same platform, that was proved on 9 September to produce no
+updater archive at all. The rule from 9 September stands and has one more
+instance: a gate must run on the bytes that ship, last, after every
+mutation.
+
+**A checksum file with no coverage assertion (Cause B, and the empty set's
+cousin).** `SHA256SUMS.txt` on the v1.1.0 release lists five installers and
+omits `Jura.Trace.app.tar.gz`, 855,832,536 bytes, which is the file the
+macOS updater downloads. The workflow's own `installerExts` at
+`release.yml:1558` includes `.tar.gz`, so the filter is right and the
+published file does not match it. The step has exactly one floor, the
+`toHash.length === 0` check added on 10 September (`:1569-1577`), and no
+assertion that what it wrote covers what is attached. The update manifest
+has that assertion, at `:1949-1977`, and it works. Filed as **BL-REL-007**.
+
+**Checked and clean, worth recording so it is not re-hunted.** The SQLite
+connection was read as having no busy timeout, which would matter the
+moment a second process shares the database. It has one.
+`src-tauri/src/db.rs:31` opens through `rusqlite::Connection::open`, and
+rusqlite 0.31.0 sets `sqlite3_busy_timeout(db, 5000)` on every open
+(`inner_connection.rs:121`). Nothing in this repository sets or clears one,
+and every open site in `src-tauri/src/` goes through that constructor, so
+the default of five seconds is in force everywhere. Whether five seconds is
+the right number for two processes is a question for the headless work, not
+a defect.

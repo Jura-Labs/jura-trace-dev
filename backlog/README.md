@@ -20,6 +20,11 @@ Statuses reconciled 8 September 2026 against `origin/main` at `d0ca411d`,
 after the fourteen merges of that day. Each item's own file carries a dated
 "Update, 8 September 2026" section with the evidence.
 
+The last seven items were added on 11 September 2026, from defects found
+while planning v1.2.0 rather than while looking for them. They were
+verified against `main` at `d9eb2da1` before filing, and four of them are
+also recorded as instances in BL-SILENT-001.
+
 | Item | What it is | Status | Severity |
 |---|---|---|---|
 | [BL-REL-002](BL-REL-002-updater-manifest-carries-urls-not-signatures.md) | The updater manifest held URLs where signatures belong; the live manifest is now correct, the fallback resolves, and the re-download notice and the live update on a real v1.0.0 install remain | Open, largely resolved server-side | Highest |
@@ -40,6 +45,13 @@ after the fourteen merges of that day. Each item's own file carries a dated
 | [BL-CLAIM-003](BL-CLAIM-003-the-pdf-report-asserts-checks-that-never-ran.md) | The exported forensic report asserts OCSP/CRL checks that never run | Open | High, legal |
 | [BL-API-001](BL-API-001-the-headless-api-is-documented-and-does-not-exist.md) | The headless API is documented and does not exist; it gates the CLI | Open | Medium |
 | [BL-SIZE-001](BL-SIZE-001-242mb-of-download-computes-10kb-of-constants.md) | 242 MB of every download computes 10 KB of constants | Open | High for adoption |
+| [BL-REL-005](BL-REL-005-the-macos-build-ships-whatever-is-installed-on-one-laptop.md) | The macOS build freezes the sidecar against whatever is installed on one laptop; 258 MiB of packages named in no manifest reached v1.1.0 users, and Windows and Linux carry none of it | Open | High |
+| [BL-REL-006](BL-REL-006-the-only-thing-keeping-a-release-a-draft-is-a-failing-ci-job.md) | The only thing keeping a release a draft is the macOS CI job failing at its known signing step; repair that job and the next tag publishes itself | Open | High |
+| [BL-REL-007](BL-REL-007-the-checksum-file-omits-the-one-file-the-updater-downloads.md) | `SHA256SUMS.txt` omits the updater archive, the largest asset on the release and the one the updater fetches; the workflow's own filter would have included it | Open | Medium |
+| [BL-API-002](BL-API-002-the-api-server-announces-a-port-it-has-not-bound.md) | The API server logs that it is listening two lines before it binds, and reports success when the bind fails | Open | Medium, High from v1.2.0 |
+| [BL-API-003](BL-API-003-an-authenticated-api-runs-on-every-install-and-no-user-can-get-a-key.md) | An authenticated REST API runs on every install and no user can obtain a key for it; the panel that would issue one is behind a false feature flag | Open | Medium |
+| [BL-API-004](BL-API-004-the-swagger-crate-is-compiled-into-every-build-and-never-used.md) | The Swagger crate is compiled into every build and never referenced, while the page it exists to serve is a literal that fetches unpinned assets from a CDN | Open | Low |
+| [BL-SIDECAR-001](BL-SIDECAR-001-the-sidecar-contract-disagrees-with-everything-that-describes-it.md) | The sidecar's contract disagrees with its Rust client, its own settings, two of its docstrings, its only auth test and the scripts that call it | Open | Medium |
 
 ## Closed items
 
@@ -84,4 +96,4 @@ been or will be deleted.
 Until that is decided, the items above are the ones found by reading the
 code and the live systems from 3 September 2026 onwards, not by mining
 Plane. (This paragraph said "the eight items" when the directory held
-eight; it holds twenty-one as of 8 September.)
+eight; it holds twenty-nine as of 11 September.)
