@@ -1,0 +1,330 @@
+name: Updater live leg (Windows)
+
+# The release gate's single non-negotiable, for Windows. A pristine, publicly
+# downloaded v1.0.0 asks the REAL update service for a manifest and says what
+# it decided. Nothing here is staged: no hosts entry, no throwaway certificate
+# authority, no local listener. The app talks to juralabs.org over the public
+# internet and the manifest is whatever the Cloudflare worker is serving.
+#
+# ── Why this exists as a separate workflow ─────────────────────────────────
+#
+# `updater-e2e.yml` is the STAGING leg. It serves a manifest it composed
+# itself, over a certificate it minted itself, through a hosts redirect, so it
+# can advertise any version it likes and prove the client's behaviour without
+# a release existing. That file took several attempts to get right and it is
+# the thing that catches a regression on every change. Threading a "talk to
+# production instead" mode through its three hundred lines of PowerShell would
+# put the proven path at risk to save duplicating sixty lines of debugging
+# plumbing. Those sixty lines are copied verbatim below and marked, so a fix
+# to one is an obvious fix to the other.
+#
+# ── What this proves that staging cannot ───────────────────────────────────
+#
+# PROVES: the shipped binary resolves the real hostname through public DNS,
+# trusts the real certificate chain with no help from this runner, fetches
+# the manifest the worker actually serves, verifies its signature against the
+# key compiled into v1.0.0, and decides that the published version is newer.
+# Every one of those is a thing staging deliberately substitutes.
+#
+# DOES NOT PROVE: that the download and install then succeed. The startup
+# check reports and never installs, by design. Proving the install needs the
+# client to fetch a 740 MB installer and replace itself, which is the next
+# increment and is a different test.
+#
+# ── The claim that it is live is asserted, not assumed ─────────────────────
+#
+# A test that says "production" while quietly talking to a local listener is
+# the exact failure this repository has spent a fortnight removing. So before
+# the app is launched, this workflow asserts that juralabs.org resolves to a
+# public address, that the hosts file names it nowhere, and that no extra
+# root certificate has been installed on the machine. If any of those is
+# false the run fails before it can produce a reassuring green tick.
+
+on:
+  workflow_dispatch:
+    inputs:
+      previous_tag:
+        description: "Tag whose installer is treated as the PREVIOUS version. The published v1.0.0 unless you are testing something else."
+        required: false
+        default: "v1.0.0"
+        type: string
+      expected_version:
+        description: "Version the live service is expected to offer. The run fails unless the app says this exact version is available."
+        required: false
+        default: "1.1.0"
+        type: string
+
+concurrency:
+  group: updater-live-leg-${{ github.event.inputs.previous_tag }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows, live, from ${{ github.event.inputs.previous_tag }}
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download the previous version's installer
+        shell: bash
+        env:
+          # RELEASE_PAT rather than github.token: the installers live on
+          # Jura-Labs/jura-trace and github.token is scoped to this repo.
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          PREV: ${{ github.event.inputs.previous_tag || 'v1.0.0' }}
+        run: |
+          set -euo pipefail
+          mkdir -p prev
+          gh release download "$PREV" --repo Jura-Labs/jura-trace \
+            --pattern "*Windows-x64.msi" --dir prev
+          ls -lh prev/ | sed 's/^/  /'
+
+      - name: Assert this machine is not staging anything
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fail = $false
+
+          # 1. The hosts file must not mention the host at all.
+          $hosts = Get-Content "$env:SystemRoot\System32\drivers\etc\hosts" -Raw
+          if ($hosts -match "juralabs") {
+            Write-Host "::error::The hosts file mentions juralabs. This runner is not clean."
+            $fail = $true
+          } else {
+            Write-Host "OK: hosts file does not mention juralabs."
+          }
+
+          # 2. The name must resolve to a public address.
+          $addrs = (Resolve-DnsName juralabs.org -Type A -ErrorAction Stop).IPAddress
+          Write-Host "juralabs.org resolves to: $($addrs -join ', ')"
+          foreach ($a in $addrs) {
+            if ($a -like "127.*" -or $a -like "10.*" -or $a -like "192.168.*" -or $a -like "169.254.*") {
+              Write-Host "::error::juralabs.org resolves to a private address ($a)."
+              $fail = $true
+            }
+          }
+          if (-not $fail) { Write-Host "OK: every address is public." }
+
+          # 3. Record the machine root store, so a certificate planted by an
+          #    earlier step in some future edit of this file is visible rather
+          #    than silently making the TLS check meaningless.
+          $roots = (Get-ChildItem Cert:\LocalMachine\Root).Count
+          Write-Host "machine root certificates present: $roots"
+          $suspect = Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -match "jura|throwaway|test" }
+          if ($suspect) {
+            Write-Host "::error::A root certificate mentioning jura, throwaway or test is installed:"
+            $suspect | Format-Table Subject, Thumbprint -AutoSize | Out-String | Write-Host
+            $fail = $true
+          } else {
+            Write-Host "OK: no jura, throwaway or test root certificate on this machine."
+          }
+
+          if ($fail) {
+            Write-Host "Refusing to continue. A live leg that is not live proves nothing."
+            exit 1
+          }
+
+      - name: Install the previous version, launch it, and read its verdict
+        shell: pwsh
+        env:
+          EXPECTED: ${{ github.event.inputs.expected_version || '1.1.0' }}
+          PREV: ${{ github.event.inputs.previous_tag || 'v1.0.0' }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          function Get-CdpTargets {
+            try {
+              return Invoke-RestMethod -Uri "http://127.0.0.1:9222/json/list" -TimeoutSec 3
+            } catch {
+              return $null
+            }
+          }
+
+          function Invoke-CdpEvaluate {
+            param([string]$WsUrl, [string]$Expression)
+            $ws = New-Object System.Net.WebSockets.ClientWebSocket
+            try {
+              $cts = [System.Threading.CancellationTokenSource]::new([TimeSpan]::FromSeconds(10))
+              $ws.ConnectAsync([Uri]$WsUrl, $cts.Token).GetAwaiter().GetResult()
+              $req = @{
+                id = 1
+                method = "Runtime.evaluate"
+                params = @{ expression = $Expression; returnByValue = $true; awaitPromise = $false }
+              } | ConvertTo-Json -Depth 6 -Compress
+              $out = [ArraySegment[byte]]::new([Text.Encoding]::UTF8.GetBytes($req))
+              $ws.SendAsync($out, [System.Net.WebSockets.WebSocketMessageType]::Text, $true, $cts.Token).GetAwaiter().GetResult()
+
+              $buf = New-Object byte[] 65536
+              # The target may push protocol events we did not ask for, so read
+              # until the reply carrying our id arrives or the budget runs out.
+              for ($i = 0; $i -lt 40; $i++) {
+                $sb = New-Object System.Text.StringBuilder
+                do {
+                  $seg = [ArraySegment[byte]]::new($buf)
+                  $res = $ws.ReceiveAsync($seg, $cts.Token).GetAwaiter().GetResult()
+                  [void]$sb.Append([Text.Encoding]::UTF8.GetString($buf, 0, $res.Count))
+                } while (-not $res.EndOfMessage)
+                $msg = $sb.ToString() | ConvertFrom-Json
+                if ($msg.id -eq 1) { return $msg }
+              }
+              return $null
+            } catch {
+              return $null
+            } finally {
+              try { $ws.Dispose() } catch { }
+            }
+          }
+
+          # The probe. textContent rather than innerText, so a banner sitting
+          # behind the first-run onboarding overlay is still read; innerText
+          # would drop anything the layout engine considers hidden. The last
+          # startup-check timestamp comes back too: it is written only after
+          # the plugin's check resolves, so it separates "the check threw" from
+          # "the check completed and said something other than available".
+          $probeJs = @(
+            'JSON.stringify({',
+            '  url: location.href,',
+            '  ready: document.readyState,',
+            '  text: (document.body ? document.body.textContent : "").replace(/\s+/g, " ").trim().slice(0, 60000),',
+            '  lastCheck: (function () {',
+            '    try { return localStorage.getItem("jura.updater.lastCheckMs"); } catch (e) { return "unreadable"; }',
+            '  })()',
+            '})'
+          ) -join "`n"
+          # ── install and launch, exactly as a user would ──────────────────
+          $msi = (Get-ChildItem prev/*Windows-x64.msi | Select-Object -First 1).FullName
+          Write-Host "installing $(Split-Path $msi -Leaf)"
+          $p = Start-Process msiexec.exe -ArgumentList "/i","`"$msi`"","/qn","/norestart" -Wait -PassThru
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "install failed: $($p.ExitCode)" }
+          $exe = Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles" -Filter "jura-trace.exe" -Recurse -Depth 4 -ErrorAction SilentlyContinue |
+                 Select-Object -First 1 -ExpandProperty FullName
+          if (-not $exe) { throw "installed executable not found" }
+          Write-Host "installed: $exe"
+
+          # WebView2 ignores every per-user override for an elevated host, and
+          # Actions steps run elevated, so the machine policy is the only way
+          # to open the debugging port. See updater-e2e.yml for the full note.
+          $browserArgs = "--remote-debugging-port=9222 --remote-allow-origins=*"
+          $policyKey = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments"
+          New-Item -Path $policyKey -Force | Out-Null
+          New-ItemProperty -Path $policyKey -Name "jura-trace.exe" -Value $browserArgs -PropertyType String -Force | Out-Null
+          New-ItemProperty -Path $policyKey -Name "*" -Value $browserArgs -PropertyType String -Force | Out-Null
+          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $browserArgs
+          Start-Process -FilePath $exe
+
+          # ── observe ──────────────────────────────────────────────────────
+          $cdpUp = $false          # the debugging port answered
+          $domRead = $false        # a page returned a non-empty document
+          $verdict = $null         # the sentence naming the expected version
+          $lastProbe = $null
+          $phrase = "Version $env:EXPECTED is available"
+          $pattern = "Version " + [regex]::Escape($env:EXPECTED) + " is available"
+          $deadline = (Get-Date).AddSeconds(240)
+
+          while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 3
+            $targets = Get-CdpTargets
+            if (-not $targets) { continue }
+            $cdpUp = $true
+            foreach ($t in @($targets | Where-Object { $_.type -eq "page" -and $_.webSocketDebuggerUrl })) {
+              $reply = Invoke-CdpEvaluate -WsUrl $t.webSocketDebuggerUrl -Expression $probeJs
+              if (-not $reply -or -not $reply.result -or -not $reply.result.result) { continue }
+              $raw = $reply.result.result.value
+              if (-not $raw) { continue }
+              $probe = $raw | ConvertFrom-Json
+              if ($probe.text -and $probe.text.Length -gt 0) {
+                $domRead = $true
+                $lastProbe = $probe
+                if ($probe.text -match $pattern) { $verdict = $Matches[0] }
+              }
+            }
+            if ($verdict) { break }
+          }
+
+          $record = [ordered]@{
+            expected = $env:EXPECTED
+            debug_port_answered = $cdpUp
+            dom_read = $domRead
+            verdict = $verdict
+            page_url = $(if ($lastProbe) { $lastProbe.url } else { $null })
+            document_ready = $(if ($lastProbe) { $lastProbe.ready } else { $null })
+            last_startup_check_ms = $(if ($lastProbe) { $lastProbe.lastCheck } else { $null })
+            document_text_excerpt = $(if ($lastProbe) { $lastProbe.text.Substring(0, [Math]::Min(4000, $lastProbe.text.Length)) } else { $null })
+          }
+          $record | ConvertTo-Json -Depth 4 | Set-Content verdict.log
+
+          # Four failure branches with four different messages, because a run
+          # that could not look at the app must never read like a run that
+          # looked and found nothing.
+          if (-not $cdpUp) {
+            Write-Host "::error::The WebView2 debugging port never answered, so the client's verdict could not be read."
+            Write-Host "This is a failure of the TEST, not evidence about the client."
+            Get-NetTCPConnection -LocalPort 9222 -ErrorAction SilentlyContinue | Format-Table -AutoSize | Out-String | Write-Host
+            exit 1
+          }
+          if (-not $domRead) {
+            Write-Host "::error::The debugging port answered but no page returned a document, so nothing was observed."
+            Write-Host "This is a failure of the TEST, not evidence about the client."
+            exit 1
+          }
+          if (-not $verdict) {
+            Write-Host "::error::A pristine $env:PREV install did not offer the published update."
+            Write-Host "The app's own interface was read and does not contain `"$phrase`"."
+            Write-Host "On the live service that means one of: the manifest did not reach it, the"
+            Write-Host "signature did not verify against the key compiled into the shipped binary,"
+            Write-Host "or the version comparison refused the published version."
+            Write-Host "Last startup-check timestamp in the app: $($record.last_startup_check_ms)"
+            Write-Host "A timestamp means the check completed and offered nothing; its absence means"
+            Write-Host "the check threw before recording anything."
+            Write-Host "── what the app was showing ──"
+            Write-Host $record.document_text_excerpt
+            exit 1
+          }
+
+          Write-Host "OK: a pristine published install, talking to the live service over public DNS"
+          Write-Host "    and the real certificate chain, offered the update: `"$verdict`""
+          "$verdict" | Set-Content observed-verdict.txt
+
+      - name: Stop the app
+        if: always()
+        shell: pwsh
+        run: |
+          Get-Process jura-trace, msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Write-Host "stopped"
+
+      - name: Summary
+        if: always()
+        shell: bash
+        env:
+          PREV: ${{ github.event.inputs.previous_tag || 'v1.0.0' }}
+          EXPECTED: ${{ github.event.inputs.expected_version || '1.1.0' }}
+        run: |
+          {
+            echo "## Updater live leg, Windows"
+            echo ""
+            echo "Installed \`$PREV\` and pointed it at the real update service."
+            echo "No hosts entry, no throwaway certificate, no local listener."
+            echo ""
+            if [ -f observed-verdict.txt ]; then
+              echo "**Verdict read from the running app:** \`$(cat observed-verdict.txt)\`"
+            else
+              echo "**No verdict was read.** See the step log for which of the four"
+              echo "failure branches fired; two of them are failures of the test"
+              echo "rather than evidence about the client."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artefacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: updater-live-leg-windows
+          path: |
+            verdict.log
+            observed-verdict.txt
+          if-no-files-found: ignore
+          retention-days: 14
