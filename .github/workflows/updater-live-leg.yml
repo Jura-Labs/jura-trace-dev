@@ -314,22 +314,34 @@ jobs:
           $browserArgs = "--remote-debugging-port=9222 --remote-allow-origins=*"
           $policyKey = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments"
           New-Item -Path $policyKey -Force | Out-Null
-          # Only jura-trace.exe, never "*".
+          # Both names, and the wildcard is the one that works.
           #
-          # The "*" entry hands the same --remote-debugging-port=9222 to EVERY
-          # WebView2 host on the machine, and a Windows runner has several. A
-          # port can have one owner, so whichever host starts first takes it
-          # and serves its own blank page, while the application's WebView2
-          # finds the port occupied and appears nowhere in the target list.
+          # Run 34575459450 set only "jura-trace.exe" and the debugging port
+          # never answered at all, so the per-executable value is not what
+          # WebView2 honours for this host. The wildcard is. It was tempting
+          # to blame the wildcard for the about:blank races, and that was
+          # wrong: it is load-bearing.
           #
-          # That is a race, and the observed behaviour matches it exactly: run
-          # 34570877379 saw http://tauri.localhost/settings and drove it to a
-          # successful update, while 34572744501 and 34574122914 saw one
-          # target, about:blank, for ten minutes each with the app's own
-          # processes alive throughout. A test that depends on winning a race
-          # is not a test.
+          # The race is handled where it belongs instead. Any WebView2 host
+          # already running is stopped before the application starts, so the
+          # application's own host is first to the port rather than second.
+          # Whichever other host was taking it in 34572744501 and 34574122914
+          # cannot take it if it is not running.
           New-ItemProperty -Path $policyKey -Name "jura-trace.exe" -Value $browserArgs -PropertyType String -Force | Out-Null
-          Remove-ItemProperty -Path $policyKey -Name "*" -ErrorAction SilentlyContinue
+          New-ItemProperty -Path $policyKey -Name "*" -Value $browserArgs -PropertyType String -Force | Out-Null
+
+          $stale = Get-Process msedgewebview2 -ErrorAction SilentlyContinue
+          if ($stale) {
+            Write-Host "stopping $($stale.Count) WebView2 host(s) already running, so the app is first to the port"
+            $stale | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 3
+          } else {
+            Write-Host "no WebView2 host was already running"
+          }
+          $inUse = Get-NetTCPConnection -LocalPort 9222 -State Listen -ErrorAction SilentlyContinue
+          if ($inUse) {
+            Write-Host "::warning::Port 9222 is already listening before the app starts. Something else owns it."
+          }
           $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $browserArgs
           Start-Process -FilePath $exe
 
@@ -433,6 +445,8 @@ jobs:
           if (-not $cdpUp) {
             Write-Host "::error::The WebView2 debugging port never answered, so the client's verdict could not be read."
             Write-Host "This is a failure of the TEST, not evidence about the client."
+            Write-Host "The policy is set for both jura-trace.exe and *, and run 34575459450 showed"
+            Write-Host "that the per-executable value alone is not honoured for this host."
             Get-NetTCPConnection -LocalPort 9222 -ErrorAction SilentlyContinue | Format-Table -AutoSize | Out-String | Write-Host
             exit 1
           }
