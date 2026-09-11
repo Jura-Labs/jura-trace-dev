@@ -15,8 +15,11 @@ name: Updater live leg (Windows)
 # the thing that catches a regression on every change. Threading a "talk to
 # production instead" mode through its three hundred lines of PowerShell would
 # put the proven path at risk to save duplicating sixty lines of debugging
-# plumbing. Those sixty lines are copied verbatim below and marked, so a fix
-# to one is an obvious fix to the other.
+# plumbing. Those sixty lines are copied below and marked, so a fix to one is
+# an obvious fix to the other. `Get-CdpTargets` is still verbatim.
+# `Invoke-CdpEvaluate` is no longer: it speaks the same protocol and it
+# returns a diagnostic record instead of a bare $null, for the reason set out
+# above the function.
 #
 # ── What this proves that staging cannot ───────────────────────────────────
 #
@@ -209,12 +212,36 @@ jobs:
             }
           }
 
+          # This helper DIVERGES from the copy in updater-e2e.yml, on purpose,
+          # and it is the only one that does. The protocol body is unchanged:
+          # connect, send one Runtime.evaluate, read frames until the reply
+          # carrying our id arrives. What changed is that it no longer answers
+          # four completely different failures with the same silent $null.
+          #
+          # Run 34578756154 had the application's own page on the debugging
+          # port for ten minutes and recorded nothing whatsoever: dom_read
+          # false, last_stage null, page_url null. That was possible because
+          # "could not connect", "sent and heard nothing back", "heard forty
+          # frames and none of them was ours" and "the page threw while the
+          # expression was being parsed" all returned $null, and the caller
+          # then `continue`d past it without a word. A run that cannot look at
+          # the app has to be able to say so, which is the whole of
+          # BL-SILENT-001. So the helper now always returns an object, and that
+          # object always carries a Diag record saying how far it got.
           function Invoke-CdpEvaluate {
             param([string]$WsUrl, [string]$Expression)
+            $diag = [ordered]@{
+              connected  = $false
+              sent       = $false
+              frames     = 0
+              firstFrame = $null
+              failure    = $null
+            }
             $ws = New-Object System.Net.WebSockets.ClientWebSocket
             try {
               $cts = [System.Threading.CancellationTokenSource]::new([TimeSpan]::FromSeconds(10))
               $ws.ConnectAsync([Uri]$WsUrl, $cts.Token).GetAwaiter().GetResult()
+              $diag.connected = $true
               $req = @{
                 id = 1
                 method = "Runtime.evaluate"
@@ -222,6 +249,7 @@ jobs:
               } | ConvertTo-Json -Depth 6 -Compress
               $out = [ArraySegment[byte]]::new([Text.Encoding]::UTF8.GetBytes($req))
               $ws.SendAsync($out, [System.Net.WebSockets.WebSocketMessageType]::Text, $true, $cts.Token).GetAwaiter().GetResult()
+              $diag.sent = $true
 
               $buf = New-Object byte[] 65536
               # The target may push protocol events we did not ask for, so read
@@ -233,12 +261,24 @@ jobs:
                   $res = $ws.ReceiveAsync($seg, $cts.Token).GetAwaiter().GetResult()
                   [void]$sb.Append([Text.Encoding]::UTF8.GetString($buf, 0, $res.Count))
                 } while (-not $res.EndOfMessage)
-                $msg = $sb.ToString() | ConvertFrom-Json
-                if ($msg.id -eq 1) { return $msg }
+                $frame = $sb.ToString()
+                $diag.frames = $i + 1
+                if (-not $diag.firstFrame) {
+                  $diag.firstFrame = $frame.Substring(0, [Math]::Min(400, $frame.Length))
+                }
+                $msg = $frame | ConvertFrom-Json
+                if ($msg.id -eq 1) {
+                  return [pscustomobject]@{ Reply = $msg; Frame = $frame; Diag = $diag }
+                }
               }
-              return $null
+              $diag.failure = "read $($diag.frames) frame(s) and none carried id 1; first was: $($diag.firstFrame)"
+              return [pscustomobject]@{ Reply = $null; Frame = $null; Diag = $diag }
             } catch {
-              return $null
+              $diag.failure = $_.Exception.GetType().Name + ": " + $_.Exception.Message
+              if ($_.Exception.InnerException) {
+                $diag.failure += " / " + $_.Exception.InnerException.Message
+              }
+              return [pscustomobject]@{ Reply = $null; Frame = $null; Diag = $diag }
             } finally {
               try { $ws.Dispose() } catch { }
             }
@@ -298,6 +338,19 @@ jobs:
             '  }',
             '})()'
           ) -join "`n"
+
+          # Say the expression out loud, once, before anything uses it.
+          #
+          # "The JavaScript is malformed after its journey through YAML, a
+          # PowerShell single-quoted array and a JSON payload" was a live
+          # theory for run 34578756154 and there was no way to settle it from
+          # the log, because the expression was never printed. What follows is
+          # the exact string handed to Runtime.evaluate, so the theory can be
+          # confirmed or dropped by reading rather than by guessing.
+          Write-Host "── the probe expression, $($probeJs.Length) characters ──"
+          Write-Host $probeJs
+          Write-Host "── end of the probe expression ──"
+
           # ── install and launch, exactly as a user would ──────────────────
           $msi = (Get-ChildItem prev/*Windows-x64.msi | Select-Object -First 1).FullName
           Write-Host "installing $(Split-Path $msi -Leaf)"
@@ -363,7 +416,18 @@ jobs:
           # download it is asked for has to finish. Ten minutes, and the loop
           # still breaks the moment the version moves.
           $deadline = (Get-Date).AddSeconds(600)
+          $started = Get-Date
           $targetsLogged = ""
+          # Every probe says what it saw. $probeTrail keeps one line per
+          # distinct outcome so the artefact carries the whole observation and
+          # not just its last success, and $lastAnyProbe keeps the last probe
+          # that parsed at all, even one whose document was empty. Run
+          # 34578756154 ended with every one of these fields null and no way to
+          # tell an empty page from an unreachable one.
+          $probeTrail = New-Object System.Collections.Generic.List[string]
+          $lastProbeLine = ""
+          $lastAnyProbe = $null
+          $warnedNoSocket = $false
 
           while ((Get-Date) -lt $deadline) {
             Start-Sleep -Seconds 3
@@ -383,7 +447,12 @@ jobs:
               $targetsLogged = $sig
               Write-Host "  debugging port offers $(@($targets).Count) target(s):"
               foreach ($t in @($targets)) {
-                Write-Host "    type=$($t.type) url=$($t.url)"
+                # Whether the target carries a websocket url is part of the
+                # observation. A page that is listed without one cannot be
+                # evaluated at all, and that is a different situation from a
+                # page that was evaluated and said nothing.
+                $ws = $(if ($t.webSocketDebuggerUrl) { "yes" } else { "NO" })
+                Write-Host "    type=$($t.type) socket=$ws url=$($t.url)"
               }
             }
             # Only the application's own page. A WebView2 host opens with an
@@ -394,13 +463,64 @@ jobs:
             # own startup and interfering with it. The run that worked earlier
             # only worked because it arrived after the page had loaded.
             $appPages = @($targets | Where-Object { $_.type -eq "page" -and $_.webSocketDebuggerUrl -and $_.url -like "*tauri.localhost*" })
-            if ($appPages.Count -eq 0) { continue }
+            if ($appPages.Count -eq 0) {
+              $listedWithoutSocket = @($targets | Where-Object { $_.type -eq "page" -and -not $_.webSocketDebuggerUrl -and $_.url -like "*tauri.localhost*" })
+              if ($listedWithoutSocket.Count -gt 0 -and -not $warnedNoSocket) {
+                $warnedNoSocket = $true
+                Write-Host "::warning::The application's page is listed on the debugging port but carries no webSocketDebuggerUrl, so it cannot be evaluated at all."
+              }
+              continue
+            }
             foreach ($t in $appPages) {
-              $reply = Invoke-CdpEvaluate -WsUrl $t.webSocketDebuggerUrl -Expression $probeJs
-              if (-not $reply -or -not $reply.result -or -not $reply.result.result) { continue }
-              $raw = $reply.result.result.value
-              if (-not $raw) { continue }
-              $probe = $raw | ConvertFrom-Json
+              $at = [int]((Get-Date) - $started).TotalSeconds
+              $call = Invoke-CdpEvaluate -WsUrl $t.webSocketDebuggerUrl -Expression $probeJs
+              $d = $call.Diag
+              $probe = $null
+              $why = $null
+              if (-not $call.Reply) {
+                $why = "no reply. $($d.failure)"
+              } elseif ($call.Reply.result -and $call.Reply.result.exceptionDetails) {
+                # The page threw while the expression was being parsed or run.
+                # A SyntaxError lands here and the expression's own try/catch
+                # cannot see it, because the catch is inside the text that
+                # failed to parse. This is the branch that used to vanish.
+                $ex = $call.Reply.result.exceptionDetails
+                $why = "the page threw. $($ex.text) $($ex.exception.description)"
+              } elseif (-not $call.Reply.result -or -not $call.Reply.result.result) {
+                $why = "the reply carried no result. $($call.Frame)"
+              } elseif ($null -eq $call.Reply.result.result.value) {
+                $why = "the result carried no value, type=$($call.Reply.result.result.type)"
+              } else {
+                try {
+                  $probe = $call.Reply.result.result.value | ConvertFrom-Json
+                } catch {
+                  $why = "the result was not the JSON the probe promised. $($call.Reply.result.result.value)"
+                }
+              }
+
+              if ($probe) {
+                $textLength = $(if ($probe.text) { $probe.text.Length } else { 0 })
+                $what = "stage=$($probe.stage) url=$($probe.url) ready=$($probe.ready) version=$($probe.appVersion) textLength=$textLength"
+                $lastAnyProbe = $probe
+              } else {
+                $what = "nothing usable. connected=$($d.connected) sent=$($d.sent) frames=$($d.frames). $why"
+              }
+              # One line per distinct outcome, timestamped. The comparison is
+              # on the outcome alone and deliberately not on the timestamp:
+              # every probe carries a different second, so comparing whole
+              # lines would print two hundred of them over ten minutes and
+              # bury the two that matter. A run of identical outcomes shows
+              # instead as a gap between the second it started and the second
+              # the next thing happened. Printing nothing at all is what left
+              # run 34578756154 with a ten minute silence between launch and
+              # the verdict, which is the failure this is here to prevent.
+              if ($what -ne $lastProbeLine) {
+                $lastProbeLine = $what
+                Write-Host "  probe at ${at}s: $what"
+                $probeTrail.Add("${at}s $what")
+              }
+              if (-not $probe) { continue }
+
               if ($probe.appVersion) {
                 if (-not $clicked -and -not $versionBefore) {
                   $versionBefore = $probe.appVersion
@@ -436,6 +556,23 @@ jobs:
             document_ready = $(if ($lastProbe) { $lastProbe.ready } else { $null })
             last_stage = $(if ($lastProbe) { $lastProbe.stage } else { $null })
             document_text_excerpt = $(if ($lastProbe) { $lastProbe.text.Substring(0, [Math]::Min(4000, $lastProbe.text.Length)) } else { $null })
+            # The fields above describe the last probe that returned a
+            # document. The two below describe the last probe of any kind and
+            # the sequence of everything the loop saw, so a run where nothing
+            # was readable still carries evidence rather than a column of
+            # nulls. Both are diagnostics. Nothing asserts on them.
+            last_probe_of_any_kind = $(if ($lastAnyProbe) {
+              [ordered]@{
+                stage      = $lastAnyProbe.stage
+                url        = $lastAnyProbe.url
+                ready      = $lastAnyProbe.ready
+                appVersion = $lastAnyProbe.appVersion
+                hasButton  = $lastAnyProbe.hasButton
+                textLength = $(if ($lastAnyProbe.text) { $lastAnyProbe.text.Length } else { 0 })
+                message    = $lastAnyProbe.message
+              }
+            } else { $null })
+            probe_outcomes = @($probeTrail)
           }
           $record | ConvertTo-Json -Depth 4 | Set-Content verdict.log
 
@@ -458,6 +595,12 @@ jobs:
             Write-Host "did not render. A list showing only about:blank means the application's own"
             Write-Host "page never loaded, which on Windows can simply be the --onefile sidecar still"
             Write-Host "unpacking: it re-extracts on every launch and takes 90 to 200 seconds."
+            Write-Host "Every probe outcome is printed above with the second it happened, and the"
+            Write-Host "same sequence is in verdict.log under probe_outcomes. A line reading"
+            Write-Host 'nothing usable says the page could not be evaluated, and why. A line'
+            Write-Host "carrying a stage says it was evaluated, and what it answered."
+            Write-Host "── the last probe of any kind ──"
+            Write-Host ($record.last_probe_of_any_kind | ConvertTo-Json -Depth 3)
             Write-Host "── processes ──"
             Get-Process jura-trace, msedgewebview2 -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, StartTime | Format-Table -AutoSize | Out-String | Write-Host
             exit 1
