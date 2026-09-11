@@ -309,7 +309,18 @@ jobs:
           # install is genuinely attempted rather than merely offered.
           $probeJs = @(
             '(function () {',
-            '  var EXPECTED = "' + $env:EXPECTED + '";',
+            # The brackets are load-bearing and this line is why run
+            # 34578756154 observed nothing at all.
+            #
+            # In a comma separated PowerShell array literal the comma binds
+            # tighter than the plus, so without the brackets this is not one
+            # element built by joining three strings. It is the array so far,
+            # plus a scalar, plus the rest of the array, and plus on an array
+            # appends. The element became three elements, `-join "`n"` then put
+            # newlines between them, and a JavaScript string literal cannot
+            # contain a raw newline. The whole expression was a SyntaxError
+            # that never ran.
+            ('  var EXPECTED = "' + $env:EXPECTED + '";'),
             '  try {',
             '    var text = (document.body ? document.body.textContent : "").replace(/\s+/g, " ").trim();',
             '    if (location.protocol === "about:" || location.href.indexOf("tauri.localhost") === -1) {',
@@ -350,6 +361,21 @@ jobs:
           Write-Host "── the probe expression, $($probeJs.Length) characters ──"
           Write-Host $probeJs
           Write-Host "── end of the probe expression ──"
+
+          # And prove it is the expression it was meant to be. The fault fixed
+          # above survived four runs because a mangled expression and a page
+          # that has not finished rendering look identical from outside the
+          # browser. This assertion costs nothing, fails in the right place,
+          # and names the one line that interpolates a PowerShell value, which
+          # is the only line where a build fault of that kind can arise.
+          $mustContain = 'var EXPECTED = "' + $env:EXPECTED + '";'
+          if ($probeJs -notmatch [regex]::Escape($mustContain)) {
+            Write-Host "::error::The probe expression was mangled while it was being built, so it would not have parsed in the page."
+            Write-Host "This is a failure of the TEST, and it is caught here rather than ten minutes"
+            Write-Host "later as a silent run. Expected to find this line: $mustContain"
+            exit 1
+          }
+          Write-Host "OK: the probe expression carries the interpolated line intact."
 
           # ── install and launch, exactly as a user would ──────────────────
           $msi = (Get-ChildItem prev/*Windows-x64.msi | Select-Object -First 1).FullName
@@ -428,6 +454,7 @@ jobs:
           $lastProbeLine = ""
           $lastAnyProbe = $null
           $warnedNoSocket = $false
+          $pageThrew = $null       # the expression threw inside the page
 
           while ((Get-Date) -lt $deadline) {
             Start-Sleep -Seconds 3
@@ -486,6 +513,7 @@ jobs:
                 # failed to parse. This is the branch that used to vanish.
                 $ex = $call.Reply.result.exceptionDetails
                 $why = "the page threw. $($ex.text) $($ex.exception.description)"
+                $pageThrew = $why
               } elseif (-not $call.Reply.result -or -not $call.Reply.result.result) {
                 $why = "the reply carried no result. $($call.Frame)"
               } elseif ($null -eq $call.Reply.result.result.value) {
@@ -585,6 +613,15 @@ jobs:
             Write-Host "The policy is set for both jura-trace.exe and *, and run 34575459450 showed"
             Write-Host "that the per-executable value alone is not honoured for this host."
             Get-NetTCPConnection -LocalPort 9222 -ErrorAction SilentlyContinue | Format-Table -AutoSize | Out-String | Write-Host
+            exit 1
+          }
+          if (-not $domRead -and $pageThrew) {
+            Write-Host "::error::The probe expression threw inside the application's page, so the app was never questioned."
+            Write-Host "This is a failure of the TEST, and of the expression rather than of the"
+            Write-Host "connection: the page was reachable and it answered. A SyntaxError here means"
+            Write-Host "the expression was mangled while it was being built, which is what run"
+            Write-Host "34578756154 did for ten minutes without saying so."
+            Write-Host "What the page said: $pageThrew"
             exit 1
           }
           if (-not $domRead) {
