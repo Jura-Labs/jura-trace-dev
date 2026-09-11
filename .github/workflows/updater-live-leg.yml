@@ -26,6 +26,13 @@ name: Updater live leg (Windows)
 # key compiled into v1.0.0, and decides that the published version is newer.
 # Every one of those is a thing staging deliberately substitutes.
 #
+# What it asserts is the app's own version, before and after. The sentence
+# "Version X is available" appears only while the download is in flight, and
+# run 34570877379 pressed the button, updated itself, and failed anyway
+# because the sentence had gone by the next probe. A version that changed
+# from 1.0.0 to 1.1.0 is durable evidence and proves the install, not the
+# offer.
+#
 # It presses the button rather than waiting, because v1.0.0 has NO startup
 # update check. That arrived in v1.1.0 as T1.2, and `git show
 # v1.0.0:ui/src/lib/updater.ts` contains no reference to it. The first attempt
@@ -262,6 +269,7 @@ jobs:
           # install is genuinely attempted rather than merely offered.
           $probeJs = @(
             '(function () {',
+            '  var EXPECTED = "' + $env:EXPECTED + '";',
             '  try {',
             '    var text = (document.body ? document.body.textContent : "").replace(/\s+/g, " ").trim();',
             '    if (location.pathname.indexOf("settings") === -1) {',
@@ -273,12 +281,15 @@ jobs:
             '    for (var i = 0; i < btns.length; i++) {',
             '      if (/Check for Updates/i.test(btns[i].textContent || "")) { b = btns[i]; break; }',
             '    }',
-            '    if (b && !window.__juraClicked) {',
+            '    var vm = text.match(/About\s+Version\s+([0-9][0-9A-Za-z.\-+]*)/);',
+            '    var appVersion = vm ? vm[1] : null;',
+            '    var already = appVersion === EXPECTED;',
+            '    if (b && !window.__juraClicked && !already) {',
             '      window.__juraClicked = true;',
             '      b.click();',
-            '      return JSON.stringify({ stage: "clicked", url: location.href, ready: document.readyState, text: text.slice(0, 60000) });',
+            '      return JSON.stringify({ stage: "clicked", appVersion: appVersion, url: location.href, ready: document.readyState, text: text.slice(0, 60000) });',
             '    }',
-            '    return JSON.stringify({ stage: (window.__juraClicked ? "watching" : "waiting-for-button"), hasButton: !!b, url: location.href, ready: document.readyState, text: text.slice(0, 60000) });',
+            '    return JSON.stringify({ stage: (already ? "updated" : (window.__juraClicked ? "watching" : "waiting-for-button")), appVersion: appVersion, hasButton: !!b, url: location.href, ready: document.readyState, text: text.slice(0, 60000) });',
             '  } catch (e) {',
             '    return JSON.stringify({ stage: "error", message: String(e) });',
             '  }',
@@ -309,7 +320,9 @@ jobs:
           $cdpUp = $false          # the debugging port answered
           $domRead = $false        # a page returned a non-empty document
           $clicked = $false        # the Check for Updates button was pressed
-          $verdict = $null         # the sentence naming the expected version
+          $verdict = $null         # the transient sentence, if it was caught
+          $versionBefore = $null   # what the app called itself before the press
+          $versionAfter = $null    # what it calls itself now
           $lastProbe = $null
           $phrase = "Version $env:EXPECTED is available"
           $pattern = "Version " + [regex]::Escape($env:EXPECTED) + " is available"
@@ -326,6 +339,16 @@ jobs:
               $raw = $reply.result.result.value
               if (-not $raw) { continue }
               $probe = $raw | ConvertFrom-Json
+              if ($probe.appVersion) {
+                if (-not $clicked -and -not $versionBefore) {
+                  $versionBefore = $probe.appVersion
+                  Write-Host "  the installed app calls itself $versionBefore"
+                }
+                if ($versionAfter -ne $probe.appVersion) {
+                  $versionAfter = $probe.appVersion
+                  Write-Host "  app version now: $versionAfter"
+                }
+              }
               if ($probe.stage -eq "clicked") {
                 $clicked = $true
                 Write-Host "  pressed Check for Updates on $($probe.url)"
@@ -336,7 +359,7 @@ jobs:
                 if ($probe.text -match $pattern) { $verdict = $Matches[0] }
               }
             }
-            if ($verdict) { break }
+            if ($versionAfter -eq $env:EXPECTED) { break }
           }
 
           $record = [ordered]@{
@@ -344,7 +367,9 @@ jobs:
             debug_port_answered = $cdpUp
             dom_read = $domRead
             button_pressed = $clicked
-            verdict = $verdict
+            version_before = $versionBefore
+            version_after = $versionAfter
+            transient_sentence = $verdict
             page_url = $(if ($lastProbe) { $lastProbe.url } else { $null })
             document_ready = $(if ($lastProbe) { $lastProbe.ready } else { $null })
             last_stage = $(if ($lastProbe) { $lastProbe.stage } else { $null })
@@ -376,21 +401,41 @@ jobs:
             exit 1
           }
           Write-Host "OK: Check for Updates was pressed on the installed $env:PREV."
-          if (-not $verdict) {
-            Write-Host "::error::A pristine $env:PREV install was asked, and did not offer the published update."
-            Write-Host "The app's own interface was read and does not contain `"$phrase`"."
+
+          # The assertion is the app's own version, not the sentence.
+          #
+          # The first version of this waited for "Version 1.1.0 is available",
+          # which v1.0.0 shows only while the download is in flight. Run
+          # 34570877379 pressed the button, updated itself, and failed, because
+          # by the time the probe next looked the sentence had gone and the app
+          # was correctly saying it was up to date. The durable evidence was
+          # sitting in the same capture: the About section had changed from
+          # 1.0.0 to 1.1.0. The transient sentence is still recorded when it is
+          # caught, but nothing depends on catching it.
+          if ($versionBefore -and $versionBefore -eq $env:EXPECTED) {
+            Write-Host "::error::The installed $env:PREV already called itself $env:EXPECTED before anything was pressed."
+            Write-Host "This is a failure of the TEST: the wrong installer was fetched, so an update"
+            Write-Host "from it would prove nothing."
+            exit 1
+          }
+          if ($versionAfter -ne $env:EXPECTED) {
+            Write-Host "::error::A pristine $env:PREV install was asked, and did not end up on $env:EXPECTED."
+            Write-Host "It called itself $versionBefore before the press and $versionAfter after it."
             Write-Host "The button was pressed, so this is the client's answer rather than a gap in"
             Write-Host "the test. On the live service it means one of: the manifest did not reach it,"
             Write-Host "the signature did not verify against the key compiled into the shipped binary,"
-            Write-Host "or the version comparison refused the published version."
+            Write-Host "the version comparison refused the published version, or the install failed."
+            if ($verdict) { Write-Host "The app did say: `"$verdict`", so it was offered and did not arrive." }
             Write-Host "── what the app was showing ──"
             Write-Host $record.document_text_excerpt
             exit 1
           }
 
-          Write-Host "OK: a pristine published install, talking to the live service over public DNS"
-          Write-Host "    and the real certificate chain, offered the update: `"$verdict`""
-          "$verdict" | Set-Content observed-verdict.txt
+          Write-Host "OK: a pristine $env:PREV install, talking to the live service over public DNS"
+          Write-Host "    and the real certificate chain, fetched and installed $env:EXPECTED."
+          Write-Host "    It called itself $versionBefore before the press and $versionAfter after it."
+          if ($verdict) { Write-Host "    The sentence caught in flight: `"$verdict`"" }
+          "$versionBefore -> $versionAfter" | Set-Content observed-verdict.txt
 
       - name: Stop the app
         if: always()
