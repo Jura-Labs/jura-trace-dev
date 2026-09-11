@@ -272,6 +272,9 @@ jobs:
             '  var EXPECTED = "' + $env:EXPECTED + '";',
             '  try {',
             '    var text = (document.body ? document.body.textContent : "").replace(/\s+/g, " ").trim();',
+            '    if (location.protocol === "about:" || location.href.indexOf("tauri.localhost") === -1) {',
+            '      return JSON.stringify({ stage: "not-the-app", url: location.href, ready: document.readyState });',
+            '    }',
             '    if (location.pathname.indexOf("settings") === -1) {',
             '      location.href = "/settings";',
             '      return JSON.stringify({ stage: "navigating", url: location.href, ready: document.readyState, text: text.slice(0, 4000) });',
@@ -352,7 +355,16 @@ jobs:
                 Write-Host "    type=$($t.type) url=$($t.url)"
               }
             }
-            foreach ($t in @($targets | Where-Object { $_.type -eq "page" -and $_.webSocketDebuggerUrl })) {
+            # Only the application's own page. A WebView2 host opens with an
+            # about:blank target before the app's page exists, and run
+            # 34572744501 spent ten minutes talking to exactly that: one page
+            # target, url about:blank, for the whole window. Worse, the probe
+            # then set location.href on it, which is the test racing the app's
+            # own startup and interfering with it. The run that worked earlier
+            # only worked because it arrived after the page had loaded.
+            $appPages = @($targets | Where-Object { $_.type -eq "page" -and $_.webSocketDebuggerUrl -and $_.url -like "*tauri.localhost*" })
+            if ($appPages.Count -eq 0) { continue }
+            foreach ($t in $appPages) {
               $reply = Invoke-CdpEvaluate -WsUrl $t.webSocketDebuggerUrl -Expression $probeJs
               if (-not $reply -or -not $reply.result -or -not $reply.result.result) { continue }
               $raw = $reply.result.result.value
@@ -410,7 +422,9 @@ jobs:
             Write-Host "This is a failure of the TEST, not evidence about the client. The target list"
             Write-Host "printed above says whether a page was ever offered at all: no page target means"
             Write-Host "the window never opened, while a page that returned nothing means it opened and"
-            Write-Host "did not render."
+            Write-Host "did not render. A list showing only about:blank means the application's own"
+            Write-Host "page never loaded, which on Windows can simply be the --onefile sidecar still"
+            Write-Host "unpacking: it re-extracts on every launch and takes 90 to 200 seconds."
             Write-Host "── processes ──"
             Get-Process jura-trace, msedgewebview2 -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, StartTime | Format-Table -AutoSize | Out-String | Write-Host
             exit 1
