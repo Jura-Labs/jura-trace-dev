@@ -80,7 +80,7 @@ jobs:
   windows:
     name: Windows, live, from ${{ github.event.inputs.previous_tag }}
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -326,13 +326,32 @@ jobs:
           $lastProbe = $null
           $phrase = "Version $env:EXPECTED is available"
           $pattern = "Version " + [regex]::Escape($env:EXPECTED) + " is available"
-          $deadline = (Get-Date).AddSeconds(240)
+          # 240 seconds was too tight. In run 34570877379 the observation that
+          # mattered landed at 224 seconds, and in 34571740653 nothing was
+          # observed at all: the debugging port answered but no page target
+          # ever appeared, so not a single probe ran. On a cold runner the app
+          # has to start, unpack a 500 MB sidecar and render, and then the
+          # download it is asked for has to finish. Ten minutes, and the loop
+          # still breaks the moment the version moves.
+          $deadline = (Get-Date).AddSeconds(600)
+          $targetsLogged = $false
 
           while ((Get-Date) -lt $deadline) {
             Start-Sleep -Seconds 3
             $targets = Get-CdpTargets
             if (-not $targets) { continue }
             $cdpUp = $true
+            # Say what the port actually offered the first time round. Without
+            # this, "the port answered but no page returned a document" is a
+            # dead end: it cannot be told apart from a page that returned an
+            # empty one, and run 34571740653 ended there with nothing to read.
+            if (-not $targetsLogged) {
+              $targetsLogged = $true
+              Write-Host "  debugging port offered $(@($targets).Count) target(s):"
+              foreach ($t in @($targets)) {
+                Write-Host "    type=$($t.type) url=$($t.url)"
+              }
+            }
             foreach ($t in @($targets | Where-Object { $_.type -eq "page" -and $_.webSocketDebuggerUrl })) {
               $reply = Invoke-CdpEvaluate -WsUrl $t.webSocketDebuggerUrl -Expression $probeJs
               if (-not $reply -or -not $reply.result -or -not $reply.result.result) { continue }
@@ -388,7 +407,12 @@ jobs:
           }
           if (-not $domRead) {
             Write-Host "::error::The debugging port answered but no page returned a document, so nothing was observed."
-            Write-Host "This is a failure of the TEST, not evidence about the client."
+            Write-Host "This is a failure of the TEST, not evidence about the client. The target list"
+            Write-Host "printed above says whether a page was ever offered at all: no page target means"
+            Write-Host "the window never opened, while a page that returned nothing means it opened and"
+            Write-Host "did not render."
+            Write-Host "── processes ──"
+            Get-Process jura-trace, msedgewebview2 -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, StartTime | Format-Table -AutoSize | Out-String | Write-Host
             exit 1
           }
           if (-not $clicked) {
