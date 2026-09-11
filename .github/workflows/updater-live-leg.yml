@@ -109,18 +109,68 @@ jobs:
           }
           if (-not $fail) { Write-Host "OK: every address is public." }
 
-          # 3. Record the machine root store, so a certificate planted by an
-          #    earlier step in some future edit of this file is visible rather
-          #    than silently making the TLS check meaningless.
+          # 3. No root certificate of OURS is installed.
+          #
+          #    The first version of this matched "jura|throwaway|test" and
+          #    failed on the very first run, because the windows-latest image
+          #    ships four vendor testing roots of its own: Microsoft Testing
+          #    Root Certificate Authority 2010, Microsoft Test Root Authority,
+          #    Microsoft ECC Testing Root 2017, and UniTrust Global TLS MLDSA
+          #    Root R1 TEST. None of them can impersonate juralabs.org and the
+          #    word "test" in a vendor root is not evidence of anything. The
+          #    pattern is now "jura", which is the only thing the staging leg
+          #    installs and the only thing specific to us.
           $roots = (Get-ChildItem Cert:\LocalMachine\Root).Count
           Write-Host "machine root certificates present: $roots"
-          $suspect = Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -match "jura|throwaway|test" }
+          $suspect = Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -match "jura" }
           if ($suspect) {
-            Write-Host "::error::A root certificate mentioning jura, throwaway or test is installed:"
+            Write-Host "::error::A root certificate mentioning jura is installed on this machine:"
             $suspect | Format-Table Subject, Thumbprint -AutoSize | Out-String | Write-Host
             $fail = $true
           } else {
-            Write-Host "OK: no jura, throwaway or test root certificate on this machine."
+            Write-Host "OK: no jura root certificate on this machine."
+          }
+
+          # 4. The positive assertion, and the one that actually matters.
+          #
+          #    Enumerating what is installed is weak evidence twice over: it
+          #    is fragile against vendor images, as branch 3 learned, and it
+          #    says nothing about the chain the app will really be offered.
+          #    So fetch the manifest exactly as the app will, and look at the
+          #    certificate the server presented and the document it returned.
+          #    If this runner were being lied to, this is where it would show.
+          $req = [System.Net.HttpWebRequest]::Create("https://juralabs.org/api/updates/latest.json")
+          $req.UserAgent = "jura-trace-live-leg-precheck"
+          $resp = $req.GetResponse()
+          $reader = New-Object System.IO.StreamReader($resp.GetResponseStream())
+          $body = $reader.ReadToEnd()
+          $reader.Close(); $resp.Close()
+          $cert = $req.ServicePoint.Certificate
+          Write-Host "server certificate subject: $($cert.Subject)"
+          Write-Host "server certificate issuer : $($cert.Issuer)"
+          if ($cert.Issuer -match "jura|throwaway") {
+            Write-Host "::error::The certificate presented for juralabs.org was issued by us."
+            $fail = $true
+          } else {
+            Write-Host "OK: the certificate was issued by a public authority, not by this test."
+          }
+          $m = $body | ConvertFrom-Json
+          $platforms = @($m.platforms.PSObject.Properties.Name | Sort-Object)
+          Write-Host "live manifest version   : $($m.version)"
+          Write-Host "live manifest platforms : $($platforms -join ', ')"
+          if ($platforms -notcontains "windows-x86_64") {
+            Write-Host "::error::The live manifest has no windows-x86_64 entry, so there is nothing for this client to be offered."
+            $fail = $true
+          } else {
+            Write-Host "OK: the live manifest carries a windows-x86_64 entry."
+          }
+          $winSig = $m.platforms."windows-x86_64".signature
+          if ($winSig -notmatch "^dW50cnVzdGVk") {
+            Write-Host "::error::The windows-x86_64 signature field does not contain a minisign signature. First 40 characters: $($winSig.Substring(0, [Math]::Min(40, $winSig.Length)))"
+            Write-Host "That is BL-REL-002, and it would mean this release cannot be installed by anyone."
+            $fail = $true
+          } else {
+            Write-Host "OK: the windows-x86_64 signature is a minisign signature, not a URL."
           }
 
           if ($fail) {
