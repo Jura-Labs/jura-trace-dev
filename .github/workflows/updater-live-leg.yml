@@ -46,8 +46,65 @@ name: Updater live leg (Windows)
 #
 # Pressing the button in v1.0.0 begins the download and install at once, so
 # this run also attempts the install rather than only being offered it. The
-# assertion is still the verdict sentence, because that is what appears
-# immediately and stays for the minutes the transfer takes.
+# app then relaunches on the new version, and the probe reads the About
+# section again on the relaunched app, so what is asserted is an install and
+# not an offer.
+#
+# ── What this has already looked like when it worked ───────────────────────
+#
+# Run 34581569486, the first green one. The whole observation took under two
+# minutes and the log reads:
+#
+#     probe at 9s   stage=navigating        url=http://tauri.localhost/
+#     probe at 13s  stage=waiting-for-button url=.../settings ready=loading
+#     probe at 16s  stage=clicked            version=1.0.0
+#     probe at 110s stage=not-the-app        url=about:blank
+#     probe at 119s stage=updated            version=1.1.0
+#
+# The about:blank at 110s is the app restarting itself on the new version,
+# which is the install landing rather than anything going wrong.
+#
+# One thing to know before reading a target list. The url that /json/list
+# reports for a target can lag the page's own location, and in that run it
+# said http://tauri.localhost/ while the page itself was still about:blank.
+# The target url is therefore a filter and not an authority. The probe checks
+# location.href from inside the page, which is why the stage it returns can
+# disagree with the line printed above it.
+#
+# ── What has been ruled out, with the run that ruled it out ────────────────
+#
+# Every one of these cost a run of twelve to fifteen minutes. They are listed
+# so the next reader does not spend that again. The detail is in the comment
+# next to the code each one changed.
+#
+#   34570877379  Asserting on the sentence "Version 1.1.0 is available". It
+#                exists only while the download is in flight. The assertion is
+#                now the app's own reported version, before and after, which
+#                is durable. The same run also showed four minutes was too
+#                tight: what mattered landed at 224 seconds of 240. The window
+#                is now ten minutes.
+#   34572744501  Acting on the first page target offered, which is the browser
+#                host's about:blank, and setting location.href on it, which
+#                races the app's own startup. Confirmed again in 34574122914.
+#                The loop now considers only targets served from
+#                tauri.localhost.
+#   34575459450  Setting the WebView2 policy for jura-trace.exe alone and
+#                dropping the "*" value. The port then never answered at all.
+#                The wildcard is load-bearing. Do not remove it again.
+#   34578756154  Another WebView2 host holding the port. The run printed
+#                "no WebView2 host was already running", so it was not that.
+#   34578756154  And what it actually was. The probe expression had been a
+#                JavaScript SyntaxError since 826a4cb1, so it never ran and
+#                nothing was ever read, through four runs. A PowerShell array
+#                literal binds the comma tighter than the plus, so the one
+#                line built by concatenation became three elements and the
+#                join put newlines inside a JavaScript string literal. See the
+#                brackets at the EXPECTED line and the assertion immediately
+#                after the expression is built. It stayed invisible for as
+#                long as it did because Invoke-CdpEvaluate answered four
+#                different failures with the same silent $null, so a page that
+#                threw was recorded exactly like a page that was never
+#                reachable. Both halves of that are fixed.
 #
 # ── The claim that it is live is asserted, not assumed ─────────────────────
 #
