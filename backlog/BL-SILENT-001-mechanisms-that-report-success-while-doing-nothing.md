@@ -194,6 +194,48 @@ under zsh and produced an "invalid integral value" error, and a `for` loop
 over test variants counted "0 failures" because its `cd` had failed and
 nothing ran. Both looked like results. Neither was.
 
+## One more, 11 September 2026, and it is Cause D with the sign flipped
+
+The Windows updater live leg, `updater-live-leg.yml`, spent four runs
+observing nothing and saying nothing about why. The port answered, the MSI
+installed, the application's own page was listed on the debugging port three
+seconds after launch and stayed listed for the full ten minutes, and the
+verdict it wrote was a column of nulls: `dom_read` false, `button_pressed`
+false, `last_stage` null, `page_url` null.
+
+The defect underneath was a PowerShell parsing fault. The probe's JavaScript
+is built as a comma separated array of single quoted lines, and one line
+interpolates a value with `'text' + $env:EXPECTED + 'text'`. In an array
+literal the comma binds tighter than the plus, so that is the array so far,
+plus a scalar, plus the rest of the array, and plus on an array appends. One
+element became three, the join put newlines between them, and a JavaScript
+string literal cannot contain a raw newline. Every evaluation since had come
+back `Uncaught SyntaxError`. It belongs with Cause D's zsh note: a construct
+that is correct in one language's array semantics is silently wrong in
+another's, and it fails in the direction of looking like something else.
+
+What made it cost four runs rather than one is the part that belongs in this
+file. The helper that talks to the browser returned a bare `$null` for four
+completely different outcomes: could not connect, sent and heard nothing
+back, read forty frames and none was the reply, and the page threw while
+being evaluated. The caller skipped past all four without a word. **A page
+that was evaluated and came back empty was recorded identically to a page
+that could never be evaluated at all.** That is the mirror of Cause D. Cause
+D is the absence of an error string read as success; this is the absence of a
+result read as an absence of content.
+
+Two things fixed it and both are worth copying. The helper now always returns
+a record saying how far it got, and the caller prints one line per distinct
+outcome with the second it happened, so a run that fails while saying what it
+saw is worth more than three that fail silently. And the expression is
+asserted to be well formed before the application is even installed, which is
+a prove-it-ran assertion in the sense of section 3 below, applied to an input
+rather than to an output.
+
+Fixed in PRs #81 and #82. Run 34581569486 is the first green one and observed
+a pristine v1.0.0 fetch and install v1.1.0 from the live service in 119
+seconds.
+
 ## The plan
 
 Ordered by defects prevented per unit of cost. Items 1 to 4 belong in the
