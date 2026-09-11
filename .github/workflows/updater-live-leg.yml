@@ -314,8 +314,22 @@ jobs:
           $browserArgs = "--remote-debugging-port=9222 --remote-allow-origins=*"
           $policyKey = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments"
           New-Item -Path $policyKey -Force | Out-Null
+          # Only jura-trace.exe, never "*".
+          #
+          # The "*" entry hands the same --remote-debugging-port=9222 to EVERY
+          # WebView2 host on the machine, and a Windows runner has several. A
+          # port can have one owner, so whichever host starts first takes it
+          # and serves its own blank page, while the application's WebView2
+          # finds the port occupied and appears nowhere in the target list.
+          #
+          # That is a race, and the observed behaviour matches it exactly: run
+          # 34570877379 saw http://tauri.localhost/settings and drove it to a
+          # successful update, while 34572744501 and 34574122914 saw one
+          # target, about:blank, for ten minutes each with the app's own
+          # processes alive throughout. A test that depends on winning a race
+          # is not a test.
           New-ItemProperty -Path $policyKey -Name "jura-trace.exe" -Value $browserArgs -PropertyType String -Force | Out-Null
-          New-ItemProperty -Path $policyKey -Name "*" -Value $browserArgs -PropertyType String -Force | Out-Null
+          Remove-ItemProperty -Path $policyKey -Name "*" -ErrorAction SilentlyContinue
           $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $browserArgs
           Start-Process -FilePath $exe
 
@@ -337,7 +351,7 @@ jobs:
           # download it is asked for has to finish. Ten minutes, and the loop
           # still breaks the moment the version moves.
           $deadline = (Get-Date).AddSeconds(600)
-          $targetsLogged = $false
+          $targetsLogged = ""
 
           while ((Get-Date) -lt $deadline) {
             Start-Sleep -Seconds 3
@@ -348,9 +362,14 @@ jobs:
             # this, "the port answered but no page returned a document" is a
             # dead end: it cannot be told apart from a page that returned an
             # empty one, and run 34571740653 ended there with nothing to read.
-            if (-not $targetsLogged) {
-              $targetsLogged = $true
-              Write-Host "  debugging port offered $(@($targets).Count) target(s):"
+            # Log the target list whenever it changes, not only the first
+            # time. Logging it once said "about:blank" four seconds after
+            # launch and then went quiet for ten minutes, which cannot be told
+            # apart from a list that never changed.
+            $sig = (@($targets) | ForEach-Object { "$($_.type)|$($_.url)" }) -join ";"
+            if ($sig -ne $targetsLogged) {
+              $targetsLogged = $sig
+              Write-Host "  debugging port offers $(@($targets).Count) target(s):"
               foreach ($t in @($targets)) {
                 Write-Host "    type=$($t.type) url=$($t.url)"
               }
