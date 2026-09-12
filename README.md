@@ -16,23 +16,46 @@ v1.0.0 (public release, June 2026)
 ## What It Does
 
 **PROTECT** — Safeguard digital assets
-- Auto-catalogue: AI-generated descriptions, tags, and metadata for bulk archives
 - C2PA signing: Embed provenance manifests proving origin and rights
 - Fingerprinting: Perceptual hashes that survive crop, resize, and recompression
+- Auto-catalogue *(optional, off by default)*: descriptions and tags for bulk
+  archives, written by a local multimodal model. Cataloguing only. It plays no
+  part in verification
 - Watermarking *(planned)*: invisible watermarks for scrape detection
 
 **VERIFY** — Check content authenticity
 - Image forensics: Error Level Analysis, noise patterns, metadata anomalies
-- Deepfake detection: Local AI model scoring for synthetic media
+- Deepfake detection: local classifier scoring (a gradient-boosted model
+  ensembled with UnivFD, plus CLIP zero-shot), not a language model
 - Claim checking *(planned)*: source-grounded credibility assessment
 - Provenance reading: Verify C2PA provenance manifests on any file
 
+**No language model is in the verdict pipeline.** Every verdict comes from the
+forensic detectors and thresholds set by a human. The optional auto-catalogue
+model writes a description field for the archive and is never an input to a
+detector, a score, or a verdict. See "On the use of Generative AI in this
+codebase" below.
+
 ## Prerequisites
 
+To run Jura Trace:
+
 - macOS 12+, Windows 10+, or Linux (Ubuntu 22.04+)
-- [Ollama](https://ollama.com/) with `llava:7b` model (for auto-catalogue)
-- [Rust](https://rustup.rs/) 1.88+ (for development)
-- [Node.js](https://nodejs.org/) 20+ (for development)
+
+Nothing else. Verification and signing work offline, with no model to download
+and no service to start.
+
+To develop it:
+
+- [Rust](https://rustup.rs/) 1.88+
+- [Node.js](https://nodejs.org/) 20+
+
+Optional, and neither required nor bundled:
+
+- [Ollama](https://ollama.com/) with the `llava:7b` model. This serves the
+  auto-catalogue descriptions and nothing else. It stays off until you enable
+  it in Settings, the application is fully functional without it, and it has no
+  role in verification or in any verdict.
 
 ## Quick Start (Development)
 
