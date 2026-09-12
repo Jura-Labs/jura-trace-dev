@@ -7,6 +7,9 @@ In a world of synthetic media, verification matters. Jura Trace helps cultural i
 All processing happens locally on your machine. No data is uploaded to external servers.
 
 ## Status
+V1.1.0 (public release September 2026)
+- Linux AppImage
+- Security updates
 
 v1.0.0 (public release, June 2026)
 
