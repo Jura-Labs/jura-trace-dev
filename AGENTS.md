@@ -316,7 +316,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 
 ## Design Principles
 
-1. **Local-first**: All processing on-device. No cloud calls. No telemetry.
+1. **Local-first**: All analysis of user content on-device. No telemetry. Five outbound calls exist and none carries a user's file: the update check and the weather lookup (both Enhanced mode only), a URL the user pastes, the Swagger UI assets on the local API docs page, and the RFC3161 timestamp on signing, which sends a hash derived from the file and is NOT gated by network mode. Never write "no cloud calls" or "nothing leaves the device"; see BL-CLAIM-001.
 2. **Rust for core**: C2PA, hashing, EXIF analysis, file I/O in Rust for performance.
 3. **Python for ML**: Image forensics, deepfake detection, RAG in Python sidecar.
 4. **Graceful degradation**: Sidecar offline = forensics skipped, app still works.

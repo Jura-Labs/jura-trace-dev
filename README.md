@@ -2,9 +2,29 @@
 
 **Know What's Real.**
 
-In a world of synthetic media, verification matters. Jura Trace helps cultural institutions protect their digital assets from unauthorised AI extraction and helps communities verify the authenticity of media they encounter.
+In a world of synthetic media, evidence matters. Jura Trace helps cultural institutions protect their digital assets from unauthorised AI extraction, and helps communities weigh up the media they encounter.
 
-All processing happens locally on your machine. No data is uploaded to external servers.
+Your files are analysed on your own machine. Nothing you open, sign or check
+is uploaded anywhere.
+
+Jura Trace does make a small number of network calls. Each one is either
+something you asked for or something you can turn off:
+
+- **Update check.** When you press Check for Updates, and once a day at
+  startup. Enhanced network mode only.
+- **Timestamp when you sign.** Signing sends a hash derived from your file to
+  `timestamp.digicert.com` so the signature carries a trusted time. The file
+  itself does not leave your machine, and the app shows you this before it
+  seals anything.
+- **A URL you paste.** Verify by URL fetches the address you gave it.
+- **Weather lookup.** One detector cross-references historical weather for a
+  stated time and place. Enhanced network mode only.
+- **API documentation.** Opening the local REST API's docs page loads Swagger
+  UI from `unpkg.com`.
+
+Standard network mode, in Settings, turns off the update check and the weather
+lookup. The timestamp request made when you sign is not covered by that switch
+today.
 
 ## Status
 V1.1.0 (public release September 2026)
@@ -16,7 +36,7 @@ v1.0.0 (public release, June 2026)
 ## What It Does
 
 **PROTECT** — Safeguard digital assets
-- C2PA signing: Embed provenance manifests proving origin and rights
+- C2PA signing: Embed tamper-evident provenance manifests recording origin and rights
 - Fingerprinting: Perceptual hashes that survive crop, resize, and recompression
 - Auto-catalogue *(optional, off by default)*: descriptions and tags for bulk
   archives, written by a local multimodal model. Cataloguing only. It plays no
