@@ -89,3 +89,54 @@ against GitHub before anyone acts on it.
 Do not ship a CLI that requires the desktop application to be open, and
 describe it as automation-ready. The audience for a CLI is precisely the
 audience that will find that out immediately.
+
+## Update, 11 September 2026: two corrections and one non-defect, from the v1.2.0 design
+
+`docs/design/v1.2.0-headless-api-and-cli.md` was written on 10 and 11
+September and answers most of this item. Three things from it belong here
+rather than in a new file, because all three are about the same document
+this item exists to correct, `docs/API_WRAPPER.md`, or about the contract
+the CLI inherits.
+
+**The exit-code contract is published twice and disagrees with itself.**
+`docs/API_WRAPPER.md:683-696` and `:1027-1040` both define it, and two rows
+differ:
+
+| Code | First table, `:694` | Second table, `:1038` |
+|---|---|---|
+| 5 | "Server rejected the input as an unsupported format (**HTTP 422**)" | "Server returned **400 Bad Request** ... unsupported MIME type" |
+| 6 | "Server-side error (HTTP 5xx) **or partial-availability degraded response**" | "Server returned 5xx ... sidecar crash, internal panic, database error" |
+
+Both tables claim stability. The first says "stable across all v1.x
+releases" and "existing codes are never re-purposed"; the second says
+"stable from v1.0.1" and that existing assignments do not change. A
+contract that is published twice, differently, and described as immutable
+in both places, is worse than no contract, because a script author has no
+way to know which half they read. `docs/design/v1.2.0-headless-api-and-cli.md`
+section 7.3 already decides which is right for v1.2.0; what remains is to
+delete the duplicate rather than leave both in the file, and to do it in
+the same commit as step 3 of this item.
+
+**The trust band exists only in the frontend.** `ui/src/lib/types.ts:1195-1200`
+is `getTrustLevel`, three thresholds at 0.7 and 0.4, and
+`ui/src/lib/components/VerdictSummary.svelte:20-27` adjusts it for an
+inconclusive deepfake verdict. `grep -rn "trust_band\|trustBand" src-tauri/src/ sidecar/`
+returns nothing. So the band a score falls into is computed nowhere except
+in one Svelte component, and the PDF path, the database, the REST API and
+anything built on the API must each re-derive it. That is not a defect in
+the shipped product, which has exactly one consumer. It becomes one the
+moment a second consumer exists, which is what this item is for. Decide
+where the band lives before the CLI prints one.
+
+**And one thing that is recorded as a defect and is not.** Section 12 item
+9 of the design document says there is no `busy_timeout` on the SQLite
+connection. There is. `src-tauri/src/db.rs:31` opens through
+`rusqlite::Connection::open`, and rusqlite 0.31.0 calls
+`sqlite3_busy_timeout(db, 5000)` on every open, at
+`inner_connection.rs:121` in the vendored source. Nothing in this
+repository sets or clears one, and all four open sites under
+`src-tauri/src/` use that constructor, so five seconds is in force
+everywhere. Whether five seconds is the right number once a headless binary
+shares the file is a real question for the design and a different one from
+the defect as written. Recorded here rather than edited into the design
+document, per the constraint on the deliverable that found it.

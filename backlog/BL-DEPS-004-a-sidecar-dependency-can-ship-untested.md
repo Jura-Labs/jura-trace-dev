@@ -337,3 +337,34 @@ than added to `ignore`, so their security updates stay live
 - **The tests still assert bounds.** The conditional assertions at
   `sidecar/tests/test_deepfake.py:243-254` and `:266-272` are as described;
   the golden-value work stays out of this item by its own rule.
+
+## Update, 11 September 2026: the macOS channel now has a measured consequence
+
+"A third channel, pinned by nothing" above, and "The macOS channel" in the
+update of 8 September, both say that `scripts/build-local-mac.sh` freezes
+the sidecar against the developer's ambient Python and that nothing proves
+the macOS build used any of the three manifests. Both are still true, at
+`scripts/build-local-mac.sh:190`, which is the same line renumbered.
+
+What is new is that the consequence has been measured in a shipped
+artefact. `sidecar/jura-sidecar.spec:112-119` runs `collect_all` over
+`chromadb` and `sentence_transformers` inside a `try/except`, so the
+contents of the bundle depend on what the build machine happens to have
+installed. It has them, from a miniconda base, and the chain through
+`datasets` pulled `pyarrow` and its Arrow dylibs, `pandas`, `grpc`,
+`tokenizers` and `hf_xet`. **258.4 MiB of packages that appear in none of
+the three manifests shipped to macOS users in v1.1.0**, and
+`/Applications/Jura Trace.app/Contents/Resources/sidecar-bundle/_internal/pyarrow`
+on the build machine is 114 MiB of it. Windows and Linux carry none of it,
+because `release.yml:541-544` installs `requirements-ci.txt` on a clean
+runner.
+
+So the version guard that option (b) landed is working and is looking at
+the wrong layer for this: it proves the three manifests agree with each
+other, and these packages are in none of them, so it stays green.
+
+Written up as **BL-REL-005**, with the argument for a separate item stated
+in that file: different failure, different fix, different schedule, and
+evidence of a different kind. This entry is the cross-reference so the two
+do not drift apart. The macOS pinning work listed under "What remains"
+above is now step 4 of BL-REL-005 and should be tracked there.
