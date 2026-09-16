@@ -37,6 +37,7 @@
     C2PA_MSG_VALID_AT_SIGNING_DETAIL,
     C2PA_TRAINING_MINING_REASONS,
     c2paTrainingMiningPolicyLabel,
+    formatSoftwareAgent,
     parseTrainingMiningEntries,
   } from '$lib/c2pa-labels';
   import LimitationBanner from '$lib/components/LimitationBanner.svelte';
@@ -630,13 +631,15 @@
     if (!actionsAssertion) return [];
     try {
       const parsed = JSON.parse(actionsAssertion.value);
-      const actions: { action: string; description?: string; digitalSourceType?: string; softwareAgent?: string }[] = parsed?.actions ?? parsed ?? [];
+      // Field types are not trusted: a manifest is external input, and
+      // softwareAgent changed from a string (1.x) to an object (2.x).
+      const actions: { action: string; description?: unknown; digitalSourceType?: unknown; softwareAgent?: unknown }[] = parsed?.actions ?? parsed ?? [];
       return actions.map((a) => ({
         raw: a.action,
         label: C2PA_ACTION_LABELS[a.action] ?? a.action,
-        description: a.description ?? null,
-        sourceType: a.digitalSourceType ? humaniseDigitalSourceType(a.digitalSourceType) : null,
-        softwareAgent: a.softwareAgent ?? null,
+        description: typeof a.description === 'string' ? a.description : null,
+        sourceType: typeof a.digitalSourceType === 'string' ? humaniseDigitalSourceType(a.digitalSourceType) : null,
+        softwareAgent: formatSoftwareAgent(a.softwareAgent),
       }));
     } catch {
       return [];
