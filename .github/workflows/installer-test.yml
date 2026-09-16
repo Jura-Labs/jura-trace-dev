@@ -20,6 +20,26 @@ name: Installer test
 # repository, and a release build there already costs 144 charged minutes. So
 # this runs on a published release and on demand, and it installs a
 # pre-built artefact rather than building anything.
+#
+# ── How it is actually reached (A1c) ───────────────────────────────────────
+# The `release` trigger below does not fire. Releases are published on
+# Jura-Labs/jura-trace, the installers repository, not here, and a `release`
+# event is delivered only to the repository that owns the release. This
+# workflow ran zero times between being written and 13 September 2026 for
+# that reason, while BL-TEST-001 stayed open on the grounds that nothing
+# tests the installed product.
+#
+# What reaches it now is `workflow_dispatch`, sent by
+# `.github/workflows/installer-test-dispatch.yml` in the installers
+# repository, which fires on `release: published` there and calls the
+# workflow-dispatch API here with the published tag. That route needs only an
+# `actions: write` token, which is why it was chosen over
+# `repository_dispatch` and its `contents: write`.
+#
+# The `release` trigger is kept rather than deleted, because it is correct
+# for any release cut in this repository and costs nothing while none is.
+# The tag resolution below already prefers the dispatch input over the event,
+# so both paths land in the same place.
 
 on:
   release:
