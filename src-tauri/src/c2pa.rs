@@ -68,12 +68,12 @@ pub struct ManifestInfo {
     ///
     /// `None` for ingredient manifests (they inherit the mode from the active manifest).
     ///
-    /// **Infrastructure note**: trust-list loading is unconditional as of c2pa-rs 0.79
-    /// and happens via thread-local `Settings` populated by
-    /// `ensure_trust_settings_initialised`.  The `enhanced = true` path remains reserved
-    /// for future OCSP/CRL revocation checks, which c2pa-rs 0.79 does not yet expose at
-    /// the `Reader` level.  For now this field documents which mode the user requested so
-    /// the UI and PDF export can accurately report whether online checks were attempted.
+    /// **Infrastructure note**: trust-list loading is unconditional, and happens via
+    /// the `c2pa::Context` built by `trust_context`.  The `enhanced = true` path remains
+    /// reserved for future OCSP/CRL revocation checks, which c2pa-rs 0.90 does not yet
+    /// expose at the `Reader` level.  For now this field documents which mode the user
+    /// requested so the UI and PDF export can accurately report whether online checks
+    /// were attempted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verification_mode: Option<String>,
     /// Base64-encoded thumbnail image extracted from the manifest's thumbnail assertion
@@ -574,7 +574,8 @@ pub fn sign_file(
         "assertions": assertions
     });
 
-    let mut builder = c2pa::Builder::from_json(&manifest_def.to_string())
+    let mut builder = c2pa::Builder::from_context(trust_context()?)
+        .with_definition(manifest_def.to_string())
         .map_err(|e| format!("Failed to create C2PA builder: {e}"))?;
 
     // If the source file already carries a C2PA manifest, attach it as a
@@ -1406,9 +1407,9 @@ fn extract_redactions(manifest: &serde_json::Value) -> Vec<RedactionRecord> {
 // ===== Trust list initialisation =====
 //
 // Vendored PEM bundles — see `src-tauri/trust-list/README.md` for provenance
-// and refresh policy.  Concatenated into a single PEM blob and loaded into
-// `c2pa::Settings` thread-local storage before any `Reader` is constructed,
-// so chains to the official C2PA-recognised CAs and TSAs validate correctly
+// and refresh policy.  Concatenated into a single PEM blob and carried on a
+// `c2pa::Context`, which every `Reader` and `Builder` is constructed from, so
+// chains to the official C2PA-recognised CAs and TSAs validate correctly
 // (Google Pixel, Adobe, Truepic, etc.) instead of surfacing as
 // `signingCredential.untrusted`.
 
@@ -1430,33 +1431,44 @@ fn concatenated_trust_bundle() -> String {
     .join("\n")
 }
 
-/// Initialise c2pa-rs thread-local trust settings.
+/// The parsed trust settings, built once for the whole process.
 ///
-/// c2pa-rs 0.79 stores `Settings` (including `trust.trust_anchors`) in
-/// thread-local storage.  Each thread that constructs a `c2pa::Reader` must
-/// call this first so the official C2PA CA + TSA trust lists (and the legacy
-/// Interim Trust List bundles for content signed before January 2026) are in
-/// scope when the certificate chain is validated.
+/// Until c2pa-rs 0.90 these settings lived in *thread-local* storage, so every
+/// thread that built a `Reader` had to initialise them first and a thread that
+/// forgot would silently return `signingCredential.untrusted` for every
+/// well-known signer.  That failure mode was invisible: nothing errored, the
+/// verdict was simply wrong.  0.90 deprecates the thread-local API in favour of
+/// an explicit `Context`, so the settings are now parsed once here and every
+/// entry point below constructs its `Context` from them.  There is no longer a
+/// per-thread precondition to forget.
 ///
-/// Idempotent per thread — a thread-local flag short-circuits subsequent
-/// calls so we parse the TOML at most once per worker.  TOML multi-line
-/// *literal* strings (triple single quotes) are used so no escape processing
-/// is applied to the PEM content.
-fn ensure_trust_settings_initialised() -> Result<(), String> {
-    thread_local! {
-        static INITIALISED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    }
-    INITIALISED.with(|flag| {
-        if flag.get() {
-            return Ok(());
-        }
-        let bundle = concatenated_trust_bundle();
-        let toml = format!("[trust]\ntrust_anchors = '''\n{bundle}\n'''\n");
-        c2pa::Settings::from_toml(&toml)
-            .map_err(|e| format!("Failed to initialise C2PA trust settings: {e}"))?;
-        flag.set(true);
-        Ok(())
-    })
+/// TOML multi-line *literal* strings (triple single quotes) are used so no
+/// escape processing is applied to the PEM content.
+fn trust_settings() -> Result<&'static c2pa::Settings, String> {
+    static SETTINGS: std::sync::OnceLock<Result<c2pa::Settings, String>> =
+        std::sync::OnceLock::new();
+    SETTINGS
+        .get_or_init(|| {
+            let bundle = concatenated_trust_bundle();
+            let toml = format!("[trust]\ntrust_anchors = '''\n{bundle}\n'''\n");
+            c2pa::Settings::new()
+                .with_toml(&toml)
+                .map_err(|e| format!("Failed to initialise C2PA trust settings: {e}"))
+        })
+        .as_ref()
+        .map_err(|e| e.clone())
+}
+
+/// A fresh `c2pa::Context` carrying the trust lists.
+///
+/// `Context` is not `Clone` (it holds a cancellation flag and lazily
+/// initialised resolver state), so one is built per operation.  That is cheap:
+/// the expensive part, parsing the concatenated PEM bundle, happened once in
+/// [`trust_settings`], and this only clones the parsed result.
+fn trust_context() -> Result<c2pa::Context, String> {
+    c2pa::Context::new()
+        .with_settings(trust_settings()?.clone())
+        .map_err(|e| format!("Failed to build C2PA context: {e}"))
 }
 
 /// Parsed validity window of the leaf signing certificate.
@@ -1510,12 +1522,12 @@ fn leaf_cert_expired(cert_chain_pem: &str) -> Option<bool> {
 
 /// Open a c2pa-rs `Reader` for `path`, returning `Ok(None)` when no C2PA data is present.
 ///
-/// Thread-local trust settings are initialised on first call so the returned
-/// `Reader`'s validation walks the official C2PA trust lists rather than
-/// returning `signingCredential.untrusted` for every well-known signer.
+/// The `Reader` is built from a `Context` carrying the trust lists, so its
+/// validation walks the official C2PA trust lists rather than returning
+/// `signingCredential.untrusted` for every well-known signer.
 fn open_reader(path: &Path) -> Result<Option<c2pa::Reader>, String> {
-    ensure_trust_settings_initialised()?;
-    match c2pa::Reader::from_file(path) {
+    let context = trust_context()?;
+    match c2pa::Reader::from_context(context).with_file(path) {
         Ok(r) => Ok(Some(r)),
         Err(c2pa::Error::JumbfNotFound) => Ok(None),
         Err(e) => {
@@ -1538,9 +1550,10 @@ fn open_reader(path: &Path) -> Result<Option<c2pa::Reader>, String> {
 /// `"standard"` (local-only, air-gapped).
 ///
 /// Trust-list loading is unconditional — both modes chain against the
-/// official C2PA CA and TSA trust lists via `ensure_trust_settings_initialised`.
-/// `enhanced` remains a hook for future OCSP/CRL revocation checks, which
-/// c2pa-rs 0.79 does not yet expose at the `Reader` level.
+/// official C2PA CA and TSA trust lists via the `c2pa::Context` built by
+/// [`trust_context`].  `enhanced` remains a hook for future OCSP/CRL
+/// revocation checks, which c2pa-rs 0.90 does not yet expose at the
+/// `Reader` level.
 pub fn read_manifest(path: &Path, enhanced: bool) -> Result<Option<ManifestInfo>, String> {
     let reader = match open_reader(path)? {
         Some(r) => r,
@@ -1626,8 +1639,8 @@ pub struct ManifestChain {
 /// manifest; the field is `None` for ingredients).
 ///
 /// Trust-list loading is unconditional and shared with [`read_manifest`] via
-/// [`ensure_trust_settings_initialised`].  The `enhanced` flag remains reserved
-/// for future OCSP/CRL revocation checks.
+/// [`trust_context`].  The `enhanced` flag remains reserved for future
+/// OCSP/CRL revocation checks.
 pub fn read_manifest_chain(path: &Path, enhanced: bool) -> Result<Option<ManifestChain>, String> {
     let reader = match open_reader(path)? {
         Some(r) => r,
@@ -3366,7 +3379,9 @@ mod tests {
                 }
 
                 // Also print raw validation status
-                let reader = ::c2pa::Reader::from_file(&output_path).expect("reader");
+                let reader = ::c2pa::Reader::from_context(trust_context().expect("context"))
+                    .with_file(&output_path)
+                    .expect("reader");
                 if let Some(statuses) = reader.validation_status() {
                     eprintln!("  validation_status ({} issues):", statuses.len());
                     for s in statuses {
@@ -4534,13 +4549,44 @@ mod tests {
         assert!(bundle.contains("Google C2PA Root CA G3"));
     }
 
-    /// `ensure_trust_settings_initialised` must succeed and the first call
-    /// must leave the thread-local `trust.trust_anchors` populated.  The
-    /// second call must be a fast no-op (thread-local flag short-circuit).
+    /// The trust settings must parse, and must be parsed exactly once for the
+    /// process.  Identity of the returned reference is the assertion that
+    /// matters: it is what proves the `OnceLock` is doing its job and the
+    /// 175-certificate PEM bundle is not being re-parsed on every verify.
+    ///
+    /// This replaced a thread-local idempotency test when c2pa-rs 0.90
+    /// deprecated the thread-local settings API. The old test could only
+    /// prove a flag had been set on *this* thread; a worker thread that
+    /// never called the initialiser was exactly the bug it could not see.
     #[test]
-    fn trust_settings_initialisation_is_idempotent() {
-        ensure_trust_settings_initialised().expect("first init must succeed");
-        ensure_trust_settings_initialised().expect("re-init must be a no-op");
+    fn trust_settings_are_parsed_once_and_shared() {
+        let first = trust_settings().expect("trust settings must parse");
+        let second = trust_settings().expect("second call must succeed");
+        assert!(
+            std::ptr::eq(first, second),
+            "trust settings should be parsed once and shared, not rebuilt"
+        );
+    }
+
+    /// A `Context` built from those settings must actually carry the trust
+    /// anchors. Without this the migration to the `Context` API could compile,
+    /// run, and quietly verify against an empty trust list, which is the same
+    /// wrong-verdict failure the thread-local API used to allow.
+    #[test]
+    fn trust_context_carries_the_anchors() {
+        let context = trust_context().expect("context must build");
+        let anchors = context
+            .settings()
+            .trust
+            .trust_anchors
+            .as_deref()
+            .expect("trust_anchors must be populated on the context");
+        let cert_count = anchors.matches("-----BEGIN CERTIFICATE-----").count();
+        assert_eq!(
+            cert_count, 175,
+            "context should carry all 175 vendored certs, got {cert_count}"
+        );
+        assert!(anchors.contains("Google C2PA Root CA G3"));
     }
 
     /// After init, `c2pa::Reader::from_file` must not fail for reasons
@@ -4549,7 +4595,7 @@ mod tests {
     /// not panic or return a trust-config-related error.
     #[test]
     fn reader_construction_after_trust_init_does_not_panic() {
-        ensure_trust_settings_initialised().expect("trust init");
+        trust_context().expect("trust context");
         // Non-existent path — we expect `Ok(None)` (no C2PA data) or a
         // file-I/O error, NOT a trust-configuration error.
         let result = open_reader(std::path::Path::new("/nonexistent/asset.jpg"));

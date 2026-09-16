@@ -94,9 +94,17 @@ intent of the 22 May audit fix; watchlist error events vanish
 and the "nightly workflow" that `ci.yml:117` refers to does not exist;
 `db.rs:359` swallows migration errors.
 
+**Correction, 8 September 2026.** The requirements sync guard was listed
+below as checked and clean. That was right about the drift it was written
+for, a package name present in one manifest and missing from another, and
+wrong about versions. `scripts/check_requirements_sync.py:28` says it
+compares names only, and it never opens `requirements.lock` at all, so it
+passes a change that makes CI test one version while the release ships
+another. That is Cause B of this very item. See BL-DEPS-004.
+
 **Checked and clean**, which is worth recording so it is not re-hunted: the
-feature flags genuinely gate, the requirements sync guard is sound, the
-model SHA-256 pin verifies against both copies, `describe_image` and
+feature flags genuinely gate, the model SHA-256 pin verifies against both
+copies, `describe_image` and
 `claim_checker` report honest failures, and the signing gates in
 `release.sh` and the macOS build's Phase 5b and 6.5 fail loudly.
 
@@ -139,6 +147,94 @@ default shell here is zsh, which does not word-split unquoted parameter
 expansions the way bash does. A snippet that is correct in bash can be
 silently wrong when pasted into a zsh session, and it fails in the
 direction of looking fine.
+
+## Three more, 9 September 2026, found by verifying a build by hand
+
+The local v1.1.0 macOS build succeeded and printed a green tick at every
+phase. Opening its artefacts by hand rather than reading the ticks found the
+DMG sound and the updater archive not, and the script unable to tell. All
+three were fixed in PR #49; they are recorded here because each is an
+instance of a cause already on this list.
+
+**The release gate that never checked anything (Cause C, and the empty
+set).** Phase 6.5 of `scripts/build-local-mac.sh` was written after rc.29
+to catch mis-signed nested binaries before notarisation. It scanned
+`$APP_PATH/Contents/Resources/sidecar-bundle`. Phase 6 removes that `.app`
+once it has packaged it, so `find` ran against a missing directory with
+stderr silenced, counted zero files, and the gate printed
+"All 0 nested Mach-O binaries in final .app signed". Two faults in one
+line. It was not verifying the bytes that ship, which is Cause C; and it
+had no floor, so an empty scan read as a clean scan, which is the
+prove-it-ran gap of section 3 below in its purest form. It now extracts
+the updater archive, the artefact the release exists to deliver, and dies
+if it checked nothing.
+
+**The warning nobody read (Cause C again, by way of section 7).** Phase 6
+ran `cargo tauri bundle --bundles dmg,updater`. On macOS `updater` is not a
+bundle target; the archive is a by-product of `app`. Tauri said so in every
+build, as a Warn line: "no updater-enabled targets were built. Please
+enable one of these targets: app, appimage, msi, nsis." The archive on
+disk was the one Phase 1 wrote, before any of the later signing, and the
+comment above the phase said the opposite. A gate downstream of an ignored
+warning is verifying the wrong artefact by construction.
+
+**The gate that failed a good build (Cause D, mirrored).** The rewritten
+Phase 6.5 first read any stderr from `codesign --verify --deep --strict
+--verbose=2` as failure. With `--verbose`, codesign prints "valid on disk"
+and "satisfies its Designated Requirement" on success, so the gate refused
+a build whose archive was, by independent check, valid. Cause D is the
+absence of an error string read as success; this is the presence of a
+non-error string read as failure, and the rule is the same one: **exit
+status first, output second.** A gate that fails good builds trains the
+same reflex as one that passes bad ones, which is to stop reading it.
+
+Two smaller things from the same day belong with Cause D's note on zsh.
+`cc $CFLAGS` with an unquoted variable passed one argument to the compiler
+under zsh and produced an "invalid integral value" error, and a `for` loop
+over test variants counted "0 failures" because its `cd` had failed and
+nothing ran. Both looked like results. Neither was.
+
+## One more, 11 September 2026, and it is Cause D with the sign flipped
+
+The Windows updater live leg, `updater-live-leg.yml`, spent four runs
+observing nothing and saying nothing about why. The port answered, the MSI
+installed, the application's own page was listed on the debugging port three
+seconds after launch and stayed listed for the full ten minutes, and the
+verdict it wrote was a column of nulls: `dom_read` false, `button_pressed`
+false, `last_stage` null, `page_url` null.
+
+The defect underneath was a PowerShell parsing fault. The probe's JavaScript
+is built as a comma separated array of single quoted lines, and one line
+interpolates a value with `'text' + $env:EXPECTED + 'text'`. In an array
+literal the comma binds tighter than the plus, so that is the array so far,
+plus a scalar, plus the rest of the array, and plus on an array appends. One
+element became three, the join put newlines between them, and a JavaScript
+string literal cannot contain a raw newline. Every evaluation since had come
+back `Uncaught SyntaxError`. It belongs with Cause D's zsh note: a construct
+that is correct in one language's array semantics is silently wrong in
+another's, and it fails in the direction of looking like something else.
+
+What made it cost four runs rather than one is the part that belongs in this
+file. The helper that talks to the browser returned a bare `$null` for four
+completely different outcomes: could not connect, sent and heard nothing
+back, read forty frames and none was the reply, and the page threw while
+being evaluated. The caller skipped past all four without a word. **A page
+that was evaluated and came back empty was recorded identically to a page
+that could never be evaluated at all.** That is the mirror of Cause D. Cause
+D is the absence of an error string read as success; this is the absence of a
+result read as an absence of content.
+
+Two things fixed it and both are worth copying. The helper now always returns
+a record saying how far it got, and the caller prints one line per distinct
+outcome with the second it happened, so a run that fails while saying what it
+saw is worth more than three that fail silently. And the expression is
+asserted to be well formed before the application is even installed, which is
+a prove-it-ran assertion in the sense of section 3 below, applied to an input
+rather than to an output.
+
+Fixed in PRs #81 and #82. Run 34581569486 is the first green one and observed
+a pristine v1.0.0 fetch and install v1.1.0 from the live service in 119
+seconds.
 
 ## The plan
 
@@ -240,3 +336,108 @@ are.
   `actionlint` in CI is proportionate; anything heavier is not.
 - **Building tooling for the `continue-on-error` policy.** There are two
   instances. A grep and a comment rule suffice.
+
+## Update, 8 September 2026
+
+Three more entries for the class, none of which changes the causes or the
+plan above. Pull request numbers are `Jura-Labs/jura-trace-dev` numbers.
+
+**Another instance fixed: the classifier loader's bare `except`.**
+`sidecar/app/services/deepfake.py:255`, `_load_classifier`, caught every
+exception from `joblib.load` and returned `None`, and the caller fell back
+to the heuristic score. Every verdict was still produced, so the only
+evidence of a disabled classifier in production would have been a shift in
+the verdict distribution. It surfaced on 8 September because the
+numerical-stack drift test (#37) showed scikit-learn 1.9.0 cannot unpickle
+the shipped GBM at all (`ModuleNotFoundError: No module named '_loss'`) and
+the loader said nothing. #38 (`c718ca25`) replaces the bare `except` with
+`logger.exception(...)` at `deepfake.py:278-295`, once per process, with
+two tests in `sidecar/tests/test_deepfake.py`
+(`test_unpickle_failure_returns_none_and_logs_exception`,
+`test_failure_is_logged_once_not_per_image`). Cause B, in the shape of
+"degrade gracefully and say nothing". Worth adding to the ranked table as a
+sibling of item 3 (the watermark detector's `[]` on ImportError) and item 4
+(the constant-returning extractors); it is the same file and the same
+instinct.
+
+**A mirror instance fixed: cancelled CI runs manufacturing failure.**
+`ci.yml` had `cancel-in-progress: true` for every ref including `main`.
+When four merges landed within fourteen minutes on 8 September, each run
+cancelled the one before it, and three of the cancelled runs showed a red X
+against `cargo test` that was the cancellation, not a test result (jobs API:
+`conclusion: cancelled` on job and step). That is BL-TEST-002's direction,
+a signal reporting failure while nothing was wrong, produced by the same
+gate this item is about. #34 (`bd534866`) sets
+`cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}`
+(`ci.yml:34`). One residual, recorded in BL-CI-001 for the plan: GitHub
+still cancels the older *pending* run in a concurrency group when a third
+run arrives, so two `main` runs (`9a177fd5`, `3ca2896f`) were cancelled
+with zero jobs after #34 merged. A per-commit group on `main` closes it.
+
+**"What not to do" has been partly overtaken.** The list above says no
+branch protection. Branch protection on `main` went live on 8 September
+with required status checks Rust, Frontend, Python, Repo hygiene and Scan
+lockfiles, no required reviews, `strict: false` and `enforce_admins: false`
+(`gh api repos/Jura-Labs/jura-trace-dev/branches/main/protection`). That
+is the half of branch protection the paragraph was not arguing against:
+no review ceremony, and an administrator can still push. It does add one
+thing the push trigger alone did not, which is that a merge cannot land
+while the gate is red. The advice stands as written for mandatory reviews.
+
+For the plan: item 3's OSV line ("remove `continue-on-error` from the scan
+step") is not done, `osv-scanner.yml:59` still carries it, and its
+cargo-audit and pip-audit count assertions are not done either. BL-CI-001
+and BL-CI-002 closed on 8 September on their own fix sections; those three
+assertions remain here.
+
+## Update, 10 September 2026: the pre-commit hook was never a gate
+
+The clearest instance yet, and it was in the tooling meant to catch the
+others. `.githooks/pre-commit` runs five checks. Four of them are shaped
+
+```sh
+(cd ui && npx svelte-check --threshold error 2>&1 | tail -1) || {
+    echo "ERROR: svelte-check found errors."
+    exit 1
+}
+```
+
+A shell pipeline exits with the status of its last command. That command is
+`tail`, which succeeds on any input, so `cargo check --all-targets`,
+`cargo clippy -D warnings`, `svelte-check` and `vitest` could all fail and
+the hook would print "Pre-commit: all checks passed" and let the commit
+through. Only `cargo fmt --check`, the one check not piped anywhere, ever
+blocked anything. The file has been in this shape since it was written, so
+every commit made through it was unverified by four of its five checks.
+
+Found while an agent drafting the v1.1.0 changelog noticed the hook print
+`1 ERRORS` from a mid-run svelte-check line and report a pass in the same
+breath. Reproduced in one line:
+
+```sh
+sh -c 'set -e; (false 2>&1 | tail -1) || { echo "guard fires"; exit 1; }; echo "all checks passed"'
+# prints: all checks passed
+```
+
+Fixed by `set -o pipefail`, which needs bash rather than `/bin/sh`, so the
+shebang changes too. Proven both ways rather than argued: a deliberately
+broken TypeScript file under `ui/src/lib/` makes the hook exit 1 with
+"ERROR: svelte-check found errors", and the same hook on a clean tree exits
+0. The comment block at the top of the file carries the one-line
+reproduction so the next person does not have to rediscover it.
+
+Two things this does not fix, both listed here rather than assumed away:
+
+- CI is unaffected. `ci.yml` runs each tool as its own step with no pipe, so
+  the assertions that actually protect `main` were always real. The hook was
+  a local convenience that lied; the remote gate did not.
+- It says nothing about how long the hook has been passing over real
+  failures, because a hook that does not fail leaves no record. The tree is
+  clean today (`svelte-check` reports 580 files, 0 errors; clippy and the
+  vitest suite pass), so nothing appears to have slipped through, but that
+  is an observation about now, not a reconstruction of the past.
+
+This is cause A in the list above, a guard whose success condition is not
+the thing it claims to check, and it argues for guard self-tests (plan item
+2) in the one place the plan did not think to look: the guards' own
+plumbing.

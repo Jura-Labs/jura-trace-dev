@@ -95,10 +95,35 @@ async fn start_test_server(state: Arc<Mutex<AppState>>, listener: TcpListener) -
             .expect("server error");
     });
 
-    // Give the server a moment to accept connections.
-    tokio::time::sleep(Duration::from_millis(20)).await;
+    // Wait until the server actually answers, rather than assuming it will
+    // have started within a fixed delay.
+    //
+    // A TCP connect would not be signal enough: the listener is bound before
+    // `axum::serve` is spawned, so the kernel accepts connections whether or
+    // not the router is running yet. `/api/v1/health` needs no auth (see
+    // `test_health_no_auth`), so a success from it is the first moment the
+    // server is genuinely usable.
+    //
+    // This replaces a fixed 20 ms sleep. See `backlog/BL-TEST-002`: a
+    // duration is an assumption about the runner, and CI runs on a shared
+    // 2-vCPU VM where scheduling jitter makes that assumption occasionally
+    // false. Every test in this file goes through here, so when that
+    // assumption broke it would have surfaced as a connection error rather
+    // than as a timing problem. Polling costs nothing in the normal case,
+    // because it succeeds on the first attempt.
+    let base_url = format!("http://127.0.0.1:{port}");
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        match reqwest::get(format!("{base_url}/api/v1/health")).await {
+            Ok(response) if response.status().is_success() => break,
+            _ if std::time::Instant::now() >= deadline => {
+                panic!("test server did not answer /api/v1/health within 10s")
+            }
+            _ => tokio::time::sleep(Duration::from_millis(5)).await,
+        }
+    }
 
-    format!("http://127.0.0.1:{port}")
+    base_url
 }
 
 /// Insert a bootstrap key directly into the database and return its raw key.
@@ -972,45 +997,92 @@ fn build_sync_state_at(
 /// With the old code, `verify_content_inner` held the `AppState` mutex for
 /// the entire pipeline (snapshot + all detector groups + DB write), so a
 /// concurrent `try_lock()` would fail.  With the fix, the lock is dropped
-/// after the snapshot, so `try_lock()` succeeds from the main thread while
-/// the worker is in the detector phase.
+/// after the snapshot and re-acquired once at the end for the DB write, so it
+/// is free throughout the detector phase.
 ///
-/// The sidecar is not reachable in CI, so detector groups are skipped and the
-/// pipeline completes in ~100-400 ms (EXIF + C2PA + trust + DB write).  The
-/// important invariant is that the lock is FREE during that window.
+/// **This test used to be flaky, and the reason is worth keeping.** It pointed
+/// at `build_sync_state()`, whose sidecar port has nothing listening on it, so
+/// `sidecar_up` was false and every detector group was skipped. That collapses
+/// the free window down to the gap between the snapshot drop and the final DB
+/// write at `verify/pipeline.rs:1644` — the very window the test exists to
+/// observe. A single `try_lock()` at a fixed 50 ms then samples an interval
+/// that is only reliably wide on an idle machine, and under CI load it landed
+/// on a held lock and failed a green branch.
+///
+/// Two changes make it deterministic. It now runs against a reachable stub
+/// sidecar, as `verifies_are_serialised` does, so the detector phase really
+/// happens and the free window is hundreds of milliseconds wide. And it
+/// samples repeatedly until the worker finishes rather than at one instant:
+/// the invariant is that the lock is free at *some* point while the pipeline
+/// is still running, which the old long-held-lock code could never satisfy no
+/// matter when it was sampled.
 #[test]
 fn lock_free_during_verify() {
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
-    let (state, _dir) = build_sync_state();
+    // Detector calls sleep for `delay` before answering 500, and detectors
+    // degrade gracefully on errors, so the verify still completes while the
+    // detector phase stays open long enough to observe.
+    let (port, _windows) = spawn_stub_sidecar(Duration::from_millis(150));
+    let (state, _dir) = build_sync_state_at(&format!("http://127.0.0.1:{port}"), port);
     let (tmp_png, png_path) = write_test_png();
 
+    let done = Arc::new(AtomicBool::new(false));
+    let done_worker = Arc::clone(&done);
     let state_clone = Arc::clone(&state);
     let path_clone = png_path.clone();
 
     // Spawn the verify on a worker thread.
     let handle = std::thread::spawn(move || {
-        jura_trace_lib::verify_content_inner(&path_clone, "file", Some("standard"), &state_clone)
+        let result = jura_trace_lib::verify_content_inner(
+            &path_clone,
+            "file",
+            Some("standard"),
+            &state_clone,
+        );
+        done_worker.store(true, Ordering::SeqCst);
+        result
     });
 
-    // Give the worker thread time to pass the snapshot-and-drop step so
-    // the AppState lock is free.  50 ms is generous — the snapshot itself
-    // completes in <5 ms.
+    // Give the worker thread time to enter the pipeline and take the lock for
+    // the snapshot.  On the old code it would still be holding that lock for
+    // the whole run, so every sample below would see it blocked.
     std::thread::sleep(Duration::from_millis(50));
 
-    // Assert: the state lock is NOT held by the verify thread at this point.
-    // On old code (long-held lock), this would return `Err(WouldBlock)`.
-    assert!(
-        state.try_lock().is_ok(),
-        "AppState mutex must be free during the verify detector pipeline \
-         (snapshot-and-drop fix regressed or not applied)"
-    );
+    let mut observed_free = false;
+    let mut samples = 0u32;
+    while !done.load(Ordering::SeqCst) {
+        samples += 1;
+        let free = {
+            let attempt = state.try_lock();
+            attempt.is_ok()
+            // guard, if any, drops here — never held across the sleep
+        };
+        if free {
+            observed_free = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
 
     // Wait for the verify to complete and confirm it succeeded.
     let result = handle.join().expect("verify thread panicked");
+
+    assert!(
+        samples > 0,
+        "the pipeline finished before sampling began, so the invariant was \
+         never exercised — the stub sidecar delay is too short"
+    );
+    assert!(
+        observed_free,
+        "AppState mutex must be free during the verify detector pipeline \
+         (snapshot-and-drop fix regressed or not applied); {samples} samples \
+         taken while the pipeline ran and the lock was held for every one"
+    );
     assert!(
         result.is_ok(),
-        "verify_content_inner must succeed even without a sidecar (graceful degradation): {result:?}"
+        "verify_content_inner must succeed when the sidecar answers 500 (graceful degradation): {result:?}"
     );
 
     // Keep the temp file alive until the verify is done.

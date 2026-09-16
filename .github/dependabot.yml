@@ -3,8 +3,12 @@
 # Rewritten 4 September 2026, after all four active ecosystems were found
 # sitting at exactly five open pull requests, which is the default
 # `open-pull-requests-limit`. Saturated in every ecosystem means Dependabot
-# could not open a pull request for anything new, INCLUDING a security
-# advisory, until a human cleared the queue. Nobody had for five months.
+# could not open a pull request for any new version update until a human
+# cleared the queue. Nobody had for five months. (The 4 September rewrite
+# said security advisories were blocked too. They are not: the GitHub docs
+# state that security update pull requests "are not subject to this limit
+# and do not count toward it". Corrected 8 September. The saturation was
+# still a problem, just a smaller one than the earlier text claimed.)
 #
 # Two changes address that, and they are not the same change:
 #
@@ -105,7 +109,44 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    # 15, not 10, from 8 September 2026. Five held pull requests (#1 opencv
+    # 5.0.0.93, #4 scipy 1.18.1, #5 scikit-learn 1.9.0, #9 numpy 2.5.2,
+    # #10 pillow-avif-plugin 1.6.0) sat in this queue while the drift test
+    # ran, and the queue reached 9 of 10 with four other bumps still waiting.
+    #
+    # The test is done: docs/calibration/numerical-stack-drift-sep2026.md
+    # (PR #37). Four pass with no detector output changed on 84 golden
+    # images. scikit-learn 1.9.0 is blocked for a different reason: the
+    # shipped GBM (deepfake_classifier.joblib) cannot be unpickled under it
+    # and the load failure was silent. Paul's decision, 8 September: all
+    # five are deferred to after the v1.1.0 release on 13 November 2026, then
+    # taken as one combined bump (numpy, scipy, opencv, pillow-avif) plus a
+    # separate model re-serialisation PR for scikit-learn.
+    #
+    # The five are NOT added to `ignore` below, on purpose. The docs are
+    # explicit that ignore applies "when it opens pull requests for version
+    # updates and security updates", and there is no ignore parameter that
+    # excludes security updates: `update-types` and `versions` both filter
+    # the security path as well. An ignore on numpy's minors would mute a
+    # fix that ships in 2.5.x. The Pillow lesson further down applies to
+    # all five, and to pillow-avif-plugin and opencv most of all, because
+    # they decode files supplied by whoever the user is investigating.
+    #
+    # Instead: the five are closed by hand (#1 already is). Closing a
+    # Dependabot pull request stops it recreating that exact version, and
+    # nothing later; the next numpy or scipy release will open a fresh pull
+    # request and take a slot again. The raised limit is headroom for that
+    # churn so the other pip bumps are not starved until November. It does
+    # not touch security updates either way; they are exempt from the cap.
+    #
+    # One residual, stated rather than buried: closing a pull request stores
+    # an exact-version ignore condition, and those apply to security updates
+    # too. If an advisory's minimum fixed version were exactly 2.5.2, 1.18.1,
+    # 1.9.0, 5.0.0.93 or 1.6.0, reopening the closed pull request clears it.
+    #
+    # REMOVE this override (back to 10) after the v1.1.0 release, 13 November
+    # 2026, once the combined bump has landed and the queue has been cleared.
+    open-pull-requests-limit: 15
     labels:
       - dependencies
       - python
@@ -122,6 +163,11 @@ updates:
       # weekly bump. Patches still come through.
       - dependency-name: fastapi
         update-types: ["version-update:semver-minor"]
+      # numpy, scipy, scikit-learn, opencv-python-headless and
+      # pillow-avif-plugin are NOT ignored either, despite being deferred
+      # until after 13 November 2026. See the `open-pull-requests-limit`
+      # comment above for why: an ignore entry would mute their security
+      # updates for the whole deferral.
       # Pillow is NOT ignored, and an earlier version of this file got that
       # wrong. It was held here pending a decode-drift test, on the reasoning
       # that every forensic feature starts from PIL-decoded pixels and the

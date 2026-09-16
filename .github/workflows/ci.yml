@@ -1,8 +1,12 @@
 name: CI
 
 on:
+  # Deliberately NOT filtered to `branches: [main]`. That filter meant a pull
+  # request opened against any other base got no CI at all, and an absent run
+  # reads as "not yet verified" rather than as a failure, which is the more
+  # dangerous of the two. Found 8 September 2026 when a stacked PR (#29, based
+  # on #28) sat with no checks until one was dispatched by hand.
   pull_request:
-    branches: [main]
   # Work that lands directly on main must be tested too. Without this, the
   # gate only watches the path nobody used for the June v1.0.0 release: all
   # eleven of those commits went straight to main and CI never saw them.
@@ -10,10 +14,44 @@ on:
     branches: [main]
   workflow_dispatch:  # manual trigger from Actions tab when needed
 
-# Cancel redundant workflow runs on the same branch/PR to save CI minutes.
+# Cancel redundant runs on the same branch or PR to save CI minutes, but never
+# on main, where every push gets its own concurrency group and therefore its
+# own verdict.
+#
+# Cancelling is right for a branch someone is still pushing to, where only the
+# newest commit matters. It is wrong for main, where every commit is a state
+# the project was actually in. On 8 September 2026 four merges landed within
+# fourteen minutes and each new run cancelled the one before it, so main went
+# from the repository cutover to that evening without a single successful CI
+# run (one run had completed, and failed on the audit gate; an earlier version
+# of this comment said "completed", which overstated it). Three of the
+# cancellations showed a red X against `cargo test`, which was the
+# cancellation rather than a failure, so the setting also manufactured false
+# evidence of breakage.
+#
+# The first fix, later the same day, set cancel-in-progress to false on main.
+# That was not enough, and the reason is in GitHub's own documentation: "By
+# default, only one job or workflow run can be pending in a concurrency group
+# at a time", and "any existing pending job or workflow in the same group is
+# canceled and replaced." cancel-in-progress protects the RUNNING run only.
+# When four merges landed within eight seconds at 21:44 UTC, the first ran,
+# the last queued, and the two in between (runs 34282224860 for 9a177fd5 and
+# 34282231338 for 3ca2896f) were cancelled before starting a single job. Two
+# commits on main have no CI verdict as a result.
+#
+# So on main the group is keyed on the commit SHA instead of the ref. No two
+# pushes share a group, nothing is ever pending behind anything, and every
+# commit runs to a verdict. Public-repo minutes are free, so the parallelism
+# costs nothing. GitHub also offers `queue: max` for this, but the docs say it
+# cannot be combined with cancel-in-progress: true, and this block sets that
+# key by expression, so the per-SHA group is the unambiguous choice.
+#
+# The push trigger above exists precisely so main is never unverified. Both
+# earlier settings quietly reopened that hole whenever merges arrived in a
+# burst, which is what a release day looks like.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # ── Rust: check, clippy, fmt, test ──────────────────────────────────────────
@@ -125,14 +163,33 @@ jobs:
       # the next line failed anyway with an unhelpful "no such command".
       # A failure here should say what actually failed.
       #
-      # Note the cost: `cargo install` builds cargo-audit from source on
-      # every run, which is minutes of billable time for a tool that does
-      # not change. If build minutes get tight, install a prebuilt binary
-      # instead. Left as-is for now to avoid adding a third-party action to
-      # the supply chain this workflow exists to watch.
+      # The install is skipped when the Cache Cargo step above has already
+      # restored a cargo-audit binary into ~/.cargo/bin. That is not only a
+      # cost saving (building it from source is about fifteen minutes of
+      # billable time for a tool that does not change), it is a correctness
+      # fix. `cargo install` refuses to overwrite an existing binary and
+      # exits 101 with "binary `cargo-audit` already exists in destination".
+      # On 8 September 2026 that put a red X on the cargo-audit step of
+      # every open pull request and on main, with no advisory involved at
+      # all, and it read exactly like a new vulnerability landing. The
+      # mechanism: the cache key hashes Cargo.lock, so any lockfile change
+      # misses the key, the restore-keys prefix falls back to the previous
+      # cache, and that cache carries the binary the previous run built.
+      # It would have recurred on every lockfile change after any green run.
+      #
+      # The version is printed so the log says which cargo-audit produced
+      # the verdict. The advisory database is fetched fresh on every run
+      # regardless of the binary's age, so a cached tool does not mean a
+      # stale scan. Still no third-party install action: the supply chain
+      # this workflow exists to watch stays as short as it was.
       - name: cargo-audit
         run: |
-          cargo install --locked cargo-audit
+          if command -v cargo-audit >/dev/null 2>&1; then
+            echo "cargo-audit restored from cache: $(cargo audit --version)"
+          else
+            cargo install --locked cargo-audit
+            echo "cargo-audit built from source: $(cargo audit --version)"
+          fi
           cd src-tauri && cargo audit
 
   # ── Frontend: svelte-check + vitest ─────────────────────────────────────────

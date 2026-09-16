@@ -1,6 +1,6 @@
 # BL-DEPS-002: twelve frontend advisories, and only one of them ships
 
-**Status**: Open. Found 3 September 2026.
+**Status**: Open, partly resolved. The count is 10, down from 12, after the ui-minor-patch group merged on 8 September; none of the ten reaches a user. Step 1 is roughly half done and step 3 is deferred by policy. See "Update, 8 September 2026" at the foot of this file. Found 3 September 2026.
 **Raised**: 3 September 2026
 **Severity**: Medium. The headline numbers are alarming and mostly are not.
 The one that matters is a moderate, not the critical.
@@ -91,3 +91,61 @@ Do not report "one critical vulnerability in Jura Trace" anywhere public
 without the qualifier. It is in the test runner. Saying otherwise would be
 the same class of error the claims register exists to prevent, in the
 opposite direction.
+
+## Update, 8 September 2026
+
+Reconciled against `ui/package-lock.json` on `origin/main` at `d0ca411d`.
+The count below is from `npm audit --package-lock-only --json` run against
+that lockfile on 8 September, which reads the registry and installs
+nothing; the same figure appears in the `npm ci` output of the Frontend job
+on CI run `34284960670` ("10 vulnerabilities (4 low, 4 moderate, 1 high,
+1 critical)"). Pull request numbers are `jura-trace-dev` numbers; the
+`#25`, `#26` and `#17` cited in step 3 above were `jura-archive` numbers
+for the same vitest, vite and vite-plugin-svelte majors.
+
+### What merged
+
+- **#14** (`b18c5182`, 20:00 UTC), the `ui-minor-patch` Dependabot group,
+  15 updates. This is most of step 1 done by another route: browserslist,
+  nanoid and postcss are gone from the audit.
+- **#15** (`40101446`, 21:44 UTC), `@testing-library/jest-dom` 6.9.1 to
+  7.0.1. A test dependency; no audit effect.
+- **#16**, typescript 5.9.3 to 7.0.2, **closed** without merging: SvelteKit
+  2.62.0 declares `peerOptional typescript "^5.3.3 || ^6.0.0"`, so the tree
+  cannot resolve, and TypeScript 7 drops `tsserver`, which `svelte-check`
+  needs. An upstream change is required first. Not an advisory either way.
+
+### The ten that remain
+
+```
+{'info': 0, 'low': 4, 'moderate': 4, 'high': 1, 'critical': 1, 'total': 10}
+```
+
+| Package | Severity | Fix | Ships to a user? |
+|---|---|---|---|
+| vitest | critical | vitest 4.1.11, major | No, test runner |
+| vite | high | via vitest 4, major | No, build tool |
+| @vitest/mocker, esbuild, vite-node | moderate | via vitest 4, major | No |
+| dompurify | moderate | **non-major, available** | No (see the 4 September correction above) |
+| postcss-selector-parser | low | **non-major, available** | No |
+| @sveltejs/kit, @sveltejs/adapter-static, cookie | low | none clean; `npm audit` proposes a downgrade of kit to 0.0.30, which is not a fix | No |
+
+Was 12 with 4 high; now 10 with 1 high. The three lows under
+`@sveltejs/kit` are new to the list, through `cookie`. Still zero reachable
+from a shipped artefact; the correction of 4 September stands.
+
+### What remains of the three steps
+
+1. **`npm audit fix` without `--force`.** Half done by #14. dompurify and
+   postcss-selector-parser still have a non-major fix and are not applied;
+   the `cookie` lows have no non-major fix and wait on SvelteKit. Two
+   packages, one small branch.
+2. **Confirm the PDF still renders** after the dompurify bump. Not
+   recorded as done anywhere in the repository. Do it with step 1, since
+   that bump moves jspdf's sanitiser even though `ui/src/lib/pdf.ts` never
+   calls it.
+3. **The vitest 4 group.** Deferred, not decided: the tailwindcss, vite,
+   vitest and @sveltejs/vite-plugin-svelte majors are in Dependabot's
+   `ignore` (`.github/dependabot.yml:97-104`) with a comment that the
+   vitest entry is "the entry most worth removing soon". BL-DEPS-001 step 6
+   holds the decision.

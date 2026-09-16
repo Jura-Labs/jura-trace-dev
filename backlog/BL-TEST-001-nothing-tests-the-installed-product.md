@@ -149,3 +149,109 @@ reads, and the fix should not be considered proved by it. Establish which
 of the two readings is true before treating the parallel-install risk as
 closed — installing the MSI first on a clean machine and then NSIS would
 settle it.
+
+## Update, 10 September 2026: the updater leg ran green on jura-trace-dev
+
+Run 34455331642, dispatched against `v1.1.0-rc.1-smoke-20260907`: the real
+smoke MSI installed on `windows-latest`, launched, and thirteen seconds later
+requested `/api/updates/latest.json` through the throwaway CA and the hosts
+redirect. First run of this workflow on the repository that now matters;
+its only earlier green was on jura-archive, 7 September.
+
+Two dispatches before it failed at the download step with "release not
+found". `RELEASE_PAT` is an organisation secret shared with this repo, and
+its token could not see the draft smoke release on `Jura-Labs/jura-trace`,
+which needs write access there. Paul replaced the token. The same secret is
+what `release.yml` publishes with, so this was worth finding in September
+rather than on release day.
+
+Still true, and stated by the workflow itself: this proves the request
+path, not the client's verdict. The macOS staging leg proved the verdict
+and the install by hand on 9 and 10 September (BL-REL-004). The Windows
+verdict needs WebDriver driving Settings, and Linux joins when two
+AppImage-bearing releases exist.
+
+## Update, 10 September 2026: the Windows leg now reads the client's verdict
+
+The workflow above proved the request and stopped there. It now proves that
+the client accepts what it is sent. Run 34486482125 on
+`test/updater-e2e-windows-verdict`, against `v1.1.0-rc.1-smoke-20260907`:
+
+```
+14:03:50  installed: C:\Program Files\Jura Trace\jura-trace.exe
+14:04:03  request: /api/updates/latest.json
+14:04:05  OK: the client accepted the manifest and rendered its verdict:
+          "Version 9.9.9 is available"
+```
+
+Two seconds between the request and the verdict. The artefact records the
+page it was read from (`http://tauri.localhost/`), the document state
+(`complete`), the startup check timestamp the app wrote, and the app's own
+text, which reads "Version 9.9.9 is available You are running version
+1.1.0."
+
+### How the verdict is observed
+
+Not WebDriver, which is what this file and the workflow both previously
+named as the next increment. A machine-wide WebView2 policy adds
+`--remote-debugging-port=9222` to the browser arguments of the app about to
+be launched, and the step then speaks the DevTools protocol to the running
+WebView2 and evaluates `document.body.textContent` until the startup
+check's banner appears. The banner is rendered by
+`ui/src/routes/+layout.svelte` when `runStartupUpdateCheck` returns
+`available`, and nothing else in the product can put the advertised version
+into that sentence.
+
+Three reasons, all also written into the workflow header. It observes the
+startup check, which reports and never installs, so no 800 MB download and
+no install happens on a runner to prove a version comparison. The app is
+still launched by the same step, so the listener and the observation stay in
+one process, which the 7 September failure established as the only reliable
+arrangement. And it adds no toolchain: no `cargo install tauri-driver`, and
+no msedgedriver whose version must match the runtime.
+
+### What the first attempt found, which is worth keeping
+
+Run 34485684324 asked for the manifest and could not be observed: the
+debugging port never answered. The cause is elevation. Steps on a GitHub
+Actions Windows runner run as a High Integrity process, and WebView2 ignores
+every `WEBVIEW2_*` environment override and every HKCU policy override for
+an elevated host. HKLM policy overrides are honoured and are appended to the
+arguments wry sets in code, so
+`HKLM\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments`
+is what opens the port. Any future attempt to drive this app on a runner,
+by WebDriver or otherwise, meets the same wall.
+
+That run is also the first evidence the new failure taxonomy works. It did
+not report a missing verdict. It reported that the test could not look,
+said so in those words, and failed.
+
+### The assertion has been shown to fail
+
+Run 34486719261, dispatched with `advertised_version` 1.0.0 against an
+installed 1.1.0. The client asked for the manifest, the document was read in
+full, no banner appeared because there was nothing to announce, and the
+workflow failed on the verdict branch with the app's own text printed. The
+startup check timestamp was present, which distinguishes a check that
+completed and found nothing from a check that threw.
+
+That dispatch is the mutation check for this workflow, and it is named in
+the header so it can be rerun after any change to the observation code. It
+answers the objection this backlog exists to raise: a green test nobody has
+watched go red proves nothing about itself.
+
+### What the Windows leg still does not prove
+
+Nothing here downloads the advertised build, verifies its minisign
+signature, runs the installer, or checks the version afterwards. The Windows
+signing-order fault in BL-REL-002 lives entirely in that untested half, and
+so does the NSIS parallel-install question of the caveat above. The Settings
+button is not exercised either; it takes a different path through
+`ui/src/lib/updater.ts` and installs what it finds, which is why the startup
+check was the observation point.
+
+The next increment is the install itself: serve an advertised build the
+runner can actually fetch, press the button, and assert on the version the
+installed binary reports afterwards. That is a heavier test than this one
+and it needs the signing-order fix to have shipped in a real release first,
+so it is the release after next, not this one.

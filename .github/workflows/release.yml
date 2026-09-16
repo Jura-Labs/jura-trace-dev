@@ -234,13 +234,30 @@ jobs:
             // release on jura-trace already exists; reuse it instead of
             // failing with HTTP 422.  Only the body is refreshed — everything
             // else is left as-is so previously-uploaded assets survive.
-            try {
-              const { data: existing } = await github.rest.repos.getReleaseByTag({
-                owner: 'juralabs',
-                repo: 'jura-trace',
-                tag,
-              });
-              console.log(`Reusing existing release ${existing.id} for tag ${tag}`);
+            // `getReleaseByTag` does NOT return draft releases: GitHub resolves
+            // that endpoint through the published tag, and a draft has no
+            // published tag yet. So the reuse path below never fired for the
+            // case it was written for, a re-dispatch against a draft, and the
+            // 404 fell through to `createRelease`, producing a SECOND draft
+            // for the same tag.
+            //
+            // That happened on 10 September 2026 re-dispatching the Linux leg
+            // of v1.1.0. The new draft was empty, so the checksum and manifest
+            // steps listed its zero assets, wrote an empty SHA256SUMS.txt and a
+            // manifest with no platforms at all, and uploaded both by tag over
+            // the good ones on the real draft. A manifest with no platforms
+            // tells every user on every platform that they are up to date,
+            // for ever, which is the exact failure BL-REL-002 exists for.
+            //
+            // `listReleases` includes drafts, so match on tag_name there.
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: 'juralabs',
+              repo: 'jura-trace',
+              per_page: 100,
+            });
+            const existing = releases.find(r => r.tag_name === tag);
+            if (existing) {
+              console.log(`Reusing existing release ${existing.id} for tag ${tag} (draft: ${existing.draft})`);
               await github.rest.repos.updateRelease({
                 owner: 'juralabs',
                 repo: 'jura-trace',
@@ -248,8 +265,6 @@ jobs:
                 body,
               });
               return existing.id;
-            } catch (e) {
-              if (e.status !== 404) throw e;
             }
             const { data } = await github.rest.repos.createRelease({
               owner: 'juralabs',
@@ -540,8 +555,9 @@ jobs:
       #     COLLECT block (--onedir output: a directory containing the
       #     bootloader + an _internal/ tree of dylibs). Cold start ~39s vs
       #     ~90-200s for --onefile. The committed launcher stub at
-      #     src-tauri/binaries/jura-sidecar-aarch64-apple-darwin (a 38-line
-      #     shell script) execs the bundled bootloader at runtime.
+      #     src-tauri/binaries/jura-sidecar-aarch64-apple-darwin (a compiled
+      #     Mach-O launcher built from src-tauri/sidecar-launcher/; it was a shell
+      #     script until 9 September 2026, see that source for why) execs the bundled bootloader at runtime.
       #
       #   Windows / Linux — onefile mode (unchanged):
       #     spec defaults to EXE-only (no COLLECT) producing a single
@@ -775,10 +791,31 @@ jobs:
       #      chain vector flagged in docs/strategy/auto-updater-security-review.md.
       #   2. Use cargo-binstall to pull the prebuilt tauri-cli binary
       #      (~10s) — faster than compiling tauri-cli from source.
+      #   3. Both installs are skipped when the cargo cache has already
+      #      restored the binary. `cargo install` refuses to overwrite an
+      #      existing binary and exits 101 with "binary `cargo-binstall`
+      #      already exists in destination". That is what failed the Linux
+      #      leg of the v1.1.0 tag build on 10 September 2026, with nothing
+      #      wrong with the code and a red X that read like a build break.
+      #      It is the same defect ci.yml hit on 8 September with
+      #      cargo-audit, and it is fixed the same way here: ask whether the
+      #      tool is present rather than assuming it is not. `--force` would
+      #      also work but would rebuild a tool that does not change, which
+      #      is the cost the cache exists to avoid.
       - name: Install Tauri CLI
         run: |
-          cargo install cargo-binstall --locked --version "~1.10"
-          cargo binstall tauri-cli --version "2.11.4" --no-confirm
+          if command -v cargo-binstall >/dev/null 2>&1; then
+            echo "cargo-binstall restored from cache: $(cargo binstall -V)"
+          else
+            cargo install cargo-binstall --locked --version "~1.10"
+            echo "cargo-binstall built from source: $(cargo binstall -V)"
+          fi
+          if cargo tauri --version >/dev/null 2>&1; then
+            echo "tauri-cli restored from cache: $(cargo tauri --version)"
+          else
+            cargo binstall tauri-cli --version "2.11.4" --no-confirm
+            echo "tauri-cli installed: $(cargo tauri --version)"
+          fi
 
       # ── Tauri: build and upload release artefacts ────────────────────────
       # tauri-apps/tauri-action@v0 is the Tauri v2-compatible release of the action.
@@ -1545,8 +1582,19 @@ jobs:
               installerExts.some(ext => a.name.endsWith(ext))
             );
 
+            // An empty set here is never legitimate on a release run, and a
+            // warning is not enough. On 10 September 2026 this step warned,
+            // wrote a one-byte SHA256SUMS.txt, and uploaded it over a good
+            // one, because a duplicate empty draft had been created for the
+            // tag. A checksum file that lists nothing is worse than no
+            // checksum file: it looks like a checksum file.
             if (toHash.length === 0) {
-              core.warning('No installer artefacts found on the release — SHA256SUMS.txt will be empty.');
+              core.setFailed(
+                `No installer artefacts found on release ${releaseId} for tag ${process.env.RELEASE_TAG}. ` +
+                'Refusing to write an empty SHA256SUMS.txt over a good one. ' +
+                'Check that the release id above is the draft the build uploaded to.'
+              );
+              return;
             }
 
             // Download each artefact into a temporary directory and hash it.
@@ -1598,6 +1646,75 @@ jobs:
               { stdio: 'inherit' }
             );
             console.log('Uploaded SHA256SUMS.txt');
+
+      # ── A1b. Assert the published checksum file covers every installer ──
+      # The step above hashes whatever installer artefacts are attached when it
+      # runs, and its `installerExts` already includes `.tar.gz`. Yet the
+      # SHA256SUMS.txt published for v1.1.0 is 510 bytes, lists five artefacts,
+      # and omits `Jura.Trace.app.tar.gz` — the one file the updater downloads
+      # on the user's behalf.
+      #
+      # The filter was never the problem. The archive was attached at 18:28:56
+      # and the checksum file at 18:34:41, four minutes later, and no Actions
+      # run exists after 17:59:33Z. The file was written by hand.
+      #
+      # So this re-reads what is actually on the release rather than trusting
+      # what the step above just wrote, which is the only version of this check
+      # that catches a hand-made file. It is the mirror of the manifest
+      # completeness assertion further down: assert what you require.
+      - name: Assert SHA256SUMS covers every installer artefact
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        with:
+          github-token: ${{ secrets.RELEASE_PAT }}
+          script: |
+            const releaseId = parseInt(process.env.RELEASE_ID, 10);
+            const { data: assets } = await github.rest.repos.listReleaseAssets({
+              owner: 'juralabs', repo: 'jura-trace',
+              release_id: releaseId, per_page: 100,
+            });
+
+            const installerExts = ['.dmg', '.msi', '.exe', '.AppImage', '.deb', '.tar.gz'];
+            const installers = assets
+              .filter(a => installerExts.some(ext => a.name.endsWith(ext)))
+              .map(a => a.name);
+
+            const sums = assets.find(a => a.name === 'SHA256SUMS.txt');
+            if (!sums) {
+              core.setFailed('No SHA256SUMS.txt on the release. The step above should have uploaded one.');
+              return;
+            }
+
+            const res = await github.rest.repos.getReleaseAsset({
+              owner: 'juralabs', repo: 'jura-trace',
+              asset_id: sums.id,
+              headers: { Accept: 'application/octet-stream' },
+            });
+            const text = Buffer.from(res.data).toString('utf8');
+
+            // Standard sha256sum format is "<hash>  <name>". Take the name.
+            const listed = new Set(
+              text.split('\n')
+                  .map(l => l.trim())
+                  .filter(Boolean)
+                  .map(l => l.replace(/^[0-9a-fA-F]{64}\s+\*?/, ''))
+            );
+
+            const missing = installers.filter(n => !listed.has(n));
+            console.log(`Installer artefacts on the release: ${installers.length}`);
+            console.log(`Names listed in SHA256SUMS.txt:     ${listed.size}`);
+
+            if (missing.length) {
+              core.setFailed(
+                'SHA256SUMS.txt does not cover every installer artefact attached to this release.\n' +
+                'Missing: ' + missing.join(', ') + '\n' +
+                'A user who checks the file they downloaded against this will find no line for it. ' +
+                'Re-run this job after all artefacts are attached; it is idempotent.'
+              );
+              return;
+            }
+            console.log('OK: every installer artefact attached to the release is listed.');
 
       # Generate the Tauri auto-updater manifest and upload it to the release.
       #
@@ -1696,7 +1813,21 @@ jobs:
             const version = tag.replace(/^v/, '');           // e.g. "0.9.0" or "1.0.0-beta.1"
             // baseUrl points to juralabs/jura-trace so auto-update download URLs
             // resolve to the public repo that users can access.
-            const baseUrl = `https://github.com/juralabs/jura-trace/releases/download/${tag}`;
+            // The organisation is `Jura-Labs`. `juralabs` was its name before a
+            // rename, and github.com still 301s from the old name, which is why
+            // this went unnoticed: the manifest the fallback endpoint serves
+            // carries URLs that work only for as long as GitHub honours that
+            // redirect, and it stops the day anyone registers the old name.
+            // The live manifest built by the Cloudflare worker uses the
+            // canonical name already, so only the fallback was affected.
+            // Found 10 September 2026 while repairing the v1.1.0 draft.
+            //
+            // The API calls in this file still address `owner: 'juralabs'`,
+            // which the REST API resolves through the same rename. Those are
+            // authenticated calls that fail loudly if they ever stop
+            // resolving, so they are left for a separate sweep rather than
+            // changed in a release-day fix.
+            const baseUrl = `https://github.com/Jura-Labs/jura-trace/releases/download/${tag}`;
 
             // Map each Tauri updater platform key to the expected asset suffixes.
             //
@@ -1782,6 +1913,21 @@ jobs:
 
             // Produce the manifest.  "notes" is populated from the release body
             // (which the create-release job already set from CHANGELOG.md).
+            // A manifest with no platforms is well-formed JSON that answers
+            // HTTP 200 and tells every client on every platform that it is up
+            // to date, for ever, with no error anywhere. That is the defect
+            // BL-REL-002 exists for, and on 10 September 2026 this step wrote
+            // exactly that file and uploaded it over a good one, because the
+            // release it was reading had no assets. Refuse instead.
+            if (Object.keys(platforms).length === 0) {
+              core.setFailed(
+                `No platform entries could be built for ${manifestName} from release ${releaseId}. ` +
+                'Refusing to upload a manifest with no platforms: it would tell every client ' +
+                'it is up to date rather than fail visibly.'
+              );
+              return;
+            }
+
             const manifest = {
               version: `v${version}`,
               notes:   release.body || `Jura Trace ${tag}`,
@@ -2126,27 +2272,72 @@ jobs:
           fi
           echo "OK: all $(printf '%s\n' "$linked" | wc -l | tr -d ' ') linked file(s) are uploaded assets."
 
+      # ── A1a. Decide whether to publish by looking at the release ──
+      # This used to be `needs.build.result == 'success'`, and the comment it
+      # replaces said the quiet part out loud: the only thing stopping a tag
+      # push from publishing a macOS-less release was that the macOS CI job
+      # fails. The guard was made of a failure. Repair that job — which is
+      # exactly what PR #2 sets out to do — and the guard opens.
+      #
+      # That matters more than it sounds, because publishing IS go-live: the
+      # Cloudflare worker builds the live manifest from `releases/latest`
+      # (`index.ts:370-376`). A published release with no `darwin-aarch64`
+      # block tells every macOS install it is up to date, indefinitely, with
+      # no error anywhere.
+      #
+      # So ask the release what it has. A complete set publishes; anything
+      # less stays a draft and says which platform is missing. This does not
+      # fail the job: a partial release is a legitimate intermediate state
+      # here, because macOS is built locally and attached afterwards. It is
+      # simply not a publishable one.
+      #
+      # The old `platforms` clause is gone because it is now implied. A
+      # `linux-only` dispatch cannot satisfy a check that asks for all three.
+      - name: Decide whether every platform is attached
+        id: publishable
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        with:
+          github-token: ${{ secrets.RELEASE_PAT }}
+          script: |
+            const releaseId = parseInt(process.env.RELEASE_ID, 10);
+            const { data: assets } = await github.rest.repos.listReleaseAssets({
+              owner: 'juralabs', repo: 'jura-trace',
+              release_id: releaseId, per_page: 100,
+            });
+            const names = assets.map(a => a.name);
+            const has = re => names.some(n => re.test(n));
+
+            // One installer is enough to call a platform present. The updater
+            // archive is checked separately by the manifest completeness gate.
+            const present = {
+              'darwin-aarch64': has(/\.dmg$/),
+              'windows-x86_64': has(/\.msi$/) || has(/\.exe$/),
+              'linux-x86_64':   has(/\.AppImage$/) || has(/\.deb$/),
+            };
+
+            const missing = Object.entries(present)
+              .filter(([, ok]) => !ok)
+              .map(([k]) => k);
+
+            console.log('Assets on the release:');
+            for (const n of names.sort()) console.log(`  ${n}`);
+
+            if (missing.length) {
+              core.notice(
+                'Leaving this release as a DRAFT. No installer attached for: ' +
+                missing.join(', ') + '. ' +
+                'Attach the missing artefacts and re-run this job, which is idempotent.'
+              );
+              core.setOutput('ready', 'false');
+              return;
+            }
+            core.setOutput('ready', 'true');
+            console.log('Every platform has an installer. Ready to publish.');
+
       - name: Publish release
-        # Only auto-publish when EVERY platform built in CI. macOS is built
-        # locally and uploaded after this run (its CI job fails at the known
-        # Phase 5 codesign step), so in normal operation this step is skipped
-        # and the release stays a DRAFT for manual publish once the macOS
-        # artefacts are attached. SHA256SUMS and manifest generation above
-        # still run regardless, so the draft is fully populated for Win/Linux.
-        # Without this guard the SHA256SUMS gating (needs.build can be failure)
-        # would publish a macOS-less release the moment CI finishes.
-        #
-        # The `platforms` clause is the second half, and it is not redundant.
-        # `needs.build.result == 'success'` means "every job that RAN
-        # succeeded" — not "every platform was built". Under a `linux-only`
-        # or `windows-only` dispatch the matrix has one entry, so a green
-        # single-platform build satisfies it and this step would publish a
-        # release missing two platforms. The completeness gate above does
-        # currently catch that case, and it fired on 7 September. But a
-        # publish should be blocked by saying what it requires, not by
-        # depending on a different assertion happening to fail first.
-        # Partial dispatches are for diagnostics; they leave a draft.
-        if: needs.build.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.platforms == 'all')
+        if: steps.publishable.outputs.ready == 'true'
         # Uses RELEASE_PAT to flip the draft release to published on
         # juralabs/jura-trace (the public releases repo).
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9

@@ -330,7 +330,7 @@
       <em>Active in modes</em> line. Their findings feed into the numeric trust
       score. A twelfth entry (Video Deepfake) is included for reference only: it is
       <strong class="text-text-light dark:text-quartz font-medium">not available in this release</strong>.
-      Jura Trace v1.0 analyses still images only; video files are not supported in the
+      Jura Trace analyses still images only; video files are not supported in the
       Verify pipeline. Below the automatic detectors, an amber-tinted panel
       lists the three
       <strong class="text-text-light dark:text-quartz font-medium">on-demand investigation tools</strong>:

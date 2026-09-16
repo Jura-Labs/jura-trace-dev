@@ -1,6 +1,6 @@
 # BL-REL-002: the updater manifest carries URLs where signatures belong, so no v1.0.0 install can update
 
-**Status**: Open. Found 3 September 2026.
+**Status**: Open, largely resolved on the server side; the re-download notice and the live update on a real v1.0.0 install remain. The live manifest carries inline signatures (verified 8 September) and the fallback endpoint resolves (attached 6 September), so the sections below that describe URLs in the `signature` field and a 404 fallback are history, not the present. See "Update, 8 September 2026" at the foot of this file. Found 3 September 2026.
 **Raised**: 3 September 2026
 **Severity**: **Highest open item.** Every v1.0.0 installation in the field
 has a non-functional update path. There is no channel through which any fix
@@ -262,6 +262,35 @@ update. It should not go out before the fix is live and tested, so that
    manifests, because one static `windows-x86_64` key cannot serve both
    formats and the current arrangement produces a silent duplicate install.
 
+### Step 3 has its first real client-side evidence, 7 September 2026
+
+Until now every check on this item was made from outside the product:
+`curl` the manifest, decode the base64, compare key IDs. All necessary, and
+none of it proves a shipped binary does anything.
+
+The updater end-to-end workflow ran on 7 September (run 34143290758). The
+real Windows MSI was installed on a clean runner, `juralabs.org` was
+pointed at the machine, and the installed binary asked, unprompted:
+
+```
+  request: /api/updates/latest.json
+```
+
+That is the first evidence that a shipped Jura Trace client reaches the
+update endpoint at all. It also proves the TLS half incidentally: the CA
+existed only in `LocalMachine\Root`, so `rustls-platform-verifier` is
+genuinely consulting the OS trust store, which had been an assumption.
+
+**What it does not prove, and step 3 is not yet closed.** The test stops at
+the request. It does not show the client accepting the manifest, verifying
+the minisign signature, downloading the MSI, or applying the update —
+those need WebDriver to drive the UI past the check. Nor does it touch the
+deb or the NSIS case, which step 5 says decide the size of the notice.
+
+So: the endpoint is reached, and the two failure modes that would have been
+invisible from outside (DNS and TLS) are eliminated. The remainder of step
+3 stands.
+
 6. **Send the re-download notice**, once 1 to 5 are done and tested.
    Because nothing prompts a user to check for updates, the working
    assumption should be that it goes to all 145 and not only to whichever
@@ -281,3 +310,163 @@ fix.
 Do not fix this by removing the updater. The alternative to a working
 updater is expecting people who verify other people's media to notice a
 GitHub release by themselves.
+
+## Update, 8 September 2026
+
+Reconciled against the live endpoints and `origin/main` at `d0ca411d`. Pull
+request numbers in the body of this file above are `jura-archive` numbers
+(#31, #65, #67, #78); the `jura-trace-dev` repository created on
+8 September numbers from 1 again.
+
+### The live manifest, fetched 8 September 2026 at 22:22 UTC
+
+`curl -sS -D - https://juralabs.org/api/updates/latest.json`:
+
+```
+HTTP/2 200
+date: Tue, 08 Sep 2026 22:22:08 GMT
+content-type: application/json; charset=utf-8
+content-length: 25703
+cache-control: public, max-age=14400
+cf-cache-status: HIT
+age: 169
+last-modified: Tue, 08 Sep 2026 22:19:19 GMT
+server: cloudflare
+```
+
+Body: `version` 1.0.0, `pub_date` 2026-06-18T07:32:56Z, two platforms.
+
+| Platform | `url` | `signature` |
+|---|---|---|
+| `darwin-aarch64` | `.../v1.0.0/Jura.Trace.app.tar.gz` | 408 characters, base64, begins `dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBm`, decodes to `untrusted comment: signature from ...`. Not a URL |
+| `windows-x86_64` | `.../v1.0.0/JuraTrace-1.0.0-Windows-x64.msi` | 420 characters, same shape. Not a URL |
+
+No `linux-x86_64` entry.
+
+So the defect in the title is fixed in production. The worker source that
+does it is `infrastructure/cloudflare-worker-updater/src/index.ts`
+(`3cedd6ce`, 4 September, merged in jura-archive PR #31 on 5 September):
+`buildPlatformBlockSync` no longer exists, `locatePlatformAssets`
+(`index.ts:520-532`) returns URLs only and cannot produce a manifest block,
+`buildPlatformBlock` (`index.ts:472-495`) fetches the `.sig` contents, and
+`looksLikeSignature` (`index.ts:459-464`) refuses anything that starts with
+`http`, contains whitespace, or is not base64 of more than 64 characters.
+The false comment quoted in "Root cause" above is gone. The live output
+proves the deployed worker is that code or equivalent; the repository
+holds no deployment record, so the deploy date itself is not verifiable
+from here.
+
+**One discrepancy, now measured rather than inferred.** "Who the fix
+reaches" above says the worker edge cache is 5 minutes, and `index.ts:160`
+does set `CACHE_TTL_SECONDS = 300`. The live response carries
+`max-age=14400`, `cf-cache-status: HIT`, and `last-modified` and
+`accept-ranges` headers the worker never sets. An earlier version of this
+paragraph, written on 8 September, concluded from those headers that
+propagation could take up to four hours. That was wrong, and it was
+withdrawn on 9 September after the edge TTL was measured.
+
+The measurement: the URL was fetched once a minute for nine minutes. `age`
+climbed 27, 87, 147, 207, 267 on one cached copy, the edge then refetched
+from the worker at about 330 seconds after the fill, and a fresh copy
+started at age 60 with a new `last-modified`. **The edge honours the
+worker's `max-age=300`.** Two probes settle where the headers come from:
+the worker-only per-platform route and a cache-busted `latest.json` both
+answer with the worker's own `max-age=300` and no `cf-cache-status`, so the
+worker is bound and running and the annotations are added by the cache
+layer in front of it. The zone was read on 9 September: it has no Cache
+Rules at all (the `http_request_cache_settings` phase has no entrypoint
+ruleset), `cache_level` is the default `aggressive`, one Page Rule exists
+and it is the `/downloads*` redirect, and **`browser_cache_ttl` is 14400**.
+That single zone setting is what rewrites the header on the way out.
+
+So the propagation figure of five minutes stands. The rewritten header is
+cosmetic for the updater, because `tauri-plugin-updater` ignores
+`Cache-Control` and fetches per check; it affects only a person fetching
+the URL in a browser, who would be shown a copy up to four hours old. Two
+things follow. Set the zone's Browser Cache TTL to "Respect Existing
+Headers" (API value `0`), so the header says what the edge does. And on
+release day, purge the exact URL after the v1.1.0 manifest goes live, which
+removes even the five minutes; that step is now item 0 of the plan's manual
+gate. Neither changes the worker, which is correct as written.
+
+**Done, 9 September 2026.** Paul set Browser Cache TTL to Respect Existing
+Headers in the dashboard; the API read shows `browser_cache_ttl` `0`,
+modified 07:36:26 UTC. Verified at 07:39 UTC: a GET returned the worker's
+own `cache-control: public, max-age=300`, and the next request was
+`cf-cache-status: HIT`, `age: 0`, `max-age=300`. The header now says what
+the edge does. The discrepancy this section describes is closed; the
+purge step in the release plan stands.
+
+### The fallback endpoint
+
+"There is no fallback" above is no longer true.
+`https://github.com/Jura-Labs/jura-trace/releases/latest/download/latest.json`
+now returns 302 to `.../download/v1.0.0/latest.json` and then 200 with a
+25,703-byte body identical in shape to the worker's: version 1.0.0, both
+signatures inline (408 and 420 characters), no Linux entry. The asset
+`latest.json` was attached to the v1.0.0 release at 2026-09-06T21:21:45Z by
+`83dfab73` (jura-archive PR #67, "attach the update manifest, so the
+declared fallback exists"). Step 4 is done and was not recorded here until
+now.
+
+### Which steps this proves, and which it does not
+
+| Step | State on 8 September |
+|---|---|
+| 0, 1 | Done, as already recorded |
+| 2, inline the signature | **Done and live.** Proven by the curl above |
+| 2a, completeness assertion | Partly. The signature-shape check is in (`index.ts:459-464`, `:487-493`) and a platform that fails it is dropped with an error log rather than served. The manifest still fails open on a missing platform: `PLATFORM_ASSET_CONFIG` (`index.ts:189-200`) matches `.AppImage` for Linux, no AppImage exists, so Linux is silently absent, exactly as before |
+| 3, test before believing | Partly. The offline half (curl, decode, key ID) is done. jura-archive run 34143290758 on 7 September showed the real Windows MSI reaching `/api/updates/latest.json`. **The live leg, a pristine public v1.0.0 install on macOS and on Windows updating unprompted, has not been run** and cannot be until v1.1.0 assets exist. It is the manual gate's item 2 in `docs/release/v1.1.0-plan.md`, and this item stays open on it |
+| 4, attach `latest.json` | **Done**, 6 September, above |
+| 5, Linux and NSIS | Open. No Linux entry in either manifest; the deb path is untested; the NSIS duplicate-install question is unanswered |
+| 6, the notice | Open. Paul's wording and channel |
+
+The Windows signing-order fault ("Two more faults found 4 September") is
+fixed in tree by `2e4fe4f5` (jura-archive PR #31). No release has been
+built with it, so every Windows `.sig` currently on the v1.0.0 release is
+still the pre-Azure one, and the live manifest's `windows-x86_64` block,
+correct in form, still cannot verify against the MSI it points at. The
+macOS block has no such problem. That is the strongest reason the live leg
+is the gate and not the curl.
+
+The UI's 404-as-up-to-date mapping is fixed by `5a36da72` and a startup
+update check added by `13907406` (both jura-archive PR #31 and #32,
+5 September); neither reaches a user until v1.1.0 ships.
+
+### What this means for the status
+
+Every server-side fix this item asked for is live. Nothing a user has
+installed has changed, no v1.0.0 client has been observed completing an
+update, and the notice has not gone out. Per Paul's instruction of
+3 September, recorded above, the item does not close on the code fix.
+
+## Update, 9 September 2026: the updater archive now ships a signed launcher
+
+A defect this item did not know about, found by opening the local v1.1.0
+build's artefacts by hand. `Contents/MacOS/jura-sidecar` was a shell script
+whose code signature lived in extended attributes. The DMG carries them, so
+the DMG passed every check. The updater archive is a tar, Tauri's tar
+writer drops extended attributes, and `tauri-plugin-updater` extracts with
+the same library, so the launcher reached the extracted app "not signed at
+all" and Gatekeeper assessed it as `rejected, source=no usable signature`
+where the DMG's copy assessed as `Unnotarized Developer ID`. Re-signing that
+one file made the archived app pass deep verification; it was the only
+defect. Separately, Phase 6 of the build script had never produced an
+updater archive at all (`updater` is not a macOS bundle target), so the
+archive on disk was Phase 1's, made before the re-signing.
+
+Fixed in PR #49. The launcher is now a compiled Mach-O whose signature is
+inside the file, Phase 6 builds the `app` target so the archive is written
+from the signed state, and Phase 6.5 extracts the archive on every build and
+runs `codesign --verify --deep --strict` on it. The proving rebuild's archive
+reports 617 nested binaries signed, deep verification valid, and Gatekeeper
+`Unnotarized Developer ID`.
+
+Two consequences for this item. First, the v1.0.0 archive published in June
+was built by the same script and very likely has the same defect; that does
+not matter for updating *from* v1.0.0, because the client extracts the new
+archive, and nobody has ever updated from it. Second, the live leg is still
+the gate. Nothing above has been observed on a v1.0.0 client; it has been
+observed on the artefact such a client would receive, which is necessary
+and not sufficient. The status line stands.
+

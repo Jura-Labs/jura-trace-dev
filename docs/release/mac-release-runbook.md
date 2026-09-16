@@ -16,17 +16,31 @@ Work through every item before running the build script.
 
 **Disk space**
 
+Since 9 September 2026 the build writes its large outputs (the Cargo target,
+the PyInstaller sidecar and its staged copy, the DMG) under
+`CARGO_TARGET_DIR`, which should point at the external SSD. Check that
+volume, not the internal disk:
+
 ```bash
-df -h /
+df -h "$CARGO_TARGET_DIR" /
 ```
 
-Free space must be above 5 GB. If it is not, run:
+The SSD needs at least 5 GB free. The internal disk needs only about 1 GB,
+for the frontend build and temporary files. If the SSD is short, run:
 
 ```bash
 cargo clean --manifest-path src-tauri/Cargo.toml
 ```
 
-A cold rebuild takes 10–15 minutes but avoids mid-build ENOSPC failures. Also delete `sidecar/build/` if it exists (PyInstaller output, 200–300 MB).
+A cold rebuild takes 10–15 minutes but avoids mid-build ENOSPC failures.
+
+If `CARGO_TARGET_DIR` is unset, everything falls back to `src-tauri/target/`
+on the internal disk and the old 5 GB internal-disk rule applies. One trap
+worth knowing on the internal disk: macOS takes a local Time Machine
+snapshot every hour, and a snapshot pins every block deleted after it was
+taken, so deleting a previous build's output can free nothing for up to a
+day. `tmutil listlocalsnapshots /` shows them; that pinning is why the
+outputs moved to the SSD.
 
 **Quit running processes**
 

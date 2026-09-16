@@ -606,3 +606,76 @@ class TestExifInformedScoring:
         img = _make_noisy_photo()
         result = perform_deepfake_detection(img, has_camera_exif=True)
         assert 0.0 <= result.score <= 1.0
+
+
+class TestClassifierLoadFailureIsLogged:
+    """A classifier that cannot be unpickled must degrade AND say so.
+
+    Before 8 September 2026 ``_load_classifier`` swallowed every exception
+    with a bare ``except`` and returned ``None`` silently. The drift test in
+    ``docs/calibration/numerical-stack-drift-sep2026.md`` showed that under
+    scikit-learn 1.9.0 the shipped GBM raises ``ModuleNotFoundError`` on
+    load, which would have disabled the deepfake classifier on every image
+    with nothing in the log. These tests pin both halves of the fix: the
+    graceful ``None`` is kept, and the failure is now logged with its
+    traceback.
+    """
+
+    @staticmethod
+    def _reset_loader_state(monkeypatch):
+        from app.services import deepfake as df
+
+        monkeypatch.setattr(df, "_classifier", None)
+        monkeypatch.setattr(df, "_classifier_loaded", False)
+        return df
+
+    def test_unpickle_failure_returns_none_and_logs_exception(
+        self, monkeypatch, caplog
+    ):
+        import logging
+
+        df = self._reset_loader_state(monkeypatch)
+        monkeypatch.setattr(df.os.path, "exists", lambda _p: True)
+        monkeypatch.setattr(df, "_check_file_sha256", lambda _p, _h: True)
+
+        import joblib
+
+        def _boom(_path):
+            raise ModuleNotFoundError("No module named '_loss'")
+
+        monkeypatch.setattr(joblib, "load", _boom)
+
+        with caplog.at_level(logging.ERROR, logger="app.services.deepfake"):
+            result = df._load_classifier()
+
+        assert result is None, "load failure must still degrade to None"
+        errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
+        assert errors, "load failure must be logged at ERROR or above"
+        rec = errors[-1]
+        assert "deepfake_classifier.joblib failed to load" in rec.getMessage()
+        assert rec.exc_info is not None, "the traceback must be attached"
+        assert rec.exc_info[0] is ModuleNotFoundError
+        assert "_loss" in str(rec.exc_info[1])
+
+    def test_failure_is_logged_once_not_per_image(self, monkeypatch, caplog):
+        import logging
+
+        df = self._reset_loader_state(monkeypatch)
+        monkeypatch.setattr(df.os.path, "exists", lambda _p: True)
+        monkeypatch.setattr(df, "_check_file_sha256", lambda _p, _h: True)
+
+        import joblib
+
+        monkeypatch.setattr(
+            joblib, "load", lambda _p: (_ for _ in ()).throw(RuntimeError("x"))
+        )
+
+        with caplog.at_level(logging.ERROR, logger="app.services.deepfake"):
+            assert df._load_classifier() is None
+            assert df._load_classifier() is None
+            assert df._load_classifier() is None
+
+        errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
+        assert len(errors) == 1, (
+            "the loader is memoised; the failure must not be re-logged on every call"
+        )

@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# cargo-audit configuration. Read by `cargo audit` when run from
+# `src-tauri/`, which is how `.github/workflows/ci.yml` invokes it, and
+# also when a developer runs it by hand from the same directory. Both
+# therefore give the same answer, which is the point of putting it here
+# rather than passing --ignore on the CI command line.
+#
+# An entry in this file suppresses a security gate. Adding one is a
+# decision, not a cleanup: it needs a named advisory, a reason the
+# exposure does not apply to this product, and the condition under which
+# it comes back out. Never add one to make a build pass.
+
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071 — Marvin Attack: potential key recovery through
+    # timing sidechannels in `rsa`.
+    #
+    # There is no fixed version. The advisory has been open since
+    # 22 November 2023 and `rsa` 0.9.x has shipped no patched release.
+    #
+    # It is not avoidable by upgrading. `rsa` is a required, non-optional
+    # dependency of the `c2pa` crate in every published version, 0.79
+    # through 0.90.20 inclusive, checked against the crates.io dependency
+    # metadata on 8 September 2026. Dropping it would mean dropping C2PA
+    # support, which is the product.
+    #
+    # Why the exposure does not apply here. Marvin is a chosen-ciphertext
+    # timing sidechannel against a party holding an RSA *private* key: the
+    # attacker submits many ciphertexts, times the decryptions, and
+    # recovers the key. Jura Trace's RSA use through c2pa is signature and
+    # certificate-chain *verification*, which is public-key work with no
+    # private key present. The one place a private key is used is
+    # Sovereign-mode signing against a per-install local CA, where the
+    # operation is local, not attacker-triggered, and not remotely
+    # timeable.
+    #
+    # When this comes back out: if `rsa` ships a patched 0.9.x or c2pa
+    # moves to a different RSA implementation, delete this entry. If Trace
+    # ever grows a network-facing service that performs RSA private-key
+    # operations on request, delete it and re-assess before shipping that
+    # service.
+    #
+    # Approved by Paul at the terminal, 8 September 2026. id: W37-1
+    "RUSTSEC-2023-0071",
+]

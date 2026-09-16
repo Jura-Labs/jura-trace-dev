@@ -42,7 +42,20 @@ else
 fi
 BUNDLE_DIR="$CARGO_TARGET_BASE/${TARGET}/release/bundle"
 
-SIDECAR_DIST="sidecar/dist/jura-sidecar"
+# The sidecar's PyInstaller output (529 MB) and its staged copy for Tauri
+# (another 529 MB) live under the Cargo target base, which is the external
+# SSD when CARGO_TARGET_DIR points there, and not in the working tree.
+# Moved 9 September 2026: with both in-tree, every build wrote a gigabyte
+# to the internal disk, the next hourly Time Machine local snapshot pinned
+# it, and the disk (97.9% used) ran out of headroom for the build after
+# next. The Tauri resource glob "sidecar-bundle/**/*" requires the staging
+# directory to sit at src-tauri/sidecar-bundle, so that path is a symlink to
+# the real directory on the SSD; Phase 5a proves the bundler followed it by
+# requiring sidecar-bundle inside the built .app.
+SIDECAR_DIST_ROOT="$CARGO_TARGET_BASE/sidecar-dist"
+SIDECAR_DIST="$SIDECAR_DIST_ROOT/jura-sidecar"
+SIDECAR_WORK="$CARGO_TARGET_BASE/sidecar-build"
+SIDECAR_STAGING_REAL="$CARGO_TARGET_BASE/sidecar-bundle"
 SIDECAR_STAGING="src-tauri/sidecar-bundle"
 SIGNING_IDENTITY="Developer ID Application: Jura Labs CIC (Y82C4P9L7F)"
 TEAM_ID="Y82C4P9L7F"
@@ -154,19 +167,28 @@ fi
 log "Cleaning previous build artefacts"
 log "(Cargo target base: $CARGO_TARGET_BASE)"
 rm -rf "$BUNDLE_DIR"
-rm -rf "$SIDECAR_STAGING"
-rm -rf "$SIDECAR_DIST"
-rm -rf sidecar/build
+# The staging path is a symlink; remove the link and the directory behind it.
+rm -rf "$SIDECAR_STAGING_REAL"
+rm -f "$SIDECAR_STAGING"
+[[ -e "$SIDECAR_STAGING" ]] && rm -rf "$SIDECAR_STAGING"   # a real directory left by an older build
+rm -rf "$SIDECAR_DIST_ROOT" "$SIDECAR_WORK"
+rm -rf sidecar/build sidecar/dist                          # in-tree leftovers from before the move
 ok "Cleaned."
 
 # ── Frontend build ────────────────────────────────────────────────────
 log "Building SvelteKit frontend"
-(cd ui && npm install --silent && npm run build --silent)
+# `npm ci`, not `npm install`. The 9 September 2026 build rewrote
+# ui/package-lock.json (85 lines, optional platform packages pruned for this
+# arch) and left the working tree dirty. `npm ci` installs exactly what the
+# lockfile says and refuses to modify it, which is what a release build
+# should do and what ci.yml already does.
+(cd ui && npm ci --silent && npm run build --silent)
 ok "Frontend built to ui/build/"
 
 # ── Sidecar build (PyInstaller --onedir) ──────────────────────────────
 log "Building Python sidecar (PyInstaller --onedir, may take 5-10 min)"
-(cd sidecar && JURA_SIDECAR_ONEDIR=1 python3 -m PyInstaller jura-sidecar.spec --noconfirm)
+(cd sidecar && JURA_SIDECAR_ONEDIR=1 python3 -m PyInstaller jura-sidecar.spec --noconfirm \
+   --distpath "$SIDECAR_DIST_ROOT" --workpath "$SIDECAR_WORK")
 [[ -x "$SIDECAR_DIST/jura-sidecar" ]] || die "Sidecar bootloader missing after PyInstaller."
 [[ -d "$SIDECAR_DIST/_internal" ]] || die "Sidecar _internal/ missing after PyInstaller."
 ok "Sidecar built ($(du -sh "$SIDECAR_DIST" | cut -f1))"
@@ -184,10 +206,42 @@ ok "All bundled /forensics endpoints respond without bundle-import failures."
 
 # ── Stage sidecar-bundle into src-tauri/ ──────────────────────────────
 log "Staging sidecar-bundle for Tauri resources"
-mkdir -p "$SIDECAR_STAGING"
+mkdir -p "$SIDECAR_STAGING_REAL"
+ln -sfn "$SIDECAR_STAGING_REAL" "$SIDECAR_STAGING"
+[[ -d "$SIDECAR_STAGING/" ]] || die "$SIDECAR_STAGING does not resolve to $SIDECAR_STAGING_REAL."
 cp -R "$SIDECAR_DIST"/. "$SIDECAR_STAGING"/
-chmod +x src-tauri/binaries/jura-sidecar-aarch64-apple-darwin 2>/dev/null || true
-ok "Staged to $SIDECAR_STAGING ($(du -sh "$SIDECAR_STAGING" | cut -f1))"
+# ── Phase 0.4: the sidecar launcher is compiled from source, and must match ──
+# Contents/MacOS/jura-sidecar is a small Mach-O built from
+# src-tauri/sidecar-launcher/jura-sidecar-launcher.c. It is tracked in git so
+# Tauri has a file at the externalBin path for dev, check and CI. This phase
+# recompiles it from source and proves the tracked file is that source
+# compiled, so the two cannot drift without the build saying so. It never
+# overwrites the tracked file, so the working tree stays clean.
+#
+# Byte-identity is not available: Apple's linker assigns a random LC_UUID on
+# every link (ld-1267; -reproducible, SOURCE_DATE_EPOCH and ZERO_AR_DATE do
+# not change it) and -no_uuid produces a binary dyld refuses to load. So the
+# comparison is made by scripts/macho-equal.py with the UUID payload and the
+# linker's ad-hoc signature masked; every other byte must match. Tauri
+# replaces that ad-hoc signature with the Developer ID one when it bundles.
+#
+# The launcher was a shell script until 9 September 2026. See the C source
+# for why a script cannot ship signed through the updater.
+log "Phase 0.4: compile the sidecar launcher and check it matches the tracked binary"
+LAUNCHER_SRC="src-tauri/sidecar-launcher/jura-sidecar-launcher.c"
+LAUNCHER_BIN="src-tauri/binaries/jura-sidecar-aarch64-apple-darwin"
+LAUNCHER_TMP=$(mktemp -d)
+cc -O2 -Wall -Wextra -Werror -arch arm64 -mmacosx-version-min=13.0 \
+   -o "$LAUNCHER_TMP/launcher" "$LAUNCHER_SRC" || { rm -rf "$LAUNCHER_TMP"; die "The sidecar launcher failed to compile."; }
+if ! python3 scripts/macho-equal.py "$LAUNCHER_TMP/launcher" "$LAUNCHER_BIN"; then
+  rm -rf "$LAUNCHER_TMP"
+  die "$LAUNCHER_BIN is not $LAUNCHER_SRC compiled. \
+Rebuild it with the recipe in src-tauri/binaries/README.md and commit both."
+fi
+rm -rf "$LAUNCHER_TMP"
+chmod +x "$LAUNCHER_BIN"
+ok "Sidecar launcher matches its source ($(stat -f %z "$LAUNCHER_BIN") bytes, Mach-O arm64)."
+ok "Staged to $SIDECAR_STAGING -> $SIDECAR_STAGING_REAL ($(du -sh "$SIDECAR_STAGING/" | cut -f1))"
 
 # ── Phase 0.5: per-file sign nested Mach-O binaries in SOURCE ─────────
 # CRITICAL FIX (2026-06-07, post-rc.29 notarisation failure): cargo tauri
@@ -229,7 +283,7 @@ done < <(
   # .dylib, and any other Mach-O object that PyInstaller may include
   # in future dependency updates. Sort by path length descending so
   # deepest files sign first (parents seal after children).
-  find "$SIDECAR_STAGING" -type f \
+  find "$SIDECAR_STAGING/" -type f \
     \( -name "*.so" -o -name "*.dylib" -o ! -name "*.*" \) \
     -exec sh -c 'file -b "$1" 2>/dev/null | grep -q "Mach-O" && echo "$1"' _ {} \; 2>/dev/null \
   | awk '{print length($0), $0}' | sort -rn | cut -d' ' -f2-
@@ -246,6 +300,26 @@ mkdir -p src-tauri/models
 cp models/deepfake_classifier.joblib src-tauri/models/ 2>/dev/null || warn "deepfake_classifier.joblib not found in models/ — verify external USB mount."
 cp models/univfd_probe.joblib src-tauri/models/ 2>/dev/null || warn "univfd_probe.joblib not found in models/ — verify external USB mount."
 ok "Model files: $(ls src-tauri/models/ | tr '\n' ' ')"
+
+# ── Pre-bundle assertion: no stray model files may ship ───────────────
+# tauri.conf.json bundles src-tauri/models/ wholesale, and this script
+# builds from the working tree, so an untracked file sitting in that
+# directory ships to users. CI cannot see it: its Repo hygiene job only
+# ever sees tracked files, and the file this exists for
+# (deepfake_classifier.joblib.bak-1.7.2) is gitignored. It shipped in the
+# local v1.1.0 build of 9 September 2026 and was found inside the DMG by
+# hand. BL-REL-001. The pattern is the one ci.yml uses, so the two guards
+# agree on what "stray" means.
+log "Asserting no stray model files in models/ or src-tauri/models/"
+stray_models=$(find models src-tauri/models -type f \
+  \( -name '*.bak*' -o -name '*.backup*' -o -name '*.old' \
+     -o -name '*.orig' -o -name '*~' \) 2>/dev/null || true)
+if [[ -n "$stray_models" ]]; then
+  warn "Stray model files would be bundled into the .app:"
+  printf '  %s\n' $stray_models >&2
+  die "Refusing to build. Move them out of the bundled directory first (BL-REL-001)."
+fi
+ok "No stray model files."
 
 # ── Cargo macro-cache invalidation ────────────────────────────────────
 # tauri::generate_context! embeds the contents of ui/build/ at compile
@@ -335,51 +409,103 @@ while IFS= read -r f; do
 done < <(find "$SIDECAR_ROOT" -type f \( -name "*.dylib" -o -name "*.so" \) | head -5)
 [[ $mis_signed -eq 0 ]] || die "$mis_signed of $checked sampled files mis-signed."
 
-# ── Phase 6: regenerate DMG + updater payload from re-signed .app ─────
-log "Phase 6: cargo tauri bundle --bundles dmg,updater (uses re-signed .app)"
-(cd src-tauri && cargo tauri bundle --bundles dmg,updater --target "$TARGET")
+# ── Phase 6: regenerate .app, updater payload and DMG ─────────────────
+# `--bundles app,dmg`, and the reason is a defect that shipped silently.
+#
+# This step used to run `--bundles dmg,updater`. On macOS `updater` is not
+# a bundle target: the updater artefacts (.app.tar.gz and its minisign
+# .sig) are produced as a by-product of the `app` target. Tauri said so in
+# the log of every build, as a Warn line ("no updater-enabled targets were
+# built. Please enable one of these targets: app, appimage, msi, nsis"),
+# and nothing read it. The archive that ended up in bundle/macos/ was the
+# one Phase 1 made, from the .app as it stood BEFORE Phase 5a's per-file
+# signing and before this phase re-signed the sidecar launcher. On
+# 9 September 2026 that archive was opened by hand: Contents/MacOS/
+# jura-sidecar inside it was not signed at all, while the same file inside
+# the DMG was. The archive is what tauri-plugin-updater installs, so the
+# DMG was releasable and the update was not, and Phase 6.5 as then
+# written could not tell (it scanned a directory this phase removes).
+#
+# With `app` in the list, Tauri rebuilds the .app, signs the launcher,
+# gen-detectors, jura-trace and the bundle, writes a fresh archive and
+# .sig from that signed state, and then builds the DMG from it. Phase 6.5
+# opens the archive and proves it.
+log "Phase 6: cargo tauri bundle --bundles app,dmg (re-signs, then archives, then DMG)"
+(cd src-tauri && cargo tauri bundle --bundles app,dmg --target "$TARGET")
 
 DMG_PATH=$(find "$BUNDLE_DIR/dmg" -maxdepth 1 -name "*.dmg" | head -1)
 [[ -n "$DMG_PATH" ]] || die "No DMG found after Phase 6 regenerate."
 ok "DMG built: $DMG_PATH ($(du -sh "$DMG_PATH" | cut -f1))"
 
-# ── Phase 6.5: verify final .app has properly-signed nested binaries ──
-# Build-time gate that catches yesterday's failure mode (rc.29: Phase 6
-# regenerated unsigned nested files from source, .app passed top-level
-# verify but notarisation rejected with "binary is not signed with a
-# valid Developer ID certificate" on 600+ nested .so/.dylib).
+# ── Phase 6.5: verify the updater archive's .app has signed nested binaries ──
+# Build-time gate that catches the rc.29 failure mode (Phase 6 regenerated
+# unsigned nested files from source; the .app passed top-level verify but
+# notarisation rejected 600+ nested .so/.dylib).
 #
-# Sample the .app's nested Mach-O binaries and confirm every signature
-# bears TeamIdentifier=Y82C4P9L7F. If any nested binary is unsigned or
-# mis-signed, fail the build BEFORE Phase 7 / Phase 8 so the operator
-# sees the problem at build time, not as a 25-minute notarisation
-# rejection later.
-log "Phase 6.5: verify final .app nested signing"
+# Rewritten 9 September 2026 after it was found to have never checked
+# anything. It scanned "$APP_PATH/Contents/Resources/sidecar-bundle", but
+# Phase 6's `cargo tauri bundle --bundles dmg,updater` removes that .app
+# once it has packaged it, so `find` ran against a missing directory with
+# stderr silenced, counted zero files, and the gate reported
+# "All 0 nested Mach-O binaries in final .app signed". A gate that passes
+# on an empty set is the BL-SILENT-001 pattern, in the release script.
+#
+# Two changes. It now inspects the updater archive, which is the artefact
+# the release exists to deliver, by extracting it to a temp dir on the
+# same disk and scanning that .app. And it refuses to pass unless it has
+# checked at least one binary and confirmed the bundled version.
+log "Phase 6.5: verify nested signing inside the updater archive"
 
-POST6_SIDECAR_ROOT="$APP_PATH/Contents/Resources/sidecar-bundle"
+UPDATER_TGZ_CHECK=$(find "$BUNDLE_DIR/macos" -maxdepth 1 -name "*.app.tar.gz" | head -1)
+[[ -n "$UPDATER_TGZ_CHECK" ]] || die "No updater .app.tar.gz found after Phase 6; nothing to verify."
+VERIFY_TMP=$(mktemp -d "$CARGO_TARGET_BASE/verify-XXXXXX")
+trap 'rm -rf "$VERIFY_TMP"' EXIT
+tar -xzf "$UPDATER_TGZ_CHECK" -C "$VERIFY_TMP"
+VERIFY_APP=$(find "$VERIFY_TMP" -maxdepth 1 -name "*.app" -type d | head -1)
+[[ -n "$VERIFY_APP" ]] || die "The updater archive contains no .app at its top level."
+
+bundled_ver=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$VERIFY_APP/Contents/Info.plist" 2>/dev/null || true)
+declared_ver=$(grep -m1 '"version"' src-tauri/tauri.conf.json | sed -E 's/.*"version": *"([^"]+)".*/\1/')
+[[ "$bundled_ver" == "$declared_ver" ]] || die "Bundled version '$bundled_ver' does not match tauri.conf.json '$declared_ver'."
+ok "Updater archive carries $VERIFY_APP at version $bundled_ver."
+
 mis_signed=0
 checked=0
-# Verify every Mach-O in the final .app. Same content-based detection
-# as Phase 0.5.
 while IFS= read -r f; do
   checked=$((checked + 1))
   ident=$(codesign --display --verbose=2 "$f" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2}' | head -1)
   if [[ "$ident" != "$TEAM_ID" ]]; then
     mis_signed=$((mis_signed + 1))
-    warn "POST-BUNDLE MIS-SIGNED: $f Team='${ident:-NONE}'"
+    warn "POST-BUNDLE MIS-SIGNED: ${f#$VERIFY_TMP/} Team='${ident:-NONE}'"
   fi
 done < <(
-  find "$POST6_SIDECAR_ROOT" -type f \
+  find "$VERIFY_APP" -type f \
     \( -name "*.so" -o -name "*.dylib" -o ! -name "*.*" \) \
-    -exec sh -c 'file -b "$1" 2>/dev/null | grep -q "Mach-O" && echo "$1"' _ {} \; 2>/dev/null
+    -exec sh -c 'file -b "$1" 2>/dev/null | grep -q "Mach-O" && echo "$1"' _ {} \;
 )
 
+if [[ $checked -eq 0 ]]; then
+  die "Phase 6.5 found no Mach-O binaries to check inside the updater archive. \
+That is not a pass; the scan path is wrong or the archive is empty."
+fi
 if [[ $mis_signed -gt 0 ]]; then
-  die "$mis_signed of $checked nested Mach-O binaries in the final .app are mis-signed. \
+  die "$mis_signed of $checked nested Mach-O binaries in the updater archive are mis-signed. \
 This is the rc.29-class notarisation failure mode. Phase 0.5 (source signing) or Phase 5a \
 (in-.app signing) is not effective; investigate cargo tauri bundle behaviour."
 fi
-ok "All $checked nested Mach-O binaries in final .app signed by Team=$TEAM_ID."
+# Judge by the exit status, not by whether codesign printed anything: with
+# --verbose it reports "valid on disk" and "satisfies its Designated
+# Requirement" on stderr when it SUCCEEDS, and the first version of this
+# check read those as a failure and refused a good build (9 September 2026).
+deep_out=$(codesign --verify --deep --strict --verbose=2 "$VERIFY_APP" 2>&1); deep_rc=$?
+if [[ $deep_rc -ne 0 ]]; then
+  warn "codesign --verify --deep --strict on the archive's .app failed (exit $deep_rc):"
+  printf '%s\n' "$deep_out" | grep -vE '^--(prepared|validated):' | sed 's/^/  /' >&2
+  die "The .app inside the updater archive does not pass deep verification. \
+The DMG may still be fine; the archive is what the auto-updater installs, so this blocks release."
+fi
+rm -rf "$VERIFY_TMP"; trap - EXIT
+ok "All $checked nested Mach-O binaries in the updater archive signed by Team=$TEAM_ID; deep verify passed."
 
 # ── Phase 7: codesign the DMG itself ──────────────────────────────────
 log "Phase 7: codesign the DMG"

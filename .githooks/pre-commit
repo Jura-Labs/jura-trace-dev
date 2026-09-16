@@ -1,8 +1,27 @@
-#!/bin/sh
-# Jura Trace pre-commit hook — quick checks (< 30 seconds)
+#!/usr/bin/env bash
+# Jura Trace pre-commit hook, quick checks (under 30 seconds)
 # Install: git config core.hooksPath .githooks
 
+# `pipefail` is what makes this file a gate rather than a description of one.
+#
+# Every check below pipes its output through `tail` to keep the terminal
+# readable. A shell pipeline exits with the status of its LAST command, and
+# `tail` succeeds on any input, so without `pipefail` a failing `cargo check`,
+# `clippy`, `svelte-check` or `vitest` was reported as a pass and the hook
+# printed "all checks passed". Only `cargo fmt --check`, which is not piped,
+# ever actually blocked a commit.
+#
+# Found on 10 September 2026, while an agent drafting the v1.1.0 changelog
+# noticed the hook print `1 ERRORS` from svelte-check and pass anyway. Every
+# commit made through this hook since it was written was unverified by four
+# of its five checks. This is a BL-SILENT-001 instance in the tooling that
+# was supposed to catch them.
+#
+# `pipefail` is a bash feature, not POSIX, hence the shebang change from
+# /bin/sh. Proof it now bites, run from a shell:
+#   (false 2>&1 | tail -1) || echo "guard fires"
 set -e
+set -o pipefail
 
 echo "Pre-commit: checking Rust formatting..."
 (cd src-tauri && cargo fmt --check) || {
@@ -45,4 +64,4 @@ echo "Pre-commit: running vitest unit tests..."
     exit 1
 }
 
-echo "Pre-commit: all checks passed."
+echo "Pre-commit: all checks passed (and a failure here would have stopped the commit)."

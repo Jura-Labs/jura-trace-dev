@@ -1,0 +1,786 @@
+name: Updater live leg (Windows)
+
+# The release gate's single non-negotiable, for Windows. A pristine, publicly
+# downloaded v1.0.0 asks the REAL update service for a manifest and says what
+# it decided. Nothing here is staged: no hosts entry, no throwaway certificate
+# authority, no local listener. The app talks to juralabs.org over the public
+# internet and the manifest is whatever the Cloudflare worker is serving.
+#
+# ── Why this exists as a separate workflow ─────────────────────────────────
+#
+# `updater-e2e.yml` is the STAGING leg. It serves a manifest it composed
+# itself, over a certificate it minted itself, through a hosts redirect, so it
+# can advertise any version it likes and prove the client's behaviour without
+# a release existing. That file took several attempts to get right and it is
+# the thing that catches a regression on every change. Threading a "talk to
+# production instead" mode through its three hundred lines of PowerShell would
+# put the proven path at risk to save duplicating sixty lines of debugging
+# plumbing. Those sixty lines are copied below and marked, so a fix to one is
+# an obvious fix to the other. `Get-CdpTargets` is still verbatim.
+# `Invoke-CdpEvaluate` is no longer: it speaks the same protocol and it
+# returns a diagnostic record instead of a bare $null, for the reason set out
+# above the function.
+#
+# ── What this proves that staging cannot ───────────────────────────────────
+#
+# PROVES: the shipped binary resolves the real hostname through public DNS,
+# trusts the real certificate chain with no help from this runner, fetches
+# the manifest the worker actually serves, verifies its signature against the
+# key compiled into v1.0.0, and decides that the published version is newer.
+# Every one of those is a thing staging deliberately substitutes.
+#
+# What it asserts is the app's own version, before and after. The sentence
+# "Version X is available" appears only while the download is in flight, and
+# run 34570877379 pressed the button, updated itself, and failed anyway
+# because the sentence had gone by the next probe. A version that changed
+# from 1.0.0 to 1.1.0 is durable evidence and proves the install, not the
+# offer.
+#
+# It presses the button rather than waiting, because v1.0.0 has NO startup
+# update check. That arrived in v1.1.0 as T1.2, and `git show
+# v1.0.0:ui/src/lib/updater.ts` contains no reference to it. The first attempt
+# at this file waited for a check that version cannot perform and read an
+# empty record of the app's last check, which is what that means. It is also
+# a fact about the release worth stating plainly: no existing user is told
+# that v1.1.0 exists unless they open Settings and ask.
+#
+# Pressing the button in v1.0.0 begins the download and install at once, so
+# this run also attempts the install rather than only being offered it. The
+# app then relaunches on the new version, and the probe reads the About
+# section again on the relaunched app, so what is asserted is an install and
+# not an offer.
+#
+# ── What this has already looked like when it worked ───────────────────────
+#
+# Run 34581569486, the first green one. The whole observation took under two
+# minutes and the log reads:
+#
+#     probe at 9s   stage=navigating        url=http://tauri.localhost/
+#     probe at 13s  stage=waiting-for-button url=.../settings ready=loading
+#     probe at 16s  stage=clicked            version=1.0.0
+#     probe at 110s stage=not-the-app        url=about:blank
+#     probe at 119s stage=updated            version=1.1.0
+#
+# The about:blank at 110s is the app restarting itself on the new version,
+# which is the install landing rather than anything going wrong.
+#
+# One thing to know before reading a target list. The url that /json/list
+# reports for a target can lag the page's own location, and in that run it
+# said http://tauri.localhost/ while the page itself was still about:blank.
+# The target url is therefore a filter and not an authority. The probe checks
+# location.href from inside the page, which is why the stage it returns can
+# disagree with the line printed above it.
+#
+# ── What has been ruled out, with the run that ruled it out ────────────────
+#
+# Every one of these cost a run of twelve to fifteen minutes. They are listed
+# so the next reader does not spend that again. The detail is in the comment
+# next to the code each one changed.
+#
+#   34570877379  Asserting on the sentence "Version 1.1.0 is available". It
+#                exists only while the download is in flight. The assertion is
+#                now the app's own reported version, before and after, which
+#                is durable. The same run also showed four minutes was too
+#                tight: what mattered landed at 224 seconds of 240. The window
+#                is now ten minutes.
+#   34572744501  Acting on the first page target offered, which is the browser
+#                host's about:blank, and setting location.href on it, which
+#                races the app's own startup. Confirmed again in 34574122914.
+#                The loop now considers only targets served from
+#                tauri.localhost.
+#   34575459450  Setting the WebView2 policy for jura-trace.exe alone and
+#                dropping the "*" value. The port then never answered at all.
+#                The wildcard is load-bearing. Do not remove it again.
+#   34578756154  Another WebView2 host holding the port. The run printed
+#                "no WebView2 host was already running", so it was not that.
+#   34578756154  And what it actually was. The probe expression had been a
+#                JavaScript SyntaxError since 826a4cb1, so it never ran and
+#                nothing was ever read, through four runs. A PowerShell array
+#                literal binds the comma tighter than the plus, so the one
+#                line built by concatenation became three elements and the
+#                join put newlines inside a JavaScript string literal. See the
+#                brackets at the EXPECTED line and the assertion immediately
+#                after the expression is built. It stayed invisible for as
+#                long as it did because Invoke-CdpEvaluate answered four
+#                different failures with the same silent $null, so a page that
+#                threw was recorded exactly like a page that was never
+#                reachable. Both halves of that are fixed.
+#
+# ── The claim that it is live is asserted, not assumed ─────────────────────
+#
+# A test that says "production" while quietly talking to a local listener is
+# the exact failure this repository has spent a fortnight removing. So before
+# the app is launched, this workflow asserts that juralabs.org resolves to a
+# public address, that the hosts file names it nowhere, and that no extra
+# root certificate has been installed on the machine. If any of those is
+# false the run fails before it can produce a reassuring green tick.
+
+on:
+  workflow_dispatch:
+    inputs:
+      previous_tag:
+        description: "Tag whose installer is treated as the PREVIOUS version. The published v1.0.0 unless you are testing something else."
+        required: false
+        default: "v1.0.0"
+        type: string
+      expected_version:
+        description: "Version the live service is expected to offer. The run fails unless the app says this exact version is available."
+        required: false
+        default: "1.1.0"
+        type: string
+
+concurrency:
+  group: updater-live-leg-${{ github.event.inputs.previous_tag }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows, live, from ${{ github.event.inputs.previous_tag }}
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download the previous version's installer
+        shell: bash
+        env:
+          # RELEASE_PAT rather than github.token: the installers live on
+          # Jura-Labs/jura-trace and github.token is scoped to this repo.
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          PREV: ${{ github.event.inputs.previous_tag || 'v1.0.0' }}
+        run: |
+          set -euo pipefail
+          mkdir -p prev
+          gh release download "$PREV" --repo Jura-Labs/jura-trace \
+            --pattern "*Windows-x64.msi" --dir prev
+          ls -lh prev/ | sed 's/^/  /'
+
+      - name: Assert this machine is not staging anything
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fail = $false
+
+          # 1. The hosts file must not mention the host at all.
+          $hosts = Get-Content "$env:SystemRoot\System32\drivers\etc\hosts" -Raw
+          if ($hosts -match "juralabs") {
+            Write-Host "::error::The hosts file mentions juralabs. This runner is not clean."
+            $fail = $true
+          } else {
+            Write-Host "OK: hosts file does not mention juralabs."
+          }
+
+          # 2. The name must resolve to a public address.
+          $addrs = (Resolve-DnsName juralabs.org -Type A -ErrorAction Stop).IPAddress
+          Write-Host "juralabs.org resolves to: $($addrs -join ', ')"
+          foreach ($a in $addrs) {
+            if ($a -like "127.*" -or $a -like "10.*" -or $a -like "192.168.*" -or $a -like "169.254.*") {
+              Write-Host "::error::juralabs.org resolves to a private address ($a)."
+              $fail = $true
+            }
+          }
+          if (-not $fail) { Write-Host "OK: every address is public." }
+
+          # 3. No root certificate of OURS is installed.
+          #
+          #    The first version of this matched "jura|throwaway|test" and
+          #    failed on the very first run, because the windows-latest image
+          #    ships four vendor testing roots of its own: Microsoft Testing
+          #    Root Certificate Authority 2010, Microsoft Test Root Authority,
+          #    Microsoft ECC Testing Root 2017, and UniTrust Global TLS MLDSA
+          #    Root R1 TEST. None of them can impersonate juralabs.org and the
+          #    word "test" in a vendor root is not evidence of anything. The
+          #    pattern is now "jura", which is the only thing the staging leg
+          #    installs and the only thing specific to us.
+          $roots = (Get-ChildItem Cert:\LocalMachine\Root).Count
+          Write-Host "machine root certificates present: $roots"
+          $suspect = Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -match "jura" }
+          if ($suspect) {
+            Write-Host "::error::A root certificate mentioning jura is installed on this machine:"
+            $suspect | Format-Table Subject, Thumbprint -AutoSize | Out-String | Write-Host
+            $fail = $true
+          } else {
+            Write-Host "OK: no jura root certificate on this machine."
+          }
+
+          # 4. The positive assertion, and the one that actually matters.
+          #
+          #    Enumerating what is installed is weak evidence twice over: it
+          #    is fragile against vendor images, as branch 3 learned, and it
+          #    says nothing about the chain the app will really be offered.
+          #    So fetch the manifest exactly as the app will, and look at the
+          #    certificate the server presented and the document it returned.
+          #    If this runner were being lied to, this is where it would show.
+          $req = [System.Net.HttpWebRequest]::Create("https://juralabs.org/api/updates/latest.json")
+          $req.UserAgent = "jura-trace-live-leg-precheck"
+          $resp = $req.GetResponse()
+          $reader = New-Object System.IO.StreamReader($resp.GetResponseStream())
+          $body = $reader.ReadToEnd()
+          $reader.Close(); $resp.Close()
+          $cert = $req.ServicePoint.Certificate
+          Write-Host "server certificate subject: $($cert.Subject)"
+          Write-Host "server certificate issuer : $($cert.Issuer)"
+          if ($cert.Issuer -match "jura|throwaway") {
+            Write-Host "::error::The certificate presented for juralabs.org was issued by us."
+            $fail = $true
+          } else {
+            Write-Host "OK: the certificate was issued by a public authority, not by this test."
+          }
+          $m = $body | ConvertFrom-Json
+          $platforms = @($m.platforms.PSObject.Properties.Name | Sort-Object)
+          Write-Host "live manifest version   : $($m.version)"
+          Write-Host "live manifest platforms : $($platforms -join ', ')"
+          if ($platforms -notcontains "windows-x86_64") {
+            Write-Host "::error::The live manifest has no windows-x86_64 entry, so there is nothing for this client to be offered."
+            $fail = $true
+          } else {
+            Write-Host "OK: the live manifest carries a windows-x86_64 entry."
+          }
+          $winSig = $m.platforms."windows-x86_64".signature
+          if ($winSig -notmatch "^dW50cnVzdGVk") {
+            Write-Host "::error::The windows-x86_64 signature field does not contain a minisign signature. First 40 characters: $($winSig.Substring(0, [Math]::Min(40, $winSig.Length)))"
+            Write-Host "That is BL-REL-002, and it would mean this release cannot be installed by anyone."
+            $fail = $true
+          } else {
+            Write-Host "OK: the windows-x86_64 signature is a minisign signature, not a URL."
+          }
+
+          if ($fail) {
+            Write-Host "Refusing to continue. A live leg that is not live proves nothing."
+            exit 1
+          }
+
+      - name: Install the previous version, launch it, and read its verdict
+        shell: pwsh
+        env:
+          EXPECTED: ${{ github.event.inputs.expected_version || '1.1.0' }}
+          PREV: ${{ github.event.inputs.previous_tag || 'v1.0.0' }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          function Get-CdpTargets {
+            try {
+              return Invoke-RestMethod -Uri "http://127.0.0.1:9222/json/list" -TimeoutSec 3
+            } catch {
+              return $null
+            }
+          }
+
+          # This helper DIVERGES from the copy in updater-e2e.yml, on purpose,
+          # and it is the only one that does. The protocol body is unchanged:
+          # connect, send one Runtime.evaluate, read frames until the reply
+          # carrying our id arrives. What changed is that it no longer answers
+          # four completely different failures with the same silent $null.
+          #
+          # Run 34578756154 had the application's own page on the debugging
+          # port for ten minutes and recorded nothing whatsoever: dom_read
+          # false, last_stage null, page_url null. That was possible because
+          # "could not connect", "sent and heard nothing back", "heard forty
+          # frames and none of them was ours" and "the page threw while the
+          # expression was being parsed" all returned $null, and the caller
+          # then `continue`d past it without a word. A run that cannot look at
+          # the app has to be able to say so, which is the whole of
+          # BL-SILENT-001. So the helper now always returns an object, and that
+          # object always carries a Diag record saying how far it got.
+          function Invoke-CdpEvaluate {
+            param([string]$WsUrl, [string]$Expression)
+            $diag = [ordered]@{
+              connected  = $false
+              sent       = $false
+              frames     = 0
+              firstFrame = $null
+              failure    = $null
+            }
+            $ws = New-Object System.Net.WebSockets.ClientWebSocket
+            try {
+              $cts = [System.Threading.CancellationTokenSource]::new([TimeSpan]::FromSeconds(10))
+              $ws.ConnectAsync([Uri]$WsUrl, $cts.Token).GetAwaiter().GetResult()
+              $diag.connected = $true
+              $req = @{
+                id = 1
+                method = "Runtime.evaluate"
+                params = @{ expression = $Expression; returnByValue = $true; awaitPromise = $false }
+              } | ConvertTo-Json -Depth 6 -Compress
+              $out = [ArraySegment[byte]]::new([Text.Encoding]::UTF8.GetBytes($req))
+              $ws.SendAsync($out, [System.Net.WebSockets.WebSocketMessageType]::Text, $true, $cts.Token).GetAwaiter().GetResult()
+              $diag.sent = $true
+
+              $buf = New-Object byte[] 65536
+              # The target may push protocol events we did not ask for, so read
+              # until the reply carrying our id arrives or the budget runs out.
+              for ($i = 0; $i -lt 40; $i++) {
+                $sb = New-Object System.Text.StringBuilder
+                do {
+                  $seg = [ArraySegment[byte]]::new($buf)
+                  $res = $ws.ReceiveAsync($seg, $cts.Token).GetAwaiter().GetResult()
+                  [void]$sb.Append([Text.Encoding]::UTF8.GetString($buf, 0, $res.Count))
+                } while (-not $res.EndOfMessage)
+                $frame = $sb.ToString()
+                $diag.frames = $i + 1
+                if (-not $diag.firstFrame) {
+                  $diag.firstFrame = $frame.Substring(0, [Math]::Min(400, $frame.Length))
+                }
+                $msg = $frame | ConvertFrom-Json
+                if ($msg.id -eq 1) {
+                  return [pscustomobject]@{ Reply = $msg; Frame = $frame; Diag = $diag }
+                }
+              }
+              $diag.failure = "read $($diag.frames) frame(s) and none carried id 1; first was: $($diag.firstFrame)"
+              return [pscustomobject]@{ Reply = $null; Frame = $null; Diag = $diag }
+            } catch {
+              $diag.failure = $_.Exception.GetType().Name + ": " + $_.Exception.Message
+              if ($_.Exception.InnerException) {
+                $diag.failure += " / " + $_.Exception.InnerException.Message
+              }
+              return [pscustomobject]@{ Reply = $null; Frame = $null; Diag = $diag }
+            } finally {
+              try { $ws.Dispose() } catch { }
+            }
+          }
+
+          # The probe. textContent rather than innerText, so a banner sitting
+          # behind the first-run onboarding overlay is still read; innerText
+          # would drop anything the layout engine considers hidden. The last
+          # startup-check timestamp comes back too: it is written only after
+          # the plugin's check resolves, so it separates "the check threw" from
+          # "the check completed and said something other than available".
+          # The probe drives the app as a user would, because v1.0.0 cannot be
+          # observed passively: it has NO startup update check. That arrived in
+          # v1.1.0 as T1.2, and `git show v1.0.0:ui/src/lib/updater.ts` contains
+          # no reference to it. The first attempt at this workflow waited for a
+          # check that version cannot perform, and the app's own record of its
+          # last check came back empty, which is exactly what that means.
+          #
+          # So: navigate to Settings, find the button by its label, press it
+          # once, then watch. It is idempotent, because Runtime.evaluate is
+          # called repeatedly against the same page and a second press would
+          # restart the download.
+          #
+          # This is also why the run proves more than the macOS leg did.
+          # Pressing that button in v1.0.0 begins the download and install
+          # immediately; the status sentence appears at once and stays for the
+          # minutes the transfer takes, so the verdict is easy to catch and the
+          # install is genuinely attempted rather than merely offered.
+          $probeJs = @(
+            '(function () {',
+            # The brackets are load-bearing and this line is why run
+            # 34578756154 observed nothing at all.
+            #
+            # In a comma separated PowerShell array literal the comma binds
+            # tighter than the plus, so without the brackets this is not one
+            # element built by joining three strings. It is the array so far,
+            # plus a scalar, plus the rest of the array, and plus on an array
+            # appends. The element became three elements, `-join "`n"` then put
+            # newlines between them, and a JavaScript string literal cannot
+            # contain a raw newline. The whole expression was a SyntaxError
+            # that never ran.
+            ('  var EXPECTED = "' + $env:EXPECTED + '";'),
+            '  try {',
+            '    var text = (document.body ? document.body.textContent : "").replace(/\s+/g, " ").trim();',
+            '    if (location.protocol === "about:" || location.href.indexOf("tauri.localhost") === -1) {',
+            '      return JSON.stringify({ stage: "not-the-app", url: location.href, ready: document.readyState });',
+            '    }',
+            '    if (location.pathname.indexOf("settings") === -1) {',
+            '      location.href = "/settings";',
+            '      return JSON.stringify({ stage: "navigating", url: location.href, ready: document.readyState, text: text.slice(0, 4000) });',
+            '    }',
+            '    var btns = Array.prototype.slice.call(document.querySelectorAll("button"));',
+            '    var b = null;',
+            '    for (var i = 0; i < btns.length; i++) {',
+            '      if (/Check for Updates/i.test(btns[i].textContent || "")) { b = btns[i]; break; }',
+            '    }',
+            '    var vm = text.match(/About\s+Version\s+([0-9][0-9A-Za-z.\-+]*)/);',
+            '    var appVersion = vm ? vm[1] : null;',
+            '    var already = appVersion === EXPECTED;',
+            '    if (b && !window.__juraClicked && !already) {',
+            '      window.__juraClicked = true;',
+            '      b.click();',
+            '      return JSON.stringify({ stage: "clicked", appVersion: appVersion, url: location.href, ready: document.readyState, text: text.slice(0, 60000) });',
+            '    }',
+            '    return JSON.stringify({ stage: (already ? "updated" : (window.__juraClicked ? "watching" : "waiting-for-button")), appVersion: appVersion, hasButton: !!b, url: location.href, ready: document.readyState, text: text.slice(0, 60000) });',
+            '  } catch (e) {',
+            '    return JSON.stringify({ stage: "error", message: String(e) });',
+            '  }',
+            '})()'
+          ) -join "`n"
+
+          # Say the expression out loud, once, before anything uses it.
+          #
+          # "The JavaScript is malformed after its journey through YAML, a
+          # PowerShell single-quoted array and a JSON payload" was a live
+          # theory for run 34578756154 and there was no way to settle it from
+          # the log, because the expression was never printed. What follows is
+          # the exact string handed to Runtime.evaluate, so the theory can be
+          # confirmed or dropped by reading rather than by guessing.
+          Write-Host "── the probe expression, $($probeJs.Length) characters ──"
+          Write-Host $probeJs
+          Write-Host "── end of the probe expression ──"
+
+          # And prove it is the expression it was meant to be. The fault fixed
+          # above survived four runs because a mangled expression and a page
+          # that has not finished rendering look identical from outside the
+          # browser. This assertion costs nothing, fails in the right place,
+          # and names the one line that interpolates a PowerShell value, which
+          # is the only line where a build fault of that kind can arise.
+          $mustContain = 'var EXPECTED = "' + $env:EXPECTED + '";'
+          if ($probeJs -notmatch [regex]::Escape($mustContain)) {
+            Write-Host "::error::The probe expression was mangled while it was being built, so it would not have parsed in the page."
+            Write-Host "This is a failure of the TEST, and it is caught here rather than ten minutes"
+            Write-Host "later as a silent run. Expected to find this line: $mustContain"
+            exit 1
+          }
+          Write-Host "OK: the probe expression carries the interpolated line intact."
+
+          # ── install and launch, exactly as a user would ──────────────────
+          $msi = (Get-ChildItem prev/*Windows-x64.msi | Select-Object -First 1).FullName
+          Write-Host "installing $(Split-Path $msi -Leaf)"
+          $p = Start-Process msiexec.exe -ArgumentList "/i","`"$msi`"","/qn","/norestart" -Wait -PassThru
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "install failed: $($p.ExitCode)" }
+          $exe = Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles" -Filter "jura-trace.exe" -Recurse -Depth 4 -ErrorAction SilentlyContinue |
+                 Select-Object -First 1 -ExpandProperty FullName
+          if (-not $exe) { throw "installed executable not found" }
+          Write-Host "installed: $exe"
+
+          # WebView2 ignores every per-user override for an elevated host, and
+          # Actions steps run elevated, so the machine policy is the only way
+          # to open the debugging port. See updater-e2e.yml for the full note.
+          $browserArgs = "--remote-debugging-port=9222 --remote-allow-origins=*"
+          $policyKey = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments"
+          New-Item -Path $policyKey -Force | Out-Null
+          # Both names, and the wildcard is the one that works.
+          #
+          # Run 34575459450 set only "jura-trace.exe" and the debugging port
+          # never answered at all, so the per-executable value is not what
+          # WebView2 honours for this host. The wildcard is. It was tempting
+          # to blame the wildcard for the about:blank races, and that was
+          # wrong: it is load-bearing.
+          #
+          # The race is handled where it belongs instead. Any WebView2 host
+          # already running is stopped before the application starts, so the
+          # application's own host is first to the port rather than second.
+          # Whichever other host was taking it in 34572744501 and 34574122914
+          # cannot take it if it is not running.
+          New-ItemProperty -Path $policyKey -Name "jura-trace.exe" -Value $browserArgs -PropertyType String -Force | Out-Null
+          New-ItemProperty -Path $policyKey -Name "*" -Value $browserArgs -PropertyType String -Force | Out-Null
+
+          $stale = Get-Process msedgewebview2 -ErrorAction SilentlyContinue
+          if ($stale) {
+            Write-Host "stopping $($stale.Count) WebView2 host(s) already running, so the app is first to the port"
+            $stale | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 3
+          } else {
+            Write-Host "no WebView2 host was already running"
+          }
+          $inUse = Get-NetTCPConnection -LocalPort 9222 -State Listen -ErrorAction SilentlyContinue
+          if ($inUse) {
+            Write-Host "::warning::Port 9222 is already listening before the app starts. Something else owns it."
+          }
+          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $browserArgs
+          Start-Process -FilePath $exe
+
+          # ── observe ──────────────────────────────────────────────────────
+          $cdpUp = $false          # the debugging port answered
+          $domRead = $false        # a page returned a non-empty document
+          $clicked = $false        # the Check for Updates button was pressed
+          $verdict = $null         # the transient sentence, if it was caught
+          $versionBefore = $null   # what the app called itself before the press
+          $versionAfter = $null    # what it calls itself now
+          $lastProbe = $null
+          $phrase = "Version $env:EXPECTED is available"
+          $pattern = "Version " + [regex]::Escape($env:EXPECTED) + " is available"
+          # 240 seconds was too tight. In run 34570877379 the observation that
+          # mattered landed at 224 seconds, and in 34571740653 nothing was
+          # observed at all: the debugging port answered but no page target
+          # ever appeared, so not a single probe ran. On a cold runner the app
+          # has to start, unpack a 500 MB sidecar and render, and then the
+          # download it is asked for has to finish. Ten minutes, and the loop
+          # still breaks the moment the version moves.
+          $deadline = (Get-Date).AddSeconds(600)
+          $started = Get-Date
+          $targetsLogged = ""
+          # Every probe says what it saw. $probeTrail keeps one line per
+          # distinct outcome so the artefact carries the whole observation and
+          # not just its last success, and $lastAnyProbe keeps the last probe
+          # that parsed at all, even one whose document was empty. Run
+          # 34578756154 ended with every one of these fields null and no way to
+          # tell an empty page from an unreachable one.
+          $probeTrail = New-Object System.Collections.Generic.List[string]
+          $lastProbeLine = ""
+          $lastAnyProbe = $null
+          $warnedNoSocket = $false
+          $pageThrew = $null       # the expression threw inside the page
+
+          while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 3
+            $targets = Get-CdpTargets
+            if (-not $targets) { continue }
+            $cdpUp = $true
+            # Say what the port actually offered the first time round. Without
+            # this, "the port answered but no page returned a document" is a
+            # dead end: it cannot be told apart from a page that returned an
+            # empty one, and run 34571740653 ended there with nothing to read.
+            # Log the target list whenever it changes, not only the first
+            # time. Logging it once said "about:blank" four seconds after
+            # launch and then went quiet for ten minutes, which cannot be told
+            # apart from a list that never changed.
+            $sig = (@($targets) | ForEach-Object { "$($_.type)|$($_.url)" }) -join ";"
+            if ($sig -ne $targetsLogged) {
+              $targetsLogged = $sig
+              Write-Host "  debugging port offers $(@($targets).Count) target(s):"
+              foreach ($t in @($targets)) {
+                # Whether the target carries a websocket url is part of the
+                # observation. A page that is listed without one cannot be
+                # evaluated at all, and that is a different situation from a
+                # page that was evaluated and said nothing.
+                $ws = $(if ($t.webSocketDebuggerUrl) { "yes" } else { "NO" })
+                Write-Host "    type=$($t.type) socket=$ws url=$($t.url)"
+              }
+            }
+            # Only the application's own page. A WebView2 host opens with an
+            # about:blank target before the app's page exists, and run
+            # 34572744501 spent ten minutes talking to exactly that: one page
+            # target, url about:blank, for the whole window. Worse, the probe
+            # then set location.href on it, which is the test racing the app's
+            # own startup and interfering with it. The run that worked earlier
+            # only worked because it arrived after the page had loaded.
+            $appPages = @($targets | Where-Object { $_.type -eq "page" -and $_.webSocketDebuggerUrl -and $_.url -like "*tauri.localhost*" })
+            if ($appPages.Count -eq 0) {
+              $listedWithoutSocket = @($targets | Where-Object { $_.type -eq "page" -and -not $_.webSocketDebuggerUrl -and $_.url -like "*tauri.localhost*" })
+              if ($listedWithoutSocket.Count -gt 0 -and -not $warnedNoSocket) {
+                $warnedNoSocket = $true
+                Write-Host "::warning::The application's page is listed on the debugging port but carries no webSocketDebuggerUrl, so it cannot be evaluated at all."
+              }
+              continue
+            }
+            foreach ($t in $appPages) {
+              $at = [int]((Get-Date) - $started).TotalSeconds
+              $call = Invoke-CdpEvaluate -WsUrl $t.webSocketDebuggerUrl -Expression $probeJs
+              $d = $call.Diag
+              $probe = $null
+              $why = $null
+              if (-not $call.Reply) {
+                $why = "no reply. $($d.failure)"
+              } elseif ($call.Reply.result -and $call.Reply.result.exceptionDetails) {
+                # The page threw while the expression was being parsed or run.
+                # A SyntaxError lands here and the expression's own try/catch
+                # cannot see it, because the catch is inside the text that
+                # failed to parse. This is the branch that used to vanish.
+                $ex = $call.Reply.result.exceptionDetails
+                $why = "the page threw. $($ex.text) $($ex.exception.description)"
+                $pageThrew = $why
+              } elseif (-not $call.Reply.result -or -not $call.Reply.result.result) {
+                $why = "the reply carried no result. $($call.Frame)"
+              } elseif ($null -eq $call.Reply.result.result.value) {
+                $why = "the result carried no value, type=$($call.Reply.result.result.type)"
+              } else {
+                try {
+                  $probe = $call.Reply.result.result.value | ConvertFrom-Json
+                } catch {
+                  $why = "the result was not the JSON the probe promised. $($call.Reply.result.result.value)"
+                }
+              }
+
+              if ($probe) {
+                $textLength = $(if ($probe.text) { $probe.text.Length } else { 0 })
+                $what = "stage=$($probe.stage) url=$($probe.url) ready=$($probe.ready) version=$($probe.appVersion) textLength=$textLength"
+                $lastAnyProbe = $probe
+              } else {
+                $what = "nothing usable. connected=$($d.connected) sent=$($d.sent) frames=$($d.frames). $why"
+              }
+              # One line per distinct outcome, timestamped. The comparison is
+              # on the outcome alone and deliberately not on the timestamp:
+              # every probe carries a different second, so comparing whole
+              # lines would print two hundred of them over ten minutes and
+              # bury the two that matter. A run of identical outcomes shows
+              # instead as a gap between the second it started and the second
+              # the next thing happened. Printing nothing at all is what left
+              # run 34578756154 with a ten minute silence between launch and
+              # the verdict, which is the failure this is here to prevent.
+              if ($what -ne $lastProbeLine) {
+                $lastProbeLine = $what
+                Write-Host "  probe at ${at}s: $what"
+                $probeTrail.Add("${at}s $what")
+              }
+              if (-not $probe) { continue }
+
+              if ($probe.appVersion) {
+                if (-not $clicked -and -not $versionBefore) {
+                  $versionBefore = $probe.appVersion
+                  Write-Host "  the installed app calls itself $versionBefore"
+                }
+                if ($versionAfter -ne $probe.appVersion) {
+                  $versionAfter = $probe.appVersion
+                  Write-Host "  app version now: $versionAfter"
+                }
+              }
+              if ($probe.stage -eq "clicked") {
+                $clicked = $true
+                Write-Host "  pressed Check for Updates on $($probe.url)"
+              }
+              if ($probe.text -and $probe.text.Length -gt 0) {
+                $domRead = $true
+                $lastProbe = $probe
+                if ($probe.text -match $pattern) { $verdict = $Matches[0] }
+              }
+            }
+            if ($versionAfter -eq $env:EXPECTED) { break }
+          }
+
+          $record = [ordered]@{
+            expected = $env:EXPECTED
+            debug_port_answered = $cdpUp
+            dom_read = $domRead
+            button_pressed = $clicked
+            version_before = $versionBefore
+            version_after = $versionAfter
+            transient_sentence = $verdict
+            page_url = $(if ($lastProbe) { $lastProbe.url } else { $null })
+            document_ready = $(if ($lastProbe) { $lastProbe.ready } else { $null })
+            last_stage = $(if ($lastProbe) { $lastProbe.stage } else { $null })
+            document_text_excerpt = $(if ($lastProbe) { $lastProbe.text.Substring(0, [Math]::Min(4000, $lastProbe.text.Length)) } else { $null })
+            # The fields above describe the last probe that returned a
+            # document. The two below describe the last probe of any kind and
+            # the sequence of everything the loop saw, so a run where nothing
+            # was readable still carries evidence rather than a column of
+            # nulls. Both are diagnostics. Nothing asserts on them.
+            last_probe_of_any_kind = $(if ($lastAnyProbe) {
+              [ordered]@{
+                stage      = $lastAnyProbe.stage
+                url        = $lastAnyProbe.url
+                ready      = $lastAnyProbe.ready
+                appVersion = $lastAnyProbe.appVersion
+                hasButton  = $lastAnyProbe.hasButton
+                textLength = $(if ($lastAnyProbe.text) { $lastAnyProbe.text.Length } else { 0 })
+                message    = $lastAnyProbe.message
+              }
+            } else { $null })
+            probe_outcomes = @($probeTrail)
+          }
+          $record | ConvertTo-Json -Depth 4 | Set-Content verdict.log
+
+          # Four failure branches with four different messages, because a run
+          # that could not look at the app must never read like a run that
+          # looked and found nothing.
+          if (-not $cdpUp) {
+            Write-Host "::error::The WebView2 debugging port never answered, so the client's verdict could not be read."
+            Write-Host "This is a failure of the TEST, not evidence about the client."
+            Write-Host "The policy is set for both jura-trace.exe and *, and run 34575459450 showed"
+            Write-Host "that the per-executable value alone is not honoured for this host."
+            Get-NetTCPConnection -LocalPort 9222 -ErrorAction SilentlyContinue | Format-Table -AutoSize | Out-String | Write-Host
+            exit 1
+          }
+          if (-not $domRead -and $pageThrew) {
+            Write-Host "::error::The probe expression threw inside the application's page, so the app was never questioned."
+            Write-Host "This is a failure of the TEST, and of the expression rather than of the"
+            Write-Host "connection: the page was reachable and it answered. A SyntaxError here means"
+            Write-Host "the expression was mangled while it was being built, which is what run"
+            Write-Host "34578756154 did for ten minutes without saying so."
+            Write-Host "What the page said: $pageThrew"
+            exit 1
+          }
+          if (-not $domRead) {
+            Write-Host "::error::The debugging port answered but no page returned a document, so nothing was observed."
+            Write-Host "This is a failure of the TEST, not evidence about the client. The target list"
+            Write-Host "printed above says whether a page was ever offered at all: no page target means"
+            Write-Host "the window never opened, while a page that returned nothing means it opened and"
+            Write-Host "did not render. A list showing only about:blank means the application's own"
+            Write-Host "page never loaded, which on Windows can simply be the --onefile sidecar still"
+            Write-Host "unpacking: it re-extracts on every launch and takes 90 to 200 seconds."
+            Write-Host "Every probe outcome is printed above with the second it happened, and the"
+            Write-Host "same sequence is in verdict.log under probe_outcomes. A line reading"
+            Write-Host 'nothing usable says the page could not be evaluated, and why. A line'
+            Write-Host "carrying a stage says it was evaluated, and what it answered."
+            Write-Host "── the last probe of any kind ──"
+            Write-Host ($record.last_probe_of_any_kind | ConvertTo-Json -Depth 3)
+            Write-Host "── processes ──"
+            Get-Process jura-trace, msedgewebview2 -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, StartTime | Format-Table -AutoSize | Out-String | Write-Host
+            exit 1
+          }
+          if (-not $clicked) {
+            Write-Host "::error::Check for Updates was never pressed, so the client was never asked."
+            Write-Host "This is a failure of the TEST, not evidence about the client. Either the"
+            Write-Host "Settings route did not load, or no button carries that label in $env:PREV."
+            Write-Host "Last stage the probe reported: $($record.last_stage)"
+            Write-Host "── what the app was showing ──"
+            Write-Host $record.document_text_excerpt
+            exit 1
+          }
+          Write-Host "OK: Check for Updates was pressed on the installed $env:PREV."
+
+          # The assertion is the app's own version, not the sentence.
+          #
+          # The first version of this waited for "Version 1.1.0 is available",
+          # which v1.0.0 shows only while the download is in flight. Run
+          # 34570877379 pressed the button, updated itself, and failed, because
+          # by the time the probe next looked the sentence had gone and the app
+          # was correctly saying it was up to date. The durable evidence was
+          # sitting in the same capture: the About section had changed from
+          # 1.0.0 to 1.1.0. The transient sentence is still recorded when it is
+          # caught, but nothing depends on catching it.
+          if ($versionBefore -and $versionBefore -eq $env:EXPECTED) {
+            Write-Host "::error::The installed $env:PREV already called itself $env:EXPECTED before anything was pressed."
+            Write-Host "This is a failure of the TEST: the wrong installer was fetched, so an update"
+            Write-Host "from it would prove nothing."
+            exit 1
+          }
+          if ($versionAfter -ne $env:EXPECTED) {
+            Write-Host "::error::A pristine $env:PREV install was asked, and did not end up on $env:EXPECTED."
+            Write-Host "It called itself $versionBefore before the press and $versionAfter after it."
+            Write-Host "The button was pressed, so this is the client's answer rather than a gap in"
+            Write-Host "the test. On the live service it means one of: the manifest did not reach it,"
+            Write-Host "the signature did not verify against the key compiled into the shipped binary,"
+            Write-Host "the version comparison refused the published version, or the install failed."
+            if ($verdict) { Write-Host "The app did say: `"$verdict`", so it was offered and did not arrive." }
+            Write-Host "── what the app was showing ──"
+            Write-Host $record.document_text_excerpt
+            exit 1
+          }
+
+          Write-Host "OK: a pristine $env:PREV install, talking to the live service over public DNS"
+          Write-Host "    and the real certificate chain, fetched and installed $env:EXPECTED."
+          Write-Host "    It called itself $versionBefore before the press and $versionAfter after it."
+          if ($verdict) { Write-Host "    The sentence caught in flight: `"$verdict`"" }
+          "$versionBefore -> $versionAfter" | Set-Content observed-verdict.txt
+
+      - name: Stop the app
+        if: always()
+        shell: pwsh
+        run: |
+          Get-Process jura-trace, msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Write-Host "stopped"
+
+      - name: Summary
+        if: always()
+        shell: bash
+        env:
+          PREV: ${{ github.event.inputs.previous_tag || 'v1.0.0' }}
+          EXPECTED: ${{ github.event.inputs.expected_version || '1.1.0' }}
+        run: |
+          {
+            echo "## Updater live leg, Windows"
+            echo ""
+            echo "Installed \`$PREV\` and pointed it at the real update service."
+            echo "No hosts entry, no throwaway certificate, no local listener."
+            echo ""
+            if [ -f observed-verdict.txt ]; then
+              echo "**Verdict read from the running app:** \`$(cat observed-verdict.txt)\`"
+            else
+              echo "**No verdict was read.** See the step log for which of the four"
+              echo "failure branches fired; two of them are failures of the test"
+              echo "rather than evidence about the client."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artefacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: updater-live-leg-windows
+          path: |
+            verdict.log
+            observed-verdict.txt
+          if-no-files-found: ignore
+          retention-days: 14
