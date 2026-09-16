@@ -2,6 +2,15 @@
   import { onMount } from 'svelte';
   import { getStats, checkSidecarHealth } from '$lib/api';
   import type { AppStats, SidecarHealth } from '$lib/types';
+  import {
+    NEWSLETTER_HEADING,
+    NEWSLETTER_BODY,
+    NEWSLETTER_BUTTON_LABEL,
+    NEWSLETTER_DISMISS_LABEL,
+    isNewsletterCardDismissed,
+    dismissNewsletterCard,
+    openNewsletterSignup,
+  } from '$lib/newsletter';
   // EnhancedModeBanner removed 2026-04-25 — Enhanced is now the
   // default NetworkMode, so the banner only ever fired for users
   // who actively switched to Standard.  That's not first-run
@@ -16,11 +25,28 @@
 
   let sidecarHealth = $state<SidecarHealth | null>(null);
 
+  // One-time newsletter card (W38-3). Starts hidden and is only shown once
+  // onMount has read the dismissal flag, so a dismissed card never flashes.
+  let showNewsletterCard = $state(false);
+
+  function closeNewsletterCard() {
+    showNewsletterCard = false;
+    dismissNewsletterCard(typeof localStorage !== 'undefined' ? localStorage : null);
+  }
+
+  function signUpForNewsletter() {
+    closeNewsletterCard();
+    void openNewsletterSignup();
+  }
+
   const sidecarAvailable = $derived(sidecarHealth?.status === 'ok');
   const hasAssets = $derived(stats.totalAssets > 0);
   const isFirstRun = $derived(stats.totalAssets === 0 && stats.totalVerifications === 0);
 
   onMount(async () => {
+    showNewsletterCard = !isNewsletterCardDismissed(
+      typeof localStorage !== 'undefined' ? localStorage : null,
+    );
     [stats, sidecarHealth] = await Promise.all([
       getStats(),
       checkSidecarHealth(),
@@ -164,6 +190,48 @@
       </span>
     {/if}
   </div>
+
+  <!-- Newsletter opt-in (W38-3). Shown until either button is pressed, then
+       never again. Opens juralabs.org in the default browser; the app never
+       handles an email address. The permanent link lives in Settings. -->
+  {#if showNewsletterCard}
+    <section class="pb-8 flex justify-center" aria-labelledby="newsletter-card-heading">
+      <div
+        class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6 max-w-md w-full"
+      >
+        <h2
+          id="newsletter-card-heading"
+          class="text-sm font-medium text-text-light dark:text-quartz mb-2"
+        >
+          {NEWSLETTER_HEADING}
+        </h2>
+        <p class="text-sm text-flint-dark dark:text-flint-light dark:text-[#9B9890] leading-relaxed mb-5">
+          {NEWSLETTER_BODY}
+        </p>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <button
+            type="button"
+            onclick={signUpForNewsletter}
+            class="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] rounded border border-lapis text-lapis dark:text-lapis-light dark:border-lapis-light text-sm font-medium
+                   hover:bg-lapis hover:text-white dark:hover:bg-lapis-light dark:hover:text-obsidian transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+          >
+            {NEWSLETTER_BUTTON_LABEL}
+            <span class="sr-only">(opens in your browser)</span>
+          </button>
+          <button
+            type="button"
+            onclick={closeNewsletterCard}
+            aria-label="No thanks, hide this newsletter note"
+            class="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] rounded text-sm text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-graphite"
+          >
+            {NEWSLETTER_DISMISS_LABEL}
+          </button>
+        </div>
+      </div>
+    </section>
+  {/if}
 
   <!-- Earth line -->
   <div class="earth-line" aria-hidden="true"></div>

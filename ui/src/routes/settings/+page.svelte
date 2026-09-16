@@ -11,6 +11,12 @@
   import { focusTrap } from '$lib/actions/focusTrap';
   import { DONATE_URL, DONATE_BODY_SETTINGS, DONATE_BUTTON_LABEL } from '$lib/donate';
   import {
+    NEWSLETTER_HEADING,
+    NEWSLETTER_BODY,
+    NEWSLETTER_BUTTON_LABEL,
+    openNewsletterSignup,
+  } from '$lib/newsletter';
+  import {
     type DeploymentProfile,
     MAX_PROFILES,
     loadProfiles,
@@ -2151,6 +2157,27 @@
       <p class="text-xs muted-help mt-2">
         Updates are downloaded and applied locally. No telemetry is sent.
       </p>
+    </div>
+
+    <!-- Newsletter (W38-3). Opens juralabs.org in the default browser; the
+         app never handles an email address. Not gated on network mode:
+         opening a page in the user's browser is a user action outside the
+         app. See $lib/newsletter.ts. -->
+    <div class="mt-6 pt-5 border-t border-border-light dark:border-border-dark">
+      <h3 class="text-sm font-medium text-text-light dark:text-quartz mb-2">{NEWSLETTER_HEADING}</h3>
+      <p class="text-xs muted-help mb-4 max-w-2xl leading-relaxed">
+        {NEWSLETTER_BODY}
+      </p>
+      <button
+        type="button"
+        onclick={() => openNewsletterSignup()}
+        class="inline-flex items-center gap-1.5 px-5 py-2.5 min-h-[44px] rounded border text-sm font-medium transition-colors
+               border-lapis/60 text-lapis dark:text-lapis-light hover:bg-lapis/10 hover:border-lapis
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian"
+      >
+        {NEWSLETTER_BUTTON_LABEL}
+        <span class="sr-only">(opens in your browser)</span>
+      </button>
     </div>
 
     <!-- Support development -->
