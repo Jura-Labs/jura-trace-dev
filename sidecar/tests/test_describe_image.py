@@ -28,6 +28,7 @@ from app.services.describe_image import (
     describe_image,
 )
 from main import app
+from tests.sidecar_auth import AUTH_HEADERS
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -253,7 +254,9 @@ class TestDescribeEndpoint:
             return_value=False,
         ):
             async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+                headers=AUTH_HEADERS,
             ) as client:
                 image_bytes = _make_jpeg_bytes()
                 response = await client.post(
@@ -283,7 +286,9 @@ class TestDescribeEndpoint:
 
         with patch("app.api.forensics._describe_image", mock_service):
             async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+                headers=AUTH_HEADERS,
             ) as client:
                 image_bytes = _make_jpeg_bytes()
                 response = await client.post(
@@ -300,7 +305,9 @@ class TestDescribeEndpoint:
     async def test_endpoint_rejects_empty_file(self):
         """Empty file upload should be rejected with HTTP 400."""
         async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers=AUTH_HEADERS,
         ) as client:
             response = await client.post(
                 "/forensics/describe",

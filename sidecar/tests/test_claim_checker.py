@@ -31,6 +31,7 @@ from app.services.claim_checker import (
     split_claims,
 )
 from main import app
+from tests.sidecar_auth import AUTH_HEADERS
 
 
 # ── Claim splitting ────────────────────────────────────────────────────────────
@@ -577,7 +578,7 @@ class TestClaimCheckEndpoint:
         ):
             transport = ASGITransport(app=app)
             async with AsyncClient(
-                transport=transport, base_url="http://test"
+                transport=transport, base_url="http://test", headers=AUTH_HEADERS
             ) as client:
                 resp = await client.post(
                     "/forensics/claim-check",
@@ -594,7 +595,7 @@ class TestClaimCheckEndpoint:
         ):
             transport = ASGITransport(app=app)
             async with AsyncClient(
-                transport=transport, base_url="http://test"
+                transport=transport, base_url="http://test", headers=AUTH_HEADERS
             ) as client:
                 resp = await client.post(
                     "/forensics/claim-check",
@@ -616,7 +617,7 @@ class TestClaimCheckEndpoint:
         ):
             transport = ASGITransport(app=app)
             async with AsyncClient(
-                transport=transport, base_url="http://test"
+                transport=transport, base_url="http://test", headers=AUTH_HEADERS
             ) as client:
                 resp = await client.post(
                     "/forensics/claim-check",
@@ -628,7 +629,9 @@ class TestClaimCheckEndpoint:
     async def test_endpoint_missing_claims_text_returns_422(self):
         """Missing required claims_text query parameter should return 422."""
         transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
+        async with AsyncClient(
+            transport=transport, base_url="http://test", headers=AUTH_HEADERS
+        ) as client:
             resp = await client.post("/forensics/claim-check")
         assert resp.status_code == 422
 
@@ -641,7 +644,7 @@ class TestClaimCheckEndpoint:
         ):
             transport = ASGITransport(app=app)
             async with AsyncClient(
-                transport=transport, base_url="http://test"
+                transport=transport, base_url="http://test", headers=AUTH_HEADERS
             ) as client:
                 resp = await client.post(
                     "/forensics/claim-check",
@@ -661,7 +664,7 @@ class TestClaimCheckEndpoint:
         ):
             transport = ASGITransport(app=app)
             async with AsyncClient(
-                transport=transport, base_url="http://test"
+                transport=transport, base_url="http://test", headers=AUTH_HEADERS
             ) as client:
                 resp = await client.post(
                     "/forensics/claim-check",
@@ -693,7 +696,7 @@ class TestHealthRagFlag:
         with patch("httpx.AsyncClient", return_value=mock_client):
             transport = ASGITransport(app=app)
             async with AsyncClient(
-                transport=transport, base_url="http://test"
+                transport=transport, base_url="http://test", headers=AUTH_HEADERS
             ) as client:
                 resp = await client.get("/health")
 
@@ -715,7 +718,7 @@ class TestHealthRagFlag:
         with patch("httpx.AsyncClient", return_value=mock_client):
             transport = ASGITransport(app=app)
             async with AsyncClient(
-                transport=transport, base_url="http://test"
+                transport=transport, base_url="http://test", headers=AUTH_HEADERS
             ) as client:
                 resp = await client.get("/health")
 
