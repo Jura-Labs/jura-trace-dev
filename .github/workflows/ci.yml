@@ -399,6 +399,13 @@ jobs:
       # `actions/upload-artifact@v4` in osv-scanner.yml. One drift in a single
       # pull request is enough to show the discipline needs a check rather
       # than an intention.
+      # The release attaches model-card metadata built by this script (A4,
+      # BL-CLAIM-002). It fails on a generator key with no public label or on
+      # metadata that describes a model other than the shipped one. Running it
+      # here finds that on the pull request that caused it, not on release day.
+      - name: Model-card metadata builds
+        run: python3 scripts/build_model_card_assets.py "$RUNNER_TEMP/model-cards"
+
       - name: Every GitHub Action is pinned to a commit SHA
         run: |
           set -euo pipefail

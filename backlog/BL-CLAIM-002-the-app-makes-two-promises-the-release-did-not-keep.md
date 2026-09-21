@@ -133,3 +133,41 @@ about one release, the release notes are the place for it.
 
 Promise 2, the per-generator recall metadata JSON referenced by the model
 cards but never attached to a release, is untouched and still open.
+
+
+## Update, 21 September 2026: promise 2 fixed on `main`, ships in v1.2.0
+
+Paul's decision on the generator names: publish recall by **anonymised
+family**, not by name. The June decision stands.
+
+- `scripts/build_model_card_assets.py` writes `model-card-univfd.json` and
+  `model-card-gbm.json`. Generator keys are replaced by the labels in
+  `models/generator_family_labels.json`, which lives in `models/` because
+  the public snapshot excludes that directory. A key with no label, or a
+  UnivFD metadata hash that does not match the shipped joblib, stops the
+  build. The training corpus paths (`/Volumes/...`) are dropped, and the
+  counts are kept.
+- `release.yml` `publish-release` builds and attaches both files before the
+  SHA256SUMS step, and the release notes link them. `ci.yml` repo hygiene
+  runs the builder on every PR.
+- **GBM v4 has no per-generator recall.** The metadata never recorded it.
+  Its model card now says so and points at the file for what it does
+  contain. The promise of recall by family is made only on the UnivFD card.
+- **Step 4 was partly mistaken.** `deepfake_classifier_meta.json` is
+  byte-identical to `deepfake_classifier_v4_meta.json`, so it is kept.
+  "84 features" was the error: the shipped GBM v4 has `n_features_in_ ==
+  80`, and the sidecar extracts 84 and trims them. The count is corrected
+  on the model-card, glossary and forensic-detectors pages, on the verify
+  page's GBM note, in the PDF and ZIP export text, and in
+  `docs/ARCHITECTURE.md`. The methodology page now says which four
+  extracted features no shipped model uses. `univfd_probe_meta.json` (v9)
+  is deleted.
+
+**Still open, and not fixed here:** the model-card page's GBM feature-class
+list (`ui/src/routes/help/model-cards/+page.svelte`, "80 features grouped
+into the following classes") names ELA, copy-move, JPEG ghost, segmented
+ELA, shadow consistency, colour temperature, splice boundary, MakerNote
+authenticity and inter-channel coherence. None of these is among the 80
+`feature_names` in the metadata now published beside it. The real classes
+are spectral, noise, colour, saturation, LBP, GLCM, DCT, edge, Laplacian,
+LSB and demosaic. That is copy for Paul to approve, not a mechanical fix.

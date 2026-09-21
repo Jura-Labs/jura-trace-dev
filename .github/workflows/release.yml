@@ -172,6 +172,8 @@ jobs:
 
           **Verify your download:** grab **[SHA256SUMS.txt](${base}/SHA256SUMS.txt)** and run \`shasum -a 256 -c SHA256SUMS.txt\` (macOS / Linux) or \`certutil -hashfile <filename> SHA256\` (Windows).
 
+          **Model cards:** training and evaluation metadata for the two AI-detection models, including recall by generator family, is in **[model-card-univfd.json](${base}/model-card-univfd.json)** and **[model-card-gbm.json](${base}/model-card-gbm.json)**.
+
           Full install + first-test walkthrough: **[GETTING_STARTED.md](https://github.com/Jura-Labs/jura-trace/blob/main/GETTING_STARTED.md)**.
 
           ---
@@ -1545,6 +1547,34 @@ jobs:
     #   Settings > Environments > production > Required reviewers
     environment: production
     steps:
+      # ── A4. Attach the model-card metadata ────────────────────────────────
+      # The help page's model cards tell readers that per-generator recall "is
+      # reported in the model-card metadata JSON shipped alongside each
+      # release". No release before v1.2.0 carried one (BL-CLAIM-002). This
+      # job had no checkout, so it fetches only what the builder reads.
+      #
+      # The builder replaces generator names with public family labels and
+      # drops local paths, and fails rather than publish a name it has no
+      # label for or describe a model the installer does not ship.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.create-release.outputs.tag }}
+          sparse-checkout: |
+            models
+            scripts/build_model_card_assets.py
+            src-tauri/models/deepfake_classifier.joblib
+            src-tauri/models/univfd_probe.joblib
+          sparse-checkout-cone-mode: false
+
+      - name: Build and attach model-card metadata
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          RELEASE_TAG: ${{ needs.create-release.outputs.tag }}
+        run: |
+          python3 scripts/build_model_card_assets.py /tmp/model-cards
+          gh release upload "$RELEASE_TAG" /tmp/model-cards/*.json \
+            --repo juralabs/jura-trace --clobber
+
       # tauri-action uploads installer artefacts directly to the draft GitHub
       # Release (not as workflow artefacts). We therefore download them here
       # via the GitHub Releases API, hash each one with sha256sum, assemble
