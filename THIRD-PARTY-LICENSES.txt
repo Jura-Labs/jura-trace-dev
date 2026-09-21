@@ -91,6 +91,12 @@ Notable components and their obligations:
     OpenSSL notice is reproduced in the generated appendix.
   rusqlite / libsqlite3-sys — SQLite bindings. SQLite itself is public domain.
   image, image_hasher, reqwest, serde, tokio, axum — MIT OR Apache-2.0.
+  Swagger UI 5.17.14 (Apache-2.0) — compiled into the binary by
+    utoipa-swagger-ui's `vendored` feature (utoipa-swagger-ui-vendored, MIT OR
+    Apache-2.0) and served by the local REST API at /swagger-ui/. cargo-about
+    lists the wrapper crate, not the JavaScript inside it, so its notice is
+    given here: "swagger-ui. Copyright 2020-2021 SmartBear Software Inc."
+    Licensed under the Apache License, Version 2.0.
 
 MPL-2.0 file-level-copyleft crates (used UNMODIFIED as binary dependencies, so
 no source-disclosure obligation arises; listed for completeness): option-ext,

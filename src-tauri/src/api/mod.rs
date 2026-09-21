@@ -37,6 +37,7 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use tower_http::{cors::CorsLayer, limit::RequestBodyLimitLayer, trace::TraceLayer};
 use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::AppState;
 use rate_limit::RateLimiter;
@@ -231,11 +232,12 @@ pub fn build_router(state: Arc<Mutex<AppState>>) -> Router {
         ))
         .with_state(state.clone());
 
-    // OpenAPI spec and Swagger UI (no auth).
-    let openapi_routes = Router::new()
-        .route("/openapi.json", get(openapi_spec))
-        .route("/swagger-ui", get(swagger_ui_redirect))
-        .route("/swagger-ui/", get(swagger_ui_html));
+    // OpenAPI spec and Swagger UI (no auth). The Swagger assets are compiled
+    // into the binary by utoipa-swagger-ui's `vendored` feature, so this page
+    // makes no request off the machine (SR-24, JTV-209).
+    let openapi_routes: Router<Arc<Mutex<AppState>>> = SwaggerUi::new("/swagger-ui")
+        .url("/openapi.json", ApiDoc::openapi())
+        .into();
 
     Router::new()
         .nest("/api", api_routes)
@@ -245,58 +247,4 @@ pub fn build_router(state: Arc<Mutex<AppState>>) -> Router {
         .layer(multipart_limit)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
-}
-
-// ── OpenAPI spec endpoint ────────────────────────────────────────────────────
-
-/// `GET /openapi.json` — return the utoipa-generated OpenAPI 3.1 specification.
-async fn openapi_spec() -> impl axum::response::IntoResponse {
-    let spec = ApiDoc::openapi()
-        .to_json()
-        .unwrap_or_else(|_| "{}".to_string());
-
-    (
-        axum::http::StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "application/json")],
-        spec,
-    )
-}
-
-/// Redirect `/swagger-ui` → `/swagger-ui/`.
-async fn swagger_ui_redirect() -> impl axum::response::IntoResponse {
-    axum::response::Redirect::permanent("/swagger-ui/")
-}
-
-/// Serve a simple Swagger UI HTML page pointing at the local OpenAPI spec.
-async fn swagger_ui_html() -> impl axum::response::IntoResponse {
-    let html = r#"<!DOCTYPE html>
-<html>
-<head>
-  <title>Jura Trace API</title>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css" >
-</head>
-<body>
-<div id="swagger-ui"></div>
-<script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"> </script>
-<script>
-  window.onload = function() {
-    const ui = SwaggerUIBundle({
-      url: "/openapi.json",
-      dom_id: '#swagger-ui',
-      presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
-      layout: "BaseLayout"
-    })
-    window.ui = ui
-  }
-</script>
-</body>
-</html>"#;
-
-    (
-        axum::http::StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
-        html,
-    )
 }

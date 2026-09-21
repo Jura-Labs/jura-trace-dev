@@ -99,7 +99,13 @@ The first half is not.
    The exact words are Paul's call. The list is the part that has to be
    there.
 
-2. **Bundle the Swagger assets locally.** This is JTV-209 in Plane and
+2. **Done on `main`, 21 September 2026, ships in v1.2.0.** `/swagger-ui/`
+   now serves the assets `utoipa-swagger-ui` compiles into the binary with
+   its `vendored` feature (Swagger UI 5.17.14), and
+   `test_swagger_ui_served_locally` fails if the page references any remote
+   URL. The README bullet says which versions still make the call.
+
+   **Bundle the Swagger assets locally.** This is JTV-209 in Plane and
    SR-24 in the register. It removes the one call that is not user-initiated
    and the one unpinned remote script, and it shortens the sentence above.
    Legal review flags the unpinned `unpkg` load specifically: pin or vendor

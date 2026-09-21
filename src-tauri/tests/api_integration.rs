@@ -630,6 +630,50 @@ async fn test_openapi_spec_available() {
     );
 }
 
+/// Test 10b: Swagger UI is served from assets compiled into the binary.
+/// The page used to load unpinned scripts from unpkg.com (SR-24, JTV-209);
+/// every asset it references must now come from this server.
+#[tokio::test]
+async fn test_swagger_ui_served_locally() {
+    let state = build_test_state_async().await;
+    let (listener, _) = bind_random_port();
+    let base_url = start_test_server(state, listener).await;
+
+    let resp = reqwest::get(format!("{base_url}/swagger-ui/"))
+        .await
+        .expect("request");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let html = resp.text().await.expect("text");
+
+    assert!(
+        !html.contains("http://") && !html.contains("https://"),
+        "Swagger UI page must not reference any remote URL"
+    );
+
+    for asset in [
+        "swagger-ui.css",
+        "swagger-ui-bundle.js",
+        "swagger-initializer.js",
+    ] {
+        assert!(html.contains(asset), "page should reference {asset}");
+        let resp = reqwest::get(format!("{base_url}/swagger-ui/{asset}"))
+            .await
+            .expect("request");
+        assert_eq!(resp.status(), StatusCode::OK, "{asset} should be served");
+    }
+
+    let init = reqwest::get(format!("{base_url}/swagger-ui/swagger-initializer.js"))
+        .await
+        .expect("request")
+        .text()
+        .await
+        .expect("text");
+    assert!(
+        init.contains("/openapi.json"),
+        "Swagger UI should load the local spec"
+    );
+}
+
 /// Test 11: Empty file upload returns 400 Bad Request.
 #[tokio::test]
 async fn test_verify_empty_file_rejected() {
