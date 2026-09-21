@@ -105,9 +105,6 @@
   // Raw scores toggle (persisted to localStorage)
   let showRawScores = $state(false);
 
-  // First-run intro card (shown once, dismissed to localStorage)
-  let introDismissed = $state(true); // default true to avoid flash; set false in onMount if key absent
-
   // Batch state
   let batchItems = $state<BatchItem[]>([]);
   let batchRunning = $state(false);
@@ -1333,9 +1330,6 @@
 
   // ── Lifecycle ─────────────────────────────────────────────────────
   onMount(() => {
-    // Intro card: show unless the user has already dismissed it.
-    introDismissed = localStorage.getItem('jura-verify-intro-dismissed') === 'true';
-
     const savedMode = localStorage.getItem('jura-verify-mode');
     // Migrate 'archival' -> 'deep' — archival was removed 2026-04-22 because
     // it ran the identical pipeline to Deep.  Existing pilot users had
@@ -2209,37 +2203,6 @@
     </div>
   {/if}
 
-  <!-- ── First-run intro card ──────────────────────────────────── -->
-  <!-- Shown once, until the user dismisses it. Dismissal is persisted to
-       localStorage so it never reappears. Does not block interaction. -->
-  {#if !introDismissed}
-    <div
-      class="mb-5 flex items-start gap-3 px-4 py-3 rounded-xl border border-lapis/25 bg-lapis/5"
-      role="note"
-      aria-label="How to use Jura Trace verification"
-    >
-      <p class="flex-1 text-sm text-text-light dark:text-quartz leading-relaxed">
-        Jura Trace gives you a second opinion, not a verdict. Use it alongside your other verification steps.
-      </p>
-      <button
-        type="button"
-        class="flex-shrink-0 text-xs text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz min-h-[32px] min-w-[32px] flex items-center justify-center rounded
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
-               transition-colors duration-150"
-        aria-label="Dismiss this note"
-        onclick={() => {
-          introDismissed = true;
-          localStorage.setItem('jura-verify-intro-dismissed', 'true');
-        }}
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-        <span class="sr-only">Dismiss</span>
-      </button>
-    </div>
-  {/if}
-
   <!-- ── Input panel ─────────────────────────────────────────────── -->
   {#if !checked || !result}
     <div class="mb-6 bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl overflow-hidden">
@@ -2763,6 +2726,14 @@
           >
             How this score is calculated
           </a>
+
+          <!-- Reliance note (JTV-208). Always shown with the verdict and never
+               dismissible: it used to be a first-run card above the input panel
+               with a dismiss button, so most people read it once, before they had
+               a result to apply it to. -->
+          <p class="text-xs text-text-light dark:text-quartz mb-2" role="note">
+            Jura Trace gives you a second opinion, not a verdict. Use it alongside your other verification steps.
+          </p>
 
           <p class="text-sm muted-help mb-3">
             {fileName}{#if imageDimensions()} · {imageDimensions()}{/if}
