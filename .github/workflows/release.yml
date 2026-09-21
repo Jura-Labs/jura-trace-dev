@@ -751,13 +751,13 @@ jobs:
       # means the binary inside the installed app is trusted by Defender.
       - name: Sign sidecar binary with Azure Trusted Signing
         if: runner.os == 'Windows'
-        uses: azure/trusted-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
           azure-tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           azure-client-id:       ${{ secrets.AZURE_CLIENT_ID }}
           azure-client-secret:   ${{ secrets.AZURE_CLIENT_SECRET }}
           endpoint:              ${{ secrets.AZURE_SIGNING_ENDPOINT }}
-          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          signing-account-name:  ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           certificate-profile-name:     ${{ secrets.AZURE_CERT_PROFILE }}
           files-folder:          src-tauri/binaries
           files-folder-filter:   exe
@@ -1335,8 +1335,12 @@ jobs:
       # bundle output directory with the Azure Trusted Signing certificate:
       #   Account ID: a7e35def-628b-4980-8785-2e535f709418
       #
-      # azure/trusted-signing-action authenticates to Azure using the OIDC
-      # service principal credentials stored in GitHub Secrets. It calls the
+      # Azure/artifact-signing-action (formerly azure/trusted-signing-action,
+      # renamed at v1.0.0) authenticates as a service principal with the
+      # client secret stored in GitHub Secrets, through DefaultAzureCredential's
+      # environment credential. Since v1.2.0 that and the Azure CLI credential
+      # are the only types enabled by default, which is the one this uses. It
+      # calls the
       # Azure Trusted Signing REST API (endpoint: AZURE_SIGNING_ENDPOINT) and
       # countersigns each matched binary in place — the original files are
       # overwritten with their signed versions.
@@ -1359,13 +1363,13 @@ jobs:
       # Setting depth 4 provides a safe margin if sub-directories are added.
       - name: Sign Windows binaries with Azure Trusted Signing
         if: runner.os == 'Windows'
-        uses: azure/trusted-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
           azure-tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           azure-client-id:       ${{ secrets.AZURE_CLIENT_ID }}
           azure-client-secret:   ${{ secrets.AZURE_CLIENT_SECRET }}
           endpoint:              ${{ secrets.AZURE_SIGNING_ENDPOINT }}
-          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          signing-account-name:  ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           certificate-profile-name:     ${{ secrets.AZURE_CERT_PROFILE }}
           files-folder:          src-tauri/target/${{ matrix.target }}/release/bundle
           files-folder-filter:   exe,msi
