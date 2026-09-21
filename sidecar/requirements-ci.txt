@@ -41,7 +41,7 @@ scipy==1.17.1
 # for rationale. Watermark feature gated behind V1_SHOW_WATERMARK=false in
 # frontend; backend code stays in tree for v1.1 unhide. Library remains in
 # requirements.txt for dev testing.
-pillow-heif==1.6.0
+pillow-heif==1.7.0
 # AVIF support added rc.31 (2026-06-09) — see requirements.txt for rationale.
 pillow-avif-plugin==1.5.5
 python-dotenv==1.2.3
