@@ -8,8 +8,10 @@ Verifies that:
 - /forensics/* returns 401 when a key is configured and no header is provided.
 - /forensics/* returns 401 when a key is configured and the wrong header is provided.
 - /forensics/* proceeds normally when the correct key is provided.
-- When no key is configured the middleware is a no-op.
+- When no key is configured /forensics/* is refused with 503.
 """
+
+import os
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -87,15 +89,20 @@ async def test_forensics_allowed_with_correct_key():
 
 
 @pytest.mark.asyncio
-async def test_no_auth_when_key_not_configured():
-    """/forensics/* should be accessible without a header when key is empty."""
+async def test_forensics_refused_when_key_not_configured():
+    """
+    An empty key refuses /forensics with 503, under the test runner as
+    anywhere else. The middleware used to let requests through when
+    PYTEST_CURRENT_TEST was set, which is set here, so this test fails
+    if that exception comes back (JTV-205).
+    """
+    assert "PYTEST_CURRENT_TEST" in os.environ
     original = settings.sidecar_key
     try:
         settings.sidecar_key = ""
         transport = ASGITransport(app=main_module.app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.post("/forensics/ela")
-        # 422 = reached the handler, auth middleware was a no-op.
-        assert response.status_code != 401
+        assert response.status_code == 503
     finally:
         settings.sidecar_key = original
