@@ -326,5 +326,19 @@ export function classifyError(message: string): UpdateStatus {
         'Could not reach the update service, so we cannot tell whether an update is available. Please try again later. If the problem persists, download the latest installer from juralabs.org/download.',
     };
   }
+  // BL-REL-004 fault 2. On macOS tauri-plugin-updater backs up the running
+  // bundle with rename(2) into $TMPDIR, which is on the startup disk, and
+  // treats anything but PermissionDenied as fatal. An app kept on another
+  // volume therefore fails with "Cross-device link (os error 18)". That
+  // rename is the first step to touch the bundle, so nothing has changed.
+  // Linux does not reach this: the AppImage path picks a temp directory on
+  // the same device before renaming.
+  if (/cross-device link|os error 18\b/i.test(message)) {
+    return {
+      state: 'error',
+      message:
+        'Jura Trace can only update itself when it is in the Applications folder on your startup disk. Move it there and try again. Your current version has not been changed.',
+    };
+  }
   return { state: 'error', message };
 }
