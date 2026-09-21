@@ -421,7 +421,7 @@ test.describe('AI card — GBM Deepfake row', () => {
     const cardBody = page.locator('#card-ai-body');
     await expect(
       cardBody.getByText(
-        /Score reflects statistical patterns across the model's 84-feature vector/,
+        /Score reflects statistical patterns across the model's whole feature vector/,
       ),
     ).toBeVisible();
     await expect(

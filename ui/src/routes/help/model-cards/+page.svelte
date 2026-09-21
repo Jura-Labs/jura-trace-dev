@@ -105,7 +105,7 @@
     <!-- Purpose -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Purpose</h3>
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
-      The GBM classifier analyses an 84-dimensional feature vector extracted from
+      The GBM classifier analyses an 80-dimensional feature vector extracted from
       images by the forensic pipeline (ELA statistics, noise patterns, frequency
       domain features, copy-move indicators, and more). It produces a probability
       score indicating how likely an image is to be AI-generated. This score runs
@@ -127,11 +127,11 @@
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">AI-generated sources (approximately 14 generator families)</dt>
-          <dd class="muted-help">Diverse imagery across the diffusion and GAN landscape spanning commercial and open-weights model families. Specific generator names are withheld from public documentation; per-generator recall is reported in the model-card metadata JSON shipped alongside each release.</dd>
+          <dd class="muted-help">Diverse imagery across the diffusion and GAN landscape spanning commercial and open-weights model families. Specific generator names are withheld from public documentation. Per-generator recall was not recorded when this model was trained; its training and evaluation metadata is in <code>model-card-gbm.json</code>, attached to each release.</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Feature vector</dt>
-          <dd class="muted-help">84 features grouped into the following classes:
+          <dd class="muted-help">80 features grouped into the following classes:
             <ul class="list-disc pl-4 mt-1 space-y-0.5">
               <li>ELA (mean, std, max, entropy)</li>
               <li>Noise analysis</li>
@@ -305,7 +305,7 @@
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">AI-generated sources (approximately 14 generator families)</dt>
-          <dd class="muted-help">Diverse imagery across the diffusion and GAN landscape spanning commercial and open-weights model families. Specific generator names are withheld from public documentation; per-generator recall is reported in the model-card metadata JSON shipped alongside each release.</dd>
+          <dd class="muted-help">Diverse imagery across the diffusion and GAN landscape spanning commercial and open-weights model families. Specific generator names are withheld from public documentation; recall by generator family is reported in <code>model-card-univfd.json</code>, attached to each release.</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Regularisation</dt>

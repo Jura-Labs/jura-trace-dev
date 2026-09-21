@@ -361,7 +361,7 @@
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           The machine learning classifier at the centre of Jura Trace's AI detection
           ensemble. Current version is <strong>GBM v4</strong>, trained on an
-          84-feature vector extracted from the forensic signal pipeline using a
+          80-feature vector extracted from the forensic signal pipeline using a
           corpus of over 10,000 images (balanced authentic and AI-generated from 14
           generator families). Achieves a cross-validation AUC-ROC of 0.9868 with
           an authentic false-positive rate of 4.54% at the calibrated threshold.

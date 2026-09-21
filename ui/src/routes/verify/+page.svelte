@@ -4860,7 +4860,7 @@
                          the accordion below does not read as a contradiction. -->
                     {#if gbmHighScoreNoSignals && gbmSignals.length > 0}
                       <p class="text-[11px] text-flint-dark dark:text-flint-light italic mt-1.5 leading-snug">
-                        Score reflects statistical patterns across the model's 84-feature vector. None of the {gbmSignals.length} named indicators triggered individually.
+                        Score reflects statistical patterns across the model's whole feature vector. None of the {gbmSignals.length} named indicators triggered individually.
                       </p>
                     {/if}
                     {#if gbmSignals.length > 0}

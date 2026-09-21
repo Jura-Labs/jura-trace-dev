@@ -1468,7 +1468,7 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
       citationKey: 'copyMove',
     },
     {
-      text: 'AI Generation Detection: A two-head ensemble — GBM v4 (84-feature gradient-boosted classifier on hand-engineered forensic features, AUC 0.9868) and UnivFD v10onnx (logistic regression on CLIP ViT-B/32 embeddings, AUC 0.9929, multi-format augmentation across PNG/TIFF/WebP/HEIC). Each head runs independently and the verdict reflects their combined output.',
+      text: 'AI Generation Detection: A two-head ensemble — GBM v4 (80-feature gradient-boosted classifier on hand-engineered forensic features, AUC 0.9868) and UnivFD v10onnx (logistic regression on CLIP ViT-B/32 embeddings, AUC 0.9929, multi-format augmentation across PNG/TIFF/WebP/HEIC). Each head runs independently and the verdict reflects their combined output.',
       citationKey: 'deepfake',
     },
     {

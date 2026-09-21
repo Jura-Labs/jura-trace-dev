@@ -77,7 +77,7 @@ export async function exportCaseZip(
     'matches suggest content has been cloned from one area to another.',
     '',
     'AI Generation Detection',
-    'A two-head ensemble — GBM v4 (84-feature gradient-boosted classifier, AUC 0.9868)',
+    'A two-head ensemble — GBM v4 (80-feature gradient-boosted classifier, AUC 0.9868)',
     'and UnivFD v10onnx (logistic regression on CLIP ViT-B/32 embeddings, AUC 0.9929) — that',
     'analyses frequency, gradient, noise, and embedding-space signals to estimate the',
     'likelihood of AI generation. Both heads run independently and the verdict reflects',
