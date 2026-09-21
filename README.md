@@ -19,8 +19,9 @@ something you asked for or something you can turn off:
 - **A URL you paste.** Verify by URL fetches the address you gave it.
 - **Weather lookup.** One detector cross-references historical weather for a
   stated time and place. Enhanced network mode only.
-- **API documentation.** Opening the local REST API's docs page loads Swagger
-  UI from `unpkg.com`.
+- **API documentation.** In v1.1.0 and earlier, opening the local REST API's
+  docs page loads Swagger UI from `unpkg.com`. From v1.2.0 the page is built
+  into the app and makes no network call.
 
 Standard network mode, in Settings, turns off the update check and the weather
 lookup. The timestamp request made when you sign is not covered by that switch
