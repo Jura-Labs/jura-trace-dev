@@ -1016,7 +1016,7 @@
     </div>
     <div class="pl-24 max-w-2xl">
       <p class="text-sm muted-help leading-relaxed mb-3">
-        Coming in v1.1. Two features will live here.
+        Not yet available. Two features are planned here, with no release date yet.
       </p>
       <ul class="text-sm muted-help leading-relaxed list-disc pl-5 space-y-1.5">
         <li>
@@ -1029,7 +1029,7 @@
         </li>
       </ul>
       <p class="text-xs muted-help leading-relaxed mt-4">
-        Automated reverse image search and audio or video fingerprint URL checks are tracked separately on the v1.1 roadmap.
+        Automated reverse image search and audio or video fingerprint URL checks are planned separately, with no release date yet.
       </p>
     </div>
   </section>

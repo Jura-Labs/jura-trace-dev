@@ -361,10 +361,10 @@
         10. CLIP Detection (blends into the AI ensemble)
 
       Watermark Extraction was the 11th automatic detector through rc.x.
-      Deferred to v1.1 on 2026-05-21 alongside the watermark embed UI
+      Deferred on 2026-05-21 alongside the watermark embed UI
       (feature-flag V1_SHOW_WATERMARK=false). Backend extract code path
       stays in tree; sidecar bundle no longer includes invisible-watermark
-      (PyInstaller torch-import regression risk). Re-enable in v1.1 when
+      (PyInstaller torch-import regression risk). To be re-enabled when
       a torch-free implementation is in place.
 
       Under evaluation (NOT in v1.0 trust scoring):

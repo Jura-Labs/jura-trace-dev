@@ -869,7 +869,7 @@
       <li>
         For field deployment without internet connectivity: Jura Trace operates fully
         offline. All core forensic analysis runs on-device without any network connection.
-        Ollama (AI descriptions, deferred to v1.0.1) is an optional enhancement not
+        Ollama (AI descriptions, not in the current release) is an optional enhancement not
         required for image forensics.
       </li>
       <li>

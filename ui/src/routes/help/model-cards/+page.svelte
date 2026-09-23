@@ -499,7 +499,7 @@
         your specific device class has not been published.
       </p>
       <p class="text-sm text-amber-900 dark:text-amber-200 leading-relaxed mt-2">
-        Addressing this gap is a v1.1 priority. The next retraining cycle will include
+        Addressing this gap is an open priority. A future retraining cycle will include
         an expanded corpus of Global Majority handset photographs collected under
         explicit consent, and per-device-family FP rates will be published in this
         section when that work is complete.
