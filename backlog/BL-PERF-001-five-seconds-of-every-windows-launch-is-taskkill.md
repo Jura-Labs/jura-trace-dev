@@ -125,3 +125,18 @@ a floor. On a user's machine Defender scans each newly loaded binary, which
 is also why B1 signs the whole tree. The Defender cost of the onedir tree has
 not been measured anywhere. The sanctioned way is `New-MpPerformanceRecording`
 on a machine with real-time protection on.
+
+## Update, 23 September 2026
+
+Fixed on branch `w39-25-startup-fixes`, PR #109, not yet merged. Steps 1 to
+3 above are done. The re-measure found a fourth cause. The sidecar's
+`/health` asks Ollama at 127.0.0.1:11434 with a 2 s timeout on every call,
+and on Windows that took 2.15 s whenever Ollama was not running. The app's
+`SidecarClient::is_available()` used `/health` as its "is it up" probe, and
+it runs once per verification. It now uses `/health/ready`.
+
+Launch to `sidecarAvailable` on `windows-latest`, B1 port plus the fixes
+(run 35867120171): 7.1 s on first launch and 3.7 to 3.8 s warm, against
+25.7 to 28.5 s and 17.9 to 24.9 s with the port alone. The sidecar now spawns
+0.5 s after launch, down from 5.6 s. Step 4, tightening the installer test's
+budgets, waits until both #107 and #109 are merged.

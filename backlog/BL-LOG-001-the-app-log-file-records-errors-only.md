@@ -44,3 +44,17 @@ made BL-PERF-001 need process creation times to find a 5-second gap.
 Do not set `debug` as the default. The sidecar relay logs every line the
 sidecar prints at `info`, and per-request lines at `debug` would make the
 10 MiB cap truncate the startup record that matters.
+
+## Update, 23 September 2026
+
+Fixed narrowly on branch `w39-25-startup-fixes`, PR #109, not yet merged.
+The default filter is `error,jura_trace_lib::startup=info,jura_trace_lib::sidecar=info`
+with millisecond timestamps, not `info` for the whole crate. Reading every
+`info!` and `warn!` found lines that name the local path of an image being
+analysed (`fingerprint.rs:144`, `lib.rs:318`, `lib.rs:427`, `lib.rs:435`,
+`heatmap.rs:108`, `pipeline.rs:822`, `watermark.rs:257`) or a verified URL
+with its query stripped (`lib.rs:1692`). Writing those to a plaintext log on
+an evidence holder's machine is a privacy decision for Paul, and it stays
+open here. Verified on `windows-latest` with no `RUST_LOG` set (run
+35867120171): the log held the full startup record, 4,627 bytes for four
+launches, where the same launches previously wrote 0 bytes.
