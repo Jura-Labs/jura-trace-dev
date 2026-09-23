@@ -105,6 +105,12 @@ utoipa-swagger-ui = { version = "9", features = ["axum", "vendored"], optional =
 dashmap = { version = "6", optional = true }
 tokio = { version = "1", features = ["net", "rt", "macros", "sync"], optional = true }
 
+# BL-PERF-001: the Windows orphan-sidecar sweep enumerates processes in
+# process instead of waiting on a taskkill child. Already in Cargo.lock as a
+# transitive dependency; only the three API families it needs are enabled.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Threading"] }
+
 [dev-dependencies]
 # Integration test helpers (API wrapper tests)
 tokio = { version = "1", features = ["full"] }

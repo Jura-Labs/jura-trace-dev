@@ -3811,6 +3811,7 @@ dependencies = [
  "utoipa",
  "utoipa-swagger-ui",
  "uuid",
+ "windows-sys 0.61.2",
  "x509-parser 0.18.1",
 ]
 

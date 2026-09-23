@@ -62,11 +62,26 @@ type SharedState = Arc<Mutex<AppState>>;
     )
 )]
 pub async fn health(State(state): State<SharedState>) -> Json<HealthResponse> {
+    // The live probe below makes up to two HTTP attempts with a 10 s timeout
+    // each. It used to run with the AppState lock held, so every other user
+    // of the lock waited behind it, and during startup (sidecar not yet
+    // listening) each call took 4.5 to 6 s on Windows (BL-PERF-001). Now the
+    // client is cloned out of the lock first, and while the startup probe
+    // still reports Connecting the answer is false without touching the
+    // network: the sidecar is not ready by that probe's own definition.
     let sidecar_available = tokio::task::spawn_blocking(move || {
-        state
-            .lock()
-            .map(|g| g.sidecar.is_available())
-            .unwrap_or(false)
+        let (client, startup) = match state.lock() {
+            Ok(g) => (
+                g.sidecar.clone(),
+                g.sidecar_startup_status
+                    .load(std::sync::atomic::Ordering::Relaxed),
+            ),
+            Err(_) => return false,
+        };
+        if startup == crate::state::SidecarStartupStatus::Connecting.to_u8() {
+            return false;
+        }
+        client.is_available()
     })
     .await
     .unwrap_or(false);

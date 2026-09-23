@@ -4360,7 +4360,10 @@ pub fn run() {
                                     .map(|d| d.as_secs())
                                     .unwrap_or(0)
                                     .saturating_sub(started_at_arc.load(Ordering::Relaxed));
+                                // Targeted at the startup module so it is kept
+                                // by the default log filter (BL-LOG-001).
                                 log::info!(
+                                    target: "jura_trace_lib::startup",
                                     "Sidecar ready after {attempt} poll attempt(s) (\
                                     elapsed {elapsed}s)",
                                 );
