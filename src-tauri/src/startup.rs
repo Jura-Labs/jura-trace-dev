@@ -79,13 +79,13 @@ const MAX_LOG_FILE_BYTES: u64 = 10 * 1024 * 1024;
 /// line was dropped in production and the log file a user could send us held
 /// errors only (BL-LOG-001).
 ///
-/// This deliberately does NOT default the whole crate to `info`. Several
-/// `info` and `warn` lines elsewhere name the local path of an image being
-/// analysed or a URL being verified, and a plaintext log of those is a
-/// privacy decision for evidence holders, not a diagnostics fix. So only the
-/// startup and sidecar modules, which carry the startup record and name no
-/// user files, log at `info`. `RUST_LOG` still overrides everything.
-const DEFAULT_LOG_FILTER: &str = "error,jura_trace_lib::startup=info,jura_trace_lib::sidecar=info";
+/// The whole crate logs at `info`, which means the file records local paths
+/// of images being analysed (e.g. `fingerprint.rs`, `heatmap.rs`) and URLs
+/// being verified, query strings stripped. Paul decided that on 23 September
+/// 2026: the log stays on the user's machine and is only ever sent by them.
+/// Other crates stay at `warn` so dependency chatter does not push the
+/// startup record out of the 10 MiB cap. `RUST_LOG` still overrides.
+const DEFAULT_LOG_FILTER: &str = "warn,jura_trace_lib=info";
 
 fn default_logger() -> env_logger::Builder {
     let mut builder = env_logger::Builder::from_env(
