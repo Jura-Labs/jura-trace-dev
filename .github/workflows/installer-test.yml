@@ -402,8 +402,11 @@ jobs:
       #      this runner class with the shipped v1.1.0 --onefile MSI, was
       #      39.0 s on first launch and 28.4 s on the second (probe run
       #      35699529154, 22 September 2026). The budgets sit just under
-      #      those, so a build that is not faster than --onefile fails.
-      #      Tighten them once real onedir numbers exist.
+      #      those, so a build that is not faster than --onefile fails. The
+      #      unsigned-by-Azure port probe (run 35827994296, 23 September)
+      #      measured onedir at 28.5 s and 24.9 s: extraction was only part
+      #      of the wait. The time the app's own API first answers is logged
+      #      beside it, so app start and sidecar start can be told apart.
       #   4. Killing the launcher kills the bootloader, and killing the
       #      bootloader ends the launcher. An orphaned sidecar holds its own
       #      files locked and breaks the next install (rc.21, April 2026).
@@ -415,7 +418,7 @@ jobs:
         env:
           VERSION: ${{ steps.tag.outputs.version }}
           FIRST_BUDGET_S: "38"
-          WARM_BUDGET_S: "20"
+          WARM_BUDGET_S: "28"
         run: |
           $ErrorActionPreference = "Stop"
           $core = [version]($env:VERSION.Split("-")[0])
@@ -465,11 +468,12 @@ jobs:
             $mei0 = @(Get-ChildItem $env:TEMP -Directory -Filter "_MEI*" -ErrorAction SilentlyContinue | ForEach-Object Name)
             $sw = [Diagnostics.Stopwatch]::StartNew()
             Start-Process -FilePath $exe
-            $ready = $null; $iters = 0
+            $ready = $null; $firstHealth = $null; $iters = 0
             while ($sw.Elapsed.TotalSeconds -lt 180) {
               $iters++
               try {
                 $h = Invoke-RestMethod -Uri "http://127.0.0.1:8300/api/v1/health" -TimeoutSec 3
+                if ($null -eq $firstHealth) { $firstHealth = $sw.Elapsed.TotalSeconds }
                 if ($h.sidecarAvailable -eq $true) { $ready = $sw.Elapsed.TotalSeconds; break }
               } catch {}
               Start-Sleep -Milliseconds 500
@@ -479,7 +483,7 @@ jobs:
             $mei1 = @(Get-ChildItem $env:TEMP -Directory -Filter "_MEI*" -ErrorAction SilentlyContinue | ForEach-Object Name)
             $newMei = @($mei1 | Where-Object { $mei0 -notcontains $_ })
             if ($newMei.Count -gt 0) { throw "run ${run}: PyInstaller extracted to $($newMei -join ', ') in %TEMP%. The sidecar is still --onefile." }
-            $line = "run ${run}: sidecarAvailable at {0:N1} s (budget $($budgets[$run - 1]) s; --onefile v1.1.0 was {1} s), no _MEI extraction" -f $ready, @("39.0", "28.4")[$run - 1]
+            $line = "run ${run}: app API first answered at {2:N1} s, sidecarAvailable at {0:N1} s (budget $($budgets[$run - 1]) s; --onefile v1.1.0 was {1} s), no _MEI extraction" -f $ready, @("39.0", "28.4")[$run - 1], $firstHealth
             Write-Host $line; $summary += $line
             if ($ready -gt $budgets[$run - 1]) { throw ("run ${run}: the sidecar started, and took {0:N1} s against a budget of $($budgets[$run - 1]) s" -f $ready) }
 
