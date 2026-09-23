@@ -58,3 +58,9 @@ an evidence holder's machine is a privacy decision for Paul, and it stays
 open here. Verified on `windows-latest` with no `RUST_LOG` set (run
 35867120171): the log held the full startup record, 4,627 bytes for four
 launches, where the same launches previously wrote 0 bytes.
+
+**Decided, 23 September 2026 (Paul):** the whole app logs at `info`, local
+paths and stripped URLs included, because the log stays on the user's
+machine and is only ever sent by them. PR #109 now sets the default filter
+to `warn,jura_trace_lib=info`, so other crates stay at `warn` and do not
+push the startup record out of the 10 MiB cap.
