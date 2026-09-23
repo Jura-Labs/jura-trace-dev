@@ -40,6 +40,8 @@ after the fourteen merges of that day. Each item's own file carries a dated
 | [BL-CLAIM-003](BL-CLAIM-003-the-pdf-report-asserts-checks-that-never-ran.md) | The exported forensic report asserts OCSP/CRL checks that never run | Open | High, legal |
 | [BL-API-001](BL-API-001-the-headless-api-is-documented-and-does-not-exist.md) | The headless API is documented and does not exist; it gates the CLI | Open | Medium |
 | [BL-SIZE-001](BL-SIZE-001-242mb-of-download-computes-10kb-of-constants.md) | 242 MB of every download computes 10 KB of constants | Open | High for adoption |
+| [BL-PERF-001](BL-PERF-001-five-seconds-of-every-windows-launch-is-taskkill.md) | About 5 s of every Windows launch is the app waiting on a `taskkill` child before it spawns the sidecar; the sidecar itself is ready in about 3 s. Also: `/api/v1/health` blocks on the sidecar under the state lock | Open | Medium |
+| [BL-LOG-001](BL-LOG-001-the-app-log-file-records-errors-only.md) | The app's log file records errors only: env_logger defaults to `error` when `RUST_LOG` is unset, so every `info`/`warn` line is dropped in production | Open | Medium |
 
 ## Closed items
 
