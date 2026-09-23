@@ -289,7 +289,7 @@ jobs:
   windows:
     name: Windows (MSI + NSIS)
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -383,6 +383,130 @@ jobs:
           $after | Set-Content artefacts/after-msi-paths.txt
           Write-Host "install location(s) after MSI:"
           $after | ForEach-Object { Write-Host "  $_" }
+
+      # ── B1: the onedir sidecar, checked on the installed product ──────────
+      #
+      # From v1.2.0 the Windows sidecar is a PyInstaller --onedir tree run in
+      # place by a small launcher, instead of a --onefile executable that
+      # re-extracted itself to %TEMP%\_MEIxxxxxx on every launch. This step
+      # runs BEFORE the health probe below so that run 1 is the genuine first
+      # launch after install. It checks four things, each on what the user
+      # actually has installed rather than on the build tree:
+      #
+      #   1. Every .exe/.dll/.pyd under both install roots is validly signed,
+      #      with a floor so an empty scan cannot pass.
+      #   2. No _MEI directory appears in %TEMP% during either launch. This is
+      #      the structural proof: it cannot be satisfied by a fast runner or
+      #      a warm cache, only by the shape having changed.
+      #   3. Launch to sidecarAvailable: true, timed twice. The before, on
+      #      this runner class with the shipped v1.1.0 --onefile MSI, was
+      #      39.0 s on first launch and 28.4 s on the second (probe run
+      #      35699529154, 22 September 2026). The budgets sit just under
+      #      those, so a build that is not faster than --onefile fails.
+      #      Tighten them once real onedir numbers exist.
+      #   4. Killing the launcher kills the bootloader, and killing the
+      #      bootloader ends the launcher. An orphaned sidecar holds its own
+      #      files locked and breaks the next install (rc.21, April 2026).
+      #
+      # Releases before v1.2.0 are --onefile and skip this with a visible note.
+      - name: "B1: onedir sidecar signed, no _MEI, timed start, tied processes"
+        id: onedir
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          FIRST_BUDGET_S: "38"
+          WARM_BUDGET_S: "20"
+        run: |
+          $ErrorActionPreference = "Stop"
+          $core = [version]($env:VERSION.Split("-")[0])
+          if ($core -lt [version]"1.2.0") {
+            Write-Host "SKIPPED: $env:VERSION predates the Windows onedir sidecar (v1.2.0 B1)."
+            "## B1 onedir checks: skipped, $env:VERSION is a --onefile release" >> $env:GITHUB_STEP_SUMMARY
+            exit 0
+          }
+          $summary = @()
+
+          # 1. Signatures on both installed trees.
+          $roots = @(Get-Content artefacts/nsis-paths.txt) + @(Get-Content artefacts/after-msi-paths.txt) |
+                   ForEach-Object { Split-Path $_ -Parent } | Sort-Object -Unique
+          foreach ($root in $roots) {
+            foreach ($f in "jura-sidecar.exe", "sidecar-bundle\jura-sidecar.exe", "sidecar-bundle\_internal") {
+              if (-not (Test-Path "$root\$f")) { throw "$root has no $f; this is not an onedir install" }
+            }
+            $pe = @(Get-ChildItem "$root\sidecar-bundle" -Recurse -File | Where-Object { $_.Extension -in ".exe", ".dll", ".pyd" }) +
+                  @(Get-Item "$root\jura-sidecar.exe")
+            if ($pe.Count -lt 200) { throw "only $($pe.Count) native files under $root; an empty or wrong scan is not a pass" }
+            $bad = @($pe | ForEach-Object { $sig = Get-AuthenticodeSignature $_.FullName; if ($sig.Status -ne "Valid") { "$($sig.Status)  $($_.FullName)" } })
+            if ($bad.Count -gt 0) { $bad | Select-Object -First 30 | ForEach-Object { Write-Host "::error::$_" }; throw "$($bad.Count) of $($pe.Count) installed native files under $root are not validly signed" }
+            $longest = (Get-ChildItem $root -Recurse -File | ForEach-Object { $_.FullName.Length } | Measure-Object -Maximum).Maximum
+            if ($longest -gt 240) { throw "longest installed path under $root is $longest characters; per-user installs are bound by 260" }
+            $summary += "signed: all $($pe.Count) native files under $root (longest path $longest chars)"
+          }
+
+          # 2 to 4. Two timed launches of the MSI-installed app.
+          $exe = Get-Content artefacts/after-msi-paths.txt | Select-Object -First 1
+          $root = Split-Path $exe -Parent
+          $launcherPath = "$root\jura-sidecar.exe"
+          $bootPath = "$root\sidecar-bundle\jura-sidecar.exe"
+          function Get-SidecarProcs {
+            Get-CimInstance Win32_Process -Filter "Name = 'jura-sidecar.exe'" |
+              Select-Object ProcessId, ParentProcessId, ExecutablePath
+          }
+          function Wait-Gone([int]$procId, [int]$seconds) {
+            $sw = [Diagnostics.Stopwatch]::StartNew()
+            while ($sw.Elapsed.TotalSeconds -lt $seconds) {
+              if (-not (Get-Process -Id $procId -ErrorAction SilentlyContinue)) { return $true }
+              Start-Sleep -Milliseconds 200
+            }
+            return $false
+          }
+          $budgets = @([int]$env:FIRST_BUDGET_S, [int]$env:WARM_BUDGET_S)
+          foreach ($run in 1, 2) {
+            $mei0 = @(Get-ChildItem $env:TEMP -Directory -Filter "_MEI*" -ErrorAction SilentlyContinue | ForEach-Object Name)
+            $sw = [Diagnostics.Stopwatch]::StartNew()
+            Start-Process -FilePath $exe
+            $ready = $null; $iters = 0
+            while ($sw.Elapsed.TotalSeconds -lt 180) {
+              $iters++
+              try {
+                $h = Invoke-RestMethod -Uri "http://127.0.0.1:8300/api/v1/health" -TimeoutSec 3
+                if ($h.sidecarAvailable -eq $true) { $ready = $sw.Elapsed.TotalSeconds; break }
+              } catch {}
+              Start-Sleep -Milliseconds 500
+            }
+            if ($iters -eq 0) { throw "run ${run}: the poll loop never ran. The measurement did not happen; not a pass." }
+            if ($null -eq $ready) { throw "run ${run}: the sidecar did not start within 180 s. This is not a slow start." }
+            $mei1 = @(Get-ChildItem $env:TEMP -Directory -Filter "_MEI*" -ErrorAction SilentlyContinue | ForEach-Object Name)
+            $newMei = @($mei1 | Where-Object { $mei0 -notcontains $_ })
+            if ($newMei.Count -gt 0) { throw "run ${run}: PyInstaller extracted to $($newMei -join ', ') in %TEMP%. The sidecar is still --onefile." }
+            $line = "run ${run}: sidecarAvailable at {0:N1} s (budget $($budgets[$run - 1]) s; --onefile v1.1.0 was {1} s), no _MEI extraction" -f $ready, @("39.0", "28.4")[$run - 1]
+            Write-Host $line; $summary += $line
+            if ($ready -gt $budgets[$run - 1]) { throw ("run ${run}: the sidecar started, and took {0:N1} s against a budget of $($budgets[$run - 1]) s" -f $ready) }
+
+            $procs = @(Get-SidecarProcs)
+            $launcher = @($procs | Where-Object { $_.ExecutablePath -eq $launcherPath })
+            $boot = @($procs | Where-Object { $_.ExecutablePath -eq $bootPath })
+            if ($launcher.Count -ne 1 -or $boot.Count -ne 1) {
+              $procs | Format-Table | Out-String | Write-Host
+              throw "run ${run}: expected one launcher and one bootloader process, found $($launcher.Count) and $($boot.Count)"
+            }
+            if ($boot[0].ParentProcessId -ne $launcher[0].ProcessId) { throw "run ${run}: the bootloader's parent is $($boot[0].ParentProcessId), not the launcher $($launcher[0].ProcessId)" }
+            if ($run -eq 1) {
+              Stop-Process -Id $launcher[0].ProcessId -Force
+              if (-not (Wait-Gone $boot[0].ProcessId 10)) { throw "killing the launcher left the bootloader (pid $($boot[0].ProcessId)) running; the job object did not take" }
+              $line = "killing the launcher took the bootloader with it"
+            } else {
+              Stop-Process -Id $boot[0].ProcessId -Force
+              if (-not (Wait-Gone $launcher[0].ProcessId 10)) { throw "the bootloader died and the launcher (pid $($launcher[0].ProcessId)) kept running" }
+              $line = "killing the bootloader ended the launcher"
+            }
+            Write-Host $line; $summary += $line
+            Get-Process | Where-Object { $_.ProcessName -like "*ura*race*" -or $_.ProcessName -eq "jura-sidecar" } | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 5
+          }
+          "## B1 onedir checks: passed" >> $env:GITHUB_STEP_SUMMARY
+          $summary | ForEach-Object { "- $_" >> $env:GITHUB_STEP_SUMMARY }
+          $summary | Set-Content artefacts/onedir-checks.txt
 
       - name: Launch the installed app and probe it
         shell: pwsh
