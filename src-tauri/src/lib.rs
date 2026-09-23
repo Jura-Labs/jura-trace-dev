@@ -4149,7 +4149,10 @@ pub fn run() {
     if let Some(ref p) = log_file_path {
         log::info!("Log file: {}", p.display());
     }
+    // Startup target, so the default log filter keeps it as the anchor for
+    // the startup timeline (BL-LOG-001).
     log::info!(
+        target: "jura_trace_lib::startup",
         "Starting Jura Trace v{} ({})",
         env!("CARGO_PKG_VERSION"),
         std::env::consts::OS

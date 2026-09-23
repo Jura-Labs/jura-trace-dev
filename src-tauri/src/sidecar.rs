@@ -998,11 +998,23 @@ impl SidecarClient {
     /// responsive, /health returns in <100 ms and we likewise incur no
     /// penalty. Only the cold-warmup case sees the extra slack — which is
     /// exactly the bug this fixes.
+    ///
+    /// 2026-09-23 (BL-PERF-001): probes `/health/ready`, not `/health`. The
+    /// full `/health` handler asks Ollama at 127.0.0.1:11434 for its models
+    /// with a 2 s timeout on every call. On Windows a refused loopback
+    /// connection is not refused immediately, so with no Ollama running,
+    /// which is most machines, every `/health` took 2.15 s (measured on
+    /// windows-latest, run 35863691889), and this function is called once
+    /// per verification and by every sidecar-backed command. The "<100 ms"
+    /// above held on macOS only. `/health/ready` is constant time, touches
+    /// neither Ollama nor any model, and returns 200 exactly when warmup is
+    /// done, which is the question this function answers. Callers that need
+    /// the capability detail use [`Self::check_health`].
     pub fn is_available(&self) -> bool {
         for attempt in 0..2 {
             let probe = self
                 .client
-                .get(format!("{}/health", self.base_url))
+                .get(format!("{}/health/ready", self.base_url))
                 .timeout(Duration::from_secs(10))
                 .send()
                 .map(|r| r.status().is_success())
@@ -1893,6 +1905,41 @@ mod tests {
         // No sidecar running — should return false, not panic
         let client = SidecarClient::new("http://127.0.0.1:19999", "");
         assert!(!client.is_available());
+    }
+
+    /// BL-PERF-001: availability must be asked of `/health/ready`, which is
+    /// constant time. The full `/health` waits up to 2 s on Ollama, and on
+    /// Windows it does wait. This server answers 200 only on `/health/ready`
+    /// and 500 on anything else, so probing the wrong endpoint fails.
+    #[test]
+    fn test_is_available_probes_health_ready() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let paths = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let seen = std::sync::Arc::clone(&paths);
+        std::thread::spawn(move || {
+            for stream in listener.incoming().take(2) {
+                let mut stream = stream.unwrap();
+                let mut buf = [0u8; 2048];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let request = String::from_utf8_lossy(&buf[..n]);
+                let path = request.split_whitespace().nth(1).unwrap_or("").to_string();
+                let status = if path == "/health/ready" {
+                    "200 OK"
+                } else {
+                    "500 Internal Server Error"
+                };
+                seen.lock().unwrap().push(path);
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 {status}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"
+                );
+            }
+        });
+        let client = SidecarClient::new(&format!("http://127.0.0.1:{port}"), "");
+        assert!(client.is_available());
+        assert_eq!(paths.lock().unwrap().as_slice(), ["/health/ready"]);
     }
 
     #[test]
