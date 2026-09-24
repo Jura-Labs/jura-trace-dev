@@ -538,9 +538,9 @@
         >Ollama</dt>
         <dd class="mt-1 text-sm text-text-light dark:text-quartz leading-relaxed max-w-prose">
           A local large language model runtime used optionally by Jura Trace. Ollama-backed
-          features (AI image descriptions, Read Text extraction via LLaVA) are reserved
-          for v1.0.1 and are gated off in the v1.0 build. v1.0 ships pure forensic + C2PA
-          analysis and does not require an Ollama install. When Ollama features are
+          features (AI image descriptions, Read Text extraction via LLaVA) are not part of
+          the current release and are switched off. Jura Trace currently ships forensic and
+          C2PA analysis only and does not require an Ollama install. When Ollama features are
           re-enabled all inference will run entirely on your device, so no data leaves
           your machine.
         </dd>

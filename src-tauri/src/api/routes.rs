@@ -634,7 +634,7 @@ pub async fn protect_watermark_embed(
     // a silent broken roundtrip. Re-enable alongside the frontend flag
     // when the round-trip is fixed for v1.1.
     Err(ApiError::service_unavailable(
-        "Invisible watermark embedding is deferred from v1.0 and planned for v1.1. \
+        "Invisible watermark embedding is not available in this release. \
          See the project release notes for the roadmap.",
     ))
 }
@@ -676,7 +676,7 @@ pub async fn protect_watermark_extract(
     // documented OpenAPI contract honest and avoids silently returning
     // a never-matching result.
     Err(ApiError::service_unavailable(
-        "Invisible watermark extraction is deferred from v1.0 and planned for v1.1. \
+        "Invisible watermark extraction is not available in this release. \
          See the project release notes for the roadmap.",
     ))
 }

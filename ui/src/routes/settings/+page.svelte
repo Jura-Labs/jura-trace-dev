@@ -484,7 +484,7 @@
       tier: 'professional',
       name: 'Professional',
       codename: 'Stratum',
-      description: 'Individual commercial licence. Adds report customisation (your name, organisation, case reference), full methodology versioning, comparative analysis, MONITOR Layer 2 (reverse image search), REST API access (port 8300), extended audit log retention (24 months), and best-effort email support. Conformant C2PA signing is planned for v1.1.',
+      description: 'Individual commercial licence. Adds report customisation (your name, organisation, case reference), full methodology versioning, comparative analysis, MONITOR Layer 2 (reverse image search), extended audit log retention (24 months), and best-effort email support. Conformant C2PA signing is planned, with no release date yet.',
       badgeClass: 'bg-lapis/15 border border-lapis/30',
       badgeTextClass: 'text-lapis dark:text-lapis-light',
     },
@@ -1139,7 +1139,7 @@
       networkModeFeedback = {
         ok: true,
         message: mode === 'standard'
-          ? 'Network mode set to Standard. No outbound connections will be made.'
+          ? 'Network mode set to Standard. Automatic update checks and weather lookups are off. Signing still contacts a timestamp service.'
           : 'Network mode set to Enhanced. Optional online features are now available. Content Credential verification is unchanged.',
       };
     } catch (err: unknown) {
@@ -1607,8 +1607,8 @@
         </div>
 
         <p class="text-xs muted-help leading-relaxed mb-3">
-          Reserved for v1.0.1 AI enrichment (a single multimodal+text model for image
-          descriptions and claim verification). Not used by v1.0 features. Core verification,
+          Reserved for future AI enrichment (a single multimodal+text model for image
+          descriptions and claim verification). Not used by any current feature. Core verification,
           forensic analysis, and AI deepfake detection all work without Ollama.
           {#if ollamaUrl !== DEFAULT_OLLAMA_URL}
             <span class="block mt-1">URL: <code class="font-mono text-[11px]">{ollamaUrl}</code></span>
@@ -2428,8 +2428,8 @@
           Third-party tools will confirm this file's integrity. Your identity as signer will show
           as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in external
           validators, expected in Local Signing mode (the manifest is valid; trust scope is local
-          to this install). Conformant Signing (verifiable against the C2PA trust list) ships
-          in v1.1.
+          to this install). Conformant Signing (verifiable against the C2PA trust list) is
+          planned, with no release date yet.
         </p>
 
         <!-- Certificate Details expandable -->
@@ -2932,7 +2932,7 @@
     {#if !apiKeysAvailable}
       <div class="p-4 rounded-lg border border-lapis/20 bg-lapis/5">
         <p class="text-sm text-flint-dark dark:text-flint-light">
-          REST API access and key management are planned for the Pro tier in the v1.1 release. v1.0 ships Community-only, so the verification engine is fully usable through the desktop app and the Tauri IPC surface, but there is no programmatic key-authenticated REST endpoint yet. For early API access enquiries, email
+          A local REST API listens on 127.0.0.1:8300, but managing its keys is not yet possible in the app, so it cannot be used yet. Full API access is planned for a coming release and will be free in the Community edition. For early API access enquiries, email
           <a
             href="mailto:consultancy@juralabs.org"
             class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
@@ -3138,7 +3138,7 @@
   >
     <h2 id="network-access-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-1">Network Access</h2>
     <p class="text-xs muted-help mb-5">
-      Controls whether Jura Trace makes outbound network connections. Standard mode is fully local with no external calls. Enhanced mode enables online certificate verification and remote Content Credentials retrieval.
+      Controls the optional outbound connections Jura Trace makes on its own. Standard mode turns off the automatic update check and the weather lookup. Enhanced mode allows both. In either mode, checking for updates by hand, verifying a URL and signing a file still connect out; see Help, Compliance for the full list.
     </p>
 
     <!-- Mode cards -->
@@ -3163,7 +3163,7 @@
 
         <h3 class="text-sm font-semibold text-text-light dark:text-quartz mb-1 pr-14">Standard</h3>
         <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-          Fully local, with no outbound network connections. Recommended for air-gapped environments. Content Credentials are verified identically in both modes.
+          No automatic outbound connections. Signing a file still requests a timestamp from DigiCert, and verifying a URL downloads it. Content Credentials are verified identically in both modes.
         </p>
 
         {#if networkMode !== 'standard'}

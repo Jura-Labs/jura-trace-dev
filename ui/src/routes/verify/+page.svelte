@@ -5025,14 +5025,14 @@
                   <span
                     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-lapis/10 text-lapis dark:text-lapis-light border border-lapis/20"
                   >
-                    Planned: v1.0.1
+                    Not yet available
                   </span>
                 </div>
                 <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-2">
-                  Video deepfake analysis is in active development for v1.0.1. It will ship with calibration data covering Global Majority devices and current-generation generators (Sora, Runway Gen-3, HeyGen, Synthesia). v1.0 verifies what we can stand behind: provenance and metadata.
+                  Video deepfake analysis is not part of this release. It will ship only with calibration data covering Global Majority devices and current-generation generators (Sora, Runway Gen-3, HeyGen, Synthesia). For video, Jura Trace reports what it can stand behind: provenance and metadata.
                 </p>
                 <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
-                  <strong>Available now for video files:</strong> C2PA content credentials, EXIF metadata extraction, and native video preview above. <strong>Coming in v1.0.1:</strong> per-frame deepfake detection, audio-visual sync analysis, transcription, and claim verification.
+                  <strong>Available now for video files:</strong> C2PA content credentials, EXIF metadata extraction, and native video preview above. <strong>Not yet available:</strong> per-frame deepfake detection, audio-visual sync analysis, transcription, and claim verification.
                 </p>
               </section>
             {/if}

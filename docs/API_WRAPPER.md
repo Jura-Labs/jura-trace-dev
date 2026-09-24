@@ -652,7 +652,7 @@ Score thresholds are calibrated in `sidecar/app/services/deepfake.py`. The `synt
 
 ### `methodology` — reproducibility provenance block
 
-Every `VerificationResult` carries a `methodology` block that pins the exact engine, sidecar, and model artefacts used to produce the result. Downstream tooling — including the v1.0.1 `jura` CLI, audit-report generators, and external reproducibility harnesses — should cite these values verbatim when archiving evidence.
+Every `VerificationResult` carries a `methodology` block that pins the exact engine, sidecar, and model artefacts used to produce the result. Downstream tooling — including the planned `jura` CLI, audit-report generators, and external reproducibility harnesses — should cite these values verbatim when archiving evidence.
 
 ```json
 {
@@ -682,7 +682,7 @@ When the same input is verified twice with matching `methodology`, the result MU
 
 ## CLI Exit-Code Contract
 
-The forthcoming `jura` CLI (v1.0.1, JTV-182) is a thin Rust client over this REST API. Its exit-code contract is pre-locked in v1.0 so newsroom and forensic-audit automation written against the v1.0.1 release can be authored against this REST API today.
+The planned `jura` CLI is a thin Rust client over this REST API. It has not been released yet and has no release date. Its exit-code contract is fixed now, so automation written against the REST API today can use the same semantics the CLI will have.
 
 | Exit code | Name | Meaning |
 |-----------|------|---------|
@@ -985,7 +985,7 @@ Enterprise deployments in air-gapped environments (no internet access) should co
 
 ## JTV-181 — `provenance` block on verify responses
 
-From v1.0 every verify endpoint response carries a top-level `provenance` block alongside the legacy `methodology` block. The `provenance` block is a **public API contract**: field names and types do not change between v1.x minor releases. The v1.0.1 `jura` CLI (JTV-182) reads this block to write per-verification reproducibility records into case files.
+From v1.0 every verify endpoint response carries a top-level `provenance` block alongside the legacy `methodology` block. The `provenance` block is a **public API contract**: field names and types do not change between v1.x minor releases. The planned `jura` CLI will read this block to write per-verification reproducibility records into case files.
 
 ### Field surface
 
@@ -1024,9 +1024,9 @@ The legacy `methodology` block has slightly different field names (`pipelineVers
 
 ---
 
-## CLI exit-code contract (v1.0.1, JTV-182)
+## CLI exit-code contract (planned CLI)
 
-The v1.0.1 `jura` CLI is a thin Rust client that calls this REST API. It honours the following exit codes — published now so downstream automation (CI pipelines, n8n workflows, case-management scripts) can rely on stable semantics from v1.0.1 onwards. The contract is **stable from v1.0.1**: new codes may be added at the end (≥ 7) but the existing assignments do not change.
+The planned `jura` CLI, not yet released, is a thin Rust client that calls this REST API. It will honour the following exit codes, published now so downstream automation (CI pipelines, n8n workflows, case-management scripts) can rely on stable semantics. The contract is **stable from the CLI's first release**: new codes may be added at the end (≥ 7) but the existing assignments do not change.
 
 | Code | Meaning | Typical cause |
 |---|---|---|
@@ -1038,9 +1038,10 @@ The v1.0.1 `jura` CLI is a thin Rust client that calls this REST API. It honours
 | `5` | Format error | Server returned 400 Bad Request — typically an unsupported MIME type or content type the engine cannot handle |
 | `6` | Server error | Server returned 5xx — sidecar crash, internal panic, database error |
 
-Codes are documented here ahead of the v1.0.1 CLI ship so any v1.0 consumer building automation against the REST API directly can mirror the same exit semantics. The contract lives in `project_cli_v101_locked.md` (agent memory) and will be cross-linked from the v1.0.1 CLI README on first ship.
+Codes are documented here ahead of the CLI's release so anyone building automation against the REST API directly can mirror the same exit semantics. The CLI's README will link back to this table when it ships.
 
 ---
 
 *Last updated: 13 May 2026 — JTV-181 provenance + exit-code contract added*
-*Phase 3 feature — REST API wrapper documented; v1.0.1 `jura` CLI deferred per JTV-182*
+*Phase 3 feature — REST API wrapper documented; the `jura` CLI is planned and not yet released (JTV-182)*
+*Updated 23 September 2026: removed the lapsed v1.0.1 date for the CLI*
