@@ -71,6 +71,32 @@ pub(crate) fn dirs_next_data_dir() -> Option<PathBuf> {
 /// so that the log file never grows unboundedly on long-running deployments.
 const MAX_LOG_FILE_BYTES: u64 = 10 * 1024 * 1024;
 
+/// The filter used when `RUST_LOG` is unset, which is always the case for an
+/// installed app launched from the Start menu or the Dock.
+///
+/// Until 23 September 2026 the builder took its filter from `RUST_LOG` alone,
+/// and env_logger's default without it is `error`, so every `info` and `warn`
+/// line was dropped in production and the log file a user could send us held
+/// errors only (BL-LOG-001).
+///
+/// The whole crate logs at `info`, which means the file records local paths
+/// of images being analysed (e.g. `fingerprint.rs`, `heatmap.rs`) and URLs
+/// being verified, query strings stripped. Paul decided that on 23 September
+/// 2026: the log stays on the user's machine and is only ever sent by them.
+/// Other crates stay at `warn` so dependency chatter does not push the
+/// startup record out of the 10 MiB cap. `RUST_LOG` still overrides.
+const DEFAULT_LOG_FILTER: &str = "warn,jura_trace_lib=info";
+
+fn default_logger() -> env_logger::Builder {
+    let mut builder = env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or(DEFAULT_LOG_FILTER),
+    );
+    // Second resolution hid a 5-second gap in the startup sequence
+    // (BL-PERF-001), so timestamps carry milliseconds.
+    builder.format_timestamp_millis();
+    builder
+}
+
 /// Initialise the logging subsystem.
 ///
 /// Writes to:
@@ -131,7 +157,7 @@ pub(crate) fn init_logging(app_data_dir: Option<&std::path::Path>) -> Option<Pat
                 }
             }
 
-            env_logger::Builder::from_default_env()
+            default_logger()
                 .target(env_logger::Target::Pipe(Box::new(DualWriter {
                     file: std::sync::Mutex::new(file),
                 })))
@@ -141,7 +167,7 @@ pub(crate) fn init_logging(app_data_dir: Option<&std::path::Path>) -> Option<Pat
         }
         None => {
             // No log file — fall back to stdout only.
-            env_logger::init();
+            default_logger().init();
             None
         }
     }
@@ -197,12 +223,18 @@ pub(crate) fn init_logging(app_data_dir: Option<&std::path::Path>) -> Option<Pat
 ///   the same arg vector via `execve`) are killed together. Our own
 ///   `jura-trace` parent is NOT matched, so this is safe to call from
 ///   `setup()`.
-/// - Windows: `taskkill /F /IM jura-sidecar.exe` by image name. Same idea
-///   — kills any leftover sidecar EXE regardless of which prior Jura Trace
-///   spawned it.
+/// - Windows: every process whose image name is `jura-sidecar.exe`, found
+///   with a Toolhelp snapshot and ended with `TerminateProcess`, in process.
+///   That covers both the B1 launcher and the onedir bootloader it runs,
+///   which share the name. Until 23 September 2026 this ran
+///   `taskkill /F /IM jura-sidecar.exe` with `.output()`, and on
+///   `windows-latest` that child lived 4 to 5 s when the app started it
+///   (0.04 s run by hand), blocking setup, the sidecar spawn and the local
+///   API for the whole time (BL-PERF-001). The sweep must stay BEFORE the
+///   spawn: it matches by name, so run later it would kill the new sidecar.
 ///
-/// Best-effort: if `pkill` / `taskkill` is absent (extremely unusual) or
-/// returns non-zero, we log at DEBUG and proceed — orphans staying alive
+/// Best-effort: if `pkill` is absent (extremely unusual), the snapshot
+/// fails, or nothing matches, we log at DEBUG and proceed — orphans staying alive
 /// is a memory / disk concern, not a correctness one. The fresh sidecar
 /// will pick a different ephemeral port via Option C either way.
 pub(crate) fn kill_orphan_sidecars() {
@@ -229,24 +261,73 @@ pub(crate) fn kill_orphan_sidecars() {
     }
     #[cfg(windows)]
     {
-        let output = std::process::Command::new("taskkill")
-            .args(["/F", "/IM", "jura-sidecar.exe"])
-            .output();
-        match output {
-            Ok(o) if o.status.success() => {
+        let started = std::time::Instant::now();
+        match terminate_processes_named("jura-sidecar.exe") {
+            Ok(0) => {
+                log::debug!(
+                    "Orphan-kill: no stale jura-sidecar.exe processes to terminate ({} ms)",
+                    started.elapsed().as_millis()
+                );
+            }
+            Ok(n) => {
                 log::info!(
-                    "Orphan-kill: taskkill terminated stale jura-sidecar.exe \
-                     process(es) from a previous Jura Trace instance"
+                    "Orphan-kill: terminated {n} stale jura-sidecar.exe process(es) \
+                     from a previous Jura Trace instance ({} ms)",
+                    started.elapsed().as_millis()
                 );
                 std::thread::sleep(std::time::Duration::from_millis(300));
             }
-            Ok(_) => {
-                log::debug!("Orphan-kill: no stale jura-sidecar.exe processes to terminate");
-            }
             Err(e) => {
-                log::debug!("Orphan-kill: taskkill unavailable ({e}); skipping");
+                log::debug!("Orphan-kill: process snapshot failed ({e}); skipping");
             }
         }
+    }
+}
+
+/// End every process whose executable image name equals `image`
+/// (case-insensitive), other than this one. Returns how many were ended.
+/// See [`kill_orphan_sidecars`] for why this replaced `taskkill`.
+#[cfg(windows)]
+fn terminate_processes_named(image: &str) -> std::io::Result<u32> {
+    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+        TH32CS_SNAPPROCESS,
+    };
+    use windows_sys::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+
+    let own_pid = std::process::id();
+    // SAFETY: plain Win32 calls. The snapshot handle is checked before use
+    // and closed on every path out; each process handle is closed after use.
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot == INVALID_HANDLE_VALUE {
+            return Err(std::io::Error::last_os_error());
+        }
+        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
+        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+        let mut ended = 0;
+        let mut more = Process32FirstW(snapshot, &mut entry) != 0;
+        while more {
+            let len = entry
+                .szExeFile
+                .iter()
+                .position(|&c| c == 0)
+                .unwrap_or(entry.szExeFile.len());
+            let name = String::from_utf16_lossy(&entry.szExeFile[..len]);
+            if entry.th32ProcessID != own_pid && name.eq_ignore_ascii_case(image) {
+                let process = OpenProcess(PROCESS_TERMINATE, 0, entry.th32ProcessID);
+                if !process.is_null() {
+                    if TerminateProcess(process, 1) != 0 {
+                        ended += 1;
+                    }
+                    CloseHandle(process);
+                }
+            }
+            more = Process32NextW(snapshot, &mut entry) != 0;
+        }
+        CloseHandle(snapshot);
+        Ok(ended)
     }
 }
 
@@ -388,6 +469,7 @@ pub(crate) fn spawn_sidecar(
                     None
                 }
                 Ok((mut rx, child)) => {
+                    log::info!("Sidecar spawned (pid {}, port {port})", child.pid());
                     tauri::async_runtime::spawn(async move {
                         use tauri_plugin_shell::process::CommandEvent;
                         while let Some(event) = rx.recv().await {
