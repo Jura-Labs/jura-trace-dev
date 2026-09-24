@@ -3469,7 +3469,7 @@
                         {#if c2paSignerName && c2paSignedDate()}
                           Issued by {c2paSignerName} on {c2paSignedDate()}
                         {:else if c2paSignerName}
-                          Issued by {c2paSignerName}
+                          Issued by {c2paSignerName}, with no trusted timestamp
                         {:else if c2paSignedDate()}
                           Signed on {c2paSignedDate()}
                         {:else}
@@ -3552,13 +3552,18 @@
                             {/if}
                           </div>
 
-                          <!-- Signed date -->
-                          {#if c2paSignedDate()}
-                            <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-0.5">Date</p>
+                          <!-- Signed date. signedAt comes from the RFC 3161 timestamp
+                               (signature_info.time), so its absence means the seal
+                               carries no trusted time, which a Standard-mode user can
+                               now choose (BL-CLAIM-004). Say so rather than omit it. -->
+                          <div>
+                            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-0.5">Date</p>
+                            {#if c2paSignedDate()}
                               <p class="text-xs text-obsidian dark:text-quartz">{c2paSignedDate()}</p>
-                            </div>
-                          {/if}
+                            {:else}
+                              <p class="text-xs text-obsidian dark:text-quartz">No trusted timestamp. This seal does not show when it was signed.</p>
+                            {/if}
+                          </div>
 
                           <!-- Edits and activity — per C2PA UX Rec v1.4 §4.3 -->
                           {#if c2paActions().length > 0}

@@ -109,3 +109,26 @@ ships.
   true and the product no safer. The invariant is the thing worth keeping.
 - Do not fold this into A2, the Swagger pinning. Different call, different
   population, different decision.
+
+## Decided and implemented, 24 September 2026
+
+Paul chose option 3, ask once. Branch `w39-25-claim-004-ask-once`.
+
+- `network_mode::signing_timestamp` is the policy. Enhanced mode timestamps.
+  Standard mode follows the answer remembered in `network_mode.json`
+  (`standard_mode_timestamp`), and with no answer returns `Ask`, where
+  signing is refused. That refusal is in `sign_asset` and in the REST API's
+  sign route (409 `TimestampChoiceRequired`), not only in the UI, so no
+  caller can skip the question. An unreadable config counts as not asked.
+  `set_network_mode` keeps the answer when the mode changes.
+- `c2pa::sign_file` and `sign_file_with_active_mode` take the TSA URL as a
+  parameter. `None` signs without a timestamp. A new test proves such a seal
+  validates on read-back and carries no signing time.
+- The Protect page asks before a single or batch signing when the answer is
+  missing. Settings, Network Access can change the answer or reset it to ask
+  again. The pre-seal disclosure shows no timestamp authority when the answer
+  is no.
+- The verify page and the PDF report now say "No trusted timestamp" instead
+  of omitting the date.
+- `network_mode.rs`'s header no longer claims Standard mode makes no outbound
+  requests of any kind. It lists the three calls a person asks for.

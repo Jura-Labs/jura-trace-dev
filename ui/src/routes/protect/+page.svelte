@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode, getSigningDisclosure, findCatalogueMatches, parseAppError, type SignAction, type SigningDisclosure } from '$lib/api';
+  import { getFilteredAssets, deleteAsset, importFiles, openFileDialog, signAsset, checkMetadataBeforeSign, embedWatermark, getVideoMetadata, getAudioMetadata, getVideoFrames, getSigningMode, getSigningDisclosure, getSigningTimestampChoice, setSigningTimestampChoice, findCatalogueMatches, parseAppError, type SignAction, type SigningDisclosure } from '$lib/api';
   import { V1_SHOW_CONFORMANT_SIGNING, V1_SHOW_WATERMARK } from '$lib/featureFlags';
   import { focusTrap } from '$lib/actions/focusTrap';
 
@@ -244,6 +244,46 @@
   // browser-mock mode and on any backend error (the disclosure UI
   // gracefully falls back to a single "Software: Jura Trace" row).
   let signingDisclosure = $state<SigningDisclosure | null>(null);
+
+  // ── BL-CLAIM-004, option 3: ask once about the signing timestamp ─────
+  // In Standard network mode a trusted timestamp means sending a hash of
+  // the signature to DigiCert. The first signing in Standard mode asks
+  // whether to do that and remembers the answer (changeable in Settings).
+  // The backend refuses to sign until it is answered, so this is not the
+  // only guard, just the one a person sees.
+  let timestampAskOpen = $state(false);
+  let timestampAskSaving = $state(false);
+  let timestampAskResolve: ((proceed: boolean) => void) | null = null;
+
+  /** Resolves true when signing may proceed, false if the person cancelled. */
+  async function ensureTimestampChoice(): Promise<boolean> {
+    const choice = await getSigningTimestampChoice();
+    if (choice.effective !== 'ask') return true;
+    timestampAskOpen = true;
+    return new Promise<boolean>((resolve) => { timestampAskResolve = resolve; });
+  }
+
+  async function answerTimestampAsk(answer: boolean | null) {
+    const resolve = timestampAskResolve;
+    timestampAskResolve = null;
+    if (answer === null) {
+      timestampAskOpen = false;
+      resolve?.(false);
+      return;
+    }
+    timestampAskSaving = true;
+    try {
+      await setSigningTimestampChoice(answer);
+      signingDisclosure = await getSigningDisclosure();
+      resolve?.(true);
+    } catch (e) {
+      error = e instanceof Error ? e.message : typeof e === 'string' ? e : 'Could not save your choice';
+      resolve?.(false);
+    } finally {
+      timestampAskSaving = false;
+      timestampAskOpen = false;
+    }
+  }
   $effect(() => {
     void (async () => {
       try {
@@ -664,6 +704,12 @@
 
   async function handleSign() {
     if (!signingAssetId || !creatorName.trim()) return;
+    try {
+      if (!(await ensureTimestampChoice())) return;
+    } catch (e) {
+      error = e instanceof Error ? e.message : typeof e === 'string' ? e : 'Signing failed';
+      return;
+    }
     signing = true;
     error = null;
     try {
@@ -931,6 +977,12 @@
 
   async function handleBatchSign() {
     if (!batchSignCreatorName.trim() || unsignedAssets.length === 0) return;
+    try {
+      if (!(await ensureTimestampChoice())) return;
+    } catch (e) {
+      error = e instanceof Error ? e.message : typeof e === 'string' ? e : 'Signing failed';
+      return;
+    }
     batchSignRunning = true;
     batchSignDone = false;
     batchSignProgress = 0;
@@ -1818,7 +1870,7 @@
                 {/if}
                 {#if signingDisclosure}
                   <li>Claim generator: <span class="text-text-light dark:text-quartz">{signingDisclosure.claim_generator}</span></li>
-                  <li>Timestamp authority: <span class="text-text-light dark:text-quartz font-mono text-[11px] break-all">{signingDisclosure.tsa_url}</span></li>
+                  <li>Timestamp authority: <span class="text-text-light dark:text-quartz font-mono text-[11px] break-all">{signingDisclosure.tsa_url ?? 'none. This seal will carry no trusted timestamp, as you chose for Standard mode'}</span></li>
                   <li>Signing certificate (SHA-256): <span class="text-text-light dark:text-quartz font-mono text-[10px] break-all">{signingDisclosure.cert_sha256_fingerprint}</span></li>
                 {:else}
                   <li>Software: <span class="text-text-light dark:text-quartz">Jura Trace</span> + timestamp + content hash</li>
@@ -3374,7 +3426,7 @@
                         {/if}
                         {#if signingDisclosure}
                           <li>Claim generator: <span class="text-text-light dark:text-quartz">{signingDisclosure.claim_generator}</span></li>
-                          <li>Timestamp authority: <span class="text-text-light dark:text-quartz font-mono text-[11px] break-all">{signingDisclosure.tsa_url}</span></li>
+                          <li>Timestamp authority: <span class="text-text-light dark:text-quartz font-mono text-[11px] break-all">{signingDisclosure.tsa_url ?? 'none. This seal will carry no trusted timestamp, as you chose for Standard mode'}</span></li>
                           <li>Signing certificate (SHA-256): <span class="text-text-light dark:text-quartz font-mono text-[10px] break-all">{signingDisclosure.cert_sha256_fingerprint}</span></li>
                         {:else}
                           <li>Software: <span class="text-text-light dark:text-quartz">Jura Trace</span> + timestamp + content hash</li>
@@ -3941,6 +3993,72 @@
      two-step confirm but for the selection set. Operates on whatever is
      in selectedAssetIds at modal-open time; the toolbar's clearSelection
      button is the natural escape hatch. -->
+{#if timestampAskOpen}
+  <!-- BL-CLAIM-004 option 3. No backdrop dismiss: an accidental click must
+       not count as an answer. Escape and "Not now" cancel the signing. -->
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-obsidian/70 backdrop-blur-sm px-4"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="timestamp-ask-heading"
+    aria-describedby="timestamp-ask-body"
+    tabindex="-1"
+    use:focusTrap={{ onEscape: () => { if (!timestampAskSaving) void answerTimestampAsk(null); } }}
+  >
+    <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark max-w-lg w-full p-6 shadow-2xl" role="document">
+      <h3 id="timestamp-ask-heading" class="text-base font-heading text-text-light dark:text-quartz mb-2">
+        Add a trusted timestamp to your signatures?
+      </h3>
+      <div id="timestamp-ask-body" class="text-sm text-flint-dark dark:text-flint-light leading-relaxed space-y-2 mb-5">
+        <p>
+          You are in Standard network mode. A trusted timestamp records when a file was signed,
+          and lets its seal be checked after your signing certificate expires. Getting one means
+          sending a hash of the signature to DigiCert's timestamp service. No file content is sent.
+        </p>
+        <p>
+          Without it, nothing leaves this device, but the seal carries no proof of when it was
+          made, and tools that check it will show no trusted time.
+        </p>
+        <p>Jura Trace will remember your answer. You can change it in Settings, Network Access.</p>
+      </div>
+      <div class="flex flex-col sm:flex-row gap-2 justify-end">
+        <button
+          type="button"
+          onclick={() => void answerTimestampAsk(null)}
+          disabled={timestampAskSaving}
+          class="px-4 py-2 min-h-[44px] text-sm font-medium rounded border border-border-light dark:border-border-dark text-text-light dark:text-quartz
+                 hover:bg-gray-100 dark:hover:bg-graphite-light/40 transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Not now
+        </button>
+        <button
+          type="button"
+          onclick={() => void answerTimestampAsk(false)}
+          disabled={timestampAskSaving}
+          class="px-4 py-2 min-h-[44px] text-sm font-medium rounded border border-border-light dark:border-border-dark text-text-light dark:text-quartz
+                 hover:bg-gray-100 dark:hover:bg-graphite-light/40 transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis
+                 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Sign without a timestamp
+        </button>
+        <button
+          type="button"
+          onclick={() => void answerTimestampAsk(true)}
+          disabled={timestampAskSaving}
+          class="px-4 py-2 min-h-[44px] text-sm font-medium rounded bg-lapis text-white hover:bg-lapis-dark transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-lapis
+                 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Use a trusted timestamp
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 {#if bulkDeleteConfirmOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- Backdrop onclick is a redundant pointer convenience; Escape (via focusTrap) and the Cancel button are the keyboard paths. -->

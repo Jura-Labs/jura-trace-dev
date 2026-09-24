@@ -714,7 +714,14 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
       // Fall back to claim generator only when no richer label is available.
       wrappedRow('App or device used', m.claimGenerator);
     }
-    if (m.signedAt) wrappedRow('Date', new Date(m.signedAt).toLocaleString('en-GB'));
+    // signedAt comes from the trusted timestamp; its absence is a fact about
+    // the seal, so the report states it rather than dropping the row (BL-CLAIM-004).
+    wrappedRow(
+      'Date',
+      m.signedAt
+        ? new Date(m.signedAt).toLocaleString('en-GB')
+        : 'No trusted timestamp. This seal does not show when it was signed.',
+    );
     if (m.format) wrappedRow('Format', m.format);
     if (m.title) wrappedRow('Title', m.title);
 

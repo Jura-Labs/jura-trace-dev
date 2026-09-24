@@ -1291,7 +1291,8 @@ export async function getSigningMode(): Promise<SigningMode> {
  */
 export interface SigningDisclosure {
   claim_generator: string;
-  tsa_url: string;
+  /** null when Standard mode's remembered answer is "no timestamp" (BL-CLAIM-004). */
+  tsa_url: string | null;
   cert_sha256_fingerprint: string;
 }
 
@@ -1408,6 +1409,39 @@ export async function setNetworkMode(mode: NetworkMode): Promise<NetworkMode> {
     }
   }
   return mode;
+}
+
+/**
+ * What signing does about the trusted timestamp (BL-CLAIM-004, option 3).
+ * `effective` is 'ask' when Standard mode is on and the user has not yet
+ * answered; signing is refused in that state, so the UI asks first.
+ */
+export interface SigningTimestampChoice {
+  networkMode: NetworkMode;
+  /** true = timestamp in Standard mode, false = no timestamp, null = not asked yet. */
+  standardModeAnswer: boolean | null;
+  effective: 'use' | 'skip' | 'ask';
+}
+
+export async function getSigningTimestampChoice(): Promise<SigningTimestampChoice> {
+  if (isTauri) {
+    return await invoke<SigningTimestampChoice>('get_signing_timestamp_choice');
+  }
+  return { networkMode: 'enhanced', standardModeAnswer: null, effective: 'use' };
+}
+
+/** Remember the Standard-mode answer; null forgets it so the app asks again. */
+export async function setSigningTimestampChoice(
+  answer: boolean | null,
+): Promise<SigningTimestampChoice> {
+  if (isTauri) {
+    return await invoke<SigningTimestampChoice>('set_signing_timestamp_choice', { answer });
+  }
+  return {
+    networkMode: 'standard',
+    standardModeAnswer: answer,
+    effective: answer === null ? 'ask' : answer ? 'use' : 'skip',
+  };
 }
 
 // ──────────────────────────────────────────────────────────────────
