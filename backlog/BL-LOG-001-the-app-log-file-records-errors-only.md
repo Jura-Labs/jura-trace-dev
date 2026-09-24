@@ -64,3 +64,5 @@ paths and stripped URLs included, because the log stays on the user's
 machine and is only ever sent by them. PR #109 now sets the default filter
 to `warn,jura_trace_lib=info`, so other crates stay at `warn` and do not
 push the startup record out of the 10 MiB cap.
+
+Resolved: 2026-09-24 7bece83a — PR #109 merged. Default log filter warn,jura_trace_lib=info with millisecond timestamps, per Paul 23 Sep.

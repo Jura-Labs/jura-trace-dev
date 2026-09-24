@@ -40,8 +40,6 @@ after the fourteen merges of that day. Each item's own file carries a dated
 | [BL-CLAIM-003](BL-CLAIM-003-the-pdf-report-asserts-checks-that-never-ran.md) | The exported forensic report asserts OCSP/CRL checks that never run | Open | High, legal |
 | [BL-API-001](BL-API-001-the-headless-api-is-documented-and-does-not-exist.md) | The headless API is documented and does not exist; it gates the CLI | Open | Medium |
 | [BL-SIZE-001](BL-SIZE-001-242mb-of-download-computes-10kb-of-constants.md) | 242 MB of every download computes 10 KB of constants | Open | High for adoption |
-| [BL-PERF-001](BL-PERF-001-five-seconds-of-every-windows-launch-is-taskkill.md) | About 5 s of every Windows launch is the app waiting on a `taskkill` child before it spawns the sidecar; the sidecar itself is ready in about 3 s. Also: `/api/v1/health` blocks on the sidecar under the state lock | Open | Medium |
-| [BL-LOG-001](BL-LOG-001-the-app-log-file-records-errors-only.md) | The app's log file records errors only: env_logger defaults to `error` when `RUST_LOG` is unset, so every `info`/`warn` line is dropped in production | Open | Medium |
 
 ## Closed items
 
@@ -50,6 +48,9 @@ Kept in the table because the history is the point. Each file carries its
 
 | Item | What it was | Closed |
 |---|---|---|
+| [BL-PERF-001](BL-PERF-001-five-seconds-of-every-windows-launch-is-taskkill.md) | About 5 s of every Windows launch was the app waiting on a `taskkill` child, and each sidecar `/health` cost 2 s on Ollama. Replaced with an in-process sweep and `/health/ready` (#109); warm launch 3.7 s with the B1 port | 24 Sept |
+| [BL-LOG-001](BL-LOG-001-the-app-log-file-records-errors-only.md) | The app's log file recorded errors only. Default filter now `warn,jura_trace_lib=info`, millisecond timestamps (#109) | 24 Sept |
+| [BL-CLAIM-004](BL-CLAIM-004-standard-mode-does-not-cover-the-signing-timestamp.md) | Signing sent a hash to DigiCert even in Standard mode. Option 3: ask once, remember, refuse until answered (#112) | 24 Sept |
 | [BL-REL-001](BL-REL-001-stray-model-backup-in-the-bundle.md) | A stray classifier backup sat inside the bundled resources glob and shipped in the first local v1.1.0 build. Moved out; the build script now refuses to bundle with any stray model file present, using CI's own pattern | 9 September 2026 |
 | [BL-CI-001](BL-CI-001-test-gate-has-not-run-since-april.md) | The test gate had not run since 30 April and only fired on pull requests. Push trigger, pinned ruff, lint cleared, `cargo test` and `pytest` green on every push to `main`; four further CI gaps closed in #34 | 8 September 2026 |
 | [BL-CI-002](BL-CI-002-osv-scanner-has-scanned-nothing-since-july.md) | The weekly supply-chain scan had scanned nothing since July. `--skip-git` removed, SARIF asserted present, upload working; 1,451 packages across seven lockfiles scanned on every push | 8 September 2026 |

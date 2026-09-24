@@ -132,3 +132,5 @@ Paul chose option 3, ask once. Branch `w39-25-claim-004-ask-once`.
   of omitting the date.
 - `network_mode.rs`'s header no longer claims Standard mode makes no outbound
   requests of any kind. It lists the three calls a person asks for.
+
+Resolved: 2026-09-24 b7cc1e54 — PR #112 merged. Option 3, ask once: Standard-mode signing asks before requesting a trusted timestamp, remembers the answer, and refuses to sign until answered.
