@@ -403,10 +403,13 @@ jobs:
       #      39.0 s on first launch and 28.4 s on the second (probe run
       #      35699529154, 22 September 2026). With the onedir port (#107)
       #      and the startup fixes (#109, BL-PERF-001) it measured 7.1 s and
-      #      3.7 to 3.8 s (run 35867120171, 23 September). The budgets, 15 s
-      #      and 10 s, are about twice those: loose enough for runner
-      #      variance, tight enough that losing either fix fails the step
-      #      (the port alone measured 18 to 29 s). Runners have Defender
+      #      3.7 to 3.8 s (run 35867120171, 23 September). With the real
+      #      Azure-signed installers from smoke run 35970955028 the first
+      #      launch after install took 11.4 s and warm launches 3.7 to 3.8 s
+      #      (probe run 36016858268, 24 September). The budgets, 20 s first
+      #      and 10 s warm, leave room for runner variance and still fail if
+      #      either fix is lost: the port alone measured 25.7 to 28.5 s on
+      #      first launch and 17.9 to 24.9 s warm. Runners have Defender
       #      real-time scanning off, so these are floors, not user timings.
       #      The time the app's own API first answers is logged beside it,
       #      so app start and sidecar start can be told apart.
@@ -420,7 +423,7 @@ jobs:
         shell: pwsh
         env:
           VERSION: ${{ steps.tag.outputs.version }}
-          FIRST_BUDGET_S: "15"
+          FIRST_BUDGET_S: "20"
           WARM_BUDGET_S: "10"
         run: |
           $ErrorActionPreference = "Stop"
