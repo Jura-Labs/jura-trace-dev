@@ -9,11 +9,11 @@ or the equivalent, and signs it as part of the app.
 |---|---|---|
 | macOS Apple Silicon | `jura-sidecar-aarch64-apple-darwin` | **A compiled launcher**, built from `../sidecar-launcher/jura-sidecar-launcher.c`. Execs the real PyInstaller `--onedir` bootloader at `Contents/Resources/sidecar-bundle/jura-sidecar`, where its `_internal/` tree lives beside it. See the source for why it is a Mach-O binary and not a script. |
 | macOS Intel | `jura-sidecar-x86_64-apple-darwin` | placeholder; no Intel release is built |
-| Windows x64 | `jura-sidecar-x86_64-pc-windows-msvc.exe` | placeholder; the release workflow replaces it with the PyInstaller `--onefile` output |
+| Windows x64 | `jura-sidecar-x86_64-pc-windows-msvc.exe` | placeholder; the release workflow compiles `../sidecar-launcher/jura-sidecar-launcher-win.c` over it. The launcher runs the PyInstaller `--onedir` bootloader at `<install root>\sidecar-bundle\jura-sidecar.exe` inside a kill-on-close job object (v1.2.0 B1) |
 | Linux x64 | `jura-sidecar-x86_64-unknown-linux-gnu` | placeholder; the release workflow replaces it with the PyInstaller `--onefile` output |
 
 All four files are tracked, so that `cargo tauri dev`, `cargo check` and CI
-have something at the path Tauri requires. The two Windows and Linux
+have something at the path Tauri requires. The Windows and Linux
 placeholders are overwritten in CI and the real artefacts are never
 committed; if you rebuild one locally, `git update-index --skip-worktree`
 keeps it out of your diff (see the root `.gitignore`).
@@ -46,6 +46,16 @@ python3 scripts/macho-equal.py /tmp/launcher-check src-tauri/binaries/jura-sidec
 Commit the source and the binary together. Do not codesign the tracked
 file; the linker's ad-hoc signature is enough for it to run, and Tauri signs
 the copy it places inside the `.app` with the Developer ID identity.
+
+## The Windows launcher
+
+Built on the Windows runner by the release workflow's "Stage sidecar onedir
+tree and build the launcher" step, with MSVC at `/W4 /WX`, and never
+committed: an MSVC PE cannot be proved byte-equal to its source the way the
+macOS one is. The step instead asserts the file is not the 126-byte
+placeholder and starts with `MZ`. It is then Authenticode-signed with the
+sidecar tree before Tauri bundles anything. See the source header for why it
+waits on the bootloader instead of exec'ing it, and why it uses a job object.
 
 ## Why it is a Mach-O binary and not a script
 

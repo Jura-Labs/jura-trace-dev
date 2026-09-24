@@ -561,11 +561,17 @@ jobs:
       #     Mach-O launcher built from src-tauri/sidecar-launcher/; it was a shell
       #     script until 9 September 2026, see that source for why) execs the bundled bootloader at runtime.
       #
-      #   Windows / Linux — onefile mode (unchanged):
-      #     spec defaults to EXE-only (no COLLECT) producing a single
-      #     self-contained executable. Migrate later if cold-start regressions
-      #     surface; for now the Tauri sidecar probe budget tolerates --onefile
-      #     on Windows + Linux.
+      #   Windows (x86_64-pc-windows-msvc) — v1.2.0 B1, the same onedir mode.
+      #     --onefile re-extracted the whole payload to %TEMP%\_MEIxxxxxx on
+      #     every launch: 39.0 s to sidecarAvailable on first launch and 28.4 s
+      #     on the second, measured on windows-latest against the shipped
+      #     v1.1.0 MSI (probe run 35699529154, 22 September 2026). A compiled
+      #     launcher built below from src-tauri/sidecar-launcher/ runs the
+      #     bundled bootloader in place, so nothing is extracted.
+      #
+      #   Linux — onefile mode, deliberately. The AppImage bundler already
+      #     makes three staging copies of the payload, and an uncompressed
+      #     tree makes that worse. Not part of B1.
       #
       # JURA_MODELS_DIR is NOT set here because the models/ directory is not
       # bundled inside the frozen binary — see docs/pyinstaller-spike-findings.md.
@@ -577,7 +583,7 @@ jobs:
       # steps above before cargo tauri bundle runs.
       - name: Build frozen sidecar
         env:
-          JURA_SIDECAR_ONEDIR: ${{ matrix.target == 'aarch64-apple-darwin' && '1' || '0' }}
+          JURA_SIDECAR_ONEDIR: ${{ (matrix.target == 'aarch64-apple-darwin' || matrix.target == 'x86_64-pc-windows-msvc') && '1' || '0' }}
         run: python -m PyInstaller jura-sidecar.spec --noconfirm
         working-directory: sidecar
 
@@ -607,7 +613,7 @@ jobs:
           du -sh src-tauri/sidecar-bundle/
           ls -la src-tauri/sidecar-bundle/ | head -10
 
-      # ── Windows / Linux onefile copy (unchanged from pre-Phase-5) ────────
+      # ── Linux onefile copy (Windows moved to onedir in B1, below) ────────
       # Tauri's externalBin strips the platform triple suffix at build time
       # and re-adds it for each target. The binaries/ directory is gitignored
       # for large native binaries — create if absent.
@@ -617,24 +623,60 @@ jobs:
           mkdir -p src-tauri/binaries
           cp sidecar/dist/jura-sidecar src-tauri/binaries/${{ matrix.sidecar_name }}
 
-      - name: Copy sidecar binary to Tauri binaries (Windows)
+      # ── Windows B1: stage the onedir tree and build the launcher ─────────
+      # PyInstaller's --onedir output is sidecar\dist\jura-sidecar\ holding
+      # jura-sidecar.exe (the bootloader) and _internal\. It goes into
+      # src-tauri\sidecar-bundle\, which the resources glob installs at
+      # <install root>\sidecar-bundle\. The launcher Tauri spawns sits at
+      # <install root>\jura-sidecar.exe and runs the bootloader from there.
+      #
+      # The launcher is compiled here rather than committed, because an MSVC
+      # PE cannot be proved byte-equal to its source the way
+      # scripts/macho-equal.py proves the macOS one. Two assertions stand in
+      # for that guarantee: the file at the externalBin path is not the
+      # 126-byte tracked placeholder, and it starts with the MZ magic. Each
+      # catches a build or copy that silently did not happen.
+      - name: Stage sidecar onedir tree and build the launcher (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path src-tauri\binaries | Out-Null
-          Copy-Item sidecar\dist\jura-sidecar.exe src-tauri\binaries\${{ matrix.sidecar_name }}
+          $ErrorActionPreference = "Stop"
+          $src = "sidecar\dist\jura-sidecar"
+          if (-not (Test-Path "$src\jura-sidecar.exe" -PathType Leaf)) { throw "bootloader missing from the onedir tree at $src\jura-sidecar.exe. Did PyInstaller run with JURA_SIDECAR_ONEDIR=1?" }
+          if (-not (Test-Path "$src\_internal" -PathType Container)) { throw "_internal\ missing from the onedir tree at $src" }
+          if (Test-Path src-tauri\sidecar-bundle) { Remove-Item src-tauri\sidecar-bundle -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path src-tauri\sidecar-bundle, src-tauri\binaries | Out-Null
+          Copy-Item "$src\*" src-tauri\sidecar-bundle -Recurse -Force
+          $staged = @(Get-ChildItem src-tauri\sidecar-bundle -Recurse -File)
+          $expected = @(Get-ChildItem $src -Recurse -File).Count
+          if ($staged.Count -ne $expected) { throw "staged $($staged.Count) files, PyInstaller produced $expected" }
+          $mib = [math]::Round((($staged | Measure-Object Length -Sum).Sum) / 1MB, 1)
+          Write-Host "staged sidecar-bundle: $($staged.Count) files, $mib MiB"
 
-      # ── Windows + Linux: placeholder for sidecar-bundle resources glob ─────
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+                  -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw "no Visual Studio with the x64 C toolchain on this runner" }
+          $out = "src-tauri\binaries\${{ matrix.sidecar_name }}"
+          cmd /c "call `"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && cl /nologo /O2 /W4 /WX /MT /DNDEBUG src-tauri\sidecar-launcher\jura-sidecar-launcher-win.c /Fe:$out /Fo:$env:RUNNER_TEMP\ /link /SUBSYSTEM:CONSOLE"
+          if ($LASTEXITCODE -ne 0) { throw "launcher compile failed with $LASTEXITCODE" }
+
+          $item = Get-Item $out
+          $magic = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($item.FullName)[0..1])
+          if ($item.Length -eq 126) { throw "$out is still the 126-byte placeholder; the launcher was not built into place" }
+          if ($magic -ne "MZ") { throw "$out does not start with MZ; it is not a PE executable" }
+          Write-Host "launcher: $out, $($item.Length) bytes, PE"
+
+      # ── Linux: placeholder for sidecar-bundle resources glob ───────────────
       # tauri.conf.json declares `"resources": ["models/*", "sidecar-bundle/**/*"]`
-      # for the JTV-184 macOS onedir refactor. On Windows + Linux the sidecar is
-      # --onefile (no onedir tree), so the directory does not exist and Tauri's
+      # for the onedir builds (macOS since JTV-184, Windows since B1). On Linux
+      # the sidecar is --onefile (no onedir tree), so the directory does not exist and Tauri's
       # strict glob rejects an empty match with "glob pattern ... path not found".
       # Create an empty placeholder so the glob matches one zero-byte file;
-      # tauri ships this inside the MSI / AppImage as a harmless artefact.
+      # tauri ships this inside the AppImage / deb as a harmless artefact.
       # Long-term fix: platform-conditional resources in tauri.conf.json (not
       # yet supported by Tauri v2 schema as a per-bundle override).
-      - name: Create empty sidecar-bundle placeholder (Windows + Linux)
-        if: matrix.target != 'aarch64-apple-darwin'
+      - name: Create empty sidecar-bundle placeholder (Linux)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         shell: bash
         run: |
           mkdir -p src-tauri/sidecar-bundle
@@ -745,11 +787,45 @@ jobs:
           # Clean up scratch directories.
           rm -rf onnx-download onnx-verify
 
-      # ── Windows: sign sidecar binary BEFORE Tauri bundles it ────────────
-      # Windows Defender frequently quarantines unsigned PyInstaller binaries.
-      # Signing the sidecar .exe before Tauri packages it into the installer
-      # means the binary inside the installed app is trusted by Defender.
-      - name: Sign sidecar binary with Azure Trusted Signing
+      # ── Windows: sign the launcher and the onedir tree BEFORE bundling ───
+      # Defender frequently quarantines unsigned PyInstaller binaries, and
+      # launching unsigned code costs a full content scan where signed code
+      # costs a signature check. Smart App Control, on clean Windows 11
+      # consumer installs, blocks unsigned code outright as it loads, which
+      # would leave the app half working. So every PE in the tree ships
+      # signed.
+      #
+      # ORDER IS THE FIX. This runs against src-tauri\ before cargo tauri
+      # bundle copies from it. Once the tree is inside an MSI or setup.exe a
+      # folder scan cannot reach it, and signing after bundling would ship
+      # unsigned files inside a signed installer, with no notariser to
+      # notice. That is the rc.29 shape (CHANGELOG), without Apple's safety
+      # net. The "Every PE in the shipped installers is signed" gate further
+      # down checks the bytes that ship.
+      #
+      # Only files that do not already carry a valid signature are signed.
+      # The Python runtime, the VC++ runtime and some wheels ship signed by
+      # their vendors, and re-signing them would replace a better signature
+      # with ours and cost a quota unit each. Azure Trusted Signing counts one
+      # signature per file (5,000 a month on Basic), and the tree has a few
+      # hundred native files (327 .exe/.dll/.pyd in the B1 probe).
+      - name: List unsigned sidecar files to sign (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-Location src-tauri
+          $pe = @(Get-ChildItem sidecar-bundle -Recurse -File | Where-Object { $_.Extension -in ".exe", ".dll", ".pyd" })
+          if ($pe.Count -lt 200) { throw "only $($pe.Count) native files under sidecar-bundle; expected a few hundred. Wrong directory, or the tree was not staged." }
+          $root = (Get-Location).Path + "\"
+          $unsigned = @($pe | Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne "Valid" } |
+                        ForEach-Object { $_.FullName.Substring($root.Length) })
+          $launcher = "binaries\${{ matrix.sidecar_name }}"
+          if (-not (Test-Path $launcher)) { throw "launcher missing at $launcher" }
+          @($launcher) + $unsigned | Set-Content -Encoding utf8 sidecar-sign-catalog.txt
+          Write-Host "native files in tree: $($pe.Count); already vendor-signed: $($pe.Count - $unsigned.Count); to sign: $($unsigned.Count) plus the launcher"
+
+      - name: Sign the launcher and sidecar tree with Azure Trusted Signing
         if: runner.os == 'Windows'
         uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
@@ -759,12 +835,37 @@ jobs:
           endpoint:              ${{ secrets.AZURE_SIGNING_ENDPOINT }}
           signing-account-name:  ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           certificate-profile-name:     ${{ secrets.AZURE_CERT_PROFILE }}
-          files-folder:          src-tauri/binaries
-          files-folder-filter:   exe
-          files-folder-depth:    1
+          files-catalog:         src-tauri/sidecar-sign-catalog.txt
           file-digest:           SHA256
           timestamp-rfc3161:     http://timestamp.acs.microsoft.com
           timestamp-digest:      SHA256
+          # The default is 300 s, set for signing one file. No throughput
+          # figure is published for a few hundred.
+          timeout:               1800
+
+      # Judged per file by Status, not by the signing step's exit code, and
+      # with a floor so an empty scan cannot pass (BL-SILENT-001, causes B
+      # and D). The launcher and the bootloader must carry our certificate
+      # specifically; the rest may carry a vendor's.
+      - name: Verify the launcher and sidecar tree are signed (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-Location src-tauri
+          $ours = (Get-AuthenticodeSignature "binaries\${{ matrix.sidecar_name }}")
+          if ($ours.Status -ne "Valid") { throw "launcher signature is $($ours.Status): $($ours.StatusMessage)" }
+          $subject = $ours.SignerCertificate.Subject
+          $boot = Get-AuthenticodeSignature "sidecar-bundle\jura-sidecar.exe"
+          if ($boot.Status -ne "Valid" -or $boot.SignerCertificate.Subject -ne $subject) { throw "bootloader is $($boot.Status), signed by '$($boot.SignerCertificate.Subject)', expected '$subject'" }
+          $pe = @(Get-ChildItem sidecar-bundle -Recurse -File | Where-Object { $_.Extension -in ".exe", ".dll", ".pyd" })
+          if ($pe.Count -lt 200) { throw "only $($pe.Count) native files checked; an empty or wrong scan is not a pass" }
+          $bad = @($pe | ForEach-Object { $sig = Get-AuthenticodeSignature $_.FullName; if ($sig.Status -ne "Valid") { "$($sig.Status)  $($_.FullName)" } })
+          if ($bad.Count -gt 0) { $bad | Select-Object -First 30 | ForEach-Object { Write-Host "::error::$_" }; throw "$($bad.Count) of $($pe.Count) native files are not validly signed" }
+          $bySigner = $pe | ForEach-Object { (Get-AuthenticodeSignature $_.FullName).SignerCertificate.Subject } | Group-Object | Sort-Object Count -Descending
+          Write-Host "OK: launcher, bootloader and all $($pe.Count) native files signed. Ours: $subject"
+          $bySigner | ForEach-Object { Write-Host ("  {0,5}  {1}" -f $_.Count, $_.Name) }
+          Remove-Item sidecar-sign-catalog.txt
 
       # ── Node.js: build the SvelteKit frontend ───────────────────────────
       # tauri-action calls `npm install` in the project root by default, but
@@ -1512,6 +1613,56 @@ jobs:
             Write-Error "FAIL: $problems updater signature problem(s)."
             exit 1
           }
+
+      # ── B1 gate: every PE inside the shipped installers is signed ────────
+      # The pre-bundle verify above proves the staging tree was signed. This
+      # proves the installers carry those signed bytes, by unpacking the
+      # final, Azure-signed MSI and setup.exe and scanning what is inside.
+      # It runs after the last mutation and before upload (BL-SILENT-001,
+      # cause C), so a later step that re-copies or regenerates the tree
+      # cannot ship unsigned files behind a signed installer.
+      #
+      # The MSI is unpacked with an administrative install (msiexec /a), which
+      # writes the file tree without installing anything. setup.exe is an
+      # NSIS archive, which 7-Zip on the runner can list and extract.
+      - name: Every PE in the shipped installers is signed (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $bundle = "src-tauri\target\${{ matrix.target }}\release\bundle"
+          $msi   = @(Get-ChildItem "$bundle\msi\*.msi")
+          $setup = @(Get-ChildItem "$bundle\nsis\*-setup.exe")
+          if ($msi.Count -ne 1 -or $setup.Count -ne 1) { throw "expected one MSI and one setup.exe, found $($msi.Count) and $($setup.Count)" }
+
+          $work = Join-Path $env:RUNNER_TEMP "b1-gate"
+          if (Test-Path $work) { Remove-Item $work -Recurse -Force }
+          $p = Start-Process msiexec.exe -ArgumentList "/a", "`"$($msi[0].FullName)`"", "/qn", "TARGETDIR=`"$work\msi`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "administrative unpack of the MSI failed with $($p.ExitCode)" }
+          & 7z x "-o$work\nsis" -y $setup[0].FullName | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "7-Zip could not unpack $($setup[0].Name) (exit $LASTEXITCODE)" }
+
+          $failed = 0
+          foreach ($kind in "msi", "nsis") {
+            $sb = @(Get-ChildItem "$work\$kind" -Recurse -Directory -Filter sidecar-bundle)
+            if ($sb.Count -ne 1) { throw "${kind}: expected one sidecar-bundle directory inside the installer, found $($sb.Count)" }
+            $root = $sb[0].Parent.FullName
+            foreach ($f in "jura-sidecar.exe", "sidecar-bundle\jura-sidecar.exe", "sidecar-bundle\_internal") {
+              if (-not (Test-Path "$root\$f")) { throw "${kind}: $f is missing from the installer payload" }
+            }
+            $pe = @(Get-ChildItem $sb[0].FullName -Recurse -File | Where-Object { $_.Extension -in ".exe", ".dll", ".pyd" }) +
+                  @(Get-Item "$root\jura-sidecar.exe")
+            if ($pe.Count -lt 200) { throw "${kind}: only $($pe.Count) native files found; an empty or wrong scan is not a pass" }
+            $bad = @($pe | ForEach-Object { $sig = Get-AuthenticodeSignature $_.FullName; if ($sig.Status -ne "Valid") { "$($sig.Status)  $($_.FullName.Substring($root.Length))" } })
+            if ($bad.Count -gt 0) {
+              $bad | Select-Object -First 30 | ForEach-Object { Write-Host "::error::${kind}: $_" }
+              Write-Host "::error::${kind}: $($bad.Count) of $($pe.Count) native files inside the installer are not validly signed"
+              $failed++
+            } else {
+              Write-Host "OK ${kind}: all $($pe.Count) native files inside the installer are signed"
+            }
+          }
+          if ($failed -gt 0) { throw "unsigned code inside $failed installer(s). Do not upload." }
 
       # Upload the signed Windows artefacts to the draft release on
       # juralabs/jura-trace (the PUBLIC releases repo) via RELEASE_PAT.
