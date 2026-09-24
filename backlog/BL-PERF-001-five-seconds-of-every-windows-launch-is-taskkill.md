@@ -140,3 +140,5 @@ Launch to `sidecarAvailable` on `windows-latest`, B1 port plus the fixes
 25.7 to 28.5 s and 17.9 to 24.9 s with the port alone. The sidecar now spawns
 0.5 s after launch, down from 5.6 s. Step 4, tightening the installer test's
 budgets, waits until both #107 and #109 are merged.
+
+Resolved: 2026-09-24 7bece83a — PR #109 merged. In-process orphan sweep replaces taskkill, is_available probes /health/ready, /api/v1/health no longer probes under the state lock. Windows warm launch 3.7 s with the B1 port (run 35867120171).
