@@ -175,22 +175,40 @@
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
       All communication between the desktop application and the Analysis Engine occurs over
       the loopback interface and never leaves the device. There is no telemetry, no usage
-      analytics, and no crash reporting. Two optional features involve external network
-      communication, both requiring explicit user action:
+      analytics, and no crash reporting. The external connections Jura Trace can make are
+      listed below. Standard network mode (Settings) turns off the automatic update check
+      and the weather lookup. Checking for updates by hand, verifying a URL and signing a
+      file make their connections in either mode. Enhanced mode is the default.
     </p>
     <ul class="space-y-2 text-sm muted-help mb-3 ml-4 list-disc">
       <li>
-        <strong class="font-semibold text-text-light dark:text-text-dark">Auto-update check:</strong>
-        A single HTTPS GET to GitHub Releases containing only the current version number and
-        platform identifier. No user data or file content is transmitted. Can be disabled
-        for air-gapped deployments.
+        <strong class="font-semibold text-text-light dark:text-text-dark">Update check:</strong>
+        in Enhanced mode, at most once a day at launch, the app requests the current update
+        manifest from juralabs.org, falling back to GitHub Releases. The request carries no
+        user data or file content, and this automatic check only reports that an update
+        exists. Choosing Check for Updates makes the same request in either mode, and if an
+        update is found it downloads and installs it.
       </li>
       <li>
-        <strong class="font-semibold text-text-light dark:text-text-dark">Reverse image search</strong>
-        (BYOK, off by default): if you provide your own Google Vision API key, you can
-        send a perceptual hash (and, on per-call confirmation, a thumbnail-sized crop)
-        to your Google Vision endpoint. Off by default. Requires explicit per-analysis
-        confirmation. Additional provider integrations are under evaluation for future releases.
+        <strong class="font-semibold text-text-light dark:text-text-dark">Weather context:</strong>
+        in Enhanced mode, only when you press the button, the GPS position and date from the
+        file's metadata are sent to the Open-Meteo archive to retrieve historical weather.
+      </li>
+      <li>
+        <strong class="font-semibold text-text-light dark:text-text-dark">Verifying a URL:</strong>
+        when you verify a web address, the app downloads the content at that address.
+      </li>
+      <li>
+        <strong class="font-semibold text-text-light dark:text-text-dark">Signing timestamps:</strong>
+        when you sign a file, a hash of the signature is sent to DigiCert's timestamp
+        service. No file content is sent.
+      </li>
+      <li>
+        <strong class="font-semibold text-text-light dark:text-text-dark">Reverse image search:</strong>
+        the results panel offers links to external search services. Jura Trace sends
+        nothing to them; a link opens in your browser only when you click it, and what
+        is shared from there is between you and that service. Built-in reverse image
+        search is not part of this release.
       </li>
     </ul>
 
