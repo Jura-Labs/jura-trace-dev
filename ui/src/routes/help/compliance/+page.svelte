@@ -177,8 +177,9 @@
       the loopback interface and never leaves the device. There is no telemetry, no usage
       analytics, and no crash reporting. The external connections Jura Trace can make are
       listed below. Standard network mode (Settings) turns off the automatic update check
-      and the weather lookup. Checking for updates by hand, verifying a URL and signing a
-      file make their connections in either mode. Enhanced mode is the default.
+      and the weather lookup, and asks before signing timestamps are requested. Checking for
+      updates by hand and verifying a URL make their connections in either mode. Enhanced
+      mode is the default.
     </p>
     <ul class="space-y-2 text-sm muted-help mb-3 ml-4 list-disc">
       <li>
@@ -201,7 +202,9 @@
       <li>
         <strong class="font-semibold text-text-light dark:text-text-dark">Signing timestamps:</strong>
         when you sign a file, a hash of the signature is sent to DigiCert's timestamp
-        service. No file content is sent.
+        service. No file content is sent. In Enhanced mode this always happens. In Standard
+        mode Jura Trace asks the first time you sign, remembers your answer, and signs without
+        a timestamp if you say no; you can change the answer in Settings, Network Access.
       </li>
       <li>
         <strong class="font-semibold text-text-light dark:text-text-dark">Reverse image search:</strong>

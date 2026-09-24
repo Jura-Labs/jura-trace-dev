@@ -468,6 +468,12 @@ impl SignAction {
 ///
 /// Creates a new file at `output` with an embedded C2PA manifest containing
 /// the specified creator information, licence, action, and AI training opt-out.
+///
+/// `tsa_url` is the RFC 3161 timestamp authority, or `None` to sign without a
+/// trusted timestamp. Requesting one sends a hash of the signature to that
+/// host, so callers decide it from [`crate::network_mode::signing_timestamp`]
+/// rather than hard-coding it (BL-CLAIM-004).
+#[allow(clippy::too_many_arguments)]
 pub fn sign_file(
     source: &Path,
     output: &Path,
@@ -476,6 +482,7 @@ pub fn sign_file(
     action: SignAction,
     cert: &[u8],
     key: &[u8],
+    tsa_url: Option<&str>,
 ) -> Result<ManifestInfo, String> {
     let file_name = source
         .file_name()
@@ -605,7 +612,7 @@ pub fn sign_file(
         cert,
         key,
         c2pa::SigningAlg::Es256,
-        Some(TSA_URL.to_string()),
+        tsa_url.map(String::from),
     )
     .map_err(|e| format!("Failed to create signer: {e}"))?;
 
@@ -2503,12 +2510,22 @@ pub fn sign_file_with_active_mode(
     license: Option<&str>,
     action: SignAction,
     data_dir: &Path,
+    tsa_url: Option<&str>,
 ) -> Result<ManifestInfo, String> {
     let mode = get_active_signing_mode(data_dir);
     match mode {
         SigningMode::Bedrock => {
             let (cert, key) = ensure_certificate(data_dir)?;
-            sign_file(source, output, creator_name, license, action, &cert, &key)
+            sign_file(
+                source,
+                output,
+                creator_name,
+                license,
+                action,
+                &cert,
+                &key,
+                tsa_url,
+            )
         }
         SigningMode::Conformant => {
             let cert_path = conformant_cert_path(data_dir);
@@ -2545,7 +2562,16 @@ pub fn sign_file_with_active_mode(
                 ));
             }
 
-            sign_file(source, output, creator_name, license, action, &cert, &key)
+            sign_file(
+                source,
+                output,
+                creator_name,
+                license,
+                action,
+                &cert,
+                &key,
+                tsa_url,
+            )
         }
     }
 }
@@ -3321,6 +3347,53 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// BL-CLAIM-004 option 3: a Standard-mode user who answered "no
+    /// timestamp" gets a valid seal with no signing time, and nothing is sent
+    /// to a TSA. `None` must reach the signer; if it did not, c2pa would
+    /// request a timestamp and `signed_at` would be set.
+    #[test]
+    fn sign_without_timestamp_is_valid_and_carries_no_signing_time() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let data_dir = tmp.path().join("data");
+        let (cert, key) = ensure_certificate(&data_dir).expect("ensure_certificate");
+        let source_path = tmp.path().join("untimestamped.png");
+        image::RgbImage::new(32, 32)
+            .save(&source_path)
+            .expect("save PNG");
+        let output_path = signed_output_path(&source_path);
+
+        let signed = sign_file(
+            &source_path,
+            &output_path,
+            "Test User",
+            None,
+            SignAction::Created,
+            &cert,
+            &key,
+            None,
+        )
+        .expect("signing without a TSA must succeed");
+        assert!(
+            signed.signed_at.is_none(),
+            "no TSA, so no signing time: {:?}",
+            signed.signed_at
+        );
+
+        let read = read_manifest(&output_path, false)
+            .expect("read back")
+            .expect("manifest present");
+        assert!(
+            read.is_valid,
+            "an untimestamped seal must still validate: {:?}",
+            read.validation_checks
+        );
+        assert!(
+            read.signed_at.is_none(),
+            "read-back signing time: {:?}",
+            read.signed_at
+        );
+    }
+
     /// Integration test: generate certificates, create a test PNG, sign it, read back the manifest.
     #[test]
     fn sign_and_read_back_png_integration() {
@@ -3364,6 +3437,7 @@ mod tests {
             SignAction::Created,
             &cert,
             &key,
+            Some(TSA_URL),
         );
 
         match &manifest_info {
@@ -3511,6 +3585,7 @@ mod tests {
             SignAction::Created,
             &cert,
             &key,
+            Some(TSA_URL),
         )
         .expect("first sign should succeed");
 
@@ -3529,6 +3604,7 @@ mod tests {
             SignAction::Published,
             &cert,
             &key,
+            Some(TSA_URL),
         )
         .expect("second sign on already-signed file should succeed (was an Err pre-audit #8)");
 
@@ -3873,6 +3949,7 @@ mod tests {
             Some("CC BY 4.0"),
             SignAction::Created,
             &data_dir,
+            Some(TSA_URL),
         )
         .expect("Bedrock signing should succeed");
 
@@ -3903,6 +3980,7 @@ mod tests {
             None,
             SignAction::Created,
             &data_dir,
+            Some(TSA_URL),
         )
         .expect("Conformant signing should succeed");
 
@@ -4016,6 +4094,7 @@ mod tests {
             SignAction::Created,
             &cert,
             &key,
+            Some(TSA_URL),
         )
         .expect("signing should succeed");
 
@@ -4060,6 +4139,7 @@ mod tests {
             SignAction::Created,
             &cert,
             &key,
+            Some(TSA_URL),
         )
         .expect("signing should succeed");
 

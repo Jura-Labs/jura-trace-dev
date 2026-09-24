@@ -2,18 +2,27 @@
 
 //! Product-wide network access control.
 //!
-//! `NetworkMode::Enhanced` (default) enables online verification features —
-//! C2PA OCSP/CRL revocation checks, remote manifest fetching, FP telemetry,
-//! URL watchlist HTTP fetches.  `NetworkMode::Standard` is an explicit user
-//! opt-in for fully local / air-gapped operation.
+//! `NetworkMode::Enhanced` (default) allows the optional outbound calls the
+//! app makes on its own: the daily update check at launch, the Open-Meteo
+//! weather lookup, and Watched Locations fetches. `NetworkMode::Standard`
+//! turns those off. (OCSP/CRL and remote manifest fetching are not
+//! implemented: c2pa is built without `fetch_remote_manifests`, and the
+//! `enhanced` flag in `c2pa::read_manifest` is a label.)
+//!
+//! Standard mode is NOT "no outbound requests of any kind", and this header
+//! said it was until 24 September 2026 (BL-CLAIM-004). Three calls happen
+//! because a person asked for them, in either mode: checking for updates by
+//! hand, verifying a URL, and the RFC 3161 timestamp request when signing.
+//! The signing timestamp is governed by [`signing_timestamp`]: in Standard
+//! mode it is sent only if the user said yes when asked, and signing is
+//! refused until they have answered.
 //!
 //! Localhost calls (Ollama on port 11434, Python sidecar on port 8200, the
 //! local REST API on port 8300) are **not** outbound network traffic and are
 //! therefore always permitted regardless of mode.
 //!
-//! All network-touching code paths call [`is_enhanced`] before making any
-//! external request.  That function is the single choke point — every future
-//! gated feature must use it.
+//! Every automatic outbound call must check [`is_enhanced`] first. Calls a
+//! person explicitly asks for are listed above and must say so in the UI.
 //!
 //! # Default change — 2026-04-25
 //!
@@ -36,8 +45,8 @@ use std::path::Path;
 /// revocation, remote manifest fetch, FP telemetry, URL watchlist HTTP
 /// checks).
 ///
-/// `Standard`: explicit user opt-in for fully local / air-gapped operation.
-/// No outbound requests of any kind are made to external hosts.
+/// `Standard`: explicit user opt-in to turn off automatic outbound calls.
+/// Calls a person explicitly asks for still happen; see the module header.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum NetworkMode {
@@ -52,6 +61,32 @@ pub enum NetworkMode {
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct NetworkModeConfig {
     mode: NetworkMode,
+    /// The answer to "timestamp signatures while in Standard mode?", asked
+    /// once at the first signing in Standard mode (BL-CLAIM-004, option 3).
+    /// `None` means not asked yet. Absent in files written before
+    /// 24 September 2026, which therefore parse as not asked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    standard_mode_timestamp: Option<bool>,
+}
+
+/// Read the whole config, or `None` when the file is absent, unreadable or
+/// unparseable. Callers decide what each of those means.
+fn read_config(data_dir: &Path) -> Option<NetworkModeConfig> {
+    let raw = std::fs::read_to_string(config_path(data_dir)).ok()?;
+    serde_json::from_str::<NetworkModeConfig>(&raw).ok()
+}
+
+/// Write the whole config atomically (`.tmp` then rename).
+fn write_config(data_dir: &Path, config: &NetworkModeConfig) -> Result<(), String> {
+    let json = serde_json::to_string_pretty(config)
+        .map_err(|e| format!("Failed to serialise network mode: {e}"))?;
+    let path = config_path(data_dir);
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, json.as_bytes())
+        .map_err(|e| format!("Failed to write network mode config: {e}"))?;
+    std::fs::rename(&tmp, &path)
+        .map_err(|e| format!("Failed to commit network mode config: {e}"))?;
+    Ok(())
 }
 
 fn config_path(data_dir: &Path) -> std::path::PathBuf {
@@ -141,17 +176,62 @@ pub fn network_mode_is_degraded(data_dir: &Path) -> bool {
 ///
 /// Written atomically (`.tmp` then rename) to avoid a partially-written file
 /// being read on the next call.
+///
+/// Keeps the remembered signing-timestamp answer: switching mode must not
+/// silently forget what the user said.
 pub fn set_network_mode(data_dir: &Path, mode: NetworkMode) -> Result<(), String> {
-    let config = NetworkModeConfig { mode };
-    let json = serde_json::to_string_pretty(&config)
-        .map_err(|e| format!("Failed to serialise network mode: {e}"))?;
-    let path = config_path(data_dir);
-    let tmp = path.with_extension("tmp");
-    std::fs::write(&tmp, json.as_bytes())
-        .map_err(|e| format!("Failed to write network mode config: {e}"))?;
-    std::fs::rename(&tmp, &path)
-        .map_err(|e| format!("Failed to commit network mode config: {e}"))?;
-    Ok(())
+    let standard_mode_timestamp = read_config(data_dir).and_then(|c| c.standard_mode_timestamp);
+    write_config(
+        data_dir,
+        &NetworkModeConfig {
+            mode,
+            standard_mode_timestamp,
+        },
+    )
+}
+
+/// What signing should do about the RFC 3161 timestamp right now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SigningTimestamp {
+    /// Request a trusted timestamp (the only behaviour before 24 Sep 2026).
+    Use,
+    /// Sign without one. The seal then carries no proof of when.
+    Skip,
+    /// Standard mode and the user has not answered yet. Signing must not
+    /// proceed, because either default would decide for them.
+    Ask,
+}
+
+/// The remembered Standard-mode answer, `None` if not asked yet or if the
+/// file cannot be read (treated as not asked: never guess "send").
+pub fn get_standard_mode_timestamp(data_dir: &Path) -> Option<bool> {
+    read_config(data_dir).and_then(|c| c.standard_mode_timestamp)
+}
+
+/// Remember (or, with `None`, forget) the Standard-mode answer, keeping the
+/// mode as it currently resolves.
+pub fn set_standard_mode_timestamp(data_dir: &Path, answer: Option<bool>) -> Result<(), String> {
+    write_config(
+        data_dir,
+        &NetworkModeConfig {
+            mode: get_network_mode(data_dir),
+            standard_mode_timestamp: answer,
+        },
+    )
+}
+
+/// BL-CLAIM-004 option 3. Enhanced mode timestamps. Standard mode follows
+/// the remembered answer, and with no answer returns [`SigningTimestamp::Ask`].
+pub fn signing_timestamp(data_dir: &Path) -> SigningTimestamp {
+    match get_network_mode(data_dir) {
+        NetworkMode::Enhanced => SigningTimestamp::Use,
+        NetworkMode::Standard => match get_standard_mode_timestamp(data_dir) {
+            Some(true) => SigningTimestamp::Use,
+            Some(false) => SigningTimestamp::Skip,
+            None => SigningTimestamp::Ask,
+        },
+    }
 }
 
 /// Returns `true` when the application may make outbound network requests.
@@ -198,6 +278,53 @@ mod tests {
         set_network_mode(dir.path(), NetworkMode::Standard).expect("set standard");
         assert_eq!(get_network_mode(dir.path()), NetworkMode::Standard);
         assert!(!is_enhanced(dir.path()));
+    }
+
+    #[test]
+    fn signing_timestamp_follows_mode_and_answer() {
+        let dir = tmp();
+        // First run: Enhanced by default, timestamps.
+        assert_eq!(signing_timestamp(dir.path()), SigningTimestamp::Use);
+        set_network_mode(dir.path(), NetworkMode::Standard).unwrap();
+        assert_eq!(signing_timestamp(dir.path()), SigningTimestamp::Ask);
+        set_standard_mode_timestamp(dir.path(), Some(false)).unwrap();
+        assert_eq!(signing_timestamp(dir.path()), SigningTimestamp::Skip);
+        set_standard_mode_timestamp(dir.path(), Some(true)).unwrap();
+        assert_eq!(signing_timestamp(dir.path()), SigningTimestamp::Use);
+        set_standard_mode_timestamp(dir.path(), None).unwrap();
+        assert_eq!(signing_timestamp(dir.path()), SigningTimestamp::Ask);
+        // Setting the answer must not change the mode.
+        assert_eq!(get_network_mode(dir.path()), NetworkMode::Standard);
+    }
+
+    #[test]
+    fn switching_mode_keeps_the_remembered_answer() {
+        let dir = tmp();
+        set_network_mode(dir.path(), NetworkMode::Standard).unwrap();
+        set_standard_mode_timestamp(dir.path(), Some(false)).unwrap();
+        set_network_mode(dir.path(), NetworkMode::Enhanced).unwrap();
+        assert_eq!(signing_timestamp(dir.path()), SigningTimestamp::Use);
+        set_network_mode(dir.path(), NetworkMode::Standard).unwrap();
+        assert_eq!(signing_timestamp(dir.path()), SigningTimestamp::Skip);
+    }
+
+    #[test]
+    fn old_config_without_the_answer_parses_as_not_asked() {
+        let dir = tmp();
+        std::fs::write(
+            dir.path().join("network_mode.json"),
+            br#"{"mode":"standard"}"#,
+        )
+        .unwrap();
+        assert!(!network_mode_is_degraded(dir.path()));
+        assert_eq!(signing_timestamp(dir.path()), SigningTimestamp::Ask);
+    }
+
+    #[test]
+    fn corrupted_file_asks_rather_than_sends() {
+        let dir = tmp();
+        std::fs::write(dir.path().join("network_mode.json"), b"not json").unwrap();
+        assert_eq!(signing_timestamp(dir.path()), SigningTimestamp::Ask);
     }
 
     #[test]

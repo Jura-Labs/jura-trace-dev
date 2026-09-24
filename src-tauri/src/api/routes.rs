@@ -431,6 +431,24 @@ pub async fn protect_sign(
             .to_path_buf();
         drop(guard); // release lock before CPU-heavy signing
 
+        // BL-CLAIM-004 option 3. The API cannot ask a person, so in Standard
+        // mode with no remembered answer it refuses rather than decide
+        // either way; the answer is given once in the app.
+        let tsa_url = match crate::network_mode::signing_timestamp(&data_dir) {
+            crate::network_mode::SigningTimestamp::Use => Some(crate::c2pa::TSA_URL),
+            crate::network_mode::SigningTimestamp::Skip => None,
+            crate::network_mode::SigningTimestamp::Ask => {
+                return Err(ApiError::new(
+                    StatusCode::CONFLICT,
+                    "TimestampChoiceRequired",
+                    "Standard network mode is on and no one has chosen whether signatures \
+                     should carry a trusted timestamp. Sign once in the Jura Trace app, or set \
+                     it in Settings, Network Access, then retry."
+                        .to_string(),
+                ));
+            }
+        };
+
         let (cert_bytes, key_bytes) = crate::c2pa::ensure_certificate(&data_dir)
             .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "C2pa", e))?;
         // REST API defaults to SignAction::Created. A future v1.0.x exposes
@@ -446,6 +464,7 @@ pub async fn protect_sign(
             crate::c2pa::SignAction::Created,
             &cert_bytes,
             &key_bytes,
+            tsa_url,
         )
         .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "C2pa", e))?;
 

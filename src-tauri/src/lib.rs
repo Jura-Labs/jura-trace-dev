@@ -902,6 +902,57 @@ fn verify_content_blocking(
     Ok(result)
 }
 
+/// Returned by signing when Standard mode has no remembered answer to the
+/// timestamp question. The UI asks before signing, so reaching this means a
+/// caller skipped the question; the text says what to do.
+const SIGNING_TIMESTAMP_CHOICE_REQUIRED: &str = "Choose whether signatures made in Standard \
+network mode should carry a trusted timestamp before signing. Jura Trace asks the first \
+time you sign in Standard mode; you can also set it in Settings, Network Access.";
+
+/// What signing will do about the trusted timestamp, and the remembered
+/// Standard-mode answer, so the UI can ask once (BL-CLAIM-004, option 3).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SigningTimestampChoice {
+    network_mode: network_mode::NetworkMode,
+    standard_mode_answer: Option<bool>,
+    effective: network_mode::SigningTimestamp,
+}
+
+#[tauri::command]
+fn get_signing_timestamp_choice(
+    app_handle: tauri::AppHandle,
+) -> Result<SigningTimestampChoice, AppError> {
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(format!("app data dir unavailable: {e}")))?;
+    Ok(SigningTimestampChoice {
+        network_mode: network_mode::get_network_mode(&data_dir),
+        standard_mode_answer: network_mode::get_standard_mode_timestamp(&data_dir),
+        effective: network_mode::signing_timestamp(&data_dir),
+    })
+}
+
+/// Remember the Standard-mode answer. `None` forgets it, so the next signing
+/// in Standard mode asks again.
+#[tauri::command]
+fn set_signing_timestamp_choice(
+    answer: Option<bool>,
+    app_handle: tauri::AppHandle,
+) -> Result<SigningTimestampChoice, AppError> {
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(format!("app data dir unavailable: {e}")))?;
+    network_mode::set_standard_mode_timestamp(&data_dir, answer).map_err(|e| {
+        log::error!("set_signing_timestamp_choice: {e}");
+        AppError::Internal("Could not save the timestamp choice".into())
+    })?;
+    log::info!("Standard-mode signing timestamp answer set to {answer:?}");
+    get_signing_timestamp_choice(app_handle)
+}
+
 /// Sign an asset with a C2PA provenance manifest.
 #[tauri::command]
 fn sign_asset(
@@ -977,6 +1028,20 @@ fn sign_asset(
         }
     };
 
+    // BL-CLAIM-004, option 3 (Paul, 24 September 2026). The timestamp
+    // request sends a hash of the signature to the TSA, so in Standard mode
+    // it goes only if the user said yes when asked. Unanswered, signing is
+    // refused here as well as in the UI, so no caller can skip the question.
+    let tsa_url = match network_mode::signing_timestamp(&data_dir) {
+        network_mode::SigningTimestamp::Use => Some(c2pa::TSA_URL),
+        network_mode::SigningTimestamp::Skip => None,
+        network_mode::SigningTimestamp::Ask => {
+            return Err(AppError::Validation(
+                SIGNING_TIMESTAMP_CHOICE_REQUIRED.into(),
+            ));
+        }
+    };
+
     let _manifest_info = c2pa::sign_file_with_active_mode(
         &source,
         &output,
@@ -984,6 +1049,7 @@ fn sign_asset(
         license.as_deref(),
         sign_action,
         &data_dir,
+        tsa_url,
     )
     .map_err(|e| {
         log::error!("C2PA sign_file_with_active_mode failed for asset {asset_id}: {e}");
@@ -2885,14 +2951,17 @@ async fn get_signing_mode(app_handle: tauri::AppHandle) -> Result<c2pa::SigningM
 /// previously invisible to the user:
 /// * `claim_generator` — the `Jura Trace/<ver>` string embedded in the
 ///   manifest, useful to confirm which build sealed the file.
-/// * `tsa_url` — RFC 3161 timestamp-authority used by `sign_file`.
+/// * `tsa_url` — RFC 3161 timestamp-authority used by `sign_file`, or
+///   `None` when Standard mode's remembered answer is "no timestamp"
+///   (BL-CLAIM-004). Still the TSA while the question is unanswered: the
+///   sign flow asks before anything is sent.
 /// * `cert_sha256_fingerprint` — SHA-256 of the active per-install
 ///   signing certificate, rendered as `XX:XX:...`. Lets a signer
 ///   verify which certificate will bind the file.
 #[derive(Debug, serde::Serialize)]
 struct SigningDisclosure {
     claim_generator: String,
-    tsa_url: String,
+    tsa_url: Option<String>,
     cert_sha256_fingerprint: String,
 }
 
@@ -2912,7 +2981,10 @@ async fn get_signing_disclosure(
 
     Ok(SigningDisclosure {
         claim_generator: format!("Jura Trace/{}", env!("CARGO_PKG_VERSION")),
-        tsa_url: c2pa::TSA_URL.to_string(),
+        tsa_url: match network_mode::signing_timestamp(&data_dir) {
+            network_mode::SigningTimestamp::Skip => None,
+            _ => Some(c2pa::TSA_URL.to_string()),
+        },
         cert_sha256_fingerprint: fingerprint,
     })
 }
@@ -4700,6 +4772,8 @@ pub fn run() {
             clear_asset_library,
             verify_content,
             sign_asset,
+            get_signing_timestamp_choice,
+            set_signing_timestamp_choice,
             read_manifest,
             verify_c2pa,
             get_fingerprints,

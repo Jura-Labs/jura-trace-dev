@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-  import { getVersion, checkSidecarHealth, getSidecarStartupStatus, onSidecarStatusChanged, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, getPowerSaverMode, setPowerSaverMode, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert, getNetworkMode, setNetworkMode, clearAssetLibrary } from '$lib/api';
+  import { getVersion, checkSidecarHealth, getSidecarStartupStatus, onSidecarStatusChanged, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, getPowerSaverMode, setPowerSaverMode, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert, getNetworkMode, setNetworkMode, getSigningTimestampChoice, setSigningTimestampChoice, clearAssetLibrary } from '$lib/api';
   import type { ApiKeyInfo, CreateKeyResult } from '$lib/api';
   import type { ConformantCertificateInfo, LicenceTier, NetworkMode, SidecarHealth, SidecarStartupSnapshot, SidecarStartupStatus, SigningMode, TierInfo } from '$lib/types';
   import { V1_SHOW_CONFORMANT_SIGNING, V1_SHOW_API_KEYS, V1_SHOW_AI_DESCRIPTION, V1_SHOW_READ_TEXT } from '$lib/featureFlags';
@@ -413,6 +413,11 @@
     }
     // Load network access mode
     networkMode = await getNetworkMode();
+    try {
+      signingTimestampAnswer = (await getSigningTimestampChoice()).standardModeAnswer;
+    } catch {
+      // Leave as "ask": the Protect page asks before signing either way.
+    }
   });
 
   onDestroy(() => {
@@ -1073,13 +1078,32 @@
 
   // ── Network Access Mode ──────────────────────────────────────────────────
   // Controls whether Jura Trace makes outbound network connections during
-  // verification. Standard = fully local (default). Enhanced = optional online features
-  // and remote Content Credentials retrieval during verification.
+  // verification. Enhanced (default) = automatic update check and weather lookup allowed.
+  // Standard = those off; signing timestamps follow the remembered answer (BL-CLAIM-004).
 
   let networkMode = $state<NetworkMode>('standard');
   let networkModeChanging = $state(false);
   let networkModeFeedback = $state<{ ok: boolean; message: string } | null>(null);
   let networkModeFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // BL-CLAIM-004 option 3: the remembered answer to "timestamp signatures in
+  // Standard mode?". null = ask at the next signing in Standard mode.
+  let signingTimestampAnswer = $state<boolean | null>(null);
+  let signingTimestampSaving = $state(false);
+  let signingTimestampFeedback = $state<{ ok: boolean; message: string } | null>(null);
+
+  async function handleSigningTimestampChange(answer: boolean | null) {
+    signingTimestampSaving = true;
+    signingTimestampFeedback = null;
+    try {
+      signingTimestampAnswer = (await setSigningTimestampChoice(answer)).standardModeAnswer;
+      signingTimestampFeedback = { ok: true, message: 'Saved.' };
+    } catch (err: unknown) {
+      signingTimestampFeedback = { ok: false, message: err instanceof Error ? err.message : String(err) };
+    } finally {
+      signingTimestampSaving = false;
+    }
+  }
 
   // ── Danger Zone — Clear Asset Library (JTV-204) ──────────────────
   // Destructive wipe of assets, fingerprints, verifications, annotations.
@@ -1139,7 +1163,7 @@
       networkModeFeedback = {
         ok: true,
         message: mode === 'standard'
-          ? 'Network mode set to Standard. Automatic update checks and weather lookups are off. Signing still contacts a timestamp service.'
+          ? 'Network mode set to Standard. Automatic update checks and weather lookups are off. Signing asks once whether to add a trusted timestamp.'
           : 'Network mode set to Enhanced. Optional online features are now available. Content Credential verification is unchanged.',
       };
     } catch (err: unknown) {
@@ -3138,7 +3162,7 @@
   >
     <h2 id="network-access-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-1">Network Access</h2>
     <p class="text-xs muted-help mb-5">
-      Controls the optional outbound connections Jura Trace makes on its own. Standard mode turns off the automatic update check and the weather lookup. Enhanced mode allows both. In either mode, checking for updates by hand, verifying a URL and signing a file still connect out; see Help, Compliance for the full list.
+      Controls the optional outbound connections Jura Trace makes on its own. Standard mode turns off the automatic update check and the weather lookup. Enhanced mode allows both. In either mode, checking for updates by hand and verifying a URL still connect out, and in Standard mode signing requests a trusted timestamp only if you choose it below; see Help, Compliance for the full list.
     </p>
 
     <!-- Mode cards -->
@@ -3163,7 +3187,7 @@
 
         <h3 class="text-sm font-semibold text-text-light dark:text-quartz mb-1 pr-14">Standard</h3>
         <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-          No automatic outbound connections. Signing a file still requests a timestamp from DigiCert, and verifying a URL downloads it. Content Credentials are verified identically in both modes.
+          No automatic outbound connections. Signing asks once whether to request a trusted timestamp, and verifying a URL downloads it. Content Credentials are verified identically in both modes.
         </p>
 
         {#if networkMode !== 'standard'}
@@ -3261,6 +3285,42 @@
         {networkModeFeedback.message}
       </p>
     {/if}
+
+    <fieldset class="mt-6 pt-5 border-t border-border-light dark:border-border-dark">
+      <legend class="text-sm font-semibold text-text-light dark:text-quartz mb-1">Signing timestamps in Standard mode</legend>
+      <p class="text-xs muted-help mb-3">
+        A trusted timestamp records when a file was signed. In Enhanced mode signatures always get one.
+        In Standard mode Jura Trace asks the first time you sign and remembers your answer here.
+      </p>
+      <div class="space-y-2">
+        {#each [
+            { value: null, label: 'Ask the next time I sign' },
+            { value: true, label: 'Use a trusted timestamp (sends a hash of the signature to DigiCert)' },
+            { value: false, label: 'Sign without a timestamp (nothing leaves this device; the seal has no trusted time)' },
+          ] as opt (String(opt.value))}
+          <label class="flex items-start gap-2 text-sm text-text-light dark:text-quartz cursor-pointer">
+            <input
+              type="radio"
+              name="signing-timestamp"
+              class="mt-1"
+              checked={signingTimestampAnswer === opt.value}
+              disabled={signingTimestampSaving}
+              onchange={() => void handleSigningTimestampChange(opt.value)}
+            />
+            <span>{opt.label}</span>
+          </label>
+        {/each}
+      </div>
+      {#if signingTimestampFeedback !== null}
+        <p
+          class="mt-2 text-xs {signingTimestampFeedback.ok ? 'text-malachite-dark dark:text-malachite-light' : 'text-cinnabar-dark dark:text-cinnabar-light'}"
+          role="status"
+          aria-live="polite"
+        >
+          {signingTimestampFeedback.message}
+        </p>
+      {/if}
+    </fieldset>
   </section>
 
   <!-- Danger Zone — JTV-204.
