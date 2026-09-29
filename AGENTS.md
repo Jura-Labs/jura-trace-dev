@@ -201,7 +201,7 @@ Top-level layout (browse directories directly for file listings):
 - `models/` — trained model artefacts (on external USB during development).
 - `docs/` — public-facing documentation only (install guides, user guides, methodology, calibration, decisions, C2PA conformance, branding, compliance, ARCHITECTURE.md, BRAND_GUIDELINES.md, backlog.md). **Internal-consultation docs (strategy, funding drafts, sprint plans, internal architecture / corpus / deployment notes, project spec) live in `../jura-labs-docs/` per the doc-hygiene pattern (memory `project_repo_doc_hygiene`).**
 - `.github/workflows/` — CI, Release (4-platform matrix), Dependabot.
-- `.github/PULL_REQUEST_TEMPLATE.md` + `.github/ISSUE_TEMPLATE/` (and `.forgejo/` mirrors) — contributor-facing forms with mandatory `AI-Disclosure` field per `CONTRIBUTING.md` "AI-tool use" section.
+- `.github/PULL_REQUEST_TEMPLATE.md` + `.github/ISSUE_TEMPLATE/` — contributor-facing forms with mandatory `AI-Disclosure` field per `CONTRIBUTING.md` "AI-tool use" section.
 - Root: `CHANGELOG.md`, `CLAUDE.md`, `LICENSE`, `COMMERCIAL.md`, `TRAINING.md`, `CONTRIBUTING.md`, `README.md`, `Makefile`.
 
 ## Two-Repo Release Architecture
@@ -259,35 +259,9 @@ If none of the three resolves, the build script warns and still completes — DM
 
 **Post-build check**: `spctl --assess --verbose=2 --type install "<path-to-dmg>"` should report `source=Notarized Developer ID`. If it says `source=Developer ID` (no "Notarized" prefix), the DMG was signed but not notarised — do not publish.
 
-## Codeberg Public Source Push (clean-snapshot ruleset)
+## Codeberg (retired)
 
-The public AGPL source lives at `codeberg.org/jura-labs/jura-trace` (the Codeberg mirror), separate from the private GitHub dev repo `Jura-Labs/jura-archive` (`origin`). Remote: `codeberg` = `git@codeberg.org:jura-labs/jura-trace.git`.
-
-**CRITICAL SAFETY RULE.** `codeberg/main` is a scrubbed public history with NO common ancestor to local `main`. NEVER `git push codeberg main`, and NEVER `--force` to it. A force-push overwrites the clean public history with the full private dev history (639+ commits), exposing everything the scrub avoided and wiping the public release commits + tags. This is destructive and unrecoverable. The public repo is updated by a curated catch-up sync, not a raw push.
-
-**Safe method (curated sync of a release onto the clean history):**
-1. `git worktree add <dir> codeberg/main` (check out the clean public history).
-2. Lay the included source tree (from the release tag) over the worktree, applying the exclusions below. Do NOT copy the dev `.git`.
-3. Secret-scan the result (no hardcoded keys/tokens; `.env` absent; `src-tauri/binaries/*` are tiny stubs, not real binaries).
-4. Single clean commit ("Jura Trace vX.Y.Z public source release (AGPL-3.0-or-later)"). Create the tag ON the snapshot commit only: `git push codeberg HEAD:refs/tags/vX.Y.Z`. NEVER `git push codeberg vX.Y.Z` using the existing LOCAL release tag: that tag points into the private dev history, so pushing it uploads dev commit objects to Codeberg (reachable via the tag until deleted). If it happens, `git push codeberg :refs/tags/vX.Y.Z` then re-create on the snapshot commit, and request a Codeberg GC.
-5. Fast-forward push to `codeberg` (builds on the existing clean history, no force).
-6. Push the wiki separately to `git@codeberg.org:jura-labs/jura-trace.wiki.git` (pages from `../jura-labs-docs/codeberg-wiki-draft/`).
-7. Make the repo public in Codeberg settings if still private.
-
-**INCLUDE** (AGPL Corresponding Source must be buildable):
-- `src-tauri/`, `ui/`, `sidecar/`, `scripts/` (build + training scripts)
-- Dependency/lock manifests: `Cargo.toml`+`Cargo.lock`, `ui/package.json`+`ui/package-lock.json`, `sidecar/requirements*.txt`+`requirements.lock`+`jura-sidecar.spec`, `Makefile`, root `package.json`
-- `src-tauri/binaries/` stubs (needed for `cargo check`; verify they ARE stubs), `src-tauri/trust-list/*.pem` (public C2PA anchors), `sidecar/app/services/bpe_simple_vocab_16e6.txt.gz` (CLIP tokenizer)
-- `.forgejo/` (Codeberg CI)
-- Root docs: LICENSE, README.md, COMMERCIAL.md, CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md, GENAI_USE_POLICY.md, TRAINING.md, NOTICE, THIRD-PARTY-LICENSES.txt, CHANGELOG.md
-- From `docs/`, ONLY `docs/ARCHITECTURE.md` and `docs/BRAND_GUIDELINES.md`
-
-**EXCLUDE** (never publish):
-- `docs/` (everything except the two files above)
-- `data/`, `infrastructure/`, `test-results/`, `corpus/`, `models/` (trained weights, treated as data/IP), `agents/` (corpus crawl pipeline)
-- `CLAUDE.md`, `.claude/`, `.github/` (GitHub-specific; exposes the private two-repo model + `RELEASE_PAT`), `.env`
-
-**MUST FIX before any push** (or stale/wrong copy goes public): source README staleness, and any PolyForm / "noncommercial" / "not open source" licence claims in INCLUDED files (licence is AGPL-3.0-or-later since 6 May 2026). Note: the corpus-dataset "non-commercial" notes in `scripts/*.py` are accurate dataset-licence statements and stay; the CC-BY-NC option in the Protect UI is a user content-licence choice and stays. See memories `project_codeberg_fresh_release_snapshot` + `project_repo_doc_hygiene`.
+Codeberg was retired on 29 September 2026 (W40-19). The public source is `https://github.com/Jura-Labs/jura-trace-dev`, which the in-app Open Source page and the AGPL notice in `THIRD-PARTY-LICENSES.txt` both point to. `codeberg.org/jura-labs/jura-trace` is archived and read-only. Do not push to it, and do not add Codeberg links. Older docs that mention Codeberg are kept as the historical record.
 
 ## Key Files
 

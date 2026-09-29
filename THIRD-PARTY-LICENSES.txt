@@ -23,7 +23,7 @@ with this program (see the LICENSE file). If not, see
 CORRESPONDING SOURCE (AGPL-3.0 §6): the complete, buildable source code for the
 released version of this application is published at:
 
-    https://codeberg.org/jura-labs/jura-trace
+    https://github.com/Jura-Labs/jura-trace-dev
 
 --------------------------------------------------------------------------------
 ABOUT THIS FILE

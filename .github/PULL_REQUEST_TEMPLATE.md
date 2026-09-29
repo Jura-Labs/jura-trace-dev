@@ -1,8 +1,5 @@
 <!--
   Jura Trace pull-request template.
-  Active on GitHub. The Codeberg equivalent at .forgejo/pull_request_template.md
-  carries the same fields; both will exist during the AGPL launch's source-host
-  migration window.
 -->
 
 ## Summary
