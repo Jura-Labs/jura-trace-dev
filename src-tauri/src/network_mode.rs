@@ -41,9 +41,9 @@ use std::path::Path;
 
 /// Controls whether the application may make outbound HTTP calls.
 ///
-/// `Enhanced` (default): online verification features enabled (OCSP/CRL
-/// revocation, remote manifest fetch, FP telemetry, URL watchlist HTTP
-/// checks).
+/// `Enhanced` (default): outbound calls allowed (FP telemetry, URL watchlist
+/// HTTP checks). OCSP/CRL revocation and remote manifest fetch are not
+/// implemented, so this mode does not enable them.
 ///
 /// `Standard`: explicit user opt-in to turn off automatic outbound calls.
 /// Calls a person explicitly asks for still happen; see the module header.

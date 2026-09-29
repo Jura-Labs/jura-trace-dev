@@ -63,8 +63,8 @@ pub struct ManifestInfo {
     ///
     /// - `"standard"` — local-only verification, no OCSP/CRL or remote manifest fetch.
     ///   This is the default air-gapped mode.
-    /// - `"enhanced"` — online verification with OCSP/CRL revocation checks and
-    ///   remote manifest fetch enabled (user opt-in via Settings → Enhanced mode).
+    /// - `"enhanced"` — the user allowed online checks. No OCSP/CRL revocation
+    ///   check or remote manifest fetch runs in this mode yet (see the note below).
     ///
     /// `None` for ingredient manifests (they inherit the mode from the active manifest).
     ///
