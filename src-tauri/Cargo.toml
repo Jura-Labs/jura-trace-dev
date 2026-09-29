@@ -6,7 +6,7 @@ authors = ["Paul Griffiths"]
 edition = "2021"
 rust-version = "1.88"
 license = "AGPL-3.0-or-later"
-repository = "https://codeberg.org/jura-labs/jura-trace"
+repository = "https://github.com/Jura-Labs/jura-trace-dev"
 homepage = "https://juralabs.org"
 # With the introduction of the `gen-detectors` codegen binary (commit
 # 485856a), `cargo run` without a `--bin` flag can no longer pick a
