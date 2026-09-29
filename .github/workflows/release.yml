@@ -920,7 +920,11 @@ jobs:
           if cargo tauri --version >/dev/null 2>&1; then
             echo "tauri-cli restored from cache: $(cargo tauri --version)"
           else
-            cargo binstall tauri-cli --version "2.11.4" --no-confirm
+            # --locked: with no prebuilt binary (macOS arm64 on 29 September),
+            # binstall falls back to a source build. Unlocked, that resolved
+            # tauri-utils 2.10.0, which needs rustc 1.90, and failed on our
+            # 1.88 pin. The locked build uses tauri-cli's own lockfile.
+            cargo binstall tauri-cli --version "2.11.4" --no-confirm --locked
             echo "tauri-cli installed: $(cargo tauri --version)"
           fi
 
