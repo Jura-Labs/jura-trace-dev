@@ -449,11 +449,11 @@ jobs:
             patchelf
 
       # ── Rust toolchain ───────────────────────────────────────────────────
-      # Pin to the same Rust version as rust-version in Cargo.toml (1.88).
-      - name: Install Rust 1.88
+      # Pin to the same Rust version as rust-version in Cargo.toml (1.90).
+      - name: Install Rust 1.90
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable @ 2026-09
         with:
-          toolchain: "1.88"
+          toolchain: "1.90"
           targets: ${{ matrix.target }}
 
       # Cache per target triple — macOS arm64 and x64 produce different artefacts.
@@ -923,7 +923,7 @@ jobs:
             # --locked: with no prebuilt binary (macOS arm64 on 29 September),
             # binstall falls back to a source build. Unlocked, that resolved
             # tauri-utils 2.10.0, which needs rustc 1.90, and failed on our
-            # 1.88 pin. The locked build uses tauri-cli's own lockfile.
+            # 1.88 pin of the time. The locked build uses tauri-cli's own lockfile.
             cargo binstall tauri-cli --version "2.11.4" --no-confirm --locked
             echo "tauri-cli installed: $(cargo tauri --version)"
           fi

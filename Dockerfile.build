@@ -32,9 +32,9 @@ RUN apt-get update \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Rust 1.88 via rustup
+# Rust 1.90 via rustup
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-    | sh -s -- -y --default-toolchain 1.88.0 --profile minimal \
+    | sh -s -- -y --default-toolchain 1.90.0 --profile minimal \
         --component clippy rustfmt
 ENV PATH="/root/.cargo/bin:${PATH}"
 

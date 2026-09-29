@@ -68,7 +68,7 @@ and no service to start.
 
 To develop it:
 
-- [Rust](https://rustup.rs/) 1.88+
+- [Rust](https://rustup.rs/) 1.90+
 - [Node.js](https://nodejs.org/) 20+
 
 Optional, and neither required nor bundled:
