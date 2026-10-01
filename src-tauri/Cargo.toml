@@ -27,6 +27,14 @@ crate-type = ["lib", "cdylib", "staticlib"]
 # or let `npm run predev` / `npm run prebuild` invoke it automatically.
 # The REST API without the desktop window (v1.2.0 B2a). The logic is in the
 # library's `headless` module; this target only passes it the arguments.
+#
+# Not in any installer yet, and that depends on `required-features`: the
+# Tauri bundler includes a [[bin]] only when its required features are passed
+# explicitly with --features (tauri-cli 2.11.4, interface/rust.rs
+# get_binaries), and neither release.yml nor build-local-mac.sh passes any.
+# gen-detectors has no required features, which is why it is in the app.
+# Shipping this binary is stage 5 of the design; passing --features api to
+# the bundler before then would ship it unsigned and unannounced.
 [[bin]]
 name = "jura-trace-api"
 path = "src/bin/jura_trace_api.rs"

@@ -193,6 +193,60 @@ jobs:
           cd src-tauri && cargo audit
 
   # ── Frontend: svelte-check + vitest ─────────────────────────────────────────
+  # ── jura-trace-api on Windows ──────────────────────────────────────────────
+  # The headless binary (v1.2.0 B2a) has Windows-only code: the orphan sweep
+  # after shutdown, because ending the launcher does not end the onedir
+  # bootloader. The Rust job above runs on Linux, and the release build does
+  # not compile this binary at all (see the [[bin]] comment in Cargo.toml),
+  # so without this job that code would first compile on a user's machine.
+  headless-windows:
+    name: Windows headless check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Rust 1.90
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable @ 2026-09
+        with:
+          toolchain: "1.90"
+          components: clippy
+
+      - name: Cache Cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: cargo-headless-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-headless-${{ runner.os }}-
+
+      - name: Setup Node 20
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Build frontend (required by tauri::generate_context!)
+        shell: bash
+        run: cd ui && npm ci && npm run build
+
+      - name: Placeholder for the sidecar bundle resource glob
+        shell: bash
+        run: |
+          mkdir -p src-tauri/sidecar-bundle
+          echo "CI placeholder; see the Rust job in ci.yml." > src-tauri/sidecar-bundle/.ci-placeholder
+
+      - name: cargo clippy (jura-trace-api)
+        shell: bash
+        run: cd src-tauri && cargo clippy --bin jura-trace-api --tests -- -D warnings
+
+      - name: cargo test (headless binary, as a subprocess)
+        shell: bash
+        run: cd src-tauri && cargo test --test headless_api
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
