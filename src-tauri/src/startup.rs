@@ -30,7 +30,12 @@ use tauri_plugin_shell::ShellExt;
 ///
 /// Returns `None` if the home directory cannot be determined.
 pub(crate) fn dirs_next_data_dir() -> Option<PathBuf> {
-    let bundle_id = "com.juralabs.jura-trace";
+    // Must equal `identifier` in tauri.conf.json, which is what Tauri's own
+    // app_data_dir() uses (test: `bundle_id_matches_tauri_conf`). Until
+    // 1 October 2026 this read "com.juralabs.jura-trace", so the log file went
+    // to a directory that held only a stale, empty jura_trace.db while the
+    // real database lived under org.juralabs.trace.
+    let bundle_id = BUNDLE_ID;
     #[cfg(target_os = "macos")]
     {
         // ~/Library/Application Support/<bundle-id>
@@ -57,14 +62,18 @@ pub(crate) fn dirs_next_data_dir() -> Option<PathBuf> {
     }
     #[cfg(target_os = "windows")]
     {
-        // %APPDATA%\<bundle-id>\data
-        std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join(bundle_id).join("data"))
+        // %APPDATA%\<bundle-id>, which is Tauri v2's app_data_dir on Windows
+        // (the roaming data dir joined with the identifier, no subfolder).
+        std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join(bundle_id))
     }
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
         None
     }
 }
+
+/// The application identifier, as in `tauri.conf.json`.
+pub(crate) const BUNDLE_ID: &str = "org.juralabs.trace";
 
 /// Maximum log file size before it is truncated (10 MiB).
 /// When the file exceeds this size at startup the old content is discarded
@@ -572,4 +581,26 @@ pub(crate) fn pick_ephemeral_port() -> Option<u16> {
     let port = listener.local_addr().ok()?.port();
     drop(listener);
     Some(port)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The early data-dir resolver must point where Tauri does, or the log
+    /// and the headless API look in a different directory from the app's
+    /// database.
+    #[test]
+    fn bundle_id_matches_tauri_conf() {
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        assert_eq!(conf["identifier"].as_str(), Some(BUNDLE_ID));
+    }
+
+    #[test]
+    fn data_dir_ends_in_the_bundle_id() {
+        if let Some(dir) = dirs_next_data_dir() {
+            assert_eq!(dir.file_name().and_then(|n| n.to_str()), Some(BUNDLE_ID));
+        }
+    }
 }
