@@ -8,7 +8,6 @@
 use std::io::{BufRead, BufReader};
 use std::net::TcpListener;
 use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
 
 const BIN: &str = env!("CARGO_BIN_EXE_jura-trace-api");
 
@@ -55,12 +54,12 @@ fn stop(mut child: Child) -> Option<i32> {
     {
         // SIGTERM, which is what a service manager or `docker stop` sends.
         unsafe { libc_kill(child.id() as i32, 15) };
-        let deadline = Instant::now() + Duration::from_secs(20);
-        while Instant::now() < deadline {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        while std::time::Instant::now() < deadline {
             if let Some(status) = child.try_wait().unwrap() {
                 return status.code();
             }
-            std::thread::sleep(Duration::from_millis(100));
+            std::thread::sleep(std::time::Duration::from_millis(100));
         }
         let _ = child.kill();
         None
