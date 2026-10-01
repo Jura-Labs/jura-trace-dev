@@ -1,7 +1,10 @@
 # BL-API-001: the headless API deployment story is documented and does not exist
 
 **Status**: Open. Found 3 September 2026, while assessing what would most
-increase adoption.
+increase adoption. Documentation half done 1 October 2026 (v1.2.0 B2a stage
+0): `docs/API_WRAPPER.md` rewritten against the source, so it no longer
+describes a binary, flag or config file that do not exist. The headless
+binary itself is stage 1.
 **Raised**: 3 September 2026
 **Severity**: Medium as a documentation fault. High as a blocker, because
 it sits directly under the CLI, which is the change most likely to bring
