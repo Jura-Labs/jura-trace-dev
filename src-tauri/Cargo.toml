@@ -25,6 +25,13 @@ crate-type = ["lib", "cdylib", "staticlib"]
 # per (mode × content-type) combination.  Run via:
 #   cargo run --bin gen-detectors -- <repo-root>
 # or let `npm run predev` / `npm run prebuild` invoke it automatically.
+# The REST API without the desktop window (v1.2.0 B2a). The logic is in the
+# library's `headless` module; this target only passes it the arguments.
+[[bin]]
+name = "jura-trace-api"
+path = "src/bin/jura_trace_api.rs"
+required-features = ["api"]
+
 [[bin]]
 name = "gen-detectors"
 path = "src/bin/gen_detectors.rs"
@@ -103,7 +110,7 @@ tower-http = { version = "0.7", features = ["cors", "trace", "limit"], optional 
 utoipa = { version = "5", features = ["axum_extras"], optional = true }
 utoipa-swagger-ui = { version = "9", features = ["axum", "vendored"], optional = true }
 dashmap = { version = "6", optional = true }
-tokio = { version = "1", features = ["net", "rt", "macros", "sync"], optional = true }
+tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "macros", "sync", "signal", "time"], optional = true }
 
 # BL-PERF-001: the Windows orphan-sidecar sweep enumerates processes in
 # process instead of waiting on a taskkill child. Already in Cargo.lock as a

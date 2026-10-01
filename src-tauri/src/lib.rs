@@ -60,6 +60,7 @@ mod monitor_scheduler;
 mod network_mode;
 mod pdf_provenance;
 pub mod sidecar;
+mod sidecar_supervisor;
 mod startup;
 mod state;
 mod sun_position;
@@ -69,6 +70,8 @@ mod watermark;
 
 #[cfg(feature = "api")]
 pub mod api;
+#[cfg(feature = "api")]
+pub mod headless;
 
 use config::{dir_is_writable, read_app_config, resolve_db_path, write_app_config};
 use error::AppError;
