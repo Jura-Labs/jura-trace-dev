@@ -4208,9 +4208,9 @@ pub fn run() {
     // the app data directory here; Tauri's proper path resolver is available
     // only inside the `.setup()` callback, but by then it is too late to
     // capture early startup messages.  The platform-specific default paths are:
-    //   macOS: ~/Library/Application Support/com.juralabs.jura-trace
-    //   Linux: ~/.local/share/com.juralabs.jura-trace
-    //   Windows: %APPDATA%\com.juralabs.jura-trace\data
+    //   macOS: ~/Library/Application Support/org.juralabs.trace
+    //   Linux: ~/.local/share/org.juralabs.trace
+    //   Windows: %APPDATA%\org.juralabs.trace
     //
     // We derive this early approximation using the same crate that Tauri uses
     // internally (dirs_next / home_dir), then let `.setup()` confirm the real

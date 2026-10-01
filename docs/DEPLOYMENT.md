@@ -621,7 +621,7 @@ Since the Option C port-collision fix (May 2026) the sidecar binds an OS-assigne
        Get-NetTCPConnection -OwningProcess $_.Id -State Listen
    }
    ```
-2. If no `jura-sidecar` process is running at all, the spawn failed — check the application log (path printed at startup; typical locations are `~/Library/Logs/com.juralabs.jura-trace/` on macOS and `%APPDATA%\com.juralabs.jura-trace\logs\` on Windows) for `Failed to (re)spawn sidecar` or `[Errno NN]` messages.
+2. If no `jura-sidecar` process is running at all, the spawn failed — check the application log (path printed at startup; the file is `jura-trace.log` in the app data directory: `~/Library/Application Support/org.juralabs.trace/` on macOS, `%APPDATA%\org.juralabs.trace\` on Windows, `~/.local/share/org.juralabs.trace/` on Linux) for `Failed to (re)spawn sidecar` or `[Errno NN]` messages.
 3. On macOS, check whether the sidecar binary inside the app bundle is quarantined:
    ```bash
    xattr -cr /Applications/Jura\ Trace.app

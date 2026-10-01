@@ -179,15 +179,15 @@
       <tbody class="muted-help">
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4 font-semibold">macOS</td>
-          <td class="py-2 font-mono text-xs break-all">~/Library/Application Support/com.juralabs.jura-trace/jura_trace.db</td>
+          <td class="py-2 font-mono text-xs break-all">~/Library/Application Support/org.juralabs.trace/jura_trace.db</td>
         </tr>
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4 font-semibold">Windows</td>
-          <td class="py-2 font-mono text-xs break-all">%APPDATA%\com.juralabs.jura-trace\jura_trace.db</td>
+          <td class="py-2 font-mono text-xs break-all">%APPDATA%\org.juralabs.trace\jura_trace.db</td>
         </tr>
         <tr>
           <td class="py-2 pr-4 font-semibold">Linux</td>
-          <td class="py-2 font-mono text-xs break-all">~/.local/share/com.juralabs.jura-trace/jura_trace.db</td>
+          <td class="py-2 font-mono text-xs break-all">~/.local/share/org.juralabs.trace/jura_trace.db</td>
         </tr>
       </tbody>
     </table>
@@ -436,7 +436,7 @@
       On macOS and Linux, open the application's data directory and delete the
       <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">localStorage</span>
       store. On Windows, this is located in the Jura Trace application data folder under
-      <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">%APPDATA%\com.juralabs.jura-trace\</span>.
+      <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">%APPDATA%\org.juralabs.trace\</span>.
       Note: clearing local settings resets display preferences.
       Your database file and all asset records are stored separately and are not affected.
     </p>
