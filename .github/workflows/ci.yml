@@ -239,13 +239,22 @@ jobs:
           mkdir -p src-tauri/sidecar-bundle
           echo "CI placeholder; see the Rust job in ci.yml." > src-tauri/sidecar-bundle/.ci-placeholder
 
+      # PowerShell, not bash, for the cargo steps: a dependency builds vendored
+      # OpenSSL, whose Configure needs a full Perl. Under bash, Git's minimal
+      # /usr/bin/perl comes first on PATH and fails (Locale::Maketext::Simple
+      # missing); under PowerShell it is the runner's Strawberry Perl, which
+      # is what release.yml's Windows build uses.
       - name: cargo clippy (jura-trace-api)
-        shell: bash
-        run: cd src-tauri && cargo clippy --bin jura-trace-api --tests -- -D warnings
+        shell: pwsh
+        run: |
+          cd src-tauri
+          cargo clippy --bin jura-trace-api --tests -- -D warnings
 
       - name: cargo test (headless binary, as a subprocess)
-        shell: bash
-        run: cd src-tauri && cargo test --test headless_api
+        shell: pwsh
+        run: |
+          cd src-tauri
+          cargo test --test headless_api
 
   frontend:
     name: Frontend
