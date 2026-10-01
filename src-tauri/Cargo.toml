@@ -28,16 +28,19 @@ crate-type = ["lib", "cdylib", "staticlib"]
 # The REST API without the desktop window (v1.2.0 B2a). The logic is in the
 # library's `headless` module; this target only passes it the arguments.
 #
-# Not in any installer yet, and that depends on `required-features`: the
-# Tauri bundler includes a [[bin]] only when its required features are passed
-# explicitly with --features (tauri-cli 2.11.4, interface/rust.rs
-# get_binaries), and neither release.yml nor build-local-mac.sh passes any.
-# gen-detectors has no required features, which is why it is in the app.
-# Shipping this binary is stage 5 of the design; passing --features api to
-# the bundler before then would ship it unsigned and unannounced.
+# Not in any installer yet, and two things keep it out; both matter.
+# 1. The source is NOT in src/bin/. tauri-cli bundles every file in src/bin
+#    by its file stem: 2.10.1 (the local CLI on 1 October 2026) does so
+#    regardless of required-features, so src/bin/jura_trace_api.rs made the
+#    macOS bundle step fail looking for an unbuilt "jura_trace_api".
+# 2. required-features = ["api"]. tauri-cli 2.11.4 (release.yml) bundles a
+#    [[bin]] only when its required features are passed explicitly with
+#    --features, and neither release.yml nor build-local-mac.sh passes any.
+# Checked by bundling with both CLIs: the app holds jura-trace, jura-sidecar
+# and gen-detectors only. Shipping this binary is stage 5 of the design.
 [[bin]]
 name = "jura-trace-api"
-path = "src/bin/jura_trace_api.rs"
+path = "src/headless_main.rs"
 required-features = ["api"]
 
 [[bin]]
