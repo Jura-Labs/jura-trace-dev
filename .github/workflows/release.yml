@@ -914,7 +914,11 @@ jobs:
           if command -v cargo-binstall >/dev/null 2>&1; then
             echo "cargo-binstall restored from cache: $(cargo binstall -V)"
           else
-            cargo install cargo-binstall --locked --version "~1.10"
+            # 1.18.1, exact. ~1.10 stopped compiling on Rust 1.90 (#125): std
+            # gained File::try_lock, which shadows the fs-lock crate's method
+            # in cargo-binstall 1.10.23 (E0599/E0308). Found by the 1 October
+            # Windows smoke build. 1.18.1 builds locked on 1.90.
+            cargo install cargo-binstall --locked --version "1.18.1"
             echo "cargo-binstall built from source: $(cargo binstall -V)"
           fi
           if cargo tauri --version >/dev/null 2>&1; then
