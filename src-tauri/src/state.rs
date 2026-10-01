@@ -92,10 +92,12 @@ pub struct AppState {
     pub db_path: String,
     /// Active licence tier for this installation (pilot phase: manually settable).
     pub licence_tier: LicenceTier,
-    /// Handle to the spawned PyInstaller sidecar process.
+    /// The spawned PyInstaller sidecar, owned through the shared supervisor
+    /// (v1.2.0 B2a stage 1; until then a Tauri shell `CommandChild`).
     /// Present only in production builds where the binary was found and launched
-    /// successfully. `None` in development (manual uvicorn) or if spawn failed.
-    pub sidecar_process: Option<tauri_plugin_shell::process::CommandChild>,
+    /// successfully. `None` in development (manual uvicorn), if spawn failed,
+    /// and in the headless binary, which holds its supervisor itself.
+    pub sidecar_process: Option<crate::sidecar_supervisor::SidecarSupervisor>,
     /// SHA-256 hex digest of the GBM classifier model file, computed once at
     /// startup. `None` if the model file is not present.
     pub classifier_model_hash: Option<String>,

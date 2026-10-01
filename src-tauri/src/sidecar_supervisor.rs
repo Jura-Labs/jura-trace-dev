@@ -89,6 +89,15 @@ impl SidecarSupervisor {
         if let Some(dir) = models_dir {
             cmd.env("JURA_MODELS_DIR", dir);
         }
+        // Windows: without CREATE_NO_WINDOW a console-subsystem child opens a
+        // console window. Tauri's shell plugin set this for the desktop
+        // sidecar; std::process does not.
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
         // macOS: a launchd-started process does not see Homebrew's bin
         // directories, where the sidecar's ffmpeg probe looks (see
         // startup::spawn_sidecar).
