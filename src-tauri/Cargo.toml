@@ -25,6 +25,24 @@ crate-type = ["lib", "cdylib", "staticlib"]
 # per (mode × content-type) combination.  Run via:
 #   cargo run --bin gen-detectors -- <repo-root>
 # or let `npm run predev` / `npm run prebuild` invoke it automatically.
+# The REST API without the desktop window (v1.2.0 B2a). The logic is in the
+# library's `headless` module; this target only passes it the arguments.
+#
+# Not in any installer yet, and two things keep it out; both matter.
+# 1. The source is NOT in src/bin/. tauri-cli bundles every file in src/bin
+#    by its file stem: 2.10.1 (the local CLI on 1 October 2026) does so
+#    regardless of required-features, so src/bin/jura_trace_api.rs made the
+#    macOS bundle step fail looking for an unbuilt "jura_trace_api".
+# 2. required-features = ["api"]. tauri-cli 2.11.4 (release.yml) bundles a
+#    [[bin]] only when its required features are passed explicitly with
+#    --features, and neither release.yml nor build-local-mac.sh passes any.
+# Checked by bundling with both CLIs: the app holds jura-trace, jura-sidecar
+# and gen-detectors only. Shipping this binary is stage 5 of the design.
+[[bin]]
+name = "jura-trace-api"
+path = "src/headless_main.rs"
+required-features = ["api"]
+
 [[bin]]
 name = "gen-detectors"
 path = "src/bin/gen_detectors.rs"
@@ -103,7 +121,7 @@ tower-http = { version = "0.7", features = ["cors", "trace", "limit"], optional 
 utoipa = { version = "5", features = ["axum_extras"], optional = true }
 utoipa-swagger-ui = { version = "9", features = ["axum", "vendored"], optional = true }
 dashmap = { version = "6", optional = true }
-tokio = { version = "1", features = ["net", "rt", "macros", "sync"], optional = true }
+tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "macros", "sync", "signal", "time"], optional = true }
 
 # BL-PERF-001: the Windows orphan-sidecar sweep enumerates processes in
 # process instead of waiting on a taskkill child. Already in Cargo.lock as a

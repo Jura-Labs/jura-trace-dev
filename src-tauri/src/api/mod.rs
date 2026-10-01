@@ -148,9 +148,10 @@ pub async fn start_server(
     // Bind to loopback only — never expose to external interfaces.
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
 
-    log::info!("API server listening on http://{addr}");
-
-    let listener = match tokio::net::TcpListener::bind(addr).await {
+    // The desktop app carries on without the API when the port is taken (a
+    // second copy of the app, say). The headless binary treats the same
+    // failure as fatal; see `bind`.
+    let listener = match bind(addr).await {
         Ok(l) => l,
         Err(e) => {
             log::warn!(
@@ -164,6 +165,28 @@ pub async fn start_server(
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+/// Bind the API listener. Logs "listening" only after the bind has
+/// succeeded: until v1.2.0 the line was written before the attempt, so a
+/// failed bind still left "API server listening" in the log.
+pub async fn bind(addr: SocketAddr) -> std::io::Result<tokio::net::TcpListener> {
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    log::info!("API server listening on http://{}", listener.local_addr()?);
+    Ok(listener)
+}
+
+/// Serve the API on an already-bound listener until `shutdown` completes,
+/// then finish in-flight requests and return. Used by the headless binary.
+pub async fn serve(
+    listener: tokio::net::TcpListener,
+    state: Arc<Mutex<AppState>>,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> std::io::Result<()> {
+    routes::init_start_time();
+    axum::serve(listener, build_router(state))
+        .with_graceful_shutdown(shutdown)
+        .await
 }
 
 /// Assemble the full Axum router with middleware.
