@@ -57,6 +57,7 @@ mod heatmap;
 mod menu;
 mod metadata;
 mod monitor_scheduler;
+mod net_guard;
 mod network_mode;
 mod pdf_provenance;
 pub mod sidecar;
@@ -76,9 +77,7 @@ pub mod headless;
 use config::{dir_is_writable, read_app_config, resolve_db_path, write_app_config};
 use error::AppError;
 use startup::{dirs_next_data_dir, init_logging, pick_ephemeral_port, spawn_sidecar};
-use verify::pipeline::{
-    apply_heatmaps_to_result, compute_file_sha256, is_private_or_loopback_host, VERIFY_GATE,
-};
+use verify::pipeline::{apply_heatmaps_to_result, compute_file_sha256, VERIFY_GATE};
 
 // Re-export the public pipeline functions so `crate::verify_content_inner`
 // and `crate::verify_url_inner` continue to resolve from the crate root
@@ -1777,11 +1776,20 @@ fn verify_url_blocking(
     }
 
     // Block requests to loopback, private, and link-local addresses
+    // The host as written, then what a hostname resolves to (net_guard).
+    let mut pin: Option<(String, Vec<std::net::SocketAddr>)> = None;
     if let Some(host) = parsed.host_str() {
-        if is_private_or_loopback_host(host) {
-            return Err(AppError::Validation(
-                "Cannot verify URLs pointing to local or private network addresses.".to_string(),
-            ));
+        match net_guard::check_host(host) {
+            net_guard::HostCheck::Blocked => {
+                return Err(AppError::Validation(
+                    "Cannot verify URLs pointing to local or private network addresses."
+                        .to_string(),
+                ));
+            }
+            net_guard::HostCheck::Public(addrs) if !addrs.is_empty() => {
+                pin = Some((host.to_string(), addrs));
+            }
+            net_guard::HostCheck::Public(_) | net_guard::HostCheck::Unresolved => {}
         }
     } else {
         return Err(AppError::Validation(
@@ -1790,7 +1798,7 @@ fn verify_url_blocking(
     }
 
     // SECURITY: custom redirect policy re-validates each hop against the SSRF blocklist
-    let response = reqwest::blocking::Client::builder()
+    let mut builder = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         // An honest, identifiable User-Agent. Many image CDNs / WAFs (e.g.
         // Fastly, Cloudflare, Akamai fronting newsrooms like the Guardian)
@@ -1809,12 +1817,17 @@ fn verify_url_blocking(
                 return attempt.error("too many redirects");
             }
             if let Some(host) = attempt.url().host_str() {
-                if is_private_or_loopback_host(host) {
+                if net_guard::check_host(host) == net_guard::HostCheck::Blocked {
                     return attempt.error("redirect to private address blocked");
                 }
             }
             attempt.follow()
-        }))
+        }));
+    // Connect to the addresses that were checked, not to a second lookup.
+    if let Some((host, addrs)) = &pin {
+        builder = builder.resolve_to_addrs(host, addrs);
+    }
+    let response = builder
         .build()
         .map_err(|e| AppError::Internal(format!("Failed to build HTTP client: {e}")))?
         .get(&url)

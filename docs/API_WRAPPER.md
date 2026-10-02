@@ -259,8 +259,16 @@ The server downloads the URL itself, then verifies it as above. Only `http`
 and `https` are accepted. A URL whose host is written as a loopback or
 private address (`localhost`, `127.0.0.1`, `10.x`, `192.168.x`, `172.16.x` to
 `172.31.x`, `169.254.x`) is refused with `400`, and each redirect, up to five,
-is checked the same way. The check reads the host as written and does not
-resolve it, so it is not a complete guard against reaching local services.
+is checked the same way. In v1.1.0 the check reads the host as written and
+does not resolve it, and it misses IPv6 forms such as `[::1]`, so it is not a
+complete guard against reaching local services. **(v1.2.0)** IPv4 and IPv6
+addresses are parsed, not matched as text, and a hostname is looked up: if it
+resolves only to local or private addresses the URL is refused, and the
+download connects to the addresses that were checked. Two limits remain. A
+name that does not resolve on this machine is passed to the HTTP client,
+because behind a proxy only the proxy resolves public names. And on a
+redirect the new host is checked but could change its answer before the
+connection.
 The download times out after 30 seconds.
 Default mode **`standard`**. Statuses as for `POST /api/v1/verify`.
 

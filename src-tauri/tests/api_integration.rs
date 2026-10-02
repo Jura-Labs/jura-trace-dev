@@ -1311,6 +1311,82 @@ fn verify_row_persisted() {
     drop(tmp_png);
 }
 
+// ── URL route: local and private addresses ───────────────────────────────────
+
+async fn post_verify_url(target: &str) -> (StatusCode, Value) {
+    let state = build_test_state_async().await;
+    let bootstrap_raw = insert_bootstrap_key(state.clone()).await;
+    let (listener, _) = bind_random_port();
+    let base_url = start_test_server(state, listener).await;
+    let resp = reqwest::Client::new()
+        .post(format!("{base_url}/api/v1/verify/url"))
+        .header("Authorization", format!("Bearer jt_{bootstrap_raw}"))
+        .json(&serde_json::json!({ "url": target, "mode": "quick" }))
+        .send()
+        .await
+        .expect("request");
+    let status = resp.status();
+    (status, resp.json().await.expect("json"))
+}
+
+/// The URL route refuses this machine however it is written. Before
+/// v1.2.0 the check compared strings: `[::1]` did not match `::1`, so the
+/// IPv6 forms were fetched.
+///
+/// The listener counts connections, so the test fails if the server so much
+/// as connects, not only if it answers with the wrong status.
+#[tokio::test]
+async fn test_verify_url_refuses_local_addresses_in_every_spelling() {
+    let v6 = std::net::TcpListener::bind("[::1]:0").expect("bind [::1]");
+    let port = v6.local_addr().unwrap().port();
+    let v4 = std::net::TcpListener::bind(("127.0.0.1", port));
+    let hits = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    for listener in std::iter::once(v6).chain(v4.ok()) {
+        let hits = Arc::clone(&hits);
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                drop(stream);
+            }
+        });
+    }
+
+    for target in [
+        format!("http://[::1]:{port}/a.jpg"),
+        format!("http://[::ffff:127.0.0.1]:{port}/a.jpg"),
+        format!("http://127.0.0.1:{port}/a.jpg"),
+        format!("http://2130706433:{port}/a.jpg"),
+        format!("http://localhost:{port}/a.jpg"),
+        format!("http://app.localhost:{port}/a.jpg"),
+    ] {
+        let (status, body) = post_verify_url(&target).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{target}: {body}");
+        assert!(
+            body["message"]
+                .as_str()
+                .unwrap_or("")
+                .contains("local or private"),
+            "{target}: {body}"
+        );
+    }
+    assert_eq!(
+        hits.load(std::sync::atomic::Ordering::SeqCst),
+        0,
+        "the server connected to a local address"
+    );
+}
+
+/// A public URL still downloads through the pinned client. Needs the
+/// network, so it does not run in CI: `cargo test -- --ignored public_url`.
+#[tokio::test]
+#[ignore = "needs network access"]
+async fn test_verify_url_still_fetches_a_public_url() {
+    let (status, body) = post_verify_url("https://www.w3.org/Graphics/PNG/nurbcup2si.png").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["data"]["contentType"], "image", "{body}");
+    assert_eq!(body["data"]["sourceType"], "url", "{body}");
+}
+
 // ── Test image helper ─────────────────────────────────────────────────────────
 
 /// A valid 16×16 pixel PNG in raw bytes.
