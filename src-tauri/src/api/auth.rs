@@ -6,7 +6,8 @@
 //! raw key, and validates it against the `api_keys` table. Returns 401 when the
 //! key is missing, malformed, or revoked.
 //!
-//! Routes that bypass auth: `GET /api/v1/health` and `GET /openapi.json`.
+//! Routes that bypass auth: `GET /api/v1/health`, `GET /api/v1/ready` and
+//! `GET /openapi.json`.
 
 use axum::{
     extract::{Request, State},
@@ -43,6 +44,8 @@ pub async fn require_api_key(
     // of the `/api` prefix by axum — use `/v1/health` not `/api/v1/health`.
     if path == "/v1/health"
         || path == "/api/v1/health"
+        || path == "/v1/ready"
+        || path == "/api/v1/ready"
         || path == "/openapi.json"
         || path.starts_with("/swagger-ui")
     {

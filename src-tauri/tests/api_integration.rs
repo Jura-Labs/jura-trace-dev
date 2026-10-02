@@ -50,6 +50,7 @@ fn build_test_state() -> (Arc<Mutex<AppState>>, tempfile::TempDir) {
         sidecar_port: 8200,
         sidecar_startup_status: std::sync::Arc::new(std::sync::atomic::AtomicU8::new(0)),
         sidecar_startup_started_at: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        sidecar_status_since: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
     };
 
     (Arc::new(Mutex::new(state)), dir)
@@ -674,7 +675,7 @@ async fn test_swagger_ui_served_locally() {
     );
 }
 
-/// Test 11: Empty file upload returns 400 Bad Request.
+/// Test 11: Empty file upload returns 400 with its own code, `EmptyFile`.
 #[tokio::test]
 async fn test_verify_empty_file_rejected() {
     let state = build_test_state_async().await;
@@ -703,7 +704,7 @@ async fn test_verify_empty_file_rejected() {
 
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     let body: Value = resp.json().await.expect("json");
-    assert_eq!(body["code"], "BadRequest");
+    assert_eq!(body["code"], "EmptyFile");
 }
 
 /// Test 12: Fingerprint endpoint returns hashes for a valid image.
@@ -862,6 +863,8 @@ async fn test_batch_verify_no_files() {
         .expect("request");
 
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let body: Value = resp.json().await.expect("json");
+    assert_eq!(body["code"], "MissingField");
 }
 
 /// Test 16: Verify endpoint streams the multipart upload to a tempfile rather
@@ -1032,6 +1035,7 @@ fn build_sync_state_at(
         sidecar_port,
         sidecar_startup_status: Arc::new(std::sync::atomic::AtomicU8::new(0)),
         sidecar_startup_started_at: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        sidecar_status_since: Arc::new(std::sync::atomic::AtomicU64::new(0)),
     };
     (Arc::new(Mutex::new(state)), dir)
 }
@@ -1309,6 +1313,428 @@ fn verify_row_persisted() {
     );
 
     drop(tmp_png);
+}
+
+// ── v1.2.0 B2a stage 2: API corrections ──────────────────────────────────────
+
+/// Start a server on a fresh state and return its base URL and a key.
+async fn server_with_key() -> (String, String, Arc<Mutex<AppState>>) {
+    let state = build_test_state_async().await;
+    let bootstrap_raw = insert_bootstrap_key(state.clone()).await;
+    let (listener, _) = bind_random_port();
+    let base_url = start_test_server(state.clone(), listener).await;
+    (base_url, format!("Bearer jt_{bootstrap_raw}"), state)
+}
+
+fn png_part() -> reqwest::multipart::Part {
+    reqwest::multipart::Part::bytes(minimal_png())
+        .file_name("test.png")
+        .mime_str("image/png")
+        .unwrap()
+}
+
+/// Every verify response carries the `verdict` block, and it is the band
+/// the screen shows. A quick-mode image runs neither ELA nor the deepfake
+/// detector, which the screen calls "Inconclusive / Insufficient signal"
+/// whatever the score.
+#[tokio::test]
+async fn test_verify_response_carries_the_verdict_block() {
+    let (base_url, auth, _) = server_with_key().await;
+    let form = reqwest::multipart::Form::new()
+        .text("mode", "quick")
+        .part("file", png_part());
+    let resp = reqwest::Client::new()
+        .post(format!("{base_url}/api/v1/verify"))
+        .header("Authorization", &auth)
+        .multipart(form)
+        .send()
+        .await
+        .expect("request");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body: Value = resp.json().await.expect("json");
+    let data = &body["data"];
+    let verdict = &data["verdict"];
+    assert_eq!(verdict["band"], "inconclusive", "{body}");
+    assert_eq!(verdict["ceilingApplied"], "insufficientSignal", "{body}");
+    assert_eq!(verdict["score"], data["overallTrust"], "{body}");
+    assert_eq!(verdict["bandBoundaries"]["trusted"], 0.7, "{body}");
+    assert_eq!(verdict["bandBoundaries"]["uncertain"], 0.4, "{body}");
+    // The floor: the detectors that would make it conclusive really are
+    // absent, so the band is not inconclusive for some other reason.
+    let ran: Vec<&str> = data["detectorsRun"]
+        .as_array()
+        .expect("detectorsRun")
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+    assert!(!ran.is_empty(), "{body}");
+    assert!(
+        !ran.contains(&"ela") && !ran.contains(&"deepfake"),
+        "{body}"
+    );
+}
+
+/// `mode` is accepted in the query string, where every example in the old
+/// documentation put it and where it was silently ignored.
+#[tokio::test]
+async fn test_mode_is_read_from_the_query_string() {
+    let (base_url, auth, _) = server_with_key().await;
+    let client = reqwest::Client::new();
+    let post = |url: String, form: reqwest::multipart::Form| {
+        client
+            .post(url)
+            .header("Authorization", &auth)
+            .multipart(form)
+            .send()
+    };
+
+    // Query only. Without the fix this ran the default, deep.
+    let resp = post(
+        format!("{base_url}/api/v1/verify?mode=quick"),
+        reqwest::multipart::Form::new().part("file", png_part()),
+    )
+    .await
+    .expect("request");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body: Value = resp.json().await.expect("json");
+    assert_eq!(body["data"]["mode"], "quick", "{body}");
+
+    // Neither: the default is still deep.
+    let resp = post(
+        format!("{base_url}/api/v1/verify"),
+        reqwest::multipart::Form::new().part("file", png_part()),
+    )
+    .await
+    .expect("request");
+    let body: Value = resp.json().await.expect("json");
+    assert_eq!(body["data"]["mode"], "deep", "{body}");
+
+    // Both, agreeing.
+    let resp = post(
+        format!("{base_url}/api/v1/verify?mode=quick"),
+        reqwest::multipart::Form::new()
+            .text("mode", "quick")
+            .part("file", png_part()),
+    )
+    .await
+    .expect("request");
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // Both, disagreeing: refused, and the message names both values.
+    let resp = post(
+        format!("{base_url}/api/v1/verify?mode=quick"),
+        reqwest::multipart::Form::new()
+            .text("mode", "standard")
+            .part("file", png_part()),
+    )
+    .await
+    .expect("request");
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let body: Value = resp.json().await.expect("json");
+    assert_eq!(body["code"], "InvalidParameter", "{body}");
+    let message = body["message"].as_str().unwrap_or("");
+    assert!(
+        message.contains("quick") && message.contains("standard"),
+        "{body}"
+    );
+
+    // The batch route takes it the same way.
+    let resp = post(
+        format!("{base_url}/api/v1/verify/batch?mode=quick"),
+        reqwest::multipart::Form::new().part("files", png_part()),
+    )
+    .await
+    .expect("request");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body: Value = resp.json().await.expect("json");
+    assert_eq!(
+        body["data"]["items"][0]["result"]["mode"], "quick",
+        "{body}"
+    );
+}
+
+/// `mime_type` and `concurrency` were documented and never implemented.
+/// They are refused by name; any other unknown parameter is ignored.
+#[tokio::test]
+async fn test_unimplemented_parameters_are_refused_by_name() {
+    let (base_url, auth, _) = server_with_key().await;
+    let client = reqwest::Client::new();
+    for (path, field, param) in [
+        ("/api/v1/verify", "file", "mime_type=image/png"),
+        ("/api/v1/verify/batch", "files", "concurrency=4"),
+    ] {
+        let name = param.split('=').next().unwrap();
+        let resp = client
+            .post(format!("{base_url}{path}?{param}"))
+            .header("Authorization", &auth)
+            .multipart(reqwest::multipart::Form::new().part(field, png_part()))
+            .send()
+            .await
+            .expect("request");
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "{path}");
+        let body: Value = resp.json().await.expect("json");
+        assert_eq!(body["code"], "UnsupportedParameter", "{body}");
+        assert!(
+            body["message"].as_str().unwrap_or("").contains(name),
+            "{body}"
+        );
+    }
+
+    let resp = client
+        .post(format!("{base_url}/api/v1/verify?mode=quick&trace_id=abc"))
+        .header("Authorization", &auth)
+        .multipart(reqwest::multipart::Form::new().part("file", png_part()))
+        .send()
+        .await
+        .expect("request");
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+/// A missing field, unsupported content and an oversized body each have
+/// their own `code`. (An empty file is covered by Test 11.)
+#[tokio::test]
+async fn test_caller_mistakes_have_distinct_codes() {
+    let (base_url, auth, _) = server_with_key().await;
+    let client = reqwest::Client::new();
+
+    let resp = client
+        .post(format!("{base_url}/api/v1/verify"))
+        .header("Authorization", &auth)
+        .multipart(reqwest::multipart::Form::new().text("mode", "quick"))
+        .send()
+        .await
+        .expect("request");
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let body: Value = resp.json().await.expect("json");
+    assert_eq!(body["code"], "MissingField", "{body}");
+
+    // Bytes no format detector recognises.
+    let junk = reqwest::multipart::Part::bytes(b"this is not a media file at all".to_vec())
+        .file_name("notes.xyz");
+    let resp = client
+        .post(format!("{base_url}/api/v1/verify"))
+        .header("Authorization", &auth)
+        .multipart(reqwest::multipart::Form::new().part("file", junk))
+        .send()
+        .await
+        .expect("request");
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let body: Value = resp.json().await.expect("json");
+    assert_eq!(body["code"], "UnsupportedFormat", "{body}");
+
+    // In a batch the same file fails alone and the others still run.
+    let junk = reqwest::multipart::Part::bytes(b"this is not a media file at all".to_vec())
+        .file_name("notes.xyz");
+    let resp = client
+        .post(format!("{base_url}/api/v1/verify/batch?mode=quick"))
+        .header("Authorization", &auth)
+        .multipart(
+            reqwest::multipart::Form::new()
+                .part("files", junk)
+                .part("files", png_part()),
+        )
+        .send()
+        .await
+        .expect("request");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body: Value = resp.json().await.expect("json");
+    assert_eq!(body["data"]["succeeded"], 1, "{body}");
+    assert_eq!(body["data"]["failed"], 1, "{body}");
+    assert!(
+        body["data"]["items"][0]["error"]
+            .as_str()
+            .unwrap_or("")
+            .contains("not supported"),
+        "{body}"
+    );
+
+    // Over the 200 MB limit, declared in Content-Length. The server answers
+    // from the header, so the test sends no body.
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let addr = base_url.trim_start_matches("http://");
+    let mut stream = tokio::net::TcpStream::connect(addr).await.expect("connect");
+    let head = format!(
+        "POST /api/v1/verify HTTP/1.1\r\nHost: {addr}\r\nAuthorization: {auth}\r\n\
+         Content-Type: multipart/form-data; boundary=x\r\nContent-Length: 300000000\r\n\
+         Connection: close\r\n\r\n"
+    );
+    stream.write_all(head.as_bytes()).await.expect("write");
+    let mut raw = Vec::new();
+    let _ = tokio::time::timeout(Duration::from_secs(10), stream.read_to_end(&mut raw)).await;
+    let raw = String::from_utf8_lossy(&raw);
+    assert!(raw.starts_with("HTTP/1.1 413"), "{raw}");
+    assert!(raw.contains("\"code\":\"PayloadTooLarge\""), "{raw}");
+}
+
+/// The watermark routes are not in this build: not served, not documented.
+/// `/api/v1/ready` is documented.
+#[cfg(not(feature = "watermark"))]
+#[tokio::test]
+async fn test_watermark_routes_are_compiled_out() {
+    let (base_url, auth, _) = server_with_key().await;
+    let client = reqwest::Client::new();
+    for route in ["embed", "extract"] {
+        let resp = client
+            .post(format!("{base_url}/api/v1/protect/watermark/{route}"))
+            .header("Authorization", &auth)
+            .multipart(reqwest::multipart::Form::new().part("file", png_part()))
+            .send()
+            .await
+            .expect("request");
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "{route}");
+    }
+
+    let spec: Value = reqwest::get(format!("{base_url}/openapi.json"))
+        .await
+        .expect("request")
+        .json()
+        .await
+        .expect("json");
+    let paths = spec["paths"].as_object().expect("paths");
+    // The floor: the document is not simply empty.
+    assert!(paths.len() >= 10, "only {} paths documented", paths.len());
+    assert!(paths.contains_key("/api/v1/ready"));
+    assert!(
+        !paths.keys().any(|p| p.contains("watermark")),
+        "watermark routes are still documented: {:?}",
+        paths.keys().collect::<Vec<_>>()
+    );
+}
+
+/// `/api/v1/ready` needs no key and reports the cached sidecar state.
+#[tokio::test]
+async fn test_ready_reports_the_cached_sidecar_state() {
+    use jura_trace_lib::SidecarStartupStatus;
+    use std::sync::atomic::Ordering;
+
+    let (base_url, _, state) = server_with_key().await;
+    let (status, since) = {
+        let g = state.lock().unwrap();
+        (
+            Arc::clone(&g.sidecar_startup_status),
+            Arc::clone(&g.sidecar_status_since),
+        )
+    };
+    let ready = || async {
+        let resp = reqwest::get(format!("{base_url}/api/v1/ready"))
+            .await
+            .expect("request");
+        assert_eq!(resp.status(), StatusCode::OK);
+        resp.json::<Value>().await.expect("json")
+    };
+
+    let body = ready().await;
+    assert_eq!(body["data"]["server"], "ready", "{body}");
+    assert_eq!(body["data"]["sidecar"], "absent", "{body}");
+    assert_eq!(body["data"]["sidecarPort"], 8200, "{body}");
+    assert_eq!(body["degraded"], true, "{body}");
+    assert!(body["data"]["sidecarSince"].is_null(), "{body}");
+    assert!(body["data"]["detail"].is_string(), "{body}");
+
+    status.store(SidecarStartupStatus::Connecting.to_u8(), Ordering::Relaxed);
+    assert_eq!(ready().await["data"]["sidecar"], "starting");
+
+    status.store(SidecarStartupStatus::Ready.to_u8(), Ordering::Relaxed);
+    since.store(1_793_610_847, Ordering::Relaxed);
+    let body = ready().await;
+    assert_eq!(body["data"]["sidecar"], "ready", "{body}");
+    assert_eq!(
+        body["data"]["sidecarSince"], "2026-11-02T09:14:07Z",
+        "{body}"
+    );
+    assert!(body["data"]["detail"].is_null(), "{body}");
+    assert_eq!(body["degraded"], false, "{body}");
+
+    // 3 is the supervisor's Failed.
+    status.store(3, Ordering::Relaxed);
+    let body = ready().await;
+    assert_eq!(body["data"]["sidecar"], "failed", "{body}");
+    assert_eq!(body["degraded"], true, "{body}");
+}
+
+/// The cached flag must not go stale (BL-SILENT-001): kill the sidecar out
+/// from under a running server and `/api/v1/ready` says `failed` within the
+/// supervisor's one-second watch interval, with a later `sidecarSince`.
+///
+/// The sidecar here is a shell script that stays alive, with the test
+/// answering `/health/ready` on its port. The real supervisor spawns it and
+/// watches it.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn test_ready_turns_failed_when_the_sidecar_dies() {
+    use jura_trace_lib::sidecar_supervisor::SidecarSupervisor;
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("temp dir");
+    let pid_file = dir.path().join("pid");
+    let script = dir.path().join("fake-sidecar");
+    std::fs::write(
+        &script,
+        format!(
+            "#!/bin/sh\necho $$ > '{}'\nexec sleep 120\n",
+            pid_file.display()
+        ),
+    )
+    .expect("write script");
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+
+    let (stub_port, _) = spawn_stub_sidecar(Duration::from_millis(0));
+    let supervisor = tokio::task::spawn_blocking({
+        let script = script.clone();
+        move || {
+            let s = SidecarSupervisor::spawn(&script, None, stub_port, "k").expect("spawn");
+            s.wait_ready(Duration::from_secs(20)).expect("ready");
+            s
+        }
+    })
+    .await
+    .expect("join");
+
+    let state = build_test_state_async().await;
+    state.lock().unwrap().sidecar_process = Some(supervisor);
+    let (listener, _) = bind_random_port();
+    let base_url = start_test_server(state.clone(), listener).await;
+    let ready = || async {
+        reqwest::get(format!("{base_url}/api/v1/ready"))
+            .await
+            .expect("request")
+            .json::<Value>()
+            .await
+            .expect("json")
+    };
+
+    let before = ready().await;
+    assert_eq!(before["data"]["sidecar"], "ready", "{before}");
+    assert_eq!(before["degraded"], false, "{before}");
+
+    let pid = std::fs::read_to_string(&pid_file).expect("pid file");
+    let killed = std::process::Command::new("kill")
+        .args(["-KILL", pid.trim()])
+        .status()
+        .expect("run kill");
+    assert!(killed.success(), "kill {pid} failed");
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    let after = loop {
+        let body = ready().await;
+        if body["data"]["sidecar"] == "failed" {
+            break body;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "still not failed 3 s after the sidecar was killed: {body}"
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    };
+    assert_eq!(after["degraded"], true, "{after}");
+    assert!(after["data"]["detail"].is_string(), "{after}");
+
+    // Dropping the supervisor inside the runtime would block; hand it to a
+    // blocking thread.
+    let supervisor = state.lock().unwrap().sidecar_process.take();
+    tokio::task::spawn_blocking(move || drop(supervisor))
+        .await
+        .expect("join");
 }
 
 // ── Test image helper ─────────────────────────────────────────────────────────

@@ -173,6 +173,11 @@ pub struct AppState {
     /// same start-time so the elapsed counter measures total session uptime,
     /// not respawn freshness).
     pub sidecar_startup_started_at: Arc<AtomicU64>,
+    /// Unix seconds of the last sidecar state change, for `/api/v1/ready`
+    /// in the headless binary, where the supervisor writes it. The desktop
+    /// app keeps its supervisor in `sidecar_process` and `/api/v1/ready`
+    /// asks that directly, so this stays at its initial value there.
+    pub sidecar_status_since: Arc<AtomicU64>,
 }
 
 /// The licence tier active for this installation.

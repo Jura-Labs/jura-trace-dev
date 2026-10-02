@@ -7,7 +7,7 @@
 
 import JSZip from 'jszip';
 import type { VerificationResult } from './types';
-import { getTrustLevel } from './types';
+import { trustLevelLabel } from './types';
 import { DETECTOR_ID_LABELS } from './detectorLabels';
 
 export interface CaseExportMeta {
@@ -25,7 +25,6 @@ export async function exportCaseZip(
   const zip = new JSZip();
   const version = meta.appVersion ?? '1.0.0';
   const trustPercent = Math.round(result.overallTrust * 100);
-  const trustLevel = getTrustLevel(result.overallTrust);
 
   // ── README.txt ──────────────────────────────────────────────
   const readme = [
@@ -35,7 +34,7 @@ export async function exportCaseZip(
     `File: ${meta.fileName}`,
     `File Size: ${formatBytes(meta.fileSize)}`,
     `Exported: ${new Date(meta.exportedAt).toLocaleString('en-GB')}`,
-    `Trust Score: ${trustPercent}% (${trustLevel === 'high' ? 'High Trust' : trustLevel === 'medium' ? 'Moderate Trust' : 'Low Trust'})`,
+    `Trust Score: ${trustPercent}% (${trustLevelLabel(result)})`,
     `Source Type: ${result.sourceType}`,
     `Content Type: ${result.contentType}`,
     '',

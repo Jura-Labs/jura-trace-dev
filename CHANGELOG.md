@@ -6,6 +6,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Unreleased: v1.2.0
+
+Local REST API (`docs/API_WRAPPER.md`):
+
+- `[schema]` Every verification result has a new `verdict` object: `band`
+  (`trusted`, `uncertain`, `untrusted`, `inconclusive`), `score`,
+  `ceilingApplied` and `bandBoundaries`. It is the band the app shows, now
+  computed once in the backend. Additive.
+- `[schema]` New endpoint `GET /api/v1/ready`: the analysis engine's state
+  (`starting`, `ready`, `absent`, `failed`) without a call to it. No key.
+- `[schema]` Error codes. A missing multipart field is `MissingField` and an
+  empty upload is `EmptyFile`, where both were `BadRequest`. An oversized
+  body is `413 PayloadTooLarge` with a JSON body, where it had none. New:
+  `InvalidParameter`, `UnsupportedParameter`. HTTP statuses are unchanged.
+- `[schema]` `POST /api/v1/verify` and `/verify/batch` refuse content the
+  pipeline does not analyse with `422 UnsupportedFormat` (per item in a
+  batch). They used to answer `200` with a score no detector stood behind.
+- `mode` is read from the query string on the three verify routes. It was
+  ignored there. Query and body must agree if both are sent.
+- `mime_type` and `concurrency` as query parameters are refused with `400`.
+  They were ignored.
+- `[schema]` The two watermark routes, which could only answer `503`, are
+  no longer served or listed in the OpenAPI document.
+- The PDF report and case export print the same trust band as the screen.
+  They banded the raw score, so a capped result read "High Trust" on paper
+  and "Moderate Trust" in the app.
+
 ## 11 September 2026: v1.1.0, auto-update works
 
 Jura Trace v1.0.0 was published in June 2026, and until now no update has

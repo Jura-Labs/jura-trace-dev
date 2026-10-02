@@ -7,7 +7,7 @@
 
 import { jsPDF } from 'jspdf';
 import type { VerificationResult, VerifyMode } from './types';
-import { getTrustLevel } from './types';
+import { trustLevelLabel } from './types';
 import { DETECTOR_ID_LABELS } from './detectorLabels';
 import {
   C2PA_ACTION_LABELS,
@@ -544,10 +544,9 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
   // ── Summary ─────────────────────────────────────────────────
   heading('Summary');
   const trustPercent = Math.round(result.overallTrust * 100);
-  const trustLevel = getTrustLevel(result.overallTrust);
   row('File', meta.fileName);
   row('File Size', formatBytes(meta.fileSize));
-  row('Trust Score', `${trustPercent}% (${trustLevel === 'high' ? 'High Trust' : trustLevel === 'medium' ? 'Moderate Trust' : 'Low Trust'})`);
+  row('Trust Score', `${trustPercent}% (${trustLevelLabel(result)})`);
   row('Source Type', result.sourceType);
   row('Content Type', result.contentType);
   if (result.aiGenerator) {

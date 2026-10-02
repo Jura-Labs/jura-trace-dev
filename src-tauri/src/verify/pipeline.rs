@@ -15,6 +15,7 @@ use super::types::{
 use crate::error::AppError;
 use crate::verify::input_quality::assess_input_quality;
 use crate::verify::trust::{compute_trust, document_trust};
+use crate::verify::verdict::{compute_verdict, VerdictInputs};
 use crate::AppState;
 use crate::{c2pa, exif_anomaly, filename_analysis, fingerprint, format_router, heatmap};
 use crate::{metadata, pdf_provenance, sidecar};
@@ -1701,6 +1702,17 @@ pub fn verify_content_inner(
     );
     log::info!("PERF: total pipeline took {:?}", t_pipeline.elapsed());
 
+    let verdict = compute_verdict(&VerdictInputs {
+        overall_trust,
+        detectors_run: &detectors_run_list,
+        exif_analysis: exif_analysis.as_ref(),
+        image_metadata: raw_exif_meta.as_ref(),
+        c2pa_valid,
+        c2pa_manifest: c2pa_manifest.as_ref(),
+        c2pa_chain: c2pa_chain.as_ref(),
+        deepfake_result: deepfake_result.as_ref(),
+    });
+
     Ok(VerificationResult {
         source_type: source_type.to_string(),
         content_type: info.content_type.as_str().to_string(),
@@ -1713,6 +1725,7 @@ pub fn verify_content_inner(
         metadata_flags,
         claim_verdict: None,
         overall_trust,
+        verdict: Some(verdict),
         exif_analysis,
         image_metadata: raw_exif_meta,
         c2pa_manifest,

@@ -510,8 +510,29 @@ export interface ContentTypeResult {
   reasoning: string;
 }
 
+/** Trust band, computed in Rust (`src-tauri/src/verify/verdict.rs`). */
+export type VerdictBand = 'trusted' | 'uncertain' | 'untrusted' | 'inconclusive';
+
+/** Why the band is not simply the score's own band. */
+export type VerdictCeiling =
+  | 'insufficientSignal'
+  | 'noPositiveAuthenticitySignal'
+  | 'deepfakeInconclusive'
+  | 'deepfakeSynthetic';
+
+/** The `verdict` block on a verification result (v1.2.0). */
+export interface Verdict {
+  band: VerdictBand;
+  /** The same number as `overallTrust`. */
+  score: number;
+  ceilingApplied: VerdictCeiling | null;
+  bandBoundaries: { trusted: number; uncertain: number };
+}
+
 /** Verification result from the VERIFY pipeline */
 export interface VerificationResult {
+  /** Trust band with any cap applied. Absent on results saved before v1.2.0. */
+  verdict?: Verdict | null;
   /** Investigation mode used: 'standard' | 'deep' | 'archival' */
   mode?: string;
   /** SHA-256 hash of the input file, if computed by the backend. */
@@ -1197,6 +1218,38 @@ export function getTrustLevel(score: number): TrustLevel {
   if (score >= 0.7) return 'high';
   if (score >= 0.4) return 'medium';
   return 'low';
+}
+
+/** A trust level as shown: the three score bands, or no usable verdict. */
+export type DisplayTrustLevel = TrustLevel | 'inconclusive';
+
+const BAND_LEVEL: Record<VerdictBand, DisplayTrustLevel> = {
+  trusted: 'high',
+  uncertain: 'medium',
+  untrusted: 'low',
+  inconclusive: 'inconclusive',
+};
+
+/**
+ * The trust level of a result from its `verdict` block, which the backend
+ * computes once so the screen, the reports and the REST API cannot disagree.
+ * Returns null for a result saved before v1.2.0, which has no block; callers
+ * then fall back to what they did before.
+ */
+export function verdictTrustLevel(
+  result: Pick<VerificationResult, 'verdict'>
+): DisplayTrustLevel | null {
+  const band = result.verdict?.band;
+  return band ? (BAND_LEVEL[band] ?? null) : null;
+}
+
+/** Report wording for a result's trust level. */
+export function trustLevelLabel(result: Pick<VerificationResult, 'verdict' | 'overallTrust'>): string {
+  const level = verdictTrustLevel(result) ?? getTrustLevel(result.overallTrust);
+  if (level === 'high') return 'High Trust';
+  if (level === 'medium') return 'Moderate Trust';
+  if (level === 'low') return 'Low Trust';
+  return 'Inconclusive';
 }
 
 /** Parse the metadataJson field from an asset */
