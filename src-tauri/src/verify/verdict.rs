@@ -45,7 +45,8 @@ pub enum Ceiling {
     /// Image content where neither ELA nor the deepfake detector ran.
     InsufficientSignal,
     /// The score alone would be `trusted`, but nothing positive supports
-    /// authenticity: no camera MakerNote, no valid Content Credentials, no
+    /// authenticity: no camera MakerNote, no valid Content Credentials (or
+    /// valid ones declaring a source other than a camera capture), no
     /// recognised camera make and model with clean EXIF.
     NoPositiveAuthenticitySignal,
     /// The score alone would be `trusted`, but the deepfake detector
@@ -147,8 +148,9 @@ fn has_positive_authenticity_signal(i: &VerdictInputs<'_>) -> bool {
     {
         return true;
     }
-    // (b) Valid Content Credentials that carry no digitalSourceType at all.
-    if i.c2pa_valid == Some(true) && !declares_digital_source_type(i) {
+    // (b) Valid Content Credentials that declare no source type, or declare
+    // a camera capture and nothing else.
+    if i.c2pa_valid == Some(true) && !declares_non_capture_source_type(i) {
         return true;
     }
     // (c) A recognised camera make, a model, and no high-severity EXIF
@@ -172,40 +174,45 @@ fn has_positive_authenticity_signal(i: &VerdictInputs<'_>) -> bool {
     false
 }
 
+/// The one declared source type that leaves valid Content Credentials
+/// counting as positive evidence: a camera capture. Decided 2 October 2026.
+/// Until then any declared type, this one included, stopped them counting.
+const CAPTURE_SOURCE_TYPE: &str = "digitalCapture";
+
 /// True when any manifest in the chain (active first, then ingredients)
-/// carries a `digitalSourceType`, on an assertion or on one of its actions.
-///
-/// This is any declared type, a camera capture as much as an AI one. That
-/// is what the frontend rule did and this port keeps it; see the PR that
-/// added this module for the note on it.
-fn declares_digital_source_type(i: &VerdictInputs<'_>) -> bool {
+/// declares a `digitalSourceType` other than a camera capture, on an
+/// assertion or on one of its actions. The value may be a bare name or the
+/// IPTC URI; the last path segment is what is compared.
+fn declares_non_capture_source_type(i: &VerdictInputs<'_>) -> bool {
     let manifests: Vec<&c2pa::ManifestInfo> = match i.c2pa_chain {
         Some(chain) => std::iter::once(&chain.active)
             .chain(chain.ingredients.iter())
             .collect(),
         None => i.c2pa_manifest.into_iter().collect(),
     };
-    let non_empty_str =
-        |v: Option<&serde_json::Value>| v.and_then(|v| v.as_str()).is_some_and(|s| !s.is_empty());
+    let is_other = |v: Option<&serde_json::Value>| {
+        v.and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .is_some_and(|s| s.rsplit(['/', '#']).next() != Some(CAPTURE_SOURCE_TYPE))
+    };
     manifests
         .iter()
         .flat_map(|m| m.assertions.iter())
         .filter_map(|a| serde_json::from_str::<serde_json::Value>(&a.value).ok())
         .any(|parsed| {
-            let direct = match parsed.get("digitalSourceType") {
-                Some(v) if !v.is_null() => Some(v),
-                _ => parsed
-                    .get("schema_org")
-                    .and_then(|s| s.get("digitalSourceType")),
-            };
-            non_empty_str(direct)
+            is_other(parsed.get("digitalSourceType"))
+                || is_other(
+                    parsed
+                        .get("schema_org")
+                        .and_then(|s| s.get("digitalSourceType")),
+                )
                 || parsed
                     .get("actions")
                     .and_then(|a| a.as_array())
                     .is_some_and(|actions| {
                         actions
                             .iter()
-                            .any(|action| non_empty_str(action.get("digitalSourceType")))
+                            .any(|action| is_other(action.get("digitalSourceType")))
                     })
         })
 }
@@ -383,28 +390,63 @@ mod tests {
     }
 
     #[test]
-    fn valid_credentials_count_only_without_a_digital_source_type() {
+    fn valid_credentials_count_unless_they_declare_a_non_capture_source() {
         let plain = manifest(r#"{"actions":[{"action":"c2pa.edited"}]}"#);
         let mut i = inputs(0.8, IMAGE_RUN);
         i.c2pa_valid = Some(true);
         i.c2pa_manifest = Some(&plain);
         assert_eq!(compute_verdict(&i).band, Band::Trusted);
 
+        // A declared camera capture counts, as a bare name or the IPTC URI,
+        // wherever it is declared.
         for declared in [
-            r#"{"actions":[{"action":"c2pa.created","digitalSourceType":"http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"}]}"#,
-            r#"{"digitalSourceType":"trainedAlgorithmicMedia"}"#,
+            r#"{"actions":[{"action":"c2pa.created","digitalSourceType":"http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture"}]}"#,
+            r#"{"digitalSourceType":"digitalCapture"}"#,
             r#"{"schema_org":{"digitalSourceType":"digitalCapture"}}"#,
         ] {
             let m = manifest(declared);
             let mut i = inputs(0.8, IMAGE_RUN);
             i.c2pa_valid = Some(true);
             i.c2pa_manifest = Some(&m);
-            assert_eq!(compute_verdict(&i).band, Band::Uncertain, "{declared}");
+            let v = compute_verdict(&i);
+            assert_eq!(
+                (v.band, v.ceiling_applied),
+                (Band::Trusted, None),
+                "{declared}"
+            );
         }
 
-        // Invalid credentials never count.
+        // Anything else still does not: AI types, and types that are
+        // neither AI nor a plain camera capture.
+        for declared in [
+            r#"{"actions":[{"action":"c2pa.created","digitalSourceType":"http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"}]}"#,
+            r#"{"digitalSourceType":"trainedAlgorithmicMedia"}"#,
+            r#"{"schema_org":{"digitalSourceType":"compositeWithTrainedAlgorithmicMedia"}}"#,
+            r#"{"digitalSourceType":"computationalCapture"}"#,
+            r#"{"digitalSourceType":"notdigitalCapture"}"#,
+            // A capture on one action does not excuse an AI type on another.
+            r#"{"actions":[{"digitalSourceType":"digitalCapture"},{"digitalSourceType":"trainedAlgorithmicMedia"}]}"#,
+            // Nor a capture at the top level an AI type under schema_org.
+            r#"{"digitalSourceType":"digitalCapture","schema_org":{"digitalSourceType":"trainedAlgorithmicMedia"}}"#,
+        ] {
+            let m = manifest(declared);
+            let mut i = inputs(0.8, IMAGE_RUN);
+            i.c2pa_valid = Some(true);
+            i.c2pa_manifest = Some(&m);
+            let v = compute_verdict(&i);
+            assert_eq!(v.band, Band::Uncertain, "{declared}");
+            assert_eq!(
+                v.ceiling_applied,
+                Some(Ceiling::NoPositiveAuthenticitySignal),
+                "{declared}"
+            );
+        }
+
+        // Invalid credentials never count, whatever they declare.
+        let capture = manifest(r#"{"digitalSourceType":"digitalCapture"}"#);
+        let mut i = inputs(0.8, IMAGE_RUN);
         i.c2pa_valid = Some(false);
-        i.c2pa_manifest = Some(&plain);
+        i.c2pa_manifest = Some(&capture);
         assert_eq!(compute_verdict(&i).band, Band::Uncertain);
     }
 
@@ -421,6 +463,19 @@ mod tests {
         i.c2pa_valid = Some(true);
         i.c2pa_chain = Some(&chain);
         assert_eq!(compute_verdict(&i).band, Band::Uncertain);
+
+        // A capture in the ingredient, edited since, counts.
+        let chain = c2pa::ManifestChain {
+            active: manifest(r#"{"actions":[{"action":"c2pa.edited"}]}"#),
+            ingredients: vec![manifest(
+                r#"{"actions":[{"action":"c2pa.created","digitalSourceType":"digitalCapture"}]}"#,
+            )],
+            manifest_count: 2,
+        };
+        let mut i = inputs(0.8, IMAGE_RUN);
+        i.c2pa_valid = Some(true);
+        i.c2pa_chain = Some(&chain);
+        assert_eq!(compute_verdict(&i).band, Band::Trusted);
     }
 
     #[test]

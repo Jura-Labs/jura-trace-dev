@@ -25,10 +25,17 @@ Local REST API (`docs/API_WRAPPER.md`):
   batch). They used to answer `200` with a score no detector stood behind.
 - `mode` is read from the query string on the three verify routes. It was
   ignored there. Query and body must agree if both are sent.
+- An unknown or wrong-case `mode` (`Deep`, `fast2`) is refused with
+  `400 InvalidParameter`. It ran `standard` without saying so.
 - `mime_type` and `concurrency` as query parameters are refused with `400`.
   They were ignored.
 - `[schema]` The two watermark routes, which could only answer `503`, are
   no longer served or listed in the OpenAPI document.
+- Trust band: valid Content Credentials that declare a camera capture
+  (`digitalCapture`) now count as positive evidence of authenticity, as
+  credentials declaring no source type already did. A high-scoring image
+  with such credentials reads "High Trust", where it was capped at
+  "Moderate Trust".
 - The PDF report and case export print the same trust band as the screen.
   They banded the raw score, so a capped result read "High Trust" on paper
   and "Moderate Trust" in the app.

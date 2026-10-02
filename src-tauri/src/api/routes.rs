@@ -204,21 +204,34 @@ fn reject_unimplemented(query: &HashMap<String, String>) -> Result<(), ApiError>
     }
 }
 
+/// The modes the pipeline knows, with the two synonyms it has always taken.
+const MODES: [&str; 5] = ["quick", "fast", "standard", "deep", "archival"];
+
 /// Settle the mode from the query string and the request body. Either may
-/// carry it; if both do they must agree.
+/// carry it; if both do they must agree. A value the pipeline does not know
+/// is refused: left alone, the pipeline runs `standard` for it, so a caller
+/// who wrote `Deep` got a different analysis and no warning.
 fn resolve_mode(
     query: &HashMap<String, String>,
     body: Option<String>,
     default: Option<&str>,
 ) -> Result<Option<String>, ApiError> {
-    match (query.get("mode"), body) {
-        (Some(q), Some(b)) if *q != b => Err(ApiError::invalid_parameter(format!(
-            "The 'mode' query parameter ('{q}') and the 'mode' in the request body ('{b}') \
-             disagree. Send one, or make them match."
+    let mode = match (query.get("mode"), body) {
+        (Some(q), Some(b)) if *q != b => {
+            return Err(ApiError::invalid_parameter(format!(
+                "The 'mode' query parameter ('{q}') and the 'mode' in the request body ('{b}') \
+                 disagree. Send one, or make them match."
+            )))
+        }
+        (_, Some(b)) => Some(b),
+        (Some(q), None) => Some(q.clone()),
+        (None, None) => default.map(str::to_string),
+    };
+    match mode {
+        Some(m) if !MODES.contains(&m.as_str()) => Err(ApiError::invalid_parameter(format!(
+            "Unknown mode '{m}'. Use quick, standard or deep, in lower case."
         ))),
-        (_, Some(b)) => Ok(Some(b)),
-        (Some(q), None) => Ok(Some(q.clone())),
-        (None, None) => Ok(default.map(str::to_string)),
+        mode => Ok(mode),
     }
 }
 

@@ -194,9 +194,11 @@ Three behaviours a caller needs to know:
 1. **The default depends on the route.** With no `mode`, `POST
    /api/v1/verify` and `POST /api/v1/verify/batch` run `deep`, but `POST
    /api/v1/verify/url` runs `standard`. Send `mode` explicitly.
-2. **Unrecognised values become `standard` without an error.** That includes
-   case variants: `Deep` or `DEEP` runs `standard`. Use the lower-case values
-   above. The mode actually used is returned in the result's `mode` field.
+2. **In v1.1.0, unrecognised values become `standard` without an error.**
+   That includes case variants: `Deep` or `DEEP` runs `standard`. **(v1.2.0)**
+   A value that is not one of the five above, in lower case, is refused with
+   `400 InvalidParameter`. The mode actually used is returned in the result's
+   `mode` field.
 3. **In v1.1.0, `mode` as a query parameter is ignored.** `POST
    /api/v1/verify?mode=deep` runs the route default. Earlier versions of this
    document used that form in every example. **(v1.2.0)** The query parameter
@@ -512,7 +514,7 @@ simply the score's band, and otherwise says why it is not:
 | `ceilingApplied` | Meaning |
 |---|---|
 | `insufficientSignal` | The core image detectors did not run: the sidecar was unavailable, or the mode was `quick`. The band is `inconclusive` |
-| `noPositiveAuthenticitySignal` | The score alone would be `trusted`, but nothing positive supports it: no camera MakerNote, no valid Content Credentials, no recognised camera make and model with clean EXIF |
+| `noPositiveAuthenticitySignal` | The score alone would be `trusted`, but nothing positive supports it: no camera MakerNote, no recognised camera make and model with clean EXIF, and no valid Content Credentials that count. Valid credentials count when they declare no `digitalSourceType`, or declare `digitalCapture` and nothing else; any other declared type, in any manifest of the chain, stops them counting |
 | `deepfakeInconclusive` | The score alone would be `trusted`, but the deepfake detector was inconclusive |
 | `deepfakeSynthetic` | The score alone would be `trusted`, but the deepfake detector judged the image synthetic |
 
@@ -601,7 +603,7 @@ not set it, so it is never present. A `429` adds `rateLimitInfo`.
 | `BadRequest` | 400 | Malformed request, too many batch files, unsafe URL, or a validation failure. In v1.1.0 also a missing field and an empty file |
 | `MissingField` | 400 | **(v1.2.0)** A required multipart field was not sent, or a batch had no files |
 | `EmptyFile` | 400 | **(v1.2.0)** The uploaded file had no bytes |
-| `InvalidParameter` | 400 | **(v1.2.0)** `mode` in the query and in the body disagree |
+| `InvalidParameter` | 400 | **(v1.2.0)** `mode` is not a known value, or the query and the body give different ones |
 | `UnsupportedParameter` | 400 | **(v1.2.0)** `mime_type` or `concurrency` was sent; neither is implemented |
 | `PayloadTooLarge` | 413 | **(v1.2.0)** The request body is over 200 MB |
 | `Unauthorized` | 401 | No usable key |
