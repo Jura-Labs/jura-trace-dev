@@ -628,8 +628,9 @@ Since the Option C port-collision fix (May 2026) the sidecar binds an OS-assigne
    ```
 4. **Orphaned sidecar from a previous launch** (Windows is most affected because it lacks SIGTERM): a previous crash may have left a `jura-sidecar` process running but no longer associated with any Jura Trace window. With Option C this no longer blocks new launches (each launch picks its own port), but the orphan still consumes ~300-500 MB RAM. Kill the orphan and relaunch:
    ```bash
-   # macOS / Linux
-   pkill -f jura-sidecar
+   # macOS / Linux (-x: the process name exactly, not any command line
+   # that mentions it)
+   pkill -x jura-sidecar
 
    # Windows (PowerShell)
    Stop-Process -Name jura-sidecar -Force
