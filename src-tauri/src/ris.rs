@@ -555,7 +555,7 @@ fn build_ris_client() -> Result<reqwest::Client, AppError> {
                 return attempt.error("too many redirects");
             }
             if let Some(host) = attempt.url().host_str() {
-                if crate::is_private_or_loopback_host(host) {
+                if crate::net_guard::check_host(host) == crate::net_guard::HostCheck::Blocked {
                     return attempt.error("redirect to private address blocked");
                 }
             }
