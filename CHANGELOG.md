@@ -32,8 +32,9 @@ Local REST API (`docs/API_WRAPPER.md`):
 - `[schema]` The two watermark routes, which could only answer `503`, are
   no longer served or listed in the OpenAPI document.
 - Trust band: valid Content Credentials that declare a camera capture
-  (`digitalCapture`) now count as positive evidence of authenticity, as
-  credentials declaring no source type already did. A high-scoring image
+  (`digitalCapture` or `computationalCapture`) now count as positive
+  evidence of authenticity, as credentials declaring no source type
+  already did. A high-scoring image
   with such credentials reads "High Trust", where it was capped at
   "Moderate Trust".
 - URL verification, in the app and on `POST /api/v1/verify/url`, refuses a
