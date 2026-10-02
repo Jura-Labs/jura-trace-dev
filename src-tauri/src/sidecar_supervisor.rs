@@ -11,7 +11,7 @@
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -64,6 +64,22 @@ const FAILED: u8 = 3;
 pub struct SidecarSupervisor {
     child: Arc<Mutex<Option<Child>>>,
     status: Arc<AtomicU8>,
+    /// Unix seconds of the last change to `status`.
+    since: Arc<AtomicU64>,
+}
+
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// Record a state change and when it happened. `/api/v1/ready` reports both.
+fn set_status(status: &AtomicU8, since: &AtomicU64, value: u8) {
+    if status.swap(value, Ordering::Relaxed) != value {
+        since.store(unix_now(), Ordering::Relaxed);
+    }
 }
 
 impl SidecarSupervisor {
@@ -137,9 +153,19 @@ impl SidecarSupervisor {
         }
 
         let status = Arc::new(AtomicU8::new(SidecarStartupStatus::Connecting.to_u8()));
+        let since = Arc::new(AtomicU64::new(unix_now()));
         let child = Arc::new(Mutex::new(Some(child)));
-        spawn_readiness_probe(port, Arc::clone(&status), Arc::clone(&child));
-        Ok(Self { child, status })
+        spawn_readiness_probe(
+            port,
+            Arc::clone(&status),
+            Arc::clone(&since),
+            Arc::clone(&child),
+        );
+        Ok(Self {
+            child,
+            status,
+            since,
+        })
     }
 
     /// The atomic the readiness probe updates, in `SidecarStartupStatus`
@@ -149,8 +175,18 @@ impl SidecarSupervisor {
         Arc::clone(&self.status)
     }
 
+    /// Unix seconds of the last state change, shared like `status_handle`.
+    pub fn since_handle(&self) -> Arc<AtomicU64> {
+        Arc::clone(&self.since)
+    }
+
     pub fn state(&self) -> SidecarState {
         decode(self.status.load(Ordering::Relaxed))
+    }
+
+    /// Unix seconds at which the sidecar entered its current state.
+    pub fn since(&self) -> u64 {
+        self.since.load(Ordering::Relaxed)
     }
 
     /// Block until the sidecar is ready, it exits, or `timeout` passes.
@@ -209,7 +245,7 @@ impl SidecarSupervisor {
             let _ = child.wait();
             log::info!("Sidecar (pid {pid}) stopped");
         }
-        self.status.store(FAILED, Ordering::Relaxed);
+        set_status(&self.status, &self.since, FAILED);
     }
 }
 
@@ -225,7 +261,8 @@ extern "C" {
     fn sigterm(pid: i32, sig: i32) -> i32;
 }
 
-fn decode(v: u8) -> SidecarState {
+/// Decode the status atomic: `SidecarStartupStatus` encoding, plus Failed.
+pub fn decode(v: u8) -> SidecarState {
     if v == FAILED {
         return SidecarState::Failed;
     }
@@ -238,8 +275,15 @@ fn decode(v: u8) -> SidecarState {
 
 /// Poll `/health/ready` with the desktop's back-off (200, 400, 800, then
 /// 1600 ms) until it answers, and mark Failed if the process exits first.
+/// Once ready it keeps watching the process, once a second, so a sidecar
+/// that dies later reports Failed and not a stale Ready (BL-SILENT-001).
 /// Runs on a plain thread so the supervisor works without a tokio runtime.
-fn spawn_readiness_probe(port: u16, status: Arc<AtomicU8>, child: Arc<Mutex<Option<Child>>>) {
+fn spawn_readiness_probe(
+    port: u16,
+    status: Arc<AtomicU8>,
+    since: Arc<AtomicU64>,
+    child: Arc<Mutex<Option<Child>>>,
+) {
     std::thread::spawn(move || {
         let client = reqwest::blocking::Client::builder()
             .timeout(Duration::from_secs(2))
@@ -248,9 +292,14 @@ fn spawn_readiness_probe(port: u16, status: Arc<AtomicU8>, child: Arc<Mutex<Opti
         let url = format!("http://127.0.0.1:{port}/health/ready");
         let started = Instant::now();
         let mut attempt: u32 = 0;
+        let mut ready = false;
         loop {
-            std::thread::sleep(Duration::from_millis(200u64 * (1u64 << attempt.min(3))));
-            attempt += 1;
+            let delay = if ready {
+                1000
+            } else {
+                200u64 * (1u64 << attempt.min(3))
+            };
+            std::thread::sleep(Duration::from_millis(delay));
             let exited = match child.lock() {
                 Ok(mut g) => match g.as_mut() {
                     Some(c) => c.try_wait().ok().flatten().map(|s| s.code()),
@@ -259,10 +308,18 @@ fn spawn_readiness_probe(port: u16, status: Arc<AtomicU8>, child: Arc<Mutex<Opti
                 Err(_) => return,
             };
             if let Some(code) = exited {
-                log::error!("Sidecar exited before it was ready (code {code:?})");
-                status.store(FAILED, Ordering::Relaxed);
+                if ready {
+                    log::error!("Sidecar exited while running (code {code:?})");
+                } else {
+                    log::error!("Sidecar exited before it was ready (code {code:?})");
+                }
+                set_status(&status, &since, FAILED);
                 return;
             }
+            if ready {
+                continue;
+            }
+            attempt += 1;
             if client
                 .get(&url)
                 .send()
@@ -273,8 +330,8 @@ fn spawn_readiness_probe(port: u16, status: Arc<AtomicU8>, child: Arc<Mutex<Opti
                     "Sidecar ready after {attempt} poll attempt(s) ({} s)",
                     started.elapsed().as_secs()
                 );
-                status.store(SidecarStartupStatus::Ready.to_u8(), Ordering::Relaxed);
-                return;
+                set_status(&status, &since, SidecarStartupStatus::Ready.to_u8());
+                ready = true;
             }
         }
     });

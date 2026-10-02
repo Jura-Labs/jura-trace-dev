@@ -7,7 +7,7 @@
 //! other machines.
 //!
 //! # Authentication
-//! Every endpoint except `GET /api/v1/health` requires a valid API key
+//! Every endpoint except `GET /api/v1/health` and `GET /api/v1/ready` requires a valid API key
 //! supplied via `Authorization: Bearer jt_<key>`.  Keys are created via
 //! `POST /api/v1/auth/keys` or auto-generated on first launch.
 //!
@@ -68,6 +68,7 @@ use rate_limit::RateLimiter;
     components(
         schemas(
             types::HealthResponse,
+            types::ReadyResponse,
             types::VerifyUrlRequest,
             types::ClaimCheckRequest,
             types::CreateKeyRequest,
@@ -82,12 +83,11 @@ use rate_limit::RateLimiter;
     modifiers(&BearerSecurityAddon),
     paths(
         routes::health,
+        routes::ready,
         routes::verify_file,
         routes::verify_url,
         routes::protect_sign,
         routes::protect_fingerprint,
-        routes::protect_watermark_embed,
-        routes::protect_watermark_extract,
         routes::claims_check,
         routes::get_stats,
         routes::create_api_key,
@@ -104,6 +104,21 @@ use rate_limit::RateLimiter;
     )
 )]
 pub struct ApiDoc;
+
+/// The watermark routes, documented only when they are compiled in.
+#[cfg(feature = "watermark")]
+#[derive(OpenApi)]
+#[openapi(paths(routes::protect_watermark_embed, routes::protect_watermark_extract,))]
+struct WatermarkDoc;
+
+/// The OpenAPI document for the routes this build serves.
+pub fn openapi() -> utoipa::openapi::OpenApi {
+    #[allow(unused_mut)]
+    let mut doc = ApiDoc::openapi();
+    #[cfg(feature = "watermark")]
+    doc.merge(WatermarkDoc::openapi());
+    doc
+}
 
 /// Modifier that injects the `bearerAuth` security scheme into the OpenAPI
 /// `components/securitySchemes` map. Using a modifier avoids the deprecated
@@ -227,11 +242,19 @@ pub fn build_router(state: Arc<Mutex<AppState>>) -> Router {
     // Rate limiter runs after auth (needs AuthenticatedKey extension).
     let api_routes = Router::new()
         .route("/v1/health", get(routes::health))
+        .route("/v1/ready", get(routes::ready))
         .route("/v1/verify", post(routes::verify_file))
         .route("/v1/verify/url", post(routes::verify_url))
         .route("/v1/verify/batch", post(routes::verify_batch))
         .route("/v1/protect/sign", post(routes::protect_sign))
         .route("/v1/protect/fingerprint", post(routes::protect_fingerprint))
+        .route("/v1/claims/check", post(routes::claims_check))
+        .route("/v1/stats", get(routes::get_stats))
+        .route("/v1/auth/keys", post(routes::create_api_key))
+        .route("/v1/auth/keys", get(routes::list_api_keys_handler))
+        .route("/v1/auth/keys/{key_id}", delete(routes::revoke_api_key));
+    #[cfg(feature = "watermark")]
+    let api_routes = api_routes
         .route(
             "/v1/protect/watermark/embed",
             post(routes::protect_watermark_embed),
@@ -239,12 +262,8 @@ pub fn build_router(state: Arc<Mutex<AppState>>) -> Router {
         .route(
             "/v1/protect/watermark/extract",
             post(routes::protect_watermark_extract),
-        )
-        .route("/v1/claims/check", post(routes::claims_check))
-        .route("/v1/stats", get(routes::get_stats))
-        .route("/v1/auth/keys", post(routes::create_api_key))
-        .route("/v1/auth/keys", get(routes::list_api_keys_handler))
-        .route("/v1/auth/keys/{key_id}", delete(routes::revoke_api_key))
+        );
+    let api_routes = api_routes
         .layer(middleware::from_fn_with_state(
             (state.clone(), limiter),
             rate_limit::rate_limit_middleware,
@@ -259,7 +278,7 @@ pub fn build_router(state: Arc<Mutex<AppState>>) -> Router {
     // into the binary by utoipa-swagger-ui's `vendored` feature, so this page
     // makes no request off the machine (SR-24, JTV-209).
     let openapi_routes: Router<Arc<Mutex<AppState>>> = SwaggerUi::new("/swagger-ui")
-        .url("/openapi.json", ApiDoc::openapi())
+        .url("/openapi.json", openapi())
         .into();
 
     Router::new()
@@ -267,7 +286,24 @@ pub fn build_router(state: Arc<Mutex<AppState>>) -> Router {
         .merge(openapi_routes)
         .layer(cors)
         .layer(body_limit)
+        .layer(middleware::map_response(json_payload_too_large))
         .layer(multipart_limit)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+/// `RequestBodyLimitLayer` answers an oversized body with a bare 413 and a
+/// plain-text body, before any handler runs. Give it the same JSON error
+/// envelope as every other failure, so a client reads one `code` field.
+async fn json_payload_too_large(response: axum::response::Response) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let is_json = response
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.starts_with("application/json"));
+    if response.status() == axum::http::StatusCode::PAYLOAD_TOO_LARGE && !is_json {
+        return error::ApiError::payload_too_large().into_response();
+    }
+    response
 }

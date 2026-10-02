@@ -415,6 +415,10 @@ fn serve(args: ServeArgs) -> i32 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
+    let status_since = supervisor
+        .as_ref()
+        .map(SidecarSupervisor::since_handle)
+        .unwrap_or_else(|| Arc::new(AtomicU64::new(now)));
 
     let state = Arc::new(Mutex::new(AppState {
         db: database,
@@ -436,6 +440,7 @@ fn serve(args: ServeArgs) -> i32 {
         sidecar_port,
         sidecar_startup_status: status,
         sidecar_startup_started_at: Arc::new(AtomicU64::new(now)),
+        sidecar_status_since: status_since,
     }));
 
     let has_key = state

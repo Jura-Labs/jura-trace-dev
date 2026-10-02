@@ -60,7 +60,7 @@ mod monitor_scheduler;
 mod network_mode;
 mod pdf_provenance;
 pub mod sidecar;
-mod sidecar_supervisor;
+pub mod sidecar_supervisor;
 mod startup;
 mod state;
 mod sun_position;
@@ -92,6 +92,7 @@ pub use verify::types::{
     InputQualityAssessment, MethodologyRecord, ModelHashes, Provenance, ThumbnailCheck,
     VerificationResult,
 };
+pub use verify::verdict::{Band, Ceiling, Verdict};
 
 // ===== Types =====
 
@@ -4553,6 +4554,9 @@ pub fn run() {
                 sidecar_port,
                 sidecar_startup_status: Arc::clone(&sidecar_startup_status),
                 sidecar_startup_started_at: Arc::clone(&sidecar_startup_started_at),
+                sidecar_status_since: Arc::new(AtomicU64::new(
+                    sidecar_startup_started_at.load(Ordering::Relaxed),
+                )),
             }));
 
             // ── Register managed state FIRST ─────────────────────────────────
