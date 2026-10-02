@@ -66,12 +66,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      # The installers live in the PUBLIC releases repo, not this one. A PAT
-      # is not needed to read them, but gh requires a token to be present.
+      # The installers live in the public releases repo, not this one.
+      # RELEASE_PAT, not github.token: a published release is readable with
+      # any token, but a smoke build is a DRAFT, and drafts are invisible to
+      # a token without write access on that repo (github.token is scoped to
+      # this one), so testing a smoke build failed with "release not found".
+      # Same reasoning as updater-e2e.yml.
       - name: Resolve the tag under test
         id: tag
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
           INPUT_TAG: ${{ github.event.inputs.tag }}
           EVENT_TAG: ${{ github.event.release.tag_name }}
         run: |
@@ -86,7 +90,7 @@ jobs:
 
       - name: Download the .deb from the release
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
           TAG: ${{ steps.tag.outputs.tag }}
           VERSION: ${{ steps.tag.outputs.version }}
         run: |
@@ -297,7 +301,7 @@ jobs:
         id: tag
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
           INPUT_TAG: ${{ github.event.inputs.tag }}
           EVENT_TAG: ${{ github.event.release.tag_name }}
         run: |
@@ -312,7 +316,7 @@ jobs:
       - name: Download the Windows installers
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
           TAG: ${{ steps.tag.outputs.tag }}
           VERSION: ${{ steps.tag.outputs.version }}
         run: |
