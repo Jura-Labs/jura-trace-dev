@@ -89,6 +89,15 @@ impl SidecarSupervisor {
         if let Some(dir) = models_dir {
             cmd.env("JURA_MODELS_DIR", dir);
         }
+        // Windows: without CREATE_NO_WINDOW a console-subsystem child opens a
+        // console window. Tauri's shell plugin set this for the desktop
+        // sidecar; std::process does not.
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
         // macOS: a launchd-started process does not see Homebrew's bin
         // directories, where the sidecar's ffmpeg probe looks (see
         // startup::spawn_sidecar).
@@ -331,12 +340,13 @@ pub fn models_dir_for(sidecar_binary: &Path) -> Option<PathBuf> {
 ///
 /// # Cross-platform notes
 ///
-/// - macOS / Linux: `pkill -KILL -f jura-sidecar` matches the full command
-///   line, so both the bootstrap parent (`.../Contents/MacOS/jura-sidecar
-///   --host 127.0.0.1 --port NNNNN`) and the uvicorn child (which inherits
-///   the same arg vector via `execve`) are killed together. Our own
-///   `jura-trace` parent is NOT matched, so this is safe to call from
-///   `setup()`.
+/// - macOS / Linux: `pkill -KILL -x jura-sidecar` matches the process
+///   name exactly. Every sidecar process has that name: on macOS the
+///   launcher stub execs the bundle's `jura-sidecar`, and on Linux the
+///   `--onefile` bootloader's Python child is the same executable. Our own
+///   `jura-trace` and `jura-trace-api` are not matched. Until 2 October 2026
+///   this used `-f`, which matched any process whose command line mentioned
+///   the name and killed unrelated processes.
 /// - Windows: every process whose image name is `jura-sidecar.exe`, found
 ///   with a Toolhelp snapshot and ended with `TerminateProcess`, in process.
 ///   That covers both the B1 launcher and the onedir bootloader it runs,
@@ -354,8 +364,16 @@ pub fn models_dir_for(sidecar_binary: &Path) -> Option<PathBuf> {
 pub(crate) fn kill_orphan_sidecars() {
     #[cfg(unix)]
     {
+        // -x: the process NAME must be exactly jura-sidecar. This was -f,
+        // which matches anywhere in any process's full command line, so
+        // starting the app killed unrelated processes that merely mentioned
+        // the name (a shell running `tail -f .../jura-sidecar.log`, say).
+        // Seen on 2 October 2026: the sweep killed the shell that had just
+        // launched the app. The bundle's process name is jura-sidecar on
+        // macOS (the launcher execs it) and Linux (well under the 15-byte
+        // comm limit).
         let output = std::process::Command::new("pkill")
-            .args(["-KILL", "-f", "jura-sidecar"])
+            .args(["-KILL", "-x", "jura-sidecar"])
             .output();
         match output {
             Ok(o) if o.status.code() == Some(0) => {

@@ -16,7 +16,6 @@
 use std::io::Write;
 use std::path::PathBuf;
 use tauri::Manager;
-use tauri_plugin_shell::ShellExt;
 
 // Moved to sidecar_supervisor (v1.2.0 B2a stage 1) so the headless API shares
 // them; re-exported so existing call sites are unchanged.
@@ -208,7 +207,7 @@ pub(crate) fn init_logging(app_data_dir: Option<&std::path::Path>) -> Option<Pat
 pub(crate) fn spawn_sidecar(
     app: &tauri::AppHandle,
     port: u16,
-) -> Option<tauri_plugin_shell::process::CommandChild> {
+) -> Option<crate::sidecar_supervisor::SidecarSupervisor> {
     if cfg!(debug_assertions) {
         return None;
     }
@@ -226,90 +225,36 @@ pub(crate) fn spawn_sidecar(
     // are then removable. See [`cleanup_stale_mei_dirs`].
     cleanup_stale_mei_dirs();
 
-    // Set JURA_MODELS_DIR so the sidecar can find model files.
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        let models_dir = resource_dir.join("models");
-        if models_dir.is_dir() {
-            #[allow(unused_unsafe)]
-            unsafe {
-                std::env::set_var("JURA_MODELS_DIR", &models_dir);
-            }
-        }
-    }
+    // The sidecar finds its model files through JURA_MODELS_DIR, passed to
+    // the child only rather than set on this process.
+    let models_dir = app
+        .path()
+        .resource_dir()
+        .ok()
+        .map(|d| d.join("models"))
+        .filter(|d| d.is_dir());
 
-    match app.shell().sidecar("jura-sidecar") {
+    // Tauri's externalBin puts the sidecar beside the app executable, which
+    // is where the supervisor looks (JURA_SIDECAR_BINARY overrides it).
+    let Some(binary) = crate::sidecar_supervisor::resolve_sidecar_binary(None) else {
+        log::warn!(
+            "Could not locate the sidecar binary beside the app executable. \
+             Forensic analysis will be unavailable."
+        );
+        return None;
+    };
+    // run() puts the session key in JURA_SIDECAR_KEY before the first spawn.
+    let key = std::env::var("JURA_SIDECAR_KEY").unwrap_or_default();
+    match crate::sidecar_supervisor::SidecarSupervisor::spawn(
+        &binary,
+        models_dir.as_deref(),
+        port,
+        &key,
+    ) {
+        Ok(supervisor) => Some(supervisor),
         Err(e) => {
-            log::warn!(
-                "Could not locate sidecar binary for (re)spawn: {e}. \
-                 Forensic analysis will be unavailable."
-            );
+            log::warn!("Failed to (re)spawn sidecar: {e}. Forensic analysis will be unavailable.");
             None
-        }
-        Ok(cmd) => {
-            // macOS-only: launchd-launched apps inherit a limited PATH that
-            // does NOT include Homebrew directories (/opt/homebrew/bin on
-            // Apple Silicon, /usr/local/bin on Intel).  The sidecar's
-            // ffmpeg/ffprobe health probe uses `shutil.which()` which
-            // only searches PATH, so without this prepend the sidecar
-            // reports "FFmpeg not installed" even when Homebrew has it.
-            // Linux and Windows package managers put ffmpeg in PATH by
-            // default — only macOS needs the augmentation.
-            let augmented_path = {
-                let homebrew = "/opt/homebrew/bin:/usr/local/bin";
-                match std::env::var("PATH") {
-                    Ok(p) if !p.is_empty() => format!("{homebrew}:{p}"),
-                    _ => homebrew.to_string(),
-                }
-            };
-            let cmd = cmd.env("PATH", augmented_path);
-            // JTV-142 fix 2 (2026-05-02): without PYTHONUNBUFFERED, Python's
-            // stdout is fully buffered when piped to Tauri's CommandEvent
-            // stream. uvicorn's "Application startup complete" + bind log
-            // can be held in a 64 KB buffer for the entire startup window,
-            // which makes the "process alive but Settings shows Offline"
-            // symptom hard to diagnose. Forcing line-buffered flush makes
-            // startup progress visible in the Rust log reader in real time.
-            let cmd = cmd.env("PYTHONUNBUFFERED", "1");
-            let port_str = port.to_string();
-            match cmd
-                .args(["--host", "127.0.0.1", "--port", &port_str])
-                .spawn()
-            {
-                Err(e) => {
-                    log::warn!(
-                        "Failed to (re)spawn sidecar: {e}. \
-                     Forensic analysis will be unavailable."
-                    );
-                    None
-                }
-                Ok((mut rx, child)) => {
-                    log::info!("Sidecar spawned (pid {}, port {port})", child.pid());
-                    tauri::async_runtime::spawn(async move {
-                        use tauri_plugin_shell::process::CommandEvent;
-                        while let Some(event) = rx.recv().await {
-                            match event {
-                                CommandEvent::Stdout(line) => {
-                                    // JTV-142 fix 2: surface sidecar startup at
-                                    // info so port-bind / model-warmup progress
-                                    // is visible without raising the global log
-                                    // level. Volume is tolerable because the
-                                    // sidecar prints sparingly post-startup.
-                                    log::info!("sidecar: {}", String::from_utf8_lossy(&line));
-                                }
-                                CommandEvent::Stderr(line) => {
-                                    log::info!("sidecar: {}", String::from_utf8_lossy(&line));
-                                }
-                                CommandEvent::Terminated(p) => {
-                                    log::info!("Sidecar process terminated (code: {:?})", p.code);
-                                    break;
-                                }
-                                _ => {}
-                            }
-                        }
-                    });
-                    Some(child)
-                }
-            }
         }
     }
 }

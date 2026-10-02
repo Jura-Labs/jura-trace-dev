@@ -863,7 +863,7 @@ fn verify_content_blocking(
             // do NOT block this caller waiting for the other respawner —
             // the winner's spawn_sidecar above also no longer blocks on
             // readiness, so the most we'd be waiting for is the
-            // sub-millisecond `app.shell().sidecar().spawn()` Tauri call
+            // sub-millisecond supervisor spawn (a std::process spawn)
             // plus the state-mutex write. By the time control returns
             // here the AtomicBool will almost certainly be clear; if it
             // somehow is not, proceed immediately and let the verify
@@ -4695,14 +4695,11 @@ pub fn run() {
                         };
 
                         if let Some(child) = child {
-                            if let Err(e) = child.kill() {
-                                log::warn!("Power-saver kill failed: {e}");
-                            } else {
-                                log::info!(
-                                    "Sidecar process killed for RAM reclamation \
-                                     (power-saver mode, idle {idle_secs}s)"
-                                );
-                            }
+                            child.shutdown();
+                            log::info!(
+                                "Sidecar process stopped for RAM reclamation \
+                                 (power-saver mode, idle {idle_secs}s)"
+                            );
                         }
 
                         // Respawn will be triggered by verify_content on the
@@ -4859,11 +4856,8 @@ pub fn run() {
                         }
 
                         if let Some(child) = guard.sidecar_process.take() {
-                            if let Err(e) = child.kill() {
-                                log::warn!("Failed to kill sidecar on exit: {e}");
-                            } else {
-                                log::info!("Sidecar process terminated on app exit");
-                            }
+                            child.shutdown();
+                            log::info!("Sidecar process terminated on app exit");
                         }
                     }
                 }
