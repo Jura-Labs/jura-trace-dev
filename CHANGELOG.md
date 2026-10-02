@@ -29,6 +29,10 @@ Local REST API (`docs/API_WRAPPER.md`):
   They were ignored.
 - `[schema]` The two watermark routes, which could only answer `503`, are
   no longer served or listed in the OpenAPI document.
+- URL verification, in the app and on `POST /api/v1/verify/url`, refuses a
+  URL whose host is, or resolves to, this machine or a private address. The
+  old check compared text, so it missed every IPv6 form (`[::1]`) and never
+  looked a hostname up.
 - The PDF report and case export print the same trust band as the screen.
   They banded the raw score, so a capped result read "High Trust" on paper
   and "Moderate Trust" in the app.
